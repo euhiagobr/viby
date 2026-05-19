@@ -1,9 +1,10 @@
+
 "use client"
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
-import { doc, getDoc, collection, query, where } from "firebase/firestore"
+import { doc, getDoc, collection, query, where, addDoc, deleteDoc, serverTimestamp, getDocs } from "firebase/firestore"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -26,12 +27,15 @@ import {
   Instagram,
   Phone,
   Mail,
-  ExternalLink
+  ExternalLink,
+  CheckCircle2
 } from "lucide-react"
 import { EventCard } from "@/components/events/EventCard"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
@@ -66,6 +70,8 @@ export default function PublicProfilePage() {
   const [profile, setProfile] = React.useState<any>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
+  const [isFollowing, setIsFollowing] = React.useState(false)
+  const [followLoading, setFollowLoading] = React.useState(false)
 
   const isOwner = React.useMemo(() => {
     return currentUser && profile && currentUser.uid === profile.id
@@ -106,6 +112,23 @@ export default function PublicProfilePage() {
     fetchProfile()
   }, [db, username])
 
+  // Verificar se o usuário atual segue este perfil
+  React.useEffect(() => {
+    if (!db || !currentUser || !profile?.id) return
+
+    const checkFollow = async () => {
+      const q = query(
+        collection(db, "follows"),
+        where("followerId", "==", currentUser.uid),
+        where("followingId", "==", profile.id)
+      )
+      const snap = await getDocs(q)
+      setIsFollowing(!snap.empty)
+    }
+
+    checkFollow()
+  }, [db, currentUser, profile?.id])
+
   const eventsQuery = useMemoFirebase(() => {
     if (!db || !profile?.id || profile.accountType !== 'Empresa') return null
     return query(
@@ -126,14 +149,76 @@ export default function PublicProfilePage() {
 
   const { data: registrations, loading: registrationsLoading } = useCollection<any>(registrationsQuery)
 
+  // Consulta real de seguidores
+  const followersQuery = useMemoFirebase(() => {
+    if (!db || !profile?.id) return null
+    return query(collection(db, "follows"), where("followingId", "==", profile.id))
+  }, [db, profile?.id])
+  const { data: followersData } = useCollection<any>(followersQuery)
+
   const stats = React.useMemo(() => {
     return {
       totalEvents: events?.length || 0,
       totalInterests: registrations?.length || 0,
-      followers: profile?.followersCount || 0,
+      followers: followersData?.length || profile?.followersCount || 0,
       rating: profile?.rating || 0
     }
-  }, [events, registrations, profile])
+  }, [events, registrations, profile, followersData])
+
+  const handleFollowToggle = async () => {
+    if (!auth || !currentUser) {
+      toast({ title: "Ação necessária", description: "Você precisa entrar para seguir organizadores." })
+      router.push("/login")
+      return
+    }
+
+    if (!db || !profile?.id || followLoading) return
+
+    setFollowLoading(true)
+    try {
+      if (isFollowing) {
+        // Unfollow
+        const q = query(
+          collection(db, "follows"),
+          where("followerId", "==", currentUser.uid),
+          where("followingId", "==", profile.id)
+        )
+        const snap = await getDocs(q)
+        snap.forEach((doc) => {
+          deleteDoc(doc.ref).catch(async () => {
+             const permissionError = new FirestorePermissionError({
+              path: `follows/${doc.id}`,
+              operation: "delete"
+            })
+            errorEmitter.emit("permission-error", permissionError)
+          })
+        })
+        setIsFollowing(false)
+        toast({ title: "Você parou de seguir" })
+      } else {
+        // Follow
+        const followData = {
+          followerId: currentUser.uid,
+          followingId: profile.id,
+          timestamp: serverTimestamp()
+        }
+        await addDoc(collection(db, "follows"), followData).catch(async () => {
+          const permissionError = new FirestorePermissionError({
+            path: "follows",
+            operation: "create",
+            requestResourceData: followData
+          })
+          errorEmitter.emit("permission-error", permissionError)
+        })
+        setIsFollowing(true)
+        toast({ title: `Seguindo ${profile.name}!` })
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setFollowLoading(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -258,8 +343,15 @@ export default function PublicProfilePage() {
                       </Link>
                     </Button>
                   ) : (
-                    <Button className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold py-6 rounded-2xl shadow-lg uppercase tracking-widest text-xs">
-                      Seguir Organizador
+                    <Button 
+                      onClick={handleFollowToggle}
+                      disabled={followLoading}
+                      className={cn(
+                        "w-full font-bold py-6 rounded-2xl shadow-lg uppercase tracking-widest text-xs transition-all",
+                        isFollowing ? "bg-green-500 hover:bg-green-600 text-white" : "bg-secondary text-white hover:bg-secondary/90"
+                      )}
+                    >
+                      {followLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : isFollowing ? <><CheckCircle2 className="w-4 h-4 mr-2" /> Seguindo</> : "Seguir Organizador"}
                     </Button>
                   )}
                   <Button variant="outline" className="w-full font-bold gap-2 py-6 rounded-2xl border-2" onClick={() => {

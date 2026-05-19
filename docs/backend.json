@@ -40,6 +40,17 @@
       },
       "required": ["uid"]
     },
+    "Follow": {
+      "title": "Seguidor",
+      "description": "Relacionamento de seguimento entre usuários",
+      "type": "object",
+      "properties": {
+        "followerId": { "type": "string" },
+        "followingId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["followerId", "followingId"]
+    },
     "Event": {
       "title": "Evento",
       "description": "Informações do evento para divulgação",
@@ -112,6 +123,10 @@
     "/usernames/{username}": {
       "schema": "Username",
       "description": "Índice de nomes de usuário para garantir unicidade"
+    },
+    "/follows/{followId}": {
+      "schema": "Follow",
+      "description": "Relacionamentos de seguimento entre usuários"
     },
     "/registrations/{regId}": {
       "schema": "Registration",
