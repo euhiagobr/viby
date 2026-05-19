@@ -6,36 +6,75 @@ import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebas
 import { collection, query, limit, orderBy, doc } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { Button } from "@/components/ui/button"
-import { Globe, Search, ArrowRight, Loader2 } from "lucide-react"
+import { Globe, Search, ArrowRight, Loader2, MapPin, Tag, FilterX } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Card } from "@/components/ui/card"
 import Link from "next/link"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 export default function LandingPage() {
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
 
+  const [searchName, setSearchName] = React.useState("")
+  const [selectedCity, setSelectedCity] = React.useState("all")
+  const [selectedCategory, setSelectedCategory] = React.useState("all")
+
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
-    return query(collection(db, "events"), orderBy("createdAt", "desc"), limit(20))
+    return query(collection(db, "events"), orderBy("createdAt", "desc"), limit(50))
   }, [db])
 
-  const { data: events, loading } = useCollection<any>(eventsQuery)
+  const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
 
-  // Filtro de exclusão lógica para o público
-  const activeEvents = React.useMemo(() => {
+  const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
+  const { data: categories } = useCollection<any>(categoriesQuery)
+
+  // Extrair cidades únicas dos eventos para o filtro
+  const uniqueCities = React.useMemo(() => {
     if (!events) return []
-    return events.filter((e: any) => e.status !== 'Excluído').slice(0, 6)
+    const cities = events
+      .filter((e: any) => e.city && e.status !== 'Excluído')
+      .map((e: any) => e.city)
+    return Array.from(new Set(cities)).sort() as string[]
   }, [events])
+
+  // Lógica de filtragem
+  const filteredEvents = React.useMemo(() => {
+    if (!events) return []
+    return events.filter((e: any) => {
+      const isNotDeleted = e.status !== 'Excluído';
+      const matchesSearch = !searchName || 
+                          e.title?.toLowerCase().includes(searchName.toLowerCase()) ||
+                          e.description?.toLowerCase().includes(searchName.toLowerCase());
+      const matchesCity = selectedCity === 'all' || e.city === selectedCity;
+      const matchesCategory = selectedCategory === 'all' || e.categoryId === selectedCategory;
+      
+      return isNotDeleted && matchesSearch && matchesCity && matchesCategory;
+    })
+  }, [events, searchName, selectedCity, selectedCategory])
 
   const siteName = settings?.siteName || "Viby"
 
+  const clearFilters = () => {
+    setSearchName("")
+    setSelectedCity("all")
+    setSelectedCategory("all")
+  }
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#f8fafc]">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -52,14 +91,6 @@ export default function LandingPage() {
             <span className="text-xl font-bold tracking-tight">{siteName}</span>
           </Link>
 
-          <div className="hidden md:flex flex-1 max-w-sm mx-8 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Pesquisar eventos..." 
-              className="pl-10 bg-muted/50 border-none rounded-full h-9 focus-visible:ring-secondary"
-            />
-          </div>
-
           <div className="flex items-center gap-4">
             {user ? (
               <Button asChild variant="ghost" className="font-semibold">
@@ -70,7 +101,7 @@ export default function LandingPage() {
                 <Button asChild variant="ghost" className="font-semibold">
                   <Link href="/login">Entrar</Link>
                 </Button>
-                <Button asChild className="bg-secondary text-white hover:bg-secondary/90 font-bold px-6 rounded-full">
+                <Button asChild className="bg-secondary text-white hover:bg-secondary/90 font-bold px-6 rounded-full shadow-lg shadow-secondary/20 transition-all active:scale-95">
                   <Link href="/cadastro">Cadastrar-se</Link>
                 </Button>
               </>
@@ -80,9 +111,9 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative py-20 overflow-hidden">
+      <section className="relative py-24 overflow-hidden">
         <div className="container mx-auto px-4 relative z-10 text-center space-y-8">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/10 text-secondary text-sm font-bold animate-fade-in">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/10 text-secondary text-sm font-black uppercase tracking-widest animate-in fade-in slide-in-from-top-4 duration-700">
             {settings?.iconUrl ? (
                <img src={settings.iconUrl} className="w-5 h-5 object-contain" alt="Site Icon" />
             ) : (
@@ -90,57 +121,133 @@ export default function LandingPage() {
             )}
             <span>A maior vitrine de eventos do Brasil</span>
           </div>
-          <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-foreground max-w-4xl mx-auto leading-[1.1]">
-            Descubra experiências <span className="text-secondary">inesquecíveis</span> perto de você.
+          <h1 className="text-5xl md:text-8xl font-black tracking-tighter text-foreground max-w-4xl mx-auto leading-[0.9] italic uppercase">
+            Viva <span className="text-secondary">Experiências</span> Memoráveis.
           </h1>
-          <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto font-medium">
-            De festivais de música a conferências de tecnologia. Explore, compartilhe e viva o momento com a {siteName}.
+          <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto font-medium leading-relaxed">
+            A plataforma inteligente para descobrir, garantir e viver os melhores momentos da sua cidade.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button asChild size="lg" className="bg-primary text-white hover:bg-primary/90 rounded-full px-8 h-12 font-bold group">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+            <Button asChild size="lg" className="bg-primary text-white hover:bg-primary/90 rounded-2xl px-10 h-16 font-black text-lg uppercase italic shadow-2xl group transition-all">
               <Link href="/dashboard">
-                Começar a Explorar
-                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                Começar agora
+                <ArrowRight className="ml-2 w-6 h-6 group-hover:translate-x-1 transition-transform" />
               </Link>
-            </Button>
-            <Button asChild variant="outline" size="lg" className="rounded-full px-8 h-12 font-bold border-2">
-              <Link href="/cadastro">Anunciar meu Evento</Link>
             </Button>
           </div>
         </div>
 
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[600px] bg-secondary/5 rounded-full blur-[120px] pointer-events-none -z-10" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[700px] bg-secondary/5 rounded-full blur-[120px] pointer-events-none -z-10" />
+      </section>
+
+      {/* Filter Section */}
+      <section className="container mx-auto px-4 -mt-10 relative z-20">
+        <Card className="border-none shadow-2xl rounded-[2.5rem] p-4 bg-white/80 backdrop-blur-xl border border-white">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+            <div className="md:col-span-4 relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input 
+                placeholder="Qual evento você procura?" 
+                value={searchName}
+                onChange={(e) => setSearchName(e.target.value)}
+                className="h-16 pl-12 rounded-2xl border-none bg-muted/30 focus-visible:ring-secondary font-bold"
+              />
+            </div>
+            
+            <div className="md:col-span-3">
+              <Select value={selectedCity} onValueChange={setSelectedCity}>
+                <SelectTrigger className="h-16 rounded-2xl border-none bg-muted/30 focus:ring-secondary font-bold">
+                  <div className="flex items-center gap-3">
+                    <MapPin className="w-5 h-5 text-secondary" />
+                    <SelectValue placeholder="Toda as cidades" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-none shadow-2xl">
+                  <SelectItem value="all" className="font-bold">Todas as cidades</SelectItem>
+                  {uniqueCities.map(city => (
+                    <SelectItem key={city} value={city} className="font-bold">{city}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="md:col-span-3">
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="h-16 rounded-2xl border-none bg-muted/30 focus:ring-secondary font-bold">
+                  <div className="flex items-center gap-3">
+                    <Tag className="w-5 h-5 text-secondary" />
+                    <SelectValue placeholder="Categorias" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-none shadow-2xl">
+                  <SelectItem value="all" className="font-bold">Todas categorias</SelectItem>
+                  {categories?.map((cat: any) => (
+                    <SelectItem key={cat.id} value={cat.id} className="font-bold">{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="md:col-span-2">
+              <Button 
+                onClick={clearFilters}
+                variant="ghost" 
+                className="w-full h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest text-muted-foreground hover:text-secondary hover:bg-secondary/5 transition-all"
+              >
+                <FilterX className="w-4 h-4 mr-2" />
+                Limpar
+              </Button>
+            </div>
+          </div>
+        </Card>
       </section>
 
       {/* Events Feed */}
-      <section className="py-16 container mx-auto px-4">
-        <div className="flex items-center justify-between mb-10">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Em Destaque</h2>
-            <p className="text-muted-foreground font-medium mt-1">Os eventos que estão bombando hoje.</p>
+      <section className="py-24 container mx-auto px-4">
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+          <div className="space-y-2">
+            <h2 className="text-4xl font-black tracking-tighter uppercase italic text-primary">
+              Resultados <span className="text-secondary">Encontrados</span>
+            </h2>
+            <p className="text-muted-foreground font-medium">
+              {filteredEvents.length} {filteredEvents.length === 1 ? 'experiência incrível disponível' : 'experiências incríveis disponíveis'}
+            </p>
           </div>
-          <Button variant="link" asChild className="text-secondary font-bold">
+          <Button variant="ghost" asChild className="text-secondary font-black uppercase tracking-widest text-xs hover:bg-secondary/5">
             <Link href="/dashboard" className="flex items-center gap-2">
-              Ver todos <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4" />
             </Link>
           </Button>
         </div>
 
-        {loading ? (
+        {eventsLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-            <p className="text-muted-foreground font-medium animate-pulse">Carregando experiências...</p>
+            <Loader2 className="w-12 h-12 animate-spin text-secondary" />
+            <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px] animate-pulse">Carregando experiências...</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {activeEvents.length > 0 ? (
-              activeEvents.map((event: any) => (
+            {filteredEvents.length > 0 ? (
+              filteredEvents.map((event: any) => (
                 <EventCard key={event.id} event={event} />
               ))
             ) : (
-              <div className="col-span-full py-20 text-center bg-muted/30 rounded-3xl border-2 border-dashed border-border">
-                <p className="text-lg font-bold text-muted-foreground">Nenhum evento em destaque no momento.</p>
-                <p className="text-sm text-muted-foreground mt-2">Fique ligado, novidades estão por vir!</p>
+              <div className="col-span-full py-24 text-center bg-white rounded-[3rem] border-4 border-dashed border-muted/50 flex flex-col items-center justify-center gap-6 shadow-inner">
+                <div className="w-24 h-24 bg-muted/50 rounded-full flex items-center justify-center">
+                  <FilterX className="w-10 h-10 text-muted-foreground/30" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-black uppercase italic tracking-tighter">Nenhum evento encontrado</h3>
+                  <p className="text-muted-foreground font-medium max-w-sm mx-auto">
+                    Tente ajustar seus filtros ou pesquisar por termos mais genéricos.
+                  </p>
+                </div>
+                <Button 
+                  onClick={clearFilters}
+                  className="bg-secondary text-white font-black rounded-full px-8 h-12 shadow-lg"
+                >
+                  Resetar Filtros
+                </Button>
               </div>
             )}
           </div>
@@ -148,23 +255,52 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 border-t border-border">
-        <div className="container mx-auto px-4 text-center">
-          <div className="flex items-center justify-center gap-2 mb-6">
-            {settings?.logoUrl ? (
-              <img src={settings.logoUrl} alt={siteName} className="h-8 object-contain" />
-            ) : (
-              <>
-                <div className="w-6 h-6 bg-secondary rounded flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">{siteName.charAt(0)}</span>
-                </div>
-                <span className="font-bold text-lg">{siteName}</span>
-              </>
-            )}
+      <footer className="py-20 border-t border-border bg-white">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
+            <div className="md:col-span-2 space-y-6">
+              <Link href="/" className="flex items-center gap-2">
+                {settings?.logoUrl ? (
+                  <img src={settings.logoUrl} alt={siteName} className="h-8 object-contain" />
+                ) : (
+                  <>
+                    <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
+                      <span className="text-white font-bold text-lg">{siteName.charAt(0)}</span>
+                    </div>
+                    <span className="font-bold text-2xl tracking-tighter">{siteName}</span>
+                  </>
+                )}
+              </Link>
+              <p className="text-muted-foreground text-sm max-w-sm font-medium leading-relaxed">
+                Transformando a descoberta de eventos no Brasil através de tecnologia e experiências inteligentes. Encontre o seu próximo destino aqui.
+              </p>
+            </div>
+            <div className="space-y-4">
+              <h4 className="font-black uppercase tracking-widest text-xs">Plataforma</h4>
+              <nav className="flex flex-col gap-3">
+                <Link href="/dashboard" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Explorar</Link>
+                <Link href="/cadastro" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Anunciar Evento</Link>
+                <Link href="/login" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Entrar</Link>
+              </nav>
+            </div>
+            <div className="space-y-4">
+              <h4 className="font-black uppercase tracking-widest text-xs">Legal</h4>
+              <nav className="flex flex-col gap-3">
+                <Link href="#" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Termos de Uso</Link>
+                <Link href="#" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Privacidade</Link>
+                <Link href="/dashboard/suporte" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Suporte</Link>
+              </nav>
+            </div>
           </div>
-          <p className="text-muted-foreground text-sm max-w-sm mx-auto">
-            {siteName} © 2024 - Transformando a maneira como você descobre e vive eventos.
-          </p>
+          <div className="pt-8 border-t border-muted text-center flex flex-col md:flex-row justify-between items-center gap-4">
+            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
+              {siteName} © 2024 - Todos os direitos reservados.
+            </p>
+            <div className="flex items-center gap-4 opacity-30">
+               <Globe className="w-4 h-4" />
+               <span className="text-[10px] font-bold uppercase">Brasil</span>
+            </div>
+          </div>
         </div>
       </footer>
     </div>
