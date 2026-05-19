@@ -168,6 +168,7 @@ export default function NovoEventoPage() {
 
     setLoading(true)
     const formData = new FormData(e.currentTarget)
+    const categoryName = categories?.find(c => c.id === selectedCategory)?.name || "Geral";
     
     try {
       const eventData = {
@@ -177,6 +178,7 @@ export default function NovoEventoPage() {
         date: formData.get("startDate") as string, 
         endDate: formData.get("endDate") as string,
         categoryId: selectedCategory,
+        categoryName: categoryName,
         tags: tags.split(",").map(t => t.trim()).filter(t => t !== ""),
         isFree: isFree,
         cep: cep,
@@ -192,7 +194,7 @@ export default function NovoEventoPage() {
           name: profile.name || user.displayName || "Organizador",
           avatar: profile.avatar || user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`,
           isVerified: profile.isVerified || false,
-          username: profile.username || "" // Username crucial para o link
+          username: profile.username || "" 
         },
         status: "Ativo",
         type: "Público",

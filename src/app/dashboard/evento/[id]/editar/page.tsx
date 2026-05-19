@@ -193,6 +193,7 @@ export default function EditarEventoPage() {
 
     setSaving(true)
     const formData = new FormData(e.currentTarget)
+    const categoryName = categories?.find(c => c.id === selectedCategory)?.name || "Geral";
     
     try {
       const eventUpdateData = {
@@ -202,6 +203,7 @@ export default function EditarEventoPage() {
         date: formData.get("startDate") as string, 
         endDate: formData.get("endDate") as string,
         categoryId: selectedCategory,
+        categoryName: categoryName,
         tags: tags.split(",").map(t => t.trim()).filter(t => t !== ""),
         isFree: isFree,
         cep: cep,
@@ -215,7 +217,7 @@ export default function EditarEventoPage() {
         city: address.city,
         organizer: {
           ...event.organizer,
-          username: profile.username || event.organizer?.username || "" // Username atualizado para o link
+          username: profile.username || event.organizer?.username || "" 
         },
         updatedAt: serverTimestamp()
       }
