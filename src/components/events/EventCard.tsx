@@ -1,18 +1,21 @@
 
 "use client"
 
-import { Calendar, MapPin, MoreVertical, Clock, Ticket } from "lucide-react"
+import { Calendar, MapPin, Clock, Ticket } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
-import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 interface EventCardProps {
   event: any 
 }
 
 export function EventCard({ event }: EventCardProps) {
+  const router = useRouter()
+  
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
     try {
@@ -54,8 +57,8 @@ export function EventCard({ event }: EventCardProps) {
   
   const username = event.organizer?.username || "evento";
   const eventLink = `/${username}/${event.id}`;
+  const profileLink = `/${username}`;
 
-  // Lógica de preço
   const getPriceDisplay = () => {
     if (event.isFree) return "Grátis";
     if (event.batches && event.batches.length > 0) {
@@ -66,8 +69,20 @@ export function EventCard({ event }: EventCardProps) {
     return "Consulte";
   };
 
+  const handleCardClick = () => {
+    router.push(eventLink)
+  }
+
+  const handleOrganizerClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    router.push(profileLink)
+  }
+
   return (
-    <Card className="group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[1.5rem]">
+    <Card 
+      className="group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[1.5rem] cursor-pointer"
+      onClick={handleCardClick}
+    >
       <div className="relative h-48 w-full">
         <Image
           src={event.image || "https://picsum.photos/seed/event/600/400"}
@@ -75,6 +90,7 @@ export function EventCard({ event }: EventCardProps) {
           fill
           className="object-cover transition-transform group-hover:scale-105"
           unoptimized
+          data-ai-hint="event cover"
         />
         <div className="absolute top-3 left-3 flex flex-col gap-2">
           <Badge className="bg-secondary text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider">
@@ -87,10 +103,9 @@ export function EventCard({ event }: EventCardProps) {
       </div>
       <CardHeader className="p-4 pb-2">
         <div className="flex justify-between items-start gap-2">
-          <h3 className="text-lg font-bold line-clamp-1 group-hover:text-secondary transition-colors">{event.title}</h3>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-            <MoreVertical className="h-4 w-4" />
-          </Button>
+          <h3 className="text-lg font-bold line-clamp-1 group-hover:text-secondary transition-colors">
+            {event.title}
+          </h3>
         </div>
       </CardHeader>
       <CardContent className="p-4 pt-0 space-y-3">
@@ -116,12 +131,29 @@ export function EventCard({ event }: EventCardProps) {
           </div>
         </div>
       </CardContent>
-      <CardFooter className="p-4 pt-0">
-        <Button asChild className="w-full bg-primary hover:bg-primary/90 text-white font-bold rounded-xl h-10 shadow-sm">
-          <Link href={eventLink} className="flex items-center gap-2">
-            <Ticket className="w-4 h-4" />
-            Ver Detalhes
-          </Link>
+      <CardFooter className="p-4 pt-2 border-t border-border flex items-center justify-between">
+        <div 
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          onClick={handleOrganizerClick}
+        >
+          <Avatar className="h-6 w-6 border border-secondary/20">
+            <AvatarImage src={event.organizer?.avatar} alt={event.organizer?.name} />
+            <AvatarFallback className="text-[10px] font-bold">
+              {event.organizer?.name?.charAt(0) || "O"}
+            </AvatarFallback>
+          </Avatar>
+          <span className="text-[10px] font-bold text-muted-foreground uppercase hover:text-secondary truncate max-w-[120px]">
+            {event.organizer?.name || "Organizador"}
+          </span>
+        </div>
+        
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="h-8 text-[10px] font-black uppercase gap-1.5 text-secondary hover:bg-secondary/10"
+        >
+          <Ticket className="w-3.5 h-3.5" />
+          Detalhes
         </Button>
       </CardFooter>
     </Card>
