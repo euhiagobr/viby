@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -10,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { 
   Calendar, 
   MapPin, 
@@ -31,6 +31,7 @@ import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import Link from "next/link"
 import { generateUniqueTicketCode } from "@/lib/ticket-utils"
+import { cn } from "@/lib/utils"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
