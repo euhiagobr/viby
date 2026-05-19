@@ -100,12 +100,12 @@ export default function EditarPerfilPage() {
 
   const formatCNPJ = (value: string) => {
     const numbers = value.replace(/\D/g, "")
-    return numbers
-      .replace(/^(\d{2})(\d)/, "$1.$2")
-      .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
-      .replace(/\.(\d{3})(\d)/, ".$1/$2")
-      .replace(/(\d{4})(\d)/, "$1-$2")
-      .substring(0, 18);
+    let formatted = numbers;
+    if (numbers.length > 2) formatted = numbers.substring(0, 2) + "." + numbers.substring(2);
+    if (numbers.length > 5) formatted = formatted.substring(0, 6) + "." + numbers.substring(5);
+    if (numbers.length > 8) formatted = formatted.substring(0, 10) + "/" + numbers.substring(8);
+    if (numbers.length > 12) formatted = formatted.substring(0, 15) + "-" + numbers.substring(12);
+    return formatted.substring(0, 18);
   }
 
   const handleCNPJChange = (e: React.ChangeEvent<HTMLInputElement>) => {
