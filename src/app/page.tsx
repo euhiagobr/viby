@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -20,10 +21,16 @@ export default function LandingPage() {
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
-    return query(collection(db, "events"), orderBy("createdAt", "desc"), limit(6))
+    return query(collection(db, "events"), orderBy("createdAt", "desc"), limit(20))
   }, [db])
 
   const { data: events, loading } = useCollection<any>(eventsQuery)
+
+  // Filtro de exclusão lógica para o público
+  const activeEvents = React.useMemo(() => {
+    if (!events) return []
+    return events.filter((e: any) => e.status !== 'Excluído').slice(0, 6)
+  }, [events])
 
   const siteName = settings?.siteName || "Viby"
 
@@ -126,8 +133,8 @@ export default function LandingPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {events && events.length > 0 ? (
-              events.map((event: any) => (
+            {activeEvents.length > 0 ? (
+              activeEvents.map((event: any) => (
                 <EventCard key={event.id} event={event} />
               ))
             ) : (

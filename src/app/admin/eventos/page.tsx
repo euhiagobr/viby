@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, deleteDoc, doc } from "firebase/firestore"
+import { collection, query, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore"
 import { 
   Table, 
   TableBody, 
@@ -22,13 +23,15 @@ import {
   Trash2,
   Edit2,
   MapPin,
-  Clock
+  Clock,
+  RefreshCcw
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import { cn } from "@/lib/utils"
 
 export default function AdminEventosPage() {
   const db = useFirestore()
@@ -52,14 +55,28 @@ export default function AdminEventosPage() {
 
   const handleDeleteEvent = async (eventId: string) => {
     if (!db) return
-    if (!confirm("Tem certeza que deseja excluir este evento? Esta ação removerá o anúncio para todos os usuários.")) return
+    if (!confirm("Tem certeza que deseja excluir PERMANENTEMENTE este evento? Esta ação removerá todos os dados do banco de dados.")) return
 
     deleteDoc(doc(db, "events", eventId))
-      .then(() => toast({ title: "Evento removido" }))
+      .then(() => toast({ title: "Evento removido permanentemente" }))
       .catch(async () => {
         const permissionError = new FirestorePermissionError({
           path: `events/${eventId}`,
           operation: "delete"
+        })
+        errorEmitter.emit("permission-error", permissionError)
+      })
+  }
+
+  const handleRestoreEvent = async (eventId: string) => {
+    if (!db) return
+    updateDoc(doc(db, "events", eventId), { status: "Ativo" })
+      .then(() => toast({ title: "Evento restaurado!", description: "O anúncio voltou a ficar visível." }))
+      .catch(async () => {
+        const permissionError = new FirestorePermissionError({
+          path: `events/${eventId}`,
+          operation: "update",
+          requestResourceData: { status: "Ativo" }
         })
         errorEmitter.emit("permission-error", permissionError)
       })
@@ -94,9 +111,9 @@ export default function AdminEventosPage() {
             <div>
               <CardTitle className="text-xl flex items-center gap-2">
                 <CalendarDays className="w-5 h-5 text-secondary" />
-                Eventos Ativos
+                Monitoramento Global
               </CardTitle>
-              <CardDescription>Total de {filteredEvents.length} eventos monitorados.</CardDescription>
+              <CardDescription>Total de {filteredEvents.length} eventos (incluindo excluídos/ocultos).</CardDescription>
             </div>
             <div className="relative w-full md:w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -123,7 +140,7 @@ export default function AdminEventosPage() {
             <TableBody>
               {filteredEvents.length > 0 ? (
                 filteredEvents.map((event) => (
-                  <TableRow key={event.id} className="hover:bg-muted/20">
+                  <TableRow key={event.id} className={cn("hover:bg-muted/20", event.status === 'Excluído' && "bg-destructive/5 opacity-80")}>
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-bold text-sm truncate max-w-[250px]">{event.title}</span>
@@ -139,20 +156,34 @@ export default function AdminEventosPage() {
                     <TableCell>
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
-                          <Clock className="w-3 h-3 text-secondary" /> {formatDate(event.date)}
+                          <Clock className="w-3.5 h-3.5 text-secondary" /> {formatDate(event.date)}
                         </div>
                         <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
-                          <MapPin className="w-3 h-3 text-secondary" /> {event.city || "---"}
+                          <MapPin className="w-3.5 h-3.5 text-secondary" /> {event.city || "---"}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="outline" className="text-[10px] font-bold">
+                      <Badge 
+                        variant={event.status === 'Excluído' ? 'destructive' : 'outline'} 
+                        className="text-[10px] font-bold uppercase"
+                      >
                         {event.status || "Ativo"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
+                        {event.status === 'Excluído' && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-green-600 hover:bg-green-50"
+                            onClick={() => handleRestoreEvent(event.id)}
+                            title="Restaurar Evento"
+                          >
+                            <RefreshCcw className="w-4 h-4" />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" asChild>
                           <Link href={`/${event.organizer?.username || 'evento'}/${event.id}`} target="_blank">
                             <ExternalLink className="w-4 h-4" />
@@ -168,6 +199,7 @@ export default function AdminEventosPage() {
                           size="icon" 
                           className="h-8 w-8 text-destructive hover:bg-destructive/10"
                           onClick={() => handleDeleteEvent(event.id)}
+                          title="Excluir Permanentemente"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>

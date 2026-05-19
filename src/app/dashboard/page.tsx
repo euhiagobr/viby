@@ -31,12 +31,15 @@ export default function ExplorarPage() {
 
   const { data: events, loading, error } = useCollection<any>(eventsQuery)
 
+  // Filtro de busca e exclusão lógica
   const filteredEvents = React.useMemo(() => {
     if (!events) return []
-    return events.filter((e: any) => 
-      e.title?.toLowerCase().includes(search.toLowerCase()) ||
-      e.description?.toLowerCase().includes(search.toLowerCase())
-    )
+    return events.filter((e: any) => {
+      const isNotDeleted = e.status !== 'Excluído';
+      const matchesSearch = e.title?.toLowerCase().includes(search.toLowerCase()) ||
+                          e.description?.toLowerCase().includes(search.toLowerCase());
+      return isNotDeleted && matchesSearch;
+    })
   }, [events, search])
 
   return (
@@ -96,8 +99,8 @@ export default function ExplorarPage() {
       )}
 
       {!loading && !error && filteredEvents.length === 0 && (
-        <div className="text-center py-20 bg-muted/50 rounded-2xl border-2 border-dashed border-border">
-          <p className="text-muted-foreground font-medium">Nenhum evento encontrado.</p>
+        <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-border shadow-sm">
+          <p className="text-muted-foreground font-medium">Nenhum evento ativo encontrado.</p>
         </div>
       )}
 

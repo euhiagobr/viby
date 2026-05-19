@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
-import { collection, query, where, doc, deleteDoc } from "firebase/firestore"
+import { collection, query, where, doc, updateDoc } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { 
@@ -50,6 +50,12 @@ export default function MeusEventosPage() {
 
   const { data: events, loading: eventsLoading } = useCollection<any>(myEventsQuery)
 
+  // Filtro de exclusão lógica para o organizador
+  const activeEvents = React.useMemo(() => {
+    if (!events) return []
+    return events.filter((e: any) => e.status !== 'Excluído')
+  }, [events])
+
   const isCompany = profile?.accountType === 'Empresa'
 
   const formatDate = (dateValue: any) => {
@@ -89,16 +95,18 @@ export default function MeusEventosPage() {
 
   const handleDeleteEvent = async (eventId: string, title: string) => {
     if (!db) return
-    if (!confirm(`Deseja realmente excluir o evento "${title}"? Esta ação não pode ser desfeita.`)) return
+    if (!confirm(`Deseja realmente excluir o evento "${title}"? Ele será removido da sua lista e da vitrine pública.`)) return
 
-    deleteDoc(doc(db, "events", eventId))
+    // Soft delete: Apenas altera o status para Excluído
+    updateDoc(doc(db, "events", eventId), { status: "Excluído" })
       .then(() => {
-        toast({ title: "Evento excluído", description: "O anúncio foi removido com sucesso." })
+        toast({ title: "Evento excluído", description: "O anúncio foi removido da plataforma." })
       })
       .catch(async (error) => {
         const permissionError = new FirestorePermissionError({
           path: `events/${eventId}`,
-          operation: "delete"
+          operation: "update",
+          requestResourceData: { status: "Excluído" }
         })
         errorEmitter.emit("permission-error", permissionError)
       })
@@ -151,7 +159,7 @@ export default function MeusEventosPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {events?.map((event: any) => {
+          {activeEvents?.map((event: any) => {
             const time = formatTime(event.date);
             const username = event.organizer?.username || profile?.username || "evento";
             const eventLink = `/${username}/${event.id}`;
@@ -180,7 +188,7 @@ export default function MeusEventosPage() {
                         <DropdownMenuItem asChild>
                           <Link href={eventLink} target="_blank" className="flex items-center gap-2 cursor-pointer font-medium py-2">
                             <Eye className="w-4 h-4" />
-                            Visualizar Público
+                            Ver Anúncio
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
