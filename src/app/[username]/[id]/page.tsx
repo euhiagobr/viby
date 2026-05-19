@@ -31,7 +31,9 @@ import {
   Send,
   CreditCard,
   ChevronRight,
-  Plus
+  Plus,
+  History,
+  Lock
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -130,6 +132,8 @@ export default function EventoDetalhesPage() {
 
   const [isCheckoutOpen, setIsCheckoutOpen] = React.useState(false)
 
+  const [batchesStatus, setBatchesStatus] = React.useState<any[]>([])
+
   React.useEffect(() => {
     if (!event) return
 
@@ -155,7 +159,7 @@ export default function EventoDetalhesPage() {
       let allEnded = true
       let anyUpcoming = false
 
-      for (const batch of batches) {
+      const updatedBatches = batches.map((batch: any) => {
         const start = batch.startDate ? new Date(batch.startDate) : null
         const end = batch.endDate ? new Date(batch.endDate) : null
         const totalCapacity = parseInt(batch.available) || 0
@@ -166,16 +170,30 @@ export default function EventoDetalhesPage() {
         const isNotEnded = !end || now <= end
         const hasStock = remainingStock > 0
 
-        if (isStarted && isNotEnded && hasStock) {
-          foundBatch = { ...batch, remaining: remainingStock }
-          setSaleStatus('open')
-          break
+        let status: 'upcoming' | 'open' | 'soldout' | 'ended' = 'upcoming'
+
+        if (!isStarted) {
+          status = 'upcoming'
+          anyUpcoming = true
+        } else if (!isNotEnded) {
+          status = 'ended'
+        } else if (!hasStock) {
+          status = 'soldout'
+        } else {
+          status = 'open'
+          if (!foundBatch) {
+             foundBatch = { ...batch, remaining: remainingStock }
+             setSaleStatus('open')
+          }
         }
 
-        if (hasStock) allSoldOut = false
+        if (hasStock && status !== 'ended') allSoldOut = false
         if (isNotEnded) allEnded = false
-        if (!isStarted) anyUpcoming = true
-      }
+
+        return { ...batch, remaining: remainingStock, status, sales: currentSales }
+      })
+
+      setBatchesStatus(updatedBatches)
 
       if (foundBatch) {
         setActiveBatch(foundBatch)
@@ -310,8 +328,8 @@ export default function EventoDetalhesPage() {
         userId: user.uid,
         userName: userName,
         userEmail: user.email,
-        attendeeName: userName, // Default ao nome do comprador, pode ser editado depois
-        attendeeCPF: "", // Preenchido pelo usuário depois
+        attendeeName: userName,
+        attendeeCPF: "",
         userGender: currentUserProfile?.gender || "Não informado",
         userBirthDate: currentUserProfile?.birthDate || "",
         organizerId: event.organizerId,
@@ -668,6 +686,57 @@ export default function EventoDetalhesPage() {
                 {registering ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
                 {getButtonText()}
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* Seção de Todos os Lotes */}
+          <Card className="border-none shadow-sm bg-card rounded-[2rem] overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-muted-foreground">
+                <History className="w-4 h-4" /> Todos os Lotes
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-0">
+               <div className="divide-y border-t">
+                  {batchesStatus.map((batch, i) => (
+                    <div key={i} className={cn(
+                      "p-4 flex items-center justify-between transition-colors",
+                      batch.status === 'open' ? "bg-secondary/5" : "bg-white"
+                    )}>
+                       <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                             <p className={cn("text-xs font-bold uppercase", batch.status === 'ended' ? "text-muted-foreground line-through" : "text-foreground")}>
+                               {batch.name}
+                             </p>
+                             {batch.status === 'open' && (
+                               <Badge className="bg-green-500 text-[8px] h-4 uppercase font-black">Ativo</Badge>
+                             )}
+                             {batch.status === 'soldout' && (
+                               <Badge variant="outline" className="text-orange-500 border-orange-200 text-[8px] h-4 uppercase font-black">Esgotado</Badge>
+                             )}
+                          </div>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase">
+                            {batch.price === 0 ? "Gratuito" : formatCurrency(batch.price)}
+                          </p>
+                       </div>
+                       <div className="text-right">
+                          {batch.status === 'upcoming' ? (
+                            <div className="flex flex-col items-end">
+                               <Badge variant="outline" className="text-[8px] font-black uppercase opacity-60">Em Breve</Badge>
+                               <p className="text-[8px] text-muted-foreground mt-1">Início: {new Date(batch.startDate).toLocaleDateString('pt-BR')}</p>
+                            </div>
+                          ) : batch.status === 'open' ? (
+                            <div className="flex flex-col items-end">
+                               <p className="text-[9px] font-black text-secondary uppercase">Disponível</p>
+                               <p className="text-[8px] text-muted-foreground mt-1">{batch.remaining} restantes</p>
+                            </div>
+                          ) : (
+                            <Lock className="w-3.5 h-3.5 text-muted-foreground/30" />
+                          )}
+                       </div>
+                    </div>
+                  ))}
+               </div>
             </CardContent>
           </Card>
 
