@@ -6,8 +6,8 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { Loader2, ShieldCheck, ArrowLeft, LayoutDashboard, Tag, Users, Settings as SettingsIcon, LogOut, CalendarDays, LifeBuoy, ShieldAlert } from 'lucide-react';
-import Link from 'next/link';
+import { Loader2, ShieldCheck, ArrowLeft, LayoutDashboard, Tag, Users, Settings as SettingsIcon, LogOut, CalendarDays, LifeBuoy, ShieldAlert, Landmark } from 'lucide-react';
+import Link from 'link';
 import { Button } from '@/components/ui/button';
 import { signOut } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
@@ -72,6 +72,7 @@ export default function AdminLayout({
   const navItems = [
     { title: 'Painel', url: '/admin', icon: LayoutDashboard },
     { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays },
+    { title: 'Financeiro', url: '/admin/financeiro', icon: Landmark },
     { title: 'Denúncias', url: '/admin/denuncias', icon: ShieldAlert },
     { title: 'Suporte', url: '/admin/suporte', icon: LifeBuoy },
     { title: 'Categorias', url: '/admin/categorias', icon: Tag },

@@ -29,7 +29,21 @@
         "accountType": { "type": "string", "enum": ["Usuário", "Empresa"] },
         "businessCategory": { "type": "string" },
         "legalName": { "type": "string", "description": "Razão Social" },
-        "cnpj": { "type": "string" }
+        "cnpj": { "type": "string" },
+        "bankDetails": {
+          "type": "object",
+          "properties": {
+            "bank": { "type": "string" },
+            "branch": { "type": "string" },
+            "account": { "type": "string" },
+            "accountName": { "type": "string" },
+            "cnpj": { "type": "string" },
+            "pixKey": { "type": "string" }
+          }
+        },
+        "verificationStatus": { "type": "string", "enum": ["none", "pending_admin", "waiting_user", "verified"] },
+        "verificationAmountSent": { "type": "number" },
+        "verificationAmountInput": { "type": "number" }
       },
       "required": ["name", "email", "username", "platform", "city", "state", "country", "accountType", "birthDate", "gender"]
     },
@@ -64,7 +78,7 @@
         "location": { "type": "string" },
         "city": { "type": "string" },
         "type": { "type": "string", "enum": ["Público", "Privado", "Governo"] },
-        "status": { "type": "string", "enum": ["A fazer", "Em progresso", "Concluído", "Excluído"] },
+        "status": { "type": "string", "enum": ["A fazer", "Em progresso", "Concluído", "Excluído", "Bloqueado"] },
         "image": { "type": "string" },
         "organizerId": { "type": "string" },
         "categoryId": { "type": "string" },
