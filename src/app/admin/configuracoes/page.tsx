@@ -5,12 +5,24 @@ import * as React from 'react';
 import { useFirestore, useDoc, useFirebaseApp } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Save, Layout, ImageIcon, Upload } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  Loader2, 
+  Save, 
+  Layout, 
+  ImageIcon, 
+  Upload, 
+  CreditCard, 
+  ShieldCheck,
+  Eye,
+  EyeOff,
+  Key
+} from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -19,17 +31,26 @@ export default function AdminConfiguracoesPage() {
   const db = useFirestore();
   const app = useFirebaseApp();
   
-  // Caminho absoluto plural: settings/site no banco 'eventosviby'
+  // Settings Refs
   const settingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'site') : null), [db]);
-  const { data: settings, loading } = useDoc<any>(settingsRef);
+  const stripeRef = React.useMemo(() => (db ? doc(db, 'settings', 'stripe') : null), [db]);
+
+  const { data: settings, loading: loadingSettings } = useDoc<any>(settingsRef);
+  const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
 
   const [saving, setSaving] = React.useState(false);
   const [logoUploadProgress, setLogoUploadProgress] = React.useState<number | null>(null);
   const [iconUploadProgress, setIconUploadProgress] = React.useState<number | null>(null);
   
+  // Brand State
   const [logoUrl, setLogoUrl] = React.useState('');
   const [iconUrl, setIconUrl] = React.useState('');
   const [siteName, setSiteName] = React.useState('');
+
+  // Stripe State
+  const [stripePublishableKey, setStripePublishableKey] = React.useState('');
+  const [stripeSecretKey, setStripeSecretKey] = React.useState('');
+  const [showSecret, setShowSecret] = React.useState(false);
 
   React.useEffect(() => {
     if (settings) {
@@ -39,17 +60,20 @@ export default function AdminConfiguracoesPage() {
     }
   }, [settings]);
 
-  // Força o uso do bucket 'gs://viby' para isolamento total
+  React.useEffect(() => {
+    if (stripeKeys) {
+      setStripePublishableKey(stripeKeys.publishableKey || '');
+      setStripeSecretKey(stripeKeys.secretKey || '');
+    }
+  }, [stripeKeys]);
+
   const storage = React.useMemo(() => {
     if (!app) return null;
     return getStorage(app, 'gs://viby');
   }, [app]);
 
   const handleFileUpload = async (file: File, type: 'logo' | 'icon') => {
-    if (!storage) {
-      toast({ variant: 'destructive', title: 'Erro', description: 'Bucket "viby" não configurado.' });
-      return;
-    }
+    if (!storage) return;
 
     const setProgress = type === 'logo' ? setLogoUploadProgress : setIconUploadProgress;
     const setUrl = type === 'logo' ? setLogoUrl : setIconUrl;
@@ -75,7 +99,7 @@ export default function AdminConfiguracoesPage() {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
           setUrl(downloadURL);
           setProgress(null);
-          toast({ title: 'Upload concluído!', description: `${type === 'logo' ? 'Logotipo' : 'Ícone'} carregado.` });
+          toast({ title: 'Upload concluído!' });
         }
       );
     } catch (err) {
@@ -83,10 +107,9 @@ export default function AdminConfiguracoesPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveBrand = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!db) return;
-
     setSaving(true);
     
     const settingsData = {
@@ -97,21 +120,41 @@ export default function AdminConfiguracoesPage() {
     };
 
     setDoc(doc(db, 'settings', 'site'), settingsData, { merge: true })
-      .then(() => {
-        toast({ title: 'Sucesso', description: 'Identidade visual Viby atualizada.' });
-      })
+      .then(() => toast({ title: 'Marca atualizada!' }))
       .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: 'settings/site',
           operation: 'write',
           requestResourceData: settingsData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
+        }));
       })
       .finally(() => setSaving(false));
   };
 
-  if (loading) {
+  const handleSaveStripe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!db) return;
+    setSaving(true);
+
+    const stripeData = {
+      publishableKey: stripePublishableKey.trim(),
+      secretKey: stripeSecretKey.trim(),
+      updatedAt: serverTimestamp(),
+    };
+
+    setDoc(doc(db, 'settings', 'stripe'), stripeData, { merge: true })
+      .then(() => toast({ title: 'Chaves do Stripe salvas!', description: 'A integração financeira está ativa.' }))
+      .catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'settings/stripe',
+          operation: 'write',
+          requestResourceData: stripeData,
+        }));
+      })
+      .finally(() => setSaving(false));
+  };
+
+  if (loadingSettings || loadingStripe) {
     return (
       <div className="flex justify-center items-center h-[60vh]">
         <Loader2 className="w-10 h-10 animate-spin text-secondary" />
@@ -122,88 +165,151 @@ export default function AdminConfiguracoesPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Identidade Visual</h1>
-        <p className="text-muted-foreground">Personalize a marca da plataforma Viby Club.</p>
+        <h1 className="text-3xl font-bold tracking-tight text-primary">Configurações do Sistema</h1>
+        <p className="text-muted-foreground">Gerencie a identidade visual e as integrações da plataforma.</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
-        <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <Layout className="w-5 h-5 text-secondary" />
-              Configurações de Marca
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-8 pt-4">
-            <div className="space-y-2">
-              <Label htmlFor="siteName">Nome do Site</Label>
-              <Input 
-                id="siteName" 
-                value={siteName}
-                onChange={(e) => setSiteName(e.target.value)}
-                placeholder="Viby"
-                required 
-                className="rounded-xl h-12"
-              />
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-4">
-                <Label>Logotipo</Label>
-                <div 
-                  className="relative aspect-square rounded-2xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden group cursor-pointer"
-                  onClick={() => document.getElementById('logo-upload')?.click()}
-                >
-                  {logoUrl ? (
-                    <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-4" />
-                  ) : (
-                    <div className="text-center p-4">
-                      <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Logo</p>
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold">
-                    Mudar
-                  </div>
-                  <input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'logo')} />
-                </div>
-                {logoUploadProgress !== null && <Progress value={logoUploadProgress} className="h-1" />}
-              </div>
+      <Tabs defaultValue="brand" className="space-y-6">
+        <TabsList className="bg-muted/50 p-1 rounded-xl">
+          <TabsTrigger value="brand" className="gap-2 rounded-lg font-bold">
+            <Layout className="w-4 h-4" /> Marca
+          </TabsTrigger>
+          <TabsTrigger value="payments" className="gap-2 rounded-lg font-bold">
+            <CreditCard className="w-4 h-4" /> Pagamentos
+          </TabsTrigger>
+        </TabsList>
 
-              <div className="space-y-4">
-                <Label>Ícone (Favicon)</Label>
-                <div 
-                  className="relative aspect-square rounded-2xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden group cursor-pointer"
-                  onClick={() => document.getElementById('icon-upload')?.click()}
-                >
-                  {iconUrl ? (
-                    <img src={iconUrl} alt="Icon" className="w-16 h-16 object-contain" />
-                  ) : (
-                    <div className="text-center p-4">
-                      <ImageIcon className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Ícone</p>
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold">
-                    Mudar
-                  </div>
-                  <input id="icon-upload" type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'icon')} />
+        <TabsContent value="brand">
+          <form onSubmit={handleSaveBrand} className="space-y-6 max-w-2xl">
+            <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
+              <CardHeader>
+                <CardTitle className="text-xl">Identidade Visual</CardTitle>
+                <CardDescription>Personalize o nome e as imagens do Viby Club.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="siteName">Nome do Site</Label>
+                  <Input 
+                    id="siteName" 
+                    value={siteName}
+                    onChange={(e) => setSiteName(e.target.value)}
+                    placeholder="Viby"
+                    className="rounded-xl h-12"
+                  />
                 </div>
-                {iconUploadProgress !== null && <Progress value={iconUploadProgress} className="h-1" />}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <Label>Logotipo</Label>
+                    <div 
+                      className="relative aspect-square rounded-2xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden group cursor-pointer"
+                      onClick={() => document.getElementById('logo-upload')?.click()}
+                    >
+                      {logoUrl ? (
+                        <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-4" />
+                      ) : (
+                        <Upload className="w-8 h-8 text-muted-foreground opacity-20" />
+                      )}
+                      <input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'logo')} />
+                    </div>
+                    {logoUploadProgress !== null && <Progress value={logoUploadProgress} className="h-1" />}
+                  </div>
 
-        <Button 
-          type="submit" 
-          className="w-full bg-secondary text-white font-bold h-14 rounded-2xl shadow-lg" 
-          disabled={saving || logoUploadProgress !== null || iconUploadProgress !== null}
-        >
-          {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-          Salvar Identidade Viby
-        </Button>
-      </form>
+                  <div className="space-y-4">
+                    <Label>Ícone</Label>
+                    <div 
+                      className="relative aspect-square rounded-2xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden group cursor-pointer"
+                      onClick={() => document.getElementById('icon-upload')?.click()}
+                    >
+                      {iconUrl ? (
+                        <img src={iconUrl} alt="Icon" className="w-16 h-16 object-contain" />
+                      ) : (
+                        <ImageIcon className="w-8 h-8 text-muted-foreground opacity-20" />
+                      )}
+                      <input id="icon-upload" type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'icon')} />
+                    </div>
+                    {iconUploadProgress !== null && <Progress value={iconUploadProgress} className="h-1" />}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Button type="submit" disabled={saving} className="w-full bg-primary text-white font-bold h-14 rounded-2xl">
+              {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
+              Salvar Alterações de Marca
+            </Button>
+          </form>
+        </TabsContent>
+
+        <TabsContent value="payments">
+          <form onSubmit={handleSaveStripe} className="space-y-6 max-w-2xl">
+            <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-50 rounded-lg">
+                    <CreditCard className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">Configuração do Stripe</CardTitle>
+                    <CardDescription>Integre sua conta do Stripe para processar pagamentos.</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Key className="w-3.5 h-3.5 text-muted-foreground" />
+                    Stripe Publishable Key
+                  </Label>
+                  <Input 
+                    value={stripePublishableKey}
+                    onChange={(e) => setStripePublishableKey(e.target.value)}
+                    placeholder="pk_test_..."
+                    className="rounded-xl font-mono text-xs h-12"
+                  />
+                  <p className="text-[10px] text-muted-foreground">Utilizada no frontend para inicializar o Stripe.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                    Stripe Secret Key
+                  </Label>
+                  <div className="relative">
+                    <Input 
+                      type={showSecret ? "text" : "password"}
+                      value={stripeSecretKey}
+                      onChange={(e) => setStripeSecretKey(e.target.value)}
+                      placeholder="sk_test_..."
+                      className="rounded-xl font-mono text-xs h-12 pr-12"
+                    />
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon" 
+                      className="absolute right-2 top-1/2 -translate-y-1/2"
+                      onClick={() => setShowSecret(!showSecret)}
+                    >
+                      {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-red-500 font-bold uppercase tracking-tight">Cuidado: Nunca compartilhe sua Secret Key.</p>
+                </div>
+
+                <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex gap-3">
+                  <Info className="w-5 h-5 text-blue-600 shrink-0" />
+                  <p className="text-[10px] text-blue-800 font-medium leading-tight">
+                    Essas chaves são salvas no banco de dados e utilizadas dinamicamente pelo servidor do Viby para criar sessões de pagamento seguras.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+            <Button type="submit" disabled={saving} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-lg shadow-secondary/20">
+              {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
+              Salvar Configurações de Pagamento
+            </Button>
+          </form>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

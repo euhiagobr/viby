@@ -1,8 +1,30 @@
 
 'use server';
 
-import { stripe } from '@/lib/stripe';
 import { headers } from 'next/headers';
+import Stripe from 'stripe';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { firebaseConfig } from '@/firebase/config';
+
+/**
+ * Helper para obter as chaves do Stripe diretamente do Firestore.
+ * Necessário pois o usuário não tem acesso ao .env.
+ */
+async function getStripeKeys() {
+  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+  const db = getFirestore(app, 'eventosviby');
+  
+  const stripeDoc = await getDoc(doc(db, 'settings', 'stripe'));
+  if (!stripeDoc.exists()) {
+    throw new Error('Configuração do Stripe não encontrada no painel administrativo.');
+  }
+
+  return {
+    publishableKey: stripeDoc.data().publishableKey,
+    secretKey: stripeDoc.data().secretKey,
+  };
+}
 
 export async function createCheckoutSession(data: {
   eventId: string;
@@ -11,14 +33,22 @@ export async function createCheckoutSession(data: {
   userId: string;
   userName: string;
   userEmail: string;
-  totalAmount: number; // Em centavos para o Stripe
+  totalAmount: number; // Em centavos
   metadata: any;
 }) {
   const origin = (await headers()).get('origin');
 
   try {
+    const { secretKey } = await getStripeKeys();
+    if (!secretKey) throw new Error('Stripe Secret Key não configurada.');
+
+    const stripe = new Stripe(secretKey, {
+      apiVersion: '2025-01-27-preview',
+      typescript: true,
+    });
+
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'], // No Brasil você pode habilitar 'pix' e 'boleto' no painel do Stripe
+      payment_method_types: ['card'],
       line_items: [
         {
           price_data: {
@@ -48,13 +78,18 @@ export async function createCheckoutSession(data: {
 
     return { url: session.url };
   } catch (error: any) {
-    console.error('Erro ao criar sessão Stripe:', error);
+    console.error('Erro Stripe:', error);
     throw new Error(error.message || 'Erro ao processar pagamento');
   }
 }
 
 export async function getStripeSession(sessionId: string) {
   try {
+    const { secretKey } = await getStripeKeys();
+    const stripe = new Stripe(secretKey, {
+      apiVersion: '2025-01-27-preview',
+      typescript: true,
+    });
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     return session;
   } catch (error) {
