@@ -4,7 +4,7 @@
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, collection, query, where, orderBy, updateDoc, deleteDoc } from "firebase/firestore"
+import { doc, collection, query, where, updateDoc, deleteDoc, getDoc, writeBatch } from "firebase/firestore"
 import { 
   Table, 
   TableBody, 
@@ -25,9 +25,10 @@ import {
   Search,
   CheckCircle2,
   Trash2,
-  User as UserIcon,
   Ticket,
-  Clock
+  Clock,
+  RefreshCw,
+  AlertTriangle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
@@ -43,23 +44,32 @@ export default function EventoPublicoPage() {
   const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
 
+  // Removido orderBy do Firestore para garantir que documentos sem timestamp (antigos) apareçam
   const registrationsQuery = useMemoFirebase(() => {
     if (!db || !eventId) return null
     return query(
       collection(db, "registrations"), 
-      where("eventId", "==", eventId),
-      orderBy("timestamp", "desc")
+      where("eventId", "==", eventId)
     )
   }, [db, eventId])
 
   const { data: registrations, loading: registrationsLoading } = useCollection<any>(registrationsQuery)
   const [search, setSearch] = React.useState("")
+  const [isSyncing, setIsSyncing] = React.useState(false)
 
+  // Ordenação manual e filtro
   const filteredRegistrations = React.useMemo(() => {
     if (!registrations) return []
-    return registrations.filter(reg => 
-      reg.userName?.toLowerCase().includes(search.toLowerCase()) ||
-      reg.userEmail?.toLowerCase().includes(search.toLowerCase())
+    
+    const sorted = [...registrations].sort((a, b) => {
+      const timeA = a.timestamp?.seconds || 0;
+      const timeB = b.timestamp?.seconds || 0;
+      return timeB - timeA;
+    });
+
+    return sorted.filter(reg => 
+      (reg.userName?.toLowerCase() || "").includes(search.toLowerCase()) ||
+      (reg.userEmail?.toLowerCase() || "").includes(search.toLowerCase())
     )
   }, [registrations, search])
 
@@ -124,7 +134,7 @@ export default function EventoPublicoPage() {
       })
       toast({ title: !currentStatus ? "Check-in realizado!" : "Check-in removido." })
     } catch (error) {
-      toast({ variant: "destructive", title: "Erro no check-in", description: "Verifique suas permissões." })
+      toast({ variant: "destructive", title: "Erro no check-in", description: "Verifique se você é o organizador deste evento." })
     }
   }
 
@@ -136,7 +146,52 @@ export default function EventoPublicoPage() {
       await deleteDoc(doc(db, "registrations", regId))
       toast({ title: "Ingresso cancelado com sucesso." })
     } catch (error) {
-      toast({ variant: "destructive", title: "Erro ao cancelar", description: "Ocorreu um problema ao remover a inscrição." })
+      toast({ variant: "destructive", title: "Erro ao cancelar", description: "Problema ao remover a inscrição." })
+    }
+  }
+
+  // Função para "consertar" registros antigos
+  const handleRepairData = async () => {
+    if (!db || !registrations || !event) return
+    
+    setIsSyncing(true)
+    const batch = writeBatch(db)
+    let count = 0
+
+    try {
+      for (const reg of registrations) {
+        // Se faltar organizerId ou dados do usuário, tentamos sincronizar
+        if (!reg.organizerId || !reg.userGender || !reg.userBirthDate || !reg.userName) {
+          const userRef = doc(db, "users", reg.userId)
+          const userSnap = await getDoc(userRef)
+          
+          if (userSnap.exists()) {
+            const userData = userSnap.data()
+            batch.update(doc(db, "registrations", reg.id), {
+              organizerId: event.organizerId,
+              userName: userData.name || reg.userName || "Usuário",
+              userEmail: userData.email || reg.userEmail || "",
+              userGender: userData.gender || "Não informado",
+              userBirthDate: userData.birthDate || "",
+              paymentStatus: reg.paymentStatus || (reg.price === 0 ? "Disponível" : "Pendente"),
+              eventTitle: event.title
+            })
+            count++
+          }
+        }
+      }
+
+      if (count > 0) {
+        await batch.commit()
+        toast({ title: "Sincronização concluída", description: `${count} registros foram atualizados.` })
+      } else {
+        toast({ title: "Tudo em ordem", description: "Todos os registros já possuem os dados necessários." })
+      }
+    } catch (error) {
+      console.error(error)
+      toast({ variant: "destructive", title: "Erro na sincronização" })
+    } finally {
+      setIsSyncing(false)
     }
   }
 
@@ -164,13 +219,30 @@ export default function EventoPublicoPage() {
 
   return (
     <div className="space-y-8 pb-20">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/projetos"><ArrowLeft className="w-5 h-5" /></Link>
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gestão de Público</h1>
-          <p className="text-muted-foreground line-clamp-1">{event.title}</p>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/dashboard/projetos"><ArrowLeft className="w-5 h-5" /></Link>
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Gestão de Público</h1>
+            <p className="text-muted-foreground line-clamp-1">{event.title}</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            className="rounded-xl font-bold gap-2 text-xs border-secondary text-secondary hover:bg-secondary/10"
+            onClick={handleRepairData}
+            disabled={isSyncing}
+          >
+            {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            Sincronizar Inscrições
+          </Button>
+          <Button variant="outline" className="rounded-xl font-bold gap-2 text-xs" onClick={() => alert("Exportação em breve!")}>
+            <Download className="w-3.5 h-3.5" />
+            Exportar Lista
+          </Button>
         </div>
       </div>
 
@@ -193,13 +265,15 @@ export default function EventoPublicoPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-card">
-          <CardHeader className="pb-2 text-right">
-             <Button variant="outline" className="rounded-xl font-bold gap-2 text-xs" onClick={() => alert("Exportação em breve!")}>
-               <Download className="w-3.5 h-3.5" />
-               Exportar Lista
-             </Button>
+        <Card className="border-none shadow-sm bg-card bg-orange-50/50">
+          <CardHeader className="pb-2">
+             <CardTitle className="text-[10px] font-black uppercase text-orange-600 tracking-widest flex items-center gap-1.5">
+               <AlertTriangle className="w-3 h-3" /> Atenção
+             </CardTitle>
           </CardHeader>
+          <CardContent>
+            <p className="text-[10px] text-orange-800 leading-tight">Registros antigos podem faltar dados. Use o botão "Sincronizar" para atualizar a lista.</p>
+          </CardContent>
         </Card>
       </div>
 
@@ -260,8 +334,8 @@ export default function EventoPublicoPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-bold text-sm text-foreground">{reg.userName || "---"}</span>
-                          <span className="text-[10px] text-muted-foreground font-medium">{reg.userEmail}</span>
+                          <span className="font-bold text-sm text-foreground">{reg.userName || "Dados Pendentes"}</span>
+                          <span className="text-[10px] text-muted-foreground font-medium">{reg.userEmail || "---"}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -274,7 +348,7 @@ export default function EventoPublicoPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-tighter">
-                          {reg.userGender || "---"}
+                          {reg.userGender || "N/A"}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -296,7 +370,7 @@ export default function EventoPublicoPage() {
                           variant="ghost" 
                           size="icon" 
                           className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg"
-                          onClick={() => handleDeleteRegistration(reg.id, reg.userName)}
+                          onClick={() => handleDeleteRegistration(reg.id, reg.userName || "Usuário")}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
