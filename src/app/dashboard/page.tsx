@@ -2,7 +2,7 @@
 "use client"
 
 import * as React from "react"
-import { useCollection, useFirestore } from "@/firebase"
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
 import { collection } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { Button } from "@/components/ui/button"
@@ -16,10 +16,14 @@ export default function ExplorarPage() {
   const [filter, setFilter] = useState('all')
   const db = useFirestore()
   
+  // Estabiliza a referência da query para evitar loops de renderização
+  const eventsQuery = useMemoFirebase(() => {
+    if (!db) return null
+    return collection(db, "events")
+  }, [db])
+
   // Hook para buscar eventos em tempo real do Firestore
-  const { data: events, loading, error } = useCollection<Event>(
-    db ? collection(db, "events") : null
-  )
+  const { data: events, loading, error } = useCollection<Event>(eventsQuery)
 
   return (
     <div className="space-y-8">
