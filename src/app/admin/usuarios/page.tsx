@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy } from "firebase/firestore"
+import { collection, query, orderBy, doc, updateDoc } from "firebase/firestore"
 import { 
   Table, 
   TableBody, 
@@ -24,10 +24,15 @@ import {
   Building2, 
   User as UserIcon,
   ShieldCheck,
-  MapPin
+  MapPin,
+  BadgeCheck
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
+import { toast } from "@/hooks/use-toast"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
+import { cn } from "@/lib/utils"
 
 export default function AdminUsuariosPage() {
   const db = useFirestore()
@@ -48,6 +53,29 @@ export default function AdminUsuariosPage() {
       user.email?.toLowerCase().includes(search.toLowerCase())
     )
   }, [users, search])
+
+  const handleToggleVerify = async (userId: string, currentStatus: boolean) => {
+    if (!db) return
+
+    const userRef = doc(db, "users", userId)
+    const newStatus = !currentStatus
+
+    updateDoc(userRef, { isVerified: newStatus })
+      .then(() => {
+        toast({ 
+          title: newStatus ? "Usuário Verificado" : "Verificação Removida",
+          description: `O status de verificação foi atualizado com sucesso.`
+        })
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: `users/${userId}`,
+          operation: "update",
+          requestResourceData: { isVerified: newStatus }
+        })
+        errorEmitter.emit("permission-error", permissionError)
+      })
+  }
 
   if (loading) {
     return (
@@ -89,10 +117,11 @@ export default function AdminUsuariosPage() {
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow>
-                <TableHead className="w-[300px] font-bold">Usuário</TableHead>
+                <TableHead className="w-[280px] font-bold">Usuário</TableHead>
                 <TableHead className="font-bold">Tipo de Conta</TableHead>
                 <TableHead className="font-bold">Localização</TableHead>
                 <TableHead className="font-bold">Cargo</TableHead>
+                <TableHead className="text-center font-bold">Verificado</TableHead>
                 <TableHead className="text-right font-bold">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -107,7 +136,10 @@ export default function AdminUsuariosPage() {
                           <AvatarFallback className="font-bold">{user.name?.charAt(0) || "U"}</AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col">
-                          <span className="font-bold text-sm">{user.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-sm">{user.name}</span>
+                            {user.isVerified && <BadgeCheck className="w-4 h-4 text-secondary" />}
+                          </div>
                           <span className="text-xs text-muted-foreground">@{user.username}</span>
                         </div>
                       </div>
@@ -136,6 +168,20 @@ export default function AdminUsuariosPage() {
                         <span className="text-xs text-muted-foreground font-medium">Membro</span>
                       )}
                     </TableCell>
+                    <TableCell className="text-center">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className={cn(
+                          "rounded-full transition-all hover:scale-110",
+                          user.isVerified ? "text-secondary hover:bg-secondary/10" : "text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted"
+                        )}
+                        onClick={() => handleToggleVerify(user.id, !!user.isVerified)}
+                        title={user.isVerified ? "Remover Verificação" : "Verificar Usuário"}
+                      >
+                        <BadgeCheck className="w-6 h-6" />
+                      </Button>
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" asChild className="gap-2 font-bold h-9 px-4 rounded-lg">
                         <Link href={`/${user.username}`} target="_blank">
@@ -148,7 +194,7 @@ export default function AdminUsuariosPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
+                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground italic">
                     Nenhum usuário encontrado.
                   </TableCell>
                 </TableRow>
