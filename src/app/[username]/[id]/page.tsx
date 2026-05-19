@@ -33,7 +33,9 @@ import {
   ChevronRight,
   Plus,
   History,
-  Lock
+  Lock,
+  Navigation,
+  Map as MapIcon
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -85,6 +87,14 @@ function InstagramVerifiedBadge({ className }: { className?: string }) {
         stroke="white" 
         strokeWidth="0.5"
       />
+    </svg>
+  )
+}
+
+function WazeIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M19.14 11.23a3.52 3.52 0 0 0-3.52-3.52h-.08a3.52 3.52 0 0 0-3.52 3.52v.08a3.52 3.52 0 0 0 3.52 3.52h.08a3.52 3.52 0 0 0 3.52-3.52v-.08zM15.62 13a1.76 1.76 0 1 1 0-3.52 1.76 1.76 0 0 1 0 3.52zM11.23 11.23a3.52 3.52 0 0 0-3.52-3.52h-.08a3.52 3.52 0 0 0-3.52 3.52v.08a3.52 3.52 0 0 0 3.52 3.52h.08a3.52 3.52 0 0 0 3.52-3.52v-.08zm-3.52 1.77a1.76 1.76 0 1 1 0-3.52 1.76 1.76 0 0 1 0 3.52zM21.5 9.53a8.5 8.5 0 0 0-17 0 1 1 0 0 0 2 0 6.5 6.5 0 0 1 13 0 1 1 0 0 0 2 0zM12 2a9.97 9.97 0 0 0-10 10c0 1.94.54 3.75 1.5 5.3L2 22l4.7-.5A10 10 0 1 0 12 2zm0 18a8 8 0 0 1-5.32-2.12l-.24-.2-.55.06-1.5.16.5-.54.2-.23-.1-.31A8 8 0 1 1 12 20z"/>
     </svg>
   )
 }
@@ -477,6 +487,17 @@ export default function EventoDetalhesPage() {
     return hasAtLeastOneRegistration ? "Comprar outro Ingresso" : "Garantir Ingresso"
   }
 
+  const getFullAddress = () => {
+    if (event.address) {
+      return `${event.address.street}, ${event.address.number}${event.address.neighborhood ? `, ${event.address.neighborhood}` : ''}, ${event.address.city} - ${event.address.state}`;
+    }
+    return `${event.location}, ${event.city}`;
+  };
+
+  const addressString = getFullAddress();
+  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addressString)}`;
+  const wazeUrl = `https://waze.com/ul?q=${encodeURIComponent(addressString)}&navigate=yes`;
+
   return (
     <div className="space-y-8 pb-20 max-w-6xl mx-auto px-4 pt-10">
       <div className="flex items-center justify-between">
@@ -527,7 +548,7 @@ export default function EventoDetalhesPage() {
             <div className="flex flex-wrap gap-x-6 gap-y-3 text-white/90 text-sm font-semibold">
               <span className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full">
                 <MapPin className="w-4 h-4 text-secondary" />
-                {event.address?.street || event.location}, {event.city}
+                {addressString}
               </span>
             </div>
           </div>
@@ -560,6 +581,52 @@ export default function EventoDetalhesPage() {
               <div><p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Horário</p><p className="text-lg font-bold">{start.time} {event.endDate && `até ${end.time}`}</p></div>
             </Card>
           </div>
+
+          <Card className="border-none shadow-sm bg-card rounded-[2rem] overflow-hidden">
+            <CardHeader className="bg-muted/30 pb-4">
+              <CardTitle className="flex items-center gap-2 text-xl font-bold">
+                <MapIcon className="w-5 h-5 text-secondary" /> 
+                Localização & Mapa
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-muted/20 rounded-[1.5rem] border-2 border-dashed border-border">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Endereço do Evento</p>
+                  <p className="font-bold text-lg">{addressString}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" className="rounded-xl font-bold gap-2 h-12" asChild>
+                    <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
+                      <Navigation className="w-4 h-4 text-blue-500" />
+                      Google Maps
+                    </a>
+                  </Button>
+                  <Button variant="outline" className="rounded-xl font-bold gap-2 h-12" asChild>
+                    <a href={wazeUrl} target="_blank" rel="noopener noreferrer">
+                      <WazeIcon className="w-4 h-4 text-orange-500" />
+                      Waze
+                    </a>
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="relative aspect-video rounded-[1.5rem] overflow-hidden bg-muted">
+                 <Image 
+                   src={`https://placehold.co/1200x600/e2e8f0/64748b?text=Visualização+do+Mapa+em+${encodeURIComponent(event.city)}`}
+                   alt="Mapa de Localização"
+                   fill
+                   className="object-cover opacity-50 grayscale"
+                   unoptimized
+                 />
+                 <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="bg-white/90 backdrop-blur-md p-4 rounded-full shadow-2xl animate-bounce">
+                       <MapPin className="w-8 h-8 text-secondary" />
+                    </div>
+                 </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="flex justify-center pt-4">
              <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
