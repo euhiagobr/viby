@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -23,6 +24,8 @@ import {
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 export default function AdminTicketResponsePage() {
   const params = useParams()
@@ -51,40 +54,71 @@ export default function AdminTicketResponsePage() {
       isAdmin: true
     }
 
-    try {
-      await updateDoc(ticketRef, {
-        messages: arrayUnion(messageObj),
-        updatedAt: serverTimestamp(),
-        status: "Respondida"
-      })
-      setResponse("")
-      toast({ title: "Resposta enviada!" })
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro ao responder" })
-    } finally {
-      setIsSending(false)
+    const updateData = {
+      messages: arrayUnion(messageObj),
+      updatedAt: serverTimestamp(),
+      status: "Respondida"
     }
+
+    updateDoc(ticketRef, updateData)
+      .then(() => {
+        setResponse("")
+        toast({ title: "Resposta enviada!" })
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: ticketRef.path,
+          operation: "update",
+          requestResourceData: updateData
+        })
+        errorEmitter.emit("permission-error", permissionError)
+      })
+      .finally(() => setIsSending(false))
   }
 
-  const handleCloseTicket = async () => {
+  const handleCloseTicket = () => {
     if (!db || !ticketRef) return
     if (!confirm("Tem certeza que deseja encerrar este ticket? O usuário não poderá mais responder.")) return
 
-    try {
-      await updateDoc(ticketRef, {
-        status: "Encerrada",
-        updatedAt: serverTimestamp()
-      })
-      toast({ title: "Ticket encerrado" })
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao encerrar" })
+    const updateData = {
+      status: "Encerrada",
+      updatedAt: serverTimestamp()
     }
+
+    updateDoc(ticketRef, updateData)
+      .then(() => {
+        toast({ title: "Ticket encerrado" })
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: ticketRef.path,
+          operation: "update",
+          requestResourceData: updateData
+        })
+        errorEmitter.emit("permission-error", permissionError)
+      })
   }
 
-  const handleSetInProgress = async () => {
+  const handleSetInProgress = () => {
     if (!db || !ticketRef) return
-    await updateDoc(ticketRef, { status: "Em tratamento" })
-    toast({ title: "Status atualizado" })
+    
+    const updateData = { 
+      status: "Em tratamento",
+      updatedAt: serverTimestamp()
+    }
+
+    updateDoc(ticketRef, updateData)
+      .then(() => {
+        toast({ title: "Status atualizado" })
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: ticketRef.path,
+          operation: "update",
+          requestResourceData: updateData
+        })
+        errorEmitter.emit("permission-error", permissionError)
+      })
   }
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
@@ -119,8 +153,8 @@ export default function AdminTicketResponsePage() {
           <div className="flex justify-between items-start">
              <CardTitle className="text-xl font-bold">{ticket.subject}</CardTitle>
              <Badge className={cn(
-               ticket.status === 'Não lida' ? "bg-orange-50" :
-               ticket.status === 'Respondida' ? "bg-green-500" : "bg-muted"
+               ticket.status === 'Não lida' ? "bg-orange-50 text-orange-600 border-orange-200" :
+               ticket.status === 'Respondida' ? "bg-green-500 text-white border-none" : "bg-muted"
              )}>
                {ticket.status}
              </Badge>
