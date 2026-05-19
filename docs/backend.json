@@ -84,11 +84,13 @@
         "userName": { "type": "string" },
         "userEmail": { "type": "string" },
         "userGender": { "type": "string" },
+        "userBirthDate": { "type": "string", "format": "date" },
         "organizerId": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" },
         "price": { "type": "number" },
         "batchName": { "type": "string" },
-        "checkedIn": { "type": "boolean" }
+        "checkedIn": { "type": "boolean" },
+        "paymentStatus": { "type": "string", "enum": ["Disponível", "Pendente", "Pago", "Expirado"] }
       },
       "required": ["eventId", "userId", "organizerId"]
     },

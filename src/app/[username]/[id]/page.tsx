@@ -125,11 +125,13 @@ export default function EventoDetalhesPage() {
       userName: currentUserProfile?.name || user.displayName || user.email,
       userEmail: user.email,
       userGender: currentUserProfile?.gender || "Não informado",
+      userBirthDate: currentUserProfile?.birthDate || "",
       organizerId: event.organizerId,
       timestamp: serverTimestamp(),
       price: price,
       batchName: batchName,
-      checkedIn: false
+      checkedIn: false,
+      paymentStatus: event.isFree ? "Disponível" : "Pendente"
     }
 
     addDoc(collection(db, "registrations"), regData)

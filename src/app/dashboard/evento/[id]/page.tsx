@@ -45,7 +45,7 @@ export default function EventoDetalhesPage() {
   )
   const { data: organizerProfile, loading: organizerLoading } = useDoc<any>(organizerRef)
 
-  // Perfil do usuário logado para capturar o sexo/gênero
+  // Perfil do usuário logado para capturar o sexo/gênero e nascimento
   const currentUserRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: currentUserProfile } = useDoc<any>(currentUserRef)
   
@@ -93,7 +93,6 @@ export default function EventoDetalhesPage() {
 
     setRegistering(true)
     
-    // Define preço e lote (simulado para MVP)
     const price = event.isFree ? 0 : (event.batches?.[0]?.price || 0);
     const batchName = event.isFree ? "Gratuito" : (event.batches?.[0]?.name || "Lote Único");
 
@@ -104,11 +103,13 @@ export default function EventoDetalhesPage() {
       userName: currentUserProfile?.name || user.displayName || user.email,
       userEmail: user.email,
       userGender: currentUserProfile?.gender || "Não informado",
+      userBirthDate: currentUserProfile?.birthDate || "",
       organizerId: event.organizerId,
       timestamp: serverTimestamp(),
       price: price,
       batchName: batchName,
-      checkedIn: false
+      checkedIn: false,
+      paymentStatus: event.isFree ? "Disponível" : "Pendente"
     }
 
     addDoc(collection(db, "registrations"), regData)
@@ -164,7 +165,7 @@ export default function EventoDetalhesPage() {
             <Share2 className="w-4 h-4" />
           </Button>
           <Button 
-            onClick={handleRegisterInterest}
+            onClick={handleRegisterInterest} 
             disabled={isRegistered || registering}
             className={`font-bold px-6 rounded-full h-10 shadow-lg transition-all ${isRegistered ? "bg-green-500 text-white" : "bg-secondary text-white hover:scale-105"}`}
           >

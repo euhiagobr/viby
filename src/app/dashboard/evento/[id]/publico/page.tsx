@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { 
   Users, 
   ArrowLeft, 
@@ -25,7 +26,8 @@ import {
   CheckCircle2,
   Trash2,
   User as UserIcon,
-  Ticket
+  Ticket,
+  Clock
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
@@ -78,6 +80,39 @@ export default function EventoPublicoPage() {
       return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     } catch (e) {
       return "";
+    }
+  }
+
+  const calculateAge = (birthDate: string) => {
+    if (!birthDate) return "---";
+    try {
+      const birth = new Date(birthDate);
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        age--;
+      }
+      return isNaN(age) ? "---" : `${age} anos`;
+    } catch (e) {
+      return "---";
+    }
+  }
+
+  const getStatusBadge = (reg: any) => {
+    const isFree = reg.price === 0;
+    const status = reg.paymentStatus || (isFree ? "Disponível" : "Pendente");
+
+    switch (status) {
+      case "Disponível":
+        return <Badge className="bg-green-500 text-white hover:bg-green-600">Disponível</Badge>;
+      case "Pago":
+        return <Badge className="bg-secondary text-white hover:bg-secondary/90">Pago</Badge>;
+      case "Expirado":
+        return <Badge variant="destructive">Expirado</Badge>;
+      case "Pendente":
+      default:
+        return <Badge variant="outline" className="text-orange-500 border-orange-500">Pendente</Badge>;
     }
   }
 
@@ -196,10 +231,12 @@ export default function EventoPublicoPage() {
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow>
-                  <TableHead className="w-[120px] text-center font-bold">Check-in</TableHead>
-                  <TableHead className="w-[250px] font-bold">Nome do Participante</TableHead>
-                  <TableHead className="font-bold">Data e Hora</TableHead>
+                  <TableHead className="w-[100px] text-center font-bold">Check-in</TableHead>
+                  <TableHead className="w-[220px] font-bold">Nome do Participante</TableHead>
+                  <TableHead className="font-bold">Status</TableHead>
+                  <TableHead className="font-bold">Idade</TableHead>
                   <TableHead className="font-bold">Sexo</TableHead>
+                  <TableHead className="font-bold">Registro</TableHead>
                   <TableHead className="font-bold">Valor / Lote</TableHead>
                   <TableHead className="text-right font-bold">Ações</TableHead>
                 </TableRow>
@@ -228,15 +265,23 @@ export default function EventoPublicoPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold flex items-center gap-1"><Calendar className="w-3 h-3" /> {formatDate(reg.timestamp)}</span>
-                          <span className="text-[10px] text-muted-foreground">{formatTime(reg.timestamp)}</span>
-                        </div>
+                        {getStatusBadge(reg)}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs font-bold text-muted-foreground">
+                          {calculateAge(reg.userBirthDate)}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-tighter">
                           {reg.userGender || "---"}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold flex items-center gap-1"><Calendar className="w-3 h-3 text-secondary" /> {formatDate(reg.timestamp)}</span>
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" /> {formatTime(reg.timestamp)}</span>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
@@ -260,7 +305,7 @@ export default function EventoPublicoPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-48 text-center">
+                    <TableCell colSpan={8} className="h-48 text-center">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <Users className="w-12 h-12 opacity-10 mb-2" />
                         <p className="font-medium italic">Nenhum participante encontrado.</p>
