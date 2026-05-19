@@ -8,13 +8,14 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
+import { cn } from "@/lib/utils"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
     <svg 
       viewBox="0 0 24 24" 
       fill="none" 
-      className={className} 
+      className={cn("w-3 h-3", className)} 
       xmlns="http://www.w3.org/2000/svg"
     >
       <path 
@@ -131,7 +132,7 @@ export function EventCard({ event }: EventCardProps) {
           <Badge className="bg-secondary text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider">
             {categoryDisplay}
           </Badge>
-          <Badge className={`${event.isFree ? "bg-green-500" : "bg-primary"} text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider`}>
+          <Badge className={cn("text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider", event.isFree ? "bg-green-500" : "bg-primary")}>
             {getPriceDisplay()}
           </Badge>
         </div>
@@ -182,7 +183,7 @@ export function EventCard({ event }: EventCardProps) {
               {event.organizer?.name || "Organizador"}
             </span>
             {event.organizer?.isVerified && (
-              <InstagramVerifiedBadge className="w-3 h-3" />
+              <InstagramVerifiedBadge />
             )}
           </div>
         </div>

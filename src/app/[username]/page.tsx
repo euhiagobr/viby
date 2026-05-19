@@ -18,27 +18,27 @@ import {
   Star, 
   Edit,
   Users as UsersIcon,
-  CheckCircle2,
-  Clock,
+  Ticket,
+  Heart,
+  Building2,
+  Briefcase,
   Link as LinkIcon,
   Instagram,
   Phone,
   Mail,
-  Building2,
-  Briefcase,
-  Ticket,
-  Heart
+  ExternalLink
 } from "lucide-react"
 import { EventCard } from "@/components/events/EventCard"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
     <svg 
       viewBox="0 0 24 24" 
       fill="none" 
-      className={className} 
+      className={cn("w-5 h-5", className)} 
       xmlns="http://www.w3.org/2000/svg"
     >
       <path 
@@ -201,7 +201,7 @@ export default function PublicProfilePage() {
                   <div className="flex flex-col items-center gap-1">
                     <div className="flex items-center justify-center gap-2">
                       <h1 className="text-2xl font-bold tracking-tight">{profile.name}</h1>
-                      {profile.isVerified && <InstagramVerifiedBadge className="w-5 h-5" />}
+                      {profile.isVerified && <InstagramVerifiedBadge />}
                     </div>
                     <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-widest">
                       {isCompany ? <Building2 className="w-3 h-3 mr-1" /> : <UsersIcon className="w-3 h-3 mr-1" />}
@@ -388,7 +388,7 @@ export default function PublicProfilePage() {
                   <Heart className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-20" />
                   <p className="text-muted-foreground font-black uppercase tracking-widest text-xs">Ainda não marcou interesse em eventos.</p>
                 </div>
-              )}
+              )
             )}
           </div>
         </div>
