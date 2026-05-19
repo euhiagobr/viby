@@ -167,14 +167,18 @@ export default function PerfilPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground">Razão Social</p>
-                  <p className="font-semibold text-sm">{profile.legalName || "Não informado"}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground">CNPJ</p>
-                  <p className="font-semibold text-sm">{profile.cnpj || "Não informado"}</p>
-                </div>
+                {profile.legalName && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Razão Social</p>
+                    <p className="font-semibold text-sm">{profile.legalName}</p>
+                  </div>
+                )}
+                {profile.cnpj && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">CNPJ</p>
+                    <p className="font-semibold text-sm">{profile.cnpj}</p>
+                  </div>
+                )}
                 {profile.businessCategory && (
                   <div className="space-y-1 md:col-span-2">
                     <p className="text-[10px] uppercase font-bold text-muted-foreground">Categoria de Negócio</p>
@@ -213,16 +217,19 @@ export default function PerfilPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg">Bio</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground whitespace-pre-line italic">
-                {profile.bio || "Nenhuma biografia adicionada."}
-              </p>
-            </CardContent>
+          {profile.bio && (
+            <Card className="border-none shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">Bio</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground whitespace-pre-line italic">
+                  {profile.bio}
+                </p>
+              </CardContent>
+            </Card>
           </Card>
+        )}
         </div>
       </div>
     </div>

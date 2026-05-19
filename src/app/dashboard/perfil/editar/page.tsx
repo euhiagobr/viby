@@ -76,6 +76,7 @@ export default function EditarPerfilPage() {
   const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
 
+  // Sincroniza os dados do perfil com o formulário quando carregados
   useEffect(() => {
     if (profile) {
       setFormData({
@@ -99,8 +100,8 @@ export default function EditarPerfilPage() {
   }, [profile])
 
   const formatCNPJ = (value: string) => {
-    return value
-      .replace(/\D/g, "")
+    const numbers = value.replace(/\D/g, "")
+    return numbers
       .replace(/^(\d{2})(\d)/, "$1.$2")
       .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
       .replace(/\.(\d{3})(\d)/, ".$1/$2")
@@ -110,7 +111,7 @@ export default function EditarPerfilPage() {
 
   const handleCNPJChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatCNPJ(e.target.value);
-    setFormData({ ...formData, cnpj: formatted });
+    setFormData(prev => ({ ...prev, cnpj: formatted }));
   }
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -213,7 +214,7 @@ export default function EditarPerfilPage() {
           <CardContent>
             <Select 
               value={formData.accountType} 
-              onValueChange={(val) => setFormData({...formData, accountType: val})}
+              onValueChange={(val) => setFormData(prev => ({...prev, accountType: val}))}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Selecione o tipo de conta" />
@@ -247,7 +248,7 @@ export default function EditarPerfilPage() {
                   <Input 
                     id="legalName" 
                     value={formData.legalName} 
-                    onChange={(e) => setFormData({...formData, legalName: e.target.value})} 
+                    onChange={(e) => setFormData(prev => ({...prev, legalName: e.target.value}))} 
                     required 
                   />
                 </div>
@@ -266,7 +267,7 @@ export default function EditarPerfilPage() {
                 <Label>Categoria da Empresa (Obrigatório)</Label>
                 <Select 
                   value={formData.businessCategory} 
-                  onValueChange={(val) => setFormData({...formData, businessCategory: val})}
+                  onValueChange={(val) => setFormData(prev => ({...prev, businessCategory: val}))}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione uma subcategoria" />
@@ -321,7 +322,7 @@ export default function EditarPerfilPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="name">Nome / Nome Fantasia (Obrigatório)</Label>
-                <Input id="name" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} required />
+                <Input id="name" value={formData.name} onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))} required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="username">Nome de Usuário</Label>
@@ -340,7 +341,7 @@ export default function EditarPerfilPage() {
               <Textarea 
                 id="bio" 
                 value={formData.bio} 
-                onChange={(e) => setFormData({...formData, bio: e.target.value})}
+                onChange={(e) => setFormData(prev => ({...prev, bio: e.target.value}))}
                 placeholder="Conte um pouco sobre você... (sem links)"
                 className="min-h-[100px] resize-none"
               />
@@ -360,15 +361,15 @@ export default function EditarPerfilPage() {
           <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-2">
               <Label htmlFor="city">Cidade</Label>
-              <Input id="city" value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})} required />
+              <Input id="city" value={formData.city} onChange={(e) => setFormData(prev => ({...prev, city: e.target.value}))} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="state">Estado</Label>
-              <Input id="state" value={formData.state} onChange={(e) => setFormData({...formData, state: e.target.value})} placeholder="Ex: SP" required />
+              <Input id="state" value={formData.state} onChange={(e) => setFormData(prev => ({...prev, state: e.target.value}))} placeholder="Ex: SP" required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="country">País</Label>
-              <Input id="country" value={formData.country} onChange={(e) => setFormData({...formData, country: e.target.value})} required />
+              <Input id="country" value={formData.country} onChange={(e) => setFormData(prev => ({...prev, country: e.target.value}))} required />
             </div>
           </CardContent>
         </Card>
@@ -384,19 +385,19 @@ export default function EditarPerfilPage() {
                 <Label htmlFor="website" className="flex items-center gap-2">
                   <LinkIcon className="w-3.5 h-3.5" /> Site Oficial
                 </Label>
-                <Input id="website" value={formData.website} onChange={(e) => setFormData({...formData, website: e.target.value})} placeholder="https://..." />
+                <Input id="website" value={formData.website} onChange={(e) => setFormData(prev => ({...prev, website: e.target.value}))} placeholder="https://..." />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="instagram" className="flex items-center gap-2">
                   <Instagram className="w-3.5 h-3.5" /> Instagram (usuário)
                 </Label>
-                <Input id="instagram" value={formData.instagram} onChange={(e) => setFormData({...formData, instagram: e.target.value})} placeholder="@exemplo" />
+                <Input id="instagram" value={formData.instagram} onChange={(e) => setFormData(prev => ({...prev, instagram: e.target.value}))} placeholder="@exemplo" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="whatsapp" className="flex items-center gap-2">
                   <Phone className="w-3.5 h-3.5" /> WhatsApp
                 </Label>
-                <Input id="whatsapp" value={formData.whatsapp} onChange={(e) => setFormData({...formData, whatsapp: e.target.value})} placeholder="(00) 00000-0000" />
+                <Input id="whatsapp" value={formData.whatsapp} onChange={(e) => setFormData(prev => ({...prev, whatsapp: e.target.value}))} placeholder="(00) 00000-0000" />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -410,11 +411,11 @@ export default function EditarPerfilPage() {
                     <Switch 
                       id="showEmail" 
                       checked={formData.showEmail} 
-                      onCheckedChange={(checked) => setFormData({...formData, showEmail: checked})} 
+                      onCheckedChange={(checked) => setFormData(prev => ({...prev, showEmail: checked}))} 
                     />
                   </div>
                 </div>
-                <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="contato@exemplo.com" />
+                <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData(prev => ({...prev, email: e.target.value}))} placeholder="contato@exemplo.com" />
                 <p className="text-[10px] text-muted-foreground flex items-center gap-1">
                   {formData.showEmail ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
                   O e-mail será {formData.showEmail ? "exibido" : "ocultado"} no seu perfil público.
