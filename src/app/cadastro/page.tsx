@@ -101,6 +101,7 @@ export default function CadastroPage() {
           isVerified: false,
           totalEvents: 0,
           platform: "viby",
+          role: "user",
           createdAt: new Date().toISOString()
         })
       })

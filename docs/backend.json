@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "Organizer": {
@@ -12,7 +11,8 @@
         "email": { "type": "string" },
         "isVerified": { "type": "boolean" },
         "totalEvents": { "type": "number" },
-        "platform": { "type": "string", "enum": ["viby"] }
+        "platform": { "type": "string", "enum": ["viby"] },
+        "role": { "type": "string", "enum": ["user", "admin"] }
       },
       "required": ["name", "email", "username", "platform"]
     },
@@ -58,7 +58,7 @@
     }
   },
   "auth": {
-    "providers": ["google.com", "password"]
+    "providers": ["password"]
   },
   "firestore": {
     "/events/{eventId}": {
