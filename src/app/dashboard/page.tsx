@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -10,20 +9,26 @@ import { Search, Filter, Loader2 } from "lucide-react"
 import { useState } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
-import { Event } from "@/lib/mock-data"
 
 export default function ExplorarPage() {
   const [filter, setFilter] = useState('all')
+  const [search, setSearch] = useState('')
   const db = useFirestore()
   
-  // Estabiliza a referência da query para evitar loops de renderização
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
     return collection(db, "events")
   }, [db])
 
-  // Hook para buscar eventos em tempo real do Firestore
-  const { data: events, loading, error } = useCollection<Event>(eventsQuery)
+  const { data: events, loading, error } = useCollection<any>(eventsQuery)
+
+  const filteredEvents = React.useMemo(() => {
+    if (!events) return []
+    return events.filter((e: any) => 
+      e.title?.toLowerCase().includes(search.toLowerCase()) ||
+      e.description?.toLowerCase().includes(search.toLowerCase())
+    )
+  }, [events, search])
 
   return (
     <div className="space-y-8">
@@ -35,7 +40,12 @@ export default function ExplorarPage() {
         <div className="flex items-center gap-3">
           <div className="relative w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Buscar por tema..." className="pl-10" />
+            <Input 
+              placeholder="Buscar por tema..." 
+              className="pl-10" 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
           <Button variant="outline" className="gap-2">
             <Filter className="w-4 h-4" />
@@ -66,15 +76,14 @@ export default function ExplorarPage() {
         </div>
       )}
 
-      {!loading && !error && events?.length === 0 && (
+      {!loading && !error && filteredEvents.length === 0 && (
         <div className="text-center py-20 bg-muted/50 rounded-2xl border-2 border-dashed border-border">
-          <p className="text-muted-foreground font-medium">Nenhum evento encontrado no Firestore.</p>
-          <p className="text-xs text-muted-foreground mt-1">Certifique-se de adicionar documentos na coleção 'events'.</p>
+          <p className="text-muted-foreground font-medium">Nenhum evento encontrado.</p>
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {events?.map(event => (
+        {filteredEvents.map((event: any) => (
           <EventCard key={event.id} event={event} />
         ))}
       </div>
