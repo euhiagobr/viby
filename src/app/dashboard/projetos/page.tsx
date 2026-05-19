@@ -25,7 +25,6 @@ export default function MeusEventosPage() {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
-  // Query para buscar apenas os eventos do organizador logado
   const myEventsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
     return query(collection(db, "events"), where("organizerId", "==", user.uid))
@@ -87,7 +86,7 @@ export default function MeusEventosPage() {
           <DialogTrigger asChild>
             <Button className="gap-2 bg-secondary text-white hover:bg-secondary/90">
               <Plus className="w-4 h-4" />
-              Anunciar Novo Evento
+              Novo Evento
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
@@ -195,7 +194,7 @@ export default function MeusEventosPage() {
             <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
               <Plus className="w-6 h-6" />
             </div>
-            <span className="font-bold">Anunciar novo evento</span>
+            <span className="font-bold">Novo Evento</span>
           </button>
         </div>
       )}
