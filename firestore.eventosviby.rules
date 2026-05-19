@@ -17,6 +17,10 @@ service cloud.firestore {
       return isSignedIn() && (resource.data.organizerId == request.auth.uid);
     }
 
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
     match /settings/site {
       allow read: if true;
       allow write: if isAdmin();
@@ -31,8 +35,8 @@ service cloud.firestore {
 
     match /usernames/{username} {
       allow read: if true;
-      allow create: if isSignedIn() && (request.resource.data.uid == request.auth.uid || isAdmin());
-      allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() || isAdmin();
+      allow delete: if (isSignedIn() && get(/databases/eventosviby/documents/usernames/$(username)).data.uid == request.auth.uid) || isAdmin();
       allow update: if isAdmin();
     }
 
@@ -43,8 +47,8 @@ service cloud.firestore {
     }
 
     match /events/{eventId} {
-      // Regra de exclusão lógica: usuários comuns não leem eventos 'Excluídos'
-      allow read: if (resource.data.status != 'Excluído') || isAdmin();
+      // Regra de leitura: Público lê se não for excluído. Dono e Admin lêem sempre.
+      allow read: if (resource.data.status != 'Excluído') || (isSignedIn() && resource.data.organizerId == request.auth.uid) || isAdmin();
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (resource.data.organizerId == request.auth.uid || isAdmin());
       allow delete: if isAdmin();

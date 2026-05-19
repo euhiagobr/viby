@@ -98,7 +98,8 @@ export default function MeusEventosPage() {
     if (!confirm(`Deseja realmente excluir o evento "${title}"? Ele será removido da sua lista e da vitrine pública.`)) return
 
     // Soft delete: Apenas altera o status para Excluído
-    updateDoc(doc(db, "events", eventId), { status: "Excluído" })
+    const eventRef = doc(db, "events", eventId);
+    updateDoc(eventRef, { status: "Excluído" })
       .then(() => {
         toast({ title: "Evento excluído", description: "O anúncio foi removido da plataforma." })
       })
