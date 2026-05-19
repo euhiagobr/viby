@@ -1,34 +1,161 @@
 
 "use client"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useAuth, useUser } from "@/firebase"
-import { Loader2 } from "lucide-react"
+import * as React from "react"
+import { useCollection, useFirestore, useAuth, useUser } from "@/firebase"
+import { collection, query, limit } from "firebase/firestore"
+import { EventCard } from "@/components/events/EventCard"
+import { Button } from "@/components/ui/button"
+import { Globe, Search, ArrowRight, Loader2, Calendar, MapPin } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import Link from "next/link"
+import { Event } from "@/lib/mock-data"
+import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 
-export default function RootPage() {
+export default function LandingPage() {
+  const db = useFirestore()
   const auth = useAuth()
-  const { user, loading } = useUser(auth)
-  const router = useRouter()
+  const { user } = useUser(auth)
 
-  useEffect(() => {
-    if (!loading) {
-      if (user) {
-        router.push("/dashboard")
-      } else {
-        router.push("/login")
-      }
-    }
-  }, [user, loading, router])
+  const eventsQuery = useMemoFirebase(() => {
+    if (!db) return null
+    return query(collection(db, "events"), limit(6))
+  }, [db])
+
+  const { data: events, loading } = useCollection<Event>(eventsQuery)
 
   return (
-    <div className="h-screen w-full flex items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center animate-bounce">
-          <span className="text-white font-bold text-3xl">V</span>
+    <div className="min-h-screen bg-background">
+      {/* Navigation */}
+      <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-lg">V</span>
+            </div>
+            <span className="text-xl font-bold tracking-tight">Viby</span>
+          </Link>
+
+          <div className="hidden md:flex flex-1 max-w-sm mx-8 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Pesquisar eventos..." 
+              className="pl-10 bg-muted/50 border-none rounded-full h-9 focus-visible:ring-secondary"
+            />
+          </div>
+
+          <div className="flex items-center gap-4">
+            {user ? (
+              <Button asChild variant="ghost" className="font-semibold">
+                <Link href="/dashboard">Meu Painel</Link>
+              </Button>
+            ) : (
+              <>
+                <Button asChild variant="ghost" className="font-semibold">
+                  <Link href="/login">Entrar</Link>
+                </Button>
+                <Button asChild className="bg-secondary text-white hover:bg-secondary/90 font-bold px-6 rounded-full">
+                  <Link href="/cadastro">Cadastrar-se</Link>
+                </Button>
+              </>
+            )}
+          </div>
         </div>
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="relative py-20 overflow-hidden">
+        <div className="container mx-auto px-4 relative z-10 text-center space-y-8">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/10 text-secondary text-sm font-bold animate-fade-in">
+            <Globe className="w-4 h-4" />
+            <span>A maior vitrine de eventos do Brasil</span>
+          </div>
+          <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-foreground max-w-4xl mx-auto leading-[1.1]">
+            Descubra experiências <span className="text-secondary">inesquecíveis</span> perto de você.
+          </h1>
+          <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto font-medium">
+            De festivais de música a conferências de tecnologia. Explore, compartilhe e viva o momento com a Viby.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Button asChild size="lg" className="bg-primary text-white hover:bg-primary/90 rounded-full px-8 h-12 font-bold group">
+              <Link href="/dashboard">
+                Começar a Explorar
+                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="rounded-full px-8 h-12 font-bold border-2">
+              <Link href="/cadastro">Anunciar meu Evento</Link>
+            </Button>
+          </div>
+        </div>
+
+        {/* Decorative elements */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[600px] bg-secondary/5 rounded-full blur-[120px] pointer-events-none -z-10" />
+      </section>
+
+      {/* Events Feed */}
+      <section className="py-16 container mx-auto px-4">
+        <div className="flex items-center justify-between mb-10">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Em Destaque</h2>
+            <p className="text-muted-foreground font-medium mt-1">Os eventos que estão bombando hoje.</p>
+          </div>
+          <Button variant="link" asChild className="text-secondary font-bold">
+            <Link href="/dashboard" className="flex items-center gap-2">
+              Ver todos <ArrowRight className="w-4 h-4" />
+            </Link>
+          </Button>
+        </div>
+
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+            <p className="text-muted-foreground font-medium animate-pulse">Carregando experiências...</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {events && events.length > 0 ? (
+              events.map((event) => (
+                <EventCard key={event.id} event={event} />
+              ))
+            ) : (
+              <div className="col-span-full py-20 text-center bg-muted/30 rounded-3xl border-2 border-dashed border-border">
+                <p className="text-lg font-bold text-muted-foreground">Nenhum evento em destaque no momento.</p>
+                <p className="text-sm text-muted-foreground mt-2">Fique ligado, novidades estão por vir!</p>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Categories / Tags Quick Look */}
+      <section className="bg-muted/50 py-16">
+        <div className="container mx-auto px-4">
+          <h3 className="text-center text-sm font-bold uppercase tracking-widest text-muted-foreground mb-8">Navegue por Categoria</h3>
+          <div className="flex flex-wrap justify-center gap-4">
+            {['Shows', 'Workshops', 'Gastronomia', 'Networking', 'Festivais', 'Cultura', 'Tecnologia'].map((tag) => (
+              <Button key={tag} variant="outline" className="rounded-full bg-white hover:border-secondary hover:text-secondary font-semibold transition-all shadow-sm">
+                {tag}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="py-12 border-t border-border">
+        <div className="container mx-auto px-4 text-center">
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <div className="w-6 h-6 bg-secondary rounded flex items-center justify-center">
+              <span className="text-white font-bold text-sm">V</span>
+            </div>
+            <span className="font-bold text-lg">Viby</span>
+          </div>
+          <p className="text-muted-foreground text-sm max-w-sm mx-auto">
+            Viby © 2024 - Transformando a maneira como você descobre e vive eventos.
+          </p>
+        </div>
+      </footer>
     </div>
   )
 }

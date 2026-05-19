@@ -3,7 +3,7 @@
 
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
-import { Search, Bell, User, LogIn } from "lucide-react"
+import { Search, Bell } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useAuth, useUser } from "@/firebase"
@@ -19,7 +19,7 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
+      <div className="flex min-h-screen w-full bg-[#f8fafc]">
         <AppSidebar />
         <main className="flex-1 overflow-y-auto">
           <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur-md">
@@ -28,14 +28,14 @@ export default function DashboardLayout({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Pesquisar eventos, cidades..."
-                className="pl-10 bg-muted/30 border-none focus-visible:ring-1 focus-visible:ring-secondary"
+                className="pl-10 bg-muted/30 border-none focus-visible:ring-1 focus-visible:ring-secondary h-9 text-sm"
               />
             </div>
             
             <div className="flex items-center gap-3 ml-auto">
               {user ? (
                 <>
-                  <Button variant="ghost" size="icon" className="relative hidden sm:flex">
+                  <Button variant="ghost" size="icon" className="relative hidden sm:flex h-9 w-9">
                     <Bell className="h-5 w-5" />
                     <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full border-2 border-background" />
                   </Button>
@@ -49,10 +49,10 @@ export default function DashboardLayout({
                 </>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" asChild className="font-semibold">
+                  <Button variant="ghost" size="sm" asChild className="font-semibold h-8">
                     <Link href="/login">Entrar</Link>
                   </Button>
-                  <Button size="sm" asChild className="bg-secondary text-white hover:bg-secondary/90 font-bold shadow-sm">
+                  <Button size="sm" asChild className="bg-secondary text-white hover:bg-secondary/90 font-bold shadow-sm h-8 rounded-full px-4">
                     <Link href="/cadastro">Criar conta</Link>
                   </Button>
                 </div>
