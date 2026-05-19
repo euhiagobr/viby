@@ -6,7 +6,7 @@ import { doc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Mail, User, ShieldCheck, Calendar, MapPin, Hash } from "lucide-react"
+import { Loader2, Mail, User, ShieldCheck, Calendar, MapPin, Hash, Globe } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 
 export default function PerfilPage() {
@@ -47,7 +47,7 @@ export default function PerfilPage() {
             <div className="h-24 bg-secondary/10 relative" />
             <CardContent className="pt-0 -mt-12 flex flex-col items-center text-center">
               <Avatar className="h-24 w-24 border-4 border-background shadow-lg">
-                <AvatarImage src={profile.avatar || user.photoURL} alt={profile.name} />
+                <AvatarImage src={profile.avatar || user.photoURL || undefined} alt={profile.name} />
                 <AvatarFallback className="text-2xl font-bold bg-muted">
                   {profile.name?.charAt(0) || "U"}
                 </AvatarFallback>
