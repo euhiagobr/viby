@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -106,7 +107,7 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="px-6 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Navegação</SidebarGroupLabel>
+          <SidebarGroupLabel className="px-6 text-xs font-black uppercase text-muted-foreground tracking-widest mb-4">Navegação</SidebarGroupLabel>
           <SidebarGroupContent className="px-3">
             <SidebarMenu>
               {items.map((item) => {
@@ -116,11 +117,11 @@ export function AppSidebar() {
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={pathname === item.url}>
                       <Link href={item.url} className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
-                        pathname === item.url ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
+                        "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-semibold text-sm",
+                        pathname === item.url ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "hover:bg-muted text-muted-foreground hover:text-foreground"
                       )}>
-                        <item.icon className="w-5 h-5" />
-                        <span className="font-medium">{item.title}</span>
+                        <item.icon className="w-4 h-4" />
+                        <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -132,17 +133,17 @@ export function AppSidebar() {
 
         {isAdmin && (
           <SidebarGroup>
-            <SidebarGroupLabel className="px-6 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Administração</SidebarGroupLabel>
+            <SidebarGroupLabel className="px-6 text-xs font-black uppercase text-destructive tracking-widest mb-4">Administração</SidebarGroupLabel>
             <SidebarGroupContent className="px-3">
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/admin"}>
-                    <Link href="/dashboard/admin" className={cn(
-                      "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
-                      pathname === "/dashboard/admin" ? "bg-secondary/10 text-secondary" : "hover:bg-accent/50"
+                  <SidebarMenuButton asChild isActive={pathname?.startsWith("/admin")}>
+                    <Link href="/admin" className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-bold text-sm",
+                      pathname?.startsWith("/admin") ? "bg-primary text-white shadow-xl" : "bg-destructive/10 text-destructive hover:bg-destructive hover:text-white"
                     )}>
-                      <ShieldCheck className="w-5 h-5" />
-                      <span className="font-medium">Painel Admin</span>
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Painel Admin</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -154,16 +155,16 @@ export function AppSidebar() {
       <SidebarFooter className="p-4 space-y-2">
         {user ? (
           <>
-            <div className="flex items-center gap-3 px-3 py-2">
-              <Settings className="w-5 h-5 cursor-pointer hover:text-foreground transition-colors" />
-              <span className="text-xs text-muted-foreground flex-1">v1.0</span>
+            <div className="flex items-center gap-3 px-3 py-2 opacity-50">
+              <Settings className="w-4 h-4 cursor-pointer" />
+              <span className="text-[10px] font-black uppercase tracking-widest">Versão 1.2.0</span>
             </div>
             <button 
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3 py-2 text-destructive hover:bg-destructive/10 rounded-md transition-colors text-sm font-medium"
+              className="w-full flex items-center gap-3 px-3 py-3 text-destructive hover:bg-destructive/10 rounded-xl transition-all text-sm font-bold"
             >
-              <LogOut className="w-5 h-5" />
-              Sair
+              <LogOut className="w-4 h-4" />
+              Sair da Conta
             </button>
           </>
         ) : (

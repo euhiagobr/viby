@@ -1,21 +1,30 @@
+
 "use client"
 
 import * as React from "react"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection } from "firebase/firestore"
+import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
+import { collection, doc } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { Button } from "@/components/ui/button"
-import { Search, Filter, Loader2 } from "lucide-react"
+import { Search, Filter, Loader2, ShieldCheck } from "lucide-react"
 import { useState } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
+import Link from "next/link"
 
 export default function ExplorarPage() {
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
   const db = useFirestore()
+  const auth = useAuth()
+  const { user } = useUser(auth)
   
-  const eventsQuery = useMemoFirebase(() => {
+  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
+  const { data: profile } = useDoc<any>(userDocRef)
+  
+  const isAdmin = profile?.role === 'admin'
+
+  const eventsQuery = React.useMemo(() => {
     if (!db) return null
     return collection(db, "events")
   }, [db])
@@ -33,8 +42,18 @@ export default function ExplorarPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Explorar Eventos</h1>
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight">Explorar Eventos</h1>
+            {isAdmin && (
+              <Button asChild variant="destructive" size="sm" className="gap-2 font-bold rounded-full h-8 px-4">
+                <Link href="/admin">
+                  <ShieldCheck className="w-4 h-4" />
+                  Painel Admin
+                </Link>
+              </Button>
+            )}
+          </div>
           <p className="text-muted-foreground">Descubra o que está acontecendo e como divulgar melhor seus eventos.</p>
         </div>
         <div className="flex items-center gap-3">
@@ -57,9 +76,9 @@ export default function ExplorarPage() {
       <div className="flex items-center justify-between border-b border-border pb-2">
         <Tabs defaultValue="all" onValueChange={setFilter} className="w-full">
           <TabsList className="bg-transparent h-auto p-0 gap-8">
-            <TabsTrigger value="all" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2">Tendências</TabsTrigger>
-            <TabsTrigger value="nearby" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2">Perto de Você</TabsTrigger>
-            <TabsTrigger value="new" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2">Recém Lançados</TabsTrigger>
+            <TabsTrigger value="all" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold">Tendências</TabsTrigger>
+            <TabsTrigger value="nearby" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold">Perto de Você</TabsTrigger>
+            <TabsTrigger value="new" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold">Recém Lançados</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -71,7 +90,7 @@ export default function ExplorarPage() {
       )}
 
       {error && (
-        <div className="p-8 text-center bg-destructive/10 text-destructive rounded-xl border border-destructive/20">
+        <div className="p-8 text-center bg-destructive/10 text-destructive rounded-xl border border-destructive/20 font-medium">
           Erro ao carregar eventos: {error.message}
         </div>
       )}
