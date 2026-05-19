@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -205,6 +204,14 @@ export default function EventoPublicoPage() {
     } catch (e) { return "---"; }
   }
 
+  const formatTimestamp = (ts: any) => {
+    if (!ts) return "---";
+    try {
+      const d = ts.toDate ? ts.toDate() : new Date(ts);
+      return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return "---"; }
+  }
+
   const handleCheckIn = async (regId: string, currentStatus: boolean) => {
     if (!db) return
     try {
@@ -320,10 +327,11 @@ export default function EventoPublicoPage() {
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow>
-                  <TableHead className="w-[100px] text-center font-bold">Portaria</TableHead>
-                  <TableHead className="w-[220px] font-bold">Nome / E-mail</TableHead>
+                  <TableHead className="w-[80px] text-center font-bold">Portaria</TableHead>
+                  <TableHead className="w-[200px] font-bold">Nome / E-mail</TableHead>
                   <TableHead className="font-bold">Idade</TableHead>
                   <TableHead className="font-bold">Sexo</TableHead>
+                  <TableHead className="font-bold">Entrada</TableHead>
                   <TableHead className="font-bold">Código</TableHead>
                   <TableHead className="font-bold">Valor</TableHead>
                   <TableHead className="text-right font-bold">Remover</TableHead>
@@ -340,6 +348,16 @@ export default function EventoPublicoPage() {
                     <TableCell><div className="flex flex-col"><span className="font-bold text-sm text-foreground">{reg.userName || "Pendente"}</span><span className="text-[10px] text-muted-foreground">{reg.userEmail}</span></div></TableCell>
                     <TableCell><span className="text-xs font-bold text-muted-foreground">{calculateAge(reg.userBirthDate)}</span></TableCell>
                     <TableCell><Badge variant="outline" className="text-[10px] font-bold">{reg.userGender || "N/A"}</Badge></TableCell>
+                    <TableCell>
+                      {reg.checkedIn ? (
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-green-600 uppercase">
+                          <Clock className="w-3 h-3" />
+                          {formatTimestamp(reg.checkedInAt)}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] font-bold text-muted-foreground/40 uppercase">---</span>
+                      )}
+                    </TableCell>
                     <TableCell><span className="text-[10px] font-mono font-bold text-secondary">{reg.ticketCode}</span></TableCell>
                     <TableCell><span className="text-xs font-black text-primary">{reg.price === 0 ? "GRÁTIS" : `R$ ${parseFloat(reg.price || 0).toFixed(2)}`}</span></TableCell>
                     <TableCell className="text-right">
