@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { CreditCard, CheckCircle2, Zap, ShieldCheck, Loader2, Sparkles, Star, XCircle, Info } from "lucide-react"
+import { CreditCard, CheckCircle2, Zap, ShieldCheck, Loader2, Sparkles, Star, XCircle, Info, Trophy } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
@@ -29,7 +29,6 @@ export default function PlanoPage() {
     return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
   }
 
-  // Atualmente simulamos que todos começam no Start
   const currentPlan = "start" 
 
   return (
@@ -39,96 +38,129 @@ export default function PlanoPage() {
         <p className="text-muted-foreground font-medium">Escolha o nível de visibilidade e economia para seus eventos.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Plano Start - Grátis */}
         <Card className={cn(
           "border-none shadow-sm rounded-[2.5rem] overflow-hidden relative transition-all",
           currentPlan === "start" ? "ring-4 ring-secondary/20 bg-white" : "bg-muted/30 opacity-80"
         )}>
-          <CardHeader className="p-8 pb-4">
+          <CardHeader className="p-6 pb-4">
             <div className="flex justify-between items-start">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                    <Badge className="bg-muted text-muted-foreground border-none text-[10px] font-black uppercase px-3 py-1">Gratuito</Badge>
                    {currentPlan === "start" && <Badge className="bg-green-500 text-white border-none text-[10px] font-black uppercase px-3 py-1">Plano Atual</Badge>}
                 </div>
-                <CardTitle className="text-4xl font-black italic tracking-tighter uppercase">Viby Start</CardTitle>
+                <CardTitle className="text-3xl font-black italic tracking-tighter uppercase">Viby Start</CardTitle>
               </div>
-              <div className="p-3 bg-muted rounded-2xl">
-                <Zap className="w-8 h-8 text-muted-foreground" />
-              </div>
+              <Zap className="w-6 h-6 text-muted-foreground" />
             </div>
-            <CardDescription className="text-muted-foreground font-medium mt-2">Perfeito para quem está começando agora.</CardDescription>
+            <CardDescription className="text-muted-foreground font-medium mt-2">Para quem está testando o mercado.</CardDescription>
           </CardHeader>
-          <CardContent className="p-8 pt-4 space-y-6">
-            <div className="text-2xl font-black">R$ 0,00 <span className="text-xs font-bold text-muted-foreground uppercase">/sempre</span></div>
+          <CardContent className="p-6 pt-4 space-y-6">
+            <div className="text-2xl font-black">R$ 0,00</div>
             <div className="space-y-3">
               {[
-                { text: "Criar 1 evento por vez", check: true },
-                { text: "Taxa de Ingressos: 16%", check: true },
-                { text: "Até 10 ingressos grátis por evento", check: true },
+                { text: "1 evento ativo por vez", check: true },
+                { text: "Taxa: 16% (min. R$ 9,99)", check: true },
+                { text: "Até 10 ingressos grátis", check: true },
                 { text: "Sem IA Booster", check: false },
-                { text: "Sem Selo Verificado", check: false },
-                { text: "Divulgação básica", check: true }
+                { text: "Sem Selo Verificado", check: false }
               ].map((feature, i) => (
-                <div key={i} className={cn("flex items-center gap-3 text-sm font-bold", feature.check ? "text-foreground" : "text-muted-foreground/60")}>
+                <div key={i} className={cn("flex items-center gap-3 text-xs font-bold", feature.check ? "text-foreground" : "text-muted-foreground/60")}>
                   {feature.check ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-muted-foreground/30" />}
                   {feature.text}
                 </div>
               ))}
             </div>
           </CardContent>
-          {currentPlan !== "start" && (
-            <CardFooter className="p-8 pt-0">
-               <Button variant="outline" className="w-full h-12 rounded-xl font-bold uppercase tracking-widest text-xs">Migrar para Start</Button>
-            </CardFooter>
-          )}
+          <CardFooter className="p-6 pt-0">
+             <Button disabled={currentPlan === "start"} variant="outline" className="w-full h-10 rounded-xl font-bold uppercase tracking-widest text-[10px]">
+               {currentPlan === "start" ? "Plano Ativo" : "Migrar para Start"}
+             </Button>
+          </CardFooter>
         </Card>
 
         {/* Plano Pro - Pago */}
         <Card className={cn(
           "border-none shadow-xl rounded-[2.5rem] overflow-hidden relative transition-all group",
-          currentPlan === "pro" ? "ring-4 ring-secondary/20 bg-primary text-white" : "bg-primary text-white hover:scale-[1.02]"
+          currentPlan === "pro" ? "ring-4 ring-secondary/20 bg-primary text-white" : "bg-primary text-white"
         )}>
-          <CardHeader className="p-8 pb-4">
+          <CardHeader className="p-6 pb-4">
             <div className="flex justify-between items-start">
               <div className="space-y-1">
-                <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase px-3 py-1 animate-pulse">Recomendado</Badge>
-                <CardTitle className="text-4xl font-black italic tracking-tighter uppercase">Viby Pro</CardTitle>
+                <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase px-3 py-1">Recomendado</Badge>
+                <CardTitle className="text-3xl font-black italic tracking-tighter uppercase">Viby Pro</CardTitle>
               </div>
-              <div className="p-3 bg-secondary rounded-2xl shadow-lg shadow-secondary/20">
-                <Sparkles className="w-8 h-8 text-white fill-white" />
-              </div>
+              <Sparkles className="w-6 h-6 text-secondary fill-secondary" />
             </div>
-            <CardDescription className="text-white/60 font-medium mt-2">Destaque máximo e as menores taxas do mercado.</CardDescription>
+            <CardDescription className="text-white/60 font-medium mt-2">Cresça sua produção com taxas reduzidas.</CardDescription>
           </CardHeader>
-          <CardContent className="p-8 pt-4 space-y-6">
+          <CardContent className="p-6 pt-4 space-y-6">
             <div className="space-y-1">
-               <div className="text-3xl font-black text-secondary">R$ 99,90 <span className="text-xs font-bold text-white/40 uppercase">/mês</span></div>
-               <p className="text-[10px] font-black uppercase tracking-widest text-white/30">Total: R$ 1.198,80 ao ano</p>
+               <div className="text-2xl font-black text-secondary">R$ 99,90 <span className="text-[10px] font-bold text-white/40 uppercase">/mês</span></div>
             </div>
             <div className="space-y-3">
               {[
-                { text: "Eventos Ilimitados", check: true },
-                { text: "Taxa de Ingressos: 8% (Economia de 50%)", check: true },
-                { text: "Ingressos grátis ilimitados", check: true },
-                { text: "IA Booster (Gerar descrições e propostas)", check: true },
-                { text: "Selo de Verificado no perfil", check: true },
-                { text: "Destaque nas buscas e feed", check: true }
+                { text: "Até 5 eventos ativos", check: true },
+                { text: "Taxa: 10% (min. R$ 7,49)", check: true },
+                { text: "IA Booster Completo", check: true },
+                { text: "Selo Verificado", check: true },
+                { text: "Destaque no Feed", check: true }
               ].map((feature, i) => (
-                <div key={i} className="flex items-center gap-3 text-sm font-bold">
+                <div key={i} className="flex items-center gap-3 text-xs font-bold">
                   <CheckCircle2 className="w-4 h-4 text-secondary fill-secondary" />
                   {feature.text}
                 </div>
               ))}
             </div>
           </CardContent>
-          <CardFooter className="p-8 pt-0">
-             <Button className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl shadow-secondary/20 uppercase italic tracking-tighter text-lg group-hover:scale-105 transition-transform">
-               Fazer Upgrade Agora
+          <CardFooter className="p-6 pt-0">
+             <Button className="w-full bg-secondary text-white font-black h-12 rounded-xl shadow-xl shadow-secondary/20 uppercase italic tracking-tighter text-sm group-hover:scale-105 transition-transform">
+               Upgrade para Pro
              </Button>
           </CardFooter>
-          <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-secondary/10 rounded-full blur-3xl" />
+        </Card>
+
+        {/* Plano Top - Premium */}
+        <Card className={cn(
+          "border-none shadow-sm rounded-[2.5rem] overflow-hidden relative transition-all bg-white",
+          currentPlan === "top" ? "ring-4 ring-secondary/20" : "hover:border-secondary/30"
+        )}>
+          <CardHeader className="p-6 pb-4">
+            <div className="flex justify-between items-start">
+              <div className="space-y-1">
+                <Badge className="bg-black text-white border-none text-[10px] font-black uppercase px-3 py-1">Premium</Badge>
+                <CardTitle className="text-3xl font-black italic tracking-tighter uppercase">Viby Top</CardTitle>
+              </div>
+              <Trophy className="w-6 h-6 text-primary" />
+            </div>
+            <CardDescription className="text-muted-foreground font-medium mt-2">Poder ilimitado e as menores taxas.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-6 pt-4 space-y-6">
+            <div className="space-y-1">
+               <div className="text-2xl font-black">R$ 199,90 <span className="text-[10px] font-bold text-muted-foreground uppercase">/mês</span></div>
+            </div>
+            <div className="space-y-3">
+              {[
+                { text: "Eventos Ilimitados", check: true },
+                { text: "Taxa: 8% (min. R$ 3,99)", check: true },
+                { text: "Destaque VIP Premium", check: true },
+                { text: "Suporte Prioritário 24h", check: true },
+                { text: "Relatórios de Audiência", check: true }
+              ].map((feature, i) => (
+                <div key={i} className="flex items-center gap-3 text-xs font-bold text-foreground">
+                  <CheckCircle2 className="w-4 h-4 text-primary" />
+                  {feature.text}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+          <CardFooter className="p-6 pt-0">
+             <Button variant="outline" className="w-full h-12 rounded-xl font-black border-2 border-primary uppercase italic tracking-tighter text-sm">
+               Falar com Especialista
+             </Button>
+          </CardFooter>
         </Card>
       </div>
 
@@ -137,9 +169,9 @@ export default function PlanoPage() {
             <CardContent className="p-6 flex items-start gap-4">
                <Info className="w-6 h-6 text-secondary shrink-0 mt-1" />
                <div className="space-y-1">
-                  <h4 className="font-bold text-sm">Sobre as taxas de serviço</h4>
+                  <h4 className="font-bold text-sm">Entendendo as taxas</h4>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    As taxas são aplicadas apenas sobre ingressos pagos. Eventos gratuitos no plano <strong>Start</strong> têm limite de 10 vouchers. No plano <strong>Pro</strong>, você pode emitir quantos vouchers quiser com taxa zero.
+                    A taxa de serviço é calculada sobre o valor final de cada ingresso vendido. O valor mínimo é aplicado caso a porcentagem do plano resulte em um valor inferior ao piso estabelecido (ex: no Start, o mínimo por ingresso é R$ 9,99).
                   </p>
                </div>
             </CardContent>
