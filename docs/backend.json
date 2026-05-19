@@ -84,6 +84,17 @@
         "icon": { "type": "string" }
       },
       "required": ["name", "slug"]
+    },
+    "SiteSettings": {
+      "title": "Configurações do Site",
+      "description": "Configurações globais de identidade visual",
+      "type": "object",
+      "properties": {
+        "siteName": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "iconUrl": { "type": "string" }
+      },
+      "required": ["siteName"]
     }
   },
   "auth": {
@@ -109,6 +120,10 @@
     "/categories/{catId}": {
       "schema": "Category",
       "description": "Categorias de eventos gerenciadas por admins"
+    },
+    "/settings/site": {
+      "schema": "SiteSettings",
+      "description": "Configurações globais de identidade visual"
     }
   }
 }

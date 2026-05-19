@@ -45,8 +45,12 @@ export function AppSidebar() {
   
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile } = useDoc<any>(userDocRef)
+
+  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
+  const { data: settings } = useDoc<any>(settingsRef)
   
   const isAdmin = profile?.role === 'admin'
+  const siteName = settings?.siteName || "Viby"
 
   const items = [
     {
@@ -99,10 +103,16 @@ export function AppSidebar() {
     <Sidebar className="border-r border-border">
       <SidebarHeader className="p-6">
         <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-          <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
-            <span className="text-secondary-foreground font-bold text-lg">V</span>
-          </div>
-          <span className="text-xl font-bold tracking-tight">Viby</span>
+          {settings?.logoUrl ? (
+            <div className="w-8 h-8 relative flex items-center justify-center">
+              <img src={settings.logoUrl} alt={siteName} className="max-h-full max-w-full object-contain" />
+            </div>
+          ) : (
+            <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
+              <span className="text-secondary-foreground font-bold text-lg">{siteName.charAt(0)}</span>
+            </div>
+          )}
+          <span className="text-xl font-bold tracking-tight">{siteName}</span>
         </Link>
       </SidebarHeader>
       <SidebarContent>
@@ -157,7 +167,7 @@ export function AppSidebar() {
           <>
             <div className="flex items-center gap-3 px-3 py-2 opacity-50">
               <Settings className="w-4 h-4 cursor-pointer" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Versão 1.2.0</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">Versão 1.2.5</span>
             </div>
             <button 
               onClick={handleLogout}

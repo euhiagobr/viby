@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
-import { useCollection, useFirestore, useAuth, useUser } from "@/firebase"
-import { collection, query, limit, orderBy } from "firebase/firestore"
+import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
+import { collection, query, limit, orderBy, doc } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { Button } from "@/components/ui/button"
 import { Globe, Search, ArrowRight, Loader2 } from "lucide-react"
@@ -15,13 +16,17 @@ export default function LandingPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
 
+  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
+  const { data: settings } = useDoc<any>(settingsRef)
+
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
-    // Ordenar por criação para mostrar os mais novos primeiro
     return query(collection(db, "events"), orderBy("createdAt", "desc"), limit(6))
   }, [db])
 
   const { data: events, loading } = useCollection<any>(eventsQuery)
+
+  const siteName = settings?.siteName || "Viby"
 
   return (
     <div className="min-h-screen bg-background">
@@ -29,10 +34,16 @@ export default function LandingPage() {
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">V</span>
-            </div>
-            <span className="text-xl font-bold tracking-tight">Viby</span>
+            {settings?.logoUrl ? (
+              <div className="w-8 h-8 relative flex items-center justify-center">
+                <img src={settings.logoUrl} alt={siteName} className="max-h-full max-w-full object-contain" />
+              </div>
+            ) : (
+              <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg">{siteName.charAt(0)}</span>
+              </div>
+            )}
+            <span className="text-xl font-bold tracking-tight">{siteName}</span>
           </Link>
 
           <div className="hidden md:flex flex-1 max-w-sm mx-8 relative">
@@ -66,14 +77,18 @@ export default function LandingPage() {
       <section className="relative py-20 overflow-hidden">
         <div className="container mx-auto px-4 relative z-10 text-center space-y-8">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/10 text-secondary text-sm font-bold animate-fade-in">
-            <Globe className="w-4 h-4" />
+            {settings?.iconUrl ? (
+               <img src={settings.iconUrl} className="w-4 h-4 object-contain" alt="Site Icon" />
+            ) : (
+               <Globe className="w-4 h-4" />
+            )}
             <span>A maior vitrine de eventos do Brasil</span>
           </div>
           <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-foreground max-w-4xl mx-auto leading-[1.1]">
             Descubra experiências <span className="text-secondary">inesquecíveis</span> perto de você.
           </h1>
           <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto font-medium">
-            De festivais de música a conferências de tecnologia. Explore, compartilhe e viva o momento com a Viby.
+            De festivais de música a conferências de tecnologia. Explore, compartilhe e viva o momento com a {siteName}.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button asChild size="lg" className="bg-primary text-white hover:bg-primary/90 rounded-full px-8 h-12 font-bold group">
@@ -88,7 +103,6 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Decorative elements */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[600px] bg-secondary/5 rounded-full blur-[120px] pointer-events-none -z-10" />
       </section>
 
@@ -127,31 +141,23 @@ export default function LandingPage() {
         )}
       </section>
 
-      {/* Categories / Tags Quick Look */}
-      <section className="bg-muted/50 py-16">
-        <div className="container mx-auto px-4">
-          <h3 className="text-center text-sm font-bold uppercase tracking-widest text-muted-foreground mb-8">Navegue por Categoria</h3>
-          <div className="flex flex-wrap justify-center gap-4">
-            {['Shows', 'Workshops', 'Gastronomia', 'Networking', 'Festivais', 'Cultura', 'Tecnologia'].map((tag) => (
-              <Button key={tag} variant="outline" className="rounded-full bg-white hover:border-secondary hover:text-secondary font-semibold transition-all shadow-sm">
-                {tag}
-              </Button>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Footer */}
       <footer className="py-12 border-t border-border">
         <div className="container mx-auto px-4 text-center">
           <div className="flex items-center justify-center gap-2 mb-6">
-            <div className="w-6 h-6 bg-secondary rounded flex items-center justify-center">
-              <span className="text-white font-bold text-sm">V</span>
-            </div>
-            <span className="font-bold text-lg">Viby</span>
+            {settings?.logoUrl ? (
+              <img src={settings.logoUrl} alt={siteName} className="h-6 object-contain" />
+            ) : (
+              <>
+                <div className="w-6 h-6 bg-secondary rounded flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">{siteName.charAt(0)}</span>
+                </div>
+                <span className="font-bold text-lg">{siteName}</span>
+              </>
+            )}
           </div>
           <p className="text-muted-foreground text-sm max-w-sm mx-auto">
-            Viby © 2024 - Transformando a maneira como você descobre e vive eventos.
+            {siteName} © 2024 - Transformando a maneira como você descobre e vive eventos.
           </p>
         </div>
       </footer>

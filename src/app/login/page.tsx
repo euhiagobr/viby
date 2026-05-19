@@ -1,9 +1,10 @@
+
 "use client"
 
 import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth, useFirestore } from "@/firebase"
+import { useAuth, useFirestore, useDoc } from "@/firebase"
 import { signInWithEmailAndPassword, signOut } from "firebase/auth"
 import { doc, getDoc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
@@ -21,6 +22,11 @@ export default function LoginPage() {
   const router = useRouter()
   const auth = useAuth()
   const db = useFirestore()
+
+  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
+  const { data: settings } = useDoc<any>(settingsRef)
+
+  const siteName = settings?.siteName || "Viby"
 
   const verifyVibyUserAndGetEmail = async (uid: string) => {
     if (!db) return null
@@ -44,7 +50,6 @@ export default function LoginPage() {
     try {
       let emailToUse = identifier
 
-      // Se não for um e-mail, tenta resolver pelo nome de usuário
       if (!identifier.includes("@")) {
         const usernameRef = doc(db, "usernames", identifier.toLowerCase().trim())
         const usernameSnap = await getDoc(usernameRef)
@@ -64,17 +69,15 @@ export default function LoginPage() {
 
       const userCredential = await signInWithEmailAndPassword(auth, emailToUse, password)
       
-      // Verificação final de segurança (dupla checagem de plataforma)
       const userDoc = await getDoc(doc(db, "users", userCredential.user.uid))
       if (!userDoc.exists() || userDoc.data()?.platform !== "viby") {
         await signOut(auth)
-        throw new Error("Esta conta não pertence ao Viby Club.")
+        throw new Error(`Esta conta não pertence ao ${siteName}.`)
       }
 
-      toast({ title: "Login realizado!", description: "Bem-vindo de volta ao Viby." })
+      toast({ title: "Login realizado!", description: `Bem-vindo de volta ao ${siteName}.` })
       router.push("/dashboard")
     } catch (error: any) {
-      console.error("Login Error:", error)
       toast({
         variant: "destructive",
         title: "Erro ao entrar",
@@ -89,10 +92,14 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4 font-body">
       <Card className="w-full max-w-md border-none shadow-xl">
         <CardHeader className="space-y-1 flex flex-col items-center">
-          <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4">
-            <Globe className="text-white w-7 h-7" />
+          <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 overflow-hidden">
+            {settings?.logoUrl ? (
+              <img src={settings.logoUrl} alt={siteName} className="max-w-full max-h-full object-contain p-2" />
+            ) : (
+              <Globe className="text-white w-7 h-7" />
+            )}
           </div>
-          <CardTitle className="text-2xl font-bold">Viby Club Login</CardTitle>
+          <CardTitle className="text-2xl font-bold">{siteName} Login</CardTitle>
           <CardDescription>Acesse sua conta com e-mail ou nome de usuário.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -122,13 +129,13 @@ export default function LoginPage() {
             </div>
             <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold" disabled={loading}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Entrar no Viby
+              Entrar no {siteName}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="flex justify-center border-t border-border mt-4 pt-6">
           <p className="text-sm text-muted-foreground">
-            Ainda não tem conta no Viby?{" "}
+            Ainda não tem conta no {siteName}?{" "}
             <Link href="/cadastro" className="text-secondary font-bold hover:underline">
               Cadastrar-se
             </Link>
