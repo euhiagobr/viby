@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
@@ -11,7 +12,7 @@ service cloud.firestore {
     }
 
     function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId && isVibyUser();
+      return isAuthenticated() && request.auth.uid == userId;
     }
 
     match /events/{eventId} {
@@ -22,8 +23,14 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if true;
-      allow create: if isAuthenticated(); // Permite criação inicial do perfil com platform="viby"
-      allow update, delete: if isOwner(userId);
+      allow create: if isAuthenticated() && request.resource.data.platform == "viby";
+      allow update, delete: if isOwner(userId) && isVibyUser();
+    }
+
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if isAuthenticated() && !exists(/databases/eventosviby/documents/usernames/$(username));
+      allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
     }
 
     match /registrations/{regId} {

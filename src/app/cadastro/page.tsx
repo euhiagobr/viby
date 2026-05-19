@@ -1,47 +1,106 @@
+
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useFirestore } from "@/firebase"
-import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, updateProfile } from "firebase/auth"
-import { doc, setDoc, getDoc } from "firebase/firestore"
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, updateProfile, signOut } from "firebase/auth"
+import { doc, setDoc, getDoc, runTransaction } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { Globe, Loader2 } from "lucide-react"
+import { Globe, Loader2, Check, X } from "lucide-react"
 import Link from "next/link"
 
 export default function CadastroPage() {
   const [name, setName] = useState("")
+  const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [checkingUsername, setCheckingUsername] = useState(false)
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
   const router = useRouter()
   const auth = useAuth()
   const db = useFirestore()
 
+  const validateUsername = (val: string) => {
+    const regex = /^[a-zA-Z0-9]+$/
+    return val.length >= 5 && regex.test(val)
+  }
+
+  useEffect(() => {
+    if (!db || username.length < 5) {
+      setUsernameStatus(username.length > 0 ? 'invalid' : 'idle')
+      return
+    }
+
+    if (!validateUsername(username)) {
+      setUsernameStatus('invalid')
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setCheckingUsername(true)
+      try {
+        const normalized = username.toLowerCase()
+        const userDoc = await getDoc(doc(db, "usernames", normalized))
+        if (userDoc.exists()) {
+          setUsernameStatus('taken')
+        } else {
+          setUsernameStatus('valid')
+        }
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setCheckingUsername(false)
+      }
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [username, db])
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!auth || !db) return
+    if (usernameStatus !== 'valid') {
+      toast({ variant: "destructive", title: "Erro", description: "Nome de usuário inválido ou já em uso." })
+      return
+    }
 
     setLoading(true)
+    const normalizedUsername = username.toLowerCase()
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       const user = userCredential.user
 
       await updateProfile(user, { displayName: name })
 
-      await setDoc(doc(db, "users", user.uid), {
-        name,
-        email,
-        avatar: `https://picsum.photos/seed/${user.uid}/100/100`,
-        isVerified: false,
-        totalEvents: 0,
-        platform: "viby",
-        createdAt: new Date().toISOString()
+      // Usar transação para garantir atomicidade entre user profile e reserva de username
+      await runTransaction(db, async (transaction) => {
+        const usernameRef = doc(db, "usernames", normalizedUsername)
+        const userRef = doc(db, "users", user.uid)
+
+        const usernameSnap = await transaction.get(usernameRef)
+        if (usernameSnap.exists()) {
+          throw new Error("Nome de usuário acaba de ser ocupado.")
+        }
+
+        transaction.set(usernameRef, { uid: user.uid })
+        transaction.set(userRef, {
+          name,
+          username: normalizedUsername,
+          email,
+          avatar: `https://picsum.photos/seed/${user.uid}/100/100`,
+          isVerified: false,
+          totalEvents: 0,
+          platform: "viby",
+          createdAt: new Date().toISOString()
+        })
       })
 
       toast({ title: "Conta criada!", description: "Bem-vindo ao Viby." })
@@ -67,8 +126,14 @@ export default function CadastroPage() {
       const userDoc = await getDoc(doc(db, "users", user.uid))
       
       if (!userDoc.exists()) {
+        // Para Google Sign In, precisamos de um passo extra ou um username temporário/aleatório
+        // Aqui apenas verificamos se existe. Se não existe, redirecionamos para completar perfil ou usamos email
+        const baseUsername = user.email?.split('@')[0].replace(/[^a-zA-Z0-9]/g, '') || "user"
+        const finalUsername = baseUsername.length < 5 ? baseUsername + Math.floor(1000 + Math.random() * 9000) : baseUsername
+        
         await setDoc(doc(db, "users", user.uid), {
           name: user.displayName || "Usuário",
+          username: finalUsername.toLowerCase(),
           email: user.email,
           avatar: user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`,
           isVerified: false,
@@ -100,6 +165,33 @@ export default function CadastroPage() {
               <Label htmlFor="name">Nome Completo</Label>
               <Input id="name" placeholder="Seu nome" value={name} onChange={(e) => setName(e.target.value)} required />
             </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="username">Nome de Usuário</Label>
+              <div className="relative">
+                <Input 
+                  id="username" 
+                  placeholder="ex: joaosilva123" 
+                  value={username} 
+                  onChange={(e) => setUsername(e.target.value)} 
+                  className={usernameStatus === 'valid' ? 'border-green-500' : usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-destructive' : ''}
+                  required 
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  {checkingUsername ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  ) : usernameStatus === 'valid' ? (
+                    <Check className="w-4 h-4 text-green-500" />
+                  ) : usernameStatus === 'taken' || usernameStatus === 'invalid' ? (
+                    <X className="w-4 h-4 text-destructive" />
+                  ) : null}
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Mínimo 5 caracteres, apenas letras e números.</p>
+              {usernameStatus === 'taken' && <p className="text-[10px] text-destructive">Este nome já está em uso.</p>}
+              {usernameStatus === 'invalid' && username.length > 0 && <p className="text-[10px] text-destructive">Formato inválido ou muito curto.</p>}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="email">E-mail</Label>
               <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -108,7 +200,7 @@ export default function CadastroPage() {
               <Label htmlFor="password">Senha</Label>
               <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
-            <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90" disabled={loading}>
+            <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90" disabled={loading || usernameStatus !== 'valid'}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Cadastrar no Viby
             </Button>

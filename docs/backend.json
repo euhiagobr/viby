@@ -7,12 +7,23 @@
       "type": "object",
       "properties": {
         "name": { "type": "string" },
+        "username": { "type": "string", "description": "Nome de usuário único, min 5 chars, alfanumérico" },
         "avatar": { "type": "string" },
         "email": { "type": "string" },
         "isVerified": { "type": "boolean" },
-        "totalEvents": { "type": "number" }
+        "totalEvents": { "type": "number" },
+        "platform": { "type": "string", "enum": ["viby"] }
       },
-      "required": ["name", "email"]
+      "required": ["name", "email", "username", "platform"]
+    },
+    "Username": {
+      "title": "Unicidade de Usuário",
+      "description": "Mapeamento para garantir nomes de usuário únicos",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" }
+      },
+      "required": ["uid"]
     },
     "Event": {
       "title": "Evento",
@@ -27,7 +38,7 @@
         "type": { "type": "string", "enum": ["Público", "Privado", "Governo"] },
         "status": { "type": "string", "enum": ["A fazer", "Em progresso", "Concluído"] },
         "image": { "type": "string" },
-        "organizerId": { "type": "string", "description": "UID do usuário que criou o evento" },
+        "organizerId": { "type": "string" },
         "organizer": { "$ref": "#/backend/entities/Organizer" }
       },
       "required": ["title", "date", "location", "organizerId"]
@@ -52,15 +63,19 @@
   "firestore": {
     "/events/{eventId}": {
       "schema": "Event",
-      "description": "Coleção global de eventos para divulgação"
+      "description": "Coleção global de eventos Viby"
     },
     "/users/{userId}": {
       "schema": "Organizer",
-      "description": "Perfis dos organizadores cadastrados"
+      "description": "Perfis dos organizadores Viby"
+    },
+    "/usernames/{username}": {
+      "schema": "Username",
+      "description": "Índice de nomes de usuário para garantir unicidade"
     },
     "/registrations/{regId}": {
       "schema": "Registration",
-      "description": "Interesses registrados nos eventos"
+      "description": "Interesses registrados nos eventos Viby"
     }
   }
 }
