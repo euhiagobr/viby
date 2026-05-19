@@ -59,7 +59,8 @@ export function EventCard({ event }: EventCardProps) {
   const getPriceDisplay = () => {
     if (event.isFree) return "Grátis";
     if (event.batches && event.batches.length > 0) {
-      const minPrice = Math.min(...event.batches.map((b: any) => parseFloat(b.price) || 0));
+      const prices = event.batches.map((b: any) => parseFloat(b.price) || 0);
+      const minPrice = Math.min(...prices);
       return `A partir de R$ ${minPrice.toFixed(2).replace('.', ',')}`;
     }
     return "Consulte";
@@ -77,7 +78,7 @@ export function EventCard({ event }: EventCardProps) {
         />
         <div className="absolute top-3 left-3 flex flex-col gap-2">
           <Badge className="bg-secondary text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider">
-            {event.categoryName || event.type || "Evento"}
+            {event.categoryName || "Evento"}
           </Badge>
           <Badge className={`${event.isFree ? "bg-green-500" : "bg-primary"} text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider`}>
             {getPriceDisplay()}

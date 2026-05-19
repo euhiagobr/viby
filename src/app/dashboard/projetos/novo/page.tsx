@@ -168,7 +168,8 @@ export default function NovoEventoPage() {
 
     setLoading(true)
     const formData = new FormData(e.currentTarget)
-    const categoryName = categories?.find(c => c.id === selectedCategory)?.name || "Geral";
+    const currentCategory = categories?.find(c => c.id === selectedCategory);
+    const categoryName = currentCategory?.name || "Outros";
     
     try {
       const eventData = {
