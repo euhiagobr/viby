@@ -2,14 +2,14 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Funções de utilidade
+    // Funções de utilidade para o banco eventosviby
     function isAuthenticated() {
       return request.auth != null;
     }
     
     function getUserData() {
-      // Busca dados do usuário no banco atual (eventosviby)
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      // Busca dados do usuário especificamente no banco eventosviby
+      return get(/databases/eventosviby/documents/users/$(request.auth.uid)).data;
     }
 
     function isVibyUser() {
@@ -24,7 +24,7 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Regras para Coleção de Eventos: Público para leitura, Privado para escrita
+    // Regras para Coleção de Eventos: Público para leitura, Restrito para escrita
     match /events/{eventId} {
       allow read: if true;
       allow create: if isVibyUser();
@@ -38,10 +38,10 @@ service cloud.firestore {
       allow update, delete: if isOwner(userId) && isVibyUser();
     }
 
-    // Regras para Unicidade de Nome de Usuário: Leitura pública para verificação no cadastro
+    // Regras para Unicidade de Nome de Usuário
     match /usernames/{username} {
-      allow read: if true;
-      allow create: if isAuthenticated() && !exists(/databases/$(database)/documents/usernames/$(username));
+      allow read: if true; // Necessário para verificar disponibilidade no cadastro
+      allow create: if isAuthenticated() && !exists(/databases/eventosviby/documents/usernames/$(username));
       allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
     }
 
@@ -50,7 +50,7 @@ service cloud.firestore {
       allow create: if isVibyUser();
       allow read: if isVibyUser() && (
         resource.data.userId == request.auth.uid || 
-        get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.organizerId == request.auth.uid
+        get(/databases/eventosviby/documents/events/$(resource.data.eventId)).data.organizerId == request.auth.uid
       );
     }
 
