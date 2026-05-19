@@ -95,6 +95,24 @@
       },
       "required": ["eventId", "userId", "organizerId"]
     },
+    "Coupon": {
+      "title": "Cupom de Desconto",
+      "description": "Cupons de desconto para ingressos de eventos",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "discountType": { "type": "string", "enum": ["percentage", "fixed"] },
+        "discountValue": { "type": "number" },
+        "maxUses": { "type": "number" },
+        "currentUses": { "type": "number" },
+        "eventId": { "type": "string" },
+        "organizerId": { "type": "string" },
+        "validFrom": { "type": "string", "format": "date-time" },
+        "validUntil": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["Ativo", "Inativo"] }
+      },
+      "required": ["code", "discountType", "discountValue", "eventId", "organizerId"]
+    },
     "Category": {
       "title": "Categoria",
       "description": "Categorias de classificação para eventos",
@@ -141,6 +159,10 @@
     "/registrations/{regId}": {
       "schema": "Registration",
       "description": "Interesses registrados nos eventos Viby"
+    },
+    "/coupons/{couponId}": {
+      "schema": "Coupon",
+      "description": "Cupons de desconto gerenciados pelos organizadores"
     },
     "/categories/{catId}": {
       "schema": "Category",

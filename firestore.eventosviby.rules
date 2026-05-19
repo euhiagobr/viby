@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
@@ -56,14 +57,12 @@ service cloud.firestore {
     }
     
     match /registrations/{regId} {
-      // Dono do ingresso e o Organizador do evento podem ler
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
         resource.data.organizerId == request.auth.uid || 
         isAdmin()
       );
       allow create: if isSignedIn();
-      // Organizador e Admin podem fazer check-in
       allow update: if isSignedIn() && (
         resource.data.organizerId == request.auth.uid || 
         isAdmin()
@@ -72,6 +71,13 @@ service cloud.firestore {
         resource.data.organizerId == request.auth.uid || 
         isAdmin()
       );
+    }
+
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (resource.data.organizerId == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && (resource.data.organizerId == request.auth.uid || isAdmin());
     }
 
     match /categories/{catId} {

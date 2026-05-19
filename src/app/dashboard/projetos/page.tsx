@@ -18,7 +18,8 @@ import {
   Edit2, 
   Eye, 
   Users,
-  Trash2
+  Trash2,
+  TicketPercent
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -225,6 +226,12 @@ export default function MeusEventosPage() {
                           <Link href={eventLink} target="_blank" className="flex items-center gap-2 cursor-pointer font-medium py-2">
                             <Eye className="w-4 h-4" />
                             Ver Anúncio
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href={`/dashboard/evento/${event.id}/cupons`} className="flex items-center gap-2 cursor-pointer font-medium py-2">
+                            <TicketPercent className="w-4 h-4 text-secondary" />
+                            Cupons do evento
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
