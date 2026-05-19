@@ -1,7 +1,6 @@
 "use client"
 
-import { Calendar, MapPin, Tag, MoreVertical } from "lucide-react"
-import { Event } from "@/lib/mock-data"
+import { Calendar, MapPin, MoreVertical, Clock } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,21 +8,34 @@ import Image from "next/image"
 import Link from "next/link"
 
 interface EventCardProps {
-  event: any // Usando any para lidar com dados do Firestore ou Mock
+  event: any 
 }
 
 export function EventCard({ event }: EventCardProps) {
   const formatDate = (date: any) => {
     if (!date) return "Data não definida";
     try {
-      // Lida com Date, string ISO ou Firestore Timestamp
       const d = date?.toDate ? date.toDate() : new Date(date);
       if (isNaN(d.getTime())) return "Data inválida";
-      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     } catch (e) {
       return "Data inválida";
     }
   };
+
+  const formatTime = (date: any) => {
+    if (!date) return "";
+    try {
+      const d = date?.toDate ? date.toDate() : new Date(date);
+      if (isNaN(d.getTime())) return "";
+      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return "";
+    }
+  };
+
+  const formattedDate = formatDate(event.date);
+  const formattedTime = formatTime(event.date);
 
   return (
     <Card className="group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl">
@@ -53,13 +65,21 @@ export function EventCard({ event }: EventCardProps) {
           {event.description || event.shortDescription}
         </p>
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-            <Calendar className="w-3.5 h-3.5 text-secondary" />
-            <span>{formatDate(event.date)}</span>
+          <div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
+            <span className="flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-secondary" />
+              {formattedDate}
+            </span>
+            {formattedTime && (
+              <span className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-secondary" />
+                {formattedTime}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
             <MapPin className="w-3.5 h-3.5 text-secondary" />
-            <span>{event.location || event.address?.street}, {event.city}</span>
+            <span className="line-clamp-1">{event.location || event.address?.street}, {event.city}</span>
           </div>
         </div>
       </CardContent>

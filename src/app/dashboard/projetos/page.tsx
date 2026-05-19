@@ -5,7 +5,7 @@ import { useCollection, useFirestore, useAuth, useUser } from "@/firebase"
 import { collection, query, where } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
-import { Plus, MoreHorizontal, Globe, Loader2, Calendar as CalendarIcon, MapPin } from "lucide-react"
+import { Plus, MoreHorizontal, Globe, Loader2, Calendar as CalendarIcon, MapPin, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
@@ -32,6 +32,17 @@ export default function MeusEventosPage() {
     }
   };
 
+  const formatTime = (date: any) => {
+    if (!date) return "";
+    try {
+      const d = date?.toDate ? date.toDate() : new Date(date);
+      if (isNaN(d.getTime())) return "";
+      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return "";
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -54,41 +65,53 @@ export default function MeusEventosPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {events?.map((event: any) => (
-            <Card key={event.id} className="overflow-hidden border-border hover:border-secondary/50 transition-all group shadow-sm">
-              <div className="p-4 space-y-4">
-                <div className="flex justify-between items-start">
-                  <Badge variant={event.status === 'Concluído' ? 'secondary' : 'default'} className="rounded-full">
-                    {event.status || "Ativo"}
-                  </Badge>
-                  <button className="text-muted-foreground">
-                    <MoreHorizontal className="w-4 h-4" />
-                  </button>
-                </div>
-                
-                <div className="space-y-2">
-                  <h4 className="font-bold text-lg leading-tight group-hover:text-secondary transition-colors">{event.title}</h4>
-                  <p className="text-sm text-muted-foreground line-clamp-2">{event.shortDescription || event.description}</p>
-                </div>
-
-                <div className="flex items-center gap-4 py-2 border-y border-border">
-                  <div className="flex items-center gap-1 text-xs font-semibold">
-                    <CalendarIcon className="w-3.5 h-3.5 text-secondary" />
-                    <span>{formatDate(event.date)}</span>
+          {events?.map((event: any) => {
+            const time = formatTime(event.date);
+            return (
+              <Card key={event.id} className="overflow-hidden border-border hover:border-secondary/50 transition-all group shadow-sm">
+                <div className="p-4 space-y-4">
+                  <div className="flex justify-between items-start">
+                    <Badge variant={event.status === 'Concluído' ? 'secondary' : 'default'} className="rounded-full">
+                      {event.status || "Ativo"}
+                    </Badge>
+                    <button className="text-muted-foreground">
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
                   </div>
-                  <div className="flex items-center gap-1 text-xs font-semibold">
-                    <MapPin className="w-3.5 h-3.5 text-secondary" />
-                    <span>{event.city || "Local não definido"}</span>
+                  
+                  <div className="space-y-2">
+                    <h4 className="font-bold text-lg leading-tight group-hover:text-secondary transition-colors line-clamp-1">{event.title}</h4>
+                    <p className="text-sm text-muted-foreground line-clamp-2">{event.shortDescription || event.description}</p>
+                  </div>
+
+                  <div className="space-y-1.5 py-2 border-y border-border">
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+                      <CalendarIcon className="w-3.5 h-3.5 text-secondary" />
+                      <span>{formatDate(event.date)}</span>
+                      {time && (
+                        <>
+                          <span className="mx-1">•</span>
+                          <Clock className="w-3.5 h-3.5 text-secondary" />
+                          <span>{time}</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+                      <MapPin className="w-3.5 h-3.5 text-secondary" />
+                      <span className="line-clamp-1">{event.city || "Local não definido"}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <Button variant="outline" size="sm" className="text-xs h-8" asChild>
+                      <Link href={`/dashboard/evento/${event.id}`}>Ver Detalhes</Link>
+                    </Button>
+                    <Button variant="secondary" size="sm" className="text-xs h-8">Ver Público</Button>
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between pt-2">
-                  <Button variant="outline" size="sm" className="text-xs h-8">Editar Anúncio</Button>
-                  <Button variant="secondary" size="sm" className="text-xs h-8">Ver Público</Button>
-                </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
 
           <Link 
             href="/dashboard/projetos/novo"

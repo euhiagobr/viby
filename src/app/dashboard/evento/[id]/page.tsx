@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -20,7 +19,8 @@ import {
   BadgeCheck,
   Star,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  Clock
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -41,7 +41,6 @@ export default function EventoDetalhesPage() {
   const [isRegistered, setIsRegistered] = React.useState(false)
   const [registering, setRegistering] = React.useState(false)
 
-  // Checar se o usuário já marcou interesse
   React.useEffect(() => {
     if (!db || !user || !eventId) return
     const checkReg = async () => {
@@ -51,6 +50,28 @@ export default function EventoDetalhesPage() {
     }
     checkReg()
   }, [db, user, eventId])
+
+  const formatDate = (date: any) => {
+    if (!date) return "Data não definida";
+    try {
+      const d = date?.toDate ? date.toDate() : new Date(date);
+      if (isNaN(d.getTime())) return "Data inválida";
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    } catch (e) {
+      return "Data inválida";
+    }
+  };
+
+  const formatTime = (date: any) => {
+    if (!date) return "";
+    try {
+      const d = date?.toDate ? date.toDate() : new Date(date);
+      if (isNaN(d.getTime())) return "";
+      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return "";
+    }
+  };
 
   const handleRegisterInterest = async () => {
     if (!auth || !user) {
@@ -104,6 +125,9 @@ export default function EventoDetalhesPage() {
     )
   }
 
+  const formattedDate = formatDate(event.date);
+  const formattedTime = formatTime(event.date);
+
   return (
     <div className="space-y-8 pb-20">
       <div className="flex items-center justify-between">
@@ -133,14 +157,20 @@ export default function EventoDetalhesPage() {
           <div className="flex flex-col gap-4 max-w-4xl">
             <Badge className="w-fit bg-secondary text-white border-none text-sm px-4 py-1">{event.type}</Badge>
             <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">{event.title}</h1>
-            <div className="flex flex-wrap gap-6 text-white/90 text-sm font-medium">
+            <div className="flex flex-wrap gap-x-8 gap-y-2 text-white/90 text-sm font-medium">
               <span className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-secondary" />
-                {new Date(event.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                {formattedDate}
               </span>
+              {formattedTime && (
+                <span className="flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-secondary" />
+                  {formattedTime}
+                </span>
+              )}
               <span className="flex items-center gap-2">
                 <MapPin className="w-5 h-5 text-secondary" />
-                {event.location}, {event.city}
+                {event.location || event.address?.street}, {event.city}
               </span>
             </div>
           </div>
@@ -152,7 +182,7 @@ export default function EventoDetalhesPage() {
           <Card className="border-none shadow-sm bg-card">
             <CardHeader><CardTitle className="flex items-center gap-2 text-xl"><Info className="w-5 h-5 text-secondary" /> Sobre o Evento</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-muted-foreground leading-relaxed text-lg">{event.description}</p>
+              <p className="text-muted-foreground leading-relaxed text-lg whitespace-pre-line">{event.description}</p>
             </CardContent>
           </Card>
         </div>
