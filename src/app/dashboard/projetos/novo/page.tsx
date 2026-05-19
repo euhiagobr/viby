@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -20,20 +21,13 @@ import {
   Upload, 
   MapPin, 
   Calendar, 
-  Clock, 
   Plus, 
   Trash2, 
   Loader2, 
   ImageIcon,
-  Map as MapIcon,
-  Tag,
-  Hash,
-  Globe,
-  Building2,
   ShieldAlert
 } from "lucide-react"
 import Link from "next/link"
-import { Separator } from "@/components/ui/separator"
 
 interface Batch {
   name: string
@@ -89,13 +83,11 @@ export default function NovoEventoPage() {
     number: "",
     complement: ""
   })
-  const [coords, setCoords] = useState({ lat: "-23.5505", lng: "-46.6333" })
 
   const [batches, setBatches] = useState<Batch[]>([
     { name: "Lote Único", price: "0.00", startDate: "", endDate: "", available: "100" }
   ])
 
-  // Redireciona se não for empresa
   useEffect(() => {
     if (!profileLoading && profile && profile.accountType !== 'Empresa') {
       toast({
@@ -113,28 +105,18 @@ export default function NovoEventoPage() {
 
     setImagePreview(URL.createObjectURL(file))
     setUploadProgress(0)
-    setUploadedImageUrl(null)
 
     try {
       const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
       const storagePath = `events/${user.uid}/${fileName}`
       const storageRef = ref(storage, storagePath)
-      
       const uploadTask = uploadBytesResumable(storageRef, file)
 
       uploadTask.on('state_changed', 
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-          setUploadProgress(progress)
-        }, 
+        (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100), 
         (error: any) => {
-          console.error("Upload error:", error)
           setUploadProgress(null)
-          toast({
-            variant: "destructive",
-            title: "Erro no upload",
-            description: "Não foi possível carregar a imagem selecionada. Verifique as permissões de Storage."
-          })
+          toast({ variant: "destructive", title: "Erro no upload" })
         }, 
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
@@ -152,7 +134,6 @@ export default function NovoEventoPage() {
   const handleCepBlur = async () => {
     const cleanCep = cep.replace(/\D/g, "")
     if (cleanCep.length !== 8) return
-
     try {
       const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
       const data = await response.json()
@@ -162,21 +143,14 @@ export default function NovoEventoPage() {
           street: data.logradouro || "",
           neighborhood: data.bairro || "",
           city: data.localidade || "",
-          state: data.uf || "",
-          country: "Brasil"
+          state: data.uf || ""
         }))
       }
     } catch (e) {}
   }
 
-  const addBatch = () => {
-    setBatches([...batches, { name: "", price: "", startDate: "", endDate: "", available: "" }])
-  }
-
-  const removeBatch = (index: number) => {
-    setBatches(batches.filter((_, i) => i !== index))
-  }
-
+  const addBatch = () => setBatches([...batches, { name: "", price: "", startDate: "", endDate: "", available: "" }])
+  const removeBatch = (index: number) => setBatches(batches.filter((_, i) => i !== index))
   const updateBatch = (index: number, field: keyof Batch, value: string) => {
     const newBatches = [...batches]
     newBatches[index][field] = value
@@ -207,7 +181,6 @@ export default function NovoEventoPage() {
         isFree: isFree,
         cep: cep,
         address: address,
-        coords: coords,
         batches: isFree ? [{ name: "Gratuito", price: 0, available: parseInt(formData.get("freeCapacity") as string) || 0 }] : batches.map(b => ({
           ...b,
           price: parseFloat(b.price) || 0,
@@ -218,7 +191,8 @@ export default function NovoEventoPage() {
         organizer: {
           name: profile.name || user.displayName || "Organizador",
           avatar: profile.avatar || user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`,
-          isVerified: profile.isVerified || false
+          isVerified: profile.isVerified || false,
+          username: profile.username || ""
         },
         status: "Ativo",
         type: "Público",
@@ -249,7 +223,6 @@ export default function NovoEventoPage() {
       <div className="flex flex-col items-center justify-center h-[60vh] gap-4 text-center p-6">
         <ShieldAlert className="w-16 h-16 text-destructive mb-2" />
         <h2 className="text-2xl font-bold">Acesso Restrito</h2>
-        <p className="text-muted-foreground max-w-md">Apenas perfis de <strong>Empresa</strong> podem publicar novos eventos na Viby. Por favor, atualize seu tipo de conta em seu perfil.</p>
         <Button asChild className="mt-4 bg-secondary text-white font-bold px-8">
           <Link href="/dashboard/perfil/editar">Configurar como Empresa</Link>
         </Button>
@@ -287,13 +260,7 @@ export default function NovoEventoPage() {
                   <p className="text-sm text-muted-foreground">Clique para carregar capa (16:9)</p>
                 </>
               )}
-              <input 
-                id="image-upload" 
-                type="file" 
-                accept="image/*" 
-                className="hidden" 
-                onChange={handleImageChange}
-              />
+              <input id="image-upload" type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
             </div>
             {uploadProgress !== null && (
               <div className="space-y-2">
@@ -320,9 +287,7 @@ export default function NovoEventoPage() {
               <div className="space-y-2">
                 <Label>Categoria</Label>
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione uma categoria" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Selecione uma categoria" /></SelectTrigger>
                   <SelectContent>
                     {sortedCategories.map((cat: any) => (
                       <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
@@ -331,42 +296,18 @@ export default function NovoEventoPage() {
                 </Select>
               </div>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="startDate">Data e Hora de Início</Label>
-                <Input id="startDate" name="startDate" type="datetime-local" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="endDate">Data e Hora de Fim</Label>
-                <Input id="endDate" name="endDate" type="datetime-local" required />
-              </div>
+              <div className="space-y-2"><Label htmlFor="startDate">Data e Hora de Início</Label><Input id="startDate" name="startDate" type="datetime-local" required /></div>
+              <div className="space-y-2"><Label htmlFor="endDate">Data e Hora de Fim</Label><Input id="endDate" name="endDate" type="datetime-local" required /></div>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tags">Tags (separadas por vírgula)</Label>
-              <Input id="tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="musica, festival..." />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="shortDescription">Breve Descrição</Label>
-              <Input id="shortDescription" name="shortDescription" placeholder="Frase chamativa..." required />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Descrição Completa</Label>
-              <Textarea id="description" name="description" placeholder="Detalhes do evento..." className="min-h-[150px]" required />
-            </div>
+            <div className="space-y-2"><Label htmlFor="tags">Tags (separadas por vírgula)</Label><Input id="tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="musica, festival..." /></div>
+            <div className="space-y-2"><Label htmlFor="shortDescription">Breve Descrição</Label><Input id="shortDescription" name="shortDescription" placeholder="Frase chamativa..." required /></div>
+            <div className="space-y-2"><Label htmlFor="description">Descrição Completa</Label><Textarea id="description" name="description" placeholder="Detalhes do evento..." className="min-h-[150px]" required /></div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-secondary" />
-              Localização
-            </CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
@@ -378,73 +319,42 @@ export default function NovoEventoPage() {
                 <Input id="street" value={address.street} onChange={(e) => setAddress({...address, street: e.target.value})} placeholder="Rua..." required />
               </div>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="number">Número</Label>
-                <Input id="number" value={address.number} onChange={(e) => setAddress({...address, number: e.target.value})} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="neighborhood">Bairro</Label>
-                <Input id="neighborhood" value={address.neighborhood} onChange={(e) => setAddress({...address, neighborhood: e.target.value})} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="city">Cidade</Label>
-                <Input id="city" value={address.city} onChange={(e) => setAddress({...address, city: e.target.value})} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="state">Estado</Label>
-                <Input id="state" value={address.state} onChange={(e) => setAddress({...address, state: e.target.value})} required />
-              </div>
+              <div className="space-y-2"><Label htmlFor="number">Número</Label><Input id="number" value={address.number} onChange={(e) => setAddress({...address, number: e.target.value})} required /></div>
+              <div className="space-y-2"><Label htmlFor="neighborhood">Bairro</Label><Input id="neighborhood" value={address.neighborhood} onChange={(e) => setAddress({...address, neighborhood: e.target.value})} required /></div>
+              <div className="space-y-2"><Label htmlFor="city">Cidade</Label><Input id="city" value={address.city} onChange={(e) => setAddress({...address, city: e.target.value})} required /></div>
+              <div className="space-y-2"><Label htmlFor="state">Estado</Label><Input id="state" value={address.state} onChange={(e) => setAddress({...address, state: e.target.value})} required /></div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-6 border-b">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Tag className="w-5 h-5 text-secondary" />
-              Ingressos
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="free-event">Grátis</Label>
-              <Switch id="free-event" checked={isFree} onCheckedChange={setIsFree} />
-            </div>
+            <CardTitle className="text-lg flex items-center gap-2">Ingressos</CardTitle>
+            <div className="flex items-center gap-2"><Label htmlFor="free-event">Grátis</Label><Switch id="free-event" checked={isFree} onCheckedChange={setIsFree} /></div>
           </CardHeader>
           <CardContent className="p-6">
             {isFree ? (
-              <div className="space-y-4 text-center">
-                <p className="text-sm text-muted-foreground">Evento gratuito. Defina a capacidade.</p>
-                <Input name="freeCapacity" type="number" placeholder="Capacidade..." className="max-w-xs mx-auto" required />
-              </div>
+              <div className="space-y-4 text-center"><Input name="freeCapacity" type="number" placeholder="Capacidade..." className="max-w-xs mx-auto" required /></div>
             ) : (
               <div className="space-y-4">
                 {batches.map((batch, index) => (
                   <div key={index} className="p-4 rounded-xl border bg-muted/20 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h4 className="font-bold text-sm">Lote #{index + 1}</h4>
-                      {batches.length > 1 && (
-                        <Button type="button" variant="ghost" size="icon" onClick={() => removeBatch(index)} className="text-destructive">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
+                    <div className="flex justify-between items-center"><h4 className="font-bold text-sm">Lote #{index + 1}</h4><Button type="button" variant="ghost" size="icon" onClick={() => removeBatch(index)} className="text-destructive"><Trash2 className="w-4 h-4" /></Button></div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <Input value={batch.name} onChange={(e) => updateBatch(index, "name", e.target.value)} placeholder="Nome do Lote" required />
+                      <Input value={batch.name} onChange={(e) => updateBatch(index, "name", e.target.value)} placeholder="Nome" required />
                       <Input value={batch.price} onChange={(e) => updateBatch(index, "price", e.target.value)} type="number" step="0.01" placeholder="Preço" required />
                       <Input value={batch.available} onChange={(e) => updateBatch(index, "available", e.target.value)} type="number" placeholder="Quantidade" required />
                     </div>
                   </div>
                 ))}
-                <Button type="button" variant="outline" className="w-full border-dashed" onClick={addBatch}>
-                  <Plus className="w-4 h-4 mr-2" /> Adicionar Lote
-                </Button>
+                <Button type="button" variant="outline" className="w-full border-dashed" onClick={addBatch}><Plus className="w-4 h-4 mr-2" /> Adicionar Lote</Button>
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 h-14 text-lg font-bold" disabled={loading || uploadProgress !== null}>
+        <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 h-14 text-lg font-bold" disabled={loading}>
           {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Publicar Evento"}
         </Button>
       </form>

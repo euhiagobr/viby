@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Calendar, MapPin, MoreVertical, Clock } from "lucide-react"
@@ -13,7 +14,7 @@ interface EventCardProps {
 
 export function EventCard({ event }: EventCardProps) {
   const formatDate = (dateValue: any) => {
-    if (!dateValue) return "Data não definida";
+    if (!dateValue) return "A definir";
     try {
       let d: Date;
       if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
@@ -23,16 +24,10 @@ export function EventCard({ event }: EventCardProps) {
       } else {
         d = new Date(dateValue);
       }
-
-      if (isNaN(d.getTime())) return "Data não definida";
-      
-      return d.toLocaleDateString('pt-BR', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: 'numeric' 
-      });
+      if (isNaN(d.getTime())) return "A definir";
+      return d.toLocaleDateString('pt-BR');
     } catch (e) {
-      return "Data não definida";
+      return "A definir";
     }
   };
 
@@ -47,13 +42,8 @@ export function EventCard({ event }: EventCardProps) {
       } else {
         d = new Date(dateValue);
       }
-
       if (isNaN(d.getTime())) return "";
-      
-      return d.toLocaleTimeString('pt-BR', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      });
+      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     } catch (e) {
       return "";
     }
@@ -61,6 +51,10 @@ export function EventCard({ event }: EventCardProps) {
 
   const formattedDate = formatDate(event.date);
   const formattedTime = formatTime(event.date);
+  
+  // URL amigável: /:username/:eventId
+  const username = event.organizer?.username || "evento";
+  const eventLink = `/${username}/${event.id}`;
 
   return (
     <Card className="group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl">
@@ -111,7 +105,7 @@ export function EventCard({ event }: EventCardProps) {
       </CardContent>
       <CardFooter className="p-4 pt-0">
         <Button asChild className="w-full bg-primary hover:bg-primary/90 text-white font-semibold">
-          <Link href={`/dashboard/evento/${event.id}`}>
+          <Link href={eventLink}>
             Ver Detalhes
           </Link>
         </Button>

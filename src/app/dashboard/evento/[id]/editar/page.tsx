@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -24,7 +25,6 @@ import {
   Trash2, 
   Loader2, 
   ImageIcon,
-  Tag,
   Save,
   ShieldAlert
 } from "lucide-react"
@@ -144,7 +144,7 @@ export default function EditarEventoPage() {
 
       uploadTask.on('state_changed', 
         (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100), 
-        (error) => {
+        (error: any) => {
           setUploadProgress(null)
           toast({ variant: "destructive", title: "Erro no upload" })
         }, 
@@ -189,7 +189,7 @@ export default function EditarEventoPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!db || !user || !eventRef) return
+    if (!db || !user || !eventRef || !profile) return
 
     setSaving(true)
     const formData = new FormData(e.currentTarget)
@@ -213,6 +213,10 @@ export default function EditarEventoPage() {
         })),
         image: uploadedImageUrl || event.image,
         city: address.city,
+        organizer: {
+          ...event.organizer,
+          username: profile.username || event.organizer?.username || ""
+        },
         updatedAt: serverTimestamp()
       }
 
@@ -267,10 +271,7 @@ export default function EditarEventoPage() {
           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Calendar className="w-5 h-5 text-secondary" /> Informações Gerais</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="title">Nome do Evento</Label>
-                <Input id="title" name="title" defaultValue={event?.title} required />
-              </div>
+              <div className="space-y-2"><Label htmlFor="title">Nome do Evento</Label><Input id="title" name="title" defaultValue={event?.title} required /></div>
               <div className="space-y-2">
                 <Label>Categoria</Label>
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
@@ -307,12 +308,12 @@ export default function EditarEventoPage() {
 
         <Card className="border-none shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-6 border-b">
-            <CardTitle className="text-lg flex items-center gap-2"><Tag className="w-5 h-5 text-secondary" /> Ingressos</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">Ingressos</CardTitle>
             <div className="flex items-center gap-2"><Label htmlFor="free-event">Grátis</Label><Switch id="free-event" checked={isFree} onCheckedChange={setIsFree} /></div>
           </CardHeader>
           <CardContent className="p-6">
             {isFree ? (
-              <div className="space-y-4 text-center"><p className="text-sm text-muted-foreground">Evento gratuito.</p><Input name="freeCapacity" type="number" defaultValue={event?.batches?.[0]?.available} className="max-w-xs mx-auto" required /></div>
+              <div className="space-y-4 text-center"><Input name="freeCapacity" type="number" defaultValue={event?.batches?.[0]?.available} className="max-w-xs mx-auto" required /></div>
             ) : (
               <div className="space-y-4">
                 {batches.map((batch, index) => (

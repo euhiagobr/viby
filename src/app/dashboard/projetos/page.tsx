@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -29,7 +30,7 @@ export default function MeusEventosPage() {
   const isCompany = profile?.accountType === 'Empresa'
 
   const formatDate = (dateValue: any) => {
-    if (!dateValue) return "Data não definida";
+    if (!dateValue) return "A definir";
     try {
       let d: Date;
       if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
@@ -39,9 +40,9 @@ export default function MeusEventosPage() {
       } else {
         d = new Date(dateValue);
       }
-      return isNaN(d.getTime()) ? "Data inválida" : d.toLocaleDateString('pt-BR');
+      return isNaN(d.getTime()) ? "A definir" : d.toLocaleDateString('pt-BR');
     } catch (e) {
-      return "Data inválida";
+      return "A definir";
     }
   };
 
@@ -112,6 +113,9 @@ export default function MeusEventosPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {events?.map((event: any) => {
             const time = formatTime(event.date);
+            const username = event.organizer?.username || "evento";
+            const eventLink = `/${username}/${event.id}`;
+            
             return (
               <Card key={event.id} className="overflow-hidden border-border hover:border-secondary/50 transition-all group shadow-sm rounded-2xl">
                 <div className="p-4 space-y-4">
@@ -119,26 +123,18 @@ export default function MeusEventosPage() {
                     <Badge variant={event.status === 'Concluído' ? 'secondary' : 'default'} className="rounded-full px-3">
                       {event.status || "Ativo"}
                     </Badge>
-                    <button className="text-muted-foreground">
-                      <MoreHorizontal className="w-4 h-4" />
-                    </button>
+                    <button className="text-muted-foreground"><MoreHorizontal className="w-4 h-4" /></button>
                   </div>
-                  
                   <div className="space-y-1">
                     <h4 className="font-bold text-lg leading-tight group-hover:text-secondary transition-colors line-clamp-1">{event.title}</h4>
                     <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2rem]">{event.shortDescription || event.description}</p>
                   </div>
-
                   <div className="space-y-1.5 py-3 border-y border-border">
                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
                       <CalendarIcon className="w-3.5 h-3.5 text-secondary" />
                       <span>{formatDate(event.date)}</span>
                       {time && (
-                        <>
-                          <span className="mx-1 opacity-30">|</span>
-                          <Clock className="w-3.5 h-3.5 text-secondary" />
-                          <span>{time}</span>
-                        </>
+                        <><span className="mx-1 opacity-30">|</span><Clock className="w-3.5 h-3.5 text-secondary" /><span>{time}</span></>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
@@ -146,44 +142,33 @@ export default function MeusEventosPage() {
                       <span className="line-clamp-1">{event.city || "Local não definido"}</span>
                     </div>
                   </div>
-
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <Button variant="outline" size="sm" className="text-[10px] font-bold uppercase h-8 rounded-lg gap-1.5" asChild>
-                      <Link href={`/dashboard/evento/${event.id}`}>
-                        <Eye className="w-3 h-3" />
-                        Ver
-                      </Link>
+                      <Link href={eventLink}><Eye className="w-3 h-3" />Ver</Link>
                     </Button>
                     <Button variant="outline" size="sm" className="text-[10px] font-bold uppercase h-8 rounded-lg gap-1.5 border-secondary text-secondary hover:bg-secondary hover:text-white" asChild>
-                      <Link href={`/dashboard/evento/${event.id}/editar`}>
-                        <Edit2 className="w-3 h-3" />
-                        Editar
-                      </Link>
+                      <Link href={`/dashboard/evento/${event.id}/editar`}><Edit2 className="w-3 h-3" />Editar</Link>
                     </Button>
                     <Button variant="secondary" size="sm" className="col-span-2 text-[10px] font-bold uppercase h-8 rounded-lg gap-1.5">
-                      <Users className="w-3 h-3" />
-                      Ver Público
+                      <Users className="w-3 h-3" />Ver Público
                     </Button>
                   </div>
                 </div>
               </Card>
             );
           })}
-
           {isCompany ? (
             <Link 
               href="/dashboard/projetos/novo"
               className="border-2 border-dashed border-border rounded-2xl p-8 flex flex-col items-center justify-center gap-3 text-muted-foreground hover:border-secondary/50 hover:text-secondary hover:bg-muted/30 transition-all min-h-[250px]"
             >
-              <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center shadow-inner">
-                <Plus className="w-6 h-6" />
-              </div>
+              <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center shadow-inner"><Plus className="w-6 h-6" /></div>
               <span className="font-bold uppercase text-xs tracking-widest">Publicar Novo Evento</span>
             </Link>
           ) : (
             <div className="border-2 border-dashed border-border rounded-2xl p-8 flex flex-col items-center justify-center gap-3 text-muted-foreground/50 bg-muted/20 grayscale min-h-[250px]">
               <AlertCircle className="w-12 h-12 mb-2 opacity-50" />
-              <span className="font-bold text-center text-xs uppercase tracking-widest">Criação disponível apenas para Empresa</span>
+              <span className="font-bold text-center text-xs uppercase tracking-widest">Disponível para Empresa</span>
             </div>
           )}
         </div>
