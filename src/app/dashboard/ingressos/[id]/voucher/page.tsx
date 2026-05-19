@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { 
   Loader2, 
@@ -181,14 +182,6 @@ export default function VoucherPage() {
                           size={192}
                           level="H"
                           includeMargin={false}
-                          imageSettings={{
-                            src: "/favicon.ico",
-                            x: undefined,
-                            y: undefined,
-                            height: 24,
-                            width: 24,
-                            excavate: true,
-                          }}
                         />
                       ) : (
                         <Ticket className="w-20 h-20 text-secondary opacity-20" />
