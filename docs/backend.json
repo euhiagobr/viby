@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Organizer": {
@@ -55,6 +56,17 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["eventId", "userId"]
+    },
+    "Category": {
+      "title": "Categoria",
+      "description": "Categorias de classificação para eventos",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "icon": { "type": "string" }
+      },
+      "required": ["name", "slug"]
     }
   },
   "auth": {
@@ -76,6 +88,10 @@
     "/registrations/{regId}": {
       "schema": "Registration",
       "description": "Interesses registrados nos eventos Viby"
+    },
+    "/categories/{catId}": {
+      "schema": "Category",
+      "description": "Categorias de eventos gerenciadas por admins"
     }
   }
 }

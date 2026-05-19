@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -6,9 +7,16 @@ service cloud.firestore {
       return request.auth != null;
     }
     
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     function isVibyUser() {
-      return isAuthenticated() && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.platform == "viby";
+      return isAuthenticated() && getUserData().platform == "viby";
+    }
+
+    function isAdmin() {
+      return isVibyUser() && getUserData().role == "admin";
     }
 
     function isOwner(userId) {
@@ -31,11 +39,8 @@ service cloud.firestore {
 
     // Regras para Unicidade de Nome de Usuário
     match /usernames/{username} {
-      // Aberto para leitura pública para permitir verificação de disponibilidade em tempo real
       allow read: if true;
-      // Permite criar se estiver autenticado e o nome não existir
       allow create: if isAuthenticated() && !exists(/databases/$(database)/documents/usernames/$(username));
-      // Permite deletar se for o dono
       allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
     }
 
@@ -46,6 +51,12 @@ service cloud.firestore {
         resource.data.userId == request.auth.uid || 
         get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.organizerId == request.auth.uid
       );
+    }
+
+    // Regras para Categorias
+    match /categories/{catId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }
