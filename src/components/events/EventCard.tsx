@@ -53,6 +53,7 @@ export function EventCard({ event }: EventCardProps) {
   const formattedTime = formatTime(event.date);
   
   // URL amigável: /:username/:eventId
+  // Prioriza o username salvo no evento, com fallback para "evento" se for legado
   const username = event.organizer?.username || "evento";
   const eventLink = `/${username}/${event.id}`;
 

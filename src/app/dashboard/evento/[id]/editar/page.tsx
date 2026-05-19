@@ -215,7 +215,7 @@ export default function EditarEventoPage() {
         city: address.city,
         organizer: {
           ...event.organizer,
-          username: profile.username || event.organizer?.username || ""
+          username: profile.username || event.organizer?.username || "" // Username atualizado para o link
         },
         updatedAt: serverTimestamp()
       }

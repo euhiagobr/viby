@@ -192,7 +192,7 @@ export default function NovoEventoPage() {
           name: profile.name || user.displayName || "Organizador",
           avatar: profile.avatar || user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`,
           isVerified: profile.isVerified || false,
-          username: profile.username || ""
+          username: profile.username || "" // Username crucial para o link
         },
         status: "Ativo",
         type: "Público",

@@ -113,7 +113,8 @@ export default function MeusEventosPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {events?.map((event: any) => {
             const time = formatTime(event.date);
-            const username = event.organizer?.username || "evento";
+            // Link amigável utilizando o username atrelado ao evento ou fallback
+            const username = event.organizer?.username || profile?.username || "evento";
             const eventLink = `/${username}/${event.id}`;
             
             return (
