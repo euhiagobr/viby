@@ -1,1 +1,5 @@
-// Flows will be imported for their side effects in this file.
+import { config } from 'dotenv';
+config();
+
+import '@/ai/flows/gerar-proposta-comercial-simplificada.ts';
+import '@/ai/flows/gerar-descricao-evento.ts';
