@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -7,6 +6,7 @@ import { MOCK_EVENTS } from "@/lib/mock-data"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { 
   Calendar, 
   MapPin, 
@@ -15,11 +15,10 @@ import {
   ArrowLeft, 
   Ticket, 
   Info,
-  Sparkles,
-  FileText
+  BadgeCheck,
+  Star
 } from "lucide-react"
 import Image from "next/image"
-import { AITools } from "@/components/events/AITools"
 
 export default function EventoDetalhesPage() {
   const params = useParams()
@@ -50,7 +49,7 @@ export default function EventoDetalhesPage() {
             <Share2 className="w-4 h-4" />
           </Button>
           <Button className="bg-secondary text-white hover:bg-secondary/90">
-            Editar Evento
+            Seguir Evento
           </Button>
         </div>
       </div>
@@ -95,7 +94,7 @@ export default function EventoDetalhesPage() {
         <div className="lg:col-span-2 space-y-8">
           <Card className="border-none shadow-sm bg-card">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-xl">
                 <Info className="w-5 h-5 text-secondary" />
                 Sobre o Evento
               </CardTitle>
@@ -113,7 +112,7 @@ export default function EventoDetalhesPage() {
 
           <Card className="border-none shadow-sm bg-card overflow-hidden">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-xl">
                 <MapPin className="w-5 h-5 text-secondary" />
                 Localização
               </CardTitle>
@@ -130,7 +129,6 @@ export default function EventoDetalhesPage() {
                   referrerPolicy="no-referrer-when-downgrade"
                   className="grayscale hover:grayscale-0 transition-all duration-500"
                 />
-                {/* Overlay explicativo se o mapa não carregar por falta de chave */}
                 <div className="absolute inset-0 flex items-center justify-center bg-muted/80 pointer-events-none">
                   <div className="text-center p-6">
                     <MapPin className="w-10 h-10 text-secondary mx-auto mb-2 opacity-50" />
@@ -143,8 +141,50 @@ export default function EventoDetalhesPage() {
           </Card>
         </div>
 
-        {/* Right Column: Tickets & AI Tools */}
+        {/* Right Column: Organizer & Tickets */}
         <div className="space-y-8">
+          {/* Perfil do Organizador */}
+          <Card className="border-none shadow-sm bg-card">
+            <CardHeader>
+              <CardTitle className="text-lg">Organizador</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-16 w-16 border-2 border-secondary/10">
+                  <AvatarImage src={event.organizer.avatar} alt={event.organizer.name} />
+                  <AvatarFallback>{event.organizer.name.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="font-bold text-lg leading-none">{event.organizer.name}</h4>
+                    {event.organizer.isVerified && (
+                      <BadgeCheck className="w-5 h-5 text-secondary fill-secondary/10" />
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Promotor Verificado</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-muted/50 p-4 rounded-2xl text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Eventos</p>
+                  <p className="text-xl font-black text-foreground">{event.organizer.totalEvents}</p>
+                </div>
+                <div className="bg-muted/50 p-4 rounded-2xl text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Avaliação</p>
+                  <div className="flex items-center justify-center gap-1">
+                    <p className="text-xl font-black text-foreground">4.9</p>
+                    <Star className="w-4 h-4 text-orange-400 fill-orange-400" />
+                  </div>
+                </div>
+              </div>
+
+              <Button variant="outline" className="w-full font-bold">
+                Ver Perfil Completo
+              </Button>
+            </CardContent>
+          </Card>
+
           <Card className="border-none shadow-lg bg-card border-t-4 border-secondary">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -173,9 +213,6 @@ export default function EventoDetalhesPage() {
               </p>
             </CardContent>
           </Card>
-
-          {/* Seção de Ferramentas de IA para o Promotor */}
-          <AITools event={event} />
         </div>
       </div>
     </div>

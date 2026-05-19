@@ -5,6 +5,13 @@ export interface EventBatch {
   available: number;
 }
 
+export interface Organizer {
+  name: string;
+  avatar: string;
+  isVerified: boolean;
+  totalEvents: number;
+}
+
 export interface Event {
   id: string;
   title: string;
@@ -16,6 +23,7 @@ export interface Event {
   batches: EventBatch[];
   status: 'A fazer' | 'Em progresso' | 'Concluído';
   image: string;
+  organizer: Organizer;
 }
 
 export const MOCK_EVENTS: Event[] = [
@@ -33,6 +41,12 @@ export const MOCK_EVENTS: Event[] = [
       { id: 'b1', name: 'Primeiro Lote', price: 50, available: 100 },
       { id: 'b2', name: 'Segundo Lote', price: 80, available: 200 },
     ],
+    organizer: {
+      name: 'Viby Entretenimento',
+      avatar: 'https://picsum.photos/seed/org1/100/100',
+      isVerified: true,
+      totalEvents: 42,
+    }
   },
   {
     id: '2',
@@ -48,6 +62,12 @@ export const MOCK_EVENTS: Event[] = [
       { id: 'b3', name: 'VIP', price: 500, available: 50 },
       { id: 'b4', name: 'Geral', price: 250, available: 500 },
     ],
+    organizer: {
+      name: 'Global Tech Events',
+      avatar: 'https://picsum.photos/seed/org2/100/100',
+      isVerified: true,
+      totalEvents: 128,
+    }
   },
   {
     id: '3',
@@ -62,6 +82,12 @@ export const MOCK_EVENTS: Event[] = [
     batches: [
       { id: 'b5', name: 'Gratuito', price: 0, available: 1000 },
     ],
+    organizer: {
+      name: 'Prefeitura do Rio',
+      avatar: 'https://picsum.photos/seed/org3/100/100',
+      isVerified: false,
+      totalEvents: 15,
+    }
   },
 ];
 
