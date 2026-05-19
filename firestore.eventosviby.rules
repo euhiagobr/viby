@@ -8,6 +8,7 @@ service cloud.firestore {
     }
     
     function getUserData() {
+      // Busca dados do usuário no banco atual (eventosviby)
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
@@ -23,7 +24,7 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Regras para Coleção de Eventos
+    // Regras para Coleção de Eventos: Público para leitura, Privado para escrita
     match /events/{eventId} {
       allow read: if true;
       allow create: if isVibyUser();
@@ -37,7 +38,7 @@ service cloud.firestore {
       allow update, delete: if isOwner(userId) && isVibyUser();
     }
 
-    // Regras para Unicidade de Nome de Usuário
+    // Regras para Unicidade de Nome de Usuário: Leitura pública para verificação no cadastro
     match /usernames/{username} {
       allow read: if true;
       allow create: if isAuthenticated() && !exists(/databases/$(database)/documents/usernames/$(username));
@@ -53,7 +54,7 @@ service cloud.firestore {
       );
     }
 
-    // Regras para Categorias
+    // Regras para Categorias: Público para leitura, Admin para escrita
     match /categories/{catId} {
       allow read: if true;
       allow write: if isAdmin();

@@ -1,11 +1,15 @@
+
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    // Regras do Viby Club
     match /viby/{allPaths=**} {
-      allow read: if true;
+      allow read: if true; // Imagens de eventos são públicas
       allow write: if request.auth != null && 
         get(/databases/eventosviby/documents/users/$(request.auth.uid)).data.platform == "viby";
     }
+    
+    // Regras da ONG (Mantidas intactas)
     match /ong/{allPaths=**} {
       allow read: if true;
       allow write: if request.auth != null && 
