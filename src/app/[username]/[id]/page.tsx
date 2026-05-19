@@ -489,14 +489,24 @@ export default function EventoDetalhesPage() {
 
   const getFullAddress = () => {
     if (event.address) {
-      return `${event.address.street}, ${event.address.number}${event.address.neighborhood ? `, ${event.address.neighborhood}` : ''}, ${event.address.city} - ${event.address.state}`;
+      const parts = [
+        event.address.street,
+        event.address.number,
+        event.address.neighborhood,
+        event.address.city,
+        event.address.state
+      ].filter(Boolean);
+      return parts.join(", ");
     }
-    return `${event.location}, ${event.city}`;
+    return [event.location, event.city].filter(Boolean).join(", ");
   };
 
   const addressString = getFullAddress();
   const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addressString)}`;
   const wazeUrl = `https://waze.com/ul?q=${encodeURIComponent(addressString)}&navigate=yes`;
+  
+  // Mapa Embed Gratuito (Google Maps)
+  const embedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(addressString)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
 
   return (
     <div className="space-y-8 pb-20 max-w-6xl mx-auto px-4 pt-10">
@@ -611,17 +621,21 @@ export default function EventoDetalhesPage() {
                 </div>
               </div>
               
-              <div className="relative aspect-video rounded-[1.5rem] overflow-hidden bg-muted">
-                 <Image 
-                   src={`https://placehold.co/1200x600/e2e8f0/64748b?text=Visualização+do+Mapa+em+${encodeURIComponent(event.city)}`}
-                   alt="Mapa de Localização"
-                   fill
-                   className="object-cover opacity-50 grayscale"
-                   unoptimized
-                 />
-                 <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="bg-white/90 backdrop-blur-md p-4 rounded-full shadow-2xl animate-bounce">
-                       <MapPin className="w-8 h-8 text-secondary" />
+              <div className="relative aspect-video rounded-[1.5rem] overflow-hidden bg-muted border border-border">
+                 <iframe 
+                   width="100%" 
+                   height="100%" 
+                   style={{ border: 0 }} 
+                   loading="lazy" 
+                   allowFullScreen 
+                   referrerPolicy="no-referrer-when-downgrade"
+                   src={embedUrl}
+                   className="grayscale opacity-80 contrast-125"
+                 ></iframe>
+                 <div className="absolute top-4 left-4">
+                    <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2">
+                       <MapPin className="w-4 h-4 text-secondary" />
+                       <span className="text-[10px] font-black uppercase tracking-tight">Local Confirmado</span>
                     </div>
                  </div>
               </div>
