@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Calendar, MapPin, Tag, MoreVertical } from "lucide-react"
@@ -6,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
+import Link from "next/link"
 
 interface EventCardProps {
   event: Event
@@ -51,8 +53,10 @@ export function EventCard({ event }: EventCardProps) {
         </div>
       </CardContent>
       <CardFooter className="p-4 pt-0">
-        <Button className="w-full bg-primary hover:bg-primary/90 text-white font-semibold">
-          Ver Detalhes
+        <Button asChild className="w-full bg-primary hover:bg-primary/90 text-white font-semibold">
+          <Link href={`/dashboard/evento/${event.id}`}>
+            Ver Detalhes
+          </Link>
         </Button>
       </CardFooter>
     </Card>
