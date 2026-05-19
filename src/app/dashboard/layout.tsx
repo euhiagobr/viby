@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -29,15 +30,18 @@ export default function DashboardLayout({
     async function checkPlatform() {
       if (authLoading) return
       
+      // Se não houver usuário logado, permite navegação pública como visitante
       if (!user) {
         setVerifying(false)
         return
       }
 
+      // Se logado, verifica se pertence à plataforma Viby
       if (db && user) {
         try {
           const userDoc = await getDoc(doc(db, "users", user.uid))
-          if (!userDoc.exists() || userDoc.data()?.platform !== "viby") {
+          // Se o documento existe e é de outra plataforma, desloga por segurança
+          if (userDoc.exists() && userDoc.data()?.platform !== "viby") {
             await signOut(auth!)
             toast({
               variant: "destructive",
@@ -45,6 +49,7 @@ export default function DashboardLayout({
               description: "Sua conta não pertence à plataforma Viby Club."
             })
             router.push("/login")
+            return
           }
         } catch (e) {
           console.error("Platform verification error", e)

@@ -1,27 +1,31 @@
+
 rules_version = '2';
 service firebase.storage {
   match /b/viby/o {
-    // VIBY STORAGE ISOLATION
     
     function isSignedIn() {
       return request.auth != null;
     }
 
+    // Assets globais da marca
     match /site_assets/{allPaths=**} {
       allow read: if true;
-      allow write: if isSignedIn(); // Admin check handled via client logic + firestore rules
+      allow write: if isSignedIn(); // Admin logic no cliente
     }
 
+    // Fotos de perfil
     match /profiles/{userId}/{allPaths=**} {
       allow read: if true;
       allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
+    // Fotos de eventos
     match /events/{userId}/{allPaths=**} {
       allow read: if true;
       allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
+    // Outros arquivos
     match /{allPaths=**} {
       allow read: if true;
       allow write: if isSignedIn();
