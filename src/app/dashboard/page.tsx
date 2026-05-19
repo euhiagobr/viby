@@ -6,15 +6,18 @@ import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebas
 import { collection, doc } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { Button } from "@/components/ui/button"
-import { Search, Filter, Loader2, ShieldCheck } from "lucide-react"
+import { Search, Filter, Loader2, ShieldCheck, Navigation } from "lucide-react"
 import { useState } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
+import { getCurrentLocation, calculateDistance, type Coordinates } from "@/lib/location-utils"
 
 export default function ExplorarPage() {
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
+  
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
@@ -31,16 +34,41 @@ export default function ExplorarPage() {
 
   const { data: events, loading, error } = useCollection<any>(eventsQuery)
 
-  // Filtro de busca e exclusão lógica
+  React.useEffect(() => {
+    if (filter === 'nearby' && !userLocation) {
+      getCurrentLocation()
+        .then(setUserLocation)
+        .catch(() => setFilter('all'))
+    }
+  }, [filter, userLocation])
+
+  // Filtro de busca, categoria e exclusão lógica
   const filteredEvents = React.useMemo(() => {
     if (!events) return []
-    return events.filter((e: any) => {
+    
+    let result = events.filter((e: any) => {
       const isNotDeleted = e.status !== 'Excluído';
       const matchesSearch = e.title?.toLowerCase().includes(search.toLowerCase()) ||
                           e.description?.toLowerCase().includes(search.toLowerCase());
       return isNotDeleted && matchesSearch;
     })
-  }, [events, search])
+
+    // Lógica por Tabs
+    if (filter === 'nearby' && userLocation) {
+       result = result.map((e: any) => ({
+         ...e,
+         _dist: e.latitude && e.longitude ? calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude }) : Infinity
+       })).sort((a, b) => a._dist - b._dist);
+    } else if (filter === 'new') {
+       result.sort((a, b) => {
+          const tA = a.createdAt?.seconds || 0;
+          const tB = b.createdAt?.seconds || 0;
+          return tB - tA;
+       });
+    }
+
+    return result;
+  }, [events, search, filter, userLocation])
 
   return (
     <div className="space-y-8">
@@ -79,9 +107,11 @@ export default function ExplorarPage() {
       <div className="flex items-center justify-between border-b border-border pb-2">
         <Tabs defaultValue="all" onValueChange={setFilter} className="w-full">
           <TabsList className="bg-transparent h-auto p-0 gap-8">
-            <TabsTrigger value="all" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold">Tendências</TabsTrigger>
-            <TabsTrigger value="nearby" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold">Perto de Você</TabsTrigger>
-            <TabsTrigger value="new" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold">Recém Lançados</TabsTrigger>
+            <TabsTrigger value="all" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold uppercase text-[10px] tracking-widest">Geral</TabsTrigger>
+            <TabsTrigger value="nearby" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold uppercase text-[10px] tracking-widest flex items-center gap-2">
+              <Navigation className="w-3 h-3" /> Perto de Você
+            </TabsTrigger>
+            <TabsTrigger value="new" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold uppercase text-[10px] tracking-widest">Recém Lançados</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -100,13 +130,13 @@ export default function ExplorarPage() {
 
       {!loading && !error && filteredEvents.length === 0 && (
         <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-border shadow-sm">
-          <p className="text-muted-foreground font-medium">Nenhum evento ativo encontrado.</p>
+          <p className="text-muted-foreground font-medium uppercase text-[10px] font-black tracking-widest">Nenhum evento ativo encontrado.</p>
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredEvents.map((event: any) => (
-          <EventCard key={event.id} event={event} />
+          <EventCard key={event.id} event={event} userLocation={userLocation} />
         ))}
       </div>
     </div>

@@ -6,7 +6,7 @@ import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebas
 import { collection, query, limit, orderBy, doc } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { Button } from "@/components/ui/button"
-import { Globe, Search, ArrowRight, Loader2, MapPin, Tag, FilterX } from "lucide-react"
+import { Globe, Search, ArrowRight, Loader2, MapPin, Tag, FilterX, Navigation } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { getCurrentLocation, calculateDistance, type Coordinates } from "@/lib/location-utils"
 
 export default function LandingPage() {
   const db = useFirestore()
@@ -27,6 +28,9 @@ export default function LandingPage() {
   const [searchName, setSearchName] = React.useState("")
   const [selectedCity, setSelectedCity] = React.useState("all")
   const [selectedCategory, setSelectedCategory] = React.useState("all")
+  const [sortBy, setSortBy] = React.useState<'date' | 'distance'>('date')
+  const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
+  const [locationError, setLocationError] = React.useState(false)
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
@@ -41,6 +45,19 @@ export default function LandingPage() {
   const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
 
+  React.useEffect(() => {
+    const fetchLocation = async () => {
+      try {
+        const loc = await getCurrentLocation()
+        setUserLocation(loc)
+      } catch (err) {
+        console.error("Localização negada ou erro:", err)
+        setLocationError(true)
+      }
+    }
+    fetchLocation()
+  }, [])
+
   // Extrair cidades únicas dos eventos para o filtro
   const uniqueCities = React.useMemo(() => {
     if (!events) return []
@@ -50,10 +67,11 @@ export default function LandingPage() {
     return Array.from(new Set(cities)).sort() as string[]
   }, [events])
 
-  // Lógica de filtragem
+  // Lógica de filtragem e ordenação
   const filteredEvents = React.useMemo(() => {
     if (!events) return []
-    return events.filter((e: any) => {
+    
+    let result = events.filter((e: any) => {
       const isNotDeleted = e.status !== 'Excluído';
       const matchesSearch = !searchName || 
                           e.title?.toLowerCase().includes(searchName.toLowerCase()) ||
@@ -63,7 +81,31 @@ export default function LandingPage() {
       
       return isNotDeleted && matchesSearch && matchesCity && matchesCategory;
     })
-  }, [events, searchName, selectedCity, selectedCategory])
+
+    // Adicionar distância aos objetos para ordenação
+    if (userLocation) {
+      result = result.map((e: any) => ({
+        ...e,
+        _distance: e.latitude && e.longitude 
+          ? calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude })
+          : Infinity
+      }))
+    }
+
+    // Ordenação
+    if (sortBy === 'distance' && userLocation) {
+      result.sort((a, b) => (a._distance || 0) - (b._distance || 0))
+    } else {
+      // Ordenação por data (mais próximos primeiro)
+      result.sort((a, b) => {
+        const dateA = a.date?.seconds || new Date(a.date).getTime() / 1000 || 0
+        const dateB = b.date?.seconds || new Date(b.date).getTime() / 1000 || 0
+        return dateA - dateB
+      })
+    }
+
+    return result
+  }, [events, searchName, selectedCity, selectedCategory, sortBy, userLocation])
 
   const siteName = settings?.siteName || "Viby"
 
@@ -71,6 +113,7 @@ export default function LandingPage() {
     setSearchName("")
     setSelectedCity("all")
     setSelectedCategory("all")
+    setSortBy('date')
   }
 
   return (
@@ -209,15 +252,38 @@ export default function LandingPage() {
             <h2 className="text-4xl font-black tracking-tighter uppercase italic text-primary">
               Resultados <span className="text-secondary">Encontrados</span>
             </h2>
-            <p className="text-muted-foreground font-medium">
-              {filteredEvents.length} {filteredEvents.length === 1 ? 'experiência incrível disponível' : 'experiências incríveis disponíveis'}
-            </p>
+            <div className="flex flex-wrap items-center gap-4 mt-2">
+              <p className="text-muted-foreground font-medium">
+                {filteredEvents.length} {filteredEvents.length === 1 ? 'experiência disponível' : 'experiências disponíveis'}
+              </p>
+              <div className="h-6 w-px bg-border hidden md:block" />
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => setSortBy('date')} 
+                  variant={sortBy === 'date' ? 'default' : 'outline'}
+                  size="sm"
+                  className="rounded-full font-bold h-8 text-[10px] uppercase"
+                >
+                  Por Data
+                </Button>
+                <Button 
+                  onClick={() => setSortBy('distance')} 
+                  disabled={!userLocation}
+                  variant={sortBy === 'distance' ? 'default' : 'outline'}
+                  size="sm"
+                  className="rounded-full font-bold h-8 text-[10px] uppercase gap-1.5"
+                >
+                  <Navigation className="w-3 h-3" />
+                  Perto de Mim
+                </Button>
+              </div>
+            </div>
           </div>
-          <Button variant="ghost" asChild className="text-secondary font-black uppercase tracking-widest text-xs hover:bg-secondary/5">
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-          </Button>
+          {locationError && (
+             <p className="text-[10px] font-black uppercase text-red-500 flex items-center gap-1 animate-pulse">
+               <Navigation className="w-3 h-3" /> Localização necessária para ver próximos
+             </p>
+          )}
         </div>
 
         {eventsLoading ? (
@@ -229,7 +295,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredEvents.length > 0 ? (
               filteredEvents.map((event: any) => (
-                <EventCard key={event.id} event={event} />
+                <EventCard key={event.id} event={event} userLocation={userLocation} />
               ))
             ) : (
               <div className="col-span-full py-24 text-center bg-white rounded-[3rem] border-4 border-dashed border-muted/50 flex flex-col items-center justify-center gap-6 shadow-inner">

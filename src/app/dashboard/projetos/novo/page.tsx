@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -25,7 +26,8 @@ import {
   Loader2, 
   ImageIcon,
   ShieldAlert,
-  Clock
+  Clock,
+  Compass
 } from "lucide-react"
 import Link from "next/link"
 
@@ -79,10 +81,7 @@ export default function NovoEventoPage() {
     number: "",
     complement: ""
   })
-
-  const [batches, setBatches] = useState<Batch[]>([
-    { name: "Lote Único", price: "0.00", startDate: "", endDate: "", available: "100" }
-  ])
+  const [coords, setCoords] = useState({ lat: "", lng: "" })
 
   useEffect(() => {
     if (!profileLoading && profile && profile.accountType !== 'Empresa') {
@@ -145,6 +144,10 @@ export default function NovoEventoPage() {
     } catch (e) {}
   }
 
+  const [batches, setBatches] = useState<Batch[]>([
+    { name: "Lote Único", price: "0.00", startDate: "", endDate: "", available: "100" }
+  ])
+
   const addBatch = () => setBatches([...batches, { name: "", price: "", startDate: "", endDate: "", available: "" }])
   const removeBatch = (index: number) => setBatches(batches.filter((_, i) => i !== index))
   const updateBatch = (index: number, field: keyof Batch, value: string) => {
@@ -180,6 +183,8 @@ export default function NovoEventoPage() {
         isFree: isFree,
         cep: cep,
         address: address,
+        latitude: parseFloat(coords.lat) || 0,
+        longitude: parseFloat(coords.lng) || 0,
         batches: isFree ? [{ 
           name: "Gratuito", 
           price: 0, 
@@ -223,18 +228,6 @@ export default function NovoEventoPage() {
     )
   }
 
-  if (profile && profile.accountType !== 'Empresa') {
-    return (
-      <div className="flex flex-col items-center justify-center h-[60vh] gap-4 text-center p-6">
-        <ShieldAlert className="w-16 h-16 text-destructive mb-2" />
-        <h2 className="text-2xl font-bold">Acesso Restrito</h2>
-        <Button asChild className="mt-4 bg-secondary text-white font-bold px-8">
-          <Link href="/dashboard/perfil/editar">Configurar como Empresa</Link>
-        </Button>
-      </div>
-    )
-  }
-
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
       <div className="flex items-center gap-4">
@@ -245,6 +238,7 @@ export default function NovoEventoPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Capa */}
         <Card className="overflow-hidden border-none shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -276,6 +270,7 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
+        {/* Info Geral */}
         <Card className="border-none shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -311,8 +306,9 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
+        {/* Localização */}
         <Card className="border-none shadow-sm">
-          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização & Geolocalização</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
@@ -330,9 +326,32 @@ export default function NovoEventoPage() {
               <div className="space-y-2"><Label htmlFor="city">Cidade</Label><Input id="city" value={address.city} onChange={(e) => setAddress({...address, city: e.target.value})} required /></div>
               <div className="space-y-2"><Label htmlFor="state">Estado</Label><Input id="state" value={address.state} onChange={(e) => setAddress({...address, state: e.target.value})} placeholder="Ex: SP" required /></div>
             </div>
+            
+            <Separator />
+            <div className="space-y-4">
+               <div className="flex items-center gap-2">
+                 <Compass className="w-4 h-4 text-secondary" />
+                 <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Coordenadas para Descoberta (Obrigatório)</h4>
+               </div>
+               <p className="text-[10px] text-muted-foreground leading-relaxed">
+                 O Viby utiliza estas coordenadas para mostrar a distância real para o público. 
+                 Use sites como "Google Maps" para obter a Latitude e Longitude exatas do local.
+               </p>
+               <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Latitude</Label>
+                    <Input value={coords.lat} onChange={(e) => setCoords({...coords, lat: e.target.value})} placeholder="Ex: -23.5505" required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Longitude</Label>
+                    <Input value={coords.lng} onChange={(e) => setCoords({...coords, lng: e.target.value})} placeholder="Ex: -46.6333" required />
+                  </div>
+               </div>
+            </div>
           </CardContent>
         </Card>
 
+        {/* Ingressos */}
         <Card className="border-none shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-6 border-b">
             <CardTitle className="text-lg flex items-center gap-2">Configuração de Ingressos</CardTitle>

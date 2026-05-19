@@ -1,7 +1,8 @@
+
 "use client"
 
 import * as React from "react"
-import { Calendar, MapPin, Clock, Ticket } from "lucide-react"
+import { Calendar, MapPin, Clock, Ticket, Navigation } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { calculateDistance, type Coordinates } from "@/lib/location-utils"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
@@ -19,7 +21,7 @@ function InstagramVerifiedBadge({ className }: { className?: string }) {
     >
       <path 
         fill="#0095f6" 
-        d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1 4.4 1.2 8.9 5.3 10.7l8.4 3.7 2.3 9c1.1 4.4 5.2 7.4 9.7 7l9.2-.7 6.5 6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.4-6.3 5.3-10.7l-2.3-9 6.5-6.6c3.2-3.2 3.2-8.2 0-11.4z"
+        d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1-4.4 1.2-8.9 5.3 10.7l8.4 3.7 2.3 9c1.1-4.4 5.2-7.4 9.7 7l9.2-.7 6.5 6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.4-6.3 5.3-10.7l-2.3-9 6.5-6.6c3.2-3.2 3.2-8.2 0-11.4z"
       />
       <path 
         fill="#fff" 
@@ -31,9 +33,10 @@ function InstagramVerifiedBadge({ className }: { className?: string }) {
 
 interface EventCardProps {
   event: any 
+  userLocation?: Coordinates | null
 }
 
-export function EventCard({ event }: EventCardProps) {
+export function EventCard({ event, userLocation }: EventCardProps) {
   const router = useRouter()
   
   const formatDate = (dateValue: any) => {
@@ -89,6 +92,13 @@ export function EventCard({ event }: EventCardProps) {
     return "Consulte";
   };
 
+  const distance = React.useMemo(() => {
+    if (userLocation && event.latitude && event.longitude) {
+      return calculateDistance(userLocation, { latitude: event.latitude, longitude: event.longitude });
+    }
+    return null;
+  }, [userLocation, event.latitude, event.longitude]);
+
   const handleCardClick = () => {
     router.push(eventLink)
   }
@@ -122,6 +132,14 @@ export function EventCard({ event }: EventCardProps) {
             {getPriceDisplay()}
           </Badge>
         </div>
+        {distance !== null && (
+          <div className="absolute bottom-3 right-3">
+            <Badge className="bg-white/90 text-primary border-none shadow-md backdrop-blur-md px-2 py-1 text-[10px] font-black uppercase flex items-center gap-1">
+              <Navigation className="w-3 h-3 text-secondary fill-secondary" />
+              {distance < 1 ? `${(distance * 1000).toFixed(0)}m` : `${distance.toFixed(1)}km`}
+            </Badge>
+          </div>
+        )}
       </div>
       <CardHeader className="p-4 pb-2">
         <div className="flex justify-between items-start gap-2">

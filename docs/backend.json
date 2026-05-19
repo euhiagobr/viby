@@ -81,6 +81,8 @@
         "date": { "type": "string", "format": "date-time" },
         "location": { "type": "string" },
         "city": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
         "type": { "type": "string", "enum": ["Público", "Privado", "Governo"] },
         "status": { "type": "string", "enum": ["A fazer", "Em progresso", "Concluído", "Excluído", "Bloqueado"] },
         "image": { "type": "string" },
