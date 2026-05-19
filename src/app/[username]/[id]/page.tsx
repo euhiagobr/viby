@@ -18,7 +18,8 @@ import {
   Loader2,
   CheckCircle2,
   Clock,
-  ExternalLink
+  ExternalLink,
+  AlertTriangle
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -72,6 +73,66 @@ export default function EventoDetalhesPage() {
   
   const [isRegistered, setIsRegistered] = React.useState(false)
   const [registering, setRegistering] = React.useState(false)
+  const [activeBatch, setActiveBatch] = React.useState<any>(null)
+  const [saleStatus, setSaleStatus] = React.useState<'open' | 'pending' | 'ended' | 'soldout'>('pending')
+
+  // Lógica de disponibilidade baseada em UTC-3
+  React.useEffect(() => {
+    if (!event) return
+
+    const checkAvailability = () => {
+      // Forçar horário de Brasília (UTC-3)
+      const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }))
+      const batches = event.batches || []
+      
+      if (batches.length === 0) {
+        setSaleStatus('ended')
+        return
+      }
+
+      // Procurar o primeiro lote disponível cronologicamente e com estoque
+      let foundBatch = null
+      let allSoldOut = true
+      let allEnded = true
+      let anyUpcoming = false
+
+      for (const batch of batches) {
+        const start = batch.startDate ? new Date(batch.startDate) : null
+        const end = batch.endDate ? new Date(batch.endDate) : null
+        const stock = parseInt(batch.available) || 0
+
+        const isStarted = !start || now >= start
+        const isNotEnded = !end || now <= end
+        const hasStock = stock > 0
+
+        if (isStarted && isNotEnded && hasStock) {
+          foundBatch = batch
+          setSaleStatus('open')
+          break
+        }
+
+        if (hasStock) allSoldOut = false
+        if (isNotEnded) allEnded = false
+        if (!isStarted) anyUpcoming = true
+      }
+
+      if (foundBatch) {
+        setActiveBatch(foundBatch)
+      } else if (allSoldOut) {
+        setSaleStatus('soldout')
+      } else if (allEnded) {
+        setSaleStatus('ended')
+      } else if (anyUpcoming) {
+        setSaleStatus('pending')
+      } else {
+        setSaleStatus('ended')
+      }
+    }
+
+    checkAvailability()
+    const timer = setInterval(checkAvailability, 60000) // Revalida a cada minuto
+    return () => clearInterval(timer)
+  }, [event])
 
   React.useEffect(() => {
     if (!db || !user || !eventId) return
@@ -110,13 +171,13 @@ export default function EventoDetalhesPage() {
       return
     }
 
-    if (!db || !eventId || !event) return
+    if (!db || !eventId || !event || saleStatus !== 'open') return
 
     setRegistering(true)
     
     try {
-      const price = event.isFree ? 0 : (event.batches?.[0]?.price || 0);
-      const batchName = event.isFree ? "Gratuito" : (event.batches?.[0]?.name || "Lote Único");
+      const price = activeBatch?.price || 0;
+      const batchName = activeBatch?.name || (event.isFree ? "Gratuito" : "Lote Único");
       const ticketCode = await generateUniqueTicketCode(db);
 
       const regData = {
@@ -136,11 +197,11 @@ export default function EventoDetalhesPage() {
         price: price,
         batchName: batchName,
         checkedIn: false,
-        paymentStatus: event.isFree ? "Disponível" : "Pendente",
+        paymentStatus: price === 0 ? "Disponível" : "Pendente",
         ticketCode: ticketCode,
         status: "Ativo",
         visibility: "public",
-        purchaseType: event.isFree ? "free" : "paid"
+        purchaseType: price === 0 ? "free" : "paid"
       }
 
       await addDoc(collection(db, "registrations"), regData)
@@ -183,6 +244,14 @@ export default function EventoDetalhesPage() {
   const orgIsVerified = organizerProfile?.isVerified ?? event.organizer?.isVerified;
   const orgUsername = organizerProfile?.username || usernameFromUrl;
 
+  const getButtonText = () => {
+    if (isRegistered) return "Já Inscrito"
+    if (saleStatus === 'pending') return "Vendas em Breve"
+    if (saleStatus === 'soldout') return "Ingressos Esgotados"
+    if (saleStatus === 'ended') return "Vendas Encerradas"
+    return "Garantir Ingresso"
+  }
+
   return (
     <div className="space-y-8 pb-20 max-w-6xl mx-auto px-4 pt-10">
       <div className="flex items-center justify-between">
@@ -196,11 +265,15 @@ export default function EventoDetalhesPage() {
           </Button>
           <Button 
             onClick={handleRegisterInterest}
-            disabled={isRegistered || registering}
-            className={`font-bold px-6 rounded-full h-10 shadow-lg transition-all ${isRegistered ? "bg-green-500 text-white" : "bg-secondary text-white hover:scale-105"}`}
+            disabled={isRegistered || registering || saleStatus !== 'open'}
+            className={`font-bold px-6 rounded-full h-10 shadow-lg transition-all ${
+              isRegistered ? "bg-green-500 text-white" : 
+              saleStatus === 'open' ? "bg-secondary text-white hover:scale-105" : "bg-muted text-muted-foreground"
+            }`}
           >
             {registering ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-            {isRegistered ? <><CheckCircle2 className="w-4 h-4 mr-2" /> Já Inscrito</> : "Tenho Interesse"}
+            {isRegistered ? <CheckCircle2 className="w-4 h-4 mr-2" /> : null}
+            {getButtonText()}
           </Button>
         </div>
       </div>
@@ -239,7 +312,7 @@ export default function EventoDetalhesPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-8">
-          < Card className="border-none shadow-sm bg-card rounded-[2rem] overflow-hidden">
+          <Card className="border-none shadow-sm bg-card rounded-[2rem] overflow-hidden">
             <CardHeader className="bg-muted/30 pb-4">
               <CardTitle className="flex items-center gap-2 text-xl font-bold">
                 <Info className="w-5 h-5 text-secondary" /> 
@@ -266,13 +339,51 @@ export default function EventoDetalhesPage() {
         </div>
 
         <div className="lg:col-span-4 space-y-6">
-          <Card className="border-none shadow-lg bg-card rounded-[2rem] border-t-8 border-secondary overflow-hidden">
-            <CardHeader><CardTitle className="flex items-center gap-2 text-lg font-bold"><Ticket className="w-5 h-5 text-secondary" /> Garantir Presença</CardTitle></CardHeader>
+          <Card className={`border-none shadow-lg bg-card rounded-[2rem] border-t-8 ${saleStatus === 'open' ? 'border-secondary' : 'border-muted'} overflow-hidden`}>
+            <CardHeader><CardTitle className="flex items-center gap-2 text-lg font-bold"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-xs text-muted-foreground">O <strong>Viby</strong> conecta você aos melhores eventos. Marque interesse para ser notificado.</p>
-              <Button onClick={handleRegisterInterest} disabled={isRegistered || registering} className={`w-full font-black py-7 rounded-2xl text-lg shadow-xl ${isRegistered ? "bg-green-500 hover:bg-green-600" : "bg-secondary hover:bg-secondary/90"} text-white`}>
+              {saleStatus === 'open' && activeBatch ? (
+                <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black uppercase text-muted-foreground">Lote Atual</span>
+                    <Badge variant="outline" className="text-[10px] font-bold border-secondary text-secondary uppercase">{activeBatch.name}</Badge>
+                  </div>
+                  <p className="text-2xl font-black text-primary">
+                    {activeBatch.price === 0 ? "GRATUITO" : `R$ ${parseFloat(activeBatch.price).toFixed(2).replace('.', ',')}`}
+                  </p>
+                  <p className="text-[10px] font-medium text-muted-foreground">Vendas terminam em: {new Date(activeBatch.endDate).toLocaleString('pt-BR')}</p>
+                </div>
+              ) : (
+                <div className="p-6 text-center space-y-2 bg-muted/20 rounded-2xl">
+                  {saleStatus === 'soldout' ? (
+                    <>
+                      <AlertTriangle className="w-8 h-8 text-orange-500 mx-auto mb-2" />
+                      <p className="font-black text-lg uppercase italic tracking-tighter">Esgotado</p>
+                      <p className="text-xs text-muted-foreground">Todos os ingressos deste evento foram adquiridos.</p>
+                    </>
+                  ) : saleStatus === 'pending' ? (
+                    <>
+                      <Clock className="w-8 h-8 text-secondary mx-auto mb-2" />
+                      <p className="font-black text-lg uppercase italic tracking-tighter">Em Breve</p>
+                      <p className="text-xs text-muted-foreground">As vendas ainda não iniciaram. Fique atento!</p>
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="font-black text-lg uppercase italic tracking-tighter">Encerrado</p>
+                      <p className="text-xs text-muted-foreground">O período de vendas para este evento terminou.</p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              <Button 
+                onClick={handleRegisterInterest} 
+                disabled={isRegistered || registering || saleStatus !== 'open'} 
+                className={`w-full font-black py-7 rounded-2xl text-lg shadow-xl ${isRegistered ? "bg-green-500 hover:bg-green-600" : (saleStatus === 'open' ? "bg-secondary hover:bg-secondary/90" : "bg-muted cursor-not-allowed")} text-white`}
+              >
                 {registering ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-                {isRegistered ? "Inscrito!" : "Tenho Interesse"}
+                {getButtonText()}
               </Button>
             </CardContent>
           </Card>
