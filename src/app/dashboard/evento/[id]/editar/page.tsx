@@ -25,7 +25,8 @@ import {
   Loader2, 
   ImageIcon,
   Save,
-  ShieldAlert
+  ShieldAlert,
+  Clock
 } from "lucide-react"
 import Link from "next/link"
 
@@ -87,6 +88,10 @@ export default function EditarEventoPage() {
 
   const [batches, setBatches] = useState<Batch[]>([])
 
+  const [freeCapacity, setFreeCapacity] = useState("0")
+  const [freeSalesStart, setFreeSalesStart] = useState("")
+  const [freeSalesEnd, setFreeSalesEnd] = useState("")
+
   useEffect(() => {
     if (event) {
       setSelectedCategory(event.categoryId || "")
@@ -105,7 +110,13 @@ export default function EditarEventoPage() {
       setImagePreview(event.image || null)
       setUploadedImageUrl(event.image || null)
       
-      if (event.batches && Array.isArray(event.batches)) {
+      if (event.isFree && event.batches?.[0]) {
+        setFreeCapacity(event.batches[0].available?.toString() || "0")
+        setFreeSalesStart(event.batches[0].startDate || "")
+        setFreeSalesEnd(event.batches[0].endDate || "")
+      }
+
+      if (event.batches && Array.isArray(event.batches) && !event.isFree) {
         setBatches(event.batches.map((b: any) => ({
           name: b.name || "",
           price: b.price?.toString() || "0.00",
@@ -204,7 +215,13 @@ export default function EditarEventoPage() {
         isFree: isFree,
         cep: cep,
         address: address,
-        batches: isFree ? [{ name: "Gratuito", price: 0, available: parseInt(formData.get("freeCapacity") as string) || 0 }] : batches.map(b => ({
+        batches: isFree ? [{ 
+          name: "Gratuito", 
+          price: 0, 
+          available: parseInt(freeCapacity) || 0,
+          startDate: freeSalesStart,
+          endDate: freeSalesEnd
+        }] : batches.map(b => ({
           ...b,
           price: parseFloat(b.price) || 0,
           available: parseInt(b.available) || 0
@@ -308,31 +325,68 @@ export default function EditarEventoPage() {
 
         <Card className="border-none shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-6 border-b">
-            <CardTitle className="text-lg flex items-center gap-2">Ingressos</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">Configuração de Ingressos</CardTitle>
             <div className="flex items-center gap-2"><Label htmlFor="free-event">Grátis</Label><Switch id="free-event" checked={isFree} onCheckedChange={setIsFree} /></div>
           </CardHeader>
           <CardContent className="p-6">
             {isFree ? (
-              <div className="space-y-4 text-center"><Input name="freeCapacity" type="number" defaultValue={event?.batches?.[0]?.available} className="max-w-xs mx-auto" required /></div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <Label>Quantidade Disponível</Label>
+                  <Input value={freeCapacity} onChange={(e) => setFreeCapacity(e.target.value)} type="number" required />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-secondary" /> Início das Vendas</Label>
+                  <Input value={freeSalesStart} onChange={(e) => setFreeSalesStart(e.target.value)} type="datetime-local" required />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-secondary" /> Fim das Vendas</Label>
+                  <Input value={freeSalesEnd} onChange={(e) => setFreeSalesEnd(e.target.value)} type="datetime-local" required />
+                </div>
+              </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {batches.map((batch, index) => (
-                  <div key={index} className="p-4 rounded-xl border bg-muted/20 space-y-4">
-                    <div className="flex justify-between items-center"><h4 className="font-bold text-sm">Lote #{index + 1}</h4><Button type="button" variant="ghost" size="icon" onClick={() => removeBatch(index)} className="text-destructive"><Trash2 className="w-4 h-4" /></Button></div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <Input value={batch.name} onChange={(e) => updateBatch(index, "name", e.target.value)} placeholder="Nome" required />
-                      <Input value={batch.price} onChange={(e) => updateBatch(index, "price", e.target.value)} type="number" step="0.01" required />
-                      <Input value={batch.available} onChange={(e) => updateBatch(index, "available", e.target.value)} type="number" required />
+                  <div key={index} className="p-6 rounded-[1.5rem] border bg-muted/20 space-y-6 relative group/batch">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-black text-xs uppercase tracking-widest text-secondary">Lote #{index + 1}</h4>
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeBatch(index)} className="text-destructive rounded-full">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold">Nome</Label>
+                        <Input value={batch.name} onChange={(e) => updateBatch(index, "name", e.target.value)} required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold">Preço (R$)</Label>
+                        <Input value={batch.price} onChange={(e) => updateBatch(index, "price", e.target.value)} type="number" step="0.01" required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold">Quantidade</Label>
+                        <Input value={batch.available} onChange={(e) => updateBatch(index, "available", e.target.value)} type="number" required />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold flex items-center gap-1.5"><Clock className="w-3 h-3" /> Início das Vendas</Label>
+                        <Input value={batch.startDate} onChange={(e) => updateBatch(index, "startDate", e.target.value)} type="datetime-local" required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold flex items-center gap-1.5"><Clock className="w-3 h-3" /> Fim das Vendas</Label>
+                        <Input value={batch.endDate} onChange={(e) => updateBatch(index, "endDate", e.target.value)} type="datetime-local" required />
+                      </div>
                     </div>
                   </div>
                 ))}
-                <Button type="button" variant="outline" className="w-full border-dashed" onClick={addBatch}><Plus className="w-4 h-4 mr-2" /> Adicionar Lote</Button>
+                <Button type="button" variant="outline" className="w-full border-dashed h-12 rounded-xl font-bold gap-2" onClick={addBatch}><Plus className="w-4 h-4" /> Adicionar Outro Lote</Button>
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 h-14 text-lg font-bold rounded-2xl shadow-lg" disabled={saving || uploadProgress !== null}>
+        <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 h-14 text-lg font-bold rounded-[1.5rem] shadow-lg shadow-secondary/20" disabled={saving || uploadProgress !== null}>
           {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
           Salvar Alterações
         </Button>

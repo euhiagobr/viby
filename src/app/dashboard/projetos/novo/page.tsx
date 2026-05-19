@@ -24,7 +24,8 @@ import {
   Trash2, 
   Loader2, 
   ImageIcon,
-  ShieldAlert
+  ShieldAlert,
+  Clock
 } from "lucide-react"
 import Link from "next/link"
 
@@ -179,7 +180,13 @@ export default function NovoEventoPage() {
         isFree: isFree,
         cep: cep,
         address: address,
-        batches: isFree ? [{ name: "Gratuito", price: 0, available: parseInt(formData.get("freeCapacity") as string) || 0 }] : batches.map(b => ({
+        batches: isFree ? [{ 
+          name: "Gratuito", 
+          price: 0, 
+          available: parseInt(formData.get("freeCapacity") as string) || 0,
+          startDate: formData.get("freeSalesStart") as string,
+          endDate: formData.get("freeSalesEnd") as string
+        }] : batches.map(b => ({
           ...b,
           price: parseFloat(b.price) || 0,
           available: parseInt(b.available) || 0
@@ -321,38 +328,79 @@ export default function NovoEventoPage() {
               <div className="space-y-2"><Label htmlFor="number">Número</Label><Input id="number" value={address.number} onChange={(e) => setAddress({...address, number: e.target.value})} required /></div>
               <div className="space-y-2"><Label htmlFor="neighborhood">Bairro</Label><Input id="neighborhood" value={address.neighborhood} onChange={(e) => setAddress({...address, neighborhood: e.target.value})} required /></div>
               <div className="space-y-2"><Label htmlFor="city">Cidade</Label><Input id="city" value={address.city} onChange={(e) => setAddress({...address, city: e.target.value})} required /></div>
-              <div className="space-y-2"><Label htmlFor="state">Estado</Label><Input id="state" value={address.state} onChange={(e) => setAddress({...address, state: e.target.value})} required /></div>
+              <div className="space-y-2"><Label htmlFor="state">Estado</Label><Input id="state" value={address.state} onChange={(e) => setAddress({...address, state: e.target.value})} placeholder="Ex: SP" required /></div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-6 border-b">
-            <CardTitle className="text-lg flex items-center gap-2">Ingressos</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">Configuração de Ingressos</CardTitle>
             <div className="flex items-center gap-2"><Label htmlFor="free-event">Grátis</Label><Switch id="free-event" checked={isFree} onCheckedChange={setIsFree} /></div>
           </CardHeader>
           <CardContent className="p-6">
             {isFree ? (
-              <div className="space-y-4 text-center"><Input name="freeCapacity" type="number" placeholder="Capacidade..." className="max-w-xs mx-auto" required /></div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <Label>Quantidade Disponível</Label>
+                  <Input name="freeCapacity" type="number" placeholder="Ex: 100" required />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-secondary" /> Início das Vendas</Label>
+                  <Input name="freeSalesStart" type="datetime-local" required />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-secondary" /> Fim das Vendas</Label>
+                  <Input name="freeSalesEnd" type="datetime-local" required />
+                </div>
+              </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {batches.map((batch, index) => (
-                  <div key={index} className="p-4 rounded-xl border bg-muted/20 space-y-4">
-                    <div className="flex justify-between items-center"><h4 className="font-bold text-sm">Lote #{index + 1}</h4><Button type="button" variant="ghost" size="icon" onClick={() => removeBatch(index)} className="text-destructive"><Trash2 className="w-4 h-4" /></Button></div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <Input value={batch.name} onChange={(e) => updateBatch(index, "name", e.target.value)} placeholder="Nome" required />
-                      <Input value={batch.price} onChange={(e) => updateBatch(index, "price", e.target.value)} type="number" step="0.01" placeholder="Preço" required />
-                      <Input value={batch.available} onChange={(e) => updateBatch(index, "available", e.target.value)} type="number" placeholder="Quantidade" required />
+                  <div key={index} className="p-6 rounded-[1.5rem] border bg-muted/20 space-y-6 relative group/batch">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-black text-xs uppercase tracking-widest text-secondary">Lote #{index + 1}</h4>
+                      {batches.length > 1 && (
+                        <Button type="button" variant="ghost" size="icon" onClick={() => removeBatch(index)} className="text-destructive rounded-full">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold">Nome do Lote</Label>
+                        <Input value={batch.name} onChange={(e) => updateBatch(index, "name", e.target.value)} placeholder="Ex: Lote 1" required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold">Preço Unitário (R$)</Label>
+                        <Input value={batch.price} onChange={(e) => updateBatch(index, "price", e.target.value)} type="number" step="0.01" placeholder="0.00" required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold">Quantidade</Label>
+                        <Input value={batch.available} onChange={(e) => updateBatch(index, "available", e.target.value)} type="number" placeholder="0" required />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold flex items-center gap-1.5"><Clock className="w-3 h-3" /> Início das Vendas</Label>
+                        <Input value={batch.startDate} onChange={(e) => updateBatch(index, "startDate", e.target.value)} type="datetime-local" required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold flex items-center gap-1.5"><Clock className="w-3 h-3" /> Fim das Vendas</Label>
+                        <Input value={batch.endDate} onChange={(e) => updateBatch(index, "endDate", e.target.value)} type="datetime-local" required />
+                      </div>
                     </div>
                   </div>
                 ))}
-                <Button type="button" variant="outline" className="w-full border-dashed" onClick={addBatch}><Plus className="w-4 h-4 mr-2" /> Adicionar Lote</Button>
+                <Button type="button" variant="outline" className="w-full border-dashed h-12 rounded-xl font-bold gap-2" onClick={addBatch}>
+                  <Plus className="w-4 h-4" /> Adicionar Outro Lote
+                </Button>
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 h-14 text-lg font-bold" disabled={loading}>
+        <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 h-14 text-lg font-bold rounded-[1.5rem] shadow-lg shadow-secondary/20" disabled={loading}>
           {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Publicar Evento"}
         </Button>
       </form>
