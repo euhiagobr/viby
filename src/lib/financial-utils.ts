@@ -35,6 +35,7 @@ export interface FinancialBreakdown {
 
 /**
  * Realiza o cálculo completo de taxas para um ingresso.
+ * Regra: Taxa do produtor é o MAIOR valor entre (percentual do plano) e (valor mínimo).
  * @param basePrice O valor nominal do ingresso (definido pelo produtor).
  * @param plan O plano atual do organizador do evento.
  */
@@ -62,16 +63,16 @@ export function calculateFinancialBreakdown(basePrice: number, plan: string = 'S
   }
 
   // 1. Taxa Administrativa (Comprador paga a mais)
+  // Calculada SEMPRE sobre o valor base do ingresso
   const administrativeFeeAmount = Number((basePrice * ADMINISTRATIVE_FEE_PERCENT).toFixed(2));
   const customerFinalPrice = Number((basePrice + administrativeFeeAmount).toFixed(2));
 
   // 2. Taxa do Produtor (Descontada do valor base)
-  let producerFeeAmount = Number((basePrice * planConfig.percent).toFixed(2));
-  if (producerFeeAmount < planConfig.min) {
-    producerFeeAmount = planConfig.min;
-  }
+  // Regra: MAX( percentualCalculado, valorMinimo )
+  const percentCalculated = Number((basePrice * planConfig.percent).toFixed(2));
+  let producerFeeAmount = Math.max(percentCalculated, planConfig.min);
   
-  // Garantir que a taxa não ultrapasse o valor do ingresso (segurança para valores muito baixos)
+  // Trava de segurança: a taxa nunca pode ser maior que o próprio ingresso
   producerFeeAmount = Math.min(producerFeeAmount, basePrice);
   
   const producerNetAmount = Number((basePrice - producerFeeAmount).toFixed(2));
