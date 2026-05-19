@@ -1,9 +1,9 @@
 export const firebaseConfig = {
-  apiKey: "AIzaSyAPbbxh55ytApgQllLGbuwqeRlHog8kDVw",
-  authDomain: "vibyapp-205c0.firebaseapp.com",
-  projectId: "vibyapp-205c0",
-  storageBucket: "vibyapp-205c0.firebasestorage.app",
-  messagingSenderId: "687675331468",
-  appId: "1:687675331468:web:3cdd1809003dd266d5fca9",
-  measurementId: "G-BXNHLZHHKR"
+  apiKey: "AIzaSyDWOoEhxGwwTzEuCx5ire2ZaddlH3X4Vcw",
+  authDomain: "ong-desafios-3942a.firebaseapp.com",
+  projectId: "ong-desafios-3942a",
+  storageBucket: "ong-desafios-3942a.firebasestorage.app",
+  messagingSenderId: "620602855927",
+  appId: "1:620602855927:web:c6c7aba7fd5a7ec6915ef2",
+  measurementId: "G-4PPLPFPTZW"
 };

@@ -10,7 +10,8 @@ import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 export function initializeFirebase() {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  const db = getFirestore(app);
+  // Configuração explícita para o Named Database 'eventosviby'
+  const db = getFirestore(app, 'eventosviby');
   const auth = getAuth(app);
 
   return { firebaseApp: app, firestore: db, auth };
