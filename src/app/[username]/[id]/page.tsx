@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { 
   Calendar, 
   MapPin, 
@@ -24,7 +25,9 @@ import {
   ExternalLink,
   AlertTriangle,
   Tag,
-  Gift
+  Gift,
+  ShieldAlert,
+  Send
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -33,6 +36,22 @@ import { FirestorePermissionError } from "@/firebase/errors"
 import Link from "next/link"
 import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 import { cn } from "@/lib/utils"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
@@ -93,6 +112,12 @@ export default function EventoDetalhesPage() {
   const [couponCode, setCouponCode] = React.useState("")
   const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null)
   const [isVerifyingCoupon, setIsVerifyingCoupon] = React.useState(false)
+
+  // Denúncia state
+  const [isReportDialogOpen, setIsReportDialogOpen] = React.useState(false)
+  const [reportReason, setReportReason] = React.useState("")
+  const [reportDescription, setReportDescription] = React.useState("")
+  const [isSubmittingReport, setIsSubmittingReport] = React.useState(false)
 
   // Lógica de disponibilidade baseada em UTC-3 e estoque real
   React.useEffect(() => {
@@ -314,6 +339,45 @@ export default function EventoDetalhesPage() {
     }
   }
 
+  const handleSendReport = async () => {
+    if (!auth || !user) {
+      toast({ title: "Ação necessária", description: "Entre para denunciar o evento." })
+      router.push("/login")
+      return
+    }
+
+    if (!db || !eventId || !reportReason) return
+
+    setIsSubmittingReport(true)
+    const reportData = {
+      eventId,
+      eventTitle: event?.title || "Sem Título",
+      reporterId: user.uid,
+      reporterName: currentUserProfile?.name || user.displayName || "Denunciante",
+      reason: reportReason,
+      description: reportDescription,
+      timestamp: serverTimestamp(),
+      status: "Pendente"
+    }
+
+    addDoc(collection(db, "reports"), reportData)
+      .then(() => {
+        toast({ title: "Denúncia enviada", description: "Nossa equipe analisará o conteúdo em breve." })
+        setIsReportDialogOpen(false)
+        setReportReason("")
+        setReportDescription("")
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: "reports",
+          operation: "create",
+          requestResourceData: reportData
+        })
+        errorEmitter.emit("permission-error", permissionError)
+      })
+      .finally(() => setIsSubmittingReport(false))
+  }
+
   if (eventLoading) {
     return (
       <div className="flex justify-center items-center h-[60vh]">
@@ -432,6 +496,59 @@ export default function EventoDetalhesPage() {
               <div className="p-3 bg-secondary/10 rounded-2xl"><Clock className="w-6 h-6 text-secondary" /></div>
               <div><p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Horário</p><p className="text-lg font-bold">{start.time} {event.endDate && `até ${end.time}`}</p></div>
             </Card>
+          </div>
+
+          <div className="flex justify-center pt-4">
+             <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
+               <DialogTrigger asChild>
+                 <Button variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10 font-bold gap-2 rounded-full uppercase text-[10px] tracking-widest">
+                   <ShieldAlert className="w-4 h-4" /> Denunciar Evento
+                 </Button>
+               </DialogTrigger>
+               <DialogContent className="rounded-[2rem]">
+                 <DialogHeader>
+                   <DialogTitle className="text-xl font-black italic uppercase tracking-tighter">Denunciar este evento?</DialogTitle>
+                   <DialogDescription>Ajude-nos a manter o Viby Club seguro. Selecione o motivo e descreva o problema.</DialogDescription>
+                 </DialogHeader>
+                 <div className="space-y-4 py-4">
+                   <div className="space-y-2">
+                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Motivo</Label>
+                     <Select value={reportReason} onValueChange={setReportReason}>
+                       <SelectTrigger className="rounded-xl border-dashed border-secondary/30 h-12">
+                         <SelectValue placeholder="Selecione o motivo" />
+                       </SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="Conteúdo Inadequado">Conteúdo Inadequado</SelectItem>
+                         <SelectItem value="Fraude / Golpe">Fraude / Golpe</SelectItem>
+                         <SelectItem value="Evento Inexistente">Evento Inexistente</SelectItem>
+                         <SelectItem value="Propriedade Intelectual">Violação de Propriedade Intelectual</SelectItem>
+                         <SelectItem value="Outro">Outro Motivo</SelectItem>
+                       </SelectContent>
+                     </Select>
+                   </div>
+                   <div className="space-y-2">
+                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Descrição Detalhada</Label>
+                     <Textarea 
+                       placeholder="Descreva o que está errado..." 
+                       value={reportDescription}
+                       onChange={(e) => setReportDescription(e.target.value)}
+                       className="rounded-xl border-dashed border-secondary/30 min-h-[100px]"
+                     />
+                   </div>
+                 </div>
+                 <DialogFooter>
+                   <Button variant="ghost" onClick={() => setIsReportDialogOpen(false)} className="rounded-xl font-bold uppercase text-[10px] tracking-widest">Cancelar</Button>
+                   <Button 
+                     onClick={handleSendReport} 
+                     disabled={isSubmittingReport || !reportReason} 
+                     className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest h-12 px-6"
+                   >
+                     {isSubmittingReport ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                     Enviar Denúncia
+                   </Button>
+                 </DialogFooter>
+               </DialogContent>
+             </Dialog>
           </div>
         </div>
 

@@ -143,6 +143,22 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["protocol", "userId", "subject", "description", "status"]
+    },
+    "Report": {
+      "title": "Denúncia",
+      "description": "Relato de irregularidade em um evento",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string" },
+        "eventTitle": { "type": "string" },
+        "reporterId": { "type": "string" },
+        "reporterName": { "type": "string" },
+        "reason": { "type": "string" },
+        "description": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["Pendente", "Analisada", "Arquivada"] }
+      },
+      "required": ["eventId", "reporterId", "reason"]
     }
   },
   "auth": {
@@ -180,6 +196,10 @@
     "/support_tickets/{ticketId}": {
       "schema": "SupportTicket",
       "description": "Tickets de suporte abertos pelos usuários"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Denúncias de eventos feitas pelos usuários"
     }
   }
 }
