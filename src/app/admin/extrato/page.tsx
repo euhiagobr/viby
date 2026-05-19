@@ -44,7 +44,6 @@ export default function AdminExtratoPage() {
   const [dateFilter, setDateFilter] = React.useState<string>("all")
 
   // Consulta de Ingressos (Registrations)
-  // Removido orderBy para evitar erros de índice composto obrigatório em tempo de execução
   const regsQuery = useMemoFirebase(() => {
     if (!db) return null
     return query(
@@ -67,7 +66,7 @@ export default function AdminExtratoPage() {
   const { data: users, loading: usersLoading } = useCollection<any>(usersQuery)
 
   const financialData = React.useMemo(() => {
-    if (!registrations) return { transactions: [], stats: { gross: 0, payouts: 0, fees: 0, plans: 0 } }
+    if (!registrations) return { transactions: [], stats: { gross: 0, payouts: 0, fees: 0, plans: 0, totalPlatformRevenue: 0 } }
 
     const now = new Date()
     const filterDate = (date: any) => {
@@ -93,15 +92,14 @@ export default function AdminExtratoPage() {
         date: reg.timestamp,
         gross: reg.price || 0,
         fee: (reg.administrativeFeeAmount || 0) + (reg.producerFeeAmount || 0),
-        net: reg.producerNetAmount || 0,
+        net: reg.producerNetAmount || 0, // Repasse ao produtor
         status: 'Concluído'
       }))
 
-    // Processar Planos
+    // Processar Planos (Receita 100% Viby)
     const planTransactions = (users || [])
       .filter(u => u.lastPlanPaymentAt && filterDate(u.lastPlanPaymentAt))
       .map(u => {
-        // Se houver um valor salvo, usa ele. Se não, calcula baseado no plano/ciclo
         let amount = u.lastPlanAmount || 0
         if (!amount) {
            const isAnnual = u.billingCycle === 'annual'
@@ -116,13 +114,12 @@ export default function AdminExtratoPage() {
           description: `Assinante: @${u.username} (${u.billingCycle === 'annual' ? 'Anual' : 'Mensal'})`,
           date: u.lastPlanPaymentAt,
           gross: amount,
-          fee: 0,
-          net: amount,
+          fee: amount, // 100% do valor é taxa/lucro da plataforma
+          net: 0,      // Assinatura não tem repasse (0% para terceiros)
           status: 'Pago'
         }
       })
 
-    // Combina e ordena na memória para evitar dependência de índices do Firestore
     const allTransactions = [...ticketTransactions, ...planTransactions].sort((a, b) => {
       const getMs = (date: any) => {
         if (date?.toMillis) return date.toMillis()
@@ -143,7 +140,10 @@ export default function AdminExtratoPage() {
       return acc
     }, { gross: 0, payouts: 0, fees: 0, plans: 0 })
 
-    return { transactions: allTransactions, stats }
+    // Lucro Real = Taxas de Ingressos + Valor Integral dos Planos
+    const totalPlatformRevenue = stats.fees + stats.plans
+
+    return { transactions: allTransactions, stats: { ...stats, totalPlatformRevenue } }
   }, [registrations, users, dateFilter])
 
   const formatTimestamp = (ts: any) => {
@@ -193,7 +193,7 @@ export default function AdminExtratoPage() {
         <Card className="border-none shadow-sm bg-white border-l-4 border-primary">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
-              Entrada Total Bruta
+              Faturamento Bruto Total
               <ArrowUpRight className="w-3 h-3 text-green-500" />
             </CardTitle>
           </CardHeader>
@@ -212,20 +212,20 @@ export default function AdminExtratoPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black text-orange-600">{formatCurrency(financialData.stats.payouts)}</div>
-            <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">Valor líquido a ser pago</p>
+            <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">Líquido de ingressos apenas</p>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm bg-secondary text-white border-l-4 border-secondary">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase text-white/60 tracking-widest flex justify-between">
-              Lucro Viby (Taxas)
+              Lucro Líquido Viby
               <Percent className="w-3 h-3" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black">{formatCurrency(financialData.stats.fees)}</div>
-            <p className="text-[9px] font-bold opacity-60 uppercase mt-1">Adm + Serviço de Ingressos</p>
+            <div className="text-2xl font-black">{formatCurrency(financialData.stats.totalPlatformRevenue)}</div>
+            <p className="text-[9px] font-bold opacity-60 uppercase mt-1">Taxas Ingressos + 100% Planos</p>
           </CardContent>
         </Card>
 
@@ -238,7 +238,7 @@ export default function AdminExtratoPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black text-secondary">{formatCurrency(financialData.stats.plans)}</div>
-            <p className="text-[9px] font-bold opacity-60 uppercase mt-1">Planos PRO e TOP</p>
+            <p className="text-[9px] font-bold opacity-60 uppercase mt-1">Planos PRO e TOP (Integral)</p>
           </CardContent>
         </Card>
       </div>
@@ -298,9 +298,9 @@ export default function AdminExtratoPage() {
                     <TableCell className="text-right">
                        <span className={cn(
                          "font-black text-sm",
-                         t.type === 'plan' ? "text-secondary" : "text-orange-500"
+                         t.type === 'plan' ? "text-muted-foreground/30 italic" : "text-orange-500"
                        )}>
-                         {formatCurrency(t.net)}
+                         {t.net > 0 ? formatCurrency(t.net) : '---'}
                        </span>
                     </TableCell>
                   </TableRow>
@@ -326,16 +326,16 @@ export default function AdminExtratoPage() {
             </CardHeader>
             <CardContent className="space-y-4">
                <div className="flex justify-between items-center text-sm">
-                  <span className="font-medium text-muted-foreground">Volume de Vendas Ingressos</span>
+                  <span className="font-medium text-muted-foreground">Volume de Vendas Ingressos (Base)</span>
                   <span className="font-black">{formatCurrency(financialData.stats.gross)}</span>
                </div>
                <div className="flex justify-between items-center text-sm">
-                  <span className="font-medium text-muted-foreground">Lucro Operacional (Taxas)</span>
+                  <span className="font-medium text-muted-foreground">Lucro sobre Ingressos (Taxas)</span>
                   <span className="font-black text-secondary">{formatCurrency(financialData.stats.fees)}</span>
                </div>
                <div className="h-px bg-border/50" />
                <div className="flex justify-between items-center">
-                  <span className="text-xs font-black uppercase tracking-tighter">Margem de Contribuição (Vendas)</span>
+                  <span className="text-xs font-black uppercase tracking-tighter">Margem de Retenção Média</span>
                   <Badge className="bg-secondary font-black">
                     {financialData.stats.gross > 0 
                       ? ((financialData.stats.fees / financialData.stats.gross) * 100).toFixed(1) 
@@ -353,7 +353,7 @@ export default function AdminExtratoPage() {
             </CardHeader>
             <CardContent className="space-y-4">
                <div className="flex justify-between items-center text-sm">
-                  <span className="font-medium text-muted-foreground">Faturamento Recorrente (MRR)</span>
+                  <span className="font-medium text-muted-foreground">Receita Direta de Assinaturas (MRR)</span>
                   <span className="font-black">{formatCurrency(financialData.stats.plans)}</span>
                </div>
                <div className="flex justify-between items-center text-sm">
@@ -362,7 +362,7 @@ export default function AdminExtratoPage() {
                </div>
                <div className="h-px bg-border/50" />
                <p className="text-[10px] text-muted-foreground italic leading-tight">
-                 * Os valores de assinaturas são reconhecidos no extrato baseados na data do último pagamento registrado pelo Stripe no perfil do usuário.
+                 * As assinaturas são reconhecidas 100% como lucro líquido da Viby, sem repasses ou taxas externas.
                </p>
             </CardContent>
          </Card>
