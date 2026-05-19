@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore"
+import { collection, query, orderBy, doc, updateDoc, deleteDoc, getDoc } from "firebase/firestore"
 import { 
   Table, 
   TableBody, 
@@ -19,18 +19,41 @@ import {
   Loader2, 
   Search, 
   Users, 
-  ExternalLink, 
   Building2, 
   User as UserIcon,
-  MapPin,
-  Trash2
+  Trash2,
+  Edit,
+  Save,
+  X
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import { cn } from "@/lib/utils"
+
+const BUSINESS_CATEGORIES = {
+  "Organizadores": ["Produtora de eventos", "Agência de marketing", "Agência de eventos", "Cerimonialista", "Organizador independente", "Assessoria de eventos"],
+  "Casas e locais": ["Casa noturna", "Bar", "Pub", "Restaurante", "Café", "Lounge", "Hotel", "Resort", "Centro de eventos", "Arena", "Teatro", "Auditório", "Espaço cultural", "Galeria", "Parque", "Estádio", "Rooftop", "Coworking", "Centro de convenções"],
+  "Música e entretenimento": ["Banda", "Cantor(a)", "DJ", "Grupo musical", "Artista", "Performer", "Drag queen", "Humorista", "Influenciador(a)", "Apresentador(a)"],
+  "Eventos corporativos": ["Empresa privada", "Startup", "Consultoria", "RH/Treinamentos", "Coworking", "Hub de inovação"],
+  "Gastronomia": ["Buffet", "Food truck", "Confeitaria", "Hamburgueria", "Pizzaria", "Choperia", "Vinícola", "Cafeteria"],
+  "Casamentos e festas": ["Decoradora", "Floricultura", "Fotografia", "Filmagem", "Sonorização", "Iluminação", "Locação de móveis", "Bartender", "Segurança", "Recreação infantil"],
+  "Cultura e educação": ["Escola", "Universidade", "Curso", "ONG cultural", "Biblioteca", "Museu", "Coletivo artístico"],
+  "Saúde e bem-estar": ["Academia", "Estúdio de yoga", "Clínica", "Espaço terapêutico", "Personal trainer"],
+  "Turismo": ["Agência de turismo", "Guia turístico", "Operadora turística", "Passeios e experiências"],
+  "Esportes": ["Clube esportivo", "Assessoria esportiva", "Equipe esportiva", "Academia funcional"],
+  "Comunidade e causas": ["ONG", "Coletivo", "Associação", "Fundação", "Projeto social", "Movimento social"],
+  "Governo e setor público": ["Prefeitura", "Secretaria", "Câmara municipal", "Governo estadual", "Governo federal", "Universidade pública"],
+  "Religioso": ["Igreja", "Centro espírita", "Templo", "Comunidade religiosa"]
+}
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
@@ -57,6 +80,9 @@ function InstagramVerifiedBadge({ className }: { className?: string }) {
 export default function AdminUsuariosPage() {
   const db = useFirestore()
   const [search, setSearch] = React.useState("")
+  const [editingUser, setEditingUser] = React.useState<any>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = React.useState(false)
+  const [isSaving, setIsSaving] = React.useState(false)
 
   const usersQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -74,27 +100,36 @@ export default function AdminUsuariosPage() {
     )
   }, [users, search])
 
-  const handleToggleVerify = async (userId: string, currentStatus: boolean) => {
-    if (!db) return
+  const handleEditClick = (user: any) => {
+    setEditingUser({ ...user })
+    setIsEditModalOpen(true)
+  }
 
-    const userRef = doc(db, "users", userId)
-    const newStatus = !currentStatus
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!db || !editingUser || isSaving) return
 
-    updateDoc(userRef, { isVerified: newStatus })
+    setIsSaving(true)
+    const userRef = doc(db, "users", editingUser.id)
+
+    updateDoc(userRef, {
+      ...editingUser,
+      updatedAt: new Date().toISOString()
+    })
       .then(() => {
-        toast({ 
-          title: newStatus ? "Usuário Verificado" : "Verificação Removida",
-          description: `O status de verificação foi atualizado.`
-        })
+        toast({ title: "Sucesso!", description: "Dados do usuário atualizados." })
+        setIsEditModalOpen(false)
+        setEditingUser(null)
       })
       .catch(async (error) => {
         const permissionError = new FirestorePermissionError({
-          path: `users/${userId}`,
+          path: `users/${editingUser.id}`,
           operation: "update",
-          requestResourceData: { isVerified: newStatus }
+          requestResourceData: editingUser
         })
         errorEmitter.emit("permission-error", permissionError)
       })
+      .finally(() => setIsSaving(false))
   }
 
   const handleDeleteUser = async (userId: string, username: string) => {
@@ -106,7 +141,7 @@ export default function AdminUsuariosPage() {
       if (username) {
         await deleteDoc(doc(db, "usernames", username.toLowerCase()))
       }
-      toast({ title: "Usuário removido", description: "Os dados do Firestore foram excluídos." })
+      toast({ title: "Usuário removido", description: "Os dados foram excluídos." })
     } catch (error) {
        const permissionError = new FirestorePermissionError({
           path: `users/${userId}`,
@@ -128,7 +163,7 @@ export default function AdminUsuariosPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Gestão de Usuários</h1>
-        <p className="text-muted-foreground">Visualize, verifique ou remova organizadores da plataforma.</p>
+        <p className="text-muted-foreground">Visualize, edite ou remova organizadores da plataforma.</p>
       </div>
 
       <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
@@ -170,7 +205,7 @@ export default function AdminUsuariosPage() {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9 border">
-                          <AvatarImage src={user.avatar} />
+                          <AvatarImage src={user.avatar} className="object-cover" />
                           <AvatarFallback className="font-bold text-xs">{user.name?.charAt(0)}</AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col">
@@ -192,22 +227,19 @@ export default function AdminUsuariosPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className={cn(
-                          "rounded-full h-8 w-8",
+                      <div className="flex justify-center">
+                        <div className={cn(
+                          "rounded-full h-8 w-8 flex items-center justify-center",
                           !user.isVerified && "opacity-20 grayscale"
-                        )}
-                        onClick={() => handleToggleVerify(user.id, !!user.isVerified)}
-                      >
-                        <InstagramVerifiedBadge className="w-6 h-6" />
-                      </Button>
+                        )}>
+                          <InstagramVerifiedBadge className="w-6 h-6" />
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="sm" asChild className="h-8 text-xs font-bold px-3">
-                          <Link href={`/${user.username}`} target="_blank">Perfil</Link>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" onClick={() => handleEditClick(user)}>
+                          <Edit className="w-4 h-4" />
                         </Button>
                         <Button 
                           variant="ghost" 
@@ -232,6 +264,285 @@ export default function AdminUsuariosPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Modal de Edição de Usuário */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="max-w-3xl h-[90vh] flex flex-col p-0 overflow-hidden rounded-2xl">
+          <DialogHeader className="p-6 border-b">
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+              <Edit className="w-6 h-6 text-secondary" />
+              Editar Perfil: {editingUser?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Altere as informações cadastrais e de acesso deste usuário.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdateUser} className="flex-1 flex flex-col min-h-0">
+            <ScrollArea className="flex-1 p-6">
+              <div className="space-y-8">
+                {/* Seção: Identidade */}
+                <div className="space-y-4">
+                  <h3 className="font-black text-xs uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                    <UserIcon className="w-3.5 h-3.5" /> Identidade & Acesso
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-name">Nome Completo</Label>
+                      <Input 
+                        id="edit-name" 
+                        value={editingUser?.name || ""} 
+                        onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-username">Nome de Usuário (@)</Label>
+                      <Input 
+                        id="edit-username" 
+                        value={editingUser?.username || ""} 
+                        onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value.toLowerCase() })}
+                        required
+                      />
+                      <p className="text-[10px] text-destructive font-bold">CUIDADO: Mudar o username pode causar conflitos de indexação.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-email">E-mail</Label>
+                      <Input 
+                        id="edit-email" 
+                        type="email"
+                        value={editingUser?.email || ""} 
+                        onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Cargo no Sistema</Label>
+                      <Select 
+                        value={editingUser?.role || "user"} 
+                        onValueChange={(val) => setEditingUser({ ...editingUser, role: val })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="user">Membro (Usuário)</SelectItem>
+                          <SelectItem value="admin">Administrador</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border border-border">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-bold">Verificado</Label>
+                      <p className="text-xs text-muted-foreground">Exibir selo azul do Instagram no perfil.</p>
+                    </div>
+                    <Switch 
+                      checked={editingUser?.isVerified || false} 
+                      onCheckedChange={(checked) => setEditingUser({ ...editingUser, isVerified: checked })}
+                    />
+                  </div>
+                </div>
+
+                {/* Seção: Detalhes Pessoais */}
+                <div className="space-y-4">
+                  <h3 className="font-black text-xs uppercase tracking-widest text-muted-foreground">Detalhes Pessoais</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Data de Nascimento</Label>
+                      <Input 
+                        type="date"
+                        value={editingUser?.birthDate || ""} 
+                        onChange={(e) => setEditingUser({ ...editingUser, birthDate: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Sexo / Gênero</Label>
+                      <Select 
+                        value={editingUser?.gender || ""} 
+                        onValueChange={(val) => setEditingUser({ ...editingUser, gender: val })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="masculino">Masculino</SelectItem>
+                          <SelectItem value="feminino">Feminino</SelectItem>
+                          <SelectItem value="homem trans">Homem Trans</SelectItem>
+                          <SelectItem value="mulher trans">Mulher Trans</SelectItem>
+                          <SelectItem value="agênero">Agênero</SelectItem>
+                          <SelectItem value="prefiro não dizer">Prefiro não dizer</SelectItem>
+                          <SelectItem value="empresa">Empresa</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Biografia (Máx 150 caracteres)</Label>
+                    <Textarea 
+                      value={editingUser?.bio || ""} 
+                      onChange={(e) => setEditingUser({ ...editingUser, bio: e.target.value.substring(0, 150) })}
+                      className="resize-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Seção: Localização e Contato */}
+                <div className="space-y-4">
+                  <h3 className="font-black text-xs uppercase tracking-widest text-muted-foreground">Localização & Contato</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Cidade</Label>
+                      <Input 
+                        value={editingUser?.city || ""} 
+                        onChange={(e) => setEditingUser({ ...editingUser, city: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Estado</Label>
+                      <Input 
+                        value={editingUser?.state || ""} 
+                        onChange={(e) => setEditingUser({ ...editingUser, state: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>País</Label>
+                      <Input 
+                        value={editingUser?.country || ""} 
+                        onChange={(e) => setEditingUser({ ...editingUser, country: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Instagram (@)</Label>
+                      <Input 
+                        value={editingUser?.instagram || ""} 
+                        onChange={(e) => setEditingUser({ ...editingUser, instagram: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>WhatsApp</Label>
+                      <Input 
+                        value={editingUser?.whatsapp || ""} 
+                        onChange={(e) => setEditingUser({ ...editingUser, whatsapp: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção: Empresa (se aplicável) */}
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-black text-xs uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                      <Building2 className="w-3.5 h-3.5" /> Informações de Empresa
+                    </h3>
+                    <Select 
+                      value={editingUser?.accountType || "Usuário"} 
+                      onValueChange={(val) => setEditingUser({ ...editingUser, accountType: val })}
+                    >
+                      <SelectTrigger className="w-[150px] h-8 text-[10px] font-bold uppercase">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Usuário">Tipo: Pessoa</SelectItem>
+                        <SelectItem value="Empresa">Tipo: Empresa</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {editingUser?.accountType === 'Empresa' && (
+                    <div className="space-y-4 animate-in fade-in duration-300">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Razão Social</Label>
+                          <Input 
+                            value={editingUser?.legalName || ""} 
+                            onChange={(e) => setEditingUser({ ...editingUser, legalName: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>CNPJ</Label>
+                          <Input 
+                            value={editingUser?.cnpj || ""} 
+                            onChange={(e) => setEditingUser({ ...editingUser, cnpj: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Categoria de Negócio</Label>
+                        <Select 
+                          value={editingUser?.businessCategory || ""} 
+                          onValueChange={(val) => setEditingUser({ ...editingUser, businessCategory: val })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione uma categoria" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60">
+                            {Object.entries(BUSINESS_CATEGORIES).map(([category, items]) => (
+                              <SelectGroup key={category}>
+                                <SelectLabel className="bg-muted/50 py-1.5 px-3 text-[10px] font-black uppercase">{category}</SelectLabel>
+                                {items.map(item => (
+                                  <SelectItem key={item} value={item}>{item}</SelectItem>
+                                ))}
+                              </SelectGroup>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Seção: Estatísticas Manuais */}
+                <div className="space-y-4 pt-4 border-t">
+                  <h3 className="font-black text-xs uppercase tracking-widest text-muted-foreground">Métricas (Overide)</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Seguidores</Label>
+                      <Input 
+                        type="number"
+                        value={editingUser?.followersCount || 0} 
+                        onChange={(e) => setEditingUser({ ...editingUser, followersCount: parseInt(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Avaliação (0-5)</Label>
+                      <Input 
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="5"
+                        value={editingUser?.rating || 0} 
+                        onChange={(e) => setEditingUser({ ...editingUser, rating: parseFloat(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Total Eventos</Label>
+                      <Input 
+                        type="number"
+                        value={editingUser?.totalEvents || 0} 
+                        onChange={(e) => setEditingUser({ ...editingUser, totalEvents: parseInt(e.target.value) || 0 })}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </ScrollArea>
+
+            <DialogFooter className="p-6 border-t bg-muted/20 gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)} className="rounded-xl font-bold">
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSaving} className="bg-secondary text-white font-bold rounded-xl px-8">
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                Salvar Alterações
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
