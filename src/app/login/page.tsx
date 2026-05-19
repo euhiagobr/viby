@@ -4,31 +4,31 @@ import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useFirestore } from "@/firebase"
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth"
+import { signInWithEmailAndPassword, signOut } from "firebase/auth"
 import { doc, getDoc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { Globe, Loader2 } from "lucide-react"
+import { Globe, Loader2, User, Mail } from "lucide-react"
 import Link from "next/link"
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("")
+  const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const auth = useAuth()
   const db = useFirestore()
 
-  const verifyVibyUser = async (uid: string) => {
-    if (!db) return false
+  const verifyVibyUserAndGetEmail = async (uid: string) => {
+    if (!db) return null
     const userDoc = await getDoc(doc(db, "users", uid))
     if (!userDoc.exists() || userDoc.data()?.platform !== "viby") {
-      return false
+      return null
     }
-    return true
+    return userDoc.data()?.email
   }
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -37,17 +37,33 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password)
-      const isViby = await verifyVibyUser(userCredential.user.uid)
+      let emailToUse = identifier
+
+      // Se não for um e-mail, tenta resolver pelo nome de usuário
+      if (!identifier.includes("@")) {
+        const usernameRef = doc(db, "usernames", identifier.toLowerCase())
+        const usernameSnap = await getDoc(usernameRef)
+        
+        if (!usernameSnap.exists()) {
+          throw new Error("Nome de usuário não encontrado.")
+        }
+
+        const uid = usernameSnap.data().uid
+        const userEmail = await verifyVibyUserAndGetEmail(uid)
+        
+        if (!userEmail) {
+          throw new Error("Acesso negado para esta plataforma.")
+        }
+        emailToUse = userEmail
+      }
+
+      const userCredential = await signInWithEmailAndPassword(auth, emailToUse, password)
       
-      if (!isViby) {
+      // Verificação final de segurança (dupla checagem de plataforma)
+      const userDoc = await getDoc(doc(db, "users", userCredential.user.uid))
+      if (!userDoc.exists() || userDoc.data()?.platform !== "viby") {
         await signOut(auth)
-        toast({
-          variant: "destructive",
-          title: "Acesso Negado",
-          description: "Esta conta não possui permissão para acessar o Viby Club."
-        })
-        return
+        throw new Error("Esta conta não pertence ao Viby Club.")
       }
 
       toast({ title: "Login realizado!", description: "Bem-vindo de volta ao Viby." })
@@ -56,51 +72,40 @@ export default function LoginPage() {
       toast({
         variant: "destructive",
         title: "Erro ao entrar",
-        description: "Verifique suas credenciais."
+        description: error.message || "Verifique suas credenciais."
       })
     } finally {
       setLoading(false)
     }
   }
 
-  const handleGoogleSignIn = async () => {
-    if (!auth || !db) return
-    const provider = new GoogleAuthProvider()
-    try {
-      const result = await signInWithPopup(auth, provider)
-      const isViby = await verifyVibyUser(result.user.uid)
-
-      if (!isViby) {
-        await signOut(auth)
-        toast({
-          variant: "destructive",
-          title: "Acesso Negado",
-          description: "Sua conta Google não está vinculada ao Viby Club."
-        })
-        return
-      }
-
-      router.push("/dashboard")
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro com Google", description: error.message })
-    }
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4 font-body">
       <Card className="w-full max-w-md border-none shadow-xl">
         <CardHeader className="space-y-1 flex flex-col items-center">
           <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4">
             <Globe className="text-white w-7 h-7" />
           </div>
           <CardTitle className="text-2xl font-bold">Viby Club Login</CardTitle>
-          <CardDescription>Acesse sua conta exclusiva de eventos.</CardDescription>
+          <CardDescription>Acesse sua conta com e-mail ou nome de usuário.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Label htmlFor="identifier">Identificador (E-mail ou Usuário)</Label>
+              <div className="relative">
+                <Input 
+                  id="identifier" 
+                  placeholder="seu@email.com ou seu_usuario" 
+                  value={identifier} 
+                  onChange={(e) => setIdentifier(e.target.value)} 
+                  className="pl-10"
+                  required 
+                />
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  {identifier.includes("@") ? <Mail className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                </div>
+              </div>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between">
@@ -109,30 +114,13 @@ export default function LoginPage() {
               </div>
               <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
-            <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90" disabled={loading}>
+            <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold" disabled={loading}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Entrar no Viby
             </Button>
           </form>
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">Ou continue com</span>
-            </div>
-          </div>
-          <Button variant="outline" className="w-full" onClick={handleGoogleSignIn}>
-            <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-              <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-              <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
-              <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-            </svg>
-            Google
-          </Button>
         </CardContent>
-        <CardFooter className="flex justify-center">
+        <CardFooter className="flex justify-center border-t border-border mt-4 pt-6">
           <p className="text-sm text-muted-foreground">
             Ainda não tem conta no Viby?{" "}
             <Link href="/cadastro" className="text-secondary font-bold hover:underline">
