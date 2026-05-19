@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -55,11 +54,7 @@ export default function EditarEventoPage() {
   
   const storage = React.useMemo(() => {
     if (!app) return null;
-    try {
-      return getStorage(app, "gs://viby");
-    } catch (e) {
-      return getStorage(app);
-    }
+    return getStorage(app, "gs://viby");
   }, [app])
 
   const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
@@ -214,11 +209,13 @@ export default function EditarEventoPage() {
           price: parseFloat(b.price) || 0,
           available: parseInt(b.available) || 0
         })),
-        image: uploadedImageUrl || event.image,
+        image: uploadedImageUrl || event.image || "",
         city: address.city,
         organizer: {
-          ...event.organizer,
-          username: profile.username || event.organizer?.username || "" 
+          name: profile.name || user.displayName || "Organizador",
+          avatar: profile.avatar || user.photoURL || "",
+          isVerified: !!profile.isVerified,
+          username: profile.username || "" 
         },
         updatedAt: serverTimestamp()
       }

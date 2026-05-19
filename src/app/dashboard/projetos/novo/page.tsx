@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -49,11 +48,7 @@ export default function NovoEventoPage() {
   
   const storage = React.useMemo(() => {
     if (!app) return null;
-    try {
-      return getStorage(app, "gs://viby");
-    } catch (e) {
-      return getStorage(app);
-    }
+    return getStorage(app, "gs://viby");
   }, [app])
 
   const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
@@ -189,12 +184,12 @@ export default function NovoEventoPage() {
           price: parseFloat(b.price) || 0,
           available: parseInt(b.available) || 0
         })),
-        image: uploadedImageUrl || `https://picsum.photos/seed/${Math.random()}/1200/800`,
+        image: uploadedImageUrl || "",
         organizerId: user.uid,
         organizer: {
           name: profile.name || user.displayName || "Organizador",
-          avatar: profile.avatar || user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`,
-          isVerified: profile.isVerified || false,
+          avatar: profile.avatar || user.photoURL || "",
+          isVerified: !!profile.isVerified,
           username: profile.username || "" 
         },
         status: "Ativo",

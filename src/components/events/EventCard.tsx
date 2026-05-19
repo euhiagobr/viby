@@ -38,15 +38,6 @@ interface EventCardProps {
 
 export function EventCard({ event }: EventCardProps) {
   const router = useRouter()
-  const [imgSrc, setImgSrc] = React.useState<string>("")
-
-  React.useEffect(() => {
-    if (event.image) {
-      setImgSrc(event.image)
-    } else {
-      setImgSrc(`https://picsum.photos/seed/${event.id || 'default'}/600/400`)
-    }
-  }, [event.image, event.id])
   
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
@@ -117,17 +108,15 @@ export function EventCard({ event }: EventCardProps) {
       className="group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[1.5rem] cursor-pointer"
       onClick={handleCardClick}
     >
-      <div className="relative h-48 w-full">
-        {imgSrc && (
-          <Image
-            src={imgSrc}
-            alt={event.title}
-            fill
-            className="object-cover transition-transform group-hover:scale-105"
-            unoptimized
-            data-ai-hint="event cover"
-          />
-        )}
+      <div className="relative h-48 w-full bg-muted">
+        <Image
+          src={event.image || `https://picsum.photos/seed/${event.id}/600/400`}
+          alt={event.title}
+          fill
+          className="object-cover transition-transform group-hover:scale-105"
+          unoptimized
+          data-ai-hint="event cover"
+        />
         <div className="absolute top-3 left-3 flex flex-col gap-2">
           <Badge className="bg-secondary text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider">
             {categoryDisplay}
@@ -173,8 +162,8 @@ export function EventCard({ event }: EventCardProps) {
           onClick={handleOrganizerClick}
         >
           <Avatar className="h-6 w-6 border border-secondary/20">
-            <AvatarImage src={event.organizer?.avatar} alt={event.organizer?.name} />
-            <AvatarFallback className="text-[10px] font-bold">
+            <AvatarImage src={event.organizer?.avatar} alt={event.organizer?.name} className="object-cover" />
+            <AvatarFallback className="text-[10px] font-bold bg-muted">
               {event.organizer?.name?.charAt(0) || "O"}
             </AvatarFallback>
           </Avatar>
