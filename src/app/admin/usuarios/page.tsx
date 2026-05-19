@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -23,9 +22,7 @@ import {
   ExternalLink, 
   Building2, 
   User as UserIcon,
-  ShieldCheck,
   MapPin,
-  BadgeCheck,
   Trash2
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -34,6 +31,28 @@ import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import { cn } from "@/lib/utils"
+
+function InstagramVerifiedBadge({ className }: { className?: string }) {
+  return (
+    <svg 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      className={className} 
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path 
+        d="M22.5 12.5C22.5 18.0228 18.0228 22.5 12.5 22.5C6.97715 22.5 2.5 18.0228 2.5 12.5C2.5 6.97715 6.97715 2.5 12.5 2.5C18.0228 2.5 22.5 6.97715 22.5 12.5Z" 
+        fill="#0095F6"
+      />
+      <path 
+        d="M10 14.5L7.5 12L6.5 13L10 16.5L17.5 9L16.5 8L10 14.5Z" 
+        fill="white" 
+        stroke="white" 
+        strokeWidth="0.5"
+      />
+    </svg>
+  )
+}
 
 export default function AdminUsuariosPage() {
   const db = useFirestore()
@@ -178,11 +197,11 @@ export default function AdminUsuariosPage() {
                         size="icon" 
                         className={cn(
                           "rounded-full h-8 w-8",
-                          user.isVerified ? "text-secondary" : "text-muted-foreground/20"
+                          !user.isVerified && "opacity-20 grayscale"
                         )}
                         onClick={() => handleToggleVerify(user.id, !!user.isVerified)}
                       >
-                        <BadgeCheck className="w-5 h-5" />
+                        <InstagramVerifiedBadge className="w-6 h-6" />
                       </Button>
                     </TableCell>
                     <TableCell className="text-right">

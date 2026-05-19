@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -11,7 +10,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { 
   Loader2, 
-  ShieldCheck, 
   Calendar, 
   MapPin, 
   ArrowLeft, 
@@ -32,6 +30,28 @@ import {
 import { EventCard } from "@/components/events/EventCard"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
+
+function InstagramVerifiedBadge({ className }: { className?: string }) {
+  return (
+    <svg 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      className={className} 
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path 
+        d="M22.5 12.5C22.5 18.0228 18.0228 22.5 12.5 22.5C6.97715 22.5 2.5 18.0228 2.5 12.5C2.5 6.97715 6.97715 2.5 12.5 2.5C18.0228 2.5 22.5 6.97715 22.5 12.5Z" 
+        fill="#0095F6"
+      />
+      <path 
+        d="M10 14.5L7.5 12L6.5 13L10 16.5L17.5 9L16.5 8L10 14.5Z" 
+        fill="white" 
+        stroke="white" 
+        strokeWidth="0.5"
+      />
+    </svg>
+  )
+}
 
 export default function PublicProfilePage() {
   const params = useParams()
@@ -168,7 +188,7 @@ export default function PublicProfilePage() {
                   <div className="flex flex-col items-center gap-1">
                     <div className="flex items-center justify-center gap-2">
                       <h1 className="text-2xl font-bold tracking-tight">{profile.name}</h1>
-                      {profile.isVerified && <ShieldCheck className="w-6 h-6 text-secondary" />}
+                      {profile.isVerified && <InstagramVerifiedBadge className="w-5 h-5" />}
                     </div>
                     <Badge variant="outline" className="text-[10px] font-bold">
                       {profile.accountType === 'Empresa' ? <Building2 className="w-3 h-3 mr-1" /> : <UsersIcon className="w-3 h-3 mr-1" />}

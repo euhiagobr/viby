@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -8,10 +7,32 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, Mail, ShieldCheck, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Link as LinkIcon, Instagram, Phone, EyeOff, Building2, User as UserIcon, Briefcase } from "lucide-react"
+import { Loader2, Mail, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Link as LinkIcon, Instagram, Phone, EyeOff, Building2, User as UserIcon, Briefcase } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+
+function InstagramVerifiedBadge({ className }: { className?: string }) {
+  return (
+    <svg 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      className={className} 
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path 
+        d="M22.5 12.5C22.5 18.0228 18.0228 22.5 12.5 22.5C6.97715 22.5 2.5 18.0228 2.5 12.5C2.5 6.97715 6.97715 2.5 12.5 2.5C18.0228 2.5 22.5 6.97715 22.5 12.5Z" 
+        fill="#0095F6"
+      />
+      <path 
+        d="M10 14.5L7.5 12L6.5 13L10 16.5L17.5 9L16.5 8L10 14.5Z" 
+        fill="white" 
+        stroke="white" 
+        strokeWidth="0.5"
+      />
+    </svg>
+  )
+}
 
 export default function PerfilPage() {
   const auth = useAuth()
@@ -92,7 +113,7 @@ export default function PerfilPage() {
               <div className="mt-4 space-y-1">
                 <h2 className="text-xl font-bold flex items-center justify-center gap-1.5">
                   {profile.name}
-                  {profile.isVerified && <ShieldCheck className="w-5 h-5 text-secondary" />}
+                  {profile.isVerified && <InstagramVerifiedBadge className="w-4 h-4" />}
                 </h2>
                 <div className="flex flex-col gap-1 items-center">
                   <p className="text-sm text-muted-foreground flex items-center justify-center gap-1">
@@ -111,7 +132,7 @@ export default function PerfilPage() {
               <div className="space-y-3">
                 {profile.email && (
                   <div className={cn("flex items-center gap-3 text-sm", profile.showEmail === false && "opacity-50")}>
-                    <Mail className="w-4 h-4 text-muted-foreground" />
+                    < Mail className="w-4 h-4 text-muted-foreground" />
                     <span className="font-medium truncate">{profile.email}</span>
                     {profile.showEmail === false && <EyeOff className="w-3 h-3" />}
                   </div>

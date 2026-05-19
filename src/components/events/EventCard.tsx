@@ -9,6 +9,28 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 
+function InstagramVerifiedBadge({ className }: { className?: string }) {
+  return (
+    <svg 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      className={className} 
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path 
+        d="M22.5 12.5C22.5 18.0228 18.0228 22.5 12.5 22.5C6.97715 22.5 2.5 18.0228 2.5 12.5C2.5 6.97715 6.97715 2.5 12.5 2.5C18.0228 2.5 22.5 6.97715 22.5 12.5Z" 
+        fill="#0095F6"
+      />
+      <path 
+        d="M10 14.5L7.5 12L6.5 13L10 16.5L17.5 9L16.5 8L10 14.5Z" 
+        fill="white" 
+        stroke="white" 
+        strokeWidth="0.5"
+      />
+    </svg>
+  )
+}
+
 interface EventCardProps {
   event: any 
 }
@@ -150,12 +172,17 @@ export function EventCard({ event }: EventCardProps) {
           className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           onClick={handleOrganizerClick}
         >
-          <Avatar className="h-6 w-6 border border-secondary/20">
-            <AvatarImage src={event.organizer?.avatar} alt={event.organizer?.name} />
-            <AvatarFallback className="text-[10px] font-bold">
-              {event.organizer?.name?.charAt(0) || "O"}
-            </AvatarFallback>
-          </Avatar>
+          <div className="relative">
+            <Avatar className="h-6 w-6 border border-secondary/20">
+              <AvatarImage src={event.organizer?.avatar} alt={event.organizer?.name} />
+              <AvatarFallback className="text-[10px] font-bold">
+                {event.organizer?.name?.charAt(0) || "O"}
+              </AvatarFallback>
+            </Avatar>
+            {event.organizer?.isVerified && (
+              <InstagramVerifiedBadge className="absolute -right-1 -bottom-1 w-3 h-3" />
+            )}
+          </div>
           <span className="text-[10px] font-bold text-muted-foreground uppercase hover:text-secondary truncate max-w-[120px]">
             {event.organizer?.name || "Organizador"}
           </span>
