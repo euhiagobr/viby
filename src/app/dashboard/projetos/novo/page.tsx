@@ -47,7 +47,7 @@ export default function NovoEventoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const app = useFirebaseApp()
-  const storage = app ? getStorage(app) : null
+  const storage = React.useMemo(() => app ? getStorage(app) : null, [app])
 
   // Categorias do banco
   const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
@@ -96,34 +96,47 @@ export default function NovoEventoPage() {
     setUploadProgress(0)
     setUploadedImageUrl(null)
 
-    // 2. Iniciar upload automático
-    const storageRef = ref(storage, `viby/events/${user.uid}/${Date.now()}_${file.name}`)
-    const uploadTask = uploadBytesResumable(storageRef, file)
+    try {
+      // 2. Iniciar upload automático
+      // Usando um caminho simples para evitar problemas de permissão em subpastas complexas
+      const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
+      const storageRef = ref(storage, `viby/events/${user.uid}/${fileName}`)
+      
+      const uploadTask = uploadBytesResumable(storageRef, file)
 
-    uploadTask.on('state_changed', 
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-        setUploadProgress(progress)
-      }, 
-      (error) => {
-        console.error("Erro no upload:", error)
-        setUploadProgress(null)
-        toast({
-          variant: "destructive",
-          title: "Erro no upload",
-          description: "Não foi possível carregar a imagem selecionada."
-        })
-      }, 
-      async () => {
-        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
-        setUploadedImageUrl(downloadURL)
-        setUploadProgress(null)
-        toast({
-          title: "Imagem carregada!",
-          description: "A foto da capa foi salva com sucesso."
-        })
-      }
-    )
+      uploadTask.on('state_changed', 
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+          setUploadProgress(progress)
+        }, 
+        (error) => {
+          console.error("Erro no upload:", error)
+          setUploadProgress(null)
+          toast({
+            variant: "destructive",
+            title: "Erro no upload",
+            description: `Código: ${error.code}. Verifique as permissões de storage.`
+          })
+        }, 
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+          setUploadedImageUrl(downloadURL)
+          setUploadProgress(null)
+          toast({
+            title: "Imagem carregada!",
+            description: "A foto da capa foi salva com sucesso."
+          })
+        }
+      )
+    } catch (err: any) {
+      console.error("Catch upload error:", err)
+      setUploadProgress(null)
+      toast({
+        variant: "destructive",
+        title: "Erro fatal no upload",
+        description: err.message
+      })
+    }
   }
 
   const handleCepBlur = async () => {
