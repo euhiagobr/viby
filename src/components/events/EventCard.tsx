@@ -15,11 +15,12 @@ export function EventCard({ event }: EventCardProps) {
   const formatDate = (date: any) => {
     if (!date) return "Data não definida";
     try {
+      // Handles Firestore Timestamp, JS Date, or ISO String
       const d = date?.toDate ? date.toDate() : new Date(date);
-      if (isNaN(d.getTime())) return "Data inválida";
+      if (isNaN(d.getTime())) return "Data não definida";
       return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     } catch (e) {
-      return "Data inválida";
+      return "Data não definida";
     }
   };
 
@@ -45,10 +46,11 @@ export function EventCard({ event }: EventCardProps) {
           alt={event.title}
           fill
           className="object-cover transition-transform group-hover:scale-105"
+          unoptimized
         />
         <div className="absolute top-3 left-3">
           <Badge className="bg-primary/80 backdrop-blur-md text-white border-none">
-            {event.type}
+            {event.type || "Público"}
           </Badge>
         </div>
       </div>
@@ -79,7 +81,7 @@ export function EventCard({ event }: EventCardProps) {
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
             <MapPin className="w-3.5 h-3.5 text-secondary" />
-            <span className="line-clamp-1">{event.location || event.address?.street}, {event.city}</span>
+            <span className="line-clamp-1">{event.city || "Local não definido"}</span>
           </div>
         </div>
       </CardContent>

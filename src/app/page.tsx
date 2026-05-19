@@ -1,15 +1,13 @@
-
 "use client"
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser } from "@/firebase"
-import { collection, query, limit } from "firebase/firestore"
+import { collection, query, limit, orderBy } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { Button } from "@/components/ui/button"
-import { Globe, Search, ArrowRight, Loader2, Calendar, MapPin } from "lucide-react"
+import { Globe, Search, ArrowRight, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
-import { Event } from "@/lib/mock-data"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 
 export default function LandingPage() {
@@ -19,10 +17,11 @@ export default function LandingPage() {
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
-    return query(collection(db, "events"), limit(6))
+    // Ordenar por criação para mostrar os mais novos primeiro
+    return query(collection(db, "events"), orderBy("createdAt", "desc"), limit(6))
   }, [db])
 
-  const { data: events, loading } = useCollection<Event>(eventsQuery)
+  const { data: events, loading } = useCollection<any>(eventsQuery)
 
   return (
     <div className="min-h-screen bg-background">
@@ -115,7 +114,7 @@ export default function LandingPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {events && events.length > 0 ? (
-              events.map((event) => (
+              events.map((event: any) => (
                 <EventCard key={event.id} event={event} />
               ))
             ) : (
