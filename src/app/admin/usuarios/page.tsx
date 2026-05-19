@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -82,8 +83,6 @@ export default function AdminUsuariosPage() {
     if (!confirm(`Tem certeza que deseja excluir o usuário @${username}? Esta ação é irreversível.`)) return
 
     try {
-      // Nota: No cliente não conseguimos excluir o usuário do Firebase Auth,
-      // mas podemos remover os dados do Firestore.
       await deleteDoc(doc(db, "users", userId))
       if (username) {
         await deleteDoc(doc(db, "usernames", username.toLowerCase()))
@@ -133,7 +132,7 @@ export default function AdminUsuariosPage() {
               />
             </div>
           </div>
-        </Header>
+        </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-muted/30">
