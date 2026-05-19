@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -47,13 +48,13 @@ export default function NovoEventoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const app = useFirebaseApp()
-  const storage = React.useMemo(() => app ? getStorage(app) : null, [app])
+  
+  // Utilizando explicitamente o bucket 'viby' conforme solicitado
+  const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
 
-  // Categorias do banco
   const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
 
-  // Ordenar categorias alfabeticamente
   const sortedCategories = React.useMemo(() => {
     if (!categories) return []
     return [...categories].sort((a, b) => a.name.localeCompare(b.name))
@@ -64,12 +65,10 @@ export default function NovoEventoPage() {
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   
-  // Opções Extras
   const [selectedCategory, setSelectedCategory] = useState("")
   const [tags, setTags] = useState("")
   const [isFree, setIsFree] = useState(false)
 
-  // Endereço
   const [cep, setCep] = useState("")
   const [address, setAddress] = useState({
     street: "",
@@ -80,9 +79,8 @@ export default function NovoEventoPage() {
     number: "",
     complement: ""
   })
-  const [coords, setCoords] = useState({ lat: "-23.5505", lng: "-46.6333" }) // SP default
+  const [coords, setCoords] = useState({ lat: "-23.5505", lng: "-46.6333" })
 
-  // Lotes
   const [batches, setBatches] = useState<Batch[]>([
     { name: "Lote Único", price: "0.00", startDate: "", endDate: "", available: "100" }
   ])
@@ -91,15 +89,13 @@ export default function NovoEventoPage() {
     const file = e.target.files?.[0]
     if (!file || !storage || !user) return
 
-    // 1. Mostrar preview local imediatamente
     setImagePreview(URL.createObjectURL(file))
     setUploadProgress(0)
     setUploadedImageUrl(null)
 
     try {
-      // 2. Iniciar upload automático
       const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
-      const storagePath = `viby/events/${user.uid}/${fileName}`
+      const storagePath = `events/${user.uid}/${fileName}`
       const storageRef = ref(storage, storagePath)
       
       const uploadTask = uploadBytesResumable(storageRef, file)
@@ -115,7 +111,7 @@ export default function NovoEventoPage() {
           toast({
             variant: "destructive",
             title: "Erro no upload",
-            description: `Código: ${error.code}. Verifique se as regras públicas já foram aplicadas.`
+            description: `Erro: ${error.code}. Verifique as permissões do bucket 'viby'.`
           })
         }, 
         async () => {
@@ -124,7 +120,7 @@ export default function NovoEventoPage() {
           setUploadProgress(null)
           toast({
             title: "Imagem carregada!",
-            description: "A foto da capa foi salva com sucesso."
+            description: "A foto da capa foi salva com sucesso no bucket viby."
           })
         }
       )
@@ -247,14 +243,13 @@ export default function NovoEventoPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Imagem de Capa */}
         <Card className="overflow-hidden border-none shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <ImageIcon className="w-5 h-5 text-secondary" />
               Capa do Evento
             </CardTitle>
-            <CardDescription>Escolha uma imagem de alta qualidade para atrair mais público.</CardDescription>
+            <CardDescription>O upload será feito automaticamente no bucket viby.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div 
@@ -289,7 +284,6 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
-        {/* Informações Básicas */}
         <Card className="border-none shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -355,7 +349,6 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
-        {/* Localização */}
         <Card className="border-none shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -429,7 +422,6 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
-        {/* Lotes e Valores */}
         <Card className="border-none shadow-sm overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6 border-b border-border">
             <div className="space-y-1">
