@@ -13,7 +13,8 @@ import {
   LogIn,
   UserPlus,
   ShieldCheck,
-  User
+  User,
+  Ticket
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -67,6 +68,12 @@ export function AppSidebar() {
       title: "Meus Eventos",
       url: "/dashboard/projetos",
       icon: LayoutGrid,
+      authRequired: true
+    },
+    {
+      title: "Meus Ingressos",
+      url: "/dashboard/ingressos",
+      icon: Ticket,
       authRequired: true
     },
     {

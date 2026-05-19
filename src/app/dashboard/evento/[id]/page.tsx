@@ -99,6 +99,9 @@ export default function EventoDetalhesPage() {
     const regData = {
       eventId,
       eventTitle: event.title,
+      eventImage: event.image || "",
+      eventDate: event.date,
+      eventCity: event.city || "",
       userId: user.uid,
       userName: currentUserProfile?.name || user.displayName || user.email || "Usuário",
       userEmail: user.email,
