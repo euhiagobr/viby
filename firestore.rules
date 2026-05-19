@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Funções auxiliares
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Coleção de Eventos: 
+    // - Qualquer pessoa pode ler (divulgação pública)
+    // - Apenas usuários logados podem criar/editar
+    match /events/{eventId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Coleção de Usuários/Organizadores:
+    // - Qualquer pessoa pode ler o perfil do organizador
+    // - Apenas o próprio dono pode editar seus dados
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if isOwner(userId);
+    }
+  }
+}
