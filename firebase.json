@@ -1,3 +1,4 @@
+
 {
   "firestore": [
     {
@@ -41,7 +42,14 @@
       ]
     }
   ],
-  "storage": {
-    "rules": "storage.rules"
-  }
+  "storage": [
+    {
+      "bucket": "ong-desafios-3942a.firebasestorage.app",
+      "rules": "storage.rules"
+    },
+    {
+      "bucket": "viby",
+      "rules": "storage.rules"
+    }
+  ]
 }
