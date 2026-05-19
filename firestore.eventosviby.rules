@@ -7,7 +7,7 @@ service cloud.firestore {
     }
     
     function getUserData() {
-      // Busca dados do usuário de forma dinâmica usando a variável database
+      // Busca dados do usuário logado
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
@@ -23,37 +23,34 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Regras para Coleção de Eventos: Público para leitura, Restrito para escrita
+    // REGRAS DE LEITURA PÚBLICA (CONFORME SOLICITADO)
+    // Todos os dados podem ser lidos por qualquer pessoa.
+    // As permissões de escrita permanecem restritas aos donos/admin.
+
     match /events/{eventId} {
       allow read: if true;
       allow create: if isVibyUser();
       allow update, delete: if isVibyUser() && resource.data.organizerId == request.auth.uid;
     }
 
-    // Regras para Coleção de Usuários: Público para leitura (necessário para login/verificação)
     match /users/{userId} {
       allow read: if true;
       allow create: if isAuthenticated() && request.resource.data.platform == "viby";
       allow update, delete: if isOwner(userId) && isVibyUser();
     }
 
-    // Regras para Unicidade de Nome de Usuário: Leitura pública para busca no login e disponibilidade no cadastro
     match /usernames/{username} {
       allow read: if true;
       allow create: if isAuthenticated() && !exists(/databases/$(database)/documents/usernames/$(username));
       allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
     }
 
-    // Regras para Coleção de Participações/Inscrições
     match /registrations/{regId} {
+      allow read: if true;
       allow create: if isVibyUser();
-      allow read: if isVibyUser() && (
-        resource.data.userId == request.auth.uid || 
-        get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.organizerId == request.auth.uid
-      );
+      allow delete: if isVibyUser() && resource.data.userId == request.auth.uid;
     }
 
-    // Regras para Categorias: Público para leitura, Admin para escrita
     match /categories/{catId} {
       allow read: if true;
       allow write: if isAdmin();

@@ -1,16 +1,14 @@
-
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Regras do Viby Club
-    // Suporta tanto a pasta /viby/ no bucket padrão quanto o bucket nomeado 'viby'
+    // Regras do Viby Club: Leitura Pública total
     match /viby/{allPaths=**} {
-      allow read: if true; // Imagens de eventos são públicas para visualização
+      allow read: if true;
       allow write: if request.auth != null && 
         get(/databases/eventosviby/documents/users/$(request.auth.uid)).data.platform == "viby";
     }
     
-    // Caso o bucket secundário se chame literalmente 'viby'
+    // Suporte para bucket nomeado 'viby'
     match /b/viby/o {
       match /{allPaths=**} {
         allow read: if true;
@@ -19,7 +17,7 @@ service firebase.storage {
       }
     }
     
-    // Regras da ONG (Mantidas isoladas no bucket default na pasta /ong/)
+    // Regras da ONG (Mantidas conforme original)
     match /ong/{allPaths=**} {
       allow read: if true;
       allow write: if request.auth != null && 
