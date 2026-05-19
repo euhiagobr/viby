@@ -40,6 +40,7 @@ import Link from "next/link"
 import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 import { cn } from "@/lib/utils"
 import { calculateFinancialBreakdown, formatCurrency } from "@/lib/financial-utils"
+import { createCheckoutSession } from "@/app/actions/stripe"
 import {
   Dialog,
   DialogContent,
@@ -263,9 +264,6 @@ export default function EventoDetalhesPage() {
     }
   }
 
-  /**
-   * Cálculos Financeiros
-   */
   const getTicketBasePrice = () => {
     let base = activeBatch?.price || 0
     if (!appliedCoupon) return base
@@ -310,16 +308,13 @@ export default function EventoDetalhesPage() {
         userGender: currentUserProfile?.gender || "Não informado",
         userBirthDate: currentUserProfile?.birthDate || "",
         organizerId: event.organizerId,
-        timestamp: serverTimestamp(),
-        createdAt: serverTimestamp(),
         
-        // Dados Financeiros Persistidos
         ticketBasePrice: breakdown.ticketBasePrice,
-        price: breakdown.customerFinalPrice, // Valor total pago pelo cliente
+        price: breakdown.customerFinalPrice, 
         administrativeFeeAmount: breakdown.administrativeFeeAmount,
         producerFeeAmount: breakdown.producerFeeAmount,
         producerNetAmount: breakdown.producerNetAmount,
-        financialBreakdown: breakdown,
+        financialBreakdown: JSON.stringify(breakdown), // Serializado para o Stripe
 
         batchName: batchName,
         checkedIn: false,
@@ -331,7 +326,41 @@ export default function EventoDetalhesPage() {
         couponCode: appliedCoupon?.code || null
       }
 
-      addDoc(collection(db, "registrations"), regData)
+      // Se for pago, vai para o Stripe
+      if (breakdown.customerFinalPrice > 0) {
+        const { url } = await createCheckoutSession({
+          eventId,
+          eventTitle: event.title,
+          eventImage: event.image || "",
+          userId: user.uid,
+          userName: regData.userName,
+          userEmail: user.email!,
+          totalAmount: breakdown.customerFinalPrice * 100, // Centavos
+          metadata: {
+            ...regData,
+            batchName: batchName,
+            ticketCode: ticketCode,
+            isCouponApplied: !!appliedCoupon,
+            couponId: appliedCoupon?.id || ''
+          }
+        });
+
+        if (url) {
+          window.location.href = url;
+          return;
+        } else {
+          throw new Error("Erro ao gerar link de pagamento.");
+        }
+      }
+
+      // Se for grátis, salva direto
+      addDoc(collection(db, "registrations"), {
+        ...regData,
+        timestamp: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        financialBreakdown: breakdown,
+        paymentStatus: "Disponível"
+      })
       
       if (appliedCoupon) {
         updateDoc(doc(db, "coupons", appliedCoupon.id), {
@@ -343,12 +372,7 @@ export default function EventoDetalhesPage() {
       setIsCheckoutOpen(false)
       toast({ title: "Confirmado!", description: "Sua presença foi registrada e seu ingresso gerado." })
     } catch (error: any) {
-      const permissionError = new FirestorePermissionError({
-        path: "registrations",
-        operation: "create"
-      })
-      errorEmitter.emit("permission-error", permissionError)
-      toast({ variant: "destructive", title: "Erro ao registrar", description: error.message })
+      toast({ variant: "destructive", title: "Erro ao processar", description: error.message })
     } finally {
       setRegistering(false)
     }
@@ -662,7 +686,6 @@ export default function EventoDetalhesPage() {
         </div>
       </div>
 
-      {/* MODAL DE CHECKOUT FINANCEIRO */}
       <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
         <DialogContent className="max-w-md rounded-[2.5rem] p-0 overflow-hidden bg-background">
           <div className="p-8 space-y-6">
@@ -745,7 +768,7 @@ export default function EventoDetalhesPage() {
                 className="w-full h-16 bg-secondary text-white font-black text-xl rounded-2xl shadow-xl shadow-secondary/20 uppercase italic transition-all hover:scale-[1.02] active:scale-95"
              >
                 {registering ? <Loader2 className="w-6 h-6 animate-spin mr-3" /> : <ChevronRight className="w-6 h-6 mr-1" />}
-                Confirmar e Gerar Voucher
+                {breakdown.customerFinalPrice > 0 ? "Pagar e Confirmar" : "Confirmar e Gerar Voucher"}
              </Button>
           </div>
         </DialogContent>
