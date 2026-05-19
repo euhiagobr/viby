@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useDoc, useFirestore, useAuth, useUser } from "@/firebase"
+import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
 import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, updateDoc, increment } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -75,6 +76,13 @@ export default function EventoDetalhesPage() {
 
   const currentUserRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: currentUserProfile } = useDoc<any>(currentUserRef)
+
+  // Consulta todas as inscrições do evento para validar o estoque real dos lotes
+  const allRegistrationsQuery = useMemoFirebase(() => {
+    if (!db || !eventId) return null
+    return query(collection(db, "registrations"), where("eventId", "==", eventId))
+  }, [db, eventId])
+  const { data: allRegistrations } = useCollection<any>(allRegistrationsQuery)
   
   const [isRegistered, setIsRegistered] = React.useState(false)
   const [registering, setRegistering] = React.useState(false)
@@ -86,7 +94,7 @@ export default function EventoDetalhesPage() {
   const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null)
   const [isVerifyingCoupon, setIsVerifyingCoupon] = React.useState(false)
 
-  // Lógica de disponibilidade baseada em UTC-3
+  // Lógica de disponibilidade baseada em UTC-3 e estoque real
   React.useEffect(() => {
     if (!event) return
 
@@ -99,6 +107,13 @@ export default function EventoDetalhesPage() {
         return
       }
 
+      // Calcula as vendas reais por lote
+      const salesPerBatch = (allRegistrations || []).reduce((acc: Record<string, number>, reg: any) => {
+        const bName = reg.batchName || "Lote Único"
+        acc[bName] = (acc[bName] || 0) + 1
+        return acc
+      }, {})
+
       let foundBatch = null
       let allSoldOut = true
       let allEnded = true
@@ -107,18 +122,22 @@ export default function EventoDetalhesPage() {
       for (const batch of batches) {
         const start = batch.startDate ? new Date(batch.startDate) : null
         const end = batch.endDate ? new Date(batch.endDate) : null
-        const stock = parseInt(batch.available) || 0
+        const totalCapacity = parseInt(batch.available) || 0
+        const currentSales = salesPerBatch[batch.name] || 0
+        const remainingStock = totalCapacity - currentSales
 
         const isStarted = !start || now >= start
         const isNotEnded = !end || now <= end
-        const hasStock = stock > 0
+        const hasStock = remainingStock > 0
 
+        // Se o lote está no período e tem estoque, ele é o lote ativo
         if (isStarted && isNotEnded && hasStock) {
-          foundBatch = batch
+          foundBatch = { ...batch, remaining: remainingStock }
           setSaleStatus('open')
           break
         }
 
+        // Flags para determinar o status global se nenhum lote aberto for encontrado
         if (hasStock) allSoldOut = false
         if (isNotEnded) allEnded = false
         if (!isStarted) anyUpcoming = true
@@ -138,19 +157,16 @@ export default function EventoDetalhesPage() {
     }
 
     checkAvailability()
-    const timer = setInterval(checkAvailability, 60000)
+    const timer = setInterval(checkAvailability, 30000) // Verifica a cada 30s
     return () => clearInterval(timer)
-  }, [event])
+  }, [event, allRegistrations])
 
+  // Verifica se o usuário atual já está inscrito
   React.useEffect(() => {
-    if (!db || !user || !eventId) return
-    const checkReg = async () => {
-      const q = query(collection(db, "registrations"), where("eventId", "==", eventId), where("userId", "==", user.uid))
-      const snap = await getDocs(q)
-      setIsRegistered(!snap.empty)
-    }
-    checkReg()
-  }, [db, user, eventId])
+    if (!user || !allRegistrations) return
+    const userReg = allRegistrations.find((r: any) => r.userId === user.uid)
+    setIsRegistered(!!userReg)
+  }, [user, allRegistrations])
 
   const formatDateTime = (dateValue: any) => {
     if (!dateValue) return { date: "A definir", time: "" };
@@ -443,7 +459,12 @@ export default function EventoDetalhesPage() {
                         </p>
                       )}
                     </div>
-                    <p className="text-[10px] font-medium text-muted-foreground">Vendas terminam em: {new Date(activeBatch.endDate).toLocaleString('pt-BR')}</p>
+                    <div className="flex items-center justify-between pt-1">
+                      <p className="text-[10px] font-medium text-muted-foreground">Vendas terminam em: {new Date(activeBatch.endDate).toLocaleString('pt-BR')}</p>
+                      {activeBatch.remaining < 20 && (
+                        <Badge variant="destructive" className="text-[8px] h-4 font-black">SÓ RESTAM {activeBatch.remaining}</Badge>
+                      )}
+                    </div>
                   </div>
 
                   {!isRegistered && (
