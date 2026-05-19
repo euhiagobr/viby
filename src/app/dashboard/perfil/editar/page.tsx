@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
 import { Switch } from "@/components/ui/switch"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, ArrowLeft, Save, Upload, Info, Link as LinkIcon, Instagram, Phone, Mail, Eye, EyeOff, Building2, User as UserIcon, Briefcase } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
@@ -211,31 +212,29 @@ export default function EditarPerfilPage() {
             <CardDescription>Escolha como deseja se identificar na plataforma.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Select 
+            <RadioGroup 
               value={formData.accountType} 
               onValueChange={(val) => setFormData(prev => ({...prev, accountType: val}))}
+              className="grid grid-cols-2 gap-4"
             >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecione o tipo de conta" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Usuário">
-                  <div className="flex items-center gap-2">
-                    <UserIcon className="w-4 h-4" /> Usuário
-                  </div>
-                </SelectItem>
-                <SelectItem value="Empresa">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4" /> Empresa
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+              <div className="flex items-center space-x-2 border rounded-xl p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+                <RadioGroupItem value="Usuário" id="user-type" />
+                <Label htmlFor="user-type" className="flex items-center gap-2 cursor-pointer font-bold">
+                  <UserIcon className="w-4 h-4 text-secondary" /> Usuário
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2 border rounded-xl p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+                <RadioGroupItem value="Empresa" id="company-type" />
+                <Label htmlFor="company-type" className="flex items-center gap-2 cursor-pointer font-bold">
+                  <Building2 className="w-4 h-4 text-secondary" /> Empresa
+                </Label>
+              </div>
+            </RadioGroup>
           </CardContent>
         </Card>
 
         {formData.accountType === 'Empresa' && (
-          <Card className="border-none shadow-sm border-t-4 border-secondary">
+          <Card className="border-none shadow-sm border-t-4 border-secondary animate-in fade-in slide-in-from-top-4 duration-300">
             <CardHeader>
               <CardTitle>Informações Jurídicas</CardTitle>
               <CardDescription>Dados obrigatórios para contas empresariais.</CardDescription>
