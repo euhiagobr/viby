@@ -2,7 +2,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Funções auxiliares
+    // Regras de Segurança Viby - v1.0.1
+    // Implementadas para garantir divulgação pública e gestão privada.
+
     function isAuthenticated() {
       return request.auth != null;
     }
