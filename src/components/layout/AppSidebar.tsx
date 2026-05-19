@@ -10,7 +10,8 @@ import {
   ShieldCheck,
   User,
   Ticket,
-  Settings
+  Settings,
+  Heart
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -54,6 +55,12 @@ export function AppSidebar() {
       title: "Explorar",
       url: "/dashboard",
       icon: Globe,
+    },
+    {
+      title: "Tenho Interesse",
+      url: "/dashboard/seguindo",
+      icon: Heart,
+      authRequired: true
     },
     {
       title: "Meus Eventos",
