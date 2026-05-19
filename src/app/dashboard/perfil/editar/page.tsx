@@ -4,7 +4,17 @@ import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useDoc, useFirebaseApp } from "@/firebase"
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
+import { 
+  doc, 
+  updateDoc, 
+  serverTimestamp, 
+  getDoc, 
+  getDocs, 
+  query, 
+  collection, 
+  where, 
+  writeBatch 
+} from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -16,7 +26,25 @@ import { Progress } from "@/components/ui/progress"
 import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, ArrowLeft, Save, Upload, Info, Link as LinkIcon, Instagram, Phone, Mail, Eye, EyeOff, Building2, User as UserIcon, Briefcase, Calendar } from "lucide-react"
+import { 
+  Loader2, 
+  ArrowLeft, 
+  Save, 
+  Upload, 
+  Info, 
+  Link as LinkIcon, 
+  Instagram, 
+  Phone, 
+  Mail, 
+  Eye, 
+  EyeOff, 
+  Building2, 
+  User as UserIcon, 
+  Briefcase, 
+  Calendar,
+  Check,
+  X
+} from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
@@ -46,11 +74,7 @@ export default function EditarPerfilPage() {
 
   const storage = React.useMemo(() => {
     if (!app) return null;
-    try {
-      return getStorage(app, "gs://viby");
-    } catch (e) {
-      return getStorage(app);
-    }
+    return getStorage(app, "gs://viby");
   }, [app])
 
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
@@ -58,6 +82,7 @@ export default function EditarPerfilPage() {
 
   const [formData, setFormData] = useState({
     name: "",
+    username: "",
     avatar: "",
     bio: "",
     birthDate: "",
@@ -77,11 +102,14 @@ export default function EditarPerfilPage() {
   })
   const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [checkingUsername, setCheckingUsername] = useState(false)
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
 
   useEffect(() => {
     if (profile) {
       setFormData({
         name: profile.name || "",
+        username: profile.username || "",
         avatar: profile.avatar || "",
         bio: profile.bio || "",
         birthDate: profile.birthDate || "",
@@ -101,6 +129,49 @@ export default function EditarPerfilPage() {
       })
     }
   }, [profile])
+
+  // Verificação de username
+  useEffect(() => {
+    if (!db || !profile || !formData.username) return
+    
+    const newUsername = formData.username.toLowerCase().trim()
+    const oldUsername = profile.username.toLowerCase().trim()
+
+    if (newUsername === oldUsername) {
+      setUsernameStatus('idle')
+      setCheckingUsername(false)
+      return
+    }
+
+    const regex = /^[a-zA-Z0-9]+$/
+    if (newUsername.length < 5 || !regex.test(newUsername)) {
+      setUsernameStatus('invalid')
+      setCheckingUsername(false)
+      return
+    }
+
+    setUsernameStatus('idle')
+    setCheckingUsername(true)
+
+    const timer = setTimeout(async () => {
+      try {
+        const usernameRef = doc(db, "usernames", newUsername)
+        const usernameSnap = await getDoc(usernameRef)
+        
+        if (usernameSnap.exists()) {
+          setUsernameStatus('taken')
+        } else {
+          setUsernameStatus('valid')
+        }
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setCheckingUsername(false)
+      }
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [formData.username, profile, db])
 
   const formatCNPJ = (value: string) => {
     const numbers = value.replace(/\D/g, "")
@@ -151,7 +222,16 @@ export default function EditarPerfilPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!db || !user) return
+    if (!db || !user || !profile) return
+
+    const newUsername = formData.username.toLowerCase().trim()
+    const oldUsername = profile.username.toLowerCase().trim()
+    const usernameChanged = newUsername !== oldUsername
+
+    if (usernameChanged && usernameStatus !== 'valid') {
+      toast({ variant: "destructive", title: "Username inválido", description: "O nome de usuário escolhido não está disponível." })
+      return
+    }
 
     if (formData.bio.length > 150) {
       toast({ variant: "destructive", title: "Bio muito longa", description: "Máximo de 150 caracteres." })
@@ -178,11 +258,42 @@ export default function EditarPerfilPage() {
 
     setSaving(true)
     try {
-      await updateDoc(doc(db, "users", user.uid), {
+      const batch = writeBatch(db)
+
+      if (usernameChanged) {
+        batch.delete(doc(db, "usernames", oldUsername))
+        batch.set(doc(db, "usernames", newUsername), { uid: user.uid })
+      }
+
+      const userRef = doc(db, "users", user.uid)
+      batch.update(userRef, {
         ...formData,
+        username: newUsername,
         updatedAt: serverTimestamp()
       })
-      toast({ title: "Perfil atualizado!", description: "Suas alterações foram salvas com sucesso." })
+
+      await batch.commit()
+
+      // Sincroniza dados nos eventos para manter URLs corretas
+      const eventsQuery = query(collection(db, "events"), where("organizerId", "==", user.uid))
+      const eventsSnap = await getDocs(eventsQuery)
+      
+      if (!eventsSnap.empty) {
+        const eventBatch = writeBatch(db)
+        eventsSnap.forEach((eventDoc) => {
+          eventBatch.update(eventDoc.ref, {
+            organizer: {
+              name: formData.name,
+              avatar: formData.avatar || "",
+              isVerified: !!profile.isVerified,
+              username: newUsername
+            }
+          })
+        })
+        await eventBatch.commit()
+      }
+
+      toast({ title: "Perfil atualizado!", description: "Suas alterações e eventos foram salvos." })
       router.push("/dashboard/perfil")
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao salvar", description: error.message })
@@ -298,7 +409,7 @@ export default function EditarPerfilPage() {
             <div className="flex flex-col items-center gap-6 py-4">
               <div className="relative group">
                 <Avatar className="h-32 w-32 border-4 border-background shadow-xl">
-                  <AvatarImage src={formData.avatar} alt={formData.name} />
+                  <AvatarImage src={formData.avatar} alt={formData.name} className="object-cover" />
                   <AvatarFallback className="text-4xl font-bold bg-muted">
                     {formData.name?.charAt(0) || "U"}
                   </AvatarFallback>
@@ -326,9 +437,28 @@ export default function EditarPerfilPage() {
                 <Input id="name" value={formData.name} onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))} required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="username">Nome de Usuário</Label>
-                <Input id="username" value={profile?.username} disabled className="bg-muted text-muted-foreground cursor-not-allowed" />
-                <p className="text-[10px] text-muted-foreground">O nome de usuário não pode ser alterado.</p>
+                <Label htmlFor="username">Nome de Usuário (@)</Label>
+                <div className="relative">
+                  <Input 
+                    id="username" 
+                    value={formData.username} 
+                    onChange={(e) => setFormData(prev => ({...prev, username: e.target.value.toLowerCase().replace(/\s+/g, "")}))} 
+                    className={cn(
+                      usernameStatus === 'valid' ? 'border-green-500 pr-10' : 
+                      usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-destructive pr-10' : 'pr-10'
+                    )}
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    {checkingUsername ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                    ) : usernameStatus === 'valid' ? (
+                      <Check className="w-3.5 h-3.5 text-green-500" />
+                    ) : usernameStatus === 'taken' || usernameStatus === 'invalid' ? (
+                      <X className="w-3.5 h-3.5 text-destructive" />
+                    ) : null}
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground">Isso alterará seu URL de perfil.</p>
               </div>
             </div>
 
@@ -452,7 +582,7 @@ export default function EditarPerfilPage() {
 
         <div className="flex justify-end gap-3">
           <Button type="button" variant="ghost" onClick={() => router.back()}>Cancelar</Button>
-          <Button type="submit" className="bg-secondary text-white hover:bg-secondary/90 px-8" disabled={saving || uploadProgress !== null}>
+          <Button type="submit" className="bg-secondary text-white hover:bg-secondary/90 px-8" disabled={saving || uploadProgress !== null || (profile?.username !== formData.username && usernameStatus !== 'valid')}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
             Salvar Perfil
           </Button>

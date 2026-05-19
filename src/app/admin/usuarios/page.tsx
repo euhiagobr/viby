@@ -2,7 +2,19 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from "@/firebase"
-import { collection, query, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore"
+import { 
+  collection, 
+  query, 
+  orderBy, 
+  doc, 
+  updateDoc, 
+  deleteDoc, 
+  getDoc, 
+  getDocs, 
+  where, 
+  writeBatch,
+  serverTimestamp 
+} from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { 
   Table, 
@@ -26,7 +38,9 @@ import {
   Edit,
   Save,
   Upload,
-  Info
+  Info,
+  Check,
+  X
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -81,9 +95,12 @@ export default function AdminUsuariosPage() {
   const app = useFirebaseApp()
   const [search, setSearch] = React.useState("")
   const [editingUser, setEditingUser] = React.useState<any>(null)
+  const [originalUser, setOriginalUser] = React.useState<any>(null)
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
+  const [checkingUsername, setCheckingUsername] = React.useState(false)
+  const [usernameStatus, setUsernameStatus] = React.useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
 
   const storage = React.useMemo(() => {
     if (!app) return null;
@@ -108,8 +125,53 @@ export default function AdminUsuariosPage() {
 
   const handleEditClick = (user: any) => {
     setEditingUser({ ...user })
+    setOriginalUser({ ...user })
+    setUsernameStatus('idle')
     setIsEditModalOpen(true)
   }
+
+  // Lógica de verificação de disponibilidade de username
+  React.useEffect(() => {
+    if (!db || !editingUser?.username || !originalUser) return
+    
+    const newUsername = editingUser.username.toLowerCase().trim()
+    const oldUsername = originalUser.username.toLowerCase().trim()
+
+    if (newUsername === oldUsername) {
+      setUsernameStatus('idle')
+      setCheckingUsername(false)
+      return
+    }
+
+    const regex = /^[a-zA-Z0-9]+$/
+    if (newUsername.length < 5 || !regex.test(newUsername)) {
+      setUsernameStatus('invalid')
+      setCheckingUsername(false)
+      return
+    }
+
+    setUsernameStatus('idle')
+    setCheckingUsername(true)
+
+    const timer = setTimeout(async () => {
+      try {
+        const usernameRef = doc(db, "usernames", newUsername)
+        const usernameSnap = await getDoc(usernameRef)
+        
+        if (usernameSnap.exists()) {
+          setUsernameStatus('taken')
+        } else {
+          setUsernameStatus('valid')
+        }
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setCheckingUsername(false)
+      }
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [editingUser?.username, originalUser, db])
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -147,30 +209,69 @@ export default function AdminUsuariosPage() {
     e.preventDefault()
     if (!db || !editingUser || isSaving) return
 
+    const newUsername = editingUser.username.toLowerCase().trim()
+    const oldUsername = originalUser.username.toLowerCase().trim()
+    const usernameChanged = newUsername !== oldUsername
+
+    if (usernameChanged && usernameStatus !== 'valid') {
+      toast({ variant: "destructive", title: "Erro", description: "O nome de usuário escolhido não está disponível." })
+      return
+    }
+
     setIsSaving(true)
-    const userRef = doc(db, "users", editingUser.id)
+    
+    try {
+      const batch = writeBatch(db)
 
-    // Removemos campos de métricas para garantir que não sejam sobrescritos manualmente se vierem no objeto
-    const { followersCount, rating, totalEvents, id, ...dataToUpdate } = editingUser;
+      // Se o username mudou, atualiza o índice de unicidade
+      if (usernameChanged) {
+        batch.delete(doc(db, "usernames", oldUsername))
+        batch.set(doc(db, "usernames", newUsername), { uid: editingUser.id })
+      }
 
-    updateDoc(userRef, {
-      ...dataToUpdate,
-      updatedAt: new Date().toISOString()
-    })
-      .then(() => {
-        toast({ title: "Sucesso!", description: "Dados do usuário atualizados." })
-        setIsEditModalOpen(false)
-        setEditingUser(null)
+      const userRef = doc(db, "users", editingUser.id)
+      const { followersCount, rating, totalEvents, id, ...dataToUpdate } = editingUser;
+
+      batch.update(userRef, {
+        ...dataToUpdate,
+        username: newUsername,
+        updatedAt: serverTimestamp()
       })
-      .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
-          path: `users/${editingUser.id}`,
-          operation: "update",
-          requestResourceData: editingUser
+
+      await batch.commit()
+
+      // Sincroniza dados nos eventos (denormalização para URLs e visualização rápida)
+      const eventsQuery = query(collection(db, "events"), where("organizerId", "==", editingUser.id))
+      const eventsSnap = await getDocs(eventsQuery)
+      
+      if (!eventsSnap.empty) {
+        const eventBatch = writeBatch(db)
+        eventsSnap.forEach((eventDoc) => {
+          eventBatch.update(eventDoc.ref, {
+            organizer: {
+              name: editingUser.name,
+              avatar: editingUser.avatar || "",
+              isVerified: !!editingUser.isVerified,
+              username: newUsername
+            }
+          })
         })
-        errorEmitter.emit("permission-error", permissionError)
+        await eventBatch.commit()
+      }
+
+      toast({ title: "Sucesso!", description: "Dados do usuário e eventos sincronizados." })
+      setIsEditModalOpen(false)
+      setEditingUser(null)
+    } catch (error: any) {
+      const permissionError = new FirestorePermissionError({
+        path: `users/${editingUser.id}`,
+        operation: "update",
+        requestResourceData: editingUser
       })
-      .finally(() => setIsSaving(false))
+      errorEmitter.emit("permission-error", permissionError)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleDeleteUser = async (userId: string, username: string) => {
@@ -315,7 +416,7 @@ export default function AdminUsuariosPage() {
               Editar Perfil: {editingUser?.name}
             </DialogTitle>
             <DialogDescription>
-              Altere as informações cadastrais e de acesso deste usuário.
+              Altere as informações cadastrais, incluindo o nome de usuário (indexado).
             </DialogDescription>
           </DialogHeader>
 
@@ -326,7 +427,7 @@ export default function AdminUsuariosPage() {
                 <div className="space-y-4 flex flex-col items-center">
                   <div className="relative group">
                     <Avatar className="h-32 w-32 border-4 border-background shadow-xl">
-                      <AvatarImage src={editingUser?.avatar} alt={editingUser?.name} />
+                      <AvatarImage src={editingUser?.avatar} alt={editingUser?.name} className="object-cover" />
                       <AvatarFallback className="text-4xl font-bold bg-muted">
                         {editingUser?.name?.charAt(0) || "U"}
                       </AvatarFallback>
@@ -364,13 +465,27 @@ export default function AdminUsuariosPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="edit-username">Nome de Usuário (@)</Label>
-                      <Input 
-                        id="edit-username" 
-                        value={editingUser?.username || ""} 
-                        disabled
-                        className="bg-muted text-muted-foreground cursor-not-allowed"
-                      />
-                      <p className="text-[10px] text-muted-foreground">O nome de usuário não pode ser alterado por aqui.</p>
+                      <div className="relative">
+                        <Input 
+                          id="edit-username" 
+                          value={editingUser?.username || ""} 
+                          onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value.toLowerCase().replace(/\s+/g, "") })}
+                          className={cn(
+                            usernameStatus === 'valid' ? 'border-green-500 pr-10' : 
+                            usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-destructive pr-10' : 'pr-10'
+                          )}
+                        />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {checkingUsername ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                          ) : usernameStatus === 'valid' ? (
+                            <Check className="w-3.5 h-3.5 text-green-500" />
+                          ) : usernameStatus === 'taken' || usernameStatus === 'invalid' ? (
+                            <X className="w-3.5 h-3.5 text-destructive" />
+                          ) : null}
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Mínimo 5 caracteres alfanuméricos.</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="edit-email">E-mail</Label>
@@ -575,7 +690,7 @@ export default function AdminUsuariosPage() {
               <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)} className="rounded-xl font-bold">
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isSaving || uploadProgress !== null} className="bg-secondary text-white font-bold rounded-xl px-8">
+              <Button type="submit" disabled={isSaving || uploadProgress !== null || (originalUser?.username !== editingUser?.username && usernameStatus !== 'valid')} className="bg-secondary text-white font-bold rounded-xl px-8">
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                 Salvar Alterações
               </Button>
