@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -13,7 +12,9 @@ import {
   Ticket,
   Settings,
   Heart,
-  LifeBuoy
+  LifeBuoy,
+  Wallet,
+  CreditCard
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -50,6 +51,7 @@ export function AppSidebar() {
   const { data: settings } = useDoc<any>(settingsRef)
   
   const isAdmin = profile?.role === 'admin'
+  const isCompany = profile?.accountType === 'Empresa'
   const siteName = settings?.siteName || "Viby"
 
   const items = [
@@ -69,6 +71,20 @@ export function AppSidebar() {
       url: "/dashboard/projetos",
       icon: LayoutGrid,
       authRequired: true
+    },
+    {
+      title: "Meu financeiro",
+      url: "/dashboard/financeiro",
+      icon: Wallet,
+      authRequired: true,
+      companyOnly: true
+    },
+    {
+      title: "Meu Plano",
+      url: "/dashboard/plano",
+      icon: CreditCard,
+      authRequired: true,
+      companyOnly: true
     },
     {
       title: "Meus Ingressos",
@@ -124,6 +140,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {items.map((item) => {
                 if (item.authRequired && !user) return null;
+                if (item.companyOnly && !isCompany) return null;
                 
                 return (
                   <SidebarMenuItem key={item.title}>
