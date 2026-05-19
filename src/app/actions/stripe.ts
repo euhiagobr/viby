@@ -42,7 +42,7 @@ export async function createCheckoutSession(data: {
     if (!secretKey) throw new Error('Stripe Secret Key não configurada.');
 
     const stripe = new Stripe(secretKey, {
-      apiVersion: '2025-01-27-preview',
+      apiVersion: '2024-12-18',
       typescript: true,
     });
 
@@ -97,7 +97,7 @@ export async function createPlanCheckoutSession(data: {
   try {
     const { secretKey } = await getStripeKeys();
     const stripe = new Stripe(secretKey, {
-      apiVersion: '2025-01-27-preview',
+      apiVersion: '2024-12-18',
       typescript: true,
     });
 
@@ -138,7 +138,7 @@ export async function getStripeSession(sessionId: string) {
   try {
     const { secretKey } = await getStripeKeys();
     const stripe = new Stripe(secretKey, {
-      apiVersion: '2025-01-27-preview',
+      apiVersion: '2024-12-18',
       typescript: true,
     });
     const session = await stripe.checkout.sessions.retrieve(sessionId);
