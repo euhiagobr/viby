@@ -84,6 +84,56 @@ export async function createCheckoutSession(data: {
   }
 }
 
+export async function createPlanCheckoutSession(data: {
+  planName: string;
+  planId: 'PRO' | 'TOP';
+  billingCycle: 'monthly' | 'annual';
+  userId: string;
+  userEmail: string;
+  totalAmount: number; // Em centavos
+}) {
+  const origin = (await headers()).get('origin');
+
+  try {
+    const { secretKey } = await getStripeKeys();
+    const stripe = new Stripe(secretKey, {
+      apiVersion: '2025-01-27-preview',
+      typescript: true,
+    });
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'brl',
+            product_data: {
+              name: `Viby ${data.planName}`,
+              description: `Upgrade de conta para o plano ${data.planName} (${data.billingCycle === 'monthly' ? 'Mensal' : 'Anual'})`,
+            },
+            unit_amount: Math.round(data.totalAmount),
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment', // Usando mode payment para o valor total (que o cliente pode parcelar no cartão)
+      customer_email: data.userEmail,
+      success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/checkout/cancelado`,
+      metadata: {
+        type: 'plan_upgrade',
+        userId: data.userId,
+        plan: data.planId,
+        cycle: data.billingCycle
+      },
+    });
+
+    return { url: session.url };
+  } catch (error: any) {
+    throw new Error(error.message || 'Erro ao gerar checkout do plano');
+  }
+}
+
 export async function getStripeSession(sessionId: string) {
   try {
     const { secretKey } = await getStripeKeys();
