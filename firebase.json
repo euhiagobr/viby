@@ -49,7 +49,7 @@
     },
     {
       "bucket": "viby",
-      "rules": "storage.rules"
+      "rules": "storage.viby.rules"
     }
   ]
 }
