@@ -48,6 +48,7 @@ import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 import { cn } from "@/lib/utils"
 import { calculateFinancialBreakdown, formatCurrency } from "@/lib/financial-utils"
 import { createCheckoutSession } from "@/app/actions/stripe"
+import { sendTicketEmail } from "@/app/actions/email"
 import {
   Dialog,
   DialogContent,
@@ -399,11 +400,24 @@ export default function EventoDetalhesPage() {
         }
       }
 
-      await addDoc(collection(db, "registrations"), {
+      // Ingressos Gratuitos
+      const newDocRef = await addDoc(collection(db, "registrations"), {
         ...regData,
         paymentStatus: "Disponível"
       })
       
+      // Enviar e-mail de confirmação para ingresso gratuito
+      const eventDate = regData.eventDate?.toDate ? regData.eventDate.toDate().toLocaleString('pt-BR') : new Date(regData.eventDate).toLocaleString('pt-BR');
+      await sendTicketEmail({
+        to: regData.userEmail!,
+        userName: regData.attendeeName || regData.userName,
+        eventTitle: regData.eventTitle,
+        ticketCode: regData.ticketCode,
+        eventDate: eventDate,
+        eventCity: regData.eventCity || "Local Confirmado",
+        voucherUrl: `${window.location.origin}/dashboard/ingressos/${newDocRef.id}/voucher`
+      });
+
       if (appliedCoupon) {
         updateDoc(doc(db, "coupons", appliedCoupon.id), {
           currentUses: increment(1)
@@ -411,7 +425,7 @@ export default function EventoDetalhesPage() {
       }
 
       setIsCheckoutOpen(false)
-      toast({ title: "Confirmado!", description: "Sua presença foi registrada e seu ingresso gerado. Você pode comprar mais se desejar." })
+      toast({ title: "Confirmado!", description: "Sua presença foi registrada e seu ingresso enviado por e-mail." })
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao processar", description: error.message })
     } finally {

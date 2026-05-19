@@ -4,11 +4,12 @@
 import * as React from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useFirestore, useAuth, useUser } from "@/firebase"
-import { doc, updateDoc, serverTimestamp, increment } from "firebase/firestore"
+import { doc, updateDoc, serverTimestamp, increment, getDoc } from "firebase/firestore"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, CheckCircle2, Ticket, ArrowRight, UserCheck, ShieldCheck } from "lucide-react"
 import { getStripeSession } from "@/app/actions/stripe"
+import { sendTicketEmail } from "@/app/actions/email"
 import { toast } from "@/hooks/use-toast"
 import Link from "next/link"
 
@@ -45,14 +46,12 @@ export default function CheckoutSucessoPage() {
         if (metadata.type === 'plan_upgrade') {
           setType('plan');
           const userRef = doc(db, "users", metadata.userId);
-          
-          // Obtém o valor real pago da sessão do Stripe
           const amountPaid = (session.amount_total || 0) / 100;
 
           await updateDoc(userRef, {
             plan: metadata.plan,
             billingCycle: metadata.cycle,
-            isVerified: true, // Upgrades ganham selo automático no Viby
+            isVerified: true, 
             updatedAt: serverTimestamp(),
             lastPlanPaymentAt: serverTimestamp(),
             lastPlanAmount: amountPaid
@@ -79,11 +78,29 @@ export default function CheckoutSucessoPage() {
               currentUses: increment(1)
             });
           }
-          toast({ title: "Pagamento Confirmado!", description: "Seu ingresso foi liberado com sucesso." });
+
+          // Disparar e-mail de confirmação
+          const regSnap = await getDoc(regRef);
+          if (regSnap.exists()) {
+            const regData = regSnap.data();
+            const eventDate = regData.eventDate?.toDate ? regData.eventDate.toDate().toLocaleString('pt-BR') : new Date(regData.eventDate).toLocaleString('pt-BR');
+            
+            await sendTicketEmail({
+              to: regData.userEmail,
+              userName: regData.attendeeName || regData.userName,
+              eventTitle: regData.eventTitle,
+              ticketCode: regData.ticketCode,
+              eventDate: eventDate,
+              eventCity: regData.eventCity || "Local Confirmado",
+              voucherUrl: `${window.location.origin}/dashboard/ingressos/${regId}/voucher`
+            });
+          }
+
+          toast({ title: "Pagamento Confirmado!", description: "Seu ingresso foi liberado e enviado por e-mail." });
         }
       } catch (error) {
         console.error("Erro ao processar sucesso:", error);
-        toast({ variant: "destructive", title: "Erro ao sincronizar", description: "Houve um erro ao atualizar os dados. Contate o suporte." });
+        toast({ variant: "destructive", title: "Erro ao sincronizar", description: "Houve um erro ao atualizar os dados." });
       } finally {
         setLoading(false);
       }
@@ -96,7 +113,7 @@ export default function CheckoutSucessoPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-        <p className="font-bold text-muted-foreground animate-pulse uppercase tracking-widest text-xs">Confirmando transação no Stripe...</p>
+        <p className="font-bold text-muted-foreground animate-pulse uppercase tracking-widest text-xs">Confirmando transação...</p>
       </div>
     )
   }
@@ -110,7 +127,7 @@ export default function CheckoutSucessoPage() {
           </div>
           <h1 className="text-3xl font-black italic uppercase tracking-tighter">Tudo Certo!</h1>
           <p className="text-green-50 font-medium text-center opacity-80">
-            {type === 'plan' ? 'Seu plano foi atualizado com sucesso.' : 'Sua reserva foi reconhecida e o pagamento processado.'}
+            {type === 'plan' ? 'Seu plano foi atualizado com sucesso.' : 'Sua reserva foi reconhecida e seu ingresso enviado por e-mail.'}
           </p>
         </div>
         <CardContent className="p-10 space-y-8 text-center">
@@ -135,7 +152,7 @@ export default function CheckoutSucessoPage() {
           ) : (
             <>
               <div className="space-y-2">
-                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Novas ferramentas e taxas reduzidas liberadas em</p>
+                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Novas ferramentas liberadas em</p>
                 <div className="flex items-center justify-center gap-2 text-xl font-bold text-primary">
                   <ShieldCheck className="w-6 h-6 text-secondary" />
                   Minha Conta PRO
