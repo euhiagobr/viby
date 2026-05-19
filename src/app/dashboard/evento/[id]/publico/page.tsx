@@ -57,6 +57,14 @@ export default function EventoPublicoPage() {
   const [search, setSearch] = React.useState("")
   const [isSyncing, setIsSyncing] = React.useState(false)
 
+  // Estatísticas calculadas
+  const stats = React.useMemo(() => {
+    const total = registrations?.length || 0;
+    const present = registrations?.filter((r: any) => r.checkedIn).length || 0;
+    const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
+    return { total, present, percentage };
+  }, [registrations]);
+
   // Ordenação manual e filtro
   const filteredRegistrations = React.useMemo(() => {
     if (!registrations) return []
@@ -212,11 +220,6 @@ export default function EventoPublicoPage() {
     )
   }
 
-  const stats = {
-    total: registrations?.length || 0,
-    present: registrations?.filter((r: any) => r.checkedIn).length || 0
-  }
-
   return (
     <div className="space-y-8 pb-20">
       <div className="flex items-center justify-between gap-4">
@@ -261,7 +264,14 @@ export default function EventoPublicoPage() {
             <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Presenças (Check-in)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-green-600">{stats.present}</div>
+            <div className="flex items-baseline gap-3">
+              <div className="text-3xl font-black text-green-600">
+                {stats.present}/{stats.total}
+              </div>
+              <div className="text-sm font-bold text-muted-foreground tracking-tighter">
+                {stats.percentage}% comparecimento
+              </div>
+            </div>
           </CardContent>
         </Card>
 
