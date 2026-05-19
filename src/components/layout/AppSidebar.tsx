@@ -11,6 +11,8 @@ import {
   Settings,
   Globe,
   LogOut,
+  LogIn,
+  UserPlus
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -47,6 +49,7 @@ const items = [
     title: "Meus Eventos",
     url: "/dashboard/projetos",
     icon: LayoutGrid,
+    authRequired: true
   },
   {
     title: "Programação",
@@ -57,6 +60,7 @@ const items = [
     title: "Resultados",
     url: "/dashboard/estatisticas",
     icon: BarChart3,
+    authRequired: true
   },
 ]
 
@@ -80,47 +84,71 @@ export function AppSidebar() {
   return (
     <Sidebar className="border-r border-border">
       <SidebarHeader className="p-6">
-        <div className="flex items-center gap-3">
+        <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
           <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
             <span className="text-secondary-foreground font-bold text-lg">V</span>
           </div>
           <span className="text-xl font-bold tracking-tight">Viby</span>
-        </div>
+        </Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="px-6 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Navegação</SidebarGroupLabel>
           <SidebarGroupContent className="px-3">
             <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={pathname === item.url}>
-                    <Link href={item.url} className={cn(
-                      "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
-                      pathname === item.url ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
-                    )}>
-                      <item.icon className="w-5 h-5" />
-                      <span className="font-medium">{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {items.map((item) => {
+                // Esconder itens que requerem login se o usuário não estiver autenticado
+                if (item.authRequired && !user) return null;
+                
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={pathname === item.url}>
+                      <Link href={item.url} className={cn(
+                        "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
+                        pathname === item.url ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
+                      )}>
+                        <item.icon className="w-5 h-5" />
+                        <span className="font-medium">{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-4 space-y-2">
-        <div className="flex items-center gap-3 px-3 py-2">
-          <Settings className="w-5 h-5 cursor-pointer hover:text-foreground transition-colors" />
-          <span className="text-xs text-muted-foreground flex-1">v1.0</span>
-        </div>
-        <button 
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2 text-destructive hover:bg-destructive/10 rounded-md transition-colors text-sm font-medium"
-        >
-          <LogOut className="w-5 h-5" />
-          Sair
-        </button>
+        {user ? (
+          <>
+            <div className="flex items-center gap-3 px-3 py-2">
+              <Settings className="w-5 h-5 cursor-pointer hover:text-foreground transition-colors" />
+              <span className="text-xs text-muted-foreground flex-1">v1.0</span>
+            </div>
+            <button 
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-3 py-2 text-destructive hover:bg-destructive/10 rounded-md transition-colors text-sm font-medium"
+            >
+              <LogOut className="w-5 h-5" />
+              Sair
+            </button>
+          </>
+        ) : (
+          <div className="space-y-1">
+            <SidebarMenuButton asChild>
+              <Link href="/login" className="flex items-center gap-3 px-3 py-2 text-sm font-medium">
+                <LogIn className="w-5 h-5" />
+                Entrar
+              </Link>
+            </SidebarMenuButton>
+            <SidebarMenuButton asChild variant="outline" className="border-secondary/20 text-secondary">
+              <Link href="/cadastro" className="flex items-center gap-3 px-3 py-2 text-sm font-bold">
+                <UserPlus className="w-5 h-5" />
+                Cadastrar-se
+              </Link>
+            </SidebarMenuButton>
+          </div>
+        )}
       </SidebarFooter>
     </Sidebar>
   )
