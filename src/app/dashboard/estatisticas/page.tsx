@@ -1,8 +1,6 @@
 "use client"
 
-import { ContributionGraph } from "@/components/productivity/ContributionGraph"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MOCK_STATS } from "@/lib/mock-data"
 import {
   BarChart,
   Bar,
@@ -13,32 +11,32 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts'
-import { Flame, MessageSquare, Zap, Star } from "lucide-react"
+import { Eye, MousePointer2, Share2, TrendingUp } from "lucide-react"
 
 const chartData = [
-  { name: 'Seg', valor: 400 },
-  { name: 'Ter', valor: 300 },
-  { name: 'Qua', valor: 600 },
-  { name: 'Qui', valor: 800 },
-  { name: 'Sex', valor: 500 },
-  { name: 'Sab', valor: 900 },
-  { name: 'Dom', valor: 200 },
+  { name: 'Seg', valor: 2400 },
+  { name: 'Ter', valor: 1300 },
+  { name: 'Qua', valor: 3600 },
+  { name: 'Qui', valor: 4800 },
+  { name: 'Sex', valor: 3500 },
+  { name: 'Sab', valor: 5900 },
+  { name: 'Dom', valor: 1200 },
 ]
 
-export default function EstatisticasPage() {
+export default function ResultadosPage() {
   return (
     <div className="space-y-10">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Estatísticas</h1>
-        <p className="text-muted-foreground">Analise sua produtividade e o engajamento dos seus eventos.</p>
+        <h1 className="text-3xl font-bold tracking-tight">Resultados de Divulgação</h1>
+        <p className="text-muted-foreground">Analise o impacto das suas campanhas e o alcance dos seus eventos.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { title: "Conversas Hoje", value: MOCK_STATS.conversasHoje, icon: MessageSquare, color: "text-blue-500" },
-          { title: "Tokens Usados", value: MOCK_STATS.tokensUtilizados, icon: Zap, color: "text-yellow-500" },
-          { title: "Satisfação", value: MOCK_STATS.satisfacao, icon: Star, color: "text-orange-500" },
-          { title: "Streak Dias", value: MOCK_STATS.streaks, icon: Flame, color: "text-red-500" },
+          { title: "Visualizações", value: "128.4K", icon: Eye, color: "text-blue-500" },
+          { title: "Cliques no Link", value: "12.2K", icon: MousePointer2, color: "text-purple-500" },
+          { title: "Compartilhamentos", value: "854", icon: Share2, color: "text-green-500" },
+          { title: "Taxa de Conversão", value: "4.8%", icon: TrendingUp, color: "text-orange-500" },
         ].map((stat, i) => (
           <Card key={i} className="border-none shadow-sm bg-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -47,7 +45,7 @@ export default function EstatisticasPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-[10px] text-muted-foreground mt-1">+12% em relação a ontem</p>
+              <p className="text-[10px] text-muted-foreground mt-1 text-green-500">+15% vs mês anterior</p>
             </CardContent>
           </Card>
         ))}
@@ -56,7 +54,7 @@ export default function EstatisticasPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card className="bg-card border-border shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg">Interações da IA</CardTitle>
+            <CardTitle className="text-lg">Visualizações Diárias</CardTitle>
           </CardHeader>
           <CardContent className="h-80">
             <ResponsiveContainer width="100%" height="100%">
@@ -70,7 +68,7 @@ export default function EstatisticasPage() {
                 />
                 <Bar dataKey="valor" radius={[4, 4, 0, 0]}>
                   {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index === 5 ? '#007bff' : '#000000'} />
+                    <Cell key={`cell-${index}`} fill={index === 5 ? 'hsl(var(--secondary))' : 'hsl(var(--primary))'} />
                   ))}
                 </Bar>
               </BarChart>
@@ -78,23 +76,29 @@ export default function EstatisticasPage() {
           </CardContent>
         </Card>
 
-        <div className="space-y-8">
-          <ContributionGraph />
-          <Card className="bg-primary text-primary-foreground border-none overflow-hidden relative shadow-lg">
-            <CardContent className="p-8">
-              <h3 className="text-2xl font-bold mb-2">Meta de Vendas</h3>
-              <p className="opacity-80 mb-6">Você atingiu 85% da sua meta mensal de vendas de ingressos.</p>
-              <div className="w-full bg-white/20 h-4 rounded-full overflow-hidden mb-4">
-                <div className="bg-secondary h-full transition-all duration-1000" style={{ width: '85%' }} />
-              </div>
-              <div className="flex justify-between text-sm font-bold">
-                <span>R$ 42.500</span>
-                <span>R$ 50.000</span>
-              </div>
-              <Zap className="absolute -bottom-4 -right-4 w-32 h-32 opacity-10 rotate-12" />
-            </CardContent>
-          </Card>
-        </div>
+        <Card className="bg-card border-border shadow-sm flex flex-col justify-center p-8">
+          <div className="space-y-6">
+            <h3 className="text-xl font-bold">Origem do Tráfego</h3>
+            <div className="space-y-4">
+              {[
+                { label: 'Instagram', value: '45%', color: 'bg-purple-500' },
+                { label: 'Google Search', value: '30%', color: 'bg-blue-500' },
+                { label: 'Direto / Viby', value: '15%', color: 'bg-secondary' },
+                { label: 'Outros', value: '10%', color: 'bg-gray-400' },
+              ].map((source) => (
+                <div key={source.label} className="space-y-2">
+                  <div className="flex justify-between text-sm font-medium">
+                    <span>{source.label}</span>
+                    <span>{source.value}</span>
+                  </div>
+                  <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
+                    <div className={cn("h-full", source.color)} style={{ width: source.value }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
       </div>
     </div>
   )

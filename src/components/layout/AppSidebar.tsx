@@ -2,14 +2,13 @@
 
 import * as React from "react"
 import {
-  Inbox,
-  CalendarDays,
-  LayoutDashboard,
+  Search,
+  Star,
+  LayoutGrid,
   BarChart3,
   Calendar,
   Settings,
-  PlusCircle,
-  Menu,
+  Globe,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -25,34 +24,32 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarProvider,
-  SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 
 const items = [
   {
-    title: "Inbox",
+    title: "Explorar",
     url: "/dashboard",
-    icon: Inbox,
+    icon: Globe,
   },
   {
-    title: "Hoje",
+    title: "Destaques",
     url: "/dashboard/hoje",
-    icon: CalendarDays,
+    icon: Star,
   },
   {
-    title: "Projetos",
+    title: "Meus Eventos",
     url: "/dashboard/projetos",
-    icon: LayoutDashboard,
+    icon: LayoutGrid,
   },
   {
-    title: "Calendário",
+    title: "Programação",
     url: "/dashboard/calendario",
     icon: Calendar,
   },
   {
-    title: "Estatísticas",
+    title: "Resultados",
     url: "/dashboard/estatisticas",
     icon: BarChart3,
   },
@@ -65,15 +62,15 @@ export function AppSidebar() {
     <Sidebar className="border-r border-border">
       <SidebarHeader className="p-6">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-lg">V</span>
+          <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
+            <span className="text-secondary-foreground font-bold text-lg">V</span>
           </div>
           <span className="text-xl font-bold tracking-tight">Viby</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="px-6 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Principal</SidebarGroupLabel>
+          <SidebarGroupLabel className="px-6 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Navegação</SidebarGroupLabel>
           <SidebarGroupContent className="px-3">
             <SidebarMenu>
               {items.map((item) => (
@@ -96,7 +93,7 @@ export function AppSidebar() {
       <SidebarFooter className="p-6">
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           <Settings className="w-5 h-5 cursor-pointer hover:text-foreground transition-colors" />
-          <span>Versão 1.0.0</span>
+          <span>Viby Promo v1.0</span>
         </div>
       </SidebarFooter>
     </Sidebar>
