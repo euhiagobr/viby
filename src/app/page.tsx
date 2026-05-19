@@ -51,7 +51,7 @@ export default function LandingPage() {
         const loc = await getCurrentLocation()
         setUserLocation(loc)
       } catch (err) {
-        console.error("Localização negada ou erro:", err)
+        // Silently handle location rejection to avoid intrusive console errors
         setLocationError(true)
       }
     }
