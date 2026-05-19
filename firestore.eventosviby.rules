@@ -1,8 +1,7 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // DEPLOY VIBY - Versão: 1.0.7
+    // DEPLOY VIBY - Versão: 1.0.8
     // REGRAS PARA A PLATAFORMA VIBY CLUB
 
     function isSignedIn() {
@@ -16,15 +15,37 @@ service cloud.firestore {
     }
 
     // Regras padrão: permitir leitura pública, escrita apenas autenticado
-    match /{allPaths=**} {
+    // Nota: Regras específicas abaixo sobrescrevem comportamentos conforme necessário
+    
+    // Configurações: Essencial para identidade visual pública
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Usuários: Dono ou Admin podem escrever
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Nomes de usuário: Verificação de unicidade
+    match /usernames/{username} {
       allow read: if true;
       allow write: if isSignedIn();
     }
 
-    // Configurações: Apenas admins podem alterar
-    match /settings/{settingId} {
+    // Eventos: Públicos para leitura
+    match /events/{eventId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isSignedIn();
+    }
+    
+    // Inscrições
+    match /registrations/{regId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
     }
 
     // Denúncias: Apenas admins podem listar/ler detalhes
@@ -40,10 +61,10 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Usuários: Dono ou Admin podem escrever
-    match /users/{userId} {
-      allow read: if true;
-      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+    // Bloqueio padrão
+    match /{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
   }
 }

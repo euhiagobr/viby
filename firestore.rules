@@ -21,6 +21,12 @@ service cloud.firestore {
           "admin" in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles));
     }
 
+    // ===== CONFIGURAÇÕES DO SITE (IDENTIDADE VISUAL) =====
+    match /settings/site {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ===== USUÁRIOS =====
     match /users/{uid} {
       allow read: if isSignedIn();
