@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -51,7 +50,6 @@ export default function LandingPage() {
         const loc = await getCurrentLocation()
         setUserLocation(loc)
       } catch (err) {
-        // Silently handle location rejection to avoid intrusive console errors
         setLocationError(true)
       }
     }
@@ -225,7 +223,7 @@ export default function LandingPage() {
                 <SelectContent className="rounded-2xl border-none shadow-2xl">
                   <SelectItem value="all" className="font-bold">Todas categorias</SelectItem>
                   {categories?.map((cat: any) => (
-                    <SelectItem key={cat.id} value={cat.id} className="font-bold">{cat.name}</SelectItem>
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -279,11 +277,6 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
-          {locationError && (
-             <p className="text-[10px] font-black uppercase text-red-500 flex items-center gap-1 animate-pulse">
-               <Navigation className="w-3 h-3" /> Localização necessária para ver próximos
-             </p>
-          )}
         </div>
 
         {eventsLoading ? (
@@ -319,56 +312,6 @@ export default function LandingPage() {
           </div>
         )}
       </section>
-
-      {/* Footer */}
-      <footer className="py-20 border-t border-border bg-white">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
-            <div className="md:col-span-2 space-y-6">
-              <Link href="/" className="flex items-center gap-2">
-                {settings?.logoUrl ? (
-                  <img src={settings.logoUrl} alt={siteName} className="h-8 object-contain" />
-                ) : (
-                  <>
-                    <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
-                      <span className="text-white font-bold text-lg">{siteName.charAt(0)}</span>
-                    </div>
-                    <span className="font-bold text-2xl tracking-tighter">{siteName}</span>
-                  </>
-                )}
-              </Link>
-              <p className="text-muted-foreground text-sm max-w-sm font-medium leading-relaxed">
-                Transformando a descoberta de eventos no Brasil através de tecnologia e experiências inteligentes. Encontre o seu próximo destino aqui.
-              </p>
-            </div>
-            <div className="space-y-4">
-              <h4 className="font-black uppercase tracking-widest text-xs">Plataforma</h4>
-              <nav className="flex flex-col gap-3">
-                <Link href="/dashboard" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Explorar</Link>
-                <Link href="/cadastro" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Anunciar Evento</Link>
-                <Link href="/login" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Entrar</Link>
-              </nav>
-            </div>
-            <div className="space-y-4">
-              <h4 className="font-black uppercase tracking-widest text-xs">Legal</h4>
-              <nav className="flex flex-col gap-3">
-                <Link href="#" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Termos de Uso</Link>
-                <Link href="#" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Privacidade</Link>
-                <Link href="/dashboard/suporte" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Suporte</Link>
-              </nav>
-            </div>
-          </div>
-          <div className="pt-8 border-t border-muted text-center flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
-              {siteName} © 2024 - Todos os direitos reservados.
-            </p>
-            <div className="flex items-center gap-4 opacity-30">
-               <Globe className="w-4 h-4" />
-               <span className="text-[10px] font-bold uppercase">Brasil</span>
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   )
 }
