@@ -1,15 +1,39 @@
+
 "use client"
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
-import { collection, query, where, doc } from "firebase/firestore"
+import { collection, query, where, doc, deleteDoc } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Plus, MoreHorizontal, Globe, Loader2, Calendar as CalendarIcon, MapPin, Clock, Building2, AlertCircle, Edit2, Eye, Users } from "lucide-react"
+import { 
+  Plus, 
+  MoreHorizontal, 
+  Loader2, 
+  Calendar as CalendarIcon, 
+  MapPin, 
+  Clock, 
+  Building2, 
+  AlertCircle, 
+  Edit2, 
+  Eye, 
+  Users,
+  Trash2
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { toast } from "@/hooks/use-toast"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 export default function MeusEventosPage() {
   const db = useFirestore()
@@ -62,6 +86,23 @@ export default function MeusEventosPage() {
       return "";
     }
   };
+
+  const handleDeleteEvent = async (eventId: string, title: string) => {
+    if (!db) return
+    if (!confirm(`Deseja realmente excluir o evento "${title}"? Esta ação não pode ser desfeita.`)) return
+
+    deleteDoc(doc(db, "events", eventId))
+      .then(() => {
+        toast({ title: "Evento excluído", description: "O anúncio foi removido com sucesso." })
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: `events/${eventId}`,
+          operation: "delete"
+        })
+        errorEmitter.emit("permission-error", permissionError)
+      })
+  }
 
   if (profileLoading) {
     return (
@@ -122,12 +163,43 @@ export default function MeusEventosPage() {
                     <Badge variant={event.status === 'Concluído' ? 'secondary' : 'default'} className="rounded-full px-3">
                       {event.status || "Ativo"}
                     </Badge>
-                    <button className="text-muted-foreground"><MoreHorizontal className="w-4 h-4" /></button>
+                    
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted rounded-full">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="rounded-xl w-48">
+                        <DropdownMenuItem asChild>
+                          <Link href={`/dashboard/evento/${event.id}/editar`} className="flex items-center gap-2 cursor-pointer font-medium py-2">
+                            <Edit2 className="w-4 h-4" />
+                            Editar Evento
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href={eventLink} target="_blank" className="flex items-center gap-2 cursor-pointer font-medium py-2">
+                            <Eye className="w-4 h-4" />
+                            Visualizar Público
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          className="flex items-center gap-2 text-destructive focus:text-destructive cursor-pointer font-medium py-2"
+                          onClick={() => handleDeleteEvent(event.id, event.title)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Excluir Evento
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
+
                   <div className="space-y-1">
                     <h4 className="font-bold text-lg leading-tight group-hover:text-secondary transition-colors line-clamp-1">{event.title}</h4>
                     <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2rem]">{event.shortDescription || event.description}</p>
                   </div>
+
                   <div className="space-y-1.5 py-3 border-y border-border">
                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
                       <CalendarIcon className="w-3.5 h-3.5 text-secondary" />
@@ -141,9 +213,10 @@ export default function MeusEventosPage() {
                       <span className="line-clamp-1">{event.city || "Local não definido"}</span>
                     </div>
                   </div>
+
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <Button variant="outline" size="sm" className="text-[10px] font-bold uppercase h-8 rounded-lg gap-1.5" asChild>
-                      <Link href={eventLink}><Eye className="w-3 h-3" />Ver</Link>
+                      <Link href={eventLink}><Eye className="w-3 h-3" />Ver Anúncio</Link>
                     </Button>
                     <Button variant="outline" size="sm" className="text-[10px] font-bold uppercase h-8 rounded-lg gap-1.5 border-secondary text-secondary hover:bg-secondary hover:text-white" asChild>
                       <Link href={`/dashboard/evento/${event.id}/editar`}><Edit2 className="w-3 h-3" />Editar</Link>
