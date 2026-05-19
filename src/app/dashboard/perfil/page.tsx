@@ -228,8 +228,7 @@ export default function PerfilPage() {
                 </p>
               </CardContent>
             </Card>
-          </Card>
-        )}
+          )}
         </div>
       </div>
     </div>
