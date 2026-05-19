@@ -21,7 +21,7 @@ function InstagramVerifiedBadge({ className }: { className?: string }) {
     >
       <path 
         fill="#0095f6" 
-        d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1-4.4 1.2-8.9 5.3 10.7l8.4 3.7 2.3 9c1.1-4.4 5.2-7.4 9.7 7l9.2-.7 6.5 6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.4-6.3 5.3-10.7l-2.3-9 6.5-6.6c3.2-3.2 3.2-8.2 0-11.4z"
+        d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1-4.4 1.2-8.9-5.3 10.7l8.4 3.7 2.3 9c1.1-4.4 5.2-7.4 9.7 7l9.2-.7 6.5 6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.4-6.3 5.3-10.7l-2.3-9 6.5-6.6c3.2-3.2 3.2-8.2 0-11.4z"
       />
       <path 
         fill="#fff" 
@@ -43,7 +43,7 @@ export function EventCard({ event, userLocation }: EventCardProps) {
     if (!dateValue) return "A definir";
     try {
       let d: Date;
-      if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
+      if (dateValue?.toDate) {
         d = dateValue.toDate();
       } else if (dateValue instanceof Date) {
         d = dateValue;
@@ -51,7 +51,7 @@ export function EventCard({ event, userLocation }: EventCardProps) {
         d = new Date(dateValue);
       }
       if (isNaN(d.getTime())) return "A definir";
-      return d.toLocaleDateString('pt-BR');
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     } catch (e) {
       return "A definir";
     }
@@ -61,7 +61,7 @@ export function EventCard({ event, userLocation }: EventCardProps) {
     if (!dateValue) return "";
     try {
       let d: Date;
-      if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
+      if (dateValue?.toDate) {
         d = dateValue.toDate();
       } else if (dateValue instanceof Date) {
         d = dateValue;
@@ -93,7 +93,7 @@ export function EventCard({ event, userLocation }: EventCardProps) {
   };
 
   const distance = React.useMemo(() => {
-    if (userLocation && event.latitude && event.longitude) {
+    if (userLocation && typeof event.latitude === 'number' && typeof event.longitude === 'number') {
       return calculateDistance(userLocation, { latitude: event.latitude, longitude: event.longitude });
     }
     return null;
@@ -134,9 +134,9 @@ export function EventCard({ event, userLocation }: EventCardProps) {
         </div>
         {distance !== null && (
           <div className="absolute bottom-3 right-3">
-            <Badge className="bg-white/90 text-primary border-none shadow-md backdrop-blur-md px-2 py-1 text-[10px] font-black uppercase flex items-center gap-1">
-              <Navigation className="w-3 h-3 text-secondary fill-secondary" />
-              {distance < 1 ? `${(distance * 1000).toFixed(0)}m` : `${distance.toFixed(1)}km`}
+            <Badge className="bg-white/95 text-secondary border-none shadow-xl backdrop-blur-md px-3 py-1.5 text-[11px] font-black uppercase flex items-center gap-1.5 ring-2 ring-secondary/10">
+              <Navigation className="w-3.5 h-3.5 fill-secondary" />
+              {distance < 1 ? `${(distance * 1000).toFixed(0)}m de você` : `${distance.toFixed(1)}km de você`}
             </Badge>
           </div>
         )}
