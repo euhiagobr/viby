@@ -27,7 +27,9 @@ service cloud.firestore {
 
     match /usernames/{username} {
       allow read: if true;
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      // Permite criar se for o dono do UID ou se for Admin
+      allow create: if isSignedIn() && (request.resource.data.uid == request.auth.uid || isAdmin());
+      // Permite deletar se for o dono do UID ou se for Admin
       allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow update: if isAdmin();
     }

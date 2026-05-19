@@ -224,7 +224,7 @@ export default function AdminUsuariosPage() {
     try {
       const batch = writeBatch(db)
 
-      // Se o username mudou, atualiza o índice de unicidade EXPLICITAMENTE EM MINÚSCULAS
+      // Se o username mudou, atualiza o índice de unicidade
       if (usernameChanged) {
         if (oldUsername) {
           batch.delete(doc(db, "usernames", oldUsername))
@@ -245,7 +245,7 @@ export default function AdminUsuariosPage() {
 
       await batch.commit()
 
-      // Sincroniza dados nos eventos (denormalização para URLs e visualização rápida)
+      // Sincroniza dados nos eventos (denormalização)
       const eventsQuery = query(collection(db, "events"), where("organizerId", "==", editingUser.id))
       const eventsSnap = await getDocs(eventsQuery)
       
@@ -264,7 +264,7 @@ export default function AdminUsuariosPage() {
         await eventBatch.commit()
       }
 
-      toast({ title: "Sucesso!", description: "Dados do usuário e eventos sincronizados." })
+      toast({ title: "Sucesso!", description: "Dados do usuário e índices atualizados." })
       setIsEditModalOpen(false)
       setEditingUser(null)
     } catch (error: any) {
