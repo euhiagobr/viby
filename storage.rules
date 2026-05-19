@@ -1,8 +1,9 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    // DEPLOY VIBY - Versão: 1.0.1
     // REGRAS PÚBLICAS TOTAIS (CONFORME SOLICITADO)
-    // Permite leitura e escrita para qualquer pessoa em todos os arquivos e buckets.
+    // Permite leitura e escrita para qualquer pessoa em todos os arquivos e buckets da plataforma.
     match /{allPaths=**} {
       allow read, write: if true;
     }
