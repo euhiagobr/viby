@@ -19,11 +19,13 @@ import {
   Calendar,
   Ticket,
   RefreshCw,
-  ArrowLeft
+  ArrowLeft,
+  DollarSign
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
+import { cn } from "@/lib/utils"
 
 export default function AdminScannerPage() {
   const db = useFirestore()
@@ -103,7 +105,8 @@ export default function AdminScannerPage() {
 
     setIsValidating(true)
     try {
-      await updateDoc(doc(db, "registrations", ticketData.id), {
+      const regRef = doc(db, "registrations", ticketData.id)
+      await updateDoc(regRef, {
         checkedIn: true,
         checkedInAt: serverTimestamp(),
         checkedInBy: currentUser.uid,
@@ -131,7 +134,7 @@ export default function AdminScannerPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/admin"><ArrowLeft className="w-5 h-5" /></Link>
+            <Link href="/dashboard"><ArrowLeft className="w-5 h-5" /></Link>
           </Button>
           <h1 className="text-3xl font-bold tracking-tight">Scanner de Acesso</h1>
         </div>
@@ -225,7 +228,7 @@ export default function AdminScannerPage() {
 
       {ticketData && (
         <Card className={cn(
-          "overflow-hidden transition-all",
+          "overflow-hidden transition-all shadow-2xl",
           ticketData.checkedIn ? "border-orange-500 bg-orange-50/50" : "border-green-500 bg-green-50/50"
         )}>
           <CardHeader className={cn(
@@ -244,31 +247,42 @@ export default function AdminScannerPage() {
           </CardHeader>
           <CardContent className="p-8 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm">
-                    <User className="w-6 h-6 text-muted-foreground" />
+              <div className="space-y-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-md">
+                    <User className="w-8 h-8 text-secondary" />
                   </div>
                   <div>
                     <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Participante</p>
-                    <p className="font-bold text-lg leading-none">{ticketData.userName}</p>
+                    <p className="font-black text-xl leading-none text-primary uppercase italic">{ticketData.userName}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm">
-                    <Calendar className="w-6 h-6 text-muted-foreground" />
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-md">
+                    <Calendar className="w-8 h-8 text-secondary" />
                   </div>
                   <div>
                     <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Evento</p>
                     <p className="font-bold text-sm leading-tight">{ticketData.eventTitle}</p>
                   </div>
                 </div>
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-md">
+                    <DollarSign className="w-8 h-8 text-secondary" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Valor do Ingresso</p>
+                    <p className="font-black text-xl leading-none text-primary">
+                      {ticketData.price === 0 ? "GRÁTIS" : `R$ ${parseFloat(ticketData.price).toFixed(2).replace('.', ',')}`}
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div className="p-6 bg-white/50 rounded-2xl border space-y-4">
+              <div className="p-6 bg-white/50 rounded-3xl border border-dashed border-muted-foreground/30 space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-bold text-muted-foreground uppercase">Ticket ID</span>
-                  <span className="font-mono font-black text-sm">{ticketData.ticketCode}</span>
+                  <span className="font-mono font-black text-sm text-secondary">{ticketData.ticketCode}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-bold text-muted-foreground uppercase">Pagamento</span>
@@ -288,16 +302,16 @@ export default function AdminScannerPage() {
 
             {!ticketData.checkedIn && (
               <Button 
-                className="w-full bg-green-600 hover:bg-green-700 text-white font-black h-16 text-xl rounded-2xl shadow-xl shadow-green-500/20"
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-black h-20 text-2xl rounded-[2rem] shadow-xl shadow-green-500/20 uppercase italic tracking-tighter"
                 onClick={handleConfirmCheckIn}
                 disabled={isValidating}
               >
-                {isValidating ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <CheckCircle2 className="w-6 h-6 mr-2" />}
+                {isValidating ? <Loader2 className="w-8 h-8 animate-spin mr-3" /> : <CheckCircle2 className="w-8 h-8 mr-3" />}
                 CONFIRMAR ENTRADA
               </Button>
             )}
 
-            <Button variant="ghost" className="w-full h-12 font-bold text-muted-foreground" onClick={resetScanner}>
+            <Button variant="ghost" className="w-full h-12 font-bold text-muted-foreground uppercase text-xs tracking-widest" onClick={resetScanner}>
               Voltar ao Início
             </Button>
           </CardContent>
