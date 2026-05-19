@@ -1,14 +1,28 @@
+
 "use client"
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
 import { doc, getDoc, collection, query, where, orderBy } from "firebase/firestore"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, ShieldCheck, Calendar, MapPin, ArrowLeft, Share2, Globe, Star } from "lucide-react"
+import { 
+  Loader2, 
+  ShieldCheck, 
+  Calendar, 
+  MapPin, 
+  ArrowLeft, 
+  Share2, 
+  Globe, 
+  Star, 
+  Edit,
+  Users as UsersIcon,
+  CheckCircle2,
+  Clock
+} from "lucide-react"
 import { EventCard } from "@/components/events/EventCard"
 import Link from "next/link"
 
@@ -16,11 +30,17 @@ export default function PublicProfilePage() {
   const params = useParams()
   const router = useRouter()
   const db = useFirestore()
+  const auth = useAuth()
+  const { user: currentUser } = useUser(auth)
   const username = params.username as string
 
   const [profile, setProfile] = React.useState<any>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
+
+  const isOwner = React.useMemo(() => {
+    return currentUser && profile && currentUser.uid === profile.id
+  }, [currentUser, profile])
 
   // Buscar o perfil resolvendo o username
   React.useEffect(() => {
@@ -71,6 +91,16 @@ export default function PublicProfilePage() {
 
   const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
 
+  // Estatísticas calculadas
+  const stats = React.useMemo(() => {
+    if (!events) return { total: 0, active: 0, finished: 0 }
+    return {
+      total: events.length,
+      active: events.filter((e: any) => e.status !== 'Concluído').length,
+      finished: events.filter((e: any) => e.status === 'Concluído').length
+    }
+  }, [events])
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -100,10 +130,20 @@ export default function PublicProfilePage() {
             </div>
             <span className="text-xl font-bold tracking-tight">Viby</span>
           </Link>
-          <Button variant="ghost" onClick={() => router.back()} className="gap-2 text-sm font-semibold">
-            <ArrowLeft className="w-4 h-4" />
-            Voltar
-          </Button>
+          <div className="flex items-center gap-2">
+            {isOwner && (
+              <Button variant="outline" size="sm" asChild className="hidden sm:flex gap-2">
+                <Link href="/dashboard/perfil">
+                  <Edit className="w-4 h-4" />
+                  Editar Perfil
+                </Link>
+              </Button>
+            )}
+            <Button variant="ghost" onClick={() => router.back()} className="gap-2 text-sm font-semibold">
+              <ArrowLeft className="w-4 h-4" />
+              Voltar
+            </Button>
+          </div>
         </div>
       </nav>
 
@@ -141,8 +181,11 @@ export default function PublicProfilePage() {
 
                 <div className="grid grid-cols-2 gap-4 w-full mt-8">
                   <div className="bg-muted/50 p-4 rounded-2xl">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Eventos</p>
-                    <p className="text-2xl font-black text-foreground">{profile.totalEvents || 0}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Seguidores</p>
+                    <div className="flex items-center justify-center gap-1.5">
+                      <UsersIcon className="w-4 h-4 text-secondary" />
+                      <p className="text-2xl font-black text-foreground">1.2k</p>
+                    </div>
                   </div>
                   <div className="bg-muted/50 p-4 rounded-2xl">
                     <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Avaliação</p>
@@ -154,9 +197,18 @@ export default function PublicProfilePage() {
                 </div>
 
                 <div className="w-full mt-8 space-y-3">
-                  <Button className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold gap-2 py-6 rounded-2xl">
-                    Seguir Organizador
-                  </Button>
+                  {isOwner ? (
+                    <Button asChild className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold gap-2 py-6 rounded-2xl">
+                      <Link href="/dashboard/perfil">
+                        <Edit className="w-4 h-4" />
+                        Editar Meu Perfil
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold gap-2 py-6 rounded-2xl">
+                      Seguir Organizador
+                    </Button>
+                  )}
                   <Button variant="outline" className="w-full font-bold gap-2 py-6 rounded-2xl border-2" onClick={() => {
                     navigator.clipboard.writeText(window.location.href)
                     alert("Link do perfil copiado!")
@@ -164,6 +216,34 @@ export default function PublicProfilePage() {
                     <Share2 className="w-4 h-4" />
                     Compartilhar Perfil
                   </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">Resumo de Atividade</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    Eventos Concluídos
+                  </span>
+                  <span className="font-bold">{stats.finished}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-secondary" />
+                    Eventos Ativos
+                  </span>
+                  <span className="font-bold">{stats.active}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm border-t pt-4 mt-4">
+                  <span className="text-muted-foreground flex items-center gap-2 font-semibold">
+                    Total de Publicações
+                  </span>
+                  <span className="font-black text-lg">{stats.total}</span>
                 </div>
               </CardContent>
             </Card>
@@ -190,7 +270,7 @@ export default function PublicProfilePage() {
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold tracking-tight">Eventos Publicados</h2>
               <Badge variant="outline" className="border-secondary text-secondary font-bold">
-                {events?.length || 0} Ativos
+                {stats.active} Ativos
               </Badge>
             </div>
 
