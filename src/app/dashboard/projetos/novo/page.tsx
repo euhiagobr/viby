@@ -53,6 +53,12 @@ export default function NovoEventoPage() {
   const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
 
+  // Ordenar categorias alfabeticamente
+  const sortedCategories = React.useMemo(() => {
+    if (!categories) return []
+    return [...categories].sort((a, b) => a.name.localeCompare(b.name))
+  }, [categories])
+
   const [loading, setLoading] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -252,7 +258,7 @@ export default function NovoEventoPage() {
                     <SelectValue placeholder="Selecione uma categoria" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories?.map((cat: any) => (
+                    {sortedCategories.map((cat: any) => (
                       <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -406,7 +412,7 @@ export default function NovoEventoPage() {
                 {batches.map((batch, index) => (
                   <div key={index} className="p-4 rounded-xl border border-border bg-muted/20 space-y-4">
                     <div className="flex justify-between items-center">
-                      <h4 className="font-bold text-sm">Lote #{index + 1}</h4>
+                      h4 className="font-bold text-sm">Lote #{index + 1}</h4>
                       {batches.length > 1 && (
                         <button type="button" onClick={() => removeBatch(index)} className="text-destructive hover:bg-destructive/10 p-2 rounded-lg transition-colors">
                           <Trash2 className="w-4 h-4" />
