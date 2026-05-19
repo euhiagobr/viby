@@ -5,7 +5,7 @@ import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebas
 import { collection, query, where, doc } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Plus, MoreHorizontal, Globe, Loader2, Calendar as CalendarIcon, MapPin, Clock, Building2, AlertCircle } from "lucide-react"
+import { Plus, MoreHorizontal, Globe, Loader2, Calendar as CalendarIcon, MapPin, Clock, Building2, AlertCircle, Edit2, Eye, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
@@ -80,7 +80,7 @@ export default function MeusEventosPage() {
         </div>
         
         {isCompany && (
-          <Button asChild className="gap-2 bg-secondary text-white hover:bg-secondary/90">
+          <Button asChild className="gap-2 bg-secondary text-white hover:bg-secondary/90 font-bold rounded-full px-6">
             <Link href="/dashboard/projetos/novo">
               <Plus className="w-4 h-4" />
               Novo Evento
@@ -113,10 +113,10 @@ export default function MeusEventosPage() {
           {events?.map((event: any) => {
             const time = formatTime(event.date);
             return (
-              <Card key={event.id} className="overflow-hidden border-border hover:border-secondary/50 transition-all group shadow-sm">
+              <Card key={event.id} className="overflow-hidden border-border hover:border-secondary/50 transition-all group shadow-sm rounded-2xl">
                 <div className="p-4 space-y-4">
                   <div className="flex justify-between items-start">
-                    <Badge variant={event.status === 'Concluído' ? 'secondary' : 'default'} className="rounded-full">
+                    <Badge variant={event.status === 'Concluído' ? 'secondary' : 'default'} className="rounded-full px-3">
                       {event.status || "Ativo"}
                     </Badge>
                     <button className="text-muted-foreground">
@@ -124,34 +124,46 @@ export default function MeusEventosPage() {
                     </button>
                   </div>
                   
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <h4 className="font-bold text-lg leading-tight group-hover:text-secondary transition-colors line-clamp-1">{event.title}</h4>
-                    <p className="text-sm text-muted-foreground line-clamp-2">{event.shortDescription || event.description}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2rem]">{event.shortDescription || event.description}</p>
                   </div>
 
-                  <div className="space-y-1.5 py-2 border-y border-border">
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+                  <div className="space-y-1.5 py-3 border-y border-border">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
                       <CalendarIcon className="w-3.5 h-3.5 text-secondary" />
                       <span>{formatDate(event.date)}</span>
                       {time && (
                         <>
-                          <span className="mx-1">•</span>
+                          <span className="mx-1 opacity-30">|</span>
                           <Clock className="w-3.5 h-3.5 text-secondary" />
                           <span>{time}</span>
                         </>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
                       <MapPin className="w-3.5 h-3.5 text-secondary" />
                       <span className="line-clamp-1">{event.city || "Local não definido"}</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-2">
-                    <Button variant="outline" size="sm" className="text-xs h-8" asChild>
-                      <Link href={`/dashboard/evento/${event.id}`}>Ver Detalhes</Link>
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <Button variant="outline" size="sm" className="text-[10px] font-bold uppercase h-8 rounded-lg gap-1.5" asChild>
+                      <Link href={`/dashboard/evento/${event.id}`}>
+                        <Eye className="w-3 h-3" />
+                        Ver
+                      </Link>
                     </Button>
-                    <Button variant="secondary" size="sm" className="text-xs h-8">Ver Público</Button>
+                    <Button variant="outline" size="sm" className="text-[10px] font-bold uppercase h-8 rounded-lg gap-1.5 border-secondary text-secondary hover:bg-secondary hover:text-white" asChild>
+                      <Link href={`/dashboard/evento/${event.id}/editar`}>
+                        <Edit2 className="w-3 h-3" />
+                        Editar
+                      </Link>
+                    </Button>
+                    <Button variant="secondary" size="sm" className="col-span-2 text-[10px] font-bold uppercase h-8 rounded-lg gap-1.5">
+                      <Users className="w-3 h-3" />
+                      Ver Público
+                    </Button>
                   </div>
                 </div>
               </Card>
@@ -161,17 +173,17 @@ export default function MeusEventosPage() {
           {isCompany ? (
             <Link 
               href="/dashboard/projetos/novo"
-              className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-3 text-muted-foreground hover:border-secondary/50 hover:text-secondary transition-all min-h-[250px]"
+              className="border-2 border-dashed border-border rounded-2xl p-8 flex flex-col items-center justify-center gap-3 text-muted-foreground hover:border-secondary/50 hover:text-secondary hover:bg-muted/30 transition-all min-h-[250px]"
             >
-              <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
+              <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center shadow-inner">
                 <Plus className="w-6 h-6" />
               </div>
-              <span className="font-bold">Novo Evento</span>
+              <span className="font-bold uppercase text-xs tracking-widest">Publicar Novo Evento</span>
             </Link>
           ) : (
-            <div className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-3 text-muted-foreground/50 bg-muted/20 grayscale min-h-[250px]">
+            <div className="border-2 border-dashed border-border rounded-2xl p-8 flex flex-col items-center justify-center gap-3 text-muted-foreground/50 bg-muted/20 grayscale min-h-[250px]">
               <AlertCircle className="w-12 h-12 mb-2 opacity-50" />
-              <span className="font-bold text-center text-sm">Criação disponível apenas para perfis de Empresa</span>
+              <span className="font-bold text-center text-xs uppercase tracking-widest">Criação disponível apenas para Empresa</span>
             </div>
           )}
         </div>
