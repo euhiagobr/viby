@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // VIBY PLATFORM RULES - Versão: 1.2.0
+    // VIBY PLATFORM RULES - Versão: 1.3.0
     // Banco de Dados: eventosviby
 
     function isSignedIn() {
@@ -9,19 +9,19 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // Verifica se o documento do usuário existe e se o cargo é admin
+      // Verificação robusta de administrador no banco eventosviby
       return isSignedIn() && 
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
-    // Configurações do Site: Leitura pública para identidade visual, escrita para Admins
+    // Configurações do Site: Leitura pública total para branding, escrita apenas Admin
     match /settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Usuários: Leitura pública, escrita para o próprio usuário ou Admin
+    // Usuários: Leitura pública, escrita para o próprio ou Admin
     match /users/{userId} {
       allow read: if true;
       allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
@@ -33,10 +33,11 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
-    // Eventos: Leitura pública, escrita para usuários autenticados (Empresas) ou Admins
+    // Eventos: Leitura pública, escrita para organizadores ou Admin
     match /events/{eventId} {
       allow read: if true;
-      allow write: if isSignedIn() && (request.resource.data.organizerId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && (resource.data.organizerId == request.auth.uid || isAdmin());
     }
     
     // Inscrições em eventos
@@ -46,20 +47,20 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Denúncias: Apenas admins leem, usuários autenticados criam
+    // Denúncias
     match /reports/{reportId} {
       allow read: if isAdmin();
       allow create: if isSignedIn();
       allow update, delete: if isAdmin();
     }
     
-    // Categorias: Apenas Admins gerenciam
+    // Categorias
     match /categories/{catId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Regras padrão para outras coleções do banco eventosviby
+    // Regra padrão de segurança
     match /{allPaths=**} {
       allow read: if isSignedIn();
       allow write: if isAdmin();

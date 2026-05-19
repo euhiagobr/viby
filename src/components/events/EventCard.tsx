@@ -1,4 +1,3 @@
-
 "use client"
 
 import { Calendar, MapPin, Clock, Ticket } from "lucide-react"
@@ -64,7 +63,7 @@ export function EventCard({ event }: EventCardProps) {
     if (event.batches && event.batches.length > 0) {
       const prices = event.batches.map((b: any) => parseFloat(b.price) || 0);
       const minPrice = Math.min(...prices);
-      return `A partir de R$ ${minPrice.toFixed(2).replace('.', ',')}`;
+      return minPrice === 0 ? "Grátis" : `A partir de R$ ${minPrice.toFixed(2).replace('.', ',')}`;
     }
     return "Consulte";
   };
@@ -77,6 +76,9 @@ export function EventCard({ event }: EventCardProps) {
     e.stopPropagation()
     router.push(profileLink)
   }
+
+  // Categoria amigável vinda do firestore ou fallback do mock
+  const categoryDisplay = event.categoryName || event.type || "Evento";
 
   return (
     <Card 
@@ -94,7 +96,7 @@ export function EventCard({ event }: EventCardProps) {
         />
         <div className="absolute top-3 left-3 flex flex-col gap-2">
           <Badge className="bg-secondary text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider">
-            {event.categoryName || "Evento"}
+            {categoryDisplay}
           </Badge>
           <Badge className={`${event.isFree ? "bg-green-500" : "bg-primary"} text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider`}>
             {getPriceDisplay()}

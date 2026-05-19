@@ -37,17 +37,22 @@ export default function AdminConfiguracoesPage() {
     }
   }, [settings])
 
+  // Explicitamente usando o bucket viby
   const storage = React.useMemo(() => {
     if (!app) return null;
     try {
       return getStorage(app, "gs://viby");
     } catch (e) {
+      console.error("Erro ao inicializar storage viby, tentando padrão", e);
       return getStorage(app);
     }
   }, [app])
 
   const handleFileUpload = async (file: File, type: 'logo' | 'icon') => {
-    if (!storage) return;
+    if (!storage) {
+      toast({ variant: "destructive", title: "Erro", description: "Storage não inicializado." });
+      return;
+    }
 
     const setProgress = type === 'logo' ? setLogoUploadProgress : setIconUploadProgress;
     const setUrl = type === 'logo' ? setLogoUrl : setIconUrl;
@@ -67,13 +72,13 @@ export default function AdminConfiguracoesPage() {
         (error) => {
           console.error(error)
           setProgress(null)
-          toast({ variant: "destructive", title: "Erro no upload", description: "Não foi possível carregar a imagem." })
+          toast({ variant: "destructive", title: "Erro no upload", description: error.message })
         },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
           setUrl(downloadURL)
           setProgress(null)
-          toast({ title: "Upload concluído!", description: `${type === 'logo' ? 'Logotipo' : 'Ícone'} carregado com sucesso.` })
+          toast({ title: "Upload concluído!", description: `${type === 'logo' ? 'Logotipo' : 'Ícone'} carregado.` })
         }
       )
     } catch (err) {
@@ -88,7 +93,7 @@ export default function AdminConfiguracoesPage() {
     setSaving(true)
     
     const settingsData = {
-      siteName,
+      siteName: siteName || "Viby",
       logoUrl,
       iconUrl,
       updatedAt: serverTimestamp()
@@ -96,7 +101,7 @@ export default function AdminConfiguracoesPage() {
 
     setDoc(doc(db, "settings", "site"), settingsData, { merge: true })
       .then(() => {
-        toast({ title: "Configurações salvas!", description: "A identidade visual do site foi atualizada." })
+        toast({ title: "Configurações salvas!", description: "A identidade visual foi atualizada em todo o site." })
       })
       .catch(async (error) => {
         const permissionError = new FirestorePermissionError({
@@ -120,8 +125,8 @@ export default function AdminConfiguracoesPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Configurações do Site</h1>
-        <p className="text-muted-foreground">Gerencie a identidade visual e o branding da plataforma.</p>
+        <h1 className="text-3xl font-bold tracking-tight">Identidade Visual</h1>
+        <p className="text-muted-foreground">O nome e as imagens definidas aqui serão exibidos em todo o portal.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
@@ -129,9 +134,8 @@ export default function AdminConfiguracoesPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
               <Layout className="w-5 h-5 text-secondary" />
-              Identidade Visual
+              Configurações Globais
             </CardTitle>
-            <CardDescription>Personalize como a marca do site é exibida para os usuários.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8 pt-4">
             <div className="space-y-2">
@@ -140,7 +144,7 @@ export default function AdminConfiguracoesPage() {
                 id="siteName" 
                 value={siteName}
                 onChange={(e) => setSiteName(e.target.value)}
-                placeholder="Ex: Viby Club"
+                placeholder="Viby"
                 required 
                 className="rounded-xl h-12"
               />
@@ -148,7 +152,7 @@ export default function AdminConfiguracoesPage() {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-4">
-                <Label>Logotipo da Plataforma</Label>
+                <Label>Logotipo principal</Label>
                 <div 
                   className="relative aspect-square rounded-2xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden group cursor-pointer"
                   onClick={() => document.getElementById('logo-upload')?.click()}
@@ -158,61 +162,37 @@ export default function AdminConfiguracoesPage() {
                   ) : (
                     <div className="text-center p-4">
                       <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Upload Logo</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Logo</p>
                     </div>
                   )}
                   <div className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold">
-                    Alterar Logo
+                    Upload
                   </div>
-                  <input 
-                    id="logo-upload" 
-                    type="file" 
-                    accept="image/*" 
-                    className="hidden" 
-                    onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'logo')}
-                  />
+                  <input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'logo')} />
                 </div>
-                {logoUploadProgress !== null && (
-                  <div className="space-y-1">
-                    <Progress value={logoUploadProgress} className="h-1" />
-                    <p className="text-[10px] text-center font-bold text-muted-foreground">{Math.round(logoUploadProgress)}%</p>
-                  </div>
-                )}
+                {logoUploadProgress !== null && <Progress value={logoUploadProgress} className="h-1" />}
               </div>
 
               <div className="space-y-4">
-                <Label>Ícone (Favicon/Mobile)</Label>
+                <Label>Ícone do site</Label>
                 <div 
                   className="relative aspect-square rounded-2xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden group cursor-pointer"
                   onClick={() => document.getElementById('icon-upload')?.click()}
                 >
                   {iconUrl ? (
-                    <div className="p-8">
-                      <img src={iconUrl} alt="Icon" className="w-16 h-16 object-contain" />
-                    </div>
+                    <img src={iconUrl} alt="Icon" className="w-16 h-16 object-contain" />
                   ) : (
                     <div className="text-center p-4">
                       <ImageIcon className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Upload Ícone</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Ícone</p>
                     </div>
                   )}
                   <div className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold">
-                    Alterar Ícone
+                    Upload
                   </div>
-                  <input 
-                    id="icon-upload" 
-                    type="file" 
-                    accept="image/*" 
-                    className="hidden" 
-                    onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'icon')}
-                  />
+                  <input id="icon-upload" type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'icon')} />
                 </div>
-                {iconUploadProgress !== null && (
-                  <div className="space-y-1">
-                    <Progress value={iconUploadProgress} className="h-1" />
-                    <p className="text-[10px] text-center font-bold text-muted-foreground">{Math.round(iconUploadProgress)}%</p>
-                  </div>
-                )}
+                {iconUploadProgress !== null && <Progress value={iconUploadProgress} className="h-1" />}
               </div>
             </div>
           </CardContent>
@@ -220,11 +200,11 @@ export default function AdminConfiguracoesPage() {
 
         <Button 
           type="submit" 
-          className="w-full bg-secondary text-white font-bold h-14 rounded-2xl shadow-lg hover:bg-secondary/90 transition-all hover:scale-[1.01]" 
+          className="w-full bg-secondary text-white font-bold h-14 rounded-2xl shadow-lg" 
           disabled={saving || logoUploadProgress !== null || iconUploadProgress !== null}
         >
           {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-          Salvar Identidade Visual
+          Salvar Configurações
         </Button>
       </form>
     </div>
