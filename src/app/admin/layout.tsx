@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -6,7 +5,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore } from "@/firebase"
 import { doc, getDoc } from "firebase/firestore"
-import { Loader2, ShieldCheck, ArrowLeft, LayoutDashboard, Tag, Users, Settings as SettingsIcon, LogOut } from "lucide-react"
+import { Loader2, ShieldCheck, ArrowLeft, LayoutDashboard, Tag, Users, Settings as SettingsIcon, LogOut, CalendarDays } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { signOut } from "firebase/auth"
@@ -71,6 +70,7 @@ export default function AdminLayout({
 
   const navItems = [
     { title: "Visão Geral", url: "/admin", icon: LayoutDashboard },
+    { title: "Eventos", url: "/admin/eventos", icon: CalendarDays },
     { title: "Categorias", url: "/admin/categorias", icon: Tag },
     { title: "Usuários", url: "/admin/usuarios", icon: Users },
     { title: "Configurações", url: "/admin/configuracoes", icon: SettingsIcon },
@@ -78,7 +78,6 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex">
-      {/* Admin Sidebar */}
       <aside className="w-64 bg-primary text-white hidden lg:flex flex-col sticky top-0 h-screen">
         <div className="p-8">
           <Link href="/dashboard" className="flex items-center gap-3">
@@ -127,8 +126,7 @@ export default function AdminLayout({
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col overflow-y-auto">
         <header className="h-16 border-b border-border bg-white flex items-center justify-between px-8 sticky top-0 z-50">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-secondary" />

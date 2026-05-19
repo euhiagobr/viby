@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // VIBY PLATFORM RULES - Versão: 1.4.0
+    // VIBY PLATFORM RULES - Versão: 1.5.0
     // Banco de Dados: eventosviby
 
     function isSignedIn() {
@@ -14,32 +14,36 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
-    // Configurações do Site: Leitura pública total para branding, escrita apenas Admin
+    // Configurações do Site
     match /settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Usuários: Leitura pública (para perfis), escrita para o próprio ou Admin
+    // Usuários: Admin tem poder total. Usuários normais escrevem no próprio perfil.
     match /users/{userId} {
       allow read: if true;
-      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
     }
 
-    // Unicidade de nomes de usuário: Leitura pública para busca, escrita por qualquer autenticado
+    // Unicidade de nomes de usuário
     match /usernames/{username} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow create: if isSignedIn();
+      allow delete: if isAdmin();
+      allow update: if isAdmin();
     }
 
-    // Eventos: Leitura pública, escrita para organizadores ou Admin
+    // Eventos: Admin pode gerenciar tudo. Organizadores gerenciam os próprios.
     match /events/{eventId} {
       allow read: if true;
       allow create: if isSignedIn();
       allow update, delete: if isSignedIn() && (resource.data.organizerId == request.auth.uid || isAdmin());
     }
     
-    // Inscrições em eventos
+    // Inscrições
     match /registrations/{regId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
@@ -59,9 +63,9 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Regra padrão de segurança para o banco eventosviby
+    // Regra padrão de segurança
     match /{allPaths=**} {
-      allow read: if isSignedIn() || isAdmin();
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
   }

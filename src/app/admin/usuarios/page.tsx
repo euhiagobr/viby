@@ -1,9 +1,8 @@
-
 "use client"
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, doc, updateDoc } from "firebase/firestore"
+import { collection, query, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore"
 import { 
   Table, 
   TableBody, 
@@ -25,7 +24,8 @@ import {
   User as UserIcon,
   ShieldCheck,
   MapPin,
-  BadgeCheck
+  BadgeCheck,
+  Trash2
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
@@ -64,7 +64,7 @@ export default function AdminUsuariosPage() {
       .then(() => {
         toast({ 
           title: newStatus ? "Usuário Verificado" : "Verificação Removida",
-          description: `O status de verificação foi atualizado com sucesso.`
+          description: `O status de verificação foi atualizado.`
         })
       })
       .catch(async (error) => {
@@ -75,6 +75,27 @@ export default function AdminUsuariosPage() {
         })
         errorEmitter.emit("permission-error", permissionError)
       })
+  }
+
+  const handleDeleteUser = async (userId: string, username: string) => {
+    if (!db) return
+    if (!confirm(`Tem certeza que deseja excluir o usuário @${username}? Esta ação é irreversível.`)) return
+
+    try {
+      // Nota: No cliente não conseguimos excluir o usuário do Firebase Auth,
+      // mas podemos remover os dados do Firestore.
+      await deleteDoc(doc(db, "users", userId))
+      if (username) {
+        await deleteDoc(doc(db, "usernames", username.toLowerCase()))
+      }
+      toast({ title: "Usuário removido", description: "Os dados do Firestore foram excluídos." })
+    } catch (error) {
+       const permissionError = new FirestorePermissionError({
+          path: `users/${userId}`,
+          operation: "delete"
+        })
+        errorEmitter.emit("permission-error", permissionError)
+    }
   }
 
   if (loading) {
@@ -89,7 +110,7 @@ export default function AdminUsuariosPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Gestão de Usuários</h1>
-        <p className="text-muted-foreground">Visualize e gerencie todos os usuários e organizadores da plataforma.</p>
+        <p className="text-muted-foreground">Visualize, verifique ou remova organizadores da plataforma.</p>
       </div>
 
       <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
@@ -100,72 +121,56 @@ export default function AdminUsuariosPage() {
                 <Users className="w-5 h-5 text-secondary" />
                 Usuários Cadastrados
               </CardTitle>
-              <CardDescription>Total de {filteredUsers.length} usuários encontrados.</CardDescription>
+              <CardDescription>Total de {filteredUsers.length} usuários.</CardDescription>
             </div>
             <div className="relative w-full md:w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="Buscar por nome, e-mail ou @user..." 
+                placeholder="Buscar por nome ou @user..." 
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl"
               />
             </div>
           </div>
-        </CardHeader>
+        </Header>
         <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow>
-                <TableHead className="w-[280px] font-bold">Usuário</TableHead>
-                <TableHead className="font-bold">Tipo de Conta</TableHead>
-                <TableHead className="font-bold">Localização</TableHead>
+                <TableHead className="w-[250px] font-bold">Usuário</TableHead>
+                <TableHead className="font-bold">Conta</TableHead>
                 <TableHead className="font-bold">Cargo</TableHead>
-                <TableHead className="text-center font-bold">Verificado</TableHead>
+                <TableHead className="text-center font-bold">Status</TableHead>
                 <TableHead className="text-right font-bold">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredUsers.length > 0 ? (
                 filteredUsers.map((user) => (
-                  <TableRow key={user.id} className="hover:bg-muted/20 transition-colors">
+                  <TableRow key={user.id} className="hover:bg-muted/20">
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10 border border-border">
-                          <AvatarImage src={user.avatar} alt={user.name} />
-                          <AvatarFallback className="font-bold">{user.name?.charAt(0) || "U"}</AvatarFallback>
+                        <Avatar className="h-9 w-9 border">
+                          <AvatarImage src={user.avatar} />
+                          <AvatarFallback className="font-bold text-xs">{user.name?.charAt(0)}</AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-sm">{user.name}</span>
-                            {user.isVerified && <BadgeCheck className="w-4 h-4 text-secondary" />}
-                          </div>
-                          <span className="text-xs text-muted-foreground">@{user.username}</span>
+                          <span className="font-bold text-sm truncate max-w-[150px]">{user.name}</span>
+                          <span className="text-[10px] text-muted-foreground">@{user.username}</span>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="gap-1.5 font-medium rounded-lg py-1">
-                        {user.accountType === 'Empresa' ? (
-                          <><Building2 className="w-3 h-3 text-secondary" /> Empresa</>
-                        ) : (
-                          <><UserIcon className="w-3 h-3 text-muted-foreground" /> Usuário</>
-                        )}
+                      <Badge variant="outline" className="text-[10px] font-bold">
+                        {user.accountType === 'Empresa' ? 'Empresa' : 'Pessoal'}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <MapPin className="w-3 h-3" />
-                        {user.city ? `${user.city}, ${user.state}` : "Não informado"}
-                      </div>
-                    </TableCell>
-                    <TableCell>
                       {user.role === 'admin' ? (
-                        <Badge className="bg-secondary text-white border-none gap-1 rounded-lg">
-                          <ShieldCheck className="w-3 h-3" /> Admin
-                        </Badge>
+                        <Badge className="bg-secondary text-white text-[10px] font-bold">Admin</Badge>
                       ) : (
-                        <span className="text-xs text-muted-foreground font-medium">Membro</span>
+                        <span className="text-[10px] font-bold text-muted-foreground">Membro</span>
                       )}
                     </TableCell>
                     <TableCell className="text-center">
@@ -173,28 +178,34 @@ export default function AdminUsuariosPage() {
                         variant="ghost" 
                         size="icon" 
                         className={cn(
-                          "rounded-full transition-all hover:scale-110",
-                          user.isVerified ? "text-secondary hover:bg-secondary/10" : "text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted"
+                          "rounded-full h-8 w-8",
+                          user.isVerified ? "text-secondary" : "text-muted-foreground/20"
                         )}
                         onClick={() => handleToggleVerify(user.id, !!user.isVerified)}
-                        title={user.isVerified ? "Remover Verificação" : "Verificar Usuário"}
                       >
-                        <BadgeCheck className="w-6 h-6" />
+                        <BadgeCheck className="w-5 h-5" />
                       </Button>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" asChild className="gap-2 font-bold h-9 px-4 rounded-lg">
-                        <Link href={`/${user.username}`} target="_blank">
-                          Ver Perfil
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </Link>
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button variant="ghost" size="sm" asChild className="h-8 text-xs font-bold px-3">
+                          <Link href={`/${user.username}`} target="_blank">Perfil</Link>
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                          onClick={() => handleDeleteUser(user.id, user.username)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground italic">
+                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
                     Nenhum usuário encontrado.
                   </TableCell>
                 </TableRow>
