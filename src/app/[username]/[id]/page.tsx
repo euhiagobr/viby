@@ -104,6 +104,18 @@ export default function EventoDetalhesPage() {
     }
   };
 
+  const generateTicketCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 16; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+      if ((i + 1) % 4 === 0 && i !== 15) {
+        result += '-';
+      }
+    }
+    return result;
+  }
+
   const handleRegisterInterest = async () => {
     if (!auth || !user) {
       toast({ title: "Ação necessária", description: "Você precisa entrar para marcar interesse." })
@@ -134,7 +146,8 @@ export default function EventoDetalhesPage() {
       price: price,
       batchName: batchName,
       checkedIn: false,
-      paymentStatus: event.isFree ? "Disponível" : "Pendente"
+      paymentStatus: event.isFree ? "Disponível" : "Pendente",
+      ticketCode: generateTicketCode()
     }
 
     addDoc(collection(db, "registrations"), regData)
@@ -221,7 +234,7 @@ export default function EventoDetalhesPage() {
                 </Badge>
               )}
             </div>
-            <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-white tracking-tighter leading-tight">{event.title}</h1>
+            <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-white tracking-tighter leadership-tight">{event.title}</h1>
             <div className="flex flex-wrap gap-x-6 gap-y-3 text-white/90 text-sm font-semibold">
               <span className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full">
                 <MapPin className="w-4 h-4 text-secondary" />

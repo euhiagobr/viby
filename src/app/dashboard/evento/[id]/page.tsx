@@ -82,6 +82,18 @@ export default function EventoDetalhesPage() {
     }
   };
 
+  const generateTicketCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 16; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+      if ((i + 1) % 4 === 0 && i !== 15) {
+        result += '-';
+      }
+    }
+    return result;
+  }
+
   const handleRegisterInterest = async () => {
     if (!auth || !user) {
       toast({ title: "Ação necessária", description: "Você precisa entrar para marcar interesse." })
@@ -112,13 +124,14 @@ export default function EventoDetalhesPage() {
       price: price,
       batchName: batchName,
       checkedIn: false,
-      paymentStatus: event.isFree ? "Disponível" : "Pendente"
+      paymentStatus: event.isFree ? "Disponível" : "Pendente",
+      ticketCode: generateTicketCode()
     }
 
     addDoc(collection(db, "registrations"), regData)
       .then(() => {
         setIsRegistered(true)
-        toast({ title: "Sucesso!", description: "Sua presença foi registrada na lista do organizador." })
+        toast({ title: "Inscrito com sucesso!", description: "Seu ingresso já está disponível em Meus Ingressos." })
       })
       .catch(async (error) => {
         const permissionError = new FirestorePermissionError({

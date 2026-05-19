@@ -7,10 +7,9 @@ import { collection, query, where, doc, getDoc } from "firebase/firestore"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, Ticket, Calendar, MapPin, Clock, ExternalLink, QrCode, AlertCircle } from "lucide-react"
+import { Loader2, Ticket, Calendar, MapPin, Clock, ExternalLink, QrCode } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
-import { cn } from "@/lib/utils"
 
 export default function MeusIngressosPage() {
   const db = useFirestore()
@@ -66,10 +65,9 @@ export default function MeusIngressosPage() {
 function TicketListItem({ registration }: { registration: any }) {
   const db = useFirestore()
   const [event, setEvent] = React.useState<any>(null)
-  const [loading, setLoading] = React.useState(!registration.eventTitle) // Carrega se não houver denormalização
+  const [loading, setLoading] = React.useState(!registration.eventTitle)
 
   React.useEffect(() => {
-    // Se já temos os dados básicos denormalizados, podemos mostrar o card e carregar o resto em bg
     if (!db || !registration.eventId) return
     
     const fetchEvent = async () => {
@@ -190,8 +188,10 @@ function TicketListItem({ registration }: { registration: any }) {
                  <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Detalhes
                </Link>
             </Button>
-            <Button size="sm" className="h-9 px-4 text-[10px] font-black uppercase rounded-xl bg-primary text-white hover:bg-primary/90 shadow-sm">
-               <QrCode className="w-3.5 h-3.5 mr-1.5" /> Voucher
+            <Button size="sm" className="h-9 px-4 text-[10px] font-black uppercase rounded-xl bg-primary text-white hover:bg-primary/90 shadow-sm" asChild>
+               <Link href={`/dashboard/ingressos/${registration.id}/voucher`}>
+                 <QrCode className="w-3.5 h-3.5 mr-1.5" /> Voucher
+               </Link>
             </Button>
           </div>
         </div>

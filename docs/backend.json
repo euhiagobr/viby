@@ -90,7 +90,8 @@
         "price": { "type": "number" },
         "batchName": { "type": "string" },
         "checkedIn": { "type": "boolean" },
-        "paymentStatus": { "type": "string", "enum": ["Disponível", "Pendente", "Pago", "Expirado"] }
+        "paymentStatus": { "type": "string", "enum": ["Disponível", "Pendente", "Pago", "Expirado"] },
+        "ticketCode": { "type": "string", "description": "Código de 16 caracteres formatado XXXX-XXXX-XXXX-XXXX" }
       },
       "required": ["eventId", "userId", "organizerId"]
     },
