@@ -30,8 +30,12 @@ service cloud.firestore {
 
     // Chaves do Stripe (Segurança Crítica)
     match /settings/stripe {
-      // Aberto para leitura autenticada temporariamente para permitir que o servidor 
-      // (que usa o SDK cliente nas Server Actions) consiga ler as chaves.
+      allow read: if isSignedIn(); 
+      allow write: if isAdmin();
+    }
+
+    // Configurações de E-mail (Segurança Crítica)
+    match /settings/email {
       allow read: if isSignedIn(); 
       allow write: if isAdmin();
     }

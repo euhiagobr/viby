@@ -21,7 +21,8 @@ import {
   Eye,
   EyeOff,
   Key,
-  Info
+  Info,
+  Mail
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -34,9 +35,11 @@ export default function AdminConfiguracoesPage() {
   // Settings Refs
   const settingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'site') : null), [db]);
   const stripeRef = React.useMemo(() => (db ? doc(db, 'settings', 'stripe') : null), [db]);
+  const emailRef = React.useMemo(() => (db ? doc(db, 'settings', 'email') : null), [db]);
 
   const { data: settings, loading: loadingSettings } = useDoc<any>(settingsRef);
   const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
+  const { data: emailSettings, loading: loadingEmail } = useDoc<any>(emailRef);
 
   const [saving, setSaving] = React.useState(false);
   const [logoUploadProgress, setLogoUploadProgress] = React.useState<number | null>(null);
@@ -52,6 +55,11 @@ export default function AdminConfiguracoesPage() {
   const [stripeSecretKey, setStripeSecretKey] = React.useState('');
   const [showSecret, setShowSecret] = React.useState(false);
 
+  // Email State
+  const [smtpUser, setSmtpUser] = React.useState('');
+  const [smtpPass, setSmtpPass] = React.useState('');
+  const [showEmailPass, setShowEmailPass] = React.useState(false);
+
   React.useEffect(() => {
     if (settings) {
       setLogoUrl(settings.logoUrl || '');
@@ -66,6 +74,13 @@ export default function AdminConfiguracoesPage() {
       setStripeSecretKey(stripeKeys.secretKey || '');
     }
   }, [stripeKeys]);
+
+  React.useEffect(() => {
+    if (emailSettings) {
+      setSmtpUser(emailSettings.smtpUser || '');
+      setSmtpPass(emailSettings.smtpPass || '');
+    }
+  }, [emailSettings]);
 
   const storage = React.useMemo(() => {
     if (!app) return null;
@@ -154,7 +169,30 @@ export default function AdminConfiguracoesPage() {
       .finally(() => setSaving(false));
   };
 
-  if (loadingSettings || loadingStripe) {
+  const handleSaveEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!db) return;
+    setSaving(true);
+
+    const emailData = {
+      smtpUser: smtpUser.trim(),
+      smtpPass: smtpPass.trim(),
+      updatedAt: serverTimestamp(),
+    };
+
+    setDoc(doc(db, 'settings', 'email'), emailData, { merge: true })
+      .then(() => toast({ title: 'Configurações de E-mail salvas!', description: 'O sistema de notificações está ativo.' }))
+      .catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'settings/email',
+          operation: 'write',
+          requestResourceData: emailData,
+        }));
+      })
+      .finally(() => setSaving(false));
+  };
+
+  if (loadingSettings || loadingStripe || loadingEmail) {
     return (
       <div className="flex justify-center items-center h-[60vh]">
         <Loader2 className="w-10 h-10 animate-spin text-secondary" />
@@ -176,6 +214,9 @@ export default function AdminConfiguracoesPage() {
           </TabsTrigger>
           <TabsTrigger value="payments" className="gap-2 rounded-lg font-bold">
             <CreditCard className="w-4 h-4" /> Pagamentos
+          </TabsTrigger>
+          <TabsTrigger value="email" className="gap-2 rounded-lg font-bold">
+            <Mail className="w-4 h-4" /> E-mail
           </TabsTrigger>
         </TabsList>
 
@@ -306,6 +347,82 @@ export default function AdminConfiguracoesPage() {
             <Button type="submit" disabled={saving} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-lg shadow-secondary/20">
               {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
               Salvar Configurações de Pagamento
+            </Button>
+          </form>
+        </TabsContent>
+
+        <TabsContent value="email">
+          <form onSubmit={handleSaveEmail} className="space-y-6 max-w-2xl">
+            <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-50 rounded-lg">
+                    <Mail className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">Configuração de E-mail</CardTitle>
+                    <CardDescription>Configure o Google Workspace para envio de ingressos.</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+                    E-mail do Remetente (Google Workspace)
+                  </Label>
+                  <Input 
+                    value={smtpUser}
+                    onChange={(e) => setSmtpUser(e.target.value)}
+                    placeholder="contato@suaempresa.com.br"
+                    className="rounded-xl h-12"
+                  />
+                  <p className="text-[10px] text-muted-foreground">O e-mail que aparecerá como remetente para o usuário.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Key className="w-3.5 h-3.5 text-purple-600" />
+                    Senha de App (Google)
+                  </Label>
+                  <div className="relative">
+                    <Input 
+                      type={showEmailPass ? "text" : "password"}
+                      value={smtpPass}
+                      onChange={(e) => setSmtpPass(e.target.value)}
+                      placeholder="abcd efgh ijkl mnop"
+                      className="rounded-xl font-mono text-xs h-12 pr-12"
+                    />
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon" 
+                      className="absolute right-2 top-1/2 -translate-y-1/2"
+                      onClick={() => setShowEmailPass(!showEmailPass)}
+                    >
+                      {showEmailPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Não use sua senha normal. Gere uma "Senha de App" nas configurações de segurança do seu Google Account.</p>
+                </div>
+
+                <div className="p-4 bg-purple-50 border border-purple-100 rounded-xl flex gap-3">
+                  <Info className="w-5 h-5 text-purple-600 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-purple-800 font-bold uppercase">Como configurar?</p>
+                    <ol className="text-[10px] text-purple-800 list-decimal ml-4 space-y-1">
+                      <li>Acesse sua Conta Google > Segurança</li>
+                      <li>Ative a "Verificação em duas etapas"</li>
+                      <li>Vá em "Senhas de App" e crie uma para "E-mail"</li>
+                      <li>Copie o código de 16 letras e cole aqui</li>
+                    </ol>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Button type="submit" disabled={saving} className="w-full bg-primary text-white font-black h-14 rounded-2xl shadow-lg">
+              {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
+              Salvar Configurações de E-mail
             </Button>
           </form>
         </TabsContent>
