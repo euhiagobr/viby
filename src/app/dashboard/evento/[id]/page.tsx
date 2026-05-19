@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -37,7 +38,14 @@ export default function EventoDetalhesPage() {
   const eventId = params.id as string
   
   const eventRef = React.useMemo(() => db ? doc(db, "events", eventId) : null, [db, eventId])
-  const { data: event, loading } = useDoc<any>(eventRef)
+  const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
+  
+  // Buscar perfil atualizado do organizador
+  const organizerRef = React.useMemo(() => 
+    (db && event?.organizerId) ? doc(db, "users", event.organizerId) : null, 
+    [db, event?.organizerId]
+  )
+  const { data: organizerProfile, loading: organizerLoading } = useDoc<any>(organizerRef)
   
   const [isRegistered, setIsRegistered] = React.useState(false)
   const [registering, setRegistering] = React.useState(false)
@@ -107,7 +115,7 @@ export default function EventoDetalhesPage() {
       .finally(() => setRegistering(false))
   }
 
-  if (loading) {
+  if (eventLoading) {
     return (
       <div className="flex justify-center items-center h-[60vh]">
         <Loader2 className="w-10 h-10 animate-spin text-secondary" />
@@ -126,6 +134,12 @@ export default function EventoDetalhesPage() {
 
   const start = formatDateTime(event.date);
   const end = formatDateTime(event.endDate);
+
+  // Usa o perfil atualizado ou o fallback do evento
+  const orgName = organizerProfile?.name || event.organizer?.name || "Organizador";
+  const orgAvatar = organizerProfile?.avatar || event.organizer?.avatar;
+  const orgIsVerified = organizerProfile?.isVerified ?? event.organizer?.isVerified;
+  const orgUsername = organizerProfile?.username;
 
   return (
     <div className="space-y-8 pb-20 max-w-6xl mx-auto">
@@ -263,13 +277,13 @@ export default function EventoDetalhesPage() {
             <CardContent className="space-y-6">
               <div className="flex items-center gap-4">
                 <Avatar className="h-14 w-14 border-2 border-secondary/20 p-0.5">
-                  <AvatarImage src={event.organizer?.avatar} alt={event.organizer?.name} className="rounded-full" />
-                  <AvatarFallback className="font-bold">{event.organizer?.name?.charAt(0) || "O"}</AvatarFallback>
+                  <AvatarImage src={orgAvatar} alt={orgName} className="rounded-full object-cover" />
+                  <AvatarFallback className="font-bold">{orgName.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-1.5">
-                    <h4 className="font-bold text-base leading-none">{event.organizer?.name || "Organizador"}</h4>
-                    {event.organizer?.isVerified && <BadgeCheck className="w-4 h-4 text-secondary" />}
+                    <h4 className="font-bold text-base leading-none">{orgName}</h4>
+                    {orgIsVerified && <BadgeCheck className="w-4 h-4 text-secondary" />}
                   </div>
                   <p className="text-[10px] font-bold text-muted-foreground uppercase">Promotor Verificado</p>
                 </div>
@@ -277,7 +291,7 @@ export default function EventoDetalhesPage() {
               
               <div className="flex gap-2">
                 <Button variant="outline" className="flex-1 rounded-xl text-xs font-bold gap-2 h-10" asChild>
-                  <Link href={`/perfil/${event.organizerId || ""}`} className="w-full">
+                  <Link href={orgUsername ? `/${orgUsername}` : `/dashboard`} className="w-full">
                     Ver Perfil
                     <ExternalLink className="w-3 h-3" />
                   </Link>
