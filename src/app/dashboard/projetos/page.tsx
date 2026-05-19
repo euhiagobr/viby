@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -22,6 +21,16 @@ export default function MeusEventosPage() {
   }, [db, user])
 
   const { data: events, loading } = useCollection<any>(myEventsQuery)
+
+  const formatDate = (date: any) => {
+    if (!date) return "Data não definida";
+    try {
+      const d = date?.toDate ? date.toDate() : new Date(date);
+      return isNaN(d.getTime()) ? "Data inválida" : d.toLocaleDateString('pt-BR');
+    } catch (e) {
+      return "Data inválida";
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -65,7 +74,7 @@ export default function MeusEventosPage() {
                 <div className="flex items-center gap-4 py-2 border-y border-border">
                   <div className="flex items-center gap-1 text-xs font-semibold">
                     <CalendarIcon className="w-3.5 h-3.5 text-secondary" />
-                    <span>{event.startDate ? new Date(event.startDate).toLocaleDateString('pt-BR') : 'Data não definida'}</span>
+                    <span>{formatDate(event.date)}</span>
                   </div>
                   <div className="flex items-center gap-1 text-xs font-semibold">
                     <MapPin className="w-3.5 h-3.5 text-secondary" />

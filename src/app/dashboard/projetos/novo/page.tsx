@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -25,7 +24,7 @@ import {
   Plus, 
   Trash2, 
   Loader2, 
-  Image as ImageIcon,
+  ImageIcon,
   Map as MapIcon,
   Tag,
   Hash,
@@ -49,14 +48,11 @@ export default function NovoEventoPage() {
   const { user } = useUser(auth)
   const app = useFirebaseApp()
   
-  // Inicialização explícita do bucket 'viby'
   const storage = React.useMemo(() => {
     if (!app) return null;
     try {
-      // Tenta carregar o bucket específico 'viby'
       return getStorage(app, "gs://viby");
     } catch (e) {
-      console.warn("Bucket gs://viby não disponível, usando padrão:", e);
       return getStorage(app);
     }
   }, [app])
@@ -115,45 +111,24 @@ export default function NovoEventoPage() {
           setUploadProgress(progress)
         }, 
         (error: any) => {
-          console.error("Erro no upload (storage):", error)
+          console.error("Upload error:", error)
           setUploadProgress(null)
-          
-          let errorMessage = "Ocorreu um erro desconhecido no upload."
-          if (error.code === 'storage/unauthorized') {
-            errorMessage = "Permissão negada no bucket 'viby'. Verifique se as regras foram propagadas ou se o bucket existe."
-          } else if (error.code === 'storage/canceled') {
-            errorMessage = "O upload foi cancelado."
-          }
-
           toast({
             variant: "destructive",
             title: "Erro no upload",
-            description: errorMessage
+            description: "Não foi possível carregar a imagem selecionada. Verifique as permissões de Storage."
           })
         }, 
         async () => {
-          try {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
-            setUploadedImageUrl(downloadURL)
-            setUploadProgress(null)
-            toast({
-              title: "Imagem carregada!",
-              description: "A foto da capa foi salva com sucesso."
-            })
-          } catch (e) {
-            console.error("Erro ao obter URL de download:", e)
-            setUploadProgress(null)
-          }
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+          setUploadedImageUrl(downloadURL)
+          setUploadProgress(null)
+          toast({ title: "Imagem carregada!" })
         }
       )
     } catch (err: any) {
-      console.error("Catch upload error:", err)
       setUploadProgress(null)
-      toast({
-        variant: "destructive",
-        title: "Erro fatal no upload",
-        description: err.message
-      })
+      toast({ variant: "destructive", title: "Erro no upload", description: err.message })
     }
   }
 
@@ -174,9 +149,7 @@ export default function NovoEventoPage() {
           country: "Brasil"
         }))
       }
-    } catch (e) {
-      console.error("Erro ao buscar CEP")
-    }
+    } catch (e) {}
   }
 
   const addBatch = () => {
@@ -198,12 +171,7 @@ export default function NovoEventoPage() {
     if (!db || !user) return
 
     if (!selectedCategory) {
-      toast({ variant: "destructive", title: "Erro", description: "Selecione uma categoria para o evento." })
-      return
-    }
-
-    if (uploadProgress !== null) {
-      toast({ variant: "destructive", title: "Aguarde", description: "A imagem ainda está sendo carregada." })
+      toast({ variant: "destructive", title: "Erro", description: "Selecione uma categoria." })
       return
     }
 
@@ -215,7 +183,7 @@ export default function NovoEventoPage() {
         title: formData.get("title") as string,
         shortDescription: formData.get("shortDescription") as string,
         description: formData.get("description") as string,
-        startDate: formData.get("startDate") as string,
+        date: formData.get("startDate") as string, // Usando 'date' para padronização
         endDate: formData.get("endDate") as string,
         categoryId: selectedCategory,
         tags: tags.split(",").map(t => t.trim()).filter(t => t !== ""),
@@ -242,14 +210,10 @@ export default function NovoEventoPage() {
       }
 
       await addDoc(collection(db, "events"), eventData)
-      toast({ title: "Evento Publicado!", description: "Seu evento já está disponível para o público." })
+      toast({ title: "Evento Publicado!" })
       router.push("/dashboard/projetos")
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Erro ao publicar",
-        description: error.message
-      })
+      toast({ variant: "destructive", title: "Erro ao publicar", description: error.message })
     } finally {
       setLoading(false)
     }
@@ -271,11 +235,10 @@ export default function NovoEventoPage() {
               <ImageIcon className="w-5 h-5 text-secondary" />
               Capa do Evento
             </CardTitle>
-            <CardDescription>O upload será feito automaticamente no bucket viby.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div 
-              className="relative aspect-video rounded-xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden cursor-pointer hover:bg-muted/50 transition-colors"
+              className="relative aspect-video rounded-xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden cursor-pointer"
               onClick={() => document.getElementById('image-upload')?.click()}
             >
               {imagePreview ? (
@@ -283,7 +246,7 @@ export default function NovoEventoPage() {
               ) : (
                 <>
                   <Upload className="w-10 h-10 text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground font-medium">Clique para fazer upload (16:9)</p>
+                  <p className="text-sm text-muted-foreground">Clique para carregar capa (16:9)</p>
                 </>
               )}
               <input 
@@ -295,12 +258,9 @@ export default function NovoEventoPage() {
               />
             </div>
             {uploadProgress !== null && (
-              <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                <div className="flex justify-between text-xs font-bold text-muted-foreground uppercase">
-                  <span>Carregando imagem...</span>
-                  <span>{Math.round(uploadProgress)}%</span>
-                </div>
+              <div className="space-y-2">
                 <Progress value={uploadProgress} className="h-2" />
+                <p className="text-[10px] text-center font-bold text-muted-foreground uppercase">Enviando: {Math.round(uploadProgress)}%</p>
               </div>
             )}
           </CardContent>
@@ -317,7 +277,7 @@ export default function NovoEventoPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="title">Nome do Evento</Label>
-                <Input id="title" name="title" placeholder="Ex: Festival de Verão Viby 2024" required />
+                <Input id="title" name="title" placeholder="Ex: Festival de Verão Viby" required />
               </div>
               <div className="space-y-2">
                 <Label>Categoria</Label>
@@ -336,37 +296,28 @@ export default function NovoEventoPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="startDate">Data e Hora de Início (UTC-3)</Label>
-                <div className="relative">
-                  <Input id="startDate" name="startDate" type="datetime-local" className="pl-10" required />
-                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                </div>
+                <Label htmlFor="startDate">Data e Hora de Início</Label>
+                <Input id="startDate" name="startDate" type="datetime-local" required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="endDate">Data e Hora de Fim (UTC-3)</Label>
-                <div className="relative">
-                  <Input id="endDate" name="endDate" type="datetime-local" className="pl-10" required />
-                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                </div>
+                <Label htmlFor="endDate">Data e Hora de Fim</Label>
+                <Input id="endDate" name="endDate" type="datetime-local" required />
               </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="tags">Tags (separadas por vírgula)</Label>
-              <div className="relative">
-                <Input id="tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="musica, festival, artes..." className="pl-10" />
-                <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              </div>
+              <Input id="tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="musica, festival..." />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="shortDescription">Breve Descrição</Label>
-              <Input id="shortDescription" name="shortDescription" placeholder="Uma frase chamativa para a vitrine..." required />
+              <Input id="shortDescription" name="shortDescription" placeholder="Frase chamativa..." required />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="description">Descrição Completa</Label>
-              <Textarea id="description" name="description" placeholder="Conte todos os detalhes do evento..." className="min-h-[150px]" required />
+              <Textarea id="description" name="description" placeholder="Detalhes do evento..." className="min-h-[150px]" required />
             </div>
           </CardContent>
         </Card>
@@ -386,14 +337,14 @@ export default function NovoEventoPage() {
               </div>
               <div className="md:col-span-2 space-y-2">
                 <Label htmlFor="street">Logradouro</Label>
-                <Input id="street" value={address.street} onChange={(e) => setAddress({...address, street: e.target.value})} placeholder="Rua, Avenida..." required />
+                <Input id="street" value={address.street} onChange={(e) => setAddress({...address, street: e.target.value})} placeholder="Rua..." required />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="number">Número</Label>
-                <Input id="number" value={address.number} onChange={(e) => setAddress({...address, number: e.target.value})} placeholder="123" required />
+                <Input id="number" value={address.number} onChange={(e) => setAddress({...address, number: e.target.value})} required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="neighborhood">Bairro</Label>
@@ -404,123 +355,59 @@ export default function NovoEventoPage() {
                 <Input id="city" value={address.city} onChange={(e) => setAddress({...address, city: e.target.value})} required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="state">Estado (UF)</Label>
-                <Input id="state" value={address.state} onChange={(e) => setAddress({...address, state: e.target.value})} placeholder="EX: SP" required />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               <div className="space-y-2">
-                <Label htmlFor="country" className="flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-secondary" />
-                  País
-                </Label>
-                <Input id="country" value={address.country} onChange={(e) => setAddress({...address, country: e.target.value})} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="complement">Complemento</Label>
-                <Input id="complement" value={address.complement} onChange={(e) => setAddress({...address, complement: e.target.value})} placeholder="Apto, Bloco, etc." />
-              </div>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-4">
-              <Label className="flex items-center gap-2">
-                <MapIcon className="w-4 h-4 text-secondary" />
-                Coordenadas do Pin
-              </Label>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground">Latitude</span>
-                  <Input value={coords.lat} onChange={(e) => setCoords({...coords, lat: e.target.value})} />
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground">Longitude</span>
-                  <Input value={coords.lng} onChange={(e) => setCoords({...coords, lng: e.target.value})} />
-                </div>
+                <Label htmlFor="state">Estado</Label>
+                <Input id="state" value={address.state} onChange={(e) => setAddress({...address, state: e.target.value})} required />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6 border-b border-border">
-            <div className="space-y-1">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Tag className="w-5 h-5 text-secondary" />
-                Ingressos e Lotes
-              </CardTitle>
-              <CardDescription>Configure como o público terá acesso ao evento.</CardDescription>
-            </div>
-            <div className="flex items-center gap-3 bg-muted/50 px-4 py-2 rounded-full">
-              <Label htmlFor="free-event" className="font-bold text-xs uppercase cursor-pointer">Ingresso Grátis</Label>
+        <Card className="border-none shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-6 border-b">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Tag className="w-5 h-5 text-secondary" />
+              Ingressos
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="free-event">Grátis</Label>
               <Switch id="free-event" checked={isFree} onCheckedChange={setIsFree} />
             </div>
           </CardHeader>
           <CardContent className="p-6">
             {isFree ? (
-              <div className="space-y-6 animate-in fade-in slide-in-from-top-2">
-                <div className="p-8 border-2 border-dashed border-secondary/30 rounded-2xl bg-secondary/5 text-center">
-                  <Plus className="w-10 h-10 mx-auto text-secondary mb-4" />
-                  <h4 className="font-bold text-lg">Este é um Evento Gratuito</h4>
-                  <p className="text-sm text-muted-foreground max-w-sm mx-auto mt-2">
-                    Não haverá cobrança de valores. Você pode definir apenas a capacidade máxima de interessados.
-                  </p>
-                </div>
-                <div className="space-y-2 max-w-xs mx-auto">
-                  <Label htmlFor="freeCapacity">Capacidade de Ingressos</Label>
-                  <Input id="freeCapacity" name="freeCapacity" type="number" placeholder="Ex: 500" required />
-                </div>
+              <div className="space-y-4 text-center">
+                <p className="text-sm text-muted-foreground">Evento gratuito. Defina a capacidade.</p>
+                <Input name="freeCapacity" type="number" placeholder="Capacidade..." className="max-w-xs mx-auto" required />
               </div>
             ) : (
-              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+              <div className="space-y-4">
                 {batches.map((batch, index) => (
-                  <div key={index} className="p-4 rounded-xl border border-border bg-muted/20 space-y-4">
+                  <div key={index} className="p-4 rounded-xl border bg-muted/20 space-y-4">
                     <div className="flex justify-between items-center">
                       <h4 className="font-bold text-sm">Lote #{index + 1}</h4>
                       {batches.length > 1 && (
-                        <button type="button" onClick={() => removeBatch(index)} className="text-destructive hover:bg-destructive/10 p-2 rounded-lg transition-colors">
+                        <Button type="button" variant="ghost" size="icon" onClick={() => removeBatch(index)} className="text-destructive">
                           <Trash2 className="w-4 h-4" />
-                        </button>
+                        </Button>
                       )}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label>Nome do Lote</Label>
-                        <Input value={batch.name} onChange={(e) => updateBatch(index, "name", e.target.value)} placeholder="Ex: VIP" required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Preço (R$)</Label>
-                        <Input value={batch.price} onChange={(e) => updateBatch(index, "price", e.target.value)} type="number" step="0.01" required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Disponíveis</Label>
-                        <Input value={batch.available} onChange={(e) => updateBatch(index, "available", e.target.value)} type="number" required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Vendas Início</Label>
-                        <Input value={batch.startDate} onChange={(e) => updateBatch(index, "startDate", e.target.value)} type="datetime-local" required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Vendas Fim</Label>
-                        <Input value={batch.endDate} onChange={(e) => updateBatch(index, "endDate", e.target.value)} type="datetime-local" required />
-                      </div>
+                      <Input value={batch.name} onChange={(e) => updateBatch(index, "name", e.target.value)} placeholder="Nome do Lote" required />
+                      <Input value={batch.price} onChange={(e) => updateBatch(index, "price", e.target.value)} type="number" step="0.01" placeholder="Preço" required />
+                      <Input value={batch.available} onChange={(e) => updateBatch(index, "available", e.target.value)} type="number" placeholder="Quantidade" required />
                     </div>
                   </div>
                 ))}
-                <Button type="button" variant="outline" className="w-full border-dashed border-2 py-8 hover:bg-secondary/5 hover:border-secondary/50 group" onClick={addBatch}>
-                  <Plus className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" /> 
-                  Adicionar Novo Lote de Ingressos
+                <Button type="button" variant="outline" className="w-full border-dashed" onClick={addBatch}>
+                  <Plus className="w-4 h-4 mr-2" /> Adicionar Lote
                 </Button>
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 h-14 text-lg font-bold shadow-lg" disabled={loading || uploadProgress !== null}>
-          {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-          {uploadProgress !== null ? "Carregando imagem..." : "Publicar Evento Imediatamente"}
+        <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 h-14 text-lg font-bold" disabled={loading || uploadProgress !== null}>
+          {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Publicar Evento"}
         </Button>
       </form>
     </div>

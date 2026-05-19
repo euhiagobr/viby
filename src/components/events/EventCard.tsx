@@ -1,4 +1,3 @@
-
 "use client"
 
 import { Calendar, MapPin, Tag, MoreVertical } from "lucide-react"
@@ -10,15 +9,27 @@ import Image from "next/image"
 import Link from "next/link"
 
 interface EventCardProps {
-  event: Event
+  event: any // Usando any para lidar com dados do Firestore ou Mock
 }
 
 export function EventCard({ event }: EventCardProps) {
+  const formatDate = (date: any) => {
+    if (!date) return "Data não definida";
+    try {
+      // Lida com Date, string ISO ou Firestore Timestamp
+      const d = date?.toDate ? date.toDate() : new Date(date);
+      if (isNaN(d.getTime())) return "Data inválida";
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    } catch (e) {
+      return "Data inválida";
+    }
+  };
+
   return (
     <Card className="group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl">
       <div className="relative h-48 w-full">
         <Image
-          src={event.image}
+          src={event.image || "https://picsum.photos/seed/event/600/400"}
           alt={event.title}
           fill
           className="object-cover transition-transform group-hover:scale-105"
@@ -39,16 +50,16 @@ export function EventCard({ event }: EventCardProps) {
       </CardHeader>
       <CardContent className="p-4 pt-0 space-y-3">
         <p className="text-sm text-muted-foreground line-clamp-2 min-h-[2.5rem]">
-          {event.description}
+          {event.description || event.shortDescription}
         </p>
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
             <Calendar className="w-3.5 h-3.5 text-secondary" />
-            <span>{event.date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+            <span>{formatDate(event.date)}</span>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
             <MapPin className="w-3.5 h-3.5 text-secondary" />
-            <span>{event.location}, {event.city}</span>
+            <span>{event.location || event.address?.street}, {event.city}</span>
           </div>
         </div>
       </CardContent>

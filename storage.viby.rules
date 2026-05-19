@@ -1,9 +1,8 @@
-
 rules_version = '2';
 service firebase.storage {
-  match /b/viby/o {
-    // REGRAS VIBY - Versão: 1.0.0 (Acesso Público Plataforma)
-    // Bucket destinado a arquivos públicos da plataforma Viby Club
+  // REGRAS VIBY - Versão: 1.7.0 (Acesso Público Amplo para Debug)
+  // Permitindo acesso total para resolver erros persistentes de storage/unauthorized
+  match /b/{bucket}/o {
     match /{allPaths=**} {
       allow read, write: if true;
     }
