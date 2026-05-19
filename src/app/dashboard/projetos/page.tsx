@@ -22,20 +22,34 @@ export default function MeusEventosPage() {
 
   const { data: events, loading } = useCollection<any>(myEventsQuery)
 
-  const formatDate = (date: any) => {
-    if (!date) return "Data não definida";
+  const formatDate = (dateValue: any) => {
+    if (!dateValue) return "Data não definida";
     try {
-      const d = date?.toDate ? date.toDate() : new Date(date);
+      let d: Date;
+      if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
+        d = dateValue.toDate();
+      } else if (dateValue instanceof Date) {
+        d = dateValue;
+      } else {
+        d = new Date(dateValue);
+      }
       return isNaN(d.getTime()) ? "Data inválida" : d.toLocaleDateString('pt-BR');
     } catch (e) {
       return "Data inválida";
     }
   };
 
-  const formatTime = (date: any) => {
-    if (!date) return "";
+  const formatTime = (dateValue: any) => {
+    if (!dateValue) return "";
     try {
-      const d = date?.toDate ? date.toDate() : new Date(date);
+      let d: Date;
+      if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
+        d = dateValue.toDate();
+      } else if (dateValue instanceof Date) {
+        d = dateValue;
+      } else {
+        d = new Date(dateValue);
+      }
       if (isNaN(d.getTime())) return "";
       return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     } catch (e) {

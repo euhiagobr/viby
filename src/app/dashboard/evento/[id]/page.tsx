@@ -51,21 +51,35 @@ export default function EventoDetalhesPage() {
     checkReg()
   }, [db, user, eventId])
 
-  const formatDate = (date: any) => {
-    if (!date) return "Data não definida";
+  const formatDate = (dateValue: any) => {
+    if (!dateValue) return "Data não definida";
     try {
-      const d = date?.toDate ? date.toDate() : new Date(date);
-      if (isNaN(d.getTime())) return "Data inválida";
+      let d: Date;
+      if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
+        d = dateValue.toDate();
+      } else if (dateValue instanceof Date) {
+        d = dateValue;
+      } else {
+        d = new Date(dateValue);
+      }
+      if (isNaN(d.getTime())) return "Data não definida";
       return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     } catch (e) {
-      return "Data inválida";
+      return "Data não definida";
     }
   };
 
-  const formatTime = (date: any) => {
-    if (!date) return "";
+  const formatTime = (dateValue: any) => {
+    if (!dateValue) return "";
     try {
-      const d = date?.toDate ? date.toDate() : new Date(date);
+      let d: Date;
+      if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
+        d = dateValue.toDate();
+      } else if (dateValue instanceof Date) {
+        d = dateValue;
+      } else {
+        d = new Date(dateValue);
+      }
       if (isNaN(d.getTime())) return "";
       return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     } catch (e) {

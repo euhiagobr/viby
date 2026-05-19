@@ -12,24 +12,48 @@ interface EventCardProps {
 }
 
 export function EventCard({ event }: EventCardProps) {
-  const formatDate = (date: any) => {
-    if (!date) return "Data não definida";
+  const formatDate = (dateValue: any) => {
+    if (!dateValue) return "Data não definida";
     try {
-      // Handles Firestore Timestamp, JS Date, or ISO String
-      const d = date?.toDate ? date.toDate() : new Date(date);
+      let d: Date;
+      if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
+        d = dateValue.toDate();
+      } else if (dateValue instanceof Date) {
+        d = dateValue;
+      } else {
+        d = new Date(dateValue);
+      }
+
       if (isNaN(d.getTime())) return "Data não definida";
-      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      
+      return d.toLocaleDateString('pt-BR', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric' 
+      });
     } catch (e) {
       return "Data não definida";
     }
   };
 
-  const formatTime = (date: any) => {
-    if (!date) return "";
+  const formatTime = (dateValue: any) => {
+    if (!dateValue) return "";
     try {
-      const d = date?.toDate ? date.toDate() : new Date(date);
+      let d: Date;
+      if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
+        d = dateValue.toDate();
+      } else if (dateValue instanceof Date) {
+        d = dateValue;
+      } else {
+        d = new Date(dateValue);
+      }
+
       if (isNaN(d.getTime())) return "";
-      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      
+      return d.toLocaleTimeString('pt-BR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
     } catch (e) {
       return "";
     }
@@ -64,7 +88,7 @@ export function EventCard({ event }: EventCardProps) {
       </CardHeader>
       <CardContent className="p-4 pt-0 space-y-3">
         <p className="text-sm text-muted-foreground line-clamp-2 min-h-[2.5rem]">
-          {event.description || event.shortDescription}
+          {event.shortDescription || event.description}
         </p>
         <div className="space-y-2">
           <div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
