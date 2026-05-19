@@ -31,6 +31,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
@@ -49,6 +59,10 @@ export default function MeusEventosPage() {
   }, [db, user])
 
   const { data: events, loading: eventsLoading } = useCollection<any>(myEventsQuery)
+
+  // Controle do Modal de Exclusão
+  const [eventToDelete, setEventToDelete] = React.useState<{id: string, title: string} | null>(null)
+  const [isDeleting, setIsDeleting] = React.useState(false)
 
   // Filtro de exclusão lógica para o organizador
   const activeEvents = React.useMemo(() => {
@@ -93,24 +107,26 @@ export default function MeusEventosPage() {
     }
   };
 
-  const handleDeleteEvent = async (eventId: string, title: string) => {
-    if (!db) return
-    if (!confirm(`Deseja realmente excluir o evento "${title}"? Ele será removido da sua lista e da vitrine pública.`)) return
+  const confirmDelete = async () => {
+    if (!db || !eventToDelete) return
 
-    // Soft delete: Apenas altera o status para Excluído
-    const eventRef = doc(db, "events", eventId);
-    updateDoc(eventRef, { status: "Excluído" })
-      .then(() => {
-        toast({ title: "Evento excluído", description: "O anúncio foi removido da plataforma." })
+    setIsDeleting(true)
+    const eventRef = doc(db, "events", eventToDelete.id);
+    
+    try {
+      await updateDoc(eventRef, { status: "Excluído" })
+      toast({ title: "Evento excluído", description: "O anúncio foi removido da plataforma." })
+    } catch (error: any) {
+      const permissionError = new FirestorePermissionError({
+        path: `events/${eventToDelete.id}`,
+        operation: "update",
+        requestResourceData: { status: "Excluído" }
       })
-      .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
-          path: `events/${eventId}`,
-          operation: "update",
-          requestResourceData: { status: "Excluído" }
-        })
-        errorEmitter.emit("permission-error", permissionError)
-      })
+      errorEmitter.emit("permission-error", permissionError)
+    } finally {
+      setIsDeleting(false)
+      setEventToDelete(null)
+    }
   }
 
   if (profileLoading) {
@@ -195,7 +211,7 @@ export default function MeusEventosPage() {
                         <DropdownMenuSeparator />
                         <DropdownMenuItem 
                           className="flex items-center gap-2 text-destructive focus:text-destructive cursor-pointer font-medium py-2"
-                          onClick={() => handleDeleteEvent(event.id, event.title)}
+                          onSelect={() => setEventToDelete({ id: event.id, title: event.title })}
                         >
                           <Trash2 className="w-4 h-4" />
                           Excluir Evento
@@ -256,6 +272,29 @@ export default function MeusEventosPage() {
           )}
         </div>
       )}
+
+      {/* AlertDialog de Confirmação */}
+      <AlertDialog open={!!eventToDelete} onOpenChange={(open) => !open && setEventToDelete(null)}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold">Excluir este evento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O evento <strong>"{eventToDelete?.title}"</strong> deixará de ser exibido na vitrine pública e na sua lista. Você poderá encontrá-lo ou restaurá-lo contatando um administrador.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl font-bold">Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl font-bold"
+            >
+              {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Confirmar Exclusão
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

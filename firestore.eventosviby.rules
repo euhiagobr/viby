@@ -47,8 +47,11 @@ service cloud.firestore {
     }
 
     match /events/{eventId} {
-      // Regra de leitura: Público lê se não for excluído. Dono e Admin lêem sempre.
-      allow read: if (resource.data.status != 'Excluído') || (isSignedIn() && resource.data.organizerId == request.auth.uid) || isAdmin();
+      // Regra de leitura: Dono e Admin lêem sempre. Público lê se status não for 'Excluído' (ou for indefinido)
+      allow read: if (isSignedIn() && resource.data.organizerId == request.auth.uid) || 
+                    isAdmin() || 
+                    (!resource.data.keys().contains('status') || resource.data.status != 'Excluído');
+      
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (resource.data.organizerId == request.auth.uid || isAdmin());
       allow delete: if isAdmin();
