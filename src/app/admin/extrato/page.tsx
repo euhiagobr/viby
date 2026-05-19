@@ -6,7 +6,7 @@ import { collection, query, where, orderBy, Timestamp } from "firebase/firestore
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
-  ReceiptBrazilianReal, 
+  Receipt, 
   Loader2, 
   TrendingUp, 
   ArrowUpRight, 
@@ -153,7 +153,7 @@ export default function AdminExtratoPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
-            <ReceiptBrazilianReal className="w-8 h-8 text-secondary" />
+            <Receipt className="w-8 h-8 text-secondary" />
             Extrato Financeiro Global
           </h1>
           <p className="text-muted-foreground font-medium">Gestão completa de entradas, repasses e lucro operacional.</p>
@@ -238,7 +238,7 @@ export default function AdminExtratoPage() {
           <div className="flex items-center justify-between">
              <div>
                 <CardTitle className="text-xl flex items-center gap-2">
-                  <ReceiptBrazilianReal className="w-5 h-5 text-secondary" />
+                  <Receipt className="w-5 h-5 text-secondary" />
                   Livro de Transações
                 </CardTitle>
                 <CardDescription>Mostrando {financialData.transactions.length} movimentações no período selecionado.</CardDescription>

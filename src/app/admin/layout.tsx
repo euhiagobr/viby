@@ -18,7 +18,7 @@ import {
   LifeBuoy, 
   ShieldAlert, 
   Landmark,
-  ReceiptBrazilianReal
+  Receipt
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -86,7 +86,7 @@ export default function AdminLayout({
     { title: 'Painel', url: '/admin', icon: LayoutDashboard },
     { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays },
     { title: 'Financeiro (Contas)', url: '/admin/financeiro', icon: Landmark },
-    { title: 'Extrato Global', url: '/admin/extrato', icon: ReceiptBrazilianReal },
+    { title: 'Extrato Global', url: '/admin/extrato', icon: Receipt },
     { title: 'Denúncias', url: '/admin/denuncias', icon: ShieldAlert },
     { title: 'Suporte', url: '/admin/suporte', icon: LifeBuoy },
     { title: 'Categorias', url: '/admin/categorias', icon: Tag },
