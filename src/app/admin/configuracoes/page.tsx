@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -10,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { Loader2, Save, Layout, Globe, ImageIcon, Upload, CheckCircle2 } from "lucide-react"
+import { Loader2, Save, Layout, ImageIcon, Upload } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
@@ -41,7 +40,6 @@ export default function AdminConfiguracoesPage() {
   const storage = React.useMemo(() => {
     if (!app) return null;
     try {
-      // Tenta usar o bucket específico da Viby se configurado, ou o padrão
       return getStorage(app, "gs://viby");
     } catch (e) {
       return getStorage(app);
@@ -149,7 +147,6 @@ export default function AdminConfiguracoesPage() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Logo Upload */}
               <div className="space-y-4">
                 <Label>Logotipo da Plataforma</Label>
                 <div 
@@ -183,7 +180,6 @@ export default function AdminConfiguracoesPage() {
                 )}
               </div>
 
-              {/* Icon Upload */}
               <div className="space-y-4">
                 <Label>Ícone (Favicon/Mobile)</Label>
                 <div 
