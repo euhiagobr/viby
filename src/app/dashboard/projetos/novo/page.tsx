@@ -1,10 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useFirestore, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, addDoc, serverTimestamp } from "firebase/firestore"
+import { useFirestore, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase, useDoc } from "@/firebase"
+import { collection, addDoc, serverTimestamp, doc } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,7 +28,9 @@ import {
   Map as MapIcon,
   Tag,
   Hash,
-  Globe
+  Globe,
+  Building2,
+  ShieldAlert
 } from "lucide-react"
 import Link from "next/link"
 import { Separator } from "@/components/ui/separator"
@@ -47,6 +49,9 @@ export default function NovoEventoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const app = useFirebaseApp()
+
+  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
+  const { data: profile, loading: profileLoading } = useDoc<any>(userDocRef)
   
   const storage = React.useMemo(() => {
     if (!app) return null;
@@ -89,6 +94,18 @@ export default function NovoEventoPage() {
   const [batches, setBatches] = useState<Batch[]>([
     { name: "Lote Único", price: "0.00", startDate: "", endDate: "", available: "100" }
   ])
+
+  // Redireciona se não for empresa
+  useEffect(() => {
+    if (!profileLoading && profile && profile.accountType !== 'Empresa') {
+      toast({
+        variant: "destructive",
+        title: "Acesso Restrito",
+        description: "Apenas perfis de Empresa podem publicar eventos."
+      })
+      router.push("/dashboard/projetos")
+    }
+  }, [profile, profileLoading, router])
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -168,7 +185,7 @@ export default function NovoEventoPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!db || !user) return
+    if (!db || !user || !profile || profile.accountType !== 'Empresa') return
 
     if (!selectedCategory) {
       toast({ variant: "destructive", title: "Erro", description: "Selecione uma categoria." })
@@ -183,7 +200,7 @@ export default function NovoEventoPage() {
         title: formData.get("title") as string,
         shortDescription: formData.get("shortDescription") as string,
         description: formData.get("description") as string,
-        date: formData.get("startDate") as string, // Usando 'date' para padronização
+        date: formData.get("startDate") as string, 
         endDate: formData.get("endDate") as string,
         categoryId: selectedCategory,
         tags: tags.split(",").map(t => t.trim()).filter(t => t !== ""),
@@ -199,9 +216,9 @@ export default function NovoEventoPage() {
         image: uploadedImageUrl || `https://picsum.photos/seed/${Math.random()}/1200/800`,
         organizerId: user.uid,
         organizer: {
-          name: user.displayName || "Organizador",
-          avatar: user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`,
-          isVerified: false
+          name: profile.name || user.displayName || "Organizador",
+          avatar: profile.avatar || user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`,
+          isVerified: profile.isVerified || false
         },
         status: "Ativo",
         type: "Público",
@@ -217,6 +234,27 @@ export default function NovoEventoPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (profileLoading) {
+    return (
+      <div className="flex justify-center items-center h-[60vh]">
+        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+      </div>
+    )
+  }
+
+  if (profile && profile.accountType !== 'Empresa') {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] gap-4 text-center p-6">
+        <ShieldAlert className="w-16 h-16 text-destructive mb-2" />
+        <h2 className="text-2xl font-bold">Acesso Restrito</h2>
+        <p className="text-muted-foreground max-w-md">Apenas perfis de <strong>Empresa</strong> podem publicar novos eventos na Viby. Por favor, atualize seu tipo de conta em seu perfil.</p>
+        <Button asChild className="mt-4 bg-secondary text-white font-bold px-8">
+          <Link href="/dashboard/perfil/editar">Configurar como Empresa</Link>
+        </Button>
+      </div>
+    )
   }
 
   return (
