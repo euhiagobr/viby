@@ -40,7 +40,8 @@ import {
   Upload,
   Info,
   Check,
-  X
+  X,
+  Calendar
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -80,7 +81,7 @@ function InstagramVerifiedBadge({ className }: { className?: string }) {
     >
       <path 
         fill="#0095f6" 
-        d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1-4.4 1.2-8.9 5.3-10.7l8.4-3.7 2.3-9c1.1-4.4 5.2-7.4 9.7-7l9.2-.7 6.5-6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.4-6.3 5.3-10.7l-2.3-9 6.5-6.6c3.2-3.2 3.2-8.2 0-11.4z"
+        d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1-4.4 1.2-8.9 5.3 10.7l8.4 3.7 2.3 9c1.1-4.4 5.2-7.4 9.7 7l9.2-.7 6.5 6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.4-6.3 5.3-10.7l-2.3-9 6.5-6.6c3.2-3.2 3.2-8.2 0-11.4z"
       />
       <path 
         fill="#fff" 
@@ -122,6 +123,38 @@ export default function AdminUsuariosPage() {
       user.email?.toLowerCase().includes(search.toLowerCase())
     )
   }, [users, search])
+
+  const formatDate = (dateValue: any) => {
+    if (!dateValue) return "A definir";
+    try {
+      let d: Date;
+      if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
+        d = dateValue.toDate();
+      } else {
+        d = new Date(dateValue);
+      }
+      if (isNaN(d.getTime())) return "A definir";
+      return d.toLocaleDateString('pt-BR');
+    } catch (e) {
+      return "A definir";
+    }
+  };
+
+  const formatTime = (dateValue: any) => {
+    if (!dateValue) return "";
+    try {
+      let d: Date;
+      if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
+        d = dateValue.toDate();
+      } else {
+        d = new Date(dateValue);
+      }
+      if (isNaN(d.getTime())) return "";
+      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return "";
+    }
+  };
 
   const handleEditClick = (user: any) => {
     setEditingUser({ ...user })
@@ -231,7 +264,7 @@ export default function AdminUsuariosPage() {
 
       const userRef = doc(db, "users", editingUser.id)
       
-      const { followersCount, rating, totalEvents, id, ...dataToUpdate } = editingUser;
+      const { id, ...dataToUpdate } = editingUser;
 
       batch.update(userRef, {
         ...dataToUpdate,
@@ -336,6 +369,7 @@ export default function AdminUsuariosPage() {
                 <TableHead className="w-[250px] font-bold">Usuário</TableHead>
                 <TableHead className="font-bold">Conta</TableHead>
                 <TableHead className="font-bold">Cargo</TableHead>
+                <TableHead className="font-bold">Cadastro</TableHead>
                 <TableHead className="text-center font-bold">Status</TableHead>
                 <TableHead className="text-right font-bold">Ações</TableHead>
               </TableRow>
@@ -368,6 +402,12 @@ export default function AdminUsuariosPage() {
                         <span className="text-[10px] font-bold text-muted-foreground">Membro</span>
                       )}
                     </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium">{formatDate(user.createdAt)}</span>
+                        <span className="text-[10px] text-muted-foreground">{formatTime(user.createdAt)}</span>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center">
                         <div className={cn(
@@ -397,7 +437,7 @@ export default function AdminUsuariosPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
+                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground italic">
                     Nenhum usuário encontrado.
                   </TableCell>
                 </TableRow>
