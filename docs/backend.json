@@ -8,10 +8,11 @@
       "properties": {
         "name": { "type": "string" },
         "avatar": { "type": "string" },
+        "email": { "type": "string" },
         "isVerified": { "type": "boolean" },
         "totalEvents": { "type": "number" }
       },
-      "required": ["name"]
+      "required": ["name", "email"]
     },
     "Event": {
       "title": "Evento",
@@ -32,12 +33,16 @@
     }
   },
   "auth": {
-    "providers": ["google.com"]
+    "providers": ["google.com", "password"]
   },
   "firestore": {
     "/events/{eventId}": {
       "schema": "Event",
       "description": "Coleção global de eventos para divulgação"
+    },
+    "/users/{userId}": {
+      "schema": "Organizer",
+      "description": "Perfis dos organizadores cadastrados"
     }
   }
 }

@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -9,9 +10,12 @@ import {
   Calendar,
   Settings,
   Globe,
+  LogOut,
 } from "lucide-react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { useAuth, useUser } from "@/firebase"
+import { signOut } from "firebase/auth"
 
 import {
   Sidebar,
@@ -26,6 +30,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
+import { toast } from "@/hooks/use-toast"
 
 const items = [
   {
@@ -57,6 +62,20 @@ const items = [
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+  const auth = useAuth()
+  const { user } = useUser(auth)
+
+  const handleLogout = async () => {
+    if (!auth) return
+    try {
+      await signOut(auth)
+      toast({ title: "Até logo!", description: "Você saiu da sua conta." })
+      router.push("/login")
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Erro ao sair", description: error.message })
+    }
+  }
 
   return (
     <Sidebar className="border-r border-border">
@@ -90,11 +109,18 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-6">
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+      <SidebarFooter className="p-4 space-y-2">
+        <div className="flex items-center gap-3 px-3 py-2">
           <Settings className="w-5 h-5 cursor-pointer hover:text-foreground transition-colors" />
-          <span>Viby Promo v1.0</span>
+          <span className="text-xs text-muted-foreground flex-1">v1.0</span>
         </div>
+        <button 
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-3 py-2 text-destructive hover:bg-destructive/10 rounded-md transition-colors text-sm font-medium"
+        >
+          <LogOut className="w-5 h-5" />
+          Sair
+        </button>
       </SidebarFooter>
     </Sidebar>
   )
