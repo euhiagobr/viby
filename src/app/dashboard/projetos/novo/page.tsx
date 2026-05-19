@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -412,7 +411,7 @@ export default function NovoEventoPage() {
                 {batches.map((batch, index) => (
                   <div key={index} className="p-4 rounded-xl border border-border bg-muted/20 space-y-4">
                     <div className="flex justify-between items-center">
-                      h4 className="font-bold text-sm">Lote #{index + 1}</h4>
+                      <h4 className="font-bold text-sm">Lote #{index + 1}</h4>
                       {batches.length > 1 && (
                         <button type="button" onClick={() => removeBatch(index)} className="text-destructive hover:bg-destructive/10 p-2 rounded-lg transition-colors">
                           <Trash2 className="w-4 h-4" />
