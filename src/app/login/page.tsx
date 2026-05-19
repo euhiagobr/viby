@@ -24,11 +24,16 @@ export default function LoginPage() {
 
   const verifyVibyUserAndGetEmail = async (uid: string) => {
     if (!db) return null
-    const userDoc = await getDoc(doc(db, "users", uid))
-    if (!userDoc.exists() || userDoc.data()?.platform !== "viby") {
+    try {
+      const userDoc = await getDoc(doc(db, "users", uid))
+      if (!userDoc.exists() || userDoc.data()?.platform !== "viby") {
+        return null
+      }
+      return userDoc.data()?.email
+    } catch (e) {
+      console.error("Erro ao verificar usuário Viby:", e)
       return null
     }
-    return userDoc.data()?.email
   }
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -41,7 +46,7 @@ export default function LoginPage() {
 
       // Se não for um e-mail, tenta resolver pelo nome de usuário
       if (!identifier.includes("@")) {
-        const usernameRef = doc(db, "usernames", identifier.toLowerCase())
+        const usernameRef = doc(db, "usernames", identifier.toLowerCase().trim())
         const usernameSnap = await getDoc(usernameRef)
         
         if (!usernameSnap.exists()) {
@@ -69,6 +74,7 @@ export default function LoginPage() {
       toast({ title: "Login realizado!", description: "Bem-vindo de volta ao Viby." })
       router.push("/dashboard")
     } catch (error: any) {
+      console.error("Login Error:", error)
       toast({
         variant: "destructive",
         title: "Erro ao entrar",

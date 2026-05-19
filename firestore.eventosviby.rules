@@ -1,15 +1,14 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Funções de utilidade para o banco eventosviby
+    // Funções de utilidade
     function isAuthenticated() {
       return request.auth != null;
     }
     
     function getUserData() {
-      // Busca dados do usuário especificamente no banco eventosviby
-      return get(/databases/eventosviby/documents/users/$(request.auth.uid)).data;
+      // Busca dados do usuário de forma dinâmica usando a variável database
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
     function isVibyUser() {
@@ -31,17 +30,17 @@ service cloud.firestore {
       allow update, delete: if isVibyUser() && resource.data.organizerId == request.auth.uid;
     }
 
-    // Regras para Coleção de Usuários/Organizadores
+    // Regras para Coleção de Usuários: Público para leitura (necessário para login/verificação)
     match /users/{userId} {
       allow read: if true;
       allow create: if isAuthenticated() && request.resource.data.platform == "viby";
       allow update, delete: if isOwner(userId) && isVibyUser();
     }
 
-    // Regras para Unicidade de Nome de Usuário
+    // Regras para Unicidade de Nome de Usuário: Leitura pública para busca no login e disponibilidade no cadastro
     match /usernames/{username} {
-      allow read: if true; // Necessário para verificar disponibilidade no cadastro
-      allow create: if isAuthenticated() && !exists(/databases/eventosviby/documents/usernames/$(username));
+      allow read: if true;
+      allow create: if isAuthenticated() && !exists(/databases/$(database)/documents/usernames/$(username));
       allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
     }
 
@@ -50,7 +49,7 @@ service cloud.firestore {
       allow create: if isVibyUser();
       allow read: if isVibyUser() && (
         resource.data.userId == request.auth.uid || 
-        get(/databases/eventosviby/documents/events/$(resource.data.eventId)).data.organizerId == request.auth.uid
+        get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.organizerId == request.auth.uid
       );
     }
 
