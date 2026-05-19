@@ -1,15 +1,25 @@
+
 "use client"
 
-import { MOCK_EVENTS } from "@/lib/mock-data"
+import * as React from "react"
+import { useCollection, useFirestore } from "@/firebase"
+import { collection } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { Button } from "@/components/ui/button"
-import { Search, Filter, Globe } from "lucide-react"
+import { Search, Filter, Loader2 } from "lucide-react"
 import { useState } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
+import { Event } from "@/lib/mock-data"
 
 export default function ExplorarPage() {
   const [filter, setFilter] = useState('all')
+  const db = useFirestore()
+  
+  // Hook para buscar eventos em tempo real do Firestore
+  const { data: events, loading, error } = useCollection<Event>(
+    db ? collection(db, "events") : null
+  )
 
   return (
     <div className="space-y-8">
@@ -40,8 +50,27 @@ export default function ExplorarPage() {
         </Tabs>
       </div>
 
+      {loading && (
+        <div className="flex justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+        </div>
+      )}
+
+      {error && (
+        <div className="p-8 text-center bg-destructive/10 text-destructive rounded-xl border border-destructive/20">
+          Erro ao carregar eventos: {error.message}
+        </div>
+      )}
+
+      {!loading && !error && events?.length === 0 && (
+        <div className="text-center py-20 bg-muted/50 rounded-2xl border-2 border-dashed border-border">
+          <p className="text-muted-foreground font-medium">Nenhum evento encontrado no Firestore.</p>
+          <p className="text-xs text-muted-foreground mt-1">Certifique-se de adicionar documentos na coleção 'events'.</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {MOCK_EVENTS.map(event => (
+        {events?.map(event => (
           <EventCard key={event.id} event={event} />
         ))}
       </div>

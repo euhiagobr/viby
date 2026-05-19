@@ -1,0 +1,43 @@
+
+{
+  "entities": {
+    "Organizer": {
+      "title": "Organizador",
+      "description": "Informações do promotor do evento",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "avatar": { "type": "string" },
+        "isVerified": { "type": "boolean" },
+        "totalEvents": { "type": "number" }
+      },
+      "required": ["name"]
+    },
+    "Event": {
+      "title": "Evento",
+      "description": "Informações do evento para divulgação",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "location": { "type": "string" },
+        "city": { "type": "string" },
+        "type": { "type": "string", "enum": ["Público", "Privado", "Governo"] },
+        "status": { "type": "string", "enum": ["A fazer", "Em progresso", "Concluído"] },
+        "image": { "type": "string" },
+        "organizer": { "$ref": "#/backend/entities/Organizer" }
+      },
+      "required": ["title", "date", "location"]
+    }
+  },
+  "auth": {
+    "providers": ["google.com"]
+  },
+  "firestore": {
+    "/events/{eventId}": {
+      "schema": "Event",
+      "description": "Coleção global de eventos para divulgação"
+    }
+  }
+}
