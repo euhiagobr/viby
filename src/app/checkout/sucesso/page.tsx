@@ -45,12 +45,17 @@ export default function CheckoutSucessoPage() {
         if (metadata.type === 'plan_upgrade') {
           setType('plan');
           const userRef = doc(db, "users", metadata.userId);
+          
+          // Obtém o valor real pago da sessão do Stripe
+          const amountPaid = (session.amount_total || 0) / 100;
+
           await updateDoc(userRef, {
             plan: metadata.plan,
             billingCycle: metadata.cycle,
             isVerified: true, // Upgrades ganham selo automático no Viby
             updatedAt: serverTimestamp(),
-            lastPlanPaymentAt: serverTimestamp()
+            lastPlanPaymentAt: serverTimestamp(),
+            lastPlanAmount: amountPaid
           });
           toast({ title: "Upgrade Realizado!", description: `Bem-vindo ao plano ${metadata.plan}!` });
         } 

@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, where, orderBy, Timestamp } from "firebase/firestore"
+import { collection, query, where } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -11,7 +12,6 @@ import {
   TrendingUp, 
   ArrowUpRight, 
   ArrowDownRight, 
-  Filter,
   DollarSign,
   Calendar,
   Building2,
@@ -44,24 +44,23 @@ export default function AdminExtratoPage() {
   const [dateFilter, setDateFilter] = React.useState<string>("all")
 
   // Consulta de Ingressos (Registrations)
+  // Removido orderBy para evitar erros de índice composto obrigatório em tempo de execução
   const regsQuery = useMemoFirebase(() => {
     if (!db) return null
     return query(
       collection(db, "registrations"), 
-      where("paymentStatus", "in", ["Pago", "Disponível"]),
-      orderBy("timestamp", "desc")
+      where("paymentStatus", "in", ["Pago", "Disponível"])
     )
   }, [db])
 
   const { data: registrations, loading: regsLoading } = useCollection<any>(regsQuery)
 
-  // Consulta de Usuários para Planos (simulado como histórico pelo lastPlanPaymentAt)
+  // Consulta de Usuários para Planos
   const usersQuery = useMemoFirebase(() => {
     if (!db) return null
     return query(
       collection(db, "users"), 
-      where("plan", "in", ["PRO", "TOP"]),
-      orderBy("updatedAt", "desc")
+      where("plan", "in", ["PRO", "TOP"])
     )
   }, [db])
 
@@ -98,28 +97,39 @@ export default function AdminExtratoPage() {
         status: 'Concluído'
       }))
 
-    // Processar Planos (como transações baseadas no status atual dos usuários)
+    // Processar Planos
     const planTransactions = (users || [])
       .filter(u => u.lastPlanPaymentAt && filterDate(u.lastPlanPaymentAt))
       .map(u => {
-        const amount = u.plan === 'PRO' ? 129.90 : 229.90
+        // Se houver um valor salvo, usa ele. Se não, calcula baseado no plano/ciclo
+        let amount = u.lastPlanAmount || 0
+        if (!amount) {
+           const isAnnual = u.billingCycle === 'annual'
+           if (u.plan === 'PRO') amount = isAnnual ? 1198.80 : 129.90
+           if (u.plan === 'TOP') amount = isAnnual ? 2398.80 : 229.90
+        }
+        
         return {
           id: u.id,
           type: 'plan',
           title: `Plano Viby ${u.plan}`,
-          description: `Assinante: @${u.username}`,
+          description: `Assinante: @${u.username} (${u.billingCycle === 'annual' ? 'Anual' : 'Mensal'})`,
           date: u.lastPlanPaymentAt,
           gross: amount,
-          fee: 0, // Planos são 100% lucro Viby
+          fee: 0,
           net: amount,
           status: 'Pago'
         }
       })
 
+    // Combina e ordena na memória para evitar dependência de índices do Firestore
     const allTransactions = [...ticketTransactions, ...planTransactions].sort((a, b) => {
-      const dateA = a.date?.seconds || new Date(a.date).getTime() / 1000 || 0
-      const dateB = b.date?.seconds || new Date(b.date).getTime() / 1000 || 0
-      return dateB - dateA
+      const getMs = (date: any) => {
+        if (date?.toMillis) return date.toMillis()
+        if (date?.seconds) return date.seconds * 1000
+        return new Date(date).getTime()
+      }
+      return getMs(b.date) - getMs(a.date)
     })
 
     const stats = allTransactions.reduce((acc, t) => {
