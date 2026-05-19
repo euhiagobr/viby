@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Organizer": {
@@ -100,6 +101,8 @@
         "userId": { "type": "string" },
         "userName": { "type": "string" },
         "userEmail": { "type": "string" },
+        "attendeeName": { "type": "string", "description": "Nome do participante final no ingresso" },
+        "attendeeCPF": { "type": "string", "description": "CPF do participante final no ingresso" },
         "userGender": { "type": "string" },
         "userBirthDate": { "type": "string", "format": "date" },
         "organizerId": { "type": "string" },

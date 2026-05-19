@@ -176,8 +176,11 @@ export default function VoucherPage() {
                   <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Participante</p>
                   <div className="flex items-center gap-2 font-black text-base italic uppercase text-primary">
                     <User className="w-4 h-4 text-secondary" />
-                    {registration.userName}
+                    {registration.attendeeName || registration.userName}
                   </div>
+                  {registration.attendeeCPF && (
+                    <p className="text-[10px] font-bold text-muted-foreground ml-6">CPF: {registration.attendeeCPF}</p>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Preço</p>

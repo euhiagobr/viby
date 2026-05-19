@@ -30,7 +30,8 @@ import {
   ShieldAlert,
   Send,
   CreditCard,
-  ChevronRight
+  ChevronRight,
+  Plus
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -113,7 +114,7 @@ export default function EventoDetalhesPage() {
   }, [db, eventId])
   const { data: allRegistrations } = useCollection<any>(allRegistrationsQuery)
   
-  const [isRegistered, setIsRegistered] = React.useState(false)
+  const [hasAtLeastOneRegistration, setHasAtLeastOneRegistration] = React.useState(false)
   const [registering, setRegistering] = React.useState(false)
   const [activeBatch, setActiveBatch] = React.useState<any>(null)
   const [saleStatus, setSaleStatus] = React.useState<'open' | 'pending' | 'ended' | 'soldout'>('pending')
@@ -142,7 +143,6 @@ export default function EventoDetalhesPage() {
       }
 
       const salesPerBatch = (allRegistrations || []).reduce((acc: Record<string, number>, reg: any) => {
-        // Apenas contagem de pagos ou disponíveis conta contra o estoque
         if (reg.paymentStatus === 'Pago' || reg.paymentStatus === 'Disponível') {
           const bName = reg.batchName || "Lote Único"
           acc[bName] = (acc[bName] || 0) + 1
@@ -198,7 +198,7 @@ export default function EventoDetalhesPage() {
   React.useEffect(() => {
     if (!user || !allRegistrations) return
     const userReg = allRegistrations.find((r: any) => r.userId === user.uid && (r.paymentStatus === 'Pago' || r.paymentStatus === 'Disponível'))
-    setIsRegistered(!!userReg)
+    setHasAtLeastOneRegistration(!!userReg)
   }, [user, allRegistrations])
 
   const formatDateTime = (dateValue: any) => {
@@ -286,7 +286,7 @@ export default function EventoDetalhesPage() {
 
   const handleRegisterInterest = async () => {
     if (!auth || !user) {
-      toast({ title: "Ação necessária", description: "Você precisa entrar para marcar interesse." })
+      toast({ title: "Ação necessária", description: "Você precisa entrar para comprar ingressos." })
       router.push("/login")
       return
     }
@@ -299,6 +299,8 @@ export default function EventoDetalhesPage() {
       const ticketCode = await generateUniqueTicketCode(db);
       const batchName = activeBatch?.name || (event.isFree ? "Gratuito" : "Lote Único");
 
+      const userName = currentUserProfile?.name || user.displayName || user.email || "Usuário";
+
       const regData = {
         eventId,
         eventTitle: event.title,
@@ -306,8 +308,10 @@ export default function EventoDetalhesPage() {
         eventDate: event.date,
         eventCity: event.city || "",
         userId: user.uid,
-        userName: currentUserProfile?.name || user.displayName || user.email || "Usuário",
+        userName: userName,
         userEmail: user.email,
+        attendeeName: userName, // Default ao nome do comprador, pode ser editado depois
+        attendeeCPF: "", // Preenchido pelo usuário depois
         userGender: currentUserProfile?.gender || "Não informado",
         userBirthDate: currentUserProfile?.birthDate || "",
         organizerId: event.organizerId,
@@ -331,9 +335,7 @@ export default function EventoDetalhesPage() {
         timestamp: serverTimestamp()
       }
 
-      // Se for pago, cria o doc como PENDENTE e vai para o Stripe
       if (breakdown.customerFinalPrice > 0) {
-        // Criar o registro no banco antes do redirect para o Stripe
         const docRef = await addDoc(collection(db, "registrations"), regData);
 
         const { url } = await createCheckoutSession({
@@ -343,7 +345,7 @@ export default function EventoDetalhesPage() {
           userId: user.uid,
           userName: regData.userName,
           userEmail: user.email!,
-          totalAmount: breakdown.customerFinalPrice * 100, // Centavos
+          totalAmount: breakdown.customerFinalPrice * 100,
           metadata: {
             registrationId: docRef.id,
             eventId,
@@ -363,7 +365,6 @@ export default function EventoDetalhesPage() {
         }
       }
 
-      // Se for grátis, salva direto como disponível
       await addDoc(collection(db, "registrations"), {
         ...regData,
         paymentStatus: "Disponível"
@@ -375,9 +376,8 @@ export default function EventoDetalhesPage() {
         })
       }
 
-      setIsRegistered(true)
       setIsCheckoutOpen(false)
-      toast({ title: "Confirmado!", description: "Sua presença foi registrada e seu ingresso gerado." })
+      toast({ title: "Confirmado!", description: "Sua presença foi registrada e seu ingresso gerado. Você pode comprar mais se desejar." })
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao processar", description: error.message })
     } finally {
@@ -453,11 +453,10 @@ export default function EventoDetalhesPage() {
   const orgUsername = organizerProfile?.username || usernameFromUrl;
 
   const getButtonText = () => {
-    if (isRegistered) return "Já Inscrito"
     if (saleStatus === 'pending') return "Vendas em Breve"
     if (saleStatus === 'soldout') return "Ingressos Esgotados"
     if (saleStatus === 'ended') return "Vendas Encerradas"
-    return "Garantir Ingresso"
+    return hasAtLeastOneRegistration ? "Comprar outro Ingresso" : "Garantir Ingresso"
   }
 
   return (
@@ -473,13 +472,13 @@ export default function EventoDetalhesPage() {
           </Button>
           <Button 
             onClick={() => setIsCheckoutOpen(true)}
-            disabled={isRegistered || registering || saleStatus !== 'open'}
-            className={`font-bold px-6 rounded-full h-10 shadow-lg transition-all ${
-              isRegistered ? "bg-green-500 text-white" : 
+            disabled={registering || saleStatus !== 'open'}
+            className={cn(
+              "font-bold px-6 rounded-full h-10 shadow-lg transition-all",
               saleStatus === 'open' ? "bg-secondary text-white hover:scale-105" : "bg-muted text-muted-foreground"
-            }`}
+            )}
           >
-            {isRegistered ? <CheckCircle2 className="w-4 h-4 mr-2" /> : null}
+            {hasAtLeastOneRegistration ? <Plus className="w-4 h-4 mr-2" /> : null}
             {getButtonText()}
           </Button>
         </div>
@@ -660,8 +659,11 @@ export default function EventoDetalhesPage() {
 
               <Button 
                 onClick={() => setIsCheckoutOpen(true)} 
-                disabled={isRegistered || registering || saleStatus !== 'open'} 
-                className={`w-full font-black py-7 rounded-2xl text-lg shadow-xl ${isRegistered ? "bg-green-500 hover:bg-green-600" : (saleStatus === 'open' ? "bg-secondary hover:bg-secondary/90" : "bg-muted cursor-not-allowed")} text-white`}
+                disabled={registering || saleStatus !== 'open'} 
+                className={cn(
+                  "w-full font-black py-7 rounded-2xl text-lg shadow-xl text-white",
+                  saleStatus === 'open' ? "bg-secondary hover:bg-secondary/90" : "bg-muted cursor-not-allowed"
+                )}
               >
                 {registering ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
                 {getButtonText()}
@@ -711,7 +713,6 @@ export default function EventoDetalhesPage() {
                       <span>{formatCurrency(breakdown.ticketBasePrice)}</span>
                    </div>
                    
-                   {!isRegistered && (
                     <div className="space-y-3 pt-2">
                       <div className="flex gap-2">
                         <Input 
@@ -738,7 +739,6 @@ export default function EventoDetalhesPage() {
                         </div>
                       )}
                     </div>
-                  )}
 
                    <div className="flex justify-between items-center text-sm font-bold">
                       <div className="flex items-center gap-1.5 text-muted-foreground uppercase text-[10px] tracking-widest">

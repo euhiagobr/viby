@@ -3,13 +3,36 @@
 
 import * as React from "react"
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, where, doc, getDoc } from "firebase/firestore"
+import { collection, query, where, doc, getDoc, updateDoc } from "firebase/firestore"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, Ticket, Calendar, MapPin, Clock, ExternalLink, QrCode } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { 
+  Loader2, 
+  Ticket, 
+  Calendar, 
+  MapPin, 
+  Clock, 
+  ExternalLink, 
+  QrCode, 
+  User as UserIcon,
+  Save,
+  CheckCircle2
+} from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { toast } from "@/hooks/use-toast"
 
 export default function MeusIngressosPage() {
   const db = useFirestore()
@@ -66,6 +89,10 @@ function TicketListItem({ registration }: { registration: any }) {
   const db = useFirestore()
   const [event, setEvent] = React.useState<any>(null)
   const [loading, setLoading] = React.useState(!registration.eventTitle)
+  const [isAttendeeModalOpen, setIsAttendeeModalOpen] = React.useState(false)
+  const [attendeeName, setAttendeeName] = React.useState(registration.attendeeName || registration.userName || "")
+  const [attendeeCPF, setAttendeeCPF] = React.useState(registration.attendeeCPF || "")
+  const [isSavingAttendee, setIsSavingAttendee] = React.useState(false)
 
   React.useEffect(() => {
     if (!db || !registration.eventId) return
@@ -84,6 +111,23 @@ function TicketListItem({ registration }: { registration: any }) {
     }
     fetchEvent()
   }, [db, registration.eventId])
+
+  const handleUpdateAttendee = async () => {
+    if (!db || !registration.id) return
+    setIsSavingAttendee(true)
+    try {
+      await updateDoc(doc(db, "registrations", registration.id), {
+        attendeeName,
+        attendeeCPF
+      })
+      toast({ title: "Dados atualizados!", description: "O nome e CPF do participante foram salvos." })
+      setIsAttendeeModalOpen(false)
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao salvar", description: "Não foi possível atualizar os dados." })
+    } finally {
+      setIsSavingAttendee(false)
+    }
+  }
 
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
@@ -170,6 +214,12 @@ function TicketListItem({ registration }: { registration: any }) {
               <MapPin className="w-3.5 h-3.5 text-secondary" />
               <span className="line-clamp-1">{displayCity}</span>
             </div>
+            <div className="flex items-center gap-2 pt-1">
+              <UserIcon className="w-3 h-3 text-muted-foreground" />
+              <span className="text-[10px] font-bold text-primary uppercase">
+                Para: {registration.attendeeName || registration.userName || "Não definido"}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -183,11 +233,50 @@ function TicketListItem({ registration }: { registration: any }) {
             </span>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" variant="ghost" className="h-9 px-3 text-[10px] font-black uppercase rounded-xl hover:bg-muted" asChild>
-               <Link href={event?.organizer?.username ? `/${event.organizer.username}/${event.id}` : '#'}>
-                 <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Detalhes
-               </Link>
-            </Button>
+            <Dialog open={isAttendeeModalOpen} onOpenChange={setIsAttendeeModalOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline" className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-dashed">
+                  <UserIcon className="w-3.5 h-3.5 mr-1.5" /> Participante
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="rounded-[2rem] max-w-sm">
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-black italic uppercase tracking-tighter">Dados do Participante</DialogTitle>
+                  <DialogDescription>Quem vai usar este ingresso na portaria?</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Nome Completo</Label>
+                    <Input 
+                      value={attendeeName}
+                      onChange={(e) => setAttendeeName(e.target.value)}
+                      placeholder="Nome de quem vai entrar"
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">CPF</Label>
+                    <Input 
+                      value={attendeeCPF}
+                      onChange={(e) => setAttendeeCPF(e.target.value.replace(/\D/g, "").substring(0, 11))}
+                      placeholder="000.000.000-00"
+                      className="rounded-xl"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button 
+                    onClick={handleUpdateAttendee} 
+                    disabled={isSavingAttendee || !attendeeName}
+                    className="w-full bg-secondary text-white font-black h-12 rounded-xl"
+                  >
+                    {isSavingAttendee ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                    Salvar Dados
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
             <Button size="sm" className="h-9 px-4 text-[10px] font-black uppercase rounded-xl bg-primary text-white hover:bg-primary/90 shadow-sm" asChild>
                <Link href={`/dashboard/ingressos/${registration.id}/voucher`}>
                  <QrCode className="w-3.5 h-3.5 mr-1.5" /> Voucher
