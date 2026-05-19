@@ -1,9 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // DEPLOY VIBY - Versão: 1.0.1
+    // DEPLOY VIBY - Versão: 1.0.5
     // REGRAS PÚBLICAS TOTAIS PARA A PLATAFORMA VIBY
-    // Permite leitura e escrita para qualquer pessoa em todos os documentos deste banco (eventosviby).
     match /{allPaths=**} {
       allow read, write: if true;
     }
