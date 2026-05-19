@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -81,7 +80,7 @@ function InstagramVerifiedBadge({ className }: { className?: string }) {
     >
       <path 
         fill="#0095f6" 
-        d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1 4.4 1.2 8.9 5.3 10.7l8.4 3.7 2.3 9c1.1 4.4 5.2 7.4 9.7 7l9.2-.7 6.5 6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.4-6.3 5.3-10.7l-2.3-9 6.5-6.6c3.2-3.2 3.2-8.2 0-11.4z"
+        d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1-4.4 1.2-8.9 5.3-10.7l8.4-3.7 2.3-9c1.1-4.4 5.2-7.4 9.7-7l9.2-.7 6.5-6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.4-6.3 5.3-10.7l-2.3-9 6.5-6.6c3.2-3.2 3.2-8.2 0-11.4z"
       />
       <path 
         fill="#fff" 
@@ -144,7 +143,7 @@ export default function AdminUsuariosPage() {
     }
 
     const regex = /^[a-zA-Z0-9]+$/
-    if (newUsername.length < 5 || newUsername.length > 20 || !regex.test(newUsername)) {
+    if (newUsername.length < 1 || newUsername.length > 20 || !regex.test(newUsername)) {
       setUsernameStatus('invalid')
       setCheckingUsername(false)
       return
@@ -484,7 +483,7 @@ export default function AdminUsuariosPage() {
                           ) : null}
                         </div>
                       </div>
-                      <p className="text-[10px] text-muted-foreground">Min 5, máx 20 caracteres. Isso atualiza a coleção 'usernames'.</p>
+                      <p className="text-[10px] text-muted-foreground">Min 1, máx 20 caracteres. Isso atualiza a coleção 'usernames'.</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="edit-email">E-mail</Label>
