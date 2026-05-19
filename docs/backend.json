@@ -126,16 +126,23 @@
       },
       "required": ["name", "slug"]
     },
-    "SiteSettings": {
-      "title": "Configurações do Site",
-      "description": "Configurações globais de identidade visual",
+    "SupportTicket": {
+      "title": "Ticket de Suporte",
+      "description": "Pedido de ajuda ou suporte do usuário",
       "type": "object",
       "properties": {
-        "siteName": { "type": "string" },
-        "logoUrl": { "type": "string" },
-        "iconUrl": { "type": "string" }
+        "protocol": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "subject": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["Não lida", "Em tratamento", "Respondida", "Encerrada"] },
+        "attachments": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["siteName"]
+      "required": ["protocol", "userId", "subject", "description", "status"]
     }
   },
   "auth": {
@@ -170,9 +177,9 @@
       "schema": "Category",
       "description": "Categorias de eventos gerenciadas por admins"
     },
-    "/settings/site": {
-      "schema": "SiteSettings",
-      "description": "Configurações globais de identidade visual"
+    "/support_tickets/{ticketId}": {
+      "schema": "SupportTicket",
+      "description": "Tickets de suporte abertos pelos usuários"
     }
   }
 }

@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -11,7 +12,8 @@ import {
   User,
   Ticket,
   Settings,
-  Heart
+  Heart,
+  LifeBuoy
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -75,6 +77,12 @@ export function AppSidebar() {
       authRequired: true
     },
     {
+      title: "Suporte",
+      url: "/dashboard/suporte",
+      icon: LifeBuoy,
+      authRequired: true
+    },
+    {
       title: "Meu Perfil",
       url: "/dashboard/perfil",
       icon: User,
@@ -119,10 +127,10 @@ export function AppSidebar() {
                 
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={pathname === item.url}>
+                    <SidebarMenuButton asChild isActive={pathname === item.url || (item.url !== "/dashboard" && pathname?.startsWith(item.url))}>
                       <Link href={item.url} className={cn(
                         "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-semibold text-sm",
-                        pathname === item.url ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                        (pathname === item.url || (item.url !== "/dashboard" && pathname?.startsWith(item.url))) ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "hover:bg-muted text-muted-foreground hover:text-foreground"
                       )}>
                         <item.icon className="w-4 h-4" />
                         <span>{item.title}</span>
@@ -161,7 +169,7 @@ export function AppSidebar() {
           <>
             <div className="flex items-center gap-3 px-3 py-2 opacity-50">
               <Settings className="w-4 h-4 cursor-pointer" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Versão 1.2.5</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">Versão 1.3.0</span>
             </div>
             <button 
               onClick={handleLogout}

@@ -49,11 +49,7 @@ service cloud.firestore {
 
     // Eventos
     match /events/{eventId} {
-      // Leitura pública total para evitar falhas em feeds
-      // Ocultação de 'Excluído' deve ser tratada preferencialmente no código, 
-      // mas mantemos permissão de leitura para o dono mesmo se excluído.
       allow read: if true;
-      
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (resource.data.organizerId == request.auth.uid || isAdmin());
       allow delete: if isAdmin() || (isSignedIn() && resource.data.organizerId == request.auth.uid);
@@ -61,9 +57,7 @@ service cloud.firestore {
     
     // Registros de Interesse / Ingressos
     match /registrations/{regId} {
-      // Aberto para leitura pública conforme solicitado (ingressos públicos)
       allow read: if true;
-      
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
@@ -88,6 +82,14 @@ service cloud.firestore {
     match /categories/{catId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // Suporte
+    match /support_tickets/{ticketId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
     }
 
     // Denúncias e Reports

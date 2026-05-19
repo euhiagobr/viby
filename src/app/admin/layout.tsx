@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -5,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { Loader2, ShieldCheck, ArrowLeft, LayoutDashboard, Tag, Users, Settings as SettingsIcon, LogOut, CalendarDays } from 'lucide-react';
+import { Loader2, ShieldCheck, ArrowLeft, LayoutDashboard, Tag, Users, Settings as SettingsIcon, LogOut, CalendarDays, LifeBuoy } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { signOut } from 'firebase/auth';
@@ -36,7 +37,6 @@ export default function AdminLayout({
 
       if (db && user) {
         try {
-          // Busca perfil explicitamente no banco 'eventosviby' via db centralizado
           const userDoc = await getDoc(doc(db, 'users', user.uid));
           if (userDoc.exists() && userDoc.data()?.role === 'admin') {
             setIsAdmin(true);
@@ -72,6 +72,7 @@ export default function AdminLayout({
   const navItems = [
     { title: 'Painel', url: '/admin', icon: LayoutDashboard },
     { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays },
+    { title: 'Suporte', url: '/admin/suporte', icon: LifeBuoy },
     { title: 'Categorias', url: '/admin/categorias', icon: Tag },
     { title: 'Usuários', url: '/admin/usuarios', icon: Users },
     { title: 'Configurações', url: '/admin/configuracoes', icon: SettingsIcon },
@@ -97,7 +98,7 @@ export default function AdminLayout({
               href={item.url}
               className={cn(
                 'flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-semibold text-sm',
-                pathname === item.url ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white hover:bg-white/5'
+                (pathname === item.url || (item.url !== '/admin' && pathname?.startsWith(item.url))) ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white hover:bg-white/5'
               )}
             >
               <item.icon className="w-4 h-4" />
