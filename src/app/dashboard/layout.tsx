@@ -3,10 +3,10 @@
 
 import * as React from "react"
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
-import { Search, Bell, Loader2 } from "lucide-react"
+import { Search, Bell, Loader2, ShieldAlert } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useAuth, useUser, useFirestore } from "@/firebase"
@@ -24,42 +24,55 @@ export default function DashboardLayout({
   const db = useFirestore()
   const { user, loading: authLoading } = useUser(auth)
   const router = useRouter()
+  const pathname = usePathname()
   const [verifying, setVerifying] = useState(true)
+  const [isBlocked, setIsBlocked] = useState(false)
 
   useEffect(() => {
-    async function checkPlatform() {
+    async function checkUserStatus() {
       if (authLoading) return
       
-      // Se não houver usuário logado, permite navegação pública como visitante
       if (!user) {
         setVerifying(false)
         return
       }
 
-      // Se logado, verifica se pertence à plataforma Viby
       if (db && user) {
         try {
           const userDoc = await getDoc(doc(db, "users", user.uid))
-          // Se o documento existe e é de outra plataforma, desloga por segurança
-          if (userDoc.exists() && userDoc.data()?.platform !== "viby") {
-            await signOut(auth!)
-            toast({
-              variant: "destructive",
-              title: "Sessão Inválida",
-              description: "Sua conta não pertence à plataforma Viby Club."
-            })
-            router.push("/login")
-            return
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            
+            // Verificação de plataforma
+            if (data?.platform !== "viby") {
+              await signOut(auth!)
+              toast({
+                variant: "destructive",
+                title: "Sessão Inválida",
+                description: "Sua conta não pertence à plataforma Viby Club."
+              })
+              router.push("/login")
+              return
+            }
+
+            // Verificação de bloqueio
+            if (data?.status === 'Bloqueado') {
+              setIsBlocked(true);
+              // Só permite acesso ao suporte se estiver bloqueado
+              if (!pathname.startsWith('/dashboard/suporte')) {
+                router.push('/dashboard/suporte');
+              }
+            }
           }
         } catch (e) {
-          console.error("Platform verification error", e)
+          console.error("User verification error", e)
         }
       }
       setVerifying(false)
     }
 
-    checkPlatform()
-  }, [user, authLoading, db, auth, router])
+    checkUserStatus()
+  }, [user, authLoading, db, auth, router, pathname])
 
   if (authLoading || verifying) {
     return (
@@ -69,6 +82,10 @@ export default function DashboardLayout({
     )
   }
 
+  if (isBlocked && !pathname.startsWith('/dashboard/suporte')) {
+    return null; // Evita flash de conteúdo antes do redirect
+  }
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-[#f8fafc]">
@@ -76,21 +93,31 @@ export default function DashboardLayout({
         <main className="flex-1 overflow-y-auto">
           <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur-md">
             <SidebarTrigger />
-            <div className="flex-1 max-w-md relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Pesquisar eventos, cidades..."
-                className="pl-10 bg-muted/30 border-none focus-visible:ring-1 focus-visible:ring-secondary h-9 text-sm"
-              />
-            </div>
+            
+            {!isBlocked ? (
+              <div className="flex-1 max-w-md relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Pesquisar eventos, cidades..."
+                  className="pl-10 bg-muted/30 border-none focus-visible:ring-1 focus-visible:ring-secondary h-9 text-sm"
+                />
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center gap-2 px-3 py-1 bg-destructive/10 text-destructive rounded-full max-w-fit">
+                <ShieldAlert className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-tighter italic">Conta Bloqueada - Acesso Restrito ao Suporte</span>
+              </div>
+            )}
             
             <div className="flex items-center gap-3 ml-auto">
               {user ? (
                 <>
-                  <Button variant="ghost" size="icon" className="relative hidden sm:flex h-9 w-9">
-                    <Bell className="h-5 w-5" />
-                    <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full border-2 border-background" />
-                  </Button>
+                  {!isBlocked && (
+                    <Button variant="ghost" size="icon" className="relative hidden sm:flex h-9 w-9">
+                      <Bell className="h-5 w-5" />
+                      <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full border-2 border-background" />
+                    </Button>
+                  )}
                   <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold cursor-pointer overflow-hidden border border-border shadow-sm">
                     {user.photoURL ? (
                       <img src={user.photoURL} alt={user.displayName || "Perfil"} className="h-full w-full object-cover" />

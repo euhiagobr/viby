@@ -10,14 +10,9 @@ import {
   ShieldAlert, 
   Loader2, 
   Search, 
-  Calendar, 
-  User, 
   Trash2, 
   CheckCircle2, 
-  AlertTriangle,
-  ExternalLink,
-  Flag,
-  CalendarDays
+  Flag
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -52,11 +47,22 @@ export default function AdminDenunciasPage() {
     )
   }, [reports, search])
 
-  const handleUpdateStatus = async (id: string, status: string) => {
+  const handleUpdateStatus = async (report: any, status: string) => {
     if (!db) return
     try {
-      await updateDoc(doc(db, "reports", id), { status })
-      toast({ title: "Status atualizado", description: `Denúncia marcada como ${status}.` })
+      // Atualiza o ticket de denúncia
+      await updateDoc(doc(db, "reports", report.id), { status })
+      
+      // Se a denúncia for aceita (Analisada), bloqueia o alvo
+      if (status === 'Analisada') {
+        const targetCollection = report.type === 'profile' ? 'users' : 'events';
+        await updateDoc(doc(db, targetCollection, report.targetId), {
+          status: 'Bloqueado'
+        });
+        toast({ title: "Denúncia aceita", description: "O conteúdo alvo foi bloqueado automaticamente." })
+      } else {
+        toast({ title: "Status atualizado", description: `Denúncia marcada como ${status}.` })
+      }
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao atualizar" })
     }
@@ -170,8 +176,8 @@ export default function AdminDenunciasPage() {
                             variant="ghost" 
                             size="icon" 
                             className="h-8 w-8 text-green-600 hover:bg-green-50"
-                            onClick={() => handleUpdateStatus(report.id, "Analisada")}
-                            title="Marcar como Analisada"
+                            onClick={() => handleUpdateStatus(report, "Analisada")}
+                            title="Aceitar Denúncia e Bloquear"
                           >
                             <CheckCircle2 className="w-4 h-4" />
                           </Button>
@@ -181,7 +187,7 @@ export default function AdminDenunciasPage() {
                             variant="ghost" 
                             size="icon" 
                             className="h-8 w-8 text-muted-foreground hover:bg-muted"
-                            onClick={() => handleUpdateStatus(report.id, "Arquivada")}
+                            onClick={() => handleUpdateStatus(report, "Arquivada")}
                             title="Arquivar"
                           >
                             <Flag className="w-4 h-4" />

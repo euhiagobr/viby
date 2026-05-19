@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { 
   Loader2, 
-  Calendar, 
   MapPin, 
   ArrowLeft, 
   Share2, 
@@ -30,7 +29,8 @@ import {
   ExternalLink,
   CheckCircle2,
   ShieldAlert,
-  Send
+  Send,
+  AlertTriangle
 } from "lucide-react"
 import { EventCard } from "@/components/events/EventCard"
 import Link from "next/link"
@@ -121,7 +121,12 @@ export default function PublicProfilePage() {
         const userSnap = await getDoc(userRef)
 
         if (userSnap.exists()) {
-          setProfile({ ...userSnap.data(), id: userSnap.id })
+          const data = userSnap.data();
+          if (data.status === 'Bloqueado') {
+            setError("Esse perfil não está disponível")
+          } else {
+            setProfile({ ...data, id: userSnap.id })
+          }
         } else {
           setError("Dados do perfil não encontrados")
         }
@@ -155,7 +160,8 @@ export default function PublicProfilePage() {
     if (!db || !profile?.id || profile.accountType !== 'Empresa') return null
     return query(
       collection(db, "events"),
-      where("organizerId", "==", profile.id)
+      where("organizerId", "==", profile.id),
+      where("status", "==", "Ativo") // Apenas eventos ativos no perfil público
     )
   }, [db, profile?.id, profile?.accountType])
 
@@ -285,10 +291,10 @@ export default function PublicProfilePage() {
 
   if (error || !profile) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background p-4">
-        <Globe className="w-16 h-16 text-muted-foreground opacity-20" />
-        <h2 className="text-2xl font-bold">{error || "Perfil não encontrado"}</h2>
-        <Button onClick={() => router.push("/")}>Voltar ao Início</Button>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background p-4 text-center">
+        <AlertTriangle className="w-16 h-16 text-muted-foreground opacity-20" />
+        <h2 className="text-2xl font-bold tracking-tighter">{error || "Perfil não encontrado"}</h2>
+        <Button onClick={() => router.push("/")} className="rounded-full">Voltar ao Início</Button>
       </div>
     )
   }

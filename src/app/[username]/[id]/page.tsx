@@ -379,11 +379,13 @@ export default function EventoDetalhesPage() {
     )
   }
 
-  if (!event) {
+  if (!event || event.status === 'Bloqueado') {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
-        <h2 className="text-2xl font-bold">Evento não encontrado</h2>
-        <Button onClick={() => router.push('/dashboard')}>Voltar para Explorar</Button>
+      <div className="flex flex-col items-center justify-center h-[60vh] gap-4 text-center p-6">
+        <AlertTriangle className="w-16 h-16 text-muted-foreground opacity-20" />
+        <h2 className="text-2xl font-bold tracking-tighter">Essa página não está disponível</h2>
+        <p className="text-muted-foreground max-w-xs">O conteúdo que você procura foi removido por violar nossas diretrizes ou não existe.</p>
+        <Button onClick={() => router.push('/dashboard')} className="rounded-full px-8">Voltar para Explorar</Button>
       </div>
     )
   }
