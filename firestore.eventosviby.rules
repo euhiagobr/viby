@@ -8,10 +8,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function getUserData() {
+      return get(/databases/eventosviby/documents/users/$(request.auth.uid)).data;
+    }
+
     function isAdmin() {
       return isSignedIn() && 
         exists(/databases/eventosviby/documents/users/$(request.auth.uid)) &&
-        get(/databases/eventosviby/documents/users/$(request.auth.uid)).data.role == 'admin';
+        getUserData().role == 'admin';
     }
 
     function isOwner(userId) {
