@@ -25,7 +25,9 @@ import {
   Phone,
   Mail,
   Building2,
-  Briefcase
+  Briefcase,
+  Ticket,
+  Heart
 } from "lucide-react"
 import { EventCard } from "@/components/events/EventCard"
 import Link from "next/link"
@@ -105,23 +107,33 @@ export default function PublicProfilePage() {
   }, [db, username])
 
   const eventsQuery = useMemoFirebase(() => {
-    if (!db || !profile?.id) return null
+    if (!db || !profile?.id || profile.accountType !== 'Empresa') return null
     return query(
       collection(db, "events"),
       where("organizerId", "==", profile.id)
     )
-  }, [db, profile?.id])
+  }, [db, profile?.id, profile?.accountType])
 
   const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
 
+  const registrationsQuery = useMemoFirebase(() => {
+    if (!db || !profile?.id || profile.accountType === 'Empresa') return null
+    return query(
+      collection(db, "registrations"),
+      where("userId", "==", profile.id)
+    )
+  }, [db, profile?.id, profile?.accountType])
+
+  const { data: registrations, loading: registrationsLoading } = useCollection<any>(registrationsQuery)
+
   const stats = React.useMemo(() => {
-    if (!events) return { total: 0, active: 0, finished: 0 }
     return {
-      total: events.length,
-      active: events.filter((e: any) => e.status !== 'Concluído').length,
-      finished: events.filter((e: any) => e.status === 'Concluído').length
+      totalEvents: events?.length || 0,
+      totalInterests: registrations?.length || 0,
+      followers: profile?.followersCount || 0,
+      rating: profile?.rating || 0
     }
-  }, [events])
+  }, [events, registrations, profile])
 
   if (loading) {
     return (
@@ -142,6 +154,7 @@ export default function PublicProfilePage() {
   }
 
   const locationStr = [profile.city, profile.state, profile.country].filter(Boolean).join(", ");
+  const isCompany = profile.accountType === 'Empresa';
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
@@ -175,10 +188,10 @@ export default function PublicProfilePage() {
       <div className="container mx-auto px-4 -mt-24 pb-20 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-4 space-y-6">
-            <Card className="border-none shadow-xl overflow-hidden">
+            <Card className="border-none shadow-xl overflow-hidden rounded-[2rem]">
               <CardContent className="p-8 flex flex-col items-center text-center">
                 <Avatar className="h-32 w-32 border-4 border-background shadow-2xl">
-                  <AvatarImage src={profile.avatar} alt={profile.name} />
+                  <AvatarImage src={profile.avatar} alt={profile.name} className="object-cover" />
                   <AvatarFallback className="text-4xl font-bold bg-muted">
                     {profile.name?.charAt(0) || "U"}
                   </AvatarFallback>
@@ -190,33 +203,50 @@ export default function PublicProfilePage() {
                       <h1 className="text-2xl font-bold tracking-tight">{profile.name}</h1>
                       {profile.isVerified && <InstagramVerifiedBadge className="w-5 h-5" />}
                     </div>
-                    <Badge variant="outline" className="text-[10px] font-bold">
-                      {profile.accountType === 'Empresa' ? <Building2 className="w-3 h-3 mr-1" /> : <UsersIcon className="w-3 h-3 mr-1" />}
+                    <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-widest">
+                      {isCompany ? <Building2 className="w-3 h-3 mr-1" /> : <UsersIcon className="w-3 h-3 mr-1" />}
                       {profile.accountType || "Usuário"}
                     </Badge>
                   </div>
-                  <p className="text-secondary font-medium text-sm">@{profile.username}</p>
+                  <p className="text-secondary font-black text-xs uppercase tracking-tighter">@{profile.username}</p>
                   
                   {locationStr && (
-                    <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-                      <MapPin className="w-3 h-3" />
+                    <p className="text-xs text-muted-foreground flex items-center justify-center gap-1 font-medium">
+                      <MapPin className="w-3 h-3 text-secondary" />
                       {locationStr}
                     </p>
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 w-full mt-8">
+                <div className={cn(
+                  "grid gap-4 w-full mt-8",
+                  isCompany ? "grid-cols-3" : "grid-cols-2"
+                )}>
                   <div className="bg-muted/50 p-4 rounded-2xl text-center">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Seguidores</p>
-                    <p className="text-2xl font-black text-foreground">{profile.followersCount || 0}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mb-1">Seguidores</p>
+                    <p className="text-xl font-black text-foreground">{stats.followers}</p>
                   </div>
-                  <div className="bg-muted/50 p-4 rounded-2xl text-center">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Avaliação</p>
-                    <div className="flex items-center justify-center gap-1">
-                      <p className="text-2xl font-black text-foreground">{profile.rating ? profile.rating.toFixed(1) : "0.0"}</p>
-                      <Star className="w-4 h-4 text-orange-400 fill-orange-400" />
+                  
+                  {isCompany ? (
+                    <>
+                      <div className="bg-muted/50 p-4 rounded-2xl text-center">
+                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mb-1">Avaliação</p>
+                        <div className="flex items-center justify-center gap-0.5">
+                          <p className="text-xl font-black text-foreground">{stats.rating ? stats.rating.toFixed(1) : "0.0"}</p>
+                          <Star className="w-3.5 h-3.5 text-orange-400 fill-orange-400" />
+                        </div>
+                      </div>
+                      <div className="bg-muted/50 p-4 rounded-2xl text-center">
+                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mb-1">Eventos</p>
+                        <p className="text-xl font-black text-foreground">{stats.totalEvents}</p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="bg-muted/50 p-4 rounded-2xl text-center">
+                      <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mb-1">Interesses</p>
+                      <p className="text-xl font-black text-foreground">{stats.totalInterests}</p>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className="w-full mt-8 space-y-3">
@@ -228,7 +258,7 @@ export default function PublicProfilePage() {
                       </Link>
                     </Button>
                   ) : (
-                    <Button className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold py-6 rounded-2xl shadow-lg">
+                    <Button className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold py-6 rounded-2xl shadow-lg uppercase tracking-widest text-xs">
                       Seguir Organizador
                     </Button>
                   )}
@@ -243,33 +273,33 @@ export default function PublicProfilePage() {
               </CardContent>
             </Card>
 
-            <Card className="border-none shadow-sm">
-              <CardHeader><CardTitle className="text-lg">Bio</CardTitle></CardHeader>
+            <Card className="border-none shadow-sm rounded-[2rem]">
+              <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest text-muted-foreground">Biografia</CardTitle></CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground whitespace-pre-line">
-                  {profile.bio || "Nenhuma informação adicional disponível."}
+                <p className="text-sm text-muted-foreground font-medium leading-relaxed whitespace-pre-line">
+                  {profile.bio || "Nenhuma informação adicional disponível no momento."}
                 </p>
               </CardContent>
             </Card>
 
-            {profile.accountType === 'Empresa' && (
-              <Card className="border-none shadow-sm border-l-4 border-secondary">
-                <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Building2 className="w-5 h-5 text-secondary" /> Informações da Empresa</CardTitle></CardHeader>
+            {isCompany && (
+              <Card className="border-none shadow-sm border-l-4 border-secondary rounded-[2rem]">
+                <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2"><Building2 className="w-5 h-5 text-secondary" /> Informações Empresa</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Razão Social</p>
-                    <p className="text-sm font-semibold">{profile.legalName || "Não informado"}</p>
+                    <p className="text-[10px] uppercase font-black text-muted-foreground tracking-tighter">Razão Social</p>
+                    <p className="text-sm font-bold">{profile.legalName || "Não informado"}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">CNPJ</p>
-                    <p className="text-sm font-semibold">{profile.cnpj || "Não informado"}</p>
+                    <p className="text-[10px] uppercase font-black text-muted-foreground tracking-tighter">CNPJ</p>
+                    <p className="text-sm font-bold">{profile.cnpj || "Não informado"}</p>
                   </div>
                   {profile.businessCategory && (
                     <div>
-                      <p className="text-[10px] uppercase font-bold text-muted-foreground">Categoria</p>
+                      <p className="text-[10px] uppercase font-black text-muted-foreground tracking-tighter">Segmento</p>
                       <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="secondary" className="text-[10px]">
-                          <Briefcase className="w-3 h-3 mr-1" />
+                        <Badge variant="secondary" className="text-[10px] font-bold">
+                          <Briefcase className="w-3 h-3 mr-1 text-secondary" />
                           {profile.businessCategory}
                         </Badge>
                       </div>
@@ -280,74 +310,85 @@ export default function PublicProfilePage() {
             )}
 
             {(profile.website || profile.instagram || profile.whatsapp || (profile.email && profile.showEmail !== false)) && (
-              <Card className="border-none shadow-sm">
-                <CardHeader><CardTitle className="text-lg">Contato & Links</CardTitle></CardHeader>
+              <Card className="border-none shadow-sm rounded-[2rem]">
+                <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest text-muted-foreground">Canais Oficiais</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   {profile.website && (
-                    <a href={profile.website} target="_blank" className="flex items-center gap-3 text-sm hover:text-secondary">
-                      <LinkIcon className="w-4 h-4 text-muted-foreground" />
+                    <a href={profile.website} target="_blank" className="flex items-center gap-3 text-sm font-bold hover:text-secondary transition-colors">
+                      <LinkIcon className="w-4 h-4 text-secondary" />
                       Site Oficial
                     </a>
                   )}
                   {profile.instagram && (
-                    <a href={`https://instagram.com/${profile.instagram.replace('@', '')}`} target="_blank" className="flex items-center gap-3 text-sm hover:text-secondary">
-                      <Instagram className="w-4 h-4 text-muted-foreground" />
+                    <a href={`https://instagram.com/${profile.instagram.replace('@', '')}`} target="_blank" className="flex items-center gap-3 text-sm font-bold hover:text-secondary transition-colors">
+                      <Instagram className="w-4 h-4 text-secondary" />
                       @{profile.instagram.replace('@', '')}
                     </a>
                   )}
                   {profile.whatsapp && (
-                    <div className="flex items-center gap-3 text-sm">
-                      <Phone className="w-4 h-4 text-muted-foreground" />
+                    <div className="flex items-center gap-3 text-sm font-bold">
+                      <Phone className="w-4 h-4 text-secondary" />
                       {profile.whatsapp}
                     </div>
                   )}
                   {profile.email && profile.showEmail !== false && (
-                    <div className="flex items-center gap-3 text-sm">
-                      <Mail className="w-4 h-4 text-muted-foreground" />
+                    <div className="flex items-center gap-3 text-sm font-bold">
+                      <Mail className="w-4 h-4 text-secondary" />
                       {profile.email}
                     </div>
                   )}
                 </CardContent>
               </Card>
             )}
-
-            <Card className="border-none shadow-sm">
-              <CardHeader><CardTitle className="text-lg">Resumo de Atividade</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-green-500" /> Eventos Concluídos
-                  </span>
-                  <span className="font-bold">{stats.finished}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-secondary" /> Eventos Ativos
-                  </span>
-                  <span className="font-bold">{stats.active}</span>
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
           <div className="lg:col-span-8 space-y-8">
-            <h2 className="text-2xl font-bold tracking-tight">Eventos Publicados</h2>
+            <h2 className="text-2xl font-black tracking-tighter flex items-center gap-3 uppercase">
+              {isCompany ? (
+                <><Calendar className="w-6 h-6 text-secondary" /> Eventos Publicados</>
+              ) : (
+                <><Heart className="w-6 h-6 text-secondary" /> Meus Interesses</>
+              )}
+            </h2>
 
-            {eventsLoading ? (
-              <div className="flex justify-center py-20">
-                <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-              </div>
-            ) : events && events.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {events.map((event: any) => (
-                  <EventCard key={event.id} event={event} />
-                ))}
-              </div>
+            {isCompany ? (
+              eventsLoading ? (
+                <div className="flex justify-center py-20">
+                  <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+                </div>
+              ) : events && events.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {events.map((event: any) => (
+                    <EventCard key={event.id} event={event} />
+                  ))}
+                </div>
+              ) : (
+                <div className="p-20 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-border shadow-sm">
+                  <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-20" />
+                  <p className="text-muted-foreground font-black uppercase tracking-widest text-xs">Nenhum evento publicado ainda.</p>
+                </div>
+              )
             ) : (
-              <div className="p-20 text-center bg-white rounded-3xl border-2 border-dashed border-border shadow-sm">
-                <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-20" />
-                <p className="text-muted-foreground font-medium">Nenhum evento publicado.</p>
-              </div>
+              registrationsLoading ? (
+                <div className="flex justify-center py-20">
+                  <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+                </div>
+              ) : registrations && registrations.length > 0 ? (
+                <div className="p-10 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-border shadow-sm space-y-4">
+                  <Ticket className="w-12 h-12 mx-auto text-secondary mb-2 opacity-40" />
+                  <p className="text-muted-foreground font-black uppercase tracking-widest text-xs">
+                    Usuário interessado em {registrations.length} {registrations.length === 1 ? 'evento' : 'eventos'}.
+                  </p>
+                  <p className="text-[10px] text-muted-foreground font-medium max-w-xs mx-auto">
+                    Os interesses são privados, mas o organizador de cada evento foi notificado.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-20 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-border shadow-sm">
+                  <Heart className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-20" />
+                  <p className="text-muted-foreground font-black uppercase tracking-widest text-xs">Ainda não marcou interesse em eventos.</p>
+                </div>
+              )}
             )}
           </div>
         </div>
