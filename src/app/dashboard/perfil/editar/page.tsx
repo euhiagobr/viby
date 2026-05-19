@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -7,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useDoc, useFirebaseApp } from "@/firebase"
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
 import { Loader2, ArrowLeft, Save, Upload, Info, Link as LinkIcon, Instagram, Phone, Mail } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 import Link from "next/link"
 
 export default function EditarPerfilPage() {
