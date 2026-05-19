@@ -27,24 +27,26 @@ export default function CadastroPage() {
   const auth = useAuth()
   const db = useFirestore()
 
-  const validateUsername = (val: string) => {
-    const regex = /^[a-zA-Z0-9]+$/
-    return val.length >= 5 && regex.test(val)
-  }
-
   useEffect(() => {
-    if (!db || username.length < 5) {
-      setUsernameStatus(username.length > 0 ? 'invalid' : 'idle')
+    if (!db) return
+
+    if (username.length === 0) {
+      setUsernameStatus('idle')
+      setCheckingUsername(false)
       return
     }
 
-    if (!validateUsername(username)) {
+    const regex = /^[a-zA-Z0-9]+$/
+    if (username.length < 5 || !regex.test(username)) {
       setUsernameStatus('invalid')
+      setCheckingUsername(false)
       return
     }
+
+    setUsernameStatus('idle')
+    setCheckingUsername(true)
 
     const timer = setTimeout(async () => {
-      setCheckingUsername(true)
       try {
         const normalized = username.toLowerCase()
         const userDoc = await getDoc(doc(db, "usernames", normalized))
@@ -80,7 +82,6 @@ export default function CadastroPage() {
 
       await updateProfile(user, { displayName: name })
 
-      // Usar transação para garantir atomicidade entre user profile e reserva de username
       await runTransaction(db, async (transaction) => {
         const usernameRef = doc(db, "usernames", normalizedUsername)
         const userRef = doc(db, "users", user.uid)
@@ -126,8 +127,6 @@ export default function CadastroPage() {
       const userDoc = await getDoc(doc(db, "users", user.uid))
       
       if (!userDoc.exists()) {
-        // Para Google Sign In, precisamos de um passo extra ou um username temporário/aleatório
-        // Aqui apenas verificamos se existe. Se não existe, redirecionamos para completar perfil ou usamos email
         const baseUsername = user.email?.split('@')[0].replace(/[^a-zA-Z0-9]/g, '') || "user"
         const finalUsername = baseUsername.length < 5 ? baseUsername + Math.floor(1000 + Math.random() * 9000) : baseUsername
         
