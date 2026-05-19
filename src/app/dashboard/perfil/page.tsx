@@ -1,13 +1,14 @@
+
 "use client"
 
 import * as React from "react"
-import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { useAuth, useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase"
+import { doc, collection, query, where } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, Mail, User, ShieldCheck, Calendar, MapPin, Hash, Globe, ExternalLink } from "lucide-react"
+import { Loader2, Mail, ShieldCheck, Calendar, Hash, Globe, ExternalLink, Edit, MapPin } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 
@@ -18,6 +19,22 @@ export default function PerfilPage() {
 
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile, loading: profileLoading } = useDoc<any>(userDocRef)
+
+  // Buscar eventos reais do usuário
+  const eventsQuery = useMemoFirebase(() => {
+    if (!db || !user) return null
+    return query(collection(db, "events"), where("organizerId", "==", user.uid))
+  }, [db, user])
+  const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
+
+  const stats = React.useMemo(() => {
+    if (!events) return { total: 0, active: 0, finished: 0 }
+    return {
+      total: events.length,
+      active: events.filter((e: any) => e.status !== 'Concluído').length,
+      finished: events.filter((e: any) => e.status === 'Concluído').length
+    }
+  }, [events])
 
   if (authLoading || profileLoading) {
     return (
@@ -43,12 +60,20 @@ export default function PerfilPage() {
           <h1 className="text-3xl font-bold tracking-tight">Meu Perfil</h1>
           <p className="text-muted-foreground">Gerencie suas informações pessoais e visualize seu perfil público.</p>
         </div>
-        <Button asChild className="bg-secondary text-white hover:bg-secondary/90 gap-2 font-bold rounded-full px-6">
-          <Link href={`/${profile.username}`} target="_blank">
-            Ver Perfil Público
-            <ExternalLink className="w-4 h-4" />
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild className="gap-2 font-bold rounded-full">
+            <Link href="/dashboard/perfil/editar">
+              <Edit className="w-4 h-4" />
+              Editar Dados
+            </Link>
+          </Button>
+          <Button asChild className="bg-secondary text-white hover:bg-secondary/90 gap-2 font-bold rounded-full px-6">
+            <Link href={`/${profile.username}`} target="_blank">
+              Ver Perfil Público
+              <ExternalLink className="w-4 h-4" />
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -83,6 +108,12 @@ export default function PerfilPage() {
                   <Mail className="w-4 h-4 text-muted-foreground" />
                   <span className="font-medium truncate">{profile.email}</span>
                 </div>
+                {profile.location && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <MapPin className="w-4 h-4 text-muted-foreground" />
+                    <span className="font-medium">{profile.location}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-3 text-sm">
                   <Calendar className="w-4 h-4 text-muted-foreground" />
                   <span className="font-medium">Membro desde {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString('pt-BR') : 'Recentemente'}</span>
@@ -96,17 +127,21 @@ export default function PerfilPage() {
           <Card className="border-none shadow-sm">
             <CardHeader>
               <CardTitle className="text-lg">Atividade na Plataforma</CardTitle>
-              <CardDescription>Resumo de suas conquistas e eventos.</CardDescription>
+              <CardDescription>Resumo de seus eventos publicados.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-muted/50 p-6 rounded-2xl">
                   <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest mb-1">Total de Eventos</p>
-                  <p className="text-3xl font-black text-foreground">{profile.totalEvents || 0}</p>
+                  <p className="text-3xl font-black text-foreground">
+                    {eventsLoading ? "..." : stats.total}
+                  </p>
                 </div>
                 <div className="bg-muted/50 p-6 rounded-2xl">
-                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest mb-1">Engajamento</p>
-                  <p className="text-3xl font-black text-foreground">Altíssimo</p>
+                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest mb-1">Eventos Ativos</p>
+                  <p className="text-3xl font-black text-foreground">
+                    {eventsLoading ? "..." : stats.active}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -114,22 +149,12 @@ export default function PerfilPage() {
 
           <Card className="border-none shadow-sm">
             <CardHeader>
-              <CardTitle className="text-lg">Informações Adicionais</CardTitle>
+              <CardTitle className="text-lg">Bio</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-bold uppercase">Plataforma</p>
-                  <p className="font-medium flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-secondary" />
-                    Viby Club
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-bold uppercase">Status da Conta</p>
-                  <p className="font-medium text-green-500">Ativa</p>
-                </div>
-              </div>
+            <CardContent>
+              <p className="text-sm text-muted-foreground whitespace-pre-line">
+                {profile.bio || "Nenhuma biografia adicionada."}
+              </p>
             </CardContent>
           </Card>
         </div>

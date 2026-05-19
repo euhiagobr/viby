@@ -4,7 +4,7 @@
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
-import { doc, getDoc, collection, query, where, orderBy } from "firebase/firestore"
+import { doc, getDoc, collection, query, where } from "firebase/firestore"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -79,19 +79,18 @@ export default function PublicProfilePage() {
     fetchProfile()
   }, [db, username])
 
-  // Buscar eventos deste organizador
+  // Buscar eventos deste organizador (sem orderBy para evitar necessidade de índices complexos imediatos)
   const eventsQuery = useMemoFirebase(() => {
     if (!db || !profile?.id) return null
     return query(
       collection(db, "events"),
-      where("organizerId", "==", profile.id),
-      orderBy("createdAt", "desc")
+      where("organizerId", "==", profile.id)
     )
   }, [db, profile?.id])
 
   const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
 
-  // Estatísticas calculadas
+  // Estatísticas calculadas reais
   const stats = React.useMemo(() => {
     if (!events) return { total: 0, active: 0, finished: 0 }
     return {
@@ -121,7 +120,6 @@ export default function PublicProfilePage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
-      {/* Header simplificado */}
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
@@ -133,7 +131,7 @@ export default function PublicProfilePage() {
           <div className="flex items-center gap-2">
             {isOwner && (
               <Button variant="outline" size="sm" asChild className="hidden sm:flex gap-2">
-                <Link href="/dashboard/perfil">
+                <Link href="/dashboard/perfil/editar">
                   <Edit className="w-4 h-4" />
                   Editar Perfil
                 </Link>
@@ -147,14 +145,12 @@ export default function PublicProfilePage() {
         </div>
       </nav>
 
-      {/* Perfil Cover */}
       <div className="h-48 md:h-64 bg-secondary/10 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/5" />
       </div>
 
       <div className="container mx-auto px-4 -mt-24 pb-20 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Sidebar de Perfil */}
           <div className="lg:col-span-4 space-y-6">
             <Card className="border-none shadow-xl overflow-hidden">
               <CardContent className="p-8 flex flex-col items-center text-center">
@@ -172,6 +168,13 @@ export default function PublicProfilePage() {
                   </div>
                   <p className="text-secondary font-medium text-sm">@{profile.username}</p>
                   
+                  {profile.location && (
+                    <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      {profile.location}
+                    </p>
+                  )}
+                  
                   <div className="flex flex-wrap justify-center gap-2 mt-4">
                     <Badge variant="secondary" className="bg-secondary/10 text-secondary border-none px-3 py-1">
                       Promotor Verificado
@@ -184,13 +187,13 @@ export default function PublicProfilePage() {
                     <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Seguidores</p>
                     <div className="flex items-center justify-center gap-1.5">
                       <UsersIcon className="w-4 h-4 text-secondary" />
-                      <p className="text-2xl font-black text-foreground">1.2k</p>
+                      <p className="text-2xl font-black text-foreground">{profile.followersCount || 0}</p>
                     </div>
                   </div>
                   <div className="bg-muted/50 p-4 rounded-2xl">
                     <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Avaliação</p>
                     <div className="flex items-center justify-center gap-1">
-                      <p className="text-2xl font-black text-foreground">4.9</p>
+                      <p className="text-2xl font-black text-foreground">{profile.rating ? profile.rating.toFixed(1) : "0.0"}</p>
                       <Star className="w-4 h-4 text-orange-400 fill-orange-400" />
                     </div>
                   </div>
@@ -199,7 +202,7 @@ export default function PublicProfilePage() {
                 <div className="w-full mt-8 space-y-3">
                   {isOwner ? (
                     <Button asChild className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold gap-2 py-6 rounded-2xl">
-                      <Link href="/dashboard/perfil">
+                      <Link href="/dashboard/perfil/editar">
                         <Edit className="w-4 h-4" />
                         Editar Meu Perfil
                       </Link>
@@ -211,12 +214,23 @@ export default function PublicProfilePage() {
                   )}
                   <Button variant="outline" className="w-full font-bold gap-2 py-6 rounded-2xl border-2" onClick={() => {
                     navigator.clipboard.writeText(window.location.href)
-                    alert("Link do perfil copiado!")
+                    toast({ title: "Link copiado!" })
                   }}>
                     <Share2 className="w-4 h-4" />
                     Compartilhar Perfil
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">Sobre</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground whitespace-pre-line">
+                  {profile.bio || "Nenhuma informação adicional disponível."}
+                </p>
               </CardContent>
             </Card>
 
@@ -247,25 +261,8 @@ export default function PublicProfilePage() {
                 </div>
               </CardContent>
             </Card>
-
-            <Card className="border-none shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg">Informações</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-3 text-sm">
-                  <Calendar className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Membro desde {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString('pt-BR') : 'Recentemente'}</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <MapPin className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">São Paulo, Brasil</span>
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
-          {/* Conteúdo Principal */}
           <div className="lg:col-span-8 space-y-8">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold tracking-tight">Eventos Publicados</h2>
