@@ -1,31 +1,30 @@
 rules_version = '2';
 service firebase.storage {
-  // REGRAS STORAGE VIBY - Versão: 2.1.0
-  // Bucket: viby
   match /b/viby/o {
+    // VIBY STORAGE ISOLATION
     
-    // Assets do site (logos e ícones) - Leitura pública para identidade visual
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
     match /site_assets/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isSignedIn(); // Admin check handled via client logic + firestore rules
     }
 
-    // Avatares de perfil - Leitura pública para perfis sociais
     match /profiles/{userId}/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // Imagens de eventos - Leitura pública para o feed
     match /events/{userId}/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // Regra padrão de segurança
     match /{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isSignedIn();
     }
   }
 }
