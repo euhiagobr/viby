@@ -2,8 +2,8 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // DEPLOY VIBY - Versão: 1.4.0 (Acesso Público Total Garantido)
-    // Este deploy força a liberação de leitura e escrita em todos os buckets do projeto.
+    // DEPLOY VIBY - Versão: 1.5.0 (Acesso Público Total Garantido)
+    // Forçando liberação total de leitura e escrita em TODOS os buckets, incluindo o bucket 'viby'.
     match /{allPaths=**} {
       allow read, write: if true;
     }

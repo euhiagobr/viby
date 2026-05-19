@@ -53,10 +53,11 @@ export default function NovoEventoPage() {
   const storage = React.useMemo(() => {
     if (!app) return null;
     try {
+      // Tenta carregar o bucket específico 'viby'
       return getStorage(app, "gs://viby");
     } catch (e) {
-      console.error("Erro ao inicializar bucket viby:", e);
-      return getStorage(app); // Fallback para o padrão se o viby falhar
+      console.warn("Bucket gs://viby não disponível, usando padrão:", e);
+      return getStorage(app);
     }
   }, [app])
 
@@ -113,23 +114,36 @@ export default function NovoEventoPage() {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
           setUploadProgress(progress)
         }, 
-        (error) => {
-          console.error("Erro no upload:", error)
+        (error: any) => {
+          console.error("Erro no upload (storage):", error)
           setUploadProgress(null)
+          
+          let errorMessage = "Ocorreu um erro desconhecido no upload."
+          if (error.code === 'storage/unauthorized') {
+            errorMessage = "Permissão negada no bucket 'viby'. Verifique se as regras foram propagadas ou se o bucket existe."
+          } else if (error.code === 'storage/canceled') {
+            errorMessage = "O upload foi cancelado."
+          }
+
           toast({
             variant: "destructive",
             title: "Erro no upload",
-            description: `Acesso negado ao bucket 'viby'. Verifique se o bucket existe ou se as regras foram propagadas.`
+            description: errorMessage
           })
         }, 
         async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
-          setUploadedImageUrl(downloadURL)
-          setUploadProgress(null)
-          toast({
-            title: "Imagem carregada!",
-            description: "A foto da capa foi salva com sucesso no bucket viby."
-          })
+          try {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+            setUploadedImageUrl(downloadURL)
+            setUploadProgress(null)
+            toast({
+              title: "Imagem carregada!",
+              description: "A foto da capa foi salva com sucesso."
+            })
+          } catch (e) {
+            console.error("Erro ao obter URL de download:", e)
+            setUploadProgress(null)
+          }
         }
       )
     } catch (err: any) {
