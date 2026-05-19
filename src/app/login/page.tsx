@@ -1,11 +1,11 @@
-
 "use client"
 
 import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/firebase"
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth"
+import { useAuth, useFirestore } from "@/firebase"
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth"
+import { doc, getDoc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,15 +20,37 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const auth = useAuth()
+  const db = useFirestore()
+
+  const verifyVibyUser = async (uid: string) => {
+    if (!db) return false
+    const userDoc = await getDoc(doc(db, "users", uid))
+    if (!userDoc.exists() || userDoc.data()?.platform !== "viby") {
+      return false
+    }
+    return true
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!auth) return
+    if (!auth || !db) return
 
     setLoading(true)
     try {
-      await signInWithEmailAndPassword(auth, email, password)
-      toast({ title: "Login realizado!", description: "Bem-vindo de volta." })
+      const userCredential = await signInWithEmailAndPassword(auth, email, password)
+      const isViby = await verifyVibyUser(userCredential.user.uid)
+      
+      if (!isViby) {
+        await signOut(auth)
+        toast({
+          variant: "destructive",
+          title: "Acesso Negado",
+          description: "Esta conta não possui permissão para acessar o Viby Club."
+        })
+        return
+      }
+
+      toast({ title: "Login realizado!", description: "Bem-vindo de volta ao Viby." })
       router.push("/dashboard")
     } catch (error: any) {
       toast({
@@ -42,10 +64,22 @@ export default function LoginPage() {
   }
 
   const handleGoogleSignIn = async () => {
-    if (!auth) return
+    if (!auth || !db) return
     const provider = new GoogleAuthProvider()
     try {
-      await signInWithPopup(auth, provider)
+      const result = await signInWithPopup(auth, provider)
+      const isViby = await verifyVibyUser(result.user.uid)
+
+      if (!isViby) {
+        await signOut(auth)
+        toast({
+          variant: "destructive",
+          title: "Acesso Negado",
+          description: "Sua conta Google não está vinculada ao Viby Club."
+        })
+        return
+      }
+
       router.push("/dashboard")
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro com Google", description: error.message })
@@ -59,8 +93,8 @@ export default function LoginPage() {
           <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4">
             <Globe className="text-white w-7 h-7" />
           </div>
-          <CardTitle className="text-2xl font-bold">Bem-vindo de volta</CardTitle>
-          <CardDescription>Entre na sua conta para gerenciar seus eventos.</CardDescription>
+          <CardTitle className="text-2xl font-bold">Viby Club Login</CardTitle>
+          <CardDescription>Acesse sua conta exclusiva de eventos.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={handleLogin} className="space-y-4">
@@ -77,7 +111,7 @@ export default function LoginPage() {
             </div>
             <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90" disabled={loading}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Entrar
+              Entrar no Viby
             </Button>
           </form>
           <div className="relative">
@@ -100,7 +134,7 @@ export default function LoginPage() {
         </CardContent>
         <CardFooter className="flex justify-center">
           <p className="text-sm text-muted-foreground">
-            Ainda não tem conta?{" "}
+            Ainda não tem conta no Viby?{" "}
             <Link href="/cadastro" className="text-secondary font-bold hover:underline">
               Cadastrar-se
             </Link>

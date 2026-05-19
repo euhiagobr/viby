@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -6,7 +5,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useFirestore } from "@/firebase"
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, updateProfile } from "firebase/auth"
-import { doc, setDoc } from "firebase/firestore"
+import { doc, setDoc, getDoc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,13 +34,14 @@ export default function CadastroPage() {
 
       await updateProfile(user, { displayName: name })
 
-      // Criar perfil no Firestore
       await setDoc(doc(db, "users", user.uid), {
         name,
         email,
         avatar: `https://picsum.photos/seed/${user.uid}/100/100`,
         isVerified: false,
-        totalEvents: 0
+        totalEvents: 0,
+        platform: "viby",
+        createdAt: new Date().toISOString()
       })
 
       toast({ title: "Conta criada!", description: "Bem-vindo ao Viby." })
@@ -64,13 +64,19 @@ export default function CadastroPage() {
       const result = await signInWithPopup(auth, provider)
       const user = result.user
 
-      await setDoc(doc(db, "users", user.uid), {
-        name: user.displayName || "Usuário",
-        email: user.email,
-        avatar: user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`,
-        isVerified: false,
-        totalEvents: 0
-      }, { merge: true })
+      const userDoc = await getDoc(doc(db, "users", user.uid))
+      
+      if (!userDoc.exists()) {
+        await setDoc(doc(db, "users", user.uid), {
+          name: user.displayName || "Usuário",
+          email: user.email,
+          avatar: user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`,
+          isVerified: false,
+          totalEvents: 0,
+          platform: "viby",
+          createdAt: new Date().toISOString()
+        })
+      }
 
       router.push("/dashboard")
     } catch (error: any) {
@@ -85,8 +91,8 @@ export default function CadastroPage() {
           <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4">
             <Globe className="text-white w-7 h-7" />
           </div>
-          <CardTitle className="text-2xl font-bold">Criar uma conta</CardTitle>
-          <CardDescription>Junte-se ao Viby para divulgar seus eventos.</CardDescription>
+          <CardTitle className="text-2xl font-bold">Criar uma conta Viby</CardTitle>
+          <CardDescription>Acesso exclusivo para a plataforma de eventos.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={handleRegister} className="space-y-4">
@@ -104,7 +110,7 @@ export default function CadastroPage() {
             </div>
             <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90" disabled={loading}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Cadastrar
+              Cadastrar no Viby
             </Button>
           </form>
           <div className="relative">
@@ -127,7 +133,7 @@ export default function CadastroPage() {
         </CardContent>
         <CardFooter className="flex justify-center">
           <p className="text-sm text-muted-foreground">
-            Já tem uma conta?{" "}
+            Já tem uma conta Viby?{" "}
             <Link href="/login" className="text-secondary font-bold hover:underline">
               Entrar
             </Link>

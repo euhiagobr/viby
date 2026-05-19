@@ -1,13 +1,18 @@
-
 "use client"
 
+import * as React from "react"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
-import { Search, Bell } from "lucide-react"
+import { Search, Bell, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { useAuth, useUser } from "@/firebase"
+import { useAuth, useUser, useFirestore } from "@/firebase"
+import { doc, getDoc } from "firebase/firestore"
+import { signOut } from "firebase/auth"
 import Link from "next/link"
+import { toast } from "@/hooks/use-toast"
 
 export default function DashboardLayout({
   children,
@@ -15,7 +20,49 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const auth = useAuth()
-  const { user } = useUser(auth)
+  const db = useFirestore()
+  const { user, loading: authLoading } = useUser(auth)
+  const router = useRouter()
+  const [verifying, setVerifying] = useState(true)
+
+  useEffect(() => {
+    async function checkPlatform() {
+      if (authLoading) return
+      
+      if (!user) {
+        setVerifying(false)
+        return
+      }
+
+      if (db && user) {
+        try {
+          const userDoc = await getDoc(doc(db, "users", user.uid))
+          if (!userDoc.exists() || userDoc.data()?.platform !== "viby") {
+            await signOut(auth!)
+            toast({
+              variant: "destructive",
+              title: "Sessão Inválida",
+              description: "Sua conta não pertence à plataforma Viby Club."
+            })
+            router.push("/login")
+          }
+        } catch (e) {
+          console.error("Platform verification error", e)
+        }
+      }
+      setVerifying(false)
+    }
+
+    checkPlatform()
+  }, [user, authLoading, db, auth, router])
+
+  if (authLoading || verifying) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+      </div>
+    )
+  }
 
   return (
     <SidebarProvider>
