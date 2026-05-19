@@ -98,6 +98,21 @@ export default function EditarPerfilPage() {
     }
   }, [profile])
 
+  const formatCNPJ = (value: string) => {
+    return value
+      .replace(/\D/g, "")
+      .replace(/^(\d{2})(\d)/, "$1.$2")
+      .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/\.(\d{3})(\d)/, ".$1/$2")
+      .replace(/(\d{4})(\d)/, "$1-$2")
+      .substring(0, 18);
+  }
+
+  const handleCNPJChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatCNPJ(e.target.value);
+    setFormData({ ...formData, cnpj: formatted });
+  }
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !storage || !user) return
@@ -241,7 +256,7 @@ export default function EditarPerfilPage() {
                   <Input 
                     id="cnpj" 
                     value={formData.cnpj} 
-                    onChange={(e) => setFormData({...formData, cnpj: e.target.value})} 
+                    onChange={handleCNPJChange} 
                     placeholder="00.000.000/0000-00" 
                     required 
                   />
