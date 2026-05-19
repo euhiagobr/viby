@@ -40,7 +40,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { Html5QrcodeScanner } from "html5-qrcode"
+import { Html5Qrcode } from "html5-qrcode"
 
 export default function EventoPublicoPage() {
   const params = useParams()
@@ -65,14 +65,13 @@ export default function EventoPublicoPage() {
   const [search, setSearch] = React.useState("")
   const [isSyncing, setIsSyncing] = React.useState(false)
 
-  // Estados do Scanner
   const [isScannerOpen, setIsScannerOpen] = React.useState(false)
   const [scanMode, setScanMode] = React.useState<'idle' | 'scanning' | 'result'>('idle')
   const [manualCode, setManualCode] = React.useState("")
   const [scanResult, setScanResult] = React.useState<any>(null)
   const [isValidating, setIsValidating] = React.useState(false)
   
-  const scannerRef = React.useRef<Html5QrcodeScanner | null>(null)
+  const scannerInstance = React.useRef<Html5Qrcode | null>(null)
 
   const stats = React.useMemo(() => {
     const total = registrations?.length || 0;
@@ -97,40 +96,51 @@ export default function EventoPublicoPage() {
     )
   }, [registrations, search])
 
-  // Lógica do Scanner
-  React.useEffect(() => {
-    if (isScannerOpen && scanMode === 'scanning') {
-      const startScanner = async () => {
-        try {
-          if (!scannerRef.current) {
-            scannerRef.current = new Html5QrcodeScanner(
-              "reader-integrated",
-              { fps: 10, qrbox: { width: 250, height: 250 } },
-              false
-            );
-          }
-          scannerRef.current.render(onScanSuccess, onScanFailure);
-        } catch (e) {
-          console.error("Erro ao iniciar scanner:", e);
-        }
-      };
-      
-      const timeout = setTimeout(startScanner, 100);
-      return () => {
-        clearTimeout(timeout);
-        if (scannerRef.current) {
-          scannerRef.current.clear().catch(e => console.error("Limpeza do scanner:", e));
-          scannerRef.current = null;
-        }
+  const startScanning = async () => {
+    setScanMode('scanning');
+    
+    setTimeout(async () => {
+      try {
+        const html5QrCode = new Html5Qrcode("reader-integrated");
+        scannerInstance.current = html5QrCode;
+        
+        await html5QrCode.start(
+          { facingMode: "environment" }, 
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+          },
+          (decodedText) => {
+            stopScanning();
+            validateTicket(decodedText);
+          },
+          (errorMessage) => {}
+        );
+      } catch (err) {
+        console.error("Erro ao iniciar scanner:", err);
+        toast({ variant: "destructive", title: "Erro na Câmera", description: "Não foi possível acessar a câmera." });
+        setScanMode('idle');
       }
-    }
-  }, [isScannerOpen, scanMode])
-
-  const onScanSuccess = (decodedText: string) => {
-    validateTicket(decodedText)
+    }, 300);
   }
 
-  const onScanFailure = (error: any) => {}
+  const stopScanning = async () => {
+    if (scannerInstance.current && scannerInstance.current.isScanning) {
+      try {
+        await scannerInstance.current.stop();
+        scannerInstance.current.clear();
+        scannerInstance.current = null;
+      } catch (e) {
+        console.error("Erro ao parar scanner:", e);
+      }
+    }
+  }
+
+  React.useEffect(() => {
+    return () => {
+      stopScanning();
+    };
+  }, []);
 
   const validateTicket = async (code: string) => {
     if (!db || !code || !eventId) return
@@ -146,6 +156,7 @@ export default function EventoPublicoPage() {
 
       if (snap.empty) {
         toast({ variant: "destructive", title: "Não encontrado", description: "Ingresso inválido para este evento." })
+        setScanMode('idle');
       } else {
         const data = snap.docs[0].data()
         setScanResult({ ...data, id: snap.docs[0].id })
@@ -156,6 +167,7 @@ export default function EventoPublicoPage() {
       }
     } catch (err) {
       toast({ variant: "destructive", title: "Erro na busca" })
+      setScanMode('idle');
     } finally {
       setIsValidating(false)
     }
@@ -168,7 +180,8 @@ export default function EventoPublicoPage() {
       await updateDoc(doc(db, "registrations", scanResult.id), {
         checkedIn: true,
         checkedInAt: serverTimestamp(),
-        checkedInBy: currentUser.uid
+        checkedInBy: currentUser.uid,
+        status: "Utilizado"
       })
       toast({ title: "Sucesso!", description: `Check-in de ${scanResult.userName} realizado.` })
       setScanMode('idle')
@@ -179,14 +192,6 @@ export default function EventoPublicoPage() {
     } finally {
       setIsValidating(false)
     }
-  }
-
-  const formatDate = (timestamp: any) => {
-    if (!timestamp) return "---";
-    try {
-      const d = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    } catch (e) { return "---"; }
   }
 
   const calculateAge = (birthDate: string) => {
@@ -206,7 +211,8 @@ export default function EventoPublicoPage() {
       await updateDoc(doc(db, "registrations", regId), {
         checkedIn: !currentStatus,
         checkedInAt: !currentStatus ? serverTimestamp() : null,
-        checkedInBy: !currentStatus ? currentUser?.uid : null
+        checkedInBy: !currentStatus ? currentUser?.uid : null,
+        status: !currentStatus ? "Utilizado" : "Ativo"
       })
       toast({ title: !currentStatus ? "Check-in realizado!" : "Check-in removido." })
     } catch (error) {
@@ -352,7 +358,7 @@ export default function EventoPublicoPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={isScannerOpen} onOpenChange={(open) => { setIsScannerOpen(open); if(!open) setScanMode('idle'); }}>
+      <Dialog open={isScannerOpen} onOpenChange={(open) => { setIsScannerOpen(open); if(!open) { stopScanning(); setScanMode('idle'); } }}>
         <DialogContent className="max-w-xl rounded-2xl overflow-hidden p-0">
           <DialogHeader className="p-6 bg-muted/30">
             <div className="flex items-center justify-between">
@@ -368,7 +374,7 @@ export default function EventoPublicoPage() {
           <div className="p-6">
             {scanMode === 'idle' && (
               <div className="grid grid-cols-2 gap-4">
-                <Button className="h-32 flex-col gap-3 rounded-2xl" variant="outline" onClick={() => setScanMode('scanning')}>
+                <Button className="h-32 flex-col gap-3 rounded-2xl" variant="outline" onClick={startScanning}>
                   <div className="p-3 bg-secondary/10 rounded-full"><ScanQrCode className="w-6 h-6 text-secondary" /></div>
                   <span className="font-bold">Usar Câmera</span>
                 </Button>
@@ -384,8 +390,8 @@ export default function EventoPublicoPage() {
 
             {scanMode === 'scanning' && (
               <div className="space-y-4">
-                <div id="reader-integrated" className="w-full overflow-hidden rounded-xl border-2 border-dashed border-border"></div>
-                <Button variant="ghost" className="w-full font-bold" onClick={() => setScanMode('idle')}>Voltar</Button>
+                <div id="reader-integrated" className="w-full overflow-hidden rounded-xl border-2 border-dashed border-border bg-black aspect-square"></div>
+                <Button variant="ghost" className="w-full font-bold" onClick={() => { stopScanning(); setScanMode('idle'); }}>Voltar</Button>
               </div>
             )}
 

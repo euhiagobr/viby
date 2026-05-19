@@ -1,9 +1,10 @@
+
 "use client"
 
 import * as React from "react"
 import { useFirestore, useAuth, useUser } from "@/firebase"
 import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp } from "firebase/firestore"
-import { Html5QrcodeScanner } from "html5-qrcode"
+import { Html5Qrcode } from "html5-qrcode"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -38,37 +39,52 @@ export default function AdminScannerPage() {
   const [ticketData, setTicketData] = React.useState<any>(null)
   const [error, setError] = React.useState<string | null>(null)
 
-  const scannerRef = React.useRef<Html5QrcodeScanner | null>(null)
+  const scannerInstance = React.useRef<Html5Qrcode | null>(null)
 
-  React.useEffect(() => {
-    if (mode === 'camera') {
-      scannerRef.current = new Html5QrcodeScanner(
-        "reader",
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        false
-      );
-      scannerRef.current.render(onScanSuccess, onScanFailure);
-    }
+  const startCamera = async () => {
+    setMode('camera');
+    setTimeout(async () => {
+      try {
+        const html5QrCode = new Html5Qrcode("reader");
+        scannerInstance.current = html5QrCode;
+        
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+          },
+          (decodedText) => {
+            stopCamera();
+            validateTicket(decodedText);
+          },
+          (errorMessage) => {}
+        );
+      } catch (err) {
+        console.error("Erro ao acessar câmera:", err);
+        toast({ variant: "destructive", title: "Erro na Câmera", description: "Certifique-se de dar permissão de acesso." });
+        setMode('idle');
+      }
+    }, 300);
+  }
 
-    return () => {
-      if (scannerRef.current) {
-        scannerRef.current.clear().catch(error => console.error("Scanner cleanup error:", error));
+  const stopCamera = async () => {
+    if (scannerInstance.current && scannerInstance.current.isScanning) {
+      try {
+        await scannerInstance.current.stop();
+        scannerInstance.current.clear();
+        scannerInstance.current = null;
+      } catch (e) {
+        console.error("Erro ao parar scanner:", e);
       }
     }
-  }, [mode])
+  }
 
-  const onScanSuccess = (decodedText: string) => {
-    if (scannerRef.current) {
-      scannerRef.current.clear().then(() => {
-        setMode('manual')
-        validateTicket(decodedText)
-      })
+  React.useEffect(() => {
+    return () => {
+      stopCamera();
     }
-  }
-
-  const onScanFailure = (error: any) => {
-    // Silently handle scan failures
-  }
+  }, [])
 
   const validateTicket = async (code: string) => {
     if (!db || !code) return
@@ -76,6 +92,7 @@ export default function AdminScannerPage() {
     setIsValidating(true)
     setError(null)
     setTicketData(null)
+    setMode('manual')
 
     try {
       const q = query(collection(db, "registrations"), where("ticketCode", "==", code.trim().toUpperCase()))
@@ -123,6 +140,7 @@ export default function AdminScannerPage() {
   }
 
   const resetScanner = () => {
+    stopCamera();
     setMode('idle')
     setTicketData(null)
     setError(null)
@@ -145,7 +163,7 @@ export default function AdminScannerPage() {
 
       {mode === 'idle' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="hover:border-secondary transition-all cursor-pointer group" onClick={() => setMode('camera')}>
+          <Card className="hover:border-secondary transition-all cursor-pointer group" onClick={startCamera}>
             <CardContent className="p-8 flex flex-col items-center justify-center gap-4">
               <div className="p-6 bg-secondary/10 rounded-full group-hover:bg-secondary group-hover:text-white transition-colors">
                 <Camera className="w-10 h-10" />
@@ -179,12 +197,13 @@ export default function AdminScannerPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div id="reader" className="w-full"></div>
+            <div id="reader" className="w-full bg-black aspect-square"></div>
+            <Button variant="ghost" className="w-full rounded-none h-14 font-bold" onClick={resetScanner}>Cancelar</Button>
           </CardContent>
         </Card>
       )}
 
-      {mode === 'manual' && !ticketData && (
+      {mode === 'manual' && !ticketData && !error && (
         <Card>
           <CardHeader>
             <CardTitle>Entrada Manual</CardTitle>
@@ -221,7 +240,7 @@ export default function AdminScannerPage() {
               <h3 className="font-bold text-xl">Acesso Negado</h3>
               <p className="text-muted-foreground font-medium">{error}</p>
             </div>
-            <Button variant="outline" onClick={() => { setError(null); setTicketData(null); }} className="rounded-full">Tentar Novamente</Button>
+            <Button variant="outline" onClick={() => { setError(null); setTicketData(null); setMode('idle'); }} className="rounded-full">Tentar Novamente</Button>
           </CardContent>
         </Card>
       )}
