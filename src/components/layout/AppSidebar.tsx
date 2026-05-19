@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -14,7 +13,8 @@ import {
   UserPlus,
   ShieldCheck,
   User,
-  Ticket
+  Ticket,
+  ScanQrCode
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -51,6 +51,7 @@ export function AppSidebar() {
   const { data: settings } = useDoc<any>(settingsRef)
   
   const isAdmin = profile?.role === 'admin'
+  const isCompany = profile?.accountType === 'Empresa'
   const siteName = settings?.siteName || "Viby"
 
   const items = [
@@ -148,16 +149,37 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {(isAdmin || isCompany) && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="px-6 text-xs font-black uppercase text-secondary tracking-widest mb-4">Portaria</SidebarGroupLabel>
+            <SidebarGroupContent className="px-3">
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === "/admin/scanner"}>
+                    <Link href="/admin/scanner" className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-bold text-sm",
+                      pathname === "/admin/scanner" ? "bg-primary text-white shadow-xl" : "hover:bg-muted text-muted-foreground"
+                    )}>
+                      <ScanQrCode className="w-4 h-4" />
+                      <span>Scanner Check-in</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
         {isAdmin && (
           <SidebarGroup>
             <SidebarGroupLabel className="px-6 text-xs font-black uppercase text-destructive tracking-widest mb-4">Administração</SidebarGroupLabel>
             <SidebarGroupContent className="px-3">
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname?.startsWith("/admin")}>
+                  <SidebarMenuButton asChild isActive={pathname?.startsWith("/admin") && pathname !== "/admin/scanner"}>
                     <Link href="/admin" className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-bold text-sm",
-                      pathname?.startsWith("/admin") ? "bg-primary text-white shadow-xl" : "bg-destructive/10 text-destructive hover:bg-destructive hover:text-white"
+                      pathname?.startsWith("/admin") && pathname !== "/admin/scanner" ? "bg-primary text-white shadow-xl" : "bg-destructive/10 text-destructive hover:bg-destructive hover:text-white"
                     )}>
                       <ShieldCheck className="w-4 h-4" />
                       <span>Painel Admin</span>

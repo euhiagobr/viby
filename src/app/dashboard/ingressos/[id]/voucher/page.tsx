@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -17,10 +16,11 @@ import {
   Ticket, 
   Download,
   Share2,
-  AlertCircle
+  AlertCircle,
+  CheckCircle2
 } from "lucide-react"
 import Image from "next/image"
-import Link from "next/link"
+import { QRCodeSVG } from "qrcode.react"
 
 export default function VoucherPage() {
   const params = useParams()
@@ -69,7 +69,6 @@ export default function VoucherPage() {
     )
   }
 
-  // Verifica se o usuário é o dono do ingresso
   if (user && registration.userId !== user.uid) {
     return (
        <div className="flex flex-col items-center justify-center h-[70vh] gap-4">
@@ -81,8 +80,8 @@ export default function VoucherPage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto space-y-8 pb-20">
-      <div className="flex items-center justify-between">
+    <div className="max-w-xl mx-auto space-y-8 pb-20 pt-6">
+      <div className="flex items-center justify-between px-4">
         <Button variant="ghost" onClick={() => router.back()} className="gap-2 font-bold uppercase text-xs">
           <ArrowLeft className="w-4 h-4" />
           Voltar
@@ -97,7 +96,7 @@ export default function VoucherPage() {
         </div>
       </div>
 
-      <div className="relative">
+      <div className="relative px-4">
         <div className="absolute -top-4 -left-4 -right-4 h-32 bg-secondary/10 -z-10 blur-3xl rounded-full opacity-50" />
         
         <Card className="overflow-hidden border-none shadow-2xl rounded-[2.5rem] bg-white print:shadow-none">
@@ -111,6 +110,16 @@ export default function VoucherPage() {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
             <div className="absolute bottom-6 left-8 right-6">
+              <div className="flex items-center gap-2 mb-2">
+                <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase">
+                  {registration.batchName || "Lote Único"}
+                </Badge>
+                {registration.checkedIn && (
+                  <Badge className="bg-green-500 text-white border-none text-[10px] font-black uppercase flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Utilizado
+                  </Badge>
+                )}
+              </div>
               <h1 className="text-2xl font-black text-white uppercase italic tracking-tighter leading-tight line-clamp-2">
                 {registration.eventTitle}
               </h1>
@@ -118,7 +127,6 @@ export default function VoucherPage() {
           </div>
 
           <CardContent className="p-8 space-y-8 relative">
-            {/* Círculos de "picote" de ingresso */}
             <div className="absolute top-0 -left-4 w-8 h-8 bg-[#f8fafc] rounded-full -translate-y-1/2" />
             <div className="absolute top-0 -right-4 w-8 h-8 bg-[#f8fafc] rounded-full -translate-y-1/2" />
             
@@ -157,21 +165,34 @@ export default function VoucherPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Lote</p>
-                  <p className="font-bold text-sm">{registration.batchName || "Geral"}</p>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Preço</p>
+                  <p className="font-bold text-sm">
+                    {registration.price === 0 ? "GRÁTIS" : `R$ ${parseFloat(registration.price).toFixed(2)}`}
+                  </p>
                 </div>
               </div>
 
               <div className="flex flex-col items-center justify-center p-8 bg-muted/30 rounded-[2rem] gap-6">
                 <div className="p-4 bg-white rounded-3xl shadow-inner">
-                   <div className="w-40 h-40 relative flex items-center justify-center border-4 border-muted">
-                      {/* Simulação de QR Code */}
-                      <Ticket className="w-20 h-20 text-secondary opacity-20" />
-                      <div className="absolute inset-0 grid grid-cols-4 grid-rows-4 p-2 gap-1">
-                        {Array.from({length: 16}).map((_, i) => (
-                          <div key={i} className={`rounded-sm ${Math.random() > 0.5 ? 'bg-primary' : 'bg-transparent'}`} />
-                        ))}
-                      </div>
+                   <div className="w-48 h-48 relative flex items-center justify-center">
+                      {registration.ticketCode ? (
+                        <QRCodeSVG 
+                          value={registration.ticketCode} 
+                          size={192}
+                          level="H"
+                          includeMargin={false}
+                          imageSettings={{
+                            src: "/favicon.ico",
+                            x: undefined,
+                            y: undefined,
+                            height: 24,
+                            width: 24,
+                            excavate: true,
+                          }}
+                        />
+                      ) : (
+                        <Ticket className="w-20 h-20 text-secondary opacity-20" />
+                      )}
                    </div>
                 </div>
                 

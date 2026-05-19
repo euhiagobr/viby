@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -26,6 +25,7 @@ import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import Link from "next/link"
+import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
@@ -67,7 +67,6 @@ export default function EventoDetalhesPage() {
   )
   const { data: organizerProfile } = useDoc<any>(organizerRef)
 
-  // Perfil do usuário logado para capturar dados cadastrais no registro
   const currentUserRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: currentUserProfile } = useDoc<any>(currentUserRef)
   
@@ -104,18 +103,6 @@ export default function EventoDetalhesPage() {
     }
   };
 
-  const generateTicketCode = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 16; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-      if ((i + 1) % 4 === 0 && i !== 15) {
-        result += '-';
-      }
-    }
-    return result;
-  }
-
   const handleRegisterInterest = async () => {
     if (!auth || !user) {
       toast({ title: "Ação necessária", description: "Você precisa entrar para marcar interesse." })
@@ -127,43 +114,48 @@ export default function EventoDetalhesPage() {
 
     setRegistering(true)
     
-    const price = event.isFree ? 0 : (event.batches?.[0]?.price || 0);
-    const batchName = event.isFree ? "Gratuito" : (event.batches?.[0]?.name || "Lote Único");
+    try {
+      const price = event.isFree ? 0 : (event.batches?.[0]?.price || 0);
+      const batchName = event.isFree ? "Gratuito" : (event.batches?.[0]?.name || "Lote Único");
+      const ticketCode = await generateUniqueTicketCode(db);
 
-    const regData = {
-      eventId,
-      eventTitle: event.title,
-      eventImage: event.image || "",
-      eventDate: event.date,
-      eventCity: event.city || "",
-      userId: user.uid,
-      userName: currentUserProfile?.name || user.displayName || user.email || "Usuário",
-      userEmail: user.email,
-      userGender: currentUserProfile?.gender || "Não informado",
-      userBirthDate: currentUserProfile?.birthDate || "",
-      organizerId: event.organizerId,
-      timestamp: serverTimestamp(),
-      price: price,
-      batchName: batchName,
-      checkedIn: false,
-      paymentStatus: event.isFree ? "Disponível" : "Pendente",
-      ticketCode: generateTicketCode()
+      const regData = {
+        eventId,
+        eventTitle: event.title,
+        eventImage: event.image || "",
+        eventDate: event.date,
+        eventCity: event.city || "",
+        userId: user.uid,
+        userName: currentUserProfile?.name || user.displayName || user.email || "Usuário",
+        userEmail: user.email,
+        userGender: currentUserProfile?.gender || "Não informado",
+        userBirthDate: currentUserProfile?.birthDate || "",
+        organizerId: event.organizerId,
+        timestamp: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        price: price,
+        batchName: batchName,
+        checkedIn: false,
+        paymentStatus: event.isFree ? "Disponível" : "Pendente",
+        ticketCode: ticketCode,
+        status: "Ativo",
+        visibility: "public",
+        purchaseType: event.isFree ? "free" : "paid"
+      }
+
+      await addDoc(collection(db, "registrations"), regData)
+      setIsRegistered(true)
+      toast({ title: "Confirmado!", description: "Sua presença foi registrada e seu ingresso gerado." })
+    } catch (error: any) {
+      const permissionError = new FirestorePermissionError({
+        path: "registrations",
+        operation: "create"
+      })
+      errorEmitter.emit("permission-error", permissionError)
+      toast({ variant: "destructive", title: "Erro ao registrar", description: error.message })
+    } finally {
+      setRegistering(false)
     }
-
-    addDoc(collection(db, "registrations"), regData)
-      .then(() => {
-        setIsRegistered(true)
-        toast({ title: "Confirmado!", description: "Sua presença foi registrada na lista do organizador." })
-      })
-      .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
-          path: "registrations",
-          operation: "create",
-          requestResourceData: regData
-        })
-        errorEmitter.emit("permission-error", permissionError)
-      })
-      .finally(() => setRegistering(false))
   }
 
   if (eventLoading) {

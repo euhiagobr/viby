@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
@@ -13,8 +12,8 @@ service cloud.firestore {
         get(/databases/eventosviby/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    function isOrganizerOfRegistration() {
-      return isSignedIn() && (resource.data.organizerId == request.auth.uid);
+    function isOrganizer(organizerId) {
+      return isSignedIn() && request.auth.uid == organizerId;
     }
 
     function isOwner(userId) {
@@ -47,7 +46,6 @@ service cloud.firestore {
     }
 
     match /events/{eventId} {
-      // Regra de leitura: Dono e Admin lêem sempre. Público lê se status não for 'Excluído' (ou for indefinido)
       allow read: if (isSignedIn() && resource.data.organizerId == request.auth.uid) || 
                     isAdmin() || 
                     (!resource.data.keys().contains('status') || resource.data.status != 'Excluído');
@@ -58,10 +56,22 @@ service cloud.firestore {
     }
     
     match /registrations/{regId} {
-      allow read: if isSignedIn();
+      // Dono do ingresso e o Organizador do evento podem ler
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.organizerId == request.auth.uid || 
+        isAdmin()
+      );
       allow create: if isSignedIn();
-      allow update: if isOrganizerOfRegistration() || isAdmin();
-      allow delete: if isOrganizerOfRegistration() || isAdmin();
+      // Organizador e Admin podem fazer check-in
+      allow update: if isSignedIn() && (
+        resource.data.organizerId == request.auth.uid || 
+        isAdmin()
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.organizerId == request.auth.uid || 
+        isAdmin()
+      );
     }
 
     match /categories/{catId} {
