@@ -40,7 +40,6 @@ export function EventCard({ event }: EventCardProps) {
   const [imgSrc, setImgSrc] = React.useState<string>("")
 
   React.useEffect(() => {
-    // Evita erro de hidratação ao carregar a imagem apenas no cliente
     if (event.image) {
       setImgSrc(event.image)
     } else {
@@ -172,20 +171,20 @@ export function EventCard({ event }: EventCardProps) {
           className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           onClick={handleOrganizerClick}
         >
-          <div className="relative">
-            <Avatar className="h-6 w-6 border border-secondary/20">
-              <AvatarImage src={event.organizer?.avatar} alt={event.organizer?.name} />
-              <AvatarFallback className="text-[10px] font-bold">
-                {event.organizer?.name?.charAt(0) || "O"}
-              </AvatarFallback>
-            </Avatar>
+          <Avatar className="h-6 w-6 border border-secondary/20">
+            <AvatarImage src={event.organizer?.avatar} alt={event.organizer?.name} />
+            <AvatarFallback className="text-[10px] font-bold">
+              {event.organizer?.name?.charAt(0) || "O"}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase hover:text-secondary truncate max-w-[100px]">
+              {event.organizer?.name || "Organizador"}
+            </span>
             {event.organizer?.isVerified && (
-              <InstagramVerifiedBadge className="absolute -right-1 -bottom-1 w-3 h-3" />
+              <InstagramVerifiedBadge className="w-3 h-3" />
             )}
           </div>
-          <span className="text-[10px] font-bold text-muted-foreground uppercase hover:text-secondary truncate max-w-[120px]">
-            {event.organizer?.name || "Organizador"}
-          </span>
         </div>
         
         <Button 
