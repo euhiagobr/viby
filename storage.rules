@@ -1,19 +1,17 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Regras do Viby Club: Leitura Pública total
+    // Regras do Viby Club: Leitura Pública total e Escrita para Autenticados
     match /viby/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && 
-        get(/databases/eventosviby/documents/users/$(request.auth.uid)).data.platform == "viby";
+      allow write: if request.auth != null;
     }
     
-    // Suporte para bucket nomeado 'viby'
+    // Suporte para o bucket específico 'viby' caso o projeto o utilize explicitamente
     match /b/viby/o {
       match /{allPaths=**} {
         allow read: if true;
-        allow write: if request.auth != null && 
-          get(/databases/eventosviby/documents/users/$(request.auth.uid)).data.platform == "viby";
+        allow write: if request.auth != null;
       }
     }
     
