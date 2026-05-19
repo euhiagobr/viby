@@ -1,10 +1,31 @@
 rules_version = '2';
 service firebase.storage {
-  // REGRAS VIBY - Versão: 1.7.0 (Acesso Público Amplo para Debug)
-  // Permitindo acesso total para resolver erros persistentes de storage/unauthorized
+  // REGRAS STORAGE VIBY - Versão: 1.8.0
+  // Bucket: viby
   match /b/{bucket}/o {
+    
+    // Assets do site (logos e ícones)
+    match /site_assets/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null; // Simplificado para permitir escrita via painel admin
+    }
+
+    // Avatares de perfil
+    match /profiles/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Imagens de eventos
+    match /events/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Regra padrão de segurança
     match /{allPaths=**} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if request.auth != null;
     }
   }
 }
