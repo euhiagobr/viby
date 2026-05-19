@@ -11,7 +11,8 @@ import {
   LogOut,
   LogIn,
   UserPlus,
-  ShieldCheck
+  ShieldCheck,
+  User
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -72,6 +73,12 @@ export function AppSidebar() {
       title: "Resultados",
       url: "/dashboard/estatisticas",
       icon: BarChart3,
+      authRequired: true
+    },
+    {
+      title: "Meu Perfil",
+      url: "/dashboard/perfil",
+      icon: User,
       authRequired: true
     },
   ]
