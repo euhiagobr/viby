@@ -27,7 +27,8 @@ import {
   Image as ImageIcon,
   Map as MapIcon,
   Tag,
-  Hash
+  Hash,
+  Globe
 } from "lucide-react"
 import Link from "next/link"
 import { Separator } from "@/components/ui/separator"
@@ -68,6 +69,7 @@ export default function NovoEventoPage() {
     neighborhood: "",
     city: "",
     state: "",
+    country: "Brasil",
     number: "",
     complement: ""
   })
@@ -99,7 +101,8 @@ export default function NovoEventoPage() {
           street: data.logradouro,
           neighborhood: data.bairro,
           city: data.localidade,
-          state: data.uf
+          state: data.uf,
+          country: "Brasil"
         }))
       }
     } catch (e) {
@@ -314,7 +317,7 @@ export default function NovoEventoPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="number">Número</Label>
                 <Input id="number" value={address.number} onChange={(e) => setAddress({...address, number: e.target.value})} placeholder="123" required />
@@ -326,6 +329,24 @@ export default function NovoEventoPage() {
               <div className="space-y-2">
                 <Label htmlFor="city">Cidade</Label>
                 <Input id="city" value={address.city} onChange={(e) => setAddress({...address, city: e.target.value})} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="state">Estado (UF)</Label>
+                <Input id="state" value={address.state} onChange={(e) => setAddress({...address, state: e.target.value})} placeholder="EX: SP" required />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <div className="space-y-2">
+                <Label htmlFor="country" className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-secondary" />
+                  País
+                </Label>
+                <Input id="country" value={address.country} onChange={(e) => setAddress({...address, country: e.target.value})} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="complement">Complemento</Label>
+                <Input id="complement" value={address.complement} onChange={(e) => setAddress({...address, complement: e.target.value})} placeholder="Apto, Bloco, etc." />
               </div>
             </div>
 
