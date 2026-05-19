@@ -1,8 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, doc, updateDoc, deleteDoc, getDoc } from "firebase/firestore"
+import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from "@/firebase"
+import { collection, query, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore"
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { 
   Table, 
   TableBody, 
@@ -24,7 +25,8 @@ import {
   Trash2,
   Edit,
   Save,
-  X
+  Upload,
+  Info
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -33,7 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGr
 import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import Link from "next/link"
+import { Progress } from "@/components/ui/progress"
 import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
@@ -41,9 +43,9 @@ import { cn } from "@/lib/utils"
 
 const BUSINESS_CATEGORIES = {
   "Organizadores": ["Produtora de eventos", "Agência de marketing", "Agência de eventos", "Cerimonialista", "Organizador independente", "Assessoria de eventos"],
-  "Casas e locais": ["Casa noturna", "Bar", "Pub", "Restaurante", "Café", "Lounge", "Hotel", "Resort", "Centro de eventos", "Arena", "Teatro", "Auditório", "Espaço cultural", "Galeria", "Parque", "Estádio", "Rooftop", "Coworking Locais", "Centro de convenções"],
+  "Casas e locais": ["Casa noturna", "Bar", "Pub", "Restaurante", "Café", "Lounge", "Hotel", "Resort", "Centro de eventos", "Arena", "Teatro", "Auditório", "Espaço cultural", "Galeria", "Parque", "Estádio", "Rooftop", "Coworking", "Centro de convenções"],
   "Música e entretenimento": ["Banda", "Cantor(a)", "DJ", "Grupo musical", "Artista", "Performer", "Drag queen", "Humorista", "Influenciador(a)", "Apresentador(a)"],
-  "Eventos corporativos": ["Empresa privada", "Startup", "Consultoria", "RH/Treinamentos", "Coworking Corporativo", "Hub de inovação"],
+  "Eventos corporativos": ["Empresa privada", "Startup", "Consultoria", "RH/Treinamentos", "Hub de inovação"],
   "Gastronomia": ["Buffet", "Food truck", "Confeitaria", "Hamburgueria", "Pizzaria", "Choperia", "Vinícola", "Cafeteria"],
   "Casamentos e festas": ["Decoradora", "Floricultura", "Fotografia", "Filmagem", "Sonorização", "Iluminação", "Locação de móveis", "Bartender", "Segurança", "Recreação infantil"],
   "Cultura e educação": ["Escola", "Universidade", "Curso", "ONG cultural", "Biblioteca", "Museu", "Coletivo artístico"],
@@ -76,10 +78,17 @@ function InstagramVerifiedBadge({ className }: { className?: string }) {
 
 export default function AdminUsuariosPage() {
   const db = useFirestore()
+  const app = useFirebaseApp()
   const [search, setSearch] = React.useState("")
   const [editingUser, setEditingUser] = React.useState<any>(null)
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
+  const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
+
+  const storage = React.useMemo(() => {
+    if (!app) return null;
+    return getStorage(app, "gs://viby");
+  }, [app])
 
   const usersQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -102,6 +111,38 @@ export default function AdminUsuariosPage() {
     setIsEditModalOpen(true)
   }
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !storage || !editingUser) return
+
+    setUploadProgress(0)
+
+    try {
+      const storageRef = ref(storage, `profiles/${editingUser.id}/avatar_${Date.now()}`)
+      const uploadTask = uploadBytesResumable(storageRef, file)
+
+      uploadTask.on('state_changed', 
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+          setUploadProgress(progress)
+        },
+        (error) => {
+          console.error(error)
+          setUploadProgress(null)
+          toast({ variant: "destructive", title: "Erro no upload" })
+        },
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+          setEditingUser(prev => ({ ...prev, avatar: downloadURL }))
+          setUploadProgress(null)
+          toast({ title: "Imagem carregada!" })
+        }
+      )
+    } catch (err) {
+      setUploadProgress(null)
+    }
+  }
+
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!db || !editingUser || isSaving) return
@@ -109,8 +150,11 @@ export default function AdminUsuariosPage() {
     setIsSaving(true)
     const userRef = doc(db, "users", editingUser.id)
 
+    // Removemos campos de métricas para garantir que não sejam sobrescritos manualmente se vierem no objeto
+    const { followersCount, rating, totalEvents, id, ...dataToUpdate } = editingUser;
+
     updateDoc(userRef, {
-      ...editingUser,
+      ...dataToUpdate,
       updatedAt: new Date().toISOString()
     })
       .then(() => {
@@ -278,6 +322,31 @@ export default function AdminUsuariosPage() {
           <form onSubmit={handleUpdateUser} className="flex-1 flex flex-col min-h-0">
             <ScrollArea className="flex-1 p-6">
               <div className="space-y-8">
+                {/* Seção: Foto de Perfil */}
+                <div className="space-y-4 flex flex-col items-center">
+                  <div className="relative group">
+                    <Avatar className="h-32 w-32 border-4 border-background shadow-xl">
+                      <AvatarImage src={editingUser?.avatar} alt={editingUser?.name} />
+                      <AvatarFallback className="text-4xl font-bold bg-muted">
+                        {editingUser?.name?.charAt(0) || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <label 
+                      htmlFor="admin-avatar-upload" 
+                      className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    >
+                      <Upload className="w-6 h-6" />
+                    </label>
+                    <input id="admin-avatar-upload" type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                  </div>
+                  {uploadProgress !== null && (
+                    <div className="w-full max-w-xs space-y-2">
+                      <Progress value={uploadProgress} className="h-1.5" />
+                      <p className="text-[10px] text-center text-muted-foreground font-bold uppercase">Carregando: {Math.round(uploadProgress)}%</p>
+                    </div>
+                  )}
+                </div>
+
                 {/* Seção: Identidade */}
                 <div className="space-y-4">
                   <h3 className="font-black text-xs uppercase tracking-widest text-muted-foreground flex items-center gap-2">
@@ -298,10 +367,10 @@ export default function AdminUsuariosPage() {
                       <Input 
                         id="edit-username" 
                         value={editingUser?.username || ""} 
-                        onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value.toLowerCase() })}
-                        required
+                        disabled
+                        className="bg-muted text-muted-foreground cursor-not-allowed"
                       />
-                      <p className="text-[10px] text-destructive font-bold">CUIDADO: Mudar o username pode causar conflitos de indexação.</p>
+                      <p className="text-[10px] text-muted-foreground">O nome de usuário não pode ser alterado por aqui.</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="edit-email">E-mail</Label>
@@ -491,6 +560,14 @@ export default function AdminUsuariosPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Aviso: Métricas não editáveis */}
+                <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl flex gap-3">
+                  <Info className="w-5 h-5 text-orange-500 shrink-0" />
+                  <p className="text-[10px] text-orange-700 font-medium">
+                    As métricas de desempenho (seguidores, avaliação, total de eventos e interesses) são calculadas automaticamente e não podem ser alteradas manualmente para preservar a integridade do sistema.
+                  </p>
+                </div>
               </div>
             </ScrollArea>
 
@@ -498,7 +575,7 @@ export default function AdminUsuariosPage() {
               <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)} className="rounded-xl font-bold">
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isSaving} className="bg-secondary text-white font-bold rounded-xl px-8">
+              <Button type="submit" disabled={isSaving || uploadProgress !== null} className="bg-secondary text-white font-bold rounded-xl px-8">
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                 Salvar Alterações
               </Button>
