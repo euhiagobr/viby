@@ -27,9 +27,23 @@
         "type": { "type": "string", "enum": ["Público", "Privado", "Governo"] },
         "status": { "type": "string", "enum": ["A fazer", "Em progresso", "Concluído"] },
         "image": { "type": "string" },
+        "organizerId": { "type": "string", "description": "UID do usuário que criou o evento" },
         "organizer": { "$ref": "#/backend/entities/Organizer" }
       },
-      "required": ["title", "date", "location"]
+      "required": ["title", "date", "location", "organizerId"]
+    },
+    "Registration": {
+      "title": "Participação",
+      "description": "Registro de interesse de um usuário em um evento",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["eventId", "userId"]
     }
   },
   "auth": {
@@ -43,6 +57,10 @@
     "/users/{userId}": {
       "schema": "Organizer",
       "description": "Perfis dos organizadores cadastrados"
+    },
+    "/registrations/{regId}": {
+      "schema": "Registration",
+      "description": "Interesses registrados nos eventos"
     }
   }
 }

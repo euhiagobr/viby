@@ -1,8 +1,10 @@
+
 "use client"
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
-import { MOCK_EVENTS } from "@/lib/mock-data"
+import { useDoc, useFirestore, useAuth, useUser } from "@/firebase"
+import { doc, addDoc, collection, serverTimestamp, query, where, getDocs } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,16 +18,82 @@ import {
   Ticket, 
   Info,
   BadgeCheck,
-  Star
+  Star,
+  Loader2,
+  CheckCircle2
 } from "lucide-react"
 import Image from "next/image"
+import { toast } from "@/hooks/use-toast"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 export default function EventoDetalhesPage() {
   const params = useParams()
   const router = useRouter()
+  const db = useFirestore()
+  const auth = useAuth()
+  const { user } = useUser(auth)
   const eventId = params.id as string
   
-  const event = MOCK_EVENTS.find(e => e.id === eventId)
+  const eventRef = React.useMemo(() => db ? doc(db, "events", eventId) : null, [db, eventId])
+  const { data: event, loading } = useDoc<any>(eventRef)
+  
+  const [isRegistered, setIsRegistered] = React.useState(false)
+  const [registering, setRegistering] = React.useState(false)
+
+  // Checar se o usuário já marcou interesse
+  React.useEffect(() => {
+    if (!db || !user || !eventId) return
+    const checkReg = async () => {
+      const q = query(collection(db, "registrations"), where("eventId", "==", eventId), where("userId", "==", user.uid))
+      const snap = await getDocs(q)
+      setIsRegistered(!snap.empty)
+    }
+    checkReg()
+  }, [db, user, eventId])
+
+  const handleRegisterInterest = async () => {
+    if (!auth || !user) {
+      toast({ title: "Ação necessária", description: "Você precisa entrar para marcar interesse." })
+      router.push("/login")
+      return
+    }
+
+    if (!db || !eventId || !event) return
+
+    setRegistering(true)
+    const regData = {
+      eventId,
+      eventTitle: event.title,
+      userId: user.uid,
+      userName: user.displayName || user.email,
+      userEmail: user.email,
+      timestamp: serverTimestamp()
+    }
+
+    addDoc(collection(db, "registrations"), regData)
+      .then(() => {
+        setIsRegistered(true)
+        toast({ title: "Confirmado!", description: "O organizador foi notificado do seu interesse." })
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: "registrations",
+          operation: "create",
+          requestResourceData: regData
+        })
+        errorEmitter.emit("permission-error", permissionError)
+      })
+      .finally(() => setRegistering(false))
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-[60vh]">
+        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+      </div>
+    )
+  }
 
   if (!event) {
     return (
@@ -38,7 +106,6 @@ export default function EventoDetalhesPage() {
 
   return (
     <div className="space-y-8 pb-20">
-      {/* Header / Navigation */}
       <div className="flex items-center justify-between">
         <Button variant="ghost" onClick={() => router.back()} className="gap-2">
           <ArrowLeft className="w-4 h-4" />
@@ -48,41 +115,32 @@ export default function EventoDetalhesPage() {
           <Button variant="outline" size="icon">
             <Share2 className="w-4 h-4" />
           </Button>
-          <Button className="bg-secondary text-white hover:bg-secondary/90">
-            Seguir Evento
+          <Button 
+            onClick={handleRegisterInterest}
+            disabled={isRegistered || registering}
+            className={isRegistered ? "bg-green-500 text-white" : "bg-secondary text-white"}
+          >
+            {registering ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+            {isRegistered ? <><CheckCircle2 className="w-4 h-4 mr-2" /> Inscrito</> : "Tenho Interesse"}
           </Button>
         </div>
       </div>
 
-      {/* Hero Section */}
       <div className="relative h-[400px] w-full rounded-2xl overflow-hidden shadow-2xl">
-        <Image
-          src={event.image}
-          alt={event.title}
-          fill
-          className="object-cover"
-        />
+        <Image src={event.image || "https://picsum.photos/seed/event/1200/800"} alt={event.title} fill className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
         <div className="absolute bottom-0 left-0 p-8 w-full">
           <div className="flex flex-col gap-4 max-w-4xl">
-            <Badge className="w-fit bg-secondary text-white border-none text-sm px-4 py-1">
-              {event.type}
-            </Badge>
-            <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">
-              {event.title}
-            </h1>
+            <Badge className="w-fit bg-secondary text-white border-none text-sm px-4 py-1">{event.type}</Badge>
+            <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">{event.title}</h1>
             <div className="flex flex-wrap gap-6 text-white/90 text-sm font-medium">
               <span className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-secondary" />
-                {event.date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                {new Date(event.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
               </span>
               <span className="flex items-center gap-2">
                 <MapPin className="w-5 h-5 text-secondary" />
                 {event.location}, {event.city}
-              </span>
-              <span className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-secondary" />
-                Capacidade: 2.500 pessoas
               </span>
             </div>
           </div>
@@ -90,85 +148,36 @@ export default function EventoDetalhesPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Details & Map */}
         <div className="lg:col-span-2 space-y-8">
           <Card className="border-none shadow-sm bg-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Info className="w-5 h-5 text-secondary" />
-                Sobre o Evento
-              </CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2 text-xl"><Info className="w-5 h-5 text-secondary" /> Sobre o Evento</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-muted-foreground leading-relaxed text-lg">
-                {event.description}
-              </p>
-              <p className="text-muted-foreground leading-relaxed">
-                Prepare-se para uma experiência inesquecível. O {event.title} traz o que há de melhor em entretenimento e cultura para {event.city}. 
-                Contaremos com infraestrutura completa, segurança reforçada e uma curadoria especial para garantir que cada momento seja único.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-sm bg-card overflow-hidden">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <MapPin className="w-5 h-5 text-secondary" />
-                Localização
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="h-[350px] w-full bg-muted relative">
-                <iframe
-                  src={`https://www.google.com/maps/embed/v1/place?key=REPLACE_WITH_YOUR_API_KEY&q=${encodeURIComponent(event.location + ' ' + event.city)}`}
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0 }}
-                  allowFullScreen
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  className="grayscale hover:grayscale-0 transition-all duration-500"
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-muted/80 pointer-events-none">
-                  <div className="text-center p-6">
-                    <MapPin className="w-10 h-10 text-secondary mx-auto mb-2 opacity-50" />
-                    <p className="text-sm font-medium text-muted-foreground">{event.location}</p>
-                    <p className="text-xs text-muted-foreground">{event.city}, Brasil</p>
-                  </div>
-                </div>
-              </div>
+              <p className="text-muted-foreground leading-relaxed text-lg">{event.description}</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Right Column: Organizer & Tickets */}
         <div className="space-y-8">
-          {/* Perfil do Organizador */}
           <Card className="border-none shadow-sm bg-card">
-            <CardHeader>
-              <CardTitle className="text-lg">Organizador</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-lg">Organizador</CardTitle></CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center gap-4">
                 <Avatar className="h-16 w-16 border-2 border-secondary/10">
-                  <AvatarImage src={event.organizer.avatar} alt={event.organizer.name} />
-                  <AvatarFallback>{event.organizer.name.charAt(0)}</AvatarFallback>
+                  <AvatarImage src={event.organizer?.avatar} alt={event.organizer?.name} />
+                  <AvatarFallback>{event.organizer?.name?.charAt(0) || "O"}</AvatarFallback>
                 </Avatar>
                 <div className="space-y-1">
                   <div className="flex items-center gap-1.5">
-                    <h4 className="font-bold text-lg leading-none">{event.organizer.name}</h4>
-                    {event.organizer.isVerified && (
-                      <BadgeCheck className="w-5 h-5 text-secondary fill-secondary/10" />
-                    )}
+                    <h4 className="font-bold text-lg leading-none">{event.organizer?.name || "Organizador"}</h4>
+                    {event.organizer?.isVerified && <BadgeCheck className="w-5 h-5 text-secondary fill-secondary/10" />}
                   </div>
                   <p className="text-xs text-muted-foreground">Promotor Verificado</p>
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-muted/50 p-4 rounded-2xl text-center">
                   <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Eventos</p>
-                  <p className="text-xl font-black text-foreground">{event.organizer.totalEvents}</p>
+                  <p className="text-xl font-black text-foreground">{event.organizer?.totalEvents || 0}</p>
                 </div>
                 <div className="bg-muted/50 p-4 rounded-2xl text-center">
                   <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Avaliação</p>
@@ -178,39 +187,21 @@ export default function EventoDetalhesPage() {
                   </div>
                 </div>
               </div>
-
-              <Button variant="outline" className="w-full font-bold">
-                Ver Perfil Completo
-              </Button>
             </CardContent>
           </Card>
 
           <Card className="border-none shadow-lg bg-card border-t-4 border-secondary">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Ticket className="w-5 h-5 text-secondary" />
-                Ingressos
-              </CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Ingressos & Acesso</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              {event.batches.map(batch => (
-                <div key={batch.id} className="flex items-center justify-between p-4 rounded-xl bg-muted/50 border border-border group hover:border-secondary/30 transition-all">
-                  <div>
-                    <p className="font-bold text-sm">{batch.name}</p>
-                    <p className="text-xs text-muted-foreground">{batch.available} disponíveis</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-secondary text-lg">R$ {batch.price}</p>
-                    <Badge variant="outline" className="text-[10px] uppercase">Lote Ativo</Badge>
-                  </div>
-                </div>
-              ))}
-              <Button className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold py-6">
-                Comprar Agora
+              <p className="text-sm text-muted-foreground">Este evento está em fase de divulgação. Ao marcar interesse, você receberá atualizações sobre a abertura de vendas e lotes.</p>
+              <Button 
+                onClick={handleRegisterInterest} 
+                disabled={isRegistered || registering}
+                className={`w-full font-bold py-6 ${isRegistered ? "bg-green-500 hover:bg-green-600" : "bg-secondary hover:bg-secondary/90"} text-white`}
+              >
+                {registering ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                {isRegistered ? "Você está na lista!" : "Tenho Interesse"}
               </Button>
-              <p className="text-[10px] text-center text-muted-foreground">
-                Taxas de serviço podem ser aplicadas ao finalizar a compra.
-              </p>
             </CardContent>
           </Card>
         </div>
