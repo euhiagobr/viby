@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -41,7 +42,12 @@ import {
   Info,
   Check,
   X,
-  Calendar
+  Calendar,
+  DollarSign,
+  CreditCard,
+  Zap,
+  Star,
+  Settings
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -103,6 +109,10 @@ export default function AdminUsuariosPage() {
   const [checkingUsername, setCheckingUsername] = React.useState(false)
   const [usernameStatus, setUsernameStatus] = React.useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
 
+  // Estado para o modal de Plano
+  const [isPlanModalOpen, setIsPlanModalOpen] = React.useState(false)
+  const [selectedUserForPlan, setSelectedUserForPlan] = React.useState<any>(null)
+
   const storage = React.useMemo(() => {
     if (!app) return null;
     return getStorage(app, "gs://viby");
@@ -161,6 +171,16 @@ export default function AdminUsuariosPage() {
     setOriginalUser({ ...user })
     setUsernameStatus('idle')
     setIsEditModalOpen(true)
+  }
+
+  const handlePlanClick = (user: any) => {
+    setSelectedUserForPlan({ 
+      ...user,
+      customPlanPrice: user.customPlanPrice || "",
+      customPlanPercent: user.customPlanPercent || "",
+      customPlanMin: user.customPlanMin || ""
+    })
+    setIsPlanModalOpen(true)
   }
 
   React.useEffect(() => {
@@ -307,6 +327,31 @@ export default function AdminUsuariosPage() {
     }
   }
 
+  const handleUpdatePlan = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!db || !selectedUserForPlan || isSaving) return
+
+    setIsSaving(true)
+    try {
+      const userRef = doc(db, "users", selectedUserForPlan.id)
+      const updateData = {
+        plan: selectedUserForPlan.plan || "START",
+        customPlanPrice: selectedUserForPlan.customPlanPrice !== "" ? parseFloat(selectedUserForPlan.customPlanPrice) : null,
+        customPlanPercent: selectedUserForPlan.customPlanPercent !== "" ? parseFloat(selectedUserForPlan.customPlanPercent) : null,
+        customPlanMin: selectedUserForPlan.customPlanMin !== "" ? parseFloat(selectedUserForPlan.customPlanMin) : null,
+        updatedAt: serverTimestamp()
+      }
+
+      await updateDoc(userRef, updateData)
+      toast({ title: "Plano atualizado!", description: "As taxas individuais foram aplicadas." })
+      setIsPlanModalOpen(false)
+    } catch (error) {
+      toast({ variant: "destructive", title: "Erro ao atualizar plano" })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const handleDeleteUser = async (userId: string, username: string) => {
     if (!db) return
     if (!confirm(`Tem certeza que deseja excluir o usuário @${username}? Esta ação é irreversível.`)) return
@@ -369,8 +414,8 @@ export default function AdminUsuariosPage() {
                 <TableHead className="w-[250px] font-bold">Usuário</TableHead>
                 <TableHead className="font-bold">Conta</TableHead>
                 <TableHead className="font-bold">Cargo</TableHead>
-                <TableHead className="font-bold">Cadastro</TableHead>
-                <TableHead className="text-center font-bold">Status</TableHead>
+                <TableHead className="font-bold text-center">Plano</TableHead>
+                <TableHead className="text-center font-bold">Selo</TableHead>
                 <TableHead className="text-right font-bold">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -402,11 +447,15 @@ export default function AdminUsuariosPage() {
                         <span className="text-[10px] font-bold text-muted-foreground">Membro</span>
                       )}
                     </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="text-xs font-medium">{formatDate(user.createdAt)}</span>
-                        <span className="text-[10px] text-muted-foreground">{formatTime(user.createdAt)}</span>
-                      </div>
+                    <TableCell className="text-center">
+                       <Badge className={cn(
+                         "text-[9px] font-black uppercase",
+                         user.plan === 'TOP' ? "bg-black text-white" :
+                         user.plan === 'PRO' ? "bg-primary text-white" : "bg-muted text-muted-foreground"
+                       )}>
+                         {user.plan || 'START'}
+                         {(user.customPlanPercent || user.customPlanMin) && <Star className="w-2 h-2 ml-1 fill-yellow-400 text-yellow-400" />}
+                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center">
@@ -420,6 +469,15 @@ export default function AdminUsuariosPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-green-600 hover:bg-green-50" 
+                          onClick={() => handlePlanClick(user)}
+                          title="Customizar Plano e Taxas"
+                        >
+                          <DollarSign className="w-4 h-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" onClick={() => handleEditClick(user)}>
                           <Edit className="w-4 h-4" />
                         </Button>
@@ -446,6 +504,101 @@ export default function AdminUsuariosPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* DIALOG DE CUSTOMIZAÇÃO DE PLANO */}
+      <Dialog open={isPlanModalOpen} onOpenChange={setIsPlanModalOpen}>
+        <DialogContent className="max-w-md rounded-[2rem]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+              <CreditCard className="w-6 h-6 text-secondary" />
+              Customizar Plano e Taxas
+            </DialogTitle>
+            <DialogDescription>
+              Configure taxas individuais para <strong>{selectedUserForPlan?.name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdatePlan} className="space-y-6 py-4">
+             <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Nível do Plano</Label>
+                  <Select 
+                    value={selectedUserForPlan?.plan || "START"} 
+                    onValueChange={(val) => setSelectedUserForPlan({...selectedUserForPlan, plan: val})}
+                  >
+                    <SelectTrigger className="rounded-xl h-12">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="START">START (Grátis)</SelectItem>
+                      <SelectItem value="PRO">PRO (R$ 99,90)</SelectItem>
+                      <SelectItem value="TOP">TOP (R$ 199,90)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Valor Mensal (Assinatura)</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-xs">R$</span>
+                    <Input 
+                      placeholder="Deixe vazio para padrão" 
+                      value={selectedUserForPlan?.customPlanPrice || ""}
+                      onChange={(e) => setSelectedUserForPlan({...selectedUserForPlan, customPlanPrice: e.target.value})}
+                      className="pl-8 rounded-xl h-12"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Taxa (%) por Ingresso</Label>
+                    <div className="relative">
+                       <span className="absolute right-3 top-1/2 -translate-y-1/2 font-bold text-xs">%</span>
+                       <Input 
+                         placeholder="Ex: 8" 
+                         value={selectedUserForPlan?.customPlanPercent || ""}
+                         onChange={(e) => setSelectedUserForPlan({...selectedUserForPlan, customPlanPercent: e.target.value})}
+                         className="pr-8 rounded-xl h-12"
+                       />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Mínimo (R$) por Ingresso</Label>
+                    <div className="relative">
+                       <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-xs">R$</span>
+                       <Input 
+                         placeholder="Ex: 5.00" 
+                         value={selectedUserForPlan?.customPlanMin || ""}
+                         onChange={(e) => setSelectedUserForPlan({...selectedUserForPlan, customPlanMin: e.target.value})}
+                         className="pl-8 rounded-xl h-12"
+                       />
+                    </div>
+                  </div>
+                </div>
+             </div>
+
+             <div className="p-4 bg-secondary/5 rounded-xl border border-secondary/10 flex gap-3">
+                <Zap className="w-5 h-5 text-secondary shrink-0" />
+                <p className="text-[10px] text-muted-foreground font-medium">
+                  Overrides individuais prevalecem sobre os valores padrão do plano. Se deixados em branco, o sistema usará a tabela padrão do nível selecionado.
+                </p>
+             </div>
+
+             <DialogFooter>
+                <Button type="button" variant="ghost" onClick={() => setIsPlanModalOpen(false)} className="rounded-xl font-bold uppercase text-[10px] tracking-widest">Cancelar</Button>
+                <Button 
+                  type="submit" 
+                  disabled={isSaving} 
+                  className="bg-primary text-white rounded-xl font-black uppercase text-[10px] tracking-widest h-12 px-6"
+                >
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                  Salvar Customização
+                </Button>
+             </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="max-w-3xl h-[90vh] flex flex-col p-0 overflow-hidden rounded-2xl">

@@ -31,15 +31,17 @@ export interface FinancialBreakdown {
   platformPlanAmount: number;
   platformGrossAmount: number;
   calculatedAt: string;
+  isCustomApplied?: boolean;
 }
 
 /**
  * Realiza o cálculo completo de taxas para um ingresso.
  * Regra: Taxa do produtor é o MAIOR valor entre (percentual do plano) e (valor mínimo).
  * @param basePrice O valor nominal do ingresso (definido pelo produtor).
- * @param plan O plano atual do organizador do evento.
+ * @param userProfile O perfil do organizador para verificar overrides individuais.
  */
-export function calculateFinancialBreakdown(basePrice: number, plan: string = 'START'): FinancialBreakdown {
+export function calculateFinancialBreakdown(basePrice: number, userProfile: any): FinancialBreakdown {
+  const plan = userProfile?.plan || 'START';
   const normalizedPlan = (plan?.toUpperCase() as ProducerPlan) || 'START';
   const planConfig = PLAN_CONFIGS[normalizedPlan] || PLAN_CONFIGS.START;
 
@@ -63,14 +65,19 @@ export function calculateFinancialBreakdown(basePrice: number, plan: string = 'S
   }
 
   // 1. Taxa Administrativa (Comprador paga a mais)
-  // Calculada SEMPRE sobre o valor base do ingresso
   const administrativeFeeAmount = Number((basePrice * ADMINISTRATIVE_FEE_PERCENT).toFixed(2));
   const customerFinalPrice = Number((basePrice + administrativeFeeAmount).toFixed(2));
 
   // 2. Taxa do Produtor (Descontada do valor base)
-  // Regra: MAX( percentualCalculado, valorMinimo )
-  const percentCalculated = Number((basePrice * planConfig.percent).toFixed(2));
-  let producerFeeAmount = Math.max(percentCalculated, planConfig.min);
+  // Verifica se existem taxas personalizadas no perfil do usuário
+  const customPercent = userProfile?.customPlanPercent !== undefined ? parseFloat(userProfile.customPlanPercent) : null;
+  const customMin = userProfile?.customPlanMin !== undefined ? parseFloat(userProfile.customPlanMin) : null;
+
+  const appliedPercent = customPercent !== null ? (customPercent / 100) : planConfig.percent;
+  const appliedMin = customMin !== null ? customMin : planConfig.min;
+
+  const percentCalculated = Number((basePrice * appliedPercent).toFixed(2));
+  let producerFeeAmount = Math.max(percentCalculated, appliedMin);
   
   // Trava de segurança: a taxa nunca pode ser maior que o próprio ingresso
   producerFeeAmount = Math.min(producerFeeAmount, basePrice);
@@ -88,14 +95,15 @@ export function calculateFinancialBreakdown(basePrice: number, plan: string = 'S
     administrativeFeeAmount,
     customerFinalPrice,
     producerPlan: normalizedPlan,
-    producerFeePercent: planConfig.percent,
-    producerFeeMinimum: planConfig.min,
+    producerFeePercent: appliedPercent,
+    producerFeeMinimum: appliedMin,
     producerFeeAmount,
     producerNetAmount,
     platformAdministrativeAmount,
     platformPlanAmount,
     platformGrossAmount,
     calculatedAt: new Date().toISOString(),
+    isCustomApplied: customPercent !== null || customMin !== null
   };
 }
 

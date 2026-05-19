@@ -281,7 +281,7 @@ export default function EventoDetalhesPage() {
     return base
   }
 
-  const breakdown = calculateFinancialBreakdown(getTicketBasePrice(), organizerProfile?.plan || 'START');
+  const breakdown = calculateFinancialBreakdown(getTicketBasePrice(), organizerProfile);
 
   const handleRegisterInterest = async () => {
     if (!auth || !user) {
