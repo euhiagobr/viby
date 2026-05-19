@@ -25,6 +25,19 @@ async function getStripeKeys() {
   };
 }
 
+/**
+ * Inicializa uma instância do Stripe com a Secret Key do banco.
+ */
+async function getStripeInstance() {
+  const { secretKey } = await getStripeKeys();
+  if (!secretKey) throw new Error('Stripe Secret Key não configurada no painel.');
+  
+  return new Stripe(secretKey, {
+    apiVersion: '2024-11-20',
+    typescript: true,
+  });
+}
+
 export async function createCheckoutSession(data: {
   eventId: string;
   eventTitle: string;
@@ -38,13 +51,7 @@ export async function createCheckoutSession(data: {
   const origin = (await headers()).get('origin');
 
   try {
-    const { secretKey } = await getStripeKeys();
-    if (!secretKey) throw new Error('Stripe Secret Key não configurada.');
-
-    const stripe = new Stripe(secretKey, {
-      apiVersion: '2024-12-18',
-      typescript: true,
-    });
+    const stripe = await getStripeInstance();
 
     // Converter metadados para string (exigência do Stripe)
     const sanitizedMetadata: Record<string, string> = {};
@@ -95,11 +102,7 @@ export async function createPlanCheckoutSession(data: {
   const origin = (await headers()).get('origin');
 
   try {
-    const { secretKey } = await getStripeKeys();
-    const stripe = new Stripe(secretKey, {
-      apiVersion: '2024-12-18',
-      typescript: true,
-    });
+    const stripe = await getStripeInstance();
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -116,7 +119,7 @@ export async function createPlanCheckoutSession(data: {
           quantity: 1,
         },
       ],
-      mode: 'payment', // Usando mode payment para o valor total (que o cliente pode parcelar no cartão)
+      mode: 'payment',
       customer_email: data.userEmail,
       success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/cancelado`,
@@ -136,11 +139,7 @@ export async function createPlanCheckoutSession(data: {
 
 export async function getStripeSession(sessionId: string) {
   try {
-    const { secretKey } = await getStripeKeys();
-    const stripe = new Stripe(secretKey, {
-      apiVersion: '2024-12-18',
-      typescript: true,
-    });
+    const stripe = await getStripeInstance();
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     return session;
   } catch (error) {
