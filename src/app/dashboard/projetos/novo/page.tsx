@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -15,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Progress } from "@/components/ui/progress"
+import { Separator } from "@/components/ui/separator"
 import { toast } from "@/hooks/use-toast"
 import { 
   ArrowLeft, 
