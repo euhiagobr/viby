@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { Loader2, ShieldCheck, ArrowLeft, LayoutDashboard, Tag, Users, Settings as SettingsIcon, LogOut, CalendarDays, LifeBuoy } from 'lucide-react';
+import { Loader2, ShieldCheck, ArrowLeft, LayoutDashboard, Tag, Users, Settings as SettingsIcon, LogOut, CalendarDays, LifeBuoy, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { signOut } from 'firebase/auth';
@@ -53,7 +53,7 @@ export default function AdminLayout({
           router.push('/dashboard');
         }
       }
-      setVerifying(false);
+      setVerifying(false)
     }
 
     checkAdmin();
@@ -72,6 +72,7 @@ export default function AdminLayout({
   const navItems = [
     { title: 'Painel', url: '/admin', icon: LayoutDashboard },
     { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays },
+    { title: 'Denúncias', url: '/admin/denuncias', icon: ShieldAlert },
     { title: 'Suporte', url: '/admin/suporte', icon: LifeBuoy },
     { title: 'Categorias', url: '/admin/categorias', icon: Tag },
     { title: 'Usuários', url: '/admin/usuarios', icon: Users },

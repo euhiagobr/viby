@@ -96,7 +96,6 @@ export default function EventoDetalhesPage() {
   const currentUserRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: currentUserProfile } = useDoc<any>(currentUserRef)
 
-  // Consulta todas as inscrições do evento para validar o estoque real dos lotes
   const allRegistrationsQuery = useMemoFirebase(() => {
     if (!db || !eventId) return null
     return query(collection(db, "registrations"), where("eventId", "==", eventId))
@@ -108,18 +107,15 @@ export default function EventoDetalhesPage() {
   const [activeBatch, setActiveBatch] = React.useState<any>(null)
   const [saleStatus, setSaleStatus] = React.useState<'open' | 'pending' | 'ended' | 'soldout'>('pending')
   
-  // Coupon state
   const [couponCode, setCouponCode] = React.useState("")
   const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null)
   const [isVerifyingCoupon, setIsVerifyingCoupon] = React.useState(false)
 
-  // Denúncia state
   const [isReportDialogOpen, setIsReportDialogOpen] = React.useState(false)
   const [reportReason, setReportReason] = React.useState("")
   const [reportDescription, setReportDescription] = React.useState("")
   const [isSubmittingReport, setIsSubmittingReport] = React.useState(false)
 
-  // Lógica de disponibilidade baseada em UTC-3 e estoque real
   React.useEffect(() => {
     if (!event) return
 
@@ -132,7 +128,6 @@ export default function EventoDetalhesPage() {
         return
       }
 
-      // Calcula as vendas reais por lote
       const salesPerBatch = (allRegistrations || []).reduce((acc: Record<string, number>, reg: any) => {
         const bName = reg.batchName || "Lote Único"
         acc[bName] = (acc[bName] || 0) + 1
@@ -155,14 +150,12 @@ export default function EventoDetalhesPage() {
         const isNotEnded = !end || now <= end
         const hasStock = remainingStock > 0
 
-        // Se o lote está no período e tem estoque, ele é o lote ativo
         if (isStarted && isNotEnded && hasStock) {
           foundBatch = { ...batch, remaining: remainingStock }
           setSaleStatus('open')
           break
         }
 
-        // Flags para determinar o status global se nenhum lote aberto for encontrado
         if (hasStock) allSoldOut = false
         if (isNotEnded) allEnded = false
         if (!isStarted) anyUpcoming = true
@@ -182,11 +175,10 @@ export default function EventoDetalhesPage() {
     }
 
     checkAvailability()
-    const timer = setInterval(checkAvailability, 30000) // Verifica a cada 30s
+    const timer = setInterval(checkAvailability, 30000)
     return () => clearInterval(timer)
   }, [event, allRegistrations])
 
-  // Verifica se o usuário atual já está inscrito
   React.useEffect(() => {
     if (!user || !allRegistrations) return
     const userReg = allRegistrations.find((r: any) => r.userId === user.uid)
@@ -317,10 +309,10 @@ export default function EventoDetalhesPage() {
         couponCode: appliedCoupon?.code || null
       }
 
-      await addDoc(collection(db, "registrations"), regData)
+      addDoc(collection(db, "registrations"), regData)
       
       if (appliedCoupon) {
-        await updateDoc(doc(db, "coupons", appliedCoupon.id), {
+        updateDoc(doc(db, "coupons", appliedCoupon.id), {
           currentUses: increment(1)
         })
       }
@@ -350,8 +342,9 @@ export default function EventoDetalhesPage() {
 
     setIsSubmittingReport(true)
     const reportData = {
-      eventId,
-      eventTitle: event?.title || "Sem Título",
+      type: "event",
+      targetId: eventId,
+      targetName: event?.title || "Sem Título",
       reporterId: user.uid,
       reporterName: currentUserProfile?.name || user.displayName || "Denunciante",
       reason: reportReason,

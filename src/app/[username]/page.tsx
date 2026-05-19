@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useDoc } from "@/firebase"
 import { doc, getDoc, collection, query, where, addDoc, deleteDoc, serverTimestamp, getDocs } from "firebase/firestore"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -28,7 +28,9 @@ import {
   Phone,
   Mail,
   ExternalLink,
-  CheckCircle2
+  CheckCircle2,
+  ShieldAlert,
+  Send
 } from "lucide-react"
 import { EventCard } from "@/components/events/EventCard"
 import Link from "next/link"
@@ -36,6 +38,24 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
@@ -46,7 +66,7 @@ function InstagramVerifiedBadge({ className }: { className?: string }) {
     >
       <path 
         fill="#0095f6" 
-        d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1 4.4 1.2 8.9 5.3 10.7l8.4 3.7 2.3 9c1.1 4.4 5.2 7.4 9.7 7l9.2-.7 6.5 6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.4-6.3 5.3-10.7l-2.3-9 6.5-6.6c3.2-3.2 3.2-8.2 0-11.4z"
+        d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1-4.4 1.2-8.9 5.3 10.7l8.4 3.7 2.3 9c1.1-4.4 5.2-7.4 9.7 7l9.2-.7 6.5 6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.4-6.3 5.3-10.7l-2.3-9 6.5-6.6c3.2-3.2 3.2-8.2 0-11.4z"
       />
       <path 
         fill="#fff" 
@@ -69,6 +89,12 @@ export default function PublicProfilePage() {
   const [error, setError] = React.useState<string | null>(null)
   const [isFollowing, setIsFollowing] = React.useState(false)
   const [followLoading, setFollowLoading] = React.useState(false)
+
+  // Report state
+  const [isReportDialogOpen, setIsReportDialogOpen] = React.useState(false)
+  const [reportReason, setReportReason] = React.useState("")
+  const [reportDescription, setReportDescription] = React.useState("")
+  const [isSubmittingReport, setIsSubmittingReport] = React.useState(false)
 
   const isOwner = React.useMemo(() => {
     return currentUser && profile && currentUser.uid === profile.id
@@ -207,6 +233,46 @@ export default function PublicProfilePage() {
     } finally {
       setFollowLoading(false)
     }
+  }
+
+  const handleSendReport = async () => {
+    if (!auth || !currentUser) {
+      toast({ title: "Ação necessária", description: "Entre para denunciar o perfil." })
+      router.push("/login")
+      return
+    }
+
+    if (!db || !profile?.id || !reportReason) return
+
+    setIsSubmittingReport(true)
+    const reportData = {
+      type: "profile",
+      targetId: profile.id,
+      targetName: profile.name || profile.username || "Sem Nome",
+      reporterId: currentUser.uid,
+      reporterName: currentUser.displayName || "Denunciante",
+      reason: reportReason,
+      description: reportDescription,
+      timestamp: serverTimestamp(),
+      status: "Pendente"
+    }
+
+    addDoc(collection(db, "reports"), reportData)
+      .then(() => {
+        toast({ title: "Denúncia enviada", description: "Nossa equipe analisará o conteúdo em breve." })
+        setIsReportDialogOpen(false)
+        setReportReason("")
+        setReportDescription("")
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: "reports",
+          operation: "create",
+          requestResourceData: reportData
+        })
+        errorEmitter.emit("permission-error", permissionError)
+      })
+      .finally(() => setIsSubmittingReport(false))
   }
 
   if (loading) {
@@ -350,6 +416,59 @@ export default function PublicProfilePage() {
                     <Share2 className="w-4 h-4" />
                     Compartilhar
                   </Button>
+                  
+                  {!isOwner && (
+                    <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="ghost" className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 font-bold gap-2 rounded-2xl uppercase text-[10px] tracking-widest py-6">
+                          <ShieldAlert className="w-4 h-4" /> Denunciar Perfil
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="rounded-[2rem]">
+                        <DialogHeader>
+                          <DialogTitle className="text-xl font-black italic uppercase tracking-tighter">Denunciar este perfil?</DialogTitle>
+                          <DialogDescription>Ajude-nos a manter o Viby Club seguro. Selecione o motivo e descreva o problema.</DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Motivo</Label>
+                            <Select value={reportReason} onValueChange={setReportReason}>
+                              <SelectTrigger className="rounded-xl border-dashed border-secondary/30 h-12">
+                                <SelectValue placeholder="Selecione o motivo" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Conteúdo Inadequado">Conteúdo Inadequado</SelectItem>
+                                <SelectItem value="Fraude / Golpe">Fraude / Golpe</SelectItem>
+                                <SelectItem value="Identidade Falsa">Falsa Identidade / Impersonificação</SelectItem>
+                                <SelectItem value="Assédio">Assédio ou Abuso</SelectItem>
+                                <SelectItem value="Outro">Outro Motivo</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Descrição Detalhada</Label>
+                            <Textarea 
+                              placeholder="Descreva o que está errado com este perfil..." 
+                              value={reportDescription}
+                              onChange={(e) => setReportDescription(e.target.value)}
+                              className="rounded-xl border-dashed border-secondary/30 min-h-[100px]"
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="ghost" onClick={() => setIsReportDialogOpen(false)} className="rounded-xl font-bold uppercase text-[10px] tracking-widest">Cancelar</Button>
+                          <Button 
+                            onClick={handleSendReport} 
+                            disabled={isSubmittingReport || !reportReason} 
+                            className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest h-12 px-6"
+                          >
+                            {isSubmittingReport ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                            Enviar Denúncia
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  )}
                 </div>
               </CardContent>
             </Card>
