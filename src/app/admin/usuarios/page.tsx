@@ -41,9 +41,9 @@ import { cn } from "@/lib/utils"
 
 const BUSINESS_CATEGORIES = {
   "Organizadores": ["Produtora de eventos", "Agência de marketing", "Agência de eventos", "Cerimonialista", "Organizador independente", "Assessoria de eventos"],
-  "Casas e locais": ["Casa noturna", "Bar", "Pub", "Restaurante", "Café", "Lounge", "Hotel", "Resort", "Centro de eventos", "Arena", "Teatro", "Auditório", "Espaço cultural", "Galeria", "Parque", "Estádio", "Rooftop", "Coworking", "Centro de convenções"],
+  "Casas e locais": ["Casa noturna", "Bar", "Pub", "Restaurante", "Café", "Lounge", "Hotel", "Resort", "Centro de eventos", "Arena", "Teatro", "Auditório", "Espaço cultural", "Galeria", "Parque", "Estádio", "Rooftop", "Coworking Locais", "Centro de convenções"],
   "Música e entretenimento": ["Banda", "Cantor(a)", "DJ", "Grupo musical", "Artista", "Performer", "Drag queen", "Humorista", "Influenciador(a)", "Apresentador(a)"],
-  "Eventos corporativos": ["Empresa privada", "Startup", "Consultoria", "RH/Treinamentos", "Coworking", "Hub de inovação"],
+  "Eventos corporativos": ["Empresa privada", "Startup", "Consultoria", "RH/Treinamentos", "Coworking Corporativo", "Hub de inovação"],
   "Gastronomia": ["Buffet", "Food truck", "Confeitaria", "Hamburgueria", "Pizzaria", "Choperia", "Vinícola", "Cafeteria"],
   "Casamentos e festas": ["Decoradora", "Floricultura", "Fotografia", "Filmagem", "Sonorização", "Iluminação", "Locação de móveis", "Bartender", "Segurança", "Recreação infantil"],
   "Cultura e educação": ["Escola", "Universidade", "Curso", "ONG cultural", "Biblioteca", "Museu", "Coletivo artístico"],
@@ -490,40 +490,6 @@ export default function AdminUsuariosPage() {
                       </div>
                     </div>
                   )}
-                </div>
-
-                {/* Seção: Estatísticas Manuais */}
-                <div className="space-y-4 pt-4 border-t">
-                  <h3 className="font-black text-xs uppercase tracking-widest text-muted-foreground">Métricas (Overide)</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label>Seguidores</Label>
-                      <Input 
-                        type="number"
-                        value={editingUser?.followersCount || 0} 
-                        onChange={(e) => setEditingUser({ ...editingUser, followersCount: parseInt(e.target.value) || 0 })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Avaliação (0-5)</Label>
-                      <Input 
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="5"
-                        value={editingUser?.rating || 0} 
-                        onChange={(e) => setEditingUser({ ...editingUser, rating: parseFloat(e.target.value) || 0 })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Total Eventos</Label>
-                      <Input 
-                        type="number"
-                        value={editingUser?.totalEvents || 0} 
-                        onChange={(e) => setEditingUser({ ...editingUser, totalEvents: parseInt(e.target.value) || 0 })}
-                      />
-                    </div>
-                  </div>
                 </div>
               </div>
             </ScrollArea>
