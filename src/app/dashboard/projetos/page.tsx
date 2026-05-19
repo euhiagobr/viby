@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
-import { collection, query, where, doc, updateDoc } from "firebase/firestore"
+import { collection, query, where, doc, updateDoc, getDocs, writeBatch } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { 
@@ -111,12 +111,31 @@ export default function MeusEventosPage() {
     if (!db || !eventToDelete) return
 
     setIsDeleting(true)
-    const eventRef = doc(db, "events", eventToDelete.id);
     
     try {
-      await updateDoc(eventRef, { status: "Excluído" })
-      toast({ title: "Evento excluído", description: "O anúncio foi removido da plataforma." })
+      const batch = writeBatch(db);
+      
+      // 1. Marcar o evento como excluído
+      const eventRef = doc(db, "events", eventToDelete.id);
+      batch.update(eventRef, { status: "Excluído" });
+      
+      // 2. Buscar e excluir todos os ingressos (registrations) associados a este evento
+      const regsQuery = query(collection(db, "registrations"), where("eventId", "==", eventToDelete.id));
+      const regsSnap = await getDocs(regsQuery);
+      
+      regsSnap.forEach((regDoc) => {
+        batch.delete(regDoc.ref);
+      });
+      
+      // Executa todas as exclusões em uma única transação de lote
+      await batch.commit();
+      
+      toast({ 
+        title: "Evento e ingressos removidos", 
+        description: `O evento "${eventToDelete.title}" e todos os vouchers vinculados foram excluídos.` 
+      });
     } catch (error: any) {
+      console.error("Erro ao excluir em cascata:", error);
       const permissionError = new FirestorePermissionError({
         path: `events/${eventToDelete.id}`,
         operation: "update",
@@ -279,7 +298,7 @@ export default function MeusEventosPage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl font-bold">Excluir este evento?</AlertDialogTitle>
             <AlertDialogDescription>
-              O evento <strong>"{eventToDelete?.title}"</strong> deixará de ser exibido na vitrine pública e na sua lista. Você poderá encontrá-lo ou restaurá-lo contatando um administrador.
+              O evento <strong>"{eventToDelete?.title}"</strong> será removido. <strong>Atenção:</strong> Todos os ingressos e vouchers já emitidos para este evento também serão excluídos permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
