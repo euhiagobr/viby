@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -40,20 +39,17 @@ import { FirestorePermissionError } from "@/firebase/errors"
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
     <svg 
-      viewBox="0 0 24 24" 
-      fill="none" 
+      viewBox="0 0 128 128" 
       className={cn("w-5 h-5", className)} 
       xmlns="http://www.w3.org/2000/svg"
     >
       <path 
-        d="M22.5 12.5C22.5 18.0228 18.0228 22.5 12.5 22.5C6.97715 22.5 2.5 18.0228 2.5 12.5C2.5 6.97715 6.97715 2.5 12.5 2.5C18.0228 2.5 22.5 6.97715 22.5 12.5Z" 
-        fill="#0095F6"
+        fill="#0095f6" 
+        d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1 4.4 1.2 8.9 5.3 10.7l8.4 3.7 2.3 9c1.1 4.4 5.2 7.4 9.7 7l9.2-.7 6.5 6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.4-6.3 5.3-10.7l-2.3-9 6.5-6.6c3.2-3.2 3.2-8.2 0-11.4z"
       />
       <path 
-        d="M10 14.5L7.5 12L6.5 13L10 16.5L17.5 9L16.5 8L10 14.5Z" 
-        fill="white" 
-        stroke="white" 
-        strokeWidth="0.5"
+        fill="#fff" 
+        d="M57.6 86.8c-1.8 0-3.5-.7-4.8-2L38.2 70.2c-2.7-2.7-2.7-7 0-9.6s7-2.7 9.6 0l9.8 9.8 22.8-22.8c2.7-2.7 7-2.7 9.6 0s2.7 7 0 9.6L62.4 84.8c-1.3 1.3-3 2-4.8 2z"
       />
     </svg>
   )
@@ -149,7 +145,6 @@ export default function PublicProfilePage() {
 
   const { data: registrations, loading: registrationsLoading } = useCollection<any>(registrationsQuery)
 
-  // Consulta real de seguidores
   const followersQuery = useMemoFirebase(() => {
     if (!db || !profile?.id) return null
     return query(collection(db, "follows"), where("followingId", "==", profile.id))
@@ -177,26 +172,20 @@ export default function PublicProfilePage() {
     setFollowLoading(true)
     try {
       if (isFollowing) {
-        // Unfollow
         const q = query(
           collection(db, "follows"),
           where("followerId", "==", currentUser.uid),
           where("followingId", "==", profile.id)
         )
         const snap = await getDocs(q)
+        const deletePromises: Promise<void>[] = []
         snap.forEach((doc) => {
-          deleteDoc(doc.ref).catch(async () => {
-             const permissionError = new FirestorePermissionError({
-              path: `follows/${doc.id}`,
-              operation: "delete"
-            })
-            errorEmitter.emit("permission-error", permissionError)
-          })
+          deletePromises.push(deleteDoc(doc.ref))
         })
+        await Promise.all(deletePromises)
         setIsFollowing(false)
         toast({ title: "Você parou de seguir" })
       } else {
-        // Follow
         const followData = {
           followerId: currentUser.uid,
           followingId: profile.id,
@@ -297,7 +286,7 @@ export default function PublicProfilePage() {
                   
                   {locationStr && (
                     <p className="text-xs text-muted-foreground flex items-center justify-center gap-1 font-medium">
-                      <MapPin className="w-3 h-3 text-secondary" />
+                      <MapPin className="w-3.5 h-3.5 text-secondary" />
                       {locationStr}
                     </p>
                   )}
