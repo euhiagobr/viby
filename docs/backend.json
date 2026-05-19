@@ -10,8 +10,13 @@
         "username": { "type": "string", "description": "Nome de usuário único, min 5 chars, alfanumérico" },
         "avatar": { "type": "string" },
         "email": { "type": "string" },
-        "bio": { "type": "string" },
-        "location": { "type": "string" },
+        "bio": { "type": "string", "description": "Máximo 150 caracteres, sem links" },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
+        "country": { "type": "string" },
+        "website": { "type": "string" },
+        "instagram": { "type": "string" },
+        "whatsapp": { "type": "string" },
         "followersCount": { "type": "number" },
         "rating": { "type": "number" },
         "isVerified": { "type": "boolean" },
@@ -19,7 +24,7 @@
         "platform": { "type": "string", "enum": ["viby"] },
         "role": { "type": "string", "enum": ["user", "admin"] }
       },
-      "required": ["name", "email", "username", "platform"]
+      "required": ["name", "email", "username", "platform", "city", "state", "country"]
     },
     "Username": {
       "title": "Unicidade de Usuário",

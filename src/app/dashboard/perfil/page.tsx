@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, Mail, ShieldCheck, Calendar, Hash, Globe, ExternalLink, Edit, MapPin } from "lucide-react"
+import { Loader2, Mail, ShieldCheck, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Link as LinkIcon, Instagram, Phone } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 
@@ -20,7 +20,6 @@ export default function PerfilPage() {
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile, loading: profileLoading } = useDoc<any>(userDocRef)
 
-  // Buscar eventos reais do usuário
   const eventsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
     return query(collection(db, "events"), where("organizerId", "==", user.uid))
@@ -53,12 +52,14 @@ export default function PerfilPage() {
     )
   }
 
+  const locationStr = [profile.city, profile.state, profile.country].filter(Boolean).join(", ");
+
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Meu Perfil</h1>
-          <p className="text-muted-foreground">Gerencie suas informações pessoais e visualize seu perfil público.</p>
+          <p className="text-muted-foreground">Gerencie suas informações pessoais e links de contato.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" asChild className="gap-2 font-bold rounded-full">
@@ -77,7 +78,7 @@ export default function PerfilPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 space-y-6">
           <Card className="border-none shadow-sm overflow-hidden">
             <div className="h-24 bg-secondary/10 relative" />
             <CardContent className="pt-0 -mt-12 flex flex-col items-center text-center">
@@ -96,22 +97,21 @@ export default function PerfilPage() {
                   <Hash className="w-3.5 h-3.5" />
                   {profile.username}
                 </p>
-                {profile.role === 'admin' && (
-                  <Badge variant="secondary" className="mt-2 bg-secondary/10 text-secondary border-none">Administrador</Badge>
-                )}
               </div>
             </CardContent>
             <Separator />
             <CardContent className="py-6 space-y-4">
               <div className="space-y-3">
-                <div className="flex items-center gap-3 text-sm">
-                  <Mail className="w-4 h-4 text-muted-foreground" />
-                  <span className="font-medium truncate">{profile.email}</span>
-                </div>
-                {profile.location && (
+                {profile.email && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <Mail className="w-4 h-4 text-muted-foreground" />
+                    <span className="font-medium truncate">{profile.email}</span>
+                  </div>
+                )}
+                {locationStr && (
                   <div className="flex items-center gap-3 text-sm">
                     <MapPin className="w-4 h-4 text-muted-foreground" />
-                    <span className="font-medium">{profile.location}</span>
+                    <span className="font-medium">{locationStr}</span>
                   </div>
                 )}
                 <div className="flex items-center gap-3 text-sm">
@@ -119,6 +119,32 @@ export default function PerfilPage() {
                   <span className="font-medium">Membro desde {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString('pt-BR') : 'Recentemente'}</span>
                 </div>
               </div>
+
+              {(profile.website || profile.instagram || profile.whatsapp) && (
+                <>
+                  <Separator />
+                  <div className="space-y-3 pt-2">
+                    {profile.website && (
+                      <a href={profile.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-sm hover:text-secondary transition-colors">
+                        <LinkIcon className="w-4 h-4 text-muted-foreground" />
+                        <span className="font-medium truncate">Site Oficial</span>
+                      </a>
+                    )}
+                    {profile.instagram && (
+                      <a href={`https://instagram.com/${profile.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-sm hover:text-secondary transition-colors">
+                        <Instagram className="w-4 h-4 text-muted-foreground" />
+                        <span className="font-medium">@{profile.instagram.replace('@', '')}</span>
+                      </a>
+                    )}
+                    {profile.whatsapp && (
+                      <div className="flex items-center gap-3 text-sm">
+                        <Phone className="w-4 h-4 text-muted-foreground" />
+                        <span className="font-medium">{profile.whatsapp}</span>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -152,7 +178,7 @@ export default function PerfilPage() {
               <CardTitle className="text-lg">Bio</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground whitespace-pre-line">
+              <p className="text-sm text-muted-foreground whitespace-pre-line italic">
                 {profile.bio || "Nenhuma biografia adicionada."}
               </p>
             </CardContent>

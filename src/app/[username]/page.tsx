@@ -21,10 +21,15 @@ import {
   Edit,
   Users as UsersIcon,
   CheckCircle2,
-  Clock
+  Clock,
+  Link as LinkIcon,
+  Instagram,
+  Phone,
+  Mail
 } from "lucide-react"
 import { EventCard } from "@/components/events/EventCard"
 import Link from "next/link"
+import { toast } from "@/hooks/use-toast"
 
 export default function PublicProfilePage() {
   const params = useParams()
@@ -42,7 +47,6 @@ export default function PublicProfilePage() {
     return currentUser && profile && currentUser.uid === profile.id
   }, [currentUser, profile])
 
-  // Buscar o perfil resolvendo o username
   React.useEffect(() => {
     if (!db || !username) return
 
@@ -69,7 +73,6 @@ export default function PublicProfilePage() {
           setError("Dados do perfil não encontrados")
         }
       } catch (err) {
-        console.error(err)
         setError("Erro ao carregar perfil")
       } finally {
         setLoading(false)
@@ -79,7 +82,6 @@ export default function PublicProfilePage() {
     fetchProfile()
   }, [db, username])
 
-  // Buscar eventos deste organizador (sem orderBy para evitar necessidade de índices complexos imediatos)
   const eventsQuery = useMemoFirebase(() => {
     if (!db || !profile?.id) return null
     return query(
@@ -90,7 +92,6 @@ export default function PublicProfilePage() {
 
   const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
 
-  // Estatísticas calculadas reais
   const stats = React.useMemo(() => {
     if (!events) return { total: 0, active: 0, finished: 0 }
     return {
@@ -118,6 +119,8 @@ export default function PublicProfilePage() {
     )
   }
 
+  const locationStr = [profile.city, profile.state, profile.country].filter(Boolean).join(", ");
+
   return (
     <div className="min-h-screen bg-[#f8fafc]">
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
@@ -130,7 +133,7 @@ export default function PublicProfilePage() {
           </Link>
           <div className="flex items-center gap-2">
             {isOwner && (
-              <Button variant="outline" size="sm" asChild className="hidden sm:flex gap-2">
+              <Button variant="outline" size="sm" asChild className="hidden sm:flex gap-2 font-bold">
                 <Link href="/dashboard/perfil/editar">
                   <Edit className="w-4 h-4" />
                   Editar Perfil
@@ -145,9 +148,7 @@ export default function PublicProfilePage() {
         </div>
       </nav>
 
-      <div className="h-48 md:h-64 bg-secondary/10 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/5" />
-      </div>
+      <div className="h-48 md:h-64 bg-secondary/10 relative overflow-hidden" />
 
       <div className="container mx-auto px-4 -mt-24 pb-20 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -164,33 +165,24 @@ export default function PublicProfilePage() {
                 <div className="mt-6 space-y-2 w-full">
                   <div className="flex items-center justify-center gap-2">
                     <h1 className="text-2xl font-bold tracking-tight">{profile.name}</h1>
-                    {profile.isVerified && <ShieldCheck className="w-6 h-6 text-secondary fill-secondary/5" />}
+                    {profile.isVerified && <ShieldCheck className="w-6 h-6 text-secondary" />}
                   </div>
                   <p className="text-secondary font-medium text-sm">@{profile.username}</p>
                   
-                  {profile.location && (
+                  {locationStr && (
                     <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                       <MapPin className="w-3 h-3" />
-                      {profile.location}
+                      {locationStr}
                     </p>
                   )}
-                  
-                  <div className="flex flex-wrap justify-center gap-2 mt-4">
-                    <Badge variant="secondary" className="bg-secondary/10 text-secondary border-none px-3 py-1">
-                      Promotor Verificado
-                    </Badge>
-                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 w-full mt-8">
-                  <div className="bg-muted/50 p-4 rounded-2xl">
+                  <div className="bg-muted/50 p-4 rounded-2xl text-center">
                     <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Seguidores</p>
-                    <div className="flex items-center justify-center gap-1.5">
-                      <UsersIcon className="w-4 h-4 text-secondary" />
-                      <p className="text-2xl font-black text-foreground">{profile.followersCount || 0}</p>
-                    </div>
+                    <p className="text-2xl font-black text-foreground">{profile.followersCount || 0}</p>
                   </div>
-                  <div className="bg-muted/50 p-4 rounded-2xl">
+                  <div className="bg-muted/50 p-4 rounded-2xl text-center">
                     <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Avaliação</p>
                     <div className="flex items-center justify-center gap-1">
                       <p className="text-2xl font-black text-foreground">{profile.rating ? profile.rating.toFixed(1) : "0.0"}</p>
@@ -208,7 +200,7 @@ export default function PublicProfilePage() {
                       </Link>
                     </Button>
                   ) : (
-                    <Button className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold gap-2 py-6 rounded-2xl">
+                    <Button className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold py-6 rounded-2xl shadow-lg">
                       Seguir Organizador
                     </Button>
                   )}
@@ -217,16 +209,14 @@ export default function PublicProfilePage() {
                     toast({ title: "Link copiado!" })
                   }}>
                     <Share2 className="w-4 h-4" />
-                    Compartilhar Perfil
+                    Compartilhar
                   </Button>
                 </div>
               </CardContent>
             </Card>
 
             <Card className="border-none shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg">Sobre</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle className="text-lg">Bio</CardTitle></CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground whitespace-pre-line">
                   {profile.bio || "Nenhuma informação adicional disponível."}
@@ -234,42 +224,59 @@ export default function PublicProfilePage() {
               </CardContent>
             </Card>
 
+            {(profile.website || profile.instagram || profile.whatsapp || profile.email) && (
+              <Card className="border-none shadow-sm">
+                <CardHeader><CardTitle className="text-lg">Contato & Links</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                  {profile.website && (
+                    <a href={profile.website} target="_blank" className="flex items-center gap-3 text-sm hover:text-secondary">
+                      <LinkIcon className="w-4 h-4 text-muted-foreground" />
+                      Site Oficial
+                    </a>
+                  )}
+                  {profile.instagram && (
+                    <a href={`https://instagram.com/${profile.instagram.replace('@', '')}`} target="_blank" className="flex items-center gap-3 text-sm hover:text-secondary">
+                      <Instagram className="w-4 h-4 text-muted-foreground" />
+                      @{profile.instagram.replace('@', '')}
+                    </a>
+                  )}
+                  {profile.whatsapp && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <Phone className="w-4 h-4 text-muted-foreground" />
+                      {profile.whatsapp}
+                    </div>
+                  )}
+                  {profile.email && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <Mail className="w-4 h-4 text-muted-foreground" />
+                      {profile.email}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             <Card className="border-none shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg">Resumo de Atividade</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle className="text-lg">Resumo de Atividade</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-green-500" />
-                    Eventos Concluídos
+                    <CheckCircle2 className="w-4 h-4 text-green-500" /> Eventos Concluídos
                   </span>
                   <span className="font-bold">{stats.finished}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-secondary" />
-                    Eventos Ativos
+                    <Clock className="w-4 h-4 text-secondary" /> Eventos Ativos
                   </span>
                   <span className="font-bold">{stats.active}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm border-t pt-4 mt-4">
-                  <span className="text-muted-foreground flex items-center gap-2 font-semibold">
-                    Total de Publicações
-                  </span>
-                  <span className="font-black text-lg">{stats.total}</span>
                 </div>
               </CardContent>
             </Card>
           </div>
 
           <div className="lg:col-span-8 space-y-8">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold tracking-tight">Eventos Publicados</h2>
-              <Badge variant="outline" className="border-secondary text-secondary font-bold">
-                {stats.active} Ativos
-              </Badge>
-            </div>
+            <h2 className="text-2xl font-bold tracking-tight">Eventos Publicados</h2>
 
             {eventsLoading ? (
               <div className="flex justify-center py-20">
@@ -284,7 +291,7 @@ export default function PublicProfilePage() {
             ) : (
               <div className="p-20 text-center bg-white rounded-3xl border-2 border-dashed border-border shadow-sm">
                 <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-20" />
-                <p className="text-muted-foreground font-medium">Nenhum evento ativo no momento.</p>
+                <p className="text-muted-foreground font-medium">Nenhum evento publicado.</p>
               </div>
             )}
           </div>
