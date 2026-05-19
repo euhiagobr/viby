@@ -98,9 +98,9 @@ export default function NovoEventoPage() {
 
     try {
       // 2. Iniciar upload automático
-      // Usando um caminho simples para evitar problemas de permissão em subpastas complexas
       const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
-      const storageRef = ref(storage, `viby/events/${user.uid}/${fileName}`)
+      const storagePath = `viby/events/${user.uid}/${fileName}`
+      const storageRef = ref(storage, storagePath)
       
       const uploadTask = uploadBytesResumable(storageRef, file)
 
@@ -115,7 +115,7 @@ export default function NovoEventoPage() {
           toast({
             variant: "destructive",
             title: "Erro no upload",
-            description: `Código: ${error.code}. Verifique as permissões de storage.`
+            description: `Código: ${error.code}. Verifique se as regras públicas já foram aplicadas.`
           })
         }, 
         async () => {
@@ -149,10 +149,10 @@ export default function NovoEventoPage() {
       if (!data.erro) {
         setAddress(prev => ({
           ...prev,
-          street: data.logradouro,
-          neighborhood: data.bairro,
-          city: data.localidade,
-          state: data.uf,
+          street: data.logradouro || "",
+          neighborhood: data.bairro || "",
+          city: data.localidade || "",
+          state: data.uf || "",
           country: "Brasil"
         }))
       }
