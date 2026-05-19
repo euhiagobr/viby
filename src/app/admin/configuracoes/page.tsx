@@ -2,36 +2,97 @@
 "use client"
 
 import * as React from "react"
-import { useFirestore, useDoc } from "@/firebase"
+import { useFirestore, useDoc, useFirebaseApp } from "@/firebase"
 import { doc, setDoc, serverTimestamp } from "firebase/firestore"
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Loader2, Save, Layout, Globe, ImageIcon } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import { Loader2, Save, Layout, Globe, ImageIcon, Upload, CheckCircle2 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 
 export default function AdminConfiguracoesPage() {
   const db = useFirestore()
+  const app = useFirebaseApp()
   
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings, loading } = useDoc<any>(settingsRef)
 
   const [saving, setSaving] = React.useState(false)
+  const [logoUploadProgress, setLogoUploadProgress] = React.useState<number | null>(null)
+  const [iconUploadProgress, setIconUploadProgress] = React.useState<number | null>(null)
+  
+  const [logoUrl, setLogoUrl] = React.useState("")
+  const [iconUrl, setIconUrl] = React.useState("")
+  const [siteName, setSiteName] = React.useState("")
+
+  React.useEffect(() => {
+    if (settings) {
+      setLogoUrl(settings.logoUrl || "")
+      setIconUrl(settings.iconUrl || "")
+      setSiteName(settings.siteName || "Viby")
+    }
+  }, [settings])
+
+  const storage = React.useMemo(() => {
+    if (!app) return null;
+    try {
+      // Tenta usar o bucket específico da Viby se configurado, ou o padrão
+      return getStorage(app, "gs://viby");
+    } catch (e) {
+      return getStorage(app);
+    }
+  }, [app])
+
+  const handleFileUpload = async (file: File, type: 'logo' | 'icon') => {
+    if (!storage) return;
+
+    const setProgress = type === 'logo' ? setLogoUploadProgress : setIconUploadProgress;
+    const setUrl = type === 'logo' ? setLogoUrl : setIconUrl;
+    
+    setProgress(0)
+
+    try {
+      const fileName = `${type}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
+      const storageRef = ref(storage, `site_assets/${fileName}`)
+      const uploadTask = uploadBytesResumable(storageRef, file)
+
+      uploadTask.on('state_changed', 
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+          setProgress(progress)
+        },
+        (error) => {
+          console.error(error)
+          setProgress(null)
+          toast({ variant: "destructive", title: "Erro no upload", description: "Não foi possível carregar a imagem." })
+        },
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+          setUrl(downloadURL)
+          setProgress(null)
+          toast({ title: "Upload concluído!", description: `${type === 'logo' ? 'Logotipo' : 'Ícone'} carregado com sucesso.` })
+        }
+      )
+    } catch (err) {
+      setProgress(null)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!db) return
 
     setSaving(true)
-    const formData = new FormData(e.currentTarget)
     
     const settingsData = {
-      siteName: formData.get("siteName") as string,
-      logoUrl: formData.get("logoUrl") as string,
-      iconUrl: formData.get("iconUrl") as string,
+      siteName,
+      logoUrl,
+      iconUrl,
       updatedAt: serverTimestamp()
     }
 
@@ -61,63 +122,99 @@ export default function AdminConfiguracoesPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Configurações Gerais</h1>
-        <p className="text-muted-foreground">Gerencie o nome do site, logotipo e ícone da plataforma.</p>
+        <h1 className="text-3xl font-bold tracking-tight">Configurações do Site</h1>
+        <p className="text-muted-foreground">Gerencie a identidade visual e o branding da plataforma.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
-        <Card className="border-none shadow-sm rounded-2xl">
+        <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
               <Layout className="w-5 h-5 text-secondary" />
               Identidade Visual
             </CardTitle>
-            <CardDescription>Personalize como a marca do site é exibida.</CardDescription>
+            <CardDescription>Personalize como a marca do site é exibida para os usuários.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-8 pt-4">
             <div className="space-y-2">
-              <Label htmlFor="siteName">Nome do Site</Label>
+              <Label htmlFor="siteName">Nome da Plataforma</Label>
               <Input 
                 id="siteName" 
-                name="siteName" 
-                defaultValue={settings?.siteName || "Viby"} 
+                value={siteName}
+                onChange={(e) => setSiteName(e.target.value)}
                 placeholder="Ex: Viby Club"
                 required 
-                className="rounded-xl"
+                className="rounded-xl h-12"
               />
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="logoUrl">URL do Logotipo</Label>
-              <div className="flex gap-4">
-                <Input 
-                  id="logoUrl" 
-                  name="logoUrl" 
-                  defaultValue={settings?.logoUrl} 
-                  placeholder="https://sua-imagem.com/logo.png" 
-                  className="rounded-xl flex-1"
-                />
-                {settings?.logoUrl && (
-                  <div className="h-10 w-10 relative rounded-lg border bg-muted overflow-hidden">
-                    <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Logo Upload */}
+              <div className="space-y-4">
+                <Label>Logotipo da Plataforma</Label>
+                <div 
+                  className="relative aspect-square rounded-2xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden group cursor-pointer"
+                  onClick={() => document.getElementById('logo-upload')?.click()}
+                >
+                  {logoUrl ? (
+                    <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-4" />
+                  ) : (
+                    <div className="text-center p-4">
+                      <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Upload Logo</p>
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold">
+                    Alterar Logo
+                  </div>
+                  <input 
+                    id="logo-upload" 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'logo')}
+                  />
+                </div>
+                {logoUploadProgress !== null && (
+                  <div className="space-y-1">
+                    <Progress value={logoUploadProgress} className="h-1" />
+                    <p className="text-[10px] text-center font-bold text-muted-foreground">{Math.round(logoUploadProgress)}%</p>
                   </div>
                 )}
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="iconUrl">URL do Ícone (Favicon/Mobile)</Label>
-              <div className="flex gap-4">
-                <Input 
-                  id="iconUrl" 
-                  name="iconUrl" 
-                  defaultValue={settings?.iconUrl} 
-                  placeholder="https://sua-imagem.com/icon.png" 
-                  className="rounded-xl flex-1"
-                />
-                {settings?.iconUrl && (
-                  <div className="h-10 w-10 relative rounded-lg border bg-muted overflow-hidden">
-                    <img src={settings.iconUrl} alt="Icon" className="w-full h-full object-contain" />
+              {/* Icon Upload */}
+              <div className="space-y-4">
+                <Label>Ícone (Favicon/Mobile)</Label>
+                <div 
+                  className="relative aspect-square rounded-2xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden group cursor-pointer"
+                  onClick={() => document.getElementById('icon-upload')?.click()}
+                >
+                  {iconUrl ? (
+                    <div className="p-8">
+                      <img src={iconUrl} alt="Icon" className="w-16 h-16 object-contain" />
+                    </div>
+                  ) : (
+                    <div className="text-center p-4">
+                      <ImageIcon className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Upload Ícone</p>
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold">
+                    Alterar Ícone
+                  </div>
+                  <input 
+                    id="icon-upload" 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'icon')}
+                  />
+                </div>
+                {iconUploadProgress !== null && (
+                  <div className="space-y-1">
+                    <Progress value={iconUploadProgress} className="h-1" />
+                    <p className="text-[10px] text-center font-bold text-muted-foreground">{Math.round(iconUploadProgress)}%</p>
                   </div>
                 )}
               </div>
@@ -125,9 +222,13 @@ export default function AdminConfiguracoesPage() {
           </CardContent>
         </Card>
 
-        <Button type="submit" className="w-full bg-secondary text-white font-bold h-12 rounded-xl shadow-lg" disabled={saving}>
-          {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-          Salvar Configurações
+        <Button 
+          type="submit" 
+          className="w-full bg-secondary text-white font-bold h-14 rounded-2xl shadow-lg hover:bg-secondary/90 transition-all hover:scale-[1.01]" 
+          disabled={saving || logoUploadProgress !== null || iconUploadProgress !== null}
+        >
+          {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
+          Salvar Identidade Visual
         </Button>
       </form>
     </div>
