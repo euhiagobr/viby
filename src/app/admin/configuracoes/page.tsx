@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -21,7 +20,8 @@ import {
   ShieldCheck,
   Eye,
   EyeOff,
-  Key
+  Key,
+  Info
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
