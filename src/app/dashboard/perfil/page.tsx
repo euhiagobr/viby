@@ -6,8 +6,10 @@ import { doc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Mail, User, ShieldCheck, Calendar, MapPin, Hash, Globe } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Loader2, Mail, User, ShieldCheck, Calendar, MapPin, Hash, Globe, ExternalLink } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
+import Link from "next/link"
 
 export default function PerfilPage() {
   const auth = useAuth()
@@ -36,9 +38,17 @@ export default function PerfilPage() {
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Meu Perfil</h1>
-        <p className="text-muted-foreground">Gerencie suas informações pessoais e visualize suas estatísticas.</p>
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Meu Perfil</h1>
+          <p className="text-muted-foreground">Gerencie suas informações pessoais e visualize seu perfil público.</p>
+        </div>
+        <Button asChild className="bg-secondary text-white hover:bg-secondary/90 gap-2 font-bold rounded-full px-6">
+          <Link href={`/${profile.username}`} target="_blank">
+            Ver Perfil Público
+            <ExternalLink className="w-4 h-4" />
+          </Link>
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
