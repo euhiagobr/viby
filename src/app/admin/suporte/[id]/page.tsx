@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -10,6 +9,17 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { 
   ArrowLeft, 
   Loader2, 
@@ -77,9 +87,8 @@ export default function AdminTicketResponsePage() {
       .finally(() => setIsSubmitting(false))
   }
 
-  const handleCloseTicket = () => {
+  const handleCloseTicket = async () => {
     if (!db || !ticketRef) return
-    if (!confirm("Tem certeza que deseja encerrar este ticket? O usuário não poderá mais responder.")) return
 
     setIsSubmitting(true)
     const updateData = {
@@ -158,16 +167,37 @@ export default function AdminTicketResponsePage() {
                    Mover para Análise
                  </Button>
                )}
-               <Button 
-                 variant="destructive" 
-                 size="sm" 
-                 onClick={handleCloseTicket} 
-                 className="rounded-full gap-2 font-bold text-xs"
-                 disabled={isSubmitting}
-               >
-                 {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
-                 Encerrar Chamado
-               </Button>
+               
+               <AlertDialog>
+                 <AlertDialogTrigger asChild>
+                   <Button 
+                     variant="destructive" 
+                     size="sm" 
+                     className="rounded-full gap-2 font-bold text-xs"
+                     disabled={isSubmitting}
+                   >
+                     {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
+                     Encerrar Chamado
+                   </Button>
+                 </AlertDialogTrigger>
+                 <AlertDialogContent className="rounded-[2rem]">
+                   <AlertDialogHeader>
+                     <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Encerrar este ticket?</AlertDialogTitle>
+                     <AlertDialogDescription>
+                       Esta ação é irreversível. O usuário não poderá mais enviar mensagens neste protocolo e o histórico será arquivado.
+                     </AlertDialogDescription>
+                   </AlertDialogHeader>
+                   <AlertDialogFooter>
+                     <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px] tracking-widest">Cancelar</AlertDialogCancel>
+                     <AlertDialogAction 
+                       onClick={handleCloseTicket}
+                       className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-destructive/90"
+                     >
+                       Confirmar Encerramento
+                     </AlertDialogAction>
+                   </AlertDialogFooter>
+                 </AlertDialogContent>
+               </AlertDialog>
              </>
           )}
         </div>
