@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -8,6 +7,7 @@ import { doc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { 
   ArrowLeft, 
@@ -119,7 +119,7 @@ export default function AdminTicketResponsePage() {
           <div className="flex justify-between items-start">
              <CardTitle className="text-xl font-bold">{ticket.subject}</CardTitle>
              <Badge className={cn(
-               ticket.status === 'Não lida' ? "bg-orange-500" :
+               ticket.status === 'Não lida' ? "bg-orange-50" :
                ticket.status === 'Respondida' ? "bg-green-500" : "bg-muted"
              )}>
                {ticket.status}
