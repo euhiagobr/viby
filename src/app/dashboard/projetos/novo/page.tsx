@@ -49,8 +49,16 @@ export default function NovoEventoPage() {
   const { user } = useUser(auth)
   const app = useFirebaseApp()
   
-  // Utilizando explicitamente o bucket 'viby' conforme solicitado
-  const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
+  // Inicialização explícita do bucket 'viby'
+  const storage = React.useMemo(() => {
+    if (!app) return null;
+    try {
+      return getStorage(app, "gs://viby");
+    } catch (e) {
+      console.error("Erro ao inicializar bucket viby:", e);
+      return getStorage(app); // Fallback para o padrão se o viby falhar
+    }
+  }, [app])
 
   const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
@@ -111,7 +119,7 @@ export default function NovoEventoPage() {
           toast({
             variant: "destructive",
             title: "Erro no upload",
-            description: `Erro: ${error.code}. Verifique as permissões do bucket 'viby'.`
+            description: `Acesso negado ao bucket 'viby'. Verifique se o bucket existe ou se as regras foram propagadas.`
           })
         }, 
         async () => {
