@@ -1,0 +1,51 @@
+{
+  "platform": "viby",
+  "databaseId": "eventosviby",
+  "collections": {
+    "users": {
+      "path": "/users",
+      "fields": {
+        "name": "string",
+        "username": "string",
+        "email": "string",
+        "avatar": "string",
+        "platform": "string (fixed: viby)",
+        "isVerified": "boolean",
+        "totalEvents": "number",
+        "createdAt": "timestamp"
+      }
+    },
+    "events": {
+      "path": "/events",
+      "fields": {
+        "title": "string",
+        "description": "string",
+        "date": "timestamp",
+        "location": "string",
+        "city": "string",
+        "type": "string (Público|Privado|Governo)",
+        "status": "string",
+        "image": "string",
+        "organizerId": "string",
+        "organizer": "map",
+        "createdAt": "timestamp"
+      }
+    },
+    "usernames": {
+      "path": "/usernames",
+      "fields": {
+        "uid": "string"
+      }
+    },
+    "registrations": {
+      "path": "/registrations",
+      "fields": {
+        "eventId": "string",
+        "userId": "string",
+        "userName": "string",
+        "userEmail": "string",
+        "timestamp": "timestamp"
+      }
+    }
+  }
+}
