@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -22,6 +23,7 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import { QRCodeSVG } from "qrcode.react"
+import { formatCurrency } from "@/lib/financial-utils"
 
 export default function VoucherPage() {
   const params = useParams()
@@ -168,7 +170,7 @@ export default function VoucherPage() {
                 <div className="text-right">
                   <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Preço</p>
                   <p className="font-bold text-sm">
-                    {registration.price === 0 ? "GRÁTIS" : `R$ ${parseFloat(registration.price).toFixed(2)}`}
+                    {registration.price === 0 ? "GRÁTIS" : formatCurrency(registration.price)}
                   </p>
                 </div>
               </div>

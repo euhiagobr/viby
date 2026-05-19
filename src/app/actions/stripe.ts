@@ -9,7 +9,6 @@ import { firebaseConfig } from '@/firebase/config';
 
 /**
  * Helper para obter as chaves do Stripe diretamente do Firestore.
- * Necessário pois o usuário não tem acesso ao .env.
  */
 async function getStripeKeys() {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -47,6 +46,14 @@ export async function createCheckoutSession(data: {
       typescript: true,
     });
 
+    // Converter metadados para string (exigência do Stripe)
+    const sanitizedMetadata: Record<string, string> = {};
+    Object.entries(data.metadata).forEach(([key, value]) => {
+      if (value !== null && value !== undefined) {
+        sanitizedMetadata[key] = typeof value === 'object' ? JSON.stringify(value) : String(value);
+      }
+    });
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -67,13 +74,7 @@ export async function createCheckoutSession(data: {
       customer_email: data.userEmail,
       success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/cancelado`,
-      metadata: {
-        ...data.metadata,
-        eventId: data.eventId,
-        userId: data.userId,
-        userName: data.userName,
-        userEmail: data.userEmail,
-      },
+      metadata: sanitizedMetadata,
     });
 
     return { url: session.url };

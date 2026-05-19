@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/financial-utils"
+import { Separator } from "@/components/ui/separator"
 
 export default function FinanceiroPage() {
   const db = useFirestore()
@@ -25,10 +26,14 @@ export default function FinanceiroPage() {
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile, loading } = useDoc<any>(userDocRef)
 
-  // Consultar vendas reais do produtor
+  // Consultar apenas vendas confirmadas do produtor
   const salesQuery = useMemoFirebase(() => {
     if (!db || !user) return null
-    return query(collection(db, "registrations"), where("organizerId", "==", user.uid))
+    return query(
+      collection(db, "registrations"), 
+      where("organizerId", "==", user.uid),
+      where("paymentStatus", "in", ["Pago", "Disponível"])
+    )
   }, [db, user])
 
   const { data: sales, loading: salesLoading } = useCollection<any>(salesQuery)
