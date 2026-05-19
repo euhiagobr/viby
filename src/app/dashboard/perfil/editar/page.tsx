@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -279,7 +278,7 @@ export default function EditarPerfilPage() {
                       <SelectGroup key={category}>
                         <SelectLabel className="bg-muted/50 py-2">{category}</SelectLabel>
                         {items.map(item => (
-                          <SelectItem key={item} value={item}>{item}</SelectItem>
+                          <SelectItem key={`${category}-${item}`} value={item}>{item}</SelectItem>
                         ))}
                       </SelectGroup>
                     ))}
