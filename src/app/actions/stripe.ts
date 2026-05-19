@@ -27,13 +27,13 @@ async function getStripeKeys() {
 
 /**
  * Inicializa uma instância do Stripe com a Secret Key do banco.
+ * Removido apiVersion explícito para evitar erros de compatibilidade.
  */
 async function getStripeInstance() {
   const { secretKey } = await getStripeKeys();
   if (!secretKey) throw new Error('Stripe Secret Key não configurada no painel.');
   
   return new Stripe(secretKey, {
-    apiVersion: '2024-11-20',
     typescript: true,
   });
 }
