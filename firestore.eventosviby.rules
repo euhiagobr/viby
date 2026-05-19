@@ -1,7 +1,8 @@
+
 rules_version = '2';
 service cloud.firestore {
-  match /databases/{database}/documents {
-    // VIBY CORE RULES - ISOLAMENTO TOTAL
+  match /databases/eventosviby/documents {
+    // VIBY CORE RULES - ISOLAMENTO TOTAL NO BANCO eventosviby
     
     function isSignedIn() {
       return request.auth != null;
@@ -9,12 +10,11 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        exists(/databases/eventosviby/documents/users/$(request.auth.uid)) &&
+        get(/databases/eventosviby/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // Configurações Globais (Identidade Visual)
-    // Permissão de leitura pública é essencial para Landing Page e Auth
     match /settings/site {
       allow read: if true;
       allow write: if isAdmin();

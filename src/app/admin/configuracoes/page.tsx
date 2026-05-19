@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -18,7 +19,7 @@ export default function AdminConfiguracoesPage() {
   const db = useFirestore();
   const app = useFirebaseApp();
   
-  // Caminho absoluto plural: settings/site
+  // Caminho absoluto plural: settings/site no banco 'eventosviby'
   const settingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'site') : null), [db]);
   const { data: settings, loading } = useDoc<any>(settingsRef);
 

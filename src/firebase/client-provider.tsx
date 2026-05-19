@@ -1,3 +1,4 @@
+
 'use client';
 
 import { ReactNode, useMemo } from 'react';
@@ -10,11 +11,12 @@ import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 /**
  * Inicialização centralizada para o Viby.
- * Força a conexão com o banco de dados 'eventosviby'.
+ * Força a conexão com o banco de dados 'eventosviby' para isolamento total.
  */
 export function initializeFirebase() {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
   // Garante que o Firestore aponte para o banco de dados secundário 'eventosviby'
+  // O databaseId deve ser exatamente o mesmo configurado no firebase.json
   const db = getFirestore(app, 'eventosviby');
   const auth = getAuth(app);
 
