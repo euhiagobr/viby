@@ -6,7 +6,7 @@ import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, addDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Tag, Users, Settings, Loader2, Plus, Trash2, Hash, LayoutDashboard, BarChart3, TrendingUp, AlertTriangle } from "lucide-react"
+import { Tag, Users, Settings, Loader2, Plus, Trash2, Hash, LayoutDashboard, BarChart3, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,9 +18,16 @@ import { FirestorePermissionError } from "@/firebase/errors"
 export default function AdminDashboardPage() {
   const db = useFirestore()
   
-  // Categorias
+  // Consultas para estatísticas reais
+  const eventsQuery = useMemoFirebase(() => db ? collection(db, "events") : null, [db])
+  const usersQuery = useMemoFirebase(() => db ? collection(db, "users") : null, [db])
   const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
+  const reportsQuery = useMemoFirebase(() => db ? collection(db, "reports") : null, [db])
+
+  const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
+  const { data: users, loading: usersLoading } = useCollection<any>(usersQuery)
   const { data: categories, loading: categoriesLoading } = useCollection<any>(categoriesQuery)
+  const { data: reports, loading: reportsLoading } = useCollection<any>(reportsQuery)
 
   const [isCatDialogOpen, setIsCatDialogOpen] = React.useState(false)
   const [isSubmittingCat, setIsSubmittingCat] = React.useState(false)
@@ -72,20 +79,46 @@ export default function AdminDashboardPage() {
       })
   }
 
+  const stats = [
+    { 
+      title: "Eventos Totais", 
+      value: eventsLoading ? "..." : events?.length || "0", 
+      icon: LayoutDashboard, 
+      color: "text-blue-500", 
+      bg: "bg-blue-50" 
+    },
+    { 
+      title: "Usuários Ativos", 
+      value: usersLoading ? "..." : users?.length || "0", 
+      icon: Users, 
+      color: "text-purple-500", 
+      bg: "bg-purple-50" 
+    },
+    { 
+      title: "Categorias", 
+      value: categoriesLoading ? "..." : categories?.length || "0", 
+      icon: Tag, 
+      color: "text-orange-500", 
+      bg: "bg-orange-50" 
+    },
+    { 
+      title: "Denúncias", 
+      value: reportsLoading ? "..." : reports?.length || "0", 
+      icon: AlertTriangle, 
+      color: "text-red-500", 
+      bg: "bg-red-50" 
+    },
+  ]
+
   return (
     <div className="space-y-10">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Visão Geral do Sistema</h1>
-        <p className="text-muted-foreground">Monitoramento e gestão global da plataforma Viby Club.</p>
+        <p className="text-muted-foreground">Monitoramento e gestão global da plataforma Viby Club em tempo real.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {[
-          { title: "Eventos Totais", value: "1,284", icon: LayoutDashboard, color: "text-blue-500", bg: "bg-blue-50" },
-          { title: "Usuários Ativos", value: "15.4K", icon: Users, color: "text-purple-500", bg: "bg-purple-50" },
-          { title: "Categorias", value: categories?.length || "0", icon: Tag, color: "text-orange-500", bg: "bg-orange-50" },
-          { title: "Denúncias", value: "12", icon: AlertTriangle, color: "text-red-500", bg: "bg-red-50" },
-        ].map((stat, i) => (
+        {stats.map((stat, i) => (
           <Card key={i} className="border-none shadow-sm overflow-hidden group">
              <CardContent className="p-6">
                 <div className="flex items-center justify-between">
