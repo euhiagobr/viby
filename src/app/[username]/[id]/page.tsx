@@ -27,7 +27,9 @@ import {
   Tag,
   Gift,
   ShieldAlert,
-  Send
+  Send,
+  CreditCard,
+  ChevronRight
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -36,6 +38,7 @@ import { FirestorePermissionError } from "@/firebase/errors"
 import Link from "next/link"
 import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 import { cn } from "@/lib/utils"
+import { calculateFinancialBreakdown, formatCurrency } from "@/lib/financial-utils"
 import {
   Dialog,
   DialogContent,
@@ -52,6 +55,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
@@ -115,6 +124,8 @@ export default function EventoDetalhesPage() {
   const [reportReason, setReportReason] = React.useState("")
   const [reportDescription, setReportDescription] = React.useState("")
   const [isSubmittingReport, setIsSubmittingReport] = React.useState(false)
+
+  const [isCheckoutOpen, setIsCheckoutOpen] = React.useState(false)
 
   React.useEffect(() => {
     if (!event) return
@@ -251,20 +262,25 @@ export default function EventoDetalhesPage() {
     }
   }
 
-  const calculateFinalPrice = () => {
-    const original = activeBatch?.price || 0
-    if (!appliedCoupon) return original
+  /**
+   * Cálculos Financeiros
+   */
+  const getTicketBasePrice = () => {
+    let base = activeBatch?.price || 0
+    if (!appliedCoupon) return base
 
     if (appliedCoupon.discountType === 'percentage') {
-      const discount = (original * appliedCoupon.discountValue) / 100
-      return Math.max(0, original - discount)
+      const discount = (base * appliedCoupon.discountValue) / 100
+      return Math.max(0, base - discount)
     } else if (appliedCoupon.discountType === 'fixed') {
-      return Math.max(0, original - appliedCoupon.discountValue)
+      return Math.max(0, base - appliedCoupon.discountValue)
     } else if (appliedCoupon.discountType === 'free_ticket') {
       return 0
     }
-    return original
+    return base
   }
+
+  const breakdown = calculateFinancialBreakdown(getTicketBasePrice(), organizerProfile?.plan || 'START');
 
   const handleRegisterInterest = async () => {
     if (!auth || !user) {
@@ -278,10 +294,8 @@ export default function EventoDetalhesPage() {
     setRegistering(true)
     
     try {
-      const originalPrice = activeBatch?.price || 0;
-      const finalPrice = calculateFinalPrice();
-      const batchName = activeBatch?.name || (event.isFree ? "Gratuito" : "Lote Único");
       const ticketCode = await generateUniqueTicketCode(db);
+      const batchName = activeBatch?.name || (event.isFree ? "Gratuito" : "Lote Único");
 
       const regData = {
         eventId,
@@ -297,15 +311,22 @@ export default function EventoDetalhesPage() {
         organizerId: event.organizerId,
         timestamp: serverTimestamp(),
         createdAt: serverTimestamp(),
-        price: finalPrice,
-        originalPrice: originalPrice,
+        
+        // Dados Financeiros Persistidos
+        ticketBasePrice: breakdown.ticketBasePrice,
+        price: breakdown.customerFinalPrice, // Valor total pago pelo cliente
+        administrativeFeeAmount: breakdown.administrativeFeeAmount,
+        producerFeeAmount: breakdown.producerFeeAmount,
+        producerNetAmount: breakdown.producerNetAmount,
+        financialBreakdown: breakdown,
+
         batchName: batchName,
         checkedIn: false,
-        paymentStatus: finalPrice === 0 ? "Disponível" : "Pendente",
+        paymentStatus: breakdown.customerFinalPrice === 0 ? "Disponível" : "Pendente",
         ticketCode: ticketCode,
         status: "Ativo",
         visibility: "public",
-        purchaseType: finalPrice === 0 ? "free" : "paid",
+        purchaseType: breakdown.customerFinalPrice === 0 ? "free" : "paid",
         couponCode: appliedCoupon?.code || null
       }
 
@@ -318,6 +339,7 @@ export default function EventoDetalhesPage() {
       }
 
       setIsRegistered(true)
+      setIsCheckoutOpen(false)
       toast({ title: "Confirmado!", description: "Sua presença foi registrada e seu ingresso gerado." })
     } catch (error: any) {
       const permissionError = new FirestorePermissionError({
@@ -398,8 +420,6 @@ export default function EventoDetalhesPage() {
   const orgIsVerified = organizerProfile?.isVerified ?? event.organizer?.isVerified;
   const orgUsername = organizerProfile?.username || usernameFromUrl;
 
-  const finalPrice = calculateFinalPrice();
-
   const getButtonText = () => {
     if (isRegistered) return "Já Inscrito"
     if (saleStatus === 'pending') return "Vendas em Breve"
@@ -420,14 +440,13 @@ export default function EventoDetalhesPage() {
             <Share2 className="w-4 h-4" />
           </Button>
           <Button 
-            onClick={handleRegisterInterest}
+            onClick={() => setIsCheckoutOpen(true)}
             disabled={isRegistered || registering || saleStatus !== 'open'}
             className={`font-bold px-6 rounded-full h-10 shadow-lg transition-all ${
               isRegistered ? "bg-green-500 text-white" : 
               saleStatus === 'open' ? "bg-secondary text-white hover:scale-105" : "bg-muted text-muted-foreground"
             }`}
           >
-            {registering ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
             {isRegistered ? <CheckCircle2 className="w-4 h-4 mr-2" /> : null}
             {getButtonText()}
           </Button>
@@ -563,11 +582,11 @@ export default function EventoDetalhesPage() {
                         "text-2xl font-black",
                         appliedCoupon ? "text-muted-foreground line-through text-sm" : "text-primary"
                       )}>
-                        {activeBatch.price === 0 ? "GRATUITO" : `R$ ${parseFloat(activeBatch.price).toFixed(2).replace('.', ',')}`}
+                        {activeBatch.price === 0 ? "GRATUITO" : formatCurrency(activeBatch.price)}
                       </p>
                       {appliedCoupon && (
                         <p className="text-2xl font-black text-green-600">
-                          {finalPrice === 0 ? "GRÁTIS" : `R$ ${finalPrice.toFixed(2).replace('.', ',')}`}
+                          {breakdown.ticketBasePrice === 0 ? "GRÁTIS" : formatCurrency(breakdown.ticketBasePrice)}
                         </p>
                       )}
                     </div>
@@ -579,38 +598,9 @@ export default function EventoDetalhesPage() {
                     </div>
                   </div>
 
-                  {!isRegistered && (
-                    <div className="space-y-3 pt-2">
-                      <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Cupom de Desconto</Label>
-                      <div className="flex gap-2">
-                        <Input 
-                          placeholder="Digite o código" 
-                          value={couponCode} 
-                          onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                          className="rounded-xl border-dashed border-secondary/30 h-11"
-                        />
-                        <Button 
-                          variant="secondary" 
-                          onClick={handleApplyCoupon} 
-                          disabled={isVerifyingCoupon || !couponCode}
-                          className="rounded-xl font-bold px-4"
-                        >
-                          {isVerifyingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
-                        </Button>
-                      </div>
-                      {appliedCoupon && (
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-green-600 uppercase">
-                          <CheckCircle2 className="w-3 h-3" />
-                          Cupom {appliedCoupon.code} aplicado: {
-                            appliedCoupon.discountType === 'percentage' ? `${appliedCoupon.discountValue}% OFF` : 
-                            appliedCoupon.discountType === 'fixed' ? `R$ ${appliedCoupon.discountValue.toFixed(2)} OFF` : 
-                            "Ingresso Grátis"
-                          }
-                          <Button variant="ghost" size="sm" onClick={() => {setAppliedCoupon(null); setCouponCode("");}} className="h-4 p-0 ml-auto text-destructive hover:bg-transparent">Remover</Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <p className="text-[10px] text-muted-foreground font-medium bg-muted/50 p-3 rounded-lg leading-tight">
+                    * Uma taxa de serviço de 15% será aplicada ao valor final do ingresso no checkout.
+                  </p>
                 </div>
               ) : (
                 <div className="p-6 text-center space-y-2 bg-muted/20 rounded-2xl">
@@ -637,7 +627,7 @@ export default function EventoDetalhesPage() {
               )}
 
               <Button 
-                onClick={handleRegisterInterest} 
+                onClick={() => setIsCheckoutOpen(true)} 
                 disabled={isRegistered || registering || saleStatus !== 'open'} 
                 className={`w-full font-black py-7 rounded-2xl text-lg shadow-xl ${isRegistered ? "bg-green-500 hover:bg-green-600" : (saleStatus === 'open' ? "bg-secondary hover:bg-secondary/90" : "bg-muted cursor-not-allowed")} text-white`}
               >
@@ -670,6 +660,95 @@ export default function EventoDetalhesPage() {
           </Card>
         </div>
       </div>
+
+      {/* MODAL DE CHECKOUT FINANCEIRO */}
+      <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
+        <DialogContent className="max-w-md rounded-[2.5rem] p-0 overflow-hidden bg-background">
+          <div className="p-8 space-y-6">
+             <DialogHeader className="text-left space-y-2">
+                <div className="flex items-center gap-3 text-secondary">
+                   <CreditCard className="w-6 h-6" />
+                   <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Finalizar Reserva</DialogTitle>
+                </div>
+                <DialogDescription className="font-medium text-muted-foreground">Confira os valores da sua participação.</DialogDescription>
+             </DialogHeader>
+
+             <div className="space-y-4">
+                <div className="p-5 bg-muted/30 rounded-[1.5rem] border-2 border-dashed border-border space-y-4">
+                   <div className="flex justify-between items-center text-sm font-bold">
+                      <span className="text-muted-foreground uppercase text-[10px] tracking-widest">Ingresso ({activeBatch?.name})</span>
+                      <span>{formatCurrency(breakdown.ticketBasePrice)}</span>
+                   </div>
+                   
+                   {!isRegistered && (
+                    <div className="space-y-3 pt-2">
+                      <div className="flex gap-2">
+                        <Input 
+                          placeholder="CUPOM" 
+                          value={couponCode} 
+                          onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                          className="rounded-xl border-dashed border-secondary/30 h-10 font-bold"
+                        />
+                        <Button 
+                          variant="secondary" 
+                          size="sm"
+                          onClick={handleApplyCoupon} 
+                          disabled={isVerifyingCoupon || !couponCode}
+                          className="rounded-xl font-bold"
+                        >
+                          {isVerifyingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                      {appliedCoupon && (
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-green-600 uppercase bg-green-50 p-2 rounded-lg">
+                          <CheckCircle2 className="w-3 h-3" />
+                          {appliedCoupon.code}: {appliedCoupon.discountType === 'percentage' ? `${appliedCoupon.discountValue}% OFF` : 'Desconto Ativo'}
+                          <Button variant="ghost" size="sm" onClick={() => {setAppliedCoupon(null); setCouponCode("");}} className="h-4 p-0 ml-auto text-destructive hover:bg-transparent">Remover</Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                   <div className="flex justify-between items-center text-sm font-bold">
+                      <div className="flex items-center gap-1.5 text-muted-foreground uppercase text-[10px] tracking-widest">
+                         Taxa Administrativa
+                         <Info className="w-3 h-3 opacity-40" />
+                      </div>
+                      <span className="text-secondary">{formatCurrency(breakdown.administrativeFeeAmount)}</span>
+                   </div>
+
+                   <Separator className="bg-border/60" />
+
+                   <div className="flex justify-between items-center">
+                      <span className="text-lg font-black uppercase italic tracking-tighter">Total a Pagar</span>
+                      <span className="text-2xl font-black text-primary">{formatCurrency(breakdown.customerFinalPrice)}</span>
+                   </div>
+                </div>
+
+                <Accordion type="single" collapsible className="w-full">
+                  <AccordionItem value="terms" className="border-none">
+                    <AccordionTrigger className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:no-underline py-2">
+                      Políticas e Regras do Evento
+                    </AccordionTrigger>
+                    <AccordionContent className="text-[10px] text-muted-foreground leading-relaxed bg-muted/20 p-4 rounded-xl">
+                      Ao clicar em confirmar, você aceita os termos de uso do Viby e as políticas de cancelamento do produtor. 
+                      A taxa administrativa da plataforma não é reembolsável após o processamento.
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+             </div>
+
+             <Button 
+                onClick={handleRegisterInterest}
+                disabled={registering}
+                className="w-full h-16 bg-secondary text-white font-black text-xl rounded-2xl shadow-xl shadow-secondary/20 uppercase italic transition-all hover:scale-[1.02] active:scale-95"
+             >
+                {registering ? <Loader2 className="w-6 h-6 animate-spin mr-3" /> : <ChevronRight className="w-6 h-6 mr-1" />}
+                Confirmar e Gerar Voucher
+             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

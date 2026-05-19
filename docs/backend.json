@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "Organizer": {
@@ -27,6 +26,7 @@
         "platform": { "type": "string", "enum": ["viby"] },
         "role": { "type": "string", "enum": ["user", "admin"] },
         "accountType": { "type": "string", "enum": ["Usuário", "Empresa"] },
+        "plan": { "type": "string", "enum": ["START", "PRO", "TOP"], "description": "Plano de assinatura do produtor" },
         "businessCategory": { "type": "string" },
         "legalName": { "type": "string", "description": "Razão Social" },
         "cnpj": { "type": "string" },
@@ -101,8 +101,12 @@
         "userBirthDate": { "type": "string", "format": "date" },
         "organizerId": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" },
-        "price": { "type": "number" },
-        "originalPrice": { "type": "number" },
+        "price": { "type": "number", "description": "Preço final pago pelo comprador" },
+        "ticketBasePrice": { "type": "number", "description": "Valor nominal do ingresso definido pelo produtor" },
+        "administrativeFeeAmount": { "type": "number" },
+        "producerFeeAmount": { "type": "number" },
+        "producerNetAmount": { "type": "number" },
+        "financialBreakdown": { "type": "object" },
         "batchName": { "type": "string" },
         "checkedIn": { "type": "boolean" },
         "paymentStatus": { "type": "string", "enum": ["Disponível", "Pendente", "Pago", "Expirado"] },

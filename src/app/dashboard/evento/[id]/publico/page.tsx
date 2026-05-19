@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -31,15 +32,19 @@ import {
   ScanQrCode,
   X,
   User,
-  DollarSign
+  DollarSign,
+  TrendingUp,
+  Percent
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Html5Qrcode } from "html5-qrcode"
+import { formatCurrency } from "@/lib/financial-utils"
 
 export default function EventoPublicoPage() {
   const params = useParams()
@@ -76,7 +81,14 @@ export default function EventoPublicoPage() {
     const total = registrations?.length || 0;
     const present = registrations?.filter((r: any) => r.checkedIn).length || 0;
     const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
-    return { total, present, percentage };
+    
+    const financial = (registrations || []).reduce((acc: any, reg: any) => {
+      acc.gross += (reg.ticketBasePrice || 0);
+      acc.net += (reg.producerNetAmount || 0);
+      return acc;
+    }, { gross: 0, net: 0 });
+
+    return { total, present, percentage, ...financial };
   }, [registrations]);
 
   const filteredRegistrations = React.useMemo(() => {
@@ -292,7 +304,7 @@ export default function EventoPublicoPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="border-none shadow-sm bg-card">
           <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Inscritos Totais</CardTitle></CardHeader>
           <CardContent><div className="text-3xl font-black text-foreground">{stats.total}</div></CardContent>
@@ -301,9 +313,20 @@ export default function EventoPublicoPage() {
           <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Presenças</CardTitle></CardHeader>
           <CardContent><div className="flex items-baseline gap-3"><div className="text-3xl font-black text-green-600">{stats.present}/{stats.total}</div><div className="text-sm font-bold text-muted-foreground">{stats.percentage}%</div></div></CardContent>
         </Card>
+        <Card className="border-none shadow-sm bg-card bg-secondary/10">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[10px] font-black uppercase text-secondary tracking-widest flex items-center gap-1.5">
+              <TrendingUp className="w-3 h-3" /> Receita Líquida
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-black text-primary">{formatCurrency(stats.net)}</div>
+            <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">Bruto: {formatCurrency(stats.gross)}</p>
+          </CardContent>
+        </Card>
         <Card className="border-none shadow-sm bg-card bg-orange-50/50">
-          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-orange-600 tracking-widest flex items-center gap-1.5"><AlertTriangle className="w-3 h-3" /> Info</CardTitle></CardHeader>
-          <CardContent><p className="text-[10px] text-orange-800 leading-tight">Cada produtor pode realizar check-in apenas em seus próprios eventos.</p></CardContent>
+          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-orange-600 tracking-widest flex items-center gap-1.5"><AlertTriangle className="w-3 h-3" /> Info Taxas</CardTitle></CardHeader>
+          <CardContent><p className="text-[10px] text-orange-800 leading-tight">Os valores exibidos aqui já consideram os descontos automáticos das taxas do seu plano.</p></CardContent>
         </Card>
       </div>
 
@@ -332,9 +355,9 @@ export default function EventoPublicoPage() {
                   <TableHead className="font-bold">Idade</TableHead>
                   <TableHead className="font-bold">Sexo</TableHead>
                   <TableHead className="font-bold">Entrada</TableHead>
-                  <TableHead className="font-bold">Código</TableHead>
-                  <TableHead className="font-bold">Valor</TableHead>
-                  <TableHead className="text-right font-bold">Remover</TableHead>
+                  <TableHead className="font-bold">Líquido</TableHead>
+                  <TableHead className="font-bold">Voucher</TableHead>
+                  <TableHead className="text-right font-bold">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -358,8 +381,29 @@ export default function EventoPublicoPage() {
                         <span className="text-[10px] font-bold text-muted-foreground/40 uppercase">---</span>
                       )}
                     </TableCell>
+                    <TableCell>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex flex-col cursor-help">
+                              <span className="text-xs font-black text-primary">{formatCurrency(reg.producerNetAmount || 0)}</span>
+                              <span className="text-[9px] font-bold text-muted-foreground uppercase">Bruto: {formatCurrency(reg.ticketBasePrice || 0)}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent className="p-3 space-y-2">
+                             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b pb-1">Breakdown Financeiro</p>
+                             <div className="space-y-1">
+                                <div className="flex justify-between gap-8 text-[10px] font-bold"><span>Valor Base:</span> <span>{formatCurrency(reg.ticketBasePrice)}</span></div>
+                                <div className="flex justify-between gap-8 text-[10px] font-bold text-red-500"><span>Taxa Plano:</span> <span>-{formatCurrency(reg.producerFeeAmount)}</span></div>
+                                <Separator />
+                                <div className="flex justify-between gap-8 text-[10px] font-black text-green-600"><span>Líquido Produtor:</span> <span>{formatCurrency(reg.producerNetAmount)}</span></div>
+                             </div>
+                             <p className="text-[8px] text-muted-foreground italic mt-2">* Taxa administrativa do comprador ({formatCurrency(reg.administrativeFeeAmount)}) excluída desta visão.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableCell>
                     <TableCell><span className="text-[10px] font-mono font-bold text-secondary">{reg.ticketCode}</span></TableCell>
-                    <TableCell><span className="text-xs font-black text-primary">{reg.price === 0 ? "GRÁTIS" : `R$ ${parseFloat(reg.price || 0).toFixed(2)}`}</span></TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" onClick={async () => {
                         if (confirm(`Remover inscrição de ${reg.userName}?`)) {
@@ -427,7 +471,7 @@ export default function EventoPublicoPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center"><DollarSign className="w-5 h-5 text-secondary" /></div>
-                      <div><p className="text-[10px] font-black uppercase text-muted-foreground">Valor</p><p className="font-black">R$ {parseFloat(scanResult.price || 0).toFixed(2)}</p></div>
+                      <div><p className="text-[10px] font-black uppercase text-muted-foreground">Valor (Líquido Produtor)</p><p className="font-black">{formatCurrency(scanResult.producerNetAmount || 0)}</p></div>
                     </div>
                   </div>
                 </div>

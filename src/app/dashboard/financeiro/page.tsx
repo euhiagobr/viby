@@ -3,17 +3,18 @@
 
 import * as React from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { Wallet, TrendingUp, ArrowUpRight, CreditCard, Landmark, Loader2, CheckCircle2, AlertCircle, Info, DollarSign, Send } from "lucide-react"
+import { Wallet, TrendingUp, ArrowUpRight, CreditCard, Landmark, Loader2, CheckCircle2, AlertCircle, Info, DollarSign, Send, Ticket } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
+import { useAuth, useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase"
+import { doc, updateDoc, serverTimestamp, query, where } from "firebase/firestore"
 import { useRouter } from "next/navigation"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { formatCurrency } from "@/lib/financial-utils"
 
 export default function FinanceiroPage() {
   const db = useFirestore()
@@ -23,6 +24,26 @@ export default function FinanceiroPage() {
   
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile, loading } = useDoc<any>(userDocRef)
+
+  // Consultar vendas reais do produtor
+  const salesQuery = useMemoFirebase(() => {
+    if (!db || !user) return null
+    return query(collection(db, "registrations"), where("organizerId", "==", user.uid))
+  }, [db, user])
+
+  const { data: sales, loading: salesLoading } = useCollection<any>(salesQuery)
+
+  const stats = React.useMemo(() => {
+    if (!sales) return { netTotal: 0, grossTotal: 0, count: 0, fees: 0 };
+    
+    return sales.reduce((acc: any, sale: any) => {
+      acc.count++;
+      acc.grossTotal += (sale.ticketBasePrice || 0);
+      acc.netTotal += (sale.producerNetAmount || 0);
+      acc.fees += (sale.producerFeeAmount || 0);
+      return acc;
+    }, { netTotal: 0, grossTotal: 0, count: 0, fees: 0 });
+  }, [sales]);
 
   const [isFormOpen, setIsFormOpen] = React.useState(false)
   const [isVerifyingOpen, setIsVerifyingOpen] = React.useState(false)
@@ -86,7 +107,7 @@ export default function FinanceiroPage() {
     }
   }
 
-  if (loading) {
+  if (loading || salesLoading) {
     return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
   }
 
@@ -96,50 +117,52 @@ export default function FinanceiroPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">Meu Financeiro</h1>
-        <p className="text-muted-foreground font-medium">Controle de receitas, repasses e faturamento dos seus eventos.</p>
+        <p className="text-muted-foreground font-medium">Controle de receitas, taxas do plano {profile?.plan || 'START'} e valores líquidos.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="border-none shadow-sm bg-primary text-white overflow-hidden relative">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black uppercase tracking-widest opacity-60">Saldo a Receber</CardTitle>
+            <CardTitle className="text-[10px] font-black uppercase tracking-widest opacity-60">Saldo Líquido (A Receber)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black">R$ 0,00</div>
-            <p className="text-[10px] mt-2 font-bold opacity-40 uppercase">Próximo repasse em: --/--</p>
+            <div className="text-3xl font-black">{formatCurrency(stats.netTotal)}</div>
+            <p className="text-[10px] mt-2 font-bold opacity-40 uppercase">Total após taxas do plano</p>
           </CardContent>
           <Wallet className="absolute -bottom-2 -right-2 w-20 h-20 opacity-5 rotate-12" />
         </Card>
 
         <Card className="border-none shadow-sm bg-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Faturamento Total</CardTitle>
+            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Faturamento Bruto (Ingressos)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-foreground">R$ 0,00</div>
-            <div className="flex items-center gap-1 mt-2 text-green-500 text-[10px] font-black uppercase">
-              <ArrowUpRight className="w-3 h-3" /> 0% este mês
+            <div className="text-3xl font-black text-foreground">{formatCurrency(stats.grossTotal)}</div>
+            <div className="flex items-center gap-1 mt-2 text-red-500 text-[10px] font-black uppercase">
+              Taxas descontadas: {formatCurrency(stats.fees)}
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm bg-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Ingressos Pagos</CardTitle>
+            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Ingressos Vendidos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-foreground">0</div>
-            <p className="text-[10px] mt-2 font-bold text-muted-foreground uppercase">Conversão: 0%</p>
+            <div className="text-3xl font-black text-foreground">{stats.count}</div>
+            <p className="text-[10px] mt-2 font-bold text-muted-foreground uppercase">Base de pedidos</p>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm bg-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Ticket Médio</CardTitle>
+            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Ticket Médio (Bruto)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-foreground">R$ 0,00</div>
-            <p className="text-[10px] mt-2 font-bold text-muted-foreground uppercase">Base: 0 vendas</p>
+            <div className="text-3xl font-black text-foreground">
+              {stats.count > 0 ? formatCurrency(stats.grossTotal / stats.count) : 'R$ 0,00'}
+            </div>
+            <p className="text-[10px] mt-2 font-bold text-muted-foreground uppercase">Média por venda</p>
           </CardContent>
         </Card>
       </div>
@@ -149,13 +172,37 @@ export default function FinanceiroPage() {
           <CardHeader>
             <CardTitle className="text-lg font-bold flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-secondary" />
-              Histórico de Repasses
+              Detalhamento de Receitas
             </CardTitle>
-            <CardDescription>Visualize os pagamentos enviados para sua conta bancária.</CardDescription>
+            <CardDescription>Visualize o breakdown de cada ingresso vendido.</CardDescription>
           </CardHeader>
-          <CardContent className="py-10 text-center">
-            <Landmark className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-10" />
-            <p className="text-muted-foreground font-black uppercase tracking-widest text-xs">Nenhum repasse registrado ainda.</p>
+          <CardContent>
+            {sales && sales.length > 0 ? (
+               <div className="space-y-4">
+                  {sales.slice(0, 10).map((sale: any) => (
+                    <div key={sale.id} className="flex items-center justify-between p-4 bg-muted/20 rounded-xl border border-border/50">
+                       <div className="flex items-center gap-4">
+                          <div className="p-2 bg-white rounded-lg border">
+                             <Ticket className="w-4 h-4 text-secondary" />
+                          </div>
+                          <div>
+                             <p className="text-sm font-bold truncate max-w-[200px]">{sale.eventTitle}</p>
+                             <p className="text-[10px] font-medium text-muted-foreground">@{sale.userName}</p>
+                          </div>
+                       </div>
+                       <div className="text-right">
+                          <p className="text-xs font-black text-primary">{formatCurrency(sale.producerNetAmount)} LÍQUIDO</p>
+                          <p className="text-[9px] font-bold text-muted-foreground uppercase">Bruto: {formatCurrency(sale.ticketBasePrice)}</p>
+                       </div>
+                    </div>
+                  ))}
+               </div>
+            ) : (
+              <div className="py-10 text-center">
+                <Landmark className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-10" />
+                <p className="text-muted-foreground font-black uppercase tracking-widest text-xs">Nenhuma venda registrada ainda.</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -168,7 +215,7 @@ export default function FinanceiroPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Para receber os valores das vendas dos seus ingressos, você precisa configurar uma conta bancária vinculada ao seu CNPJ.
+              Para receber os valores líquidos das vendas, configure sua conta bancária vinculada ao CNPJ do perfil.
             </p>
             
             <div className="p-4 bg-white rounded-2xl border border-secondary/10 flex items-center gap-4">
