@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, Mail, ShieldCheck, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Link as LinkIcon, Instagram, Phone } from "lucide-react"
+import { Loader2, Mail, ShieldCheck, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Link as LinkIcon, Instagram, Phone, EyeOff } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 
@@ -103,9 +103,10 @@ export default function PerfilPage() {
             <CardContent className="py-6 space-y-4">
               <div className="space-y-3">
                 {profile.email && (
-                  <div className="flex items-center gap-3 text-sm">
+                  <div className={cn("flex items-center gap-3 text-sm", profile.showEmail === false && "opacity-50")}>
                     <Mail className="w-4 h-4 text-muted-foreground" />
                     <span className="font-medium truncate">{profile.email}</span>
+                    {profile.showEmail === false && <EyeOff className="w-3 h-3" />}
                   </div>
                 )}
                 {locationStr && (

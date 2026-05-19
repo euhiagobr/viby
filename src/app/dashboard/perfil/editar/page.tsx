@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -13,7 +14,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
-import { Loader2, ArrowLeft, Save, Upload, Info, Link as LinkIcon, Instagram, Phone, Mail } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import { Loader2, ArrowLeft, Save, Upload, Info, Link as LinkIcon, Instagram, Phone, Mail, Eye, EyeOff } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
@@ -47,7 +49,8 @@ export default function EditarPerfilPage() {
     website: "",
     instagram: "",
     whatsapp: "",
-    email: ""
+    email: "",
+    showEmail: true
   })
   const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
@@ -64,7 +67,8 @@ export default function EditarPerfilPage() {
         website: profile.website || "",
         instagram: profile.instagram || "",
         whatsapp: profile.whatsapp || "",
-        email: profile.email || ""
+        email: profile.email || "",
+        showEmail: profile.showEmail !== undefined ? profile.showEmail : true
       })
     }
   }, [profile])
@@ -105,7 +109,6 @@ export default function EditarPerfilPage() {
     e.preventDefault()
     if (!db || !user) return
 
-    // Validação de Bio
     if (formData.bio.length > 150) {
       toast({ variant: "destructive", title: "Bio muito longa", description: "Máximo de 150 caracteres." })
       return
@@ -241,30 +244,48 @@ export default function EditarPerfilPage() {
             <CardTitle>Links & Contato</CardTitle>
             <CardDescription>Canais oficiais de divulgação.</CardDescription>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="website" className="flex items-center gap-2">
-                <LinkIcon className="w-3.5 h-3.5" /> Site Oficial
-              </Label>
-              <Input id="website" value={formData.website} onChange={(e) => setFormData({...formData, website: e.target.value})} placeholder="https://..." />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="instagram" className="flex items-center gap-2">
-                <Instagram className="w-3.5 h-3.5" /> Instagram (usuário)
-              </Label>
-              <Input id="instagram" value={formData.instagram} onChange={(e) => setFormData({...formData, instagram: e.target.value})} placeholder="@exemplo" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="whatsapp" className="flex items-center gap-2">
-                <Phone className="w-3.5 h-3.5" /> WhatsApp
-              </Label>
-              <Input id="whatsapp" value={formData.whatsapp} onChange={(e) => setFormData({...formData, whatsapp: e.target.value})} placeholder="(00) 00000-0000" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email" className="flex items-center gap-2">
-                <Mail className="w-3.5 h-3.5" /> E-mail de Contato
-              </Label>
-              <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="contato@exemplo.com" />
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="website" className="flex items-center gap-2">
+                  <LinkIcon className="w-3.5 h-3.5" /> Site Oficial
+                </Label>
+                <Input id="website" value={formData.website} onChange={(e) => setFormData({...formData, website: e.target.value})} placeholder="https://..." />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="instagram" className="flex items-center gap-2">
+                  <Instagram className="w-3.5 h-3.5" /> Instagram (usuário)
+                </Label>
+                <Input id="instagram" value={formData.instagram} onChange={(e) => setFormData({...formData, instagram: e.target.value})} placeholder="@exemplo" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="whatsapp" className="flex items-center gap-2">
+                  <Phone className="w-3.5 h-3.5" /> WhatsApp
+                </Label>
+                <Input id="whatsapp" value={formData.whatsapp} onChange={(e) => setFormData({...formData, whatsapp: e.target.value})} placeholder="(00) 00000-0000" />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="email" className="flex items-center gap-2">
+                    <Mail className="w-3.5 h-3.5" /> E-mail de Contato
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="showEmail" className="text-[10px] font-bold uppercase opacity-60">
+                      {formData.showEmail ? "Visível" : "Oculto"}
+                    </Label>
+                    <Switch 
+                      id="showEmail" 
+                      checked={formData.showEmail} 
+                      onCheckedChange={(checked) => setFormData({...formData, showEmail: checked})} 
+                    />
+                  </div>
+                </div>
+                <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="contato@exemplo.com" />
+                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  {formData.showEmail ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                  O e-mail será {formData.showEmail ? "exibido" : "ocultado"} no seu perfil público.
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>

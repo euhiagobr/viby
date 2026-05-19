@@ -224,7 +224,7 @@ export default function PublicProfilePage() {
               </CardContent>
             </Card>
 
-            {(profile.website || profile.instagram || profile.whatsapp || profile.email) && (
+            {(profile.website || profile.instagram || profile.whatsapp || (profile.email && profile.showEmail !== false)) && (
               <Card className="border-none shadow-sm">
                 <CardHeader><CardTitle className="text-lg">Contato & Links</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
@@ -246,7 +246,7 @@ export default function PublicProfilePage() {
                       {profile.whatsapp}
                     </div>
                   )}
-                  {profile.email && (
+                  {profile.email && profile.showEmail !== false && (
                     <div className="flex items-center gap-3 text-sm">
                       <Mail className="w-4 h-4 text-muted-foreground" />
                       {profile.email}

@@ -10,6 +10,7 @@
         "username": { "type": "string", "description": "Nome de usuário único, min 5 chars, alfanumérico" },
         "avatar": { "type": "string" },
         "email": { "type": "string" },
+        "showEmail": { "type": "boolean", "description": "Define se o e-mail é visível publicamente" },
         "bio": { "type": "string", "description": "Máximo 150 caracteres, sem links" },
         "city": { "type": "string" },
         "state": { "type": "string" },
