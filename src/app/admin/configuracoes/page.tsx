@@ -18,9 +18,9 @@ export default function AdminConfiguracoesPage() {
   const db = useFirestore()
   const app = useFirebaseApp()
   
-  // Usando plural "settings" para consistência com as regras
+  // Caminho plural "settings/site" conforme definido nas regras do Viby
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
-  const { data: settings, loading } = useDoc<any>(settingsRef)
+  const { data: settings, loading, error } = useDoc<any>(settingsRef)
 
   const [saving, setSaving] = React.useState(false)
   const [logoUploadProgress, setLogoUploadProgress] = React.useState<number | null>(null)
@@ -41,7 +41,7 @@ export default function AdminConfiguracoesPage() {
   const storage = React.useMemo(() => {
     if (!app) return null;
     try {
-      // Forçando o uso do bucket específico viby
+      // Forçando o uso do bucket específico viby para a plataforma
       return getStorage(app, "gs://viby");
     } catch (e) {
       return getStorage(app);
@@ -98,10 +98,10 @@ export default function AdminConfiguracoesPage() {
       updatedAt: serverTimestamp()
     }
 
-    // Salvando no caminho correto: settings/site
+    // Salvando explicitamente no banco eventosviby, caminho settings/site
     setDoc(doc(db, "settings", "site"), settingsData, { merge: true })
       .then(() => {
-        toast({ title: "Configurações salvas!", description: "A identidade visual foi atualizada." })
+        toast({ title: "Configurações salvas!", description: "A identidade visual foi atualizada com sucesso." })
       })
       .catch(async (error) => {
         const permissionError = new FirestorePermissionError({
@@ -126,7 +126,7 @@ export default function AdminConfiguracoesPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Identidade Visual</h1>
-        <p className="text-muted-foreground">Personalize o nome e as imagens exibidas em todo o portal.</p>
+        <p className="text-muted-foreground">Personalize a marca da sua plataforma Viby.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">

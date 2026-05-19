@@ -15,10 +15,7 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" ||
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.ongRole == "admin" ||
-         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles != null &&
-          "admin" in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles));
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
     // ===== CONFIGURAÇÕES DO SITE (IDENTIDADE VISUAL) =====
@@ -29,10 +26,10 @@ service cloud.firestore {
 
     // ===== USUÁRIOS =====
     match /users/{uid} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isSignedIn() && isOwnDoc(uid);
       allow update: if isSignedIn() && (isOwnDoc(uid) || isAdmin());
-      allow delete: if isSignedIn() && isOwnDoc(uid);
+      allow delete: if isAdmin();
     }
 
     // ===== EVENTOS =====
