@@ -54,7 +54,7 @@ const BUSINESS_CATEGORIES = {
   "Organizadores": ["Produtora de eventos", "Agência de marketing", "Agência de eventos", "Cerimonialista", "Organizador independente", "Assessoria de eventos"],
   "Casas e locais": ["Casa noturna", "Bar", "Pub", "Restaurante", "Café", "Lounge", "Hotel", "Resort", "Centro de eventos", "Arena", "Teatro", "Auditório", "Espaço cultural", "Galeria", "Parque", "Estádio", "Rooftop", "Coworking", "Centro de convenções"],
   "Música e entretenimento": ["Banda", "Cantor(a)", "DJ", "Grupo musical", "Artista", "Performer", "Drag queen", "Humorista", "Influenciador(a)", "Apresentador(a)"],
-  "Eventos corporativos": ["Empresa privada", "Startup", "Consultoria", "RH/Treinamentos", "Coworking", "Hub de inovação"],
+  "Eventos corporativos": ["Empresa privada", "Startup", "Consultoria", "RH/Treinamentos"],
   "Gastronomia": ["Buffet", "Food truck", "Confeitaria", "Hamburgueria", "Pizzaria", "Choperia", "Vinícola", "Cafeteria"],
   "Casamentos e festas": ["Decoradora", "Floricultura", "Fotografia", "Filmagem", "Sonorização", "Iluminação", "Locação de móveis", "Bartender", "Segurança", "Recreação infantil"],
   "Cultura e educação": ["Escola", "Universidade", "Curso", "ONG cultural", "Biblioteca", "Museu", "Coletivo artístico"],
@@ -131,7 +131,6 @@ export default function EditarPerfilPage() {
     }
   }, [profile])
 
-  // Verificação de username
   useEffect(() => {
     if (!db || !profile || !formData.username) return
     
@@ -145,7 +144,7 @@ export default function EditarPerfilPage() {
     }
 
     const regex = /^[a-zA-Z0-9]+$/
-    if (newUsername.length < 5 || !regex.test(newUsername)) {
+    if (newUsername.length < 5 || newUsername.length > 20 || !regex.test(newUsername)) {
       setUsernameStatus('invalid')
       setCheckingUsername(false)
       return
@@ -230,7 +229,7 @@ export default function EditarPerfilPage() {
     const usernameChanged = newUsername !== oldUsername
 
     if (usernameChanged && usernameStatus !== 'valid') {
-      toast({ variant: "destructive", title: "Username inválido", description: "O nome de usuário escolhido não está disponível." })
+      toast({ variant: "destructive", title: "Username inválido", description: "O nome de usuário escolhido não está disponível ou é inválido (min 5, máx 20 caracteres)." })
       return
     }
 
@@ -261,7 +260,6 @@ export default function EditarPerfilPage() {
     try {
       const batch = writeBatch(db)
 
-      // Atualização atômica do índice de usernames
       if (usernameChanged) {
         if (oldUsername) {
           batch.delete(doc(db, "usernames", oldUsername))
@@ -278,7 +276,6 @@ export default function EditarPerfilPage() {
 
       await batch.commit()
 
-      // Sincroniza dados nos eventos para manter URLs corretas
       const eventsQuery = query(collection(db, "events"), where("organizerId", "==", user.uid))
       const eventsSnap = await getDocs(eventsQuery)
       
@@ -297,7 +294,7 @@ export default function EditarPerfilPage() {
         await eventBatch.commit()
       }
 
-      toast({ title: "Perfil atualizado!", description: "Suas alterações e eventos foram salvos." })
+      toast({ title: "Perfil atualizado!", description: "Suas alterações foram salvas." })
       router.push("/dashboard/perfil")
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao salvar", description: error.message })
@@ -446,6 +443,7 @@ export default function EditarPerfilPage() {
                   <Input 
                     id="username" 
                     value={formData.username} 
+                    maxLength={20}
                     onChange={(e) => setFormData(prev => ({...prev, username: e.target.value.toLowerCase().replace(/\s+/g, "")}))} 
                     className={cn(
                       usernameStatus === 'valid' ? 'border-green-500 pr-10' : 
@@ -462,7 +460,7 @@ export default function EditarPerfilPage() {
                     ) : null}
                   </div>
                 </div>
-                <p className="text-[10px] text-muted-foreground">Isso alterará seu URL de perfil.</p>
+                <p className="text-[10px] text-muted-foreground">Min 5, máx 20 caracteres. Isso alterará seu URL de perfil.</p>
               </div>
             </div>
 
@@ -500,8 +498,9 @@ export default function EditarPerfilPage() {
               <Textarea 
                 id="bio" 
                 value={formData.bio} 
+                maxLength={150}
                 onChange={(e) => setFormData(prev => ({...prev, bio: e.target.value}))}
-                placeholder="Conte um pouco sobre você... (sem links)"
+                placeholder="Conte um pouco sobre você..."
                 className="min-h-[100px] resize-none"
               />
               <p className="text-[10px] text-muted-foreground flex items-center gap-1">
@@ -575,10 +574,6 @@ export default function EditarPerfilPage() {
                   </div>
                 </div>
                 <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData(prev => ({...prev, email: e.target.value}))} placeholder="contato@exemplo.com" />
-                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                  {formData.showEmail ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                  O e-mail será {formData.showEmail ? "exibido" : "ocultado"} no seu perfil público.
-                </p>
               </div>
             </div>
           </CardContent>

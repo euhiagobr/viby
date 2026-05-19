@@ -60,7 +60,7 @@ const BUSINESS_CATEGORIES = {
   "Organizadores": ["Produtora de eventos", "Agência de marketing", "Agência de eventos", "Cerimonialista", "Organizador independente", "Assessoria de eventos"],
   "Casas e locais": ["Casa noturna", "Bar", "Pub", "Restaurante", "Café", "Lounge", "Hotel", "Resort", "Centro de eventos", "Arena", "Teatro", "Auditório", "Espaço cultural", "Galeria", "Parque", "Estádio", "Rooftop", "Coworking", "Centro de convenções"],
   "Música e entretenimento": ["Banda", "Cantor(a)", "DJ", "Grupo musical", "Artista", "Performer", "Drag queen", "Humorista", "Influenciador(a)", "Apresentador(a)"],
-  "Eventos corporativos": ["Empresa privada", "Startup", "Consultoria", "RH/Treinamentos", "Hub de inovação"],
+  "Eventos corporativos": ["Empresa privada", "Startup", "Consultoria", "RH/Treinamentos"],
   "Gastronomia": ["Buffet", "Food truck", "Confeitaria", "Hamburgueria", "Pizzaria", "Choperia", "Vinícola", "Cafeteria"],
   "Casamentos e festas": ["Decoradora", "Floricultura", "Fotografia", "Filmagem", "Sonorização", "Iluminação", "Locação de móveis", "Bartender", "Segurança", "Recreação infantil"],
   "Cultura e educação": ["Escola", "Universidade", "Curso", "ONG cultural", "Biblioteca", "Museu", "Coletivo artístico"],
@@ -131,7 +131,6 @@ export default function AdminUsuariosPage() {
     setIsEditModalOpen(true)
   }
 
-  // Lógica de verificação de disponibilidade de username
   React.useEffect(() => {
     if (!db || !editingUser?.username || !originalUser) return
     
@@ -145,7 +144,7 @@ export default function AdminUsuariosPage() {
     }
 
     const regex = /^[a-zA-Z0-9]+$/
-    if (newUsername.length < 5 || !regex.test(newUsername)) {
+    if (newUsername.length < 5 || newUsername.length > 20 || !regex.test(newUsername)) {
       setUsernameStatus('invalid')
       setCheckingUsername(false)
       return
@@ -215,7 +214,7 @@ export default function AdminUsuariosPage() {
     const usernameChanged = newUsername !== oldUsername
 
     if (usernameChanged && usernameStatus !== 'valid') {
-      toast({ variant: "destructive", title: "Erro", description: "O nome de usuário escolhido não está disponível." })
+      toast({ variant: "destructive", title: "Erro", description: "O nome de usuário escolhido não está disponível ou é inválido." })
       return
     }
 
@@ -224,7 +223,6 @@ export default function AdminUsuariosPage() {
     try {
       const batch = writeBatch(db)
 
-      // Se o username mudou, atualiza a coleção 'usernames' (índice de busca/unicidade)
       if (usernameChanged) {
         if (oldUsername) {
           batch.delete(doc(db, "usernames", oldUsername))
@@ -234,7 +232,6 @@ export default function AdminUsuariosPage() {
 
       const userRef = doc(db, "users", editingUser.id)
       
-      // Remove campos que não devem ser salvos diretamente ou que são métricas auto-calculadas
       const { followersCount, rating, totalEvents, id, ...dataToUpdate } = editingUser;
 
       batch.update(userRef, {
@@ -245,7 +242,6 @@ export default function AdminUsuariosPage() {
 
       await batch.commit()
 
-      // Sincroniza dados nos eventos (denormalização para performance visual)
       const eventsQuery = query(collection(db, "events"), where("organizerId", "==", editingUser.id))
       const eventsSnap = await getDocs(eventsQuery)
       
@@ -264,7 +260,7 @@ export default function AdminUsuariosPage() {
         await eventBatch.commit()
       }
 
-      toast({ title: "Sucesso!", description: "Dados do usuário e índices de URL atualizados." })
+      toast({ title: "Sucesso!", description: "Dados do usuário e índices de busca atualizados." })
       setIsEditModalOpen(false)
       setEditingUser(null)
     } catch (error: any) {
@@ -412,7 +408,6 @@ export default function AdminUsuariosPage() {
         </CardContent>
       </Card>
 
-      {/* Modal de Edição de Usuário */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="max-w-3xl h-[90vh] flex flex-col p-0 overflow-hidden rounded-2xl">
           <DialogHeader className="p-6 border-b">
@@ -428,7 +423,6 @@ export default function AdminUsuariosPage() {
           <form onSubmit={handleUpdateUser} className="flex-1 flex flex-col min-h-0">
             <ScrollArea className="flex-1 p-6">
               <div className="space-y-8">
-                {/* Seção: Foto de Perfil */}
                 <div className="space-y-4 flex flex-col items-center">
                   <div className="relative group">
                     <Avatar className="h-32 w-32 border-4 border-background shadow-xl">
@@ -453,7 +447,6 @@ export default function AdminUsuariosPage() {
                   )}
                 </div>
 
-                {/* Seção: Identidade */}
                 <div className="space-y-4">
                   <h3 className="font-black text-xs uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                     <UserIcon className="w-3.5 h-3.5" /> Identidade & Acesso
@@ -474,6 +467,7 @@ export default function AdminUsuariosPage() {
                         <Input 
                           id="edit-username" 
                           value={editingUser?.username || ""} 
+                          maxLength={20}
                           onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value.toLowerCase().replace(/\s+/g, "") })}
                           className={cn(
                             usernameStatus === 'valid' ? 'border-green-500 pr-10' : 
@@ -490,7 +484,7 @@ export default function AdminUsuariosPage() {
                           ) : null}
                         </div>
                       </div>
-                      <p className="text-[10px] text-muted-foreground">Isso atualiza a coleção 'usernames' (URL pública).</p>
+                      <p className="text-[10px] text-muted-foreground">Min 5, máx 20 caracteres. Isso atualiza a coleção 'usernames'.</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="edit-email">E-mail</Label>
@@ -531,7 +525,6 @@ export default function AdminUsuariosPage() {
                   </div>
                 </div>
 
-                {/* Seção: Detalhes Pessoais */}
                 <div className="space-y-4">
                   <h3 className="font-black text-xs uppercase tracking-widest text-muted-foreground">Detalhes Pessoais</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -565,16 +558,19 @@ export default function AdminUsuariosPage() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Biografia (Máx 150 caracteres)</Label>
+                    <div className="flex justify-between">
+                      <Label>Biografia (Máx 150 caracteres)</Label>
+                      <span className="text-[10px] font-bold text-muted-foreground">{(editingUser?.bio || "").length}/150</span>
+                    </div>
                     <Textarea 
                       value={editingUser?.bio || ""} 
-                      onChange={(e) => setEditingUser({ ...editingUser, bio: e.target.value.substring(0, 150) })}
+                      maxLength={150}
+                      onChange={(e) => setEditingUser({ ...editingUser, bio: e.target.value })}
                       className="resize-none"
                     />
                   </div>
                 </div>
 
-                {/* Seção: Localização e Contato */}
                 <div className="space-y-4">
                   <h3 className="font-black text-xs uppercase tracking-widest text-muted-foreground">Localização & Contato</h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -618,7 +614,6 @@ export default function AdminUsuariosPage() {
                   </div>
                 </div>
 
-                {/* Seção: Empresa (se aplicável) */}
                 <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
                     <h3 className="font-black text-xs uppercase tracking-widest text-muted-foreground flex items-center gap-2">
@@ -689,11 +684,10 @@ export default function AdminUsuariosPage() {
                   )}
                 </div>
 
-                {/* Aviso: Métricas não editáveis */}
                 <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl flex gap-3">
                   <Info className="w-5 h-5 text-orange-500 shrink-0" />
                   <p className="text-[10px] text-orange-700 font-medium">
-                    As métricas de desempenho (seguidores, avaliação, total de eventos e interesses) são sincronizadas com a coleção de índices e não podem ser alteradas manualmente para preservar a integridade do sistema.
+                    As métricas de desempenho (seguidores, avaliação, total de eventos e interesses) são sincronizadas automaticamente e não podem ser alteradas manualmente para preservar a integridade do sistema.
                   </p>
                 </div>
               </div>

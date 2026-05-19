@@ -109,7 +109,6 @@ export default function PublicProfilePage() {
     fetchProfile()
   }, [db, username])
 
-  // Verificar se o usuário atual segue este perfil
   React.useEffect(() => {
     if (!db || !currentUser || !profile?.id) return
 
