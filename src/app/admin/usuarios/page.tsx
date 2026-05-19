@@ -224,7 +224,7 @@ export default function AdminUsuariosPage() {
     try {
       const batch = writeBatch(db)
 
-      // Se o username mudou, atualiza o índice de unicidade
+      // Se o username mudou, atualiza a coleção 'usernames' (índice de busca/unicidade)
       if (usernameChanged) {
         if (oldUsername) {
           batch.delete(doc(db, "usernames", oldUsername))
@@ -234,7 +234,7 @@ export default function AdminUsuariosPage() {
 
       const userRef = doc(db, "users", editingUser.id)
       
-      // Remove campos que não devem ser salvos diretamente ou que são métricas
+      // Remove campos que não devem ser salvos diretamente ou que são métricas auto-calculadas
       const { followersCount, rating, totalEvents, id, ...dataToUpdate } = editingUser;
 
       batch.update(userRef, {
@@ -245,7 +245,7 @@ export default function AdminUsuariosPage() {
 
       await batch.commit()
 
-      // Sincroniza dados nos eventos (denormalização)
+      // Sincroniza dados nos eventos (denormalização para performance visual)
       const eventsQuery = query(collection(db, "events"), where("organizerId", "==", editingUser.id))
       const eventsSnap = await getDocs(eventsQuery)
       
@@ -264,7 +264,7 @@ export default function AdminUsuariosPage() {
         await eventBatch.commit()
       }
 
-      toast({ title: "Sucesso!", description: "Dados do usuário e índices atualizados." })
+      toast({ title: "Sucesso!", description: "Dados do usuário e índices de URL atualizados." })
       setIsEditModalOpen(false)
       setEditingUser(null)
     } catch (error: any) {
@@ -288,7 +288,7 @@ export default function AdminUsuariosPage() {
       if (username) {
         await deleteDoc(doc(db, "usernames", username.toLowerCase().trim()))
       }
-      toast({ title: "Usuário removido", description: "Os dados foram excluídos." })
+      toast({ title: "Usuário removido", description: "Os dados e o índice de nome de usuário foram excluídos." })
     } catch (error) {
        const permissionError = new FirestorePermissionError({
           path: `users/${userId}`,
@@ -421,7 +421,7 @@ export default function AdminUsuariosPage() {
               Editar Perfil: {editingUser?.name}
             </DialogTitle>
             <DialogDescription>
-              Altere as informações cadastrais, incluindo o nome de usuário (indexado).
+              Altere as informações cadastrais. A mudança de nome de usuário atualizará automaticamente a URL de perfil do usuário.
             </DialogDescription>
           </DialogHeader>
 
@@ -490,7 +490,7 @@ export default function AdminUsuariosPage() {
                           ) : null}
                         </div>
                       </div>
-                      <p className="text-[10px] text-muted-foreground">Mínimo 5 caracteres alfanuméricos.</p>
+                      <p className="text-[10px] text-muted-foreground">Isso atualiza a coleção 'usernames' (URL pública).</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="edit-email">E-mail</Label>
@@ -521,8 +521,8 @@ export default function AdminUsuariosPage() {
 
                   <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border border-border">
                     <div className="space-y-0.5">
-                      <Label className="text-sm font-bold">Verificado</Label>
-                      <p className="text-xs text-muted-foreground">Exibir selo azul do Instagram no perfil.</p>
+                      <Label className="text-sm font-bold">Selo Verificado</Label>
+                      <p className="text-xs text-muted-foreground">Exibir selo azul (estilo Instagram) no perfil e cards.</p>
                     </div>
                     <Switch 
                       checked={editingUser?.isVerified || false} 
@@ -652,7 +652,15 @@ export default function AdminUsuariosPage() {
                           <Label>CNPJ</Label>
                           <Input 
                             value={editingUser?.cnpj || ""} 
-                            onChange={(e) => setEditingUser({ ...editingUser, cnpj: e.target.value })}
+                            onChange={(e) => {
+                              const numbers = e.target.value.replace(/\D/g, "");
+                              let formatted = numbers;
+                              if (numbers.length > 2) formatted = numbers.substring(0, 2) + "." + numbers.substring(2);
+                              if (numbers.length > 5) formatted = formatted.substring(0, 6) + "." + numbers.substring(5);
+                              if (numbers.length > 8) formatted = formatted.substring(0, 10) + "/" + numbers.substring(8);
+                              if (numbers.length > 12) formatted = formatted.substring(0, 15) + "-" + numbers.substring(12);
+                              setEditingUser({ ...editingUser, cnpj: formatted.substring(0, 18) })
+                            }} 
                           />
                         </div>
                       </div>
@@ -685,7 +693,7 @@ export default function AdminUsuariosPage() {
                 <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl flex gap-3">
                   <Info className="w-5 h-5 text-orange-500 shrink-0" />
                   <p className="text-[10px] text-orange-700 font-medium">
-                    As métricas de desempenho (seguidores, avaliação, total de eventos e interesses) são calculadas automaticamente e não podem ser alteradas manualmente para preservar a integridade do sistema.
+                    As métricas de desempenho (seguidores, avaliação, total de eventos e interesses) são sincronizadas com a coleção de índices e não podem ser alteradas manualmente para preservar a integridade do sistema.
                   </p>
                 </div>
               </div>
