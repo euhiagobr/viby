@@ -64,7 +64,7 @@
         "location": { "type": "string" },
         "city": { "type": "string" },
         "type": { "type": "string", "enum": ["Público", "Privado", "Governo"] },
-        "status": { "type": "string", "enum": ["A fazer", "Em progresso", "Concluído"] },
+        "status": { "type": "string", "enum": ["A fazer", "Em progresso", "Concluído", "Excluído"] },
         "image": { "type": "string" },
         "organizerId": { "type": "string" },
         "categoryId": { "type": "string" },
@@ -88,10 +88,12 @@
         "organizerId": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" },
         "price": { "type": "number" },
+        "originalPrice": { "type": "number" },
         "batchName": { "type": "string" },
         "checkedIn": { "type": "boolean" },
         "paymentStatus": { "type": "string", "enum": ["Disponível", "Pendente", "Pago", "Expirado"] },
-        "ticketCode": { "type": "string", "description": "Código de 16 caracteres formatado XXXX-XXXX-XXXX-XXXX" }
+        "ticketCode": { "type": "string", "description": "Código de 16 caracteres formatado XXXX-XXXX-XXXX-XXXX" },
+        "couponCode": { "type": "string" }
       },
       "required": ["eventId", "userId", "organizerId"]
     },
@@ -101,7 +103,7 @@
       "type": "object",
       "properties": {
         "code": { "type": "string" },
-        "discountType": { "type": "string", "enum": ["percentage", "fixed"] },
+        "discountType": { "type": "string", "enum": ["percentage", "fixed", "free_ticket"] },
         "discountValue": { "type": "number" },
         "maxUses": { "type": "number" },
         "currentUses": { "type": "number" },

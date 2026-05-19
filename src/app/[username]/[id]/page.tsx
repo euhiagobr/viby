@@ -1,13 +1,15 @@
+
 "use client"
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser } from "@/firebase"
-import { doc, addDoc, collection, serverTimestamp, query, where, getDocs } from "firebase/firestore"
+import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, updateDoc, increment } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Input } from "@/components/ui/input"
 import { 
   Calendar, 
   MapPin, 
@@ -19,7 +21,9 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
-  AlertTriangle
+  AlertTriangle,
+  Tag,
+  Gift
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -75,13 +79,17 @@ export default function EventoDetalhesPage() {
   const [registering, setRegistering] = React.useState(false)
   const [activeBatch, setActiveBatch] = React.useState<any>(null)
   const [saleStatus, setSaleStatus] = React.useState<'open' | 'pending' | 'ended' | 'soldout'>('pending')
+  
+  // Coupon state
+  const [couponCode, setCouponCode] = React.useState("")
+  const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null)
+  const [isVerifyingCoupon, setIsVerifyingCoupon] = React.useState(false)
 
   // Lógica de disponibilidade baseada em UTC-3
   React.useEffect(() => {
     if (!event) return
 
     const checkAvailability = () => {
-      // Forçar horário de Brasília (UTC-3)
       const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }))
       const batches = event.batches || []
       
@@ -90,7 +98,6 @@ export default function EventoDetalhesPage() {
         return
       }
 
-      // Procurar o primeiro lote disponível cronologicamente e com estoque
       let foundBatch = null
       let allSoldOut = true
       let allEnded = true
@@ -130,7 +137,7 @@ export default function EventoDetalhesPage() {
     }
 
     checkAvailability()
-    const timer = setInterval(checkAvailability, 60000) // Revalida a cada minuto
+    const timer = setInterval(checkAvailability, 60000)
     return () => clearInterval(timer)
   }, [event])
 
@@ -164,6 +171,67 @@ export default function EventoDetalhesPage() {
     }
   };
 
+  const handleApplyCoupon = async () => {
+    if (!db || !couponCode || !eventId) return
+    
+    setIsVerifyingCoupon(true)
+    try {
+      const q = query(
+        collection(db, "coupons"), 
+        where("eventId", "==", eventId), 
+        where("code", "==", couponCode.toUpperCase().trim()),
+        where("status", "==", "Ativo")
+      )
+      const snap = await getDocs(q)
+
+      if (snap.empty) {
+        toast({ variant: "destructive", title: "Cupom inválido", description: "O código informado não existe ou expirou." })
+        setAppliedCoupon(null)
+      } else {
+        const coupon = { ...snap.docs[0].data(), id: snap.docs[0].id }
+        const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }))
+        
+        const validFrom = coupon.validFrom ? new Date(coupon.validFrom) : null
+        const validUntil = coupon.validUntil ? new Date(coupon.validUntil) : null
+        
+        if (validFrom && now < validFrom) {
+          toast({ variant: "destructive", title: "Cupom ainda não ativo", description: "Este cupom começará a valer em breve." })
+          return
+        }
+        if (validUntil && now > validUntil) {
+          toast({ variant: "destructive", title: "Cupom expirado", description: "Este código não é mais válido." })
+          return
+        }
+        if (coupon.maxUses > 0 && coupon.currentUses >= coupon.maxUses) {
+          toast({ variant: "destructive", title: "Cupom esgotado", description: "O limite de usos deste cupom foi atingido." })
+          return
+        }
+
+        setAppliedCoupon(coupon)
+        toast({ title: "Cupom aplicado!", description: "O desconto foi calculado." })
+      }
+    } catch (err) {
+      toast({ variant: "destructive", title: "Erro", description: "Não foi possível validar o cupom." })
+    } finally {
+      setIsVerifyingCoupon(false)
+    }
+  }
+
+  const calculateFinalPrice = () => {
+    const original = activeBatch?.price || 0
+    if (!appliedCoupon) return original
+
+    if (appliedCoupon.discountType === 'percentage') {
+      const discount = (original * appliedCoupon.discountValue) / 100
+      return Math.max(0, original - discount)
+    } else if (appliedCoupon.discountType === 'fixed') {
+      return Math.max(0, original - appliedCoupon.discountValue)
+    } else if (appliedCoupon.discountType === 'free_ticket') {
+      return 0
+    }
+    return original
+  }
+
   const handleRegisterInterest = async () => {
     if (!auth || !user) {
       toast({ title: "Ação necessária", description: "Você precisa entrar para marcar interesse." })
@@ -176,7 +244,8 @@ export default function EventoDetalhesPage() {
     setRegistering(true)
     
     try {
-      const price = activeBatch?.price || 0;
+      const originalPrice = activeBatch?.price || 0;
+      const finalPrice = calculateFinalPrice();
       const batchName = activeBatch?.name || (event.isFree ? "Gratuito" : "Lote Único");
       const ticketCode = await generateUniqueTicketCode(db);
 
@@ -194,17 +263,26 @@ export default function EventoDetalhesPage() {
         organizerId: event.organizerId,
         timestamp: serverTimestamp(),
         createdAt: serverTimestamp(),
-        price: price,
+        price: finalPrice,
+        originalPrice: originalPrice,
         batchName: batchName,
         checkedIn: false,
-        paymentStatus: price === 0 ? "Disponível" : "Pendente",
+        paymentStatus: finalPrice === 0 ? "Disponível" : "Pendente",
         ticketCode: ticketCode,
         status: "Ativo",
         visibility: "public",
-        purchaseType: price === 0 ? "free" : "paid"
+        purchaseType: finalPrice === 0 ? "free" : "paid",
+        couponCode: appliedCoupon?.code || null
       }
 
       await addDoc(collection(db, "registrations"), regData)
+      
+      if (appliedCoupon) {
+        await updateDoc(doc(db, "coupons", appliedCoupon.id), {
+          currentUses: increment(1)
+        })
+      }
+
       setIsRegistered(true)
       toast({ title: "Confirmado!", description: "Sua presença foi registrada e seu ingresso gerado." })
     } catch (error: any) {
@@ -243,6 +321,8 @@ export default function EventoDetalhesPage() {
   const orgAvatar = organizerProfile?.avatar || event.organizer?.avatar;
   const orgIsVerified = organizerProfile?.isVerified ?? event.organizer?.isVerified;
   const orgUsername = organizerProfile?.username || usernameFromUrl;
+
+  const finalPrice = calculateFinalPrice();
 
   const getButtonText = () => {
     if (isRegistered) return "Já Inscrito"
@@ -343,15 +423,60 @@ export default function EventoDetalhesPage() {
             <CardHeader><CardTitle className="flex items-center gap-2 text-lg font-bold"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               {saleStatus === 'open' && activeBatch ? (
-                <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-black uppercase text-muted-foreground">Lote Atual</span>
-                    <Badge variant="outline" className="text-[10px] font-bold border-secondary text-secondary uppercase">{activeBatch.name}</Badge>
+                <div className="space-y-4">
+                  <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black uppercase text-muted-foreground">Lote Atual</span>
+                      <Badge variant="outline" className="text-[10px] font-bold border-secondary text-secondary uppercase">{activeBatch.name}</Badge>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <p className={cn(
+                        "text-2xl font-black",
+                        appliedCoupon ? "text-muted-foreground line-through text-sm" : "text-primary"
+                      )}>
+                        {activeBatch.price === 0 ? "GRATUITO" : `R$ ${parseFloat(activeBatch.price).toFixed(2).replace('.', ',')}`}
+                      </p>
+                      {appliedCoupon && (
+                        <p className="text-2xl font-black text-green-600">
+                          {finalPrice === 0 ? "GRÁTIS" : `R$ ${finalPrice.toFixed(2).replace('.', ',')}`}
+                        </p>
+                      )}
+                    </div>
+                    <p className="text-[10px] font-medium text-muted-foreground">Vendas terminam em: {new Date(activeBatch.endDate).toLocaleString('pt-BR')}</p>
                   </div>
-                  <p className="text-2xl font-black text-primary">
-                    {activeBatch.price === 0 ? "GRATUITO" : `R$ ${parseFloat(activeBatch.price).toFixed(2).replace('.', ',')}`}
-                  </p>
-                  <p className="text-[10px] font-medium text-muted-foreground">Vendas terminam em: {new Date(activeBatch.endDate).toLocaleString('pt-BR')}</p>
+
+                  {!isRegistered && (
+                    <div className="space-y-3 pt-2">
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Cupom de Desconto</Label>
+                      <div className="flex gap-2">
+                        <Input 
+                          placeholder="Digite o código" 
+                          value={couponCode} 
+                          onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                          className="rounded-xl border-dashed border-secondary/30 h-11"
+                        />
+                        <Button 
+                          variant="secondary" 
+                          onClick={handleApplyCoupon} 
+                          disabled={isVerifyingCoupon || !couponCode}
+                          className="rounded-xl font-bold px-4"
+                        >
+                          {isVerifyingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                      {appliedCoupon && (
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-green-600 uppercase">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Cupom {appliedCoupon.code} aplicado: {
+                            appliedCoupon.discountType === 'percentage' ? `${appliedCoupon.discountValue}% OFF` : 
+                            appliedCoupon.discountType === 'fixed' ? `R$ ${appliedCoupon.discountValue.toFixed(2)} OFF` : 
+                            "Ingresso Grátis"
+                          }
+                          <Button variant="ghost" size="sm" onClick={() => {setAppliedCoupon(null); setCouponCode("");}} className="h-4 p-0 ml-auto text-destructive hover:bg-transparent">Remover</Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="p-6 text-center space-y-2 bg-muted/20 rounded-2xl">

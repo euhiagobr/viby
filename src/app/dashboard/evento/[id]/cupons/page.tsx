@@ -4,19 +4,15 @@
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useFirestore, useDoc, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
-import { collection, query, where, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from "firebase/firestore"
+import { collection, query, where, addDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore"
 import { 
   TicketPercent, 
   Plus, 
   Trash2, 
   Loader2, 
   ArrowLeft, 
-  Calendar, 
   CheckCircle2, 
-  XCircle,
-  Hash,
-  Tag,
-  Users
+  Gift
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -63,6 +59,7 @@ export default function EventCuponsPage() {
 
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [selectedDiscountType, setSelectedDiscountType] = React.useState("percentage")
 
   const handleCreateCoupon = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -71,16 +68,19 @@ export default function EventCuponsPage() {
     setIsSubmitting(true)
     const formData = new FormData(e.currentTarget)
     
+    const discountType = formData.get("discountType") as string
+    const discountValue = discountType === "free_ticket" ? 100 : parseFloat(formData.get("discountValue") as string)
+
     const couponData = {
       code: (formData.get("code") as string).toUpperCase().replace(/\s+/g, ""),
-      discountType: formData.get("discountType") as string,
-      discountValue: parseFloat(formData.get("discountValue") as string),
+      discountType,
+      discountValue,
       maxUses: parseInt(formData.get("maxUses") as string) || 0,
       currentUses: 0,
       eventId: eventId,
       organizerId: user.uid,
-      validFrom: formData.get("validFrom") as string,
-      validUntil: formData.get("validUntil") as string,
+      validFrom: formData.get("validFrom") as string || null,
+      validUntil: formData.get("validUntil") as string || null,
       status: "Ativo",
       createdAt: serverTimestamp()
     }
@@ -146,23 +146,26 @@ export default function EventCuponsPage() {
                   <Input id="code" name="code" placeholder="Ex: VIBY2024" required className="rounded-xl uppercase font-bold" />
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
                     <Label>Tipo de Desconto</Label>
-                    <Select name="discountType" defaultValue="percentage">
+                    <Select name="discountType" defaultValue="percentage" onValueChange={setSelectedDiscountType}>
                       <SelectTrigger className="rounded-xl">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="percentage">Porcentagem (%)</SelectItem>
-                        <SelectItem value="fixed">Valor Fixo (R$)</SelectItem>
+                        <SelectItem value="percentage">Porcentagem (%) no total</SelectItem>
+                        <SelectItem value="fixed">Valor Fixo (R$) no total</SelectItem>
+                        <SelectItem value="free_ticket">Ingresso Grátis (100% de um ingresso)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="discountValue">Valor</Label>
-                    <Input id="discountValue" name="discountValue" type="number" step="0.01" placeholder="0.00" required className="rounded-xl" />
-                  </div>
+                  {selectedDiscountType !== "free_ticket" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="discountValue">Valor do Desconto</Label>
+                      <Input id="discountValue" name="discountValue" type="number" step="0.01" placeholder={selectedDiscountType === "percentage" ? "10.00" : "20.00"} required className="rounded-xl" />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -173,11 +176,11 @@ export default function EventCuponsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Início da Validade</Label>
-                    <Input name="validFrom" type="datetime-local" className="rounded-xl" />
+                    <Input name="validFrom" type="datetime-local" className="rounded-xl text-xs" />
                   </div>
                   <div className="space-y-2">
                     <Label>Fim da Validade</Label>
-                    <Input name="validUntil" type="datetime-local" className="rounded-xl" />
+                    <Input name="validUntil" type="datetime-local" className="rounded-xl text-xs" />
                   </div>
                 </div>
               </div>
@@ -201,7 +204,7 @@ export default function EventCuponsPage() {
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
                   <div className="p-2 bg-secondary/10 rounded-lg group-hover:bg-secondary group-hover:text-white transition-colors">
-                    <TicketPercent className="w-5 h-5" />
+                    {coupon.discountType === 'free_ticket' ? <Gift className="w-5 h-5" /> : <TicketPercent className="w-5 h-5" />}
                   </div>
                   <Badge variant="outline" className={cn(
                     "text-[10px] font-black uppercase",
@@ -212,7 +215,9 @@ export default function EventCuponsPage() {
                 </div>
                 <CardTitle className="text-xl font-black mt-3 italic tracking-tighter uppercase">{coupon.code}</CardTitle>
                 <CardDescription className="text-xs font-bold text-secondary">
-                  {coupon.discountType === 'percentage' ? `${coupon.discountValue}% OFF` : `R$ ${coupon.discountValue.toFixed(2)} OFF`}
+                  {coupon.discountType === 'percentage' ? `${coupon.discountValue}% OFF Total` : 
+                   coupon.discountType === 'fixed' ? `R$ ${coupon.discountValue.toFixed(2)} OFF Total` : 
+                   "Ingresso Grátis (100% OFF)"}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -220,7 +225,6 @@ export default function EventCuponsPage() {
                   <div className="space-y-0.5">
                     <p className="text-[10px] font-black uppercase text-muted-foreground">Usos</p>
                     <div className="flex items-center gap-1.5 text-sm font-bold">
-                      <Users className="w-3.5 h-3.5 text-secondary" />
                       {coupon.currentUses} / {coupon.maxUses || '∞'}
                     </div>
                   </div>
