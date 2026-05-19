@@ -11,7 +11,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { 
   Calendar, 
   MapPin, 
-  Users, 
   Share2, 
   ArrowLeft, 
   Ticket, 
@@ -20,12 +19,14 @@ import {
   Star,
   Loader2,
   CheckCircle2,
-  Clock
+  Clock,
+  ExternalLink
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import Link from "next/link"
 
 export default function EventoDetalhesPage() {
   const params = useParams()
@@ -51,39 +52,23 @@ export default function EventoDetalhesPage() {
     checkReg()
   }, [db, user, eventId])
 
-  const formatDate = (dateValue: any) => {
-    if (!dateValue) return "Data não definida";
+  const formatDateTime = (dateValue: any) => {
+    if (!dateValue) return { date: "A definir", time: "" };
     try {
       let d: Date;
-      if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
+      if (dateValue?.toDate) {
         d = dateValue.toDate();
-      } else if (dateValue instanceof Date) {
-        d = dateValue;
       } else {
         d = new Date(dateValue);
       }
-      if (isNaN(d.getTime())) return "Data não definida";
-      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-    } catch (e) {
-      return "Data não definida";
-    }
-  };
+      if (isNaN(d.getTime())) return { date: "A definir", time: "" };
 
-  const formatTime = (dateValue: any) => {
-    if (!dateValue) return "";
-    try {
-      let d: Date;
-      if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
-        d = dateValue.toDate();
-      } else if (dateValue instanceof Date) {
-        d = dateValue;
-      } else {
-        d = new Date(dateValue);
-      }
-      if (isNaN(d.getTime())) return "";
-      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      return {
+        date: d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }),
+        time: d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      };
     } catch (e) {
-      return "";
+      return { date: "A definir", time: "" };
     }
   };
 
@@ -139,113 +124,165 @@ export default function EventoDetalhesPage() {
     )
   }
 
-  const formattedDate = formatDate(event.date);
-  const formattedTime = formatTime(event.date);
+  const start = formatDateTime(event.date);
+  const end = formatDateTime(event.endDate);
 
   return (
-    <div className="space-y-8 pb-20">
+    <div className="space-y-8 pb-20 max-w-6xl mx-auto">
       <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={() => router.back()} className="gap-2">
+        <Button variant="ghost" onClick={() => router.back()} className="gap-2 font-semibold">
           <ArrowLeft className="w-4 h-4" />
           Voltar
         </Button>
         <div className="flex gap-2">
-          <Button variant="outline" size="icon">
+          <Button variant="outline" size="icon" className="rounded-full h-10 w-10">
             <Share2 className="w-4 h-4" />
           </Button>
           <Button 
             onClick={handleRegisterInterest}
             disabled={isRegistered || registering}
-            className={isRegistered ? "bg-green-500 text-white" : "bg-secondary text-white"}
+            className={`font-bold px-6 rounded-full h-10 shadow-lg transition-all ${isRegistered ? "bg-green-500 text-white" : "bg-secondary text-white hover:scale-105"}`}
           >
             {registering ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-            {isRegistered ? <><CheckCircle2 className="w-4 h-4 mr-2" /> Inscrito</> : "Tenho Interesse"}
+            {isRegistered ? <><CheckCircle2 className="w-4 h-4 mr-2" /> Já Inscrito</> : "Tenho Interesse"}
           </Button>
         </div>
       </div>
 
-      <div className="relative h-[400px] w-full rounded-2xl overflow-hidden shadow-2xl">
-        <Image src={event.image || "https://picsum.photos/seed/event/1200/800"} alt={event.title} fill className="object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-        <div className="absolute bottom-0 left-0 p-8 w-full">
+      <div className="relative h-[300px] md:h-[450px] w-full rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white">
+        <Image 
+          src={event.image || "https://picsum.photos/seed/event/1200/800"} 
+          alt={event.title} 
+          fill 
+          className="object-cover"
+          unoptimized 
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+        <div className="absolute bottom-0 left-0 p-6 md:p-10 w-full">
           <div className="flex flex-col gap-4 max-w-4xl">
-            <Badge className="w-fit bg-secondary text-white border-none text-sm px-4 py-1">{event.type}</Badge>
-            <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">{event.title}</h1>
-            <div className="flex flex-wrap gap-x-8 gap-y-2 text-white/90 text-sm font-medium">
-              <span className="flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-secondary" />
-                {formattedDate}
-              </span>
-              {formattedTime && (
-                <span className="flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-secondary" />
-                  {formattedTime}
-                </span>
+            <div className="flex flex-wrap gap-2">
+              <Badge className="bg-secondary text-white border-none text-xs px-4 py-1 rounded-full uppercase font-black tracking-widest">
+                {event.type}
+              </Badge>
+              {event.isFree && (
+                <Badge className="bg-green-500 text-white border-none text-xs px-4 py-1 rounded-full uppercase font-black tracking-widest">
+                  Grátis
+                </Badge>
               )}
-              <span className="flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-secondary" />
-                {event.location || event.address?.street}, {event.city}
+            </div>
+            <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-white tracking-tighter leading-tight">{event.title}</h1>
+            <div className="flex flex-wrap gap-x-6 gap-y-3 text-white/90 text-sm font-semibold">
+              <span className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full">
+                <MapPin className="w-4 h-4 text-secondary" />
+                {event.address?.street || event.location}, {event.city}
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          <Card className="border-none shadow-sm bg-card">
-            <CardHeader><CardTitle className="flex items-center gap-2 text-xl"><Info className="w-5 h-5 text-secondary" /> Sobre o Evento</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-muted-foreground leading-relaxed text-lg whitespace-pre-line">{event.description}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="lg:col-span-8 space-y-8">
+          <Card className="border-none shadow-sm bg-card rounded-[2rem] overflow-hidden">
+            <CardHeader className="bg-muted/30 pb-4">
+              <CardTitle className="flex items-center gap-2 text-xl font-bold">
+                <Info className="w-5 h-5 text-secondary" /> 
+                Sobre o Evento
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground leading-relaxed text-lg whitespace-pre-line font-medium">
+                {event.description || event.shortDescription}
+              </p>
             </CardContent>
           </Card>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Card className="border-none shadow-sm rounded-[1.5rem] bg-card p-6 flex flex-col items-center text-center gap-2">
+              <div className="p-3 bg-secondary/10 rounded-2xl">
+                <Calendar className="w-6 h-6 text-secondary" />
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Data do Evento</p>
+                <p className="text-lg font-bold">{start.date}</p>
+              </div>
+            </Card>
+
+            <Card className="border-none shadow-sm rounded-[1.5rem] bg-card p-6 flex flex-col items-center text-center gap-2">
+              <div className="p-3 bg-secondary/10 rounded-2xl">
+                <Clock className="w-6 h-6 text-secondary" />
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Horário</p>
+                <p className="text-lg font-bold">
+                  {start.time} {event.endDate && `até ${end.time}`}
+                </p>
+              </div>
+            </Card>
+          </div>
         </div>
 
-        <div className="space-y-8">
-          <Card className="border-none shadow-sm bg-card">
-            <CardHeader><CardTitle className="text-lg">Organizador</CardTitle></CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-16 w-16 border-2 border-secondary/10">
-                  <AvatarImage src={event.organizer?.avatar} alt={event.organizer?.name} />
-                  <AvatarFallback>{event.organizer?.name?.charAt(0) || "O"}</AvatarFallback>
-                </Avatar>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <h4 className="font-bold text-lg leading-none">{event.organizer?.name || "Organizador"}</h4>
-                    {event.organizer?.isVerified && <BadgeCheck className="w-5 h-5 text-secondary fill-secondary/10" />}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Promotor Verificado</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-muted/50 p-4 rounded-2xl text-center">
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Eventos</p>
-                  <p className="text-xl font-black text-foreground">{event.organizer?.totalEvents || 0}</p>
-                </div>
-                <div className="bg-muted/50 p-4 rounded-2xl text-center">
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Avaliação</p>
-                  <div className="flex items-center justify-center gap-1">
-                    <p className="text-xl font-black text-foreground">4.9</p>
-                    <Star className="w-4 h-4 text-orange-400 fill-orange-400" />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-lg bg-card border-t-4 border-secondary">
-            <CardHeader><CardTitle className="flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Ingressos & Acesso</CardTitle></CardHeader>
+        <div className="lg:col-span-4 space-y-6">
+          <Card className="border-none shadow-lg bg-card rounded-[2rem] border-t-8 border-secondary overflow-hidden">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-bold">
+                <Ticket className="w-5 h-5 text-secondary" /> 
+                Garantir Presença
+              </CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">Este evento está em fase de divulgação. Ao marcar interesse, você receberá atualizações sobre a abertura de vendas e lotes.</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Este evento está em fase de divulgação exclusiva no <strong>Viby</strong>. 
+                Ao marcar interesse, você entra para a lista prioritária do organizador.
+              </p>
+              <div className="bg-muted/50 p-4 rounded-2xl space-y-2">
+                <div className="flex justify-between text-xs font-bold uppercase opacity-60">
+                  <span>Status</span>
+                  <span className="text-secondary">{event.status || "Ativo"}</span>
+                </div>
+                <div className="flex justify-between text-sm font-black">
+                  <span>Lote</span>
+                  <span>{event.batches?.[0]?.name || "Lote Único"}</span>
+                </div>
+              </div>
               <Button 
                 onClick={handleRegisterInterest} 
                 disabled={isRegistered || registering}
-                className={`w-full font-bold py-6 ${isRegistered ? "bg-green-500 hover:bg-green-600" : "bg-secondary hover:bg-secondary/90"} text-white`}
+                className={`w-full font-black py-7 rounded-2xl text-lg shadow-xl transition-all ${isRegistered ? "bg-green-500 hover:bg-green-600" : "bg-secondary hover:bg-secondary/90 hover:scale-105"} text-white`}
               >
-                {registering ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                {isRegistered ? "Você está na lista!" : "Tenho Interesse"}
+                {registering ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
+                {isRegistered ? "Inscrito com Sucesso!" : "Tenho Interesse"}
               </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-sm bg-card rounded-[2rem]">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm uppercase font-black text-muted-foreground tracking-widest">Organizador</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-14 w-14 border-2 border-secondary/20 p-0.5">
+                  <AvatarImage src={event.organizer?.avatar} alt={event.organizer?.name} className="rounded-full" />
+                  <AvatarFallback className="font-bold">{event.organizer?.name?.charAt(0) || "O"}</AvatarFallback>
+                </Avatar>
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="font-bold text-base leading-none">{event.organizer?.name || "Organizador"}</h4>
+                    {event.organizer?.isVerified && <BadgeCheck className="w-4 h-4 text-secondary" />}
+                  </div>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Promotor Verificado</p>
+                </div>
+              </div>
+              
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1 rounded-xl text-xs font-bold gap-2 h-10" asChild>
+                  <Link href={`/perfil/${event.organizerId || ""}`} className="w-full">
+                    Ver Perfil
+                    <ExternalLink className="w-3 h-3" />
+                  </Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
