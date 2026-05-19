@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -7,7 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { Loader2, ShieldCheck, ArrowLeft, LayoutDashboard, Tag, Users, Settings as SettingsIcon, LogOut, CalendarDays, LifeBuoy, ShieldAlert, Landmark } from 'lucide-react';
-import Link from 'link';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { signOut } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
