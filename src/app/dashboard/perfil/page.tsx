@@ -8,9 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, Mail, ShieldCheck, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Link as LinkIcon, Instagram, Phone, EyeOff } from "lucide-react"
+import { Loader2, Mail, ShieldCheck, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Link as LinkIcon, Instagram, Phone, EyeOff, Building2, User as UserIcon, Briefcase } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
+import { cn } from "@/lib/utils"
 
 export default function PerfilPage() {
   const auth = useAuth()
@@ -93,10 +94,16 @@ export default function PerfilPage() {
                   {profile.name}
                   {profile.isVerified && <ShieldCheck className="w-5 h-5 text-secondary" />}
                 </h2>
-                <p className="text-sm text-muted-foreground flex items-center justify-center gap-1">
-                  <Hash className="w-3.5 h-3.5" />
-                  {profile.username}
-                </p>
+                <div className="flex flex-col gap-1 items-center">
+                  <p className="text-sm text-muted-foreground flex items-center justify-center gap-1">
+                    <Hash className="w-3.5 h-3.5" />
+                    {profile.username}
+                  </p>
+                  <Badge variant="secondary" className="mt-1">
+                    {profile.accountType === 'Empresa' ? <Building2 className="w-3 h-3 mr-1" /> : <UserIcon className="w-3 h-3 mr-1" />}
+                    {profile.accountType || "Usuário"}
+                  </Badge>
+                </div>
               </div>
             </CardContent>
             <Separator />
@@ -151,6 +158,38 @@ export default function PerfilPage() {
         </div>
 
         <div className="lg:col-span-2 space-y-6">
+          {profile.accountType === 'Empresa' && (
+            <Card className="border-none shadow-sm border-l-4 border-secondary">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-secondary" />
+                  Dados da Empresa
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground">Razão Social</p>
+                  <p className="font-semibold text-sm">{profile.legalName || "Não informado"}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground">CNPJ</p>
+                  <p className="font-semibold text-sm">{profile.cnpj || "Não informado"}</p>
+                </div>
+                {profile.businessCategory && (
+                  <div className="space-y-1 md:col-span-2">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Categoria de Negócio</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline" className="text-xs font-medium">
+                        <Briefcase className="w-3 h-3 mr-1" />
+                        {profile.businessCategory}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="border-none shadow-sm">
             <CardHeader>
               <CardTitle className="text-lg">Atividade na Plataforma</CardTitle>

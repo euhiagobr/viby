@@ -15,10 +15,27 @@ import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
 import { Switch } from "@/components/ui/switch"
-import { Loader2, ArrowLeft, Save, Upload, Info, Link as LinkIcon, Instagram, Phone, Mail, Eye, EyeOff } from "lucide-react"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Loader2, ArrowLeft, Save, Upload, Info, Link as LinkIcon, Instagram, Phone, Mail, Eye, EyeOff, Building2, User as UserIcon } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
+
+const BUSINESS_CATEGORIES = {
+  "Organizadores": ["Produtora de eventos", "Agência de marketing", "Agência de eventos", "Cerimonialista", "Organizador independente", "Assessoria de eventos"],
+  "Casas e locais": ["Casa noturna", "Bar", "Pub", "Restaurante", "Café", "Lounge", "Hotel", "Resort", "Centro de eventos", "Arena", "Teatro", "Auditório", "Espaço cultural", "Galeria", "Parque", "Estádio", "Rooftop", "Coworking", "Centro de convenções"],
+  "Música e entretenimento": ["Banda", "Cantor(a)", "DJ", "Grupo musical", "Artista", "Performer", "Drag queen", "Humorista", "Influenciador(a)", "Apresentador(a)"],
+  "Eventos corporativos": ["Empresa privada", "Startup", "Consultoria", "RH/Treinamentos", "Coworking", "Hub de inovação"],
+  "Gastronomia": ["Buffet", "Food truck", "Confeitaria", "Hamburgueria", "Pizzaria", "Choperia", "Vinícola", "Cafeteria"],
+  "Casamentos e festas": ["Decoradora", "Floricultura", "Fotografia", "Filmagem", "Sonorização", "Iluminação", "Locação de móveis", "Bartender", "Segurança", "Recreação infantil"],
+  "Cultura e educação": ["Escola", "Universidade", "Curso", "ONG cultural", "Biblioteca", "Museu", "Coletivo artístico"],
+  "Saúde e bem-estar": ["Academia", "Estúdio de yoga", "Clínica", "Espaço terapêutico", "Personal trainer"],
+  "Turismo": ["Agência de turismo", "Guia turístico", "Operadora turística", "Passeios e experiências"],
+  "Esportes": ["Clube esportivo", "Assessoria esportiva", "Equipe esportiva", "Academia funcional"],
+  "Comunidade e causas": ["ONG", "Coletivo", "Associação", "Fundação", "Projeto social", "Movimento social"],
+  "Governo e setor público": ["Prefeitura", "Secretaria", "Câmara municipal", "Governo estadual", "Governo federal", "Universidade pública"],
+  "Religioso": ["Igreja", "Centro espírita", "Templo", "Comunidade religiosa"]
+}
 
 export default function EditarPerfilPage() {
   const router = useRouter()
@@ -50,7 +67,11 @@ export default function EditarPerfilPage() {
     instagram: "",
     whatsapp: "",
     email: "",
-    showEmail: true
+    showEmail: true,
+    accountType: "Usuário",
+    businessCategory: "",
+    legalName: "",
+    cnpj: ""
   })
   const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
@@ -68,7 +89,11 @@ export default function EditarPerfilPage() {
         instagram: profile.instagram || "",
         whatsapp: profile.whatsapp || "",
         email: profile.email || "",
-        showEmail: profile.showEmail !== undefined ? profile.showEmail : true
+        showEmail: profile.showEmail !== undefined ? profile.showEmail : true,
+        accountType: profile.accountType || "Usuário",
+        businessCategory: profile.businessCategory || "",
+        legalName: profile.legalName || "",
+        cnpj: profile.cnpj || ""
       })
     }
   }, [profile])
@@ -120,6 +145,18 @@ export default function EditarPerfilPage() {
       return
     }
 
+    if (!formData.name || !formData.city || !formData.state || !formData.country) {
+      toast({ variant: "destructive", title: "Campos obrigatórios", description: "Nome e Localização são obrigatórios." })
+      return
+    }
+
+    if (formData.accountType === 'Empresa') {
+      if (!formData.legalName || !formData.cnpj || !formData.businessCategory) {
+        toast({ variant: "destructive", title: "Campos de Empresa", description: "Razão Social, CNPJ e Categoria são obrigatórios para empresas." })
+        return
+      }
+    }
+
     setSaving(true)
     try {
       await updateDoc(doc(db, "users", user.uid), {
@@ -155,6 +192,88 @@ export default function EditarPerfilPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card className="border-none shadow-sm">
           <CardHeader>
+            <CardTitle>Tipo de Conta</CardTitle>
+            <CardDescription>Escolha como deseja se identificar na plataforma.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Select 
+              value={formData.accountType} 
+              onValueChange={(val) => setFormData({...formData, accountType: val})}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione o tipo de conta" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Usuário">
+                  <div className="flex items-center gap-2">
+                    <UserIcon className="w-4 h-4" /> Usuário
+                  </div>
+                </SelectItem>
+                <SelectItem value="Empresa">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4" /> Empresa
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+
+        {formData.accountType === 'Empresa' && (
+          <Card className="border-none shadow-sm border-t-4 border-secondary">
+            <CardHeader>
+              <CardTitle>Informações Jurídicas</CardTitle>
+              <CardDescription>Dados obrigatórios para contas empresariais.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="legalName">Razão Social (Obrigatório)</Label>
+                  <Input 
+                    id="legalName" 
+                    value={formData.legalName} 
+                    onChange={(e) => setFormData({...formData, legalName: e.target.value})} 
+                    required 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cnpj">CNPJ (Obrigatório)</Label>
+                  <Input 
+                    id="cnpj" 
+                    value={formData.cnpj} 
+                    onChange={(e) => setFormData({...formData, cnpj: e.target.value})} 
+                    placeholder="00.000.000/0000-00" 
+                    required 
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Categoria da Empresa (Obrigatório)</Label>
+                <Select 
+                  value={formData.businessCategory} 
+                  onValueChange={(val) => setFormData({...formData, businessCategory: val})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma subcategoria" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-80">
+                    {Object.entries(BUSINESS_CATEGORIES).map(([category, items]) => (
+                      <SelectGroup key={category}>
+                        <SelectLabel className="bg-muted/50 py-2">{category}</SelectLabel>
+                        {items.map(item => (
+                          <SelectItem key={item} value={item}>{item}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card className="border-none shadow-sm">
+          <CardHeader>
             <CardTitle>Identidade</CardTitle>
             <CardDescription>Gerencie sua imagem e nome de exibição.</CardDescription>
           </CardHeader>
@@ -186,7 +305,7 @@ export default function EditarPerfilPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="name">Nome Completo (Obrigatório)</Label>
+                <Label htmlFor="name">Nome / Nome Fantasia (Obrigatório)</Label>
                 <Input id="name" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} required />
               </div>
               <div className="space-y-2">

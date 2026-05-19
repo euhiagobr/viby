@@ -25,7 +25,9 @@ import {
   Link as LinkIcon,
   Instagram,
   Phone,
-  Mail
+  Mail,
+  Building2,
+  Briefcase
 } from "lucide-react"
 import { EventCard } from "@/components/events/EventCard"
 import Link from "next/link"
@@ -163,9 +165,15 @@ export default function PublicProfilePage() {
                 </Avatar>
                 
                 <div className="mt-6 space-y-2 w-full">
-                  <div className="flex items-center justify-center gap-2">
-                    <h1 className="text-2xl font-bold tracking-tight">{profile.name}</h1>
-                    {profile.isVerified && <ShieldCheck className="w-6 h-6 text-secondary" />}
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="flex items-center justify-center gap-2">
+                      <h1 className="text-2xl font-bold tracking-tight">{profile.name}</h1>
+                      {profile.isVerified && <ShieldCheck className="w-6 h-6 text-secondary" />}
+                    </div>
+                    <Badge variant="outline" className="text-[10px] font-bold">
+                      {profile.accountType === 'Empresa' ? <Building2 className="w-3 h-3 mr-1" /> : <UsersIcon className="w-3 h-3 mr-1" />}
+                      {profile.accountType || "Usuário"}
+                    </Badge>
                   </div>
                   <p className="text-secondary font-medium text-sm">@{profile.username}</p>
                   
@@ -223,6 +231,33 @@ export default function PublicProfilePage() {
                 </p>
               </CardContent>
             </Card>
+
+            {profile.accountType === 'Empresa' && (
+              <Card className="border-none shadow-sm border-l-4 border-secondary">
+                <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Building2 className="w-5 h-5 text-secondary" /> Informações da Empresa</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Razão Social</p>
+                    <p className="text-sm font-semibold">{profile.legalName || "Não informado"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">CNPJ</p>
+                    <p className="text-sm font-semibold">{profile.cnpj || "Não informado"}</p>
+                  </div>
+                  {profile.businessCategory && (
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-muted-foreground">Categoria</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="secondary" className="text-[10px]">
+                          <Briefcase className="w-3 h-3 mr-1" />
+                          {profile.businessCategory}
+                        </Badge>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {(profile.website || profile.instagram || profile.whatsapp || (profile.email && profile.showEmail !== false)) && (
               <Card className="border-none shadow-sm">

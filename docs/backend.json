@@ -23,9 +23,13 @@
         "isVerified": { "type": "boolean" },
         "totalEvents": { "type": "number" },
         "platform": { "type": "string", "enum": ["viby"] },
-        "role": { "type": "string", "enum": ["user", "admin"] }
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "accountType": { "type": "string", "enum": ["Usuário", "Empresa"] },
+        "businessCategory": { "type": "string" },
+        "legalName": { "type": "string", "description": "Razão Social" },
+        "cnpj": { "type": "string" }
       },
-      "required": ["name", "email", "username", "platform", "city", "state", "country"]
+      "required": ["name", "email", "username", "platform", "city", "state", "country", "accountType"]
     },
     "Username": {
       "title": "Unicidade de Usuário",
