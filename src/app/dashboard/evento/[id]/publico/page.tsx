@@ -1,9 +1,10 @@
+
 "use client"
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, collection, query, where, orderBy } from "firebase/firestore"
+import { doc, collection, query, where, orderBy, updateDoc, deleteDoc } from "firebase/firestore"
 import { 
   Table, 
   TableBody, 
@@ -18,14 +19,18 @@ import {
   Users, 
   ArrowLeft, 
   Loader2, 
-  Mail, 
   Calendar,
   Download,
   Search,
-  MessageSquare
+  CheckCircle2,
+  Trash2,
+  User as UserIcon,
+  Ticket
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
+import { toast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 
 export default function EventoPublicoPage() {
   const params = useParams()
@@ -60,9 +65,43 @@ export default function EventoPublicoPage() {
     if (!timestamp) return "---";
     try {
       const d = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     } catch (e) {
       return "---";
+    }
+  }
+
+  const formatTime = (timestamp: any) => {
+    if (!timestamp) return "";
+    try {
+      const d = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return "";
+    }
+  }
+
+  const handleCheckIn = async (regId: string, currentStatus: boolean) => {
+    if (!db) return
+    try {
+      await updateDoc(doc(db, "registrations", regId), {
+        checkedIn: !currentStatus
+      })
+      toast({ title: !currentStatus ? "Check-in realizado!" : "Check-in removido." })
+    } catch (error) {
+      toast({ variant: "destructive", title: "Erro no check-in", description: "Verifique suas permissões." })
+    }
+  }
+
+  const handleDeleteRegistration = async (regId: string, userName: string) => {
+    if (!db) return
+    if (!confirm(`Deseja realmente cancelar o ingresso de ${userName}?`)) return
+    
+    try {
+      await deleteDoc(doc(db, "registrations", regId))
+      toast({ title: "Ingresso cancelado com sucesso." })
+    } catch (error) {
+      toast({ variant: "destructive", title: "Erro ao cancelar", description: "Ocorreu um problema ao remover a inscrição." })
     }
   }
 
@@ -83,6 +122,11 @@ export default function EventoPublicoPage() {
     )
   }
 
+  const stats = {
+    total: registrations?.length || 0,
+    present: registrations?.filter((r: any) => r.checkedIn).length || 0
+  }
+
   return (
     <div className="space-y-8 pb-20">
       <div className="flex items-center gap-4">
@@ -90,7 +134,7 @@ export default function EventoPublicoPage() {
           <Link href="/dashboard/projetos"><ArrowLeft className="w-5 h-5" /></Link>
         </Button>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Interessados no Evento</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Gestão de Público</h1>
           <p className="text-muted-foreground line-clamp-1">{event.title}</p>
         </div>
       </div>
@@ -98,30 +142,27 @@ export default function EventoPublicoPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="border-none shadow-sm bg-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-black uppercase text-muted-foreground tracking-widest">Total de Leads</CardTitle>
+            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Inscritos Totais</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-secondary">{registrations?.length || 0}</div>
+            <div className="text-3xl font-black text-foreground">{stats.total}</div>
           </CardContent>
         </Card>
         
-        <Card className="border-none shadow-sm bg-card">
+        <Card className="border-none shadow-sm bg-card border-l-4 border-green-500">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-black uppercase text-muted-foreground tracking-widest">Taxa de Conversão</CardTitle>
+            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Presenças (Check-in)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black">---</div>
+            <div className="text-3xl font-black text-green-600">{stats.present}</div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm bg-card">
           <CardHeader className="pb-2 text-right">
-             <Button variant="outline" className="rounded-xl font-bold gap-2 text-xs" onClick={() => {
-               // Implementar export CSV futuramente
-               alert("Funcionalidade de exportação em breve!")
-             }}>
+             <Button variant="outline" className="rounded-xl font-bold gap-2 text-xs" onClick={() => alert("Exportação em breve!")}>
                <Download className="w-3.5 h-3.5" />
-               Exportar CSV
+               Exportar Lista
              </Button>
           </CardHeader>
         </Card>
@@ -133,14 +174,14 @@ export default function EventoPublicoPage() {
             <div>
               <CardTitle className="text-xl flex items-center gap-2">
                 <Users className="w-5 h-5 text-secondary" />
-                Lista de Público
+                Controle de Portaria
               </CardTitle>
-              <CardDescription>Pessoas que demonstraram interesse através do Viby.</CardDescription>
+              <CardDescription>Valide ingressos e gerencie os participantes do evento.</CardDescription>
             </div>
             <div className="relative w-full md:w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="Buscar por nome ou e-mail..." 
+                placeholder="Buscar participante..." 
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl"
@@ -155,49 +196,74 @@ export default function EventoPublicoPage() {
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow>
-                  <TableHead className="w-[300px] font-bold">Nome do Lead</TableHead>
-                  <TableHead className="font-bold">E-mail</TableHead>
-                  <TableHead className="font-bold">Interesse em</TableHead>
+                  <TableHead className="w-[120px] text-center font-bold">Check-in</TableHead>
+                  <TableHead className="w-[250px] font-bold">Nome do Participante</TableHead>
+                  <TableHead className="font-bold">Data e Hora</TableHead>
+                  <TableHead className="font-bold">Sexo</TableHead>
+                  <TableHead className="font-bold">Valor / Lote</TableHead>
                   <TableHead className="text-right font-bold">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredRegistrations.length > 0 ? (
                   filteredRegistrations.map((reg) => (
-                    <TableRow key={reg.id} className="hover:bg-muted/20">
+                    <TableRow key={reg.id} className={cn("hover:bg-muted/20 transition-colors", reg.checkedIn && "bg-green-50/30")}>
+                      <TableCell className="text-center">
+                        <Button 
+                          variant={reg.checkedIn ? "default" : "outline"}
+                          size="icon"
+                          onClick={() => handleCheckIn(reg.id, reg.checkedIn)}
+                          className={cn(
+                            "h-9 w-9 rounded-full transition-all",
+                            reg.checkedIn ? "bg-green-500 hover:bg-green-600 text-white" : "border-muted-foreground/30"
+                          )}
+                        >
+                          <CheckCircle2 className={cn("w-5 h-5", reg.checkedIn ? "text-white" : "text-muted-foreground/20")} />
+                        </Button>
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-bold text-sm">{reg.userName || "Sem nome"}</span>
-                          <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-bold uppercase">
-                            <Calendar className="w-3 h-3" /> {formatDate(reg.timestamp)}
+                          <span className="font-bold text-sm text-foreground">{reg.userName || "---"}</span>
+                          <span className="text-[10px] text-muted-foreground font-medium">{reg.userEmail}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold flex items-center gap-1"><Calendar className="w-3 h-3" /> {formatDate(reg.timestamp)}</span>
+                          <span className="text-[10px] text-muted-foreground">{formatTime(reg.timestamp)}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-tighter">
+                          {reg.userGender || "---"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-black text-secondary">
+                            {reg.price === 0 ? "GRÁTIS" : `R$ ${parseFloat(reg.price || 0).toFixed(2)}`}
                           </span>
+                          <span className="text-[10px] text-muted-foreground font-bold uppercase">{reg.batchName || "Lote Único"}</span>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                          <Mail className="w-3.5 h-3.5 text-secondary" />
-                          {reg.userEmail}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-[10px] font-bold">Viby Lead</Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" asChild>
-                           <a href={`mailto:${reg.userEmail}`}>
-                              <MessageSquare className="w-4 h-4" />
-                           </a>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg"
+                          onClick={() => handleDeleteRegistration(reg.id, reg.userName)}
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-48 text-center">
+                    <TableCell colSpan={6} className="h-48 text-center">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <Users className="w-12 h-12 opacity-10 mb-2" />
-                        <p className="font-medium">Nenhum interessado encontrado ainda.</p>
-                        <p className="text-xs">Divulgue seu evento para começar a captar leads!</p>
+                        <p className="font-medium italic">Nenhum participante encontrado.</p>
                       </div>
                     </TableCell>
                   </TableRow>

@@ -13,6 +13,10 @@ service cloud.firestore {
         get(/databases/eventosviby/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    function isOrganizerOfRegistration() {
+      return isSignedIn() && (resource.data.organizerId == request.auth.uid);
+    }
+
     match /settings/site {
       allow read: if true;
       allow write: if isAdmin();
@@ -27,9 +31,7 @@ service cloud.firestore {
 
     match /usernames/{username} {
       allow read: if true;
-      // Permite criar se for o dono do UID ou se for Admin
       allow create: if isSignedIn() && (request.resource.data.uid == request.auth.uid || isAdmin());
-      // Permite deletar se for o dono do UID ou se for Admin
       allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow update: if isAdmin();
     }
@@ -50,7 +52,8 @@ service cloud.firestore {
     match /registrations/{regId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow update, delete: if isAdmin();
+      allow update: if isOrganizerOfRegistration() || isAdmin();
+      allow delete: if isOrganizerOfRegistration() || isAdmin();
     }
 
     match /categories/{catId} {

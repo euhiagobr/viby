@@ -83,9 +83,14 @@
         "userId": { "type": "string" },
         "userName": { "type": "string" },
         "userEmail": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" }
+        "userGender": { "type": "string" },
+        "organizerId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "price": { "type": "number" },
+        "batchName": { "type": "string" },
+        "checkedIn": { "type": "boolean" }
       },
-      "required": ["eventId", "userId"]
+      "required": ["eventId", "userId", "organizerId"]
     },
     "Category": {
       "title": "Categoria",

@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -65,6 +66,10 @@ export default function EventoDetalhesPage() {
     [db, event?.organizerId]
   )
   const { data: organizerProfile, loading: organizerLoading } = useDoc<any>(organizerRef)
+
+  // Perfil do usuário logado
+  const currentUserRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
+  const { data: currentUserProfile } = useDoc<any>(currentUserRef)
   
   const [isRegistered, setIsRegistered] = React.useState(false)
   const [registering, setRegistering] = React.useState(false)
@@ -109,13 +114,22 @@ export default function EventoDetalhesPage() {
     if (!db || !eventId || !event) return
 
     setRegistering(true)
+    
+    const price = event.isFree ? 0 : (event.batches?.[0]?.price || 0);
+    const batchName = event.isFree ? "Gratuito" : (event.batches?.[0]?.name || "Lote Único");
+
     const regData = {
       eventId,
       eventTitle: event.title,
       userId: user.uid,
-      userName: user.displayName || user.email,
+      userName: currentUserProfile?.name || user.displayName || user.email,
       userEmail: user.email,
-      timestamp: serverTimestamp()
+      userGender: currentUserProfile?.gender || "Não informado",
+      organizerId: event.organizerId,
+      timestamp: serverTimestamp(),
+      price: price,
+      batchName: batchName,
+      checkedIn: false
     }
 
     addDoc(collection(db, "registrations"), regData)

@@ -17,7 +17,6 @@ import {
   Ticket, 
   Info,
   BadgeCheck,
-  Star,
   Loader2,
   CheckCircle2,
   Clock,
@@ -40,12 +39,15 @@ export default function EventoDetalhesPage() {
   const eventRef = React.useMemo(() => db ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
   
-  // Buscar perfil atualizado do organizador
   const organizerRef = React.useMemo(() => 
     (db && event?.organizerId) ? doc(db, "users", event.organizerId) : null, 
     [db, event?.organizerId]
   )
   const { data: organizerProfile, loading: organizerLoading } = useDoc<any>(organizerRef)
+
+  // Perfil do usuário logado para capturar o sexo/gênero
+  const currentUserRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
+  const { data: currentUserProfile } = useDoc<any>(currentUserRef)
   
   const [isRegistered, setIsRegistered] = React.useState(false)
   const [registering, setRegistering] = React.useState(false)
@@ -90,13 +92,23 @@ export default function EventoDetalhesPage() {
     if (!db || !eventId || !event) return
 
     setRegistering(true)
+    
+    // Define preço e lote (simulado para MVP)
+    const price = event.isFree ? 0 : (event.batches?.[0]?.price || 0);
+    const batchName = event.isFree ? "Gratuito" : (event.batches?.[0]?.name || "Lote Único");
+
     const regData = {
       eventId,
       eventTitle: event.title,
       userId: user.uid,
-      userName: user.displayName || user.email,
+      userName: currentUserProfile?.name || user.displayName || user.email,
       userEmail: user.email,
-      timestamp: serverTimestamp()
+      userGender: currentUserProfile?.gender || "Não informado",
+      organizerId: event.organizerId,
+      timestamp: serverTimestamp(),
+      price: price,
+      batchName: batchName,
+      checkedIn: false
     }
 
     addDoc(collection(db, "registrations"), regData)
@@ -135,7 +147,6 @@ export default function EventoDetalhesPage() {
   const start = formatDateTime(event.date);
   const end = formatDateTime(event.endDate);
 
-  // Usa o perfil atualizado ou o fallback do evento
   const orgName = organizerProfile?.name || event.organizer?.name || "Organizador";
   const orgAvatar = organizerProfile?.avatar || event.organizer?.avatar;
   const orgIsVerified = organizerProfile?.isVerified ?? event.organizer?.isVerified;
