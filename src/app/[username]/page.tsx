@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -30,7 +29,8 @@ import {
   CheckCircle2,
   ShieldAlert,
   Send,
-  AlertTriangle
+  AlertTriangle,
+  Calendar
 } from "lucide-react"
 import { EventCard } from "@/components/events/EventCard"
 import Link from "next/link"
