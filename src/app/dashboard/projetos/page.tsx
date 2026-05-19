@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -113,7 +112,6 @@ export default function MeusEventosPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {events?.map((event: any) => {
             const time = formatTime(event.date);
-            // Link amigável utilizando o username atrelado ao evento ou fallback
             const username = event.organizer?.username || profile?.username || "evento";
             const eventLink = `/${username}/${event.id}`;
             
@@ -150,8 +148,10 @@ export default function MeusEventosPage() {
                     <Button variant="outline" size="sm" className="text-[10px] font-bold uppercase h-8 rounded-lg gap-1.5 border-secondary text-secondary hover:bg-secondary hover:text-white" asChild>
                       <Link href={`/dashboard/evento/${event.id}/editar`}><Edit2 className="w-3 h-3" />Editar</Link>
                     </Button>
-                    <Button variant="secondary" size="sm" className="col-span-2 text-[10px] font-bold uppercase h-8 rounded-lg gap-1.5">
-                      <Users className="w-3 h-3" />Ver Público
+                    <Button variant="secondary" size="sm" className="col-span-2 text-[10px] font-bold uppercase h-8 rounded-lg gap-1.5" asChild>
+                      <Link href={`/dashboard/evento/${event.id}/publico`}>
+                        <Users className="w-3 h-3" />Ver Público
+                      </Link>
                     </Button>
                   </div>
                 </div>
