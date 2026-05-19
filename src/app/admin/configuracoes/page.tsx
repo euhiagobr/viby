@@ -18,6 +18,7 @@ export default function AdminConfiguracoesPage() {
   const db = useFirestore()
   const app = useFirebaseApp()
   
+  // Usando plural "settings" para consistência com as regras
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings, loading } = useDoc<any>(settingsRef)
 
@@ -40,9 +41,9 @@ export default function AdminConfiguracoesPage() {
   const storage = React.useMemo(() => {
     if (!app) return null;
     try {
+      // Forçando o uso do bucket específico viby
       return getStorage(app, "gs://viby");
     } catch (e) {
-      console.error("Erro ao inicializar storage viby", e);
       return getStorage(app);
     }
   }, [app])
@@ -69,7 +70,6 @@ export default function AdminConfiguracoesPage() {
           setProgress(progress)
         },
         (error) => {
-          console.error(error)
           setProgress(null)
           toast({ variant: "destructive", title: "Erro no upload", description: error.message })
         },
@@ -98,9 +98,10 @@ export default function AdminConfiguracoesPage() {
       updatedAt: serverTimestamp()
     }
 
+    // Salvando no caminho correto: settings/site
     setDoc(doc(db, "settings", "site"), settingsData, { merge: true })
       .then(() => {
-        toast({ title: "Configurações salvas!", description: "A identidade visual foi atualizada em todo o site." })
+        toast({ title: "Configurações salvas!", description: "A identidade visual foi atualizada." })
       })
       .catch(async (error) => {
         const permissionError = new FirestorePermissionError({
@@ -125,7 +126,7 @@ export default function AdminConfiguracoesPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Identidade Visual</h1>
-        <p className="text-muted-foreground">O nome e as imagens definidas aqui serão exibidos em todo o portal.</p>
+        <p className="text-muted-foreground">Personalize o nome e as imagens exibidas em todo o portal.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
@@ -133,7 +134,7 @@ export default function AdminConfiguracoesPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
               <Layout className="w-5 h-5 text-secondary" />
-              Configurações Globais
+              Configurações do Site
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-8 pt-4">
@@ -203,7 +204,7 @@ export default function AdminConfiguracoesPage() {
           disabled={saving || logoUploadProgress !== null || iconUploadProgress !== null}
         >
           {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-          Salvar Configurações
+          Salvar Identidade Visual
         </Button>
       </form>
     </div>

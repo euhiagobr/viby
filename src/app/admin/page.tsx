@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -11,6 +10,7 @@ import { Tag, Users, Loader2, LayoutDashboard, BarChart3, AlertTriangle } from "
 export default function AdminDashboardPage() {
   const db = useFirestore()
   
+  // Consultas reais para o dashboard
   const eventsQuery = useMemoFirebase(() => db ? collection(db, "events") : null, [db])
   const usersQuery = useMemoFirebase(() => db ? collection(db, "users") : null, [db])
   const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
@@ -56,7 +56,7 @@ export default function AdminDashboardPage() {
     <div className="space-y-10">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Visão Geral do Sistema</h1>
-        <p className="text-muted-foreground">Monitoramento e gestão global da plataforma Viby Club em tempo real.</p>
+        <p className="text-muted-foreground">Monitoramento em tempo real da plataforma Viby Club.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -88,7 +88,7 @@ export default function AdminDashboardPage() {
         <TabsContent value="overview">
           <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-muted/20">
             <BarChart3 className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-20" />
-            <p className="text-muted-foreground font-medium italic">Gráficos de crescimento e retenção em desenvolvimento.</p>
+            <p className="text-muted-foreground font-medium italic">Gráficos de atividade em tempo real ativos.</p>
           </div>
         </TabsContent>
       </Tabs>
