@@ -17,7 +17,7 @@ import { Progress } from "@/components/ui/progress"
 import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, ArrowLeft, Save, Upload, Info, Link as LinkIcon, Instagram, Phone, Mail, Eye, EyeOff, Building2, User as UserIcon, Briefcase } from "lucide-react"
+import { Loader2, ArrowLeft, Save, Upload, Info, Link as LinkIcon, Instagram, Phone, Mail, Eye, EyeOff, Building2, User as UserIcon, Briefcase, Calendar } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
@@ -61,6 +61,8 @@ export default function EditarPerfilPage() {
     name: "",
     avatar: "",
     bio: "",
+    birthDate: "",
+    gender: "",
     city: "",
     state: "",
     country: "Brasil",
@@ -83,6 +85,8 @@ export default function EditarPerfilPage() {
         name: profile.name || "",
         avatar: profile.avatar || "",
         bio: profile.bio || "",
+        birthDate: profile.birthDate || "",
+        gender: profile.gender || "",
         city: profile.city || "",
         state: profile.state || "",
         country: profile.country || "Brasil",
@@ -161,8 +165,8 @@ export default function EditarPerfilPage() {
       return
     }
 
-    if (!formData.name || !formData.city || !formData.state || !formData.country) {
-      toast({ variant: "destructive", title: "Campos obrigatórios", description: "Nome e Localização são obrigatórios." })
+    if (!formData.name || !formData.city || !formData.state || !formData.country || !formData.birthDate || !formData.gender) {
+      toast({ variant: "destructive", title: "Campos obrigatórios", description: "Nome, Localização, Nascimento e Gênero são obrigatórios." })
       return
     }
 
@@ -288,8 +292,8 @@ export default function EditarPerfilPage() {
 
         <Card className="border-none shadow-sm">
           <CardHeader>
-            <CardTitle>Identidade</CardTitle>
-            <CardDescription>Gerencie sua imagem e nome de exibição.</CardDescription>
+            <CardTitle>Identidade & Dados Pessoais</CardTitle>
+            <CardDescription>Gerencie sua imagem e informações de cadastro.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex flex-col items-center gap-6 py-4">
@@ -326,6 +330,30 @@ export default function EditarPerfilPage() {
                 <Label htmlFor="username">Nome de Usuário</Label>
                 <Input id="username" value={profile?.username} disabled className="bg-muted text-muted-foreground cursor-not-allowed" />
                 <p className="text-[10px] text-muted-foreground">O nome de usuário não pode ser alterado.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="birthDate" className="flex items-center gap-2"><Calendar className="w-3.5 h-3.5" /> Data de Nascimento</Label>
+                <Input id="birthDate" type="date" value={formData.birthDate} onChange={(e) => setFormData(prev => ({...prev, birthDate: e.target.value}))} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gender">Sexo / Gênero</Label>
+                <Select value={formData.gender} onValueChange={(val) => setFormData(prev => ({...prev, gender: val}))} required>
+                  <SelectTrigger id="gender">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="masculino">Masculino</SelectItem>
+                    <SelectItem value="feminino">Feminino</SelectItem>
+                    <SelectItem value="homem trans">Homem Trans</SelectItem>
+                    <SelectItem value="mulher trans">Mulher Trans</SelectItem>
+                    <SelectItem value="agênero">Agênero</SelectItem>
+                    <SelectItem value="prefiro não dizer">Prefiro não dizer</SelectItem>
+                    <SelectItem value="empresa">Empresa</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

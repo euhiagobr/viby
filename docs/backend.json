@@ -10,6 +10,8 @@
         "username": { "type": "string", "description": "Nome de usuário único, min 5 chars, alfanumérico" },
         "avatar": { "type": "string" },
         "email": { "type": "string" },
+        "birthDate": { "type": "string", "format": "date" },
+        "gender": { "type": "string", "enum": ["masculino", "feminino", "homem trans", "mulher trans", "agênero", "prefiro não dizer", "empresa"] },
         "showEmail": { "type": "boolean", "description": "Define se o e-mail é visível publicamente" },
         "bio": { "type": "string", "description": "Máximo 150 caracteres, sem links" },
         "city": { "type": "string" },
@@ -29,7 +31,7 @@
         "legalName": { "type": "string", "description": "Razão Social" },
         "cnpj": { "type": "string" }
       },
-      "required": ["name", "email", "username", "platform", "city", "state", "country", "accountType"]
+      "required": ["name", "email", "username", "platform", "city", "state", "country", "accountType", "birthDate", "gender"]
     },
     "Username": {
       "title": "Unicidade de Usuário",

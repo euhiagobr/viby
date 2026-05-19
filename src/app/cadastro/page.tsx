@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
 import { Globe, Loader2, Check, X } from "lucide-react"
 import Link from "next/link"
@@ -20,6 +21,8 @@ export default function CadastroPage() {
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [birthDate, setBirthDate] = useState("")
+  const [gender, setGender] = useState("")
   const [loading, setLoading] = useState(false)
   const [checkingUsername, setCheckingUsername] = useState(false)
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
@@ -80,6 +83,11 @@ export default function CadastroPage() {
       return
     }
 
+    if (!birthDate || !gender) {
+      toast({ variant: "destructive", title: "Campos obrigatórios", description: "Preencha a data de nascimento e o gênero." })
+      return
+    }
+
     setLoading(true)
     const normalizedUsername = username.toLowerCase()
 
@@ -98,16 +106,24 @@ export default function CadastroPage() {
           throw new Error("Nome de usuário acaba de ser ocupado.")
         }
 
+        const isCompany = gender === 'empresa'
+
         transaction.set(usernameRef, { uid: user.uid })
         transaction.set(userRef, {
           name,
           username: normalizedUsername,
           email,
+          birthDate,
+          gender,
           avatar: `https://picsum.photos/seed/${user.uid}/100/100`,
           isVerified: false,
           totalEvents: 0,
           platform: "viby",
           role: "user",
+          accountType: isCompany ? "Empresa" : "Usuário",
+          city: "",
+          state: "",
+          country: "Brasil",
           createdAt: new Date().toISOString()
         })
       })
@@ -168,6 +184,30 @@ export default function CadastroPage() {
                 </div>
               </div>
               <p className="text-[10px] text-muted-foreground">Mínimo 5 caracteres, apenas letras e números.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="birthDate">Data de Nascimento</Label>
+                <Input id="birthDate" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gender">Sexo / Gênero</Label>
+                <Select value={gender} onValueChange={setGender} required>
+                  <SelectTrigger id="gender">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="masculino">Masculino</SelectItem>
+                    <SelectItem value="feminino">Feminino</SelectItem>
+                    <SelectItem value="homem trans">Homem Trans</SelectItem>
+                    <SelectItem value="mulher trans">Mulher Trans</SelectItem>
+                    <SelectItem value="agênero">Agênero</SelectItem>
+                    <SelectItem value="prefiro não dizer">Prefiro não dizer</SelectItem>
+                    <SelectItem value="empresa">Empresa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-2">
