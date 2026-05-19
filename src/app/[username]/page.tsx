@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -79,7 +80,7 @@ export default function PublicProfilePage() {
     const fetchProfile = async () => {
       setLoading(true)
       try {
-        const normalized = username.toLowerCase()
+        const normalized = username.toLowerCase().trim()
         const usernameRef = doc(db, "usernames", normalized)
         const usernameSnap = await getDoc(usernameRef)
 

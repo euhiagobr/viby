@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -135,7 +136,7 @@ export default function EditarPerfilPage() {
     if (!db || !profile || !formData.username) return
     
     const newUsername = formData.username.toLowerCase().trim()
-    const oldUsername = profile.username.toLowerCase().trim()
+    const oldUsername = (profile.username || "").toLowerCase().trim()
 
     if (newUsername === oldUsername) {
       setUsernameStatus('idle')
@@ -225,7 +226,7 @@ export default function EditarPerfilPage() {
     if (!db || !user || !profile) return
 
     const newUsername = formData.username.toLowerCase().trim()
-    const oldUsername = profile.username.toLowerCase().trim()
+    const oldUsername = (profile.username || "").toLowerCase().trim()
     const usernameChanged = newUsername !== oldUsername
 
     if (usernameChanged && usernameStatus !== 'valid') {
@@ -260,8 +261,11 @@ export default function EditarPerfilPage() {
     try {
       const batch = writeBatch(db)
 
+      // Atualização atômica do índice de usernames
       if (usernameChanged) {
-        batch.delete(doc(db, "usernames", oldUsername))
+        if (oldUsername) {
+          batch.delete(doc(db, "usernames", oldUsername))
+        }
         batch.set(doc(db, "usernames", newUsername), { uid: user.uid })
       }
 

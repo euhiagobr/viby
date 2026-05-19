@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -135,7 +136,7 @@ export default function AdminUsuariosPage() {
     if (!db || !editingUser?.username || !originalUser) return
     
     const newUsername = editingUser.username.toLowerCase().trim()
-    const oldUsername = originalUser.username.toLowerCase().trim()
+    const oldUsername = (originalUser.username || "").toLowerCase().trim()
 
     if (newUsername === oldUsername) {
       setUsernameStatus('idle')
@@ -210,7 +211,7 @@ export default function AdminUsuariosPage() {
     if (!db || !editingUser || isSaving) return
 
     const newUsername = editingUser.username.toLowerCase().trim()
-    const oldUsername = originalUser.username.toLowerCase().trim()
+    const oldUsername = (originalUser.username || "").toLowerCase().trim()
     const usernameChanged = newUsername !== oldUsername
 
     if (usernameChanged && usernameStatus !== 'valid') {
@@ -223,13 +224,17 @@ export default function AdminUsuariosPage() {
     try {
       const batch = writeBatch(db)
 
-      // Se o username mudou, atualiza o índice de unicidade
+      // Se o username mudou, atualiza o índice de unicidade EXPLICITAMENTE EM MINÚSCULAS
       if (usernameChanged) {
-        batch.delete(doc(db, "usernames", oldUsername))
+        if (oldUsername) {
+          batch.delete(doc(db, "usernames", oldUsername))
+        }
         batch.set(doc(db, "usernames", newUsername), { uid: editingUser.id })
       }
 
       const userRef = doc(db, "users", editingUser.id)
+      
+      // Remove campos que não devem ser salvos diretamente ou que são métricas
       const { followersCount, rating, totalEvents, id, ...dataToUpdate } = editingUser;
 
       batch.update(userRef, {
@@ -281,7 +286,7 @@ export default function AdminUsuariosPage() {
     try {
       await deleteDoc(doc(db, "users", userId))
       if (username) {
-        await deleteDoc(doc(db, "usernames", username.toLowerCase()))
+        await deleteDoc(doc(db, "usernames", username.toLowerCase().trim()))
       }
       toast({ title: "Usuário removido", description: "Os dados foram excluídos." })
     } catch (error) {
