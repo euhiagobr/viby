@@ -5,7 +5,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useFirestore, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, addDoc, serverTimestamp } from "firebase/firestore"
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Progress } from "@/components/ui/progress"
 import { toast } from "@/hooks/use-toast"
 import { 
   ArrowLeft, 
@@ -59,8 +60,9 @@ export default function NovoEventoPage() {
   }, [categories])
 
   const [loading, setLoading] = useState(false)
-  const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   
   // Opções Extras
   const [selectedCategory, setSelectedCategory] = useState("")
@@ -85,12 +87,43 @@ export default function NovoEventoPage() {
     { name: "Lote Único", price: "0.00", startDate: "", endDate: "", available: "100" }
   ])
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      setImageFile(file)
-      setImagePreview(URL.createObjectURL(file))
-    }
+    if (!file || !storage || !user) return
+
+    // 1. Mostrar preview local imediatamente
+    setImagePreview(URL.createObjectURL(file))
+    setUploadProgress(0)
+    setUploadedImageUrl(null)
+
+    // 2. Iniciar upload automático
+    const storageRef = ref(storage, `viby/events/${user.uid}/${Date.now()}_${file.name}`)
+    const uploadTask = uploadBytesResumable(storageRef, file)
+
+    uploadTask.on('state_changed', 
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+        setUploadProgress(progress)
+      }, 
+      (error) => {
+        console.error("Erro no upload:", error)
+        setUploadProgress(null)
+        toast({
+          variant: "destructive",
+          title: "Erro no upload",
+          description: "Não foi possível carregar a imagem selecionada."
+        })
+      }, 
+      async () => {
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+        setUploadedImageUrl(downloadURL)
+        setUploadProgress(null)
+        toast({
+          title: "Imagem carregada!",
+          description: "A foto da capa foi salva com sucesso."
+        })
+      }
+    )
   }
 
   const handleCepBlur = async () => {
@@ -131,10 +164,15 @@ export default function NovoEventoPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!db || !user || !storage) return
+    if (!db || !user) return
 
     if (!selectedCategory) {
       toast({ variant: "destructive", title: "Erro", description: "Selecione uma categoria para o evento." })
+      return
+    }
+
+    if (uploadProgress !== null) {
+      toast({ variant: "destructive", title: "Aguarde", description: "A imagem ainda está sendo carregada." })
       return
     }
 
@@ -142,13 +180,6 @@ export default function NovoEventoPage() {
     const formData = new FormData(e.currentTarget)
     
     try {
-      let imageUrl = ""
-      if (imageFile) {
-        const storageRef = ref(storage, `viby/events/${user.uid}/${Date.now()}_${imageFile.name}`)
-        const snapshot = await uploadBytes(storageRef, imageFile)
-        imageUrl = await getDownloadURL(snapshot.ref)
-      }
-
       const eventData = {
         title: formData.get("title") as string,
         shortDescription: formData.get("shortDescription") as string,
@@ -166,7 +197,7 @@ export default function NovoEventoPage() {
           price: parseFloat(b.price) || 0,
           available: parseInt(b.available) || 0
         })),
-        image: imageUrl || `https://picsum.photos/seed/${Math.random()}/1200/800`,
+        image: uploadedImageUrl || `https://picsum.photos/seed/${Math.random()}/1200/800`,
         organizerId: user.uid,
         organizer: {
           name: user.displayName || "Organizador",
@@ -212,7 +243,7 @@ export default function NovoEventoPage() {
             </CardTitle>
             <CardDescription>Escolha uma imagem de alta qualidade para atrair mais público.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div 
               className="relative aspect-video rounded-xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden cursor-pointer hover:bg-muted/50 transition-colors"
               onClick={() => document.getElementById('image-upload')?.click()}
@@ -233,6 +264,15 @@ export default function NovoEventoPage() {
                 onChange={handleImageChange}
               />
             </div>
+            {uploadProgress !== null && (
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                <div className="flex justify-between text-xs font-bold text-muted-foreground uppercase">
+                  <span>Carregando imagem...</span>
+                  <span>{Math.round(uploadProgress)}%</span>
+                </div>
+                <Progress value={uploadProgress} className="h-2" />
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -451,9 +491,9 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
-        <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 h-14 text-lg font-bold shadow-lg" disabled={loading}>
+        <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 h-14 text-lg font-bold shadow-lg" disabled={loading || uploadProgress !== null}>
           {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-          Publicar Evento Imediatamente
+          {uploadProgress !== null ? "Carregando imagem..." : "Publicar Evento Imediatamente"}
         </Button>
       </form>
     </div>
