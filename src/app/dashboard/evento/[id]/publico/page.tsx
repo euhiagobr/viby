@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useFirestore, useDoc, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
+import { useDoc, useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
 import { doc, collection, query, where, updateDoc, deleteDoc, getDoc, writeBatch, serverTimestamp, getDocs } from "firebase/firestore"
 import { 
   Table, 
@@ -16,6 +16,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
 import { 
   Users, 
   ArrowLeft, 
