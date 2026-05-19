@@ -18,6 +18,7 @@ export default function AdminConfiguracoesPage() {
   const db = useFirestore();
   const app = useFirebaseApp();
   
+  // Caminho absoluto plural: settings/site
   const settingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'site') : null), [db]);
   const { data: settings, loading } = useDoc<any>(settingsRef);
 
@@ -37,7 +38,7 @@ export default function AdminConfiguracoesPage() {
     }
   }, [settings]);
 
-  // Isolamento do Storage Bucket 'viby'
+  // Força o uso do bucket 'gs://viby' para isolamento total
   const storage = React.useMemo(() => {
     if (!app) return null;
     return getStorage(app, 'gs://viby');
@@ -45,7 +46,7 @@ export default function AdminConfiguracoesPage() {
 
   const handleFileUpload = async (file: File, type: 'logo' | 'icon') => {
     if (!storage) {
-      toast({ variant: 'destructive', title: 'Erro', description: 'Storage viby não inicializado.' });
+      toast({ variant: 'destructive', title: 'Erro', description: 'Bucket "viby" não configurado.' });
       return;
     }
 
@@ -96,7 +97,7 @@ export default function AdminConfiguracoesPage() {
 
     setDoc(doc(db, 'settings', 'site'), settingsData, { merge: true })
       .then(() => {
-        toast({ title: 'Sucesso', description: 'Configurações de marca atualizadas.' });
+        toast({ title: 'Sucesso', description: 'Identidade visual Viby atualizada.' });
       })
       .catch(async (error) => {
         const permissionError = new FirestorePermissionError({
@@ -121,7 +122,7 @@ export default function AdminConfiguracoesPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Identidade Visual</h1>
-        <p className="text-muted-foreground">Configurações exclusivas da marca Viby.</p>
+        <p className="text-muted-foreground">Personalize a marca da plataforma Viby Club.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
@@ -129,7 +130,7 @@ export default function AdminConfiguracoesPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
               <Layout className="w-5 h-5 text-secondary" />
-              Marca da Plataforma
+              Configurações de Marca
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-8 pt-4">

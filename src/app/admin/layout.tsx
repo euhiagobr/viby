@@ -36,7 +36,7 @@ export default function AdminLayout({
 
       if (db && user) {
         try {
-          // Busca perfil no banco 'eventosviby' para isolamento total
+          // Busca perfil explicitamente no banco 'eventosviby' via db centralizado
           const userDoc = await getDoc(doc(db, 'users', user.uid));
           if (userDoc.exists() && userDoc.data()?.role === 'admin') {
             setIsAdmin(true);
@@ -44,11 +44,12 @@ export default function AdminLayout({
             toast({
               variant: 'destructive',
               title: 'Acesso Negado',
-              description: 'Esta área é restrita a administradores do Viby.',
+              description: 'Área restrita a administradores Viby.',
             });
             router.push('/dashboard');
           }
         } catch (e) {
+          console.error("Erro na verificação admin:", e);
           router.push('/dashboard');
         }
       }

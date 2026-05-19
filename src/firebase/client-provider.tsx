@@ -9,11 +9,12 @@ import { FirebaseProvider } from './provider';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 /**
- * Inicialização exclusiva para o ecossistema Viby.
- * Força o uso do banco 'eventosviby' para isolamento total.
+ * Inicialização centralizada para o Viby.
+ * Força a conexão com o banco de dados 'eventosviby'.
  */
 export function initializeFirebase() {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+  // Garante que o Firestore aponte para o banco de dados secundário 'eventosviby'
   const db = getFirestore(app, 'eventosviby');
   const auth = getAuth(app);
 

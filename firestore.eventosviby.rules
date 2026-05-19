@@ -13,11 +13,8 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
     // Configurações Globais (Identidade Visual)
+    // Permissão de leitura pública é essencial para Landing Page e Auth
     match /settings/site {
       allow read: if true;
       allow write: if isAdmin();
