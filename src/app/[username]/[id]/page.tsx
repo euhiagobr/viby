@@ -35,7 +35,9 @@ import {
   History,
   Lock,
   Navigation,
-  Map as MapIcon
+  Map as MapIcon,
+  Globe,
+  Search
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -107,6 +109,10 @@ export default function EventoDetalhesPage() {
   const { user } = useUser(auth)
   const eventId = params.id as string
   const usernameFromUrl = params.username as string
+
+  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
+  const { data: settings } = useDoc<any>(settingsRef)
+  const siteName = settings?.siteName || "Viby"
   
   const eventRef = React.useMemo(() => db ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
@@ -505,431 +511,479 @@ export default function EventoDetalhesPage() {
   const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addressString)}`;
   const wazeUrl = `https://waze.com/ul?q=${encodeURIComponent(addressString)}&navigate=yes`;
   
-  // Mapa Embed Gratuito (Google Maps)
   const embedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(addressString)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
 
   return (
-    <div className="space-y-8 pb-20 max-w-6xl mx-auto px-4 pt-10">
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={() => router.back()} className="gap-2 font-semibold">
-          <ArrowLeft className="w-4 h-4" />
-          Voltar
-        </Button>
-        <div className="flex gap-2">
-          <Button variant="outline" size="icon" className="rounded-full h-10 w-10">
-            <Share2 className="w-4 h-4" />
-          </Button>
-          <Button 
-            onClick={() => setIsCheckoutOpen(true)}
-            disabled={registering || saleStatus !== 'open'}
-            className={cn(
-              "font-bold px-6 rounded-full h-10 shadow-lg transition-all",
-              saleStatus === 'open' ? "bg-secondary text-white hover:scale-105" : "bg-muted text-muted-foreground"
+    <div className="min-h-screen bg-[#f8fafc]">
+      {/* Menu Superior */}
+      <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            {settings?.logoUrl ? (
+              <div className="w-10 h-10 relative flex items-center justify-center">
+                <img src={settings.logoUrl} alt={siteName} className="max-h-full max-w-full object-contain" />
+              </div>
+            ) : (
+              <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg">{siteName.charAt(0)}</span>
+              </div>
             )}
-          >
-            {hasAtLeastOneRegistration ? <Plus className="w-4 h-4 mr-2" /> : null}
-            {getButtonText()}
+            <span className="text-xl font-bold tracking-tight">{siteName}</span>
+          </Link>
+
+          <div className="hidden md:flex flex-1 max-w-sm mx-8 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Pesquisar eventos..." 
+              className="pl-10 bg-muted/50 border-none rounded-full h-9 focus-visible:ring-secondary"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            {user ? (
+              <Button asChild variant="ghost" className="font-semibold text-sm h-9">
+                <Link href="/dashboard">Meu Painel</Link>
+              </Button>
+            ) : (
+              <>
+                <Button asChild variant="ghost" className="font-semibold text-sm h-9">
+                  <Link href="/login">Entrar</Link>
+                </Button>
+                <Button asChild className="bg-secondary text-white hover:bg-secondary/90 font-bold px-4 rounded-full h-9 text-xs">
+                  <Link href="/cadastro">Cadastrar-se</Link>
+                </Button>
+              </>
+            )}
+            <Separator orientation="vertical" className="h-6 mx-2 hidden sm:block" />
+            <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full h-9 w-9">
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </nav>
+
+      <div className="space-y-8 pb-20 max-w-6xl mx-auto px-4 pt-10">
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" onClick={() => router.back()} className="gap-2 font-semibold">
+            <ArrowLeft className="w-4 h-4" />
+            Voltar
           </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="icon" className="rounded-full h-10 w-10">
+              <Share2 className="w-4 h-4" />
+            </Button>
+            <Button 
+              onClick={() => setIsCheckoutOpen(true)}
+              disabled={registering || saleStatus !== 'open'}
+              className={cn(
+                "font-bold px-6 rounded-full h-10 shadow-lg transition-all",
+                saleStatus === 'open' ? "bg-secondary text-white hover:scale-105" : "bg-muted text-muted-foreground"
+              )}
+            >
+              {hasAtLeastOneRegistration ? <Plus className="w-4 h-4 mr-2" /> : null}
+              {getButtonText()}
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <div className="relative h-[300px] md:h-[450px] w-full rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white">
-        <Image 
-          src={event.image || "https://picsum.photos/seed/event/1200/800"} 
-          alt={event.title} 
-          fill 
-          className="object-cover"
-          unoptimized 
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-        <div className="absolute bottom-0 left-0 p-6 md:p-10 w-full">
-          <div className="flex flex-col gap-4 max-w-4xl">
-            <div className="flex flex-wrap gap-2">
-              <Badge className="bg-secondary text-white border-none text-xs px-4 py-1 rounded-full uppercase font-black tracking-widest">
-                {event.type}
-              </Badge>
-              {event.isFree && (
-                <Badge className="bg-green-500 text-white border-none text-xs px-4 py-1 rounded-full uppercase font-black tracking-widest">
-                  Grátis
+        <div className="relative h-[300px] md:h-[450px] w-full rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white">
+          <Image 
+            src={event.image || "https://picsum.photos/seed/event/1200/800"} 
+            alt={event.title} 
+            fill 
+            className="object-cover"
+            unoptimized 
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+          <div className="absolute bottom-0 left-0 p-6 md:p-10 w-full">
+            <div className="flex flex-col gap-4 max-w-4xl">
+              <div className="flex flex-wrap gap-2">
+                <Badge className="bg-secondary text-white border-none text-xs px-4 py-1 rounded-full uppercase font-black tracking-widest">
+                  {event.type}
                 </Badge>
-              )}
-            </div>
-            <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-white tracking-tighter leadership-tight">{event.title}</h1>
-            <div className="flex flex-wrap gap-x-6 gap-y-3 text-white/90 text-sm font-semibold">
-              <span className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full">
-                <MapPin className="w-4 h-4 text-secondary" />
-                {addressString}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className="lg:col-span-8 space-y-8">
-          <Card className="border-none shadow-sm bg-card rounded-[2rem] overflow-hidden">
-            <CardHeader className="bg-muted/30 pb-4">
-              <CardTitle className="flex items-center gap-2 text-xl font-bold">
-                <Info className="w-5 h-5 text-secondary" /> 
-                Sobre o Evento
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <p className="text-muted-foreground leading-relaxed text-lg whitespace-pre-line font-medium">
-                {event.description || event.shortDescription}
-              </p>
-            </CardContent>
-          </Card>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Card className="border-none shadow-sm rounded-[1.5rem] bg-card p-6 flex flex-col items-center text-center gap-2">
-              <div className="p-3 bg-secondary/10 rounded-2xl"><Calendar className="w-6 h-6 text-secondary" /></div>
-              <div><p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Data</p><p className="text-lg font-bold">{start.date}</p></div>
-            </Card>
-            <Card className="border-none shadow-sm rounded-[1.5rem] bg-card p-6 flex flex-col items-center text-center gap-2">
-              <div className="p-3 bg-secondary/10 rounded-2xl"><Clock className="w-6 h-6 text-secondary" /></div>
-              <div><p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Horário</p><p className="text-lg font-bold">{start.time} {event.endDate && `até ${end.time}`}</p></div>
-            </Card>
-          </div>
-
-          <Card className="border-none shadow-sm bg-card rounded-[2rem] overflow-hidden">
-            <CardHeader className="bg-muted/30 pb-4">
-              <CardTitle className="flex items-center gap-2 text-xl font-bold">
-                <MapIcon className="w-5 h-5 text-secondary" /> 
-                Localização & Mapa
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6 space-y-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-muted/20 rounded-[1.5rem] border-2 border-dashed border-border">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Endereço do Evento</p>
-                  <p className="font-bold text-lg">{addressString}</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" className="rounded-xl font-bold gap-2 h-12" asChild>
-                    <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
-                      <Navigation className="w-4 h-4 text-blue-500" />
-                      Google Maps
-                    </a>
-                  </Button>
-                  <Button variant="outline" className="rounded-xl font-bold gap-2 h-12" asChild>
-                    <a href={wazeUrl} target="_blank" rel="noopener noreferrer">
-                      <WazeIcon className="w-4 h-4 text-orange-500" />
-                      Waze
-                    </a>
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="relative aspect-video rounded-[1.5rem] overflow-hidden bg-muted border border-border">
-                 <iframe 
-                   width="100%" 
-                   height="100%" 
-                   style={{ border: 0 }} 
-                   loading="lazy" 
-                   allowFullScreen 
-                   referrerPolicy="no-referrer-when-downgrade"
-                   src={embedUrl}
-                   className="grayscale opacity-80 contrast-125"
-                 ></iframe>
-                 <div className="absolute top-4 left-4">
-                    <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2">
-                       <MapPin className="w-4 h-4 text-secondary" />
-                       <span className="text-[10px] font-black uppercase tracking-tight">Local Confirmado</span>
-                    </div>
-                 </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-center pt-4">
-             <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
-               <DialogTrigger asChild>
-                 <Button variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10 font-bold gap-2 rounded-full uppercase text-[10px] tracking-widest">
-                   <ShieldAlert className="w-4 h-4" /> Denunciar Evento
-                 </Button>
-               </DialogTrigger>
-               <DialogContent className="rounded-[2rem]">
-                 <DialogHeader>
-                   <DialogTitle className="text-xl font-black italic uppercase tracking-tighter">Denunciar este evento?</DialogTitle>
-                   <DialogDescription>Ajude-nos a manter o Viby Club seguro. Selecione o motivo e descreva o problema.</DialogDescription>
-                 </DialogHeader>
-                 <div className="space-y-4 py-4">
-                   <div className="space-y-2">
-                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Motivo</Label>
-                     <Select value={reportReason} onValueChange={setReportReason}>
-                       <SelectTrigger className="rounded-xl border-dashed border-secondary/30 h-12">
-                         <SelectValue placeholder="Selecione o motivo" />
-                       </SelectTrigger>
-                       <SelectContent>
-                         <SelectItem value="Conteúdo Inadequado">Conteúdo Inadequado</SelectItem>
-                         <SelectItem value="Fraude / Golpe">Fraude / Golpe</SelectItem>
-                         <SelectItem value="Evento Inexistente">Evento Inexistente</SelectItem>
-                         <SelectItem value="Propriedade Intelectual">Violação de Propriedade Intelectual</SelectItem>
-                         <SelectItem value="Outro">Outro Motivo</SelectItem>
-                       </SelectContent>
-                     </Select>
-                   </div>
-                   <div className="space-y-2">
-                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Descrição Detalhada</Label>
-                     <Textarea 
-                       placeholder="Descreva o que está errado..." 
-                       value={reportDescription}
-                       onChange={(e) => setReportDescription(e.target.value)}
-                       className="rounded-xl border-dashed border-secondary/30 min-h-[100px]"
-                     />
-                   </div>
-                 </div>
-                 <DialogFooter>
-                   <Button variant="ghost" onClick={() => setIsReportDialogOpen(false)} className="rounded-xl font-bold uppercase text-[10px] tracking-widest">Cancelar</Button>
-                   <Button 
-                     onClick={handleSendReport} 
-                     disabled={isSubmittingReport || !reportReason} 
-                     className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest h-12 px-6"
-                   >
-                     {isSubmittingReport ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-                     Enviar Denúncia
-                   </Button>
-                 </DialogFooter>
-               </DialogContent>
-             </Dialog>
-          </div>
-        </div>
-
-        <div className="lg:col-span-4 space-y-6">
-          <Card className={`border-none shadow-lg bg-card rounded-[2rem] border-t-8 ${saleStatus === 'open' ? 'border-secondary' : 'border-muted'} overflow-hidden`}>
-            <CardHeader><CardTitle className="flex items-center gap-2 text-lg font-bold"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              {saleStatus === 'open' && activeBatch ? (
-                <div className="space-y-4">
-                  <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-black uppercase text-muted-foreground">Lote Atual</span>
-                      <Badge variant="outline" className="text-[10px] font-bold border-secondary text-secondary uppercase">{activeBatch.name}</Badge>
-                    </div>
-                    <div className="flex items-baseline gap-2">
-                      <p className={cn(
-                        "text-2xl font-black",
-                        appliedCoupon ? "text-muted-foreground line-through text-sm" : "text-primary"
-                      )}>
-                        {activeBatch.price === 0 ? "GRATUITO" : formatCurrency(activeBatch.price)}
-                      </p>
-                      {appliedCoupon && (
-                        <p className="text-2xl font-black text-green-600">
-                          {breakdown.ticketBasePrice === 0 ? "GRÁTIS" : formatCurrency(breakdown.ticketBasePrice)}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between pt-1">
-                      <p className="text-[10px] font-medium text-muted-foreground">Vendas terminam em: {new Date(activeBatch.endDate).toLocaleString('pt-BR')}</p>
-                      {activeBatch.remaining < 20 && (
-                        <Badge variant="destructive" className="text-[8px] h-4 font-black">SÓ RESTAM {activeBatch.remaining}</Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  <p className="text-[10px] text-muted-foreground font-medium bg-muted/50 p-3 rounded-lg leading-tight">
-                    * Uma taxa de serviço de 15% será aplicada ao valor final do ingresso no checkout.
-                  </p>
-                </div>
-              ) : (
-                <div className="p-6 text-center space-y-2 bg-muted/20 rounded-2xl">
-                  {saleStatus === 'soldout' ? (
-                    <>
-                      <AlertTriangle className="w-8 h-8 text-orange-500 mx-auto mb-2" />
-                      <p className="font-black text-lg uppercase italic tracking-tighter">Esgotado</p>
-                      <p className="text-xs text-muted-foreground">Todos os ingressos deste evento foram adquiridos.</p>
-                    </>
-                  ) : saleStatus === 'pending' ? (
-                    <>
-                      <Clock className="w-8 h-8 text-secondary mx-auto mb-2" />
-                      <p className="font-black text-lg uppercase italic tracking-tighter">Em Breve</p>
-                      <p className="text-xs text-muted-foreground">As vendas ainda não iniciaram. Fique atento!</p>
-                    </>
-                  ) : (
-                    <>
-                      <AlertTriangle className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="font-black text-lg uppercase italic tracking-tighter">Encerrado</p>
-                      <p className="text-xs text-muted-foreground">O período de vendas para este evento terminou.</p>
-                    </>
-                  )}
-                </div>
-              )}
-
-              <Button 
-                onClick={() => setIsCheckoutOpen(true)} 
-                disabled={registering || saleStatus !== 'open'} 
-                className={cn(
-                  "w-full font-black py-7 rounded-2xl text-lg shadow-xl text-white",
-                  saleStatus === 'open' ? "bg-secondary hover:bg-secondary/90" : "bg-muted cursor-not-allowed"
+                {event.isFree && (
+                  <Badge className="bg-green-500 text-white border-none text-xs px-4 py-1 rounded-full uppercase font-black tracking-widest">
+                    Grátis
+                  </Badge>
                 )}
-              >
-                {registering ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-                {getButtonText()}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Seção de Todos os Lotes */}
-          <Card className="border-none shadow-sm bg-card rounded-[2rem] overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-muted-foreground">
-                <History className="w-4 h-4" /> Todos os Lotes
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-0">
-               <div className="divide-y border-t">
-                  {batchesStatus.map((batch, i) => (
-                    <div key={i} className={cn(
-                      "p-4 flex items-center justify-between transition-colors",
-                      batch.status === 'open' ? "bg-secondary/5" : "bg-white"
-                    )}>
-                       <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                             <p className={cn("text-xs font-bold uppercase", batch.status === 'ended' ? "text-muted-foreground line-through" : "text-foreground")}>
-                               {batch.name}
-                             </p>
-                             {batch.status === 'open' && (
-                               <Badge className="bg-green-500 text-[8px] h-4 uppercase font-black">Ativo</Badge>
-                             )}
-                             {batch.status === 'soldout' && (
-                               <Badge variant="outline" className="text-orange-500 border-orange-200 text-[8px] h-4 uppercase font-black">Esgotado</Badge>
-                             )}
-                          </div>
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase">
-                            {batch.price === 0 ? "Gratuito" : formatCurrency(batch.price)}
-                          </p>
-                       </div>
-                       <div className="text-right">
-                          {batch.status === 'upcoming' ? (
-                            <div className="flex flex-col items-end">
-                               <Badge variant="outline" className="text-[8px] font-black uppercase opacity-60">Em Breve</Badge>
-                               <p className="text-[8px] text-muted-foreground mt-1">Início: {new Date(batch.startDate).toLocaleDateString('pt-BR')}</p>
-                            </div>
-                          ) : batch.status === 'open' ? (
-                            <div className="flex flex-col items-end">
-                               <p className="text-[9px] font-black text-secondary uppercase">Disponível</p>
-                               <p className="text-[8px] text-muted-foreground mt-1">{batch.remaining} restantes</p>
-                            </div>
-                          ) : (
-                            <Lock className="w-3.5 h-3.5 text-muted-foreground/30" />
-                          )}
-                       </div>
-                    </div>
-                  ))}
-               </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-sm bg-card rounded-[2rem]">
-            <CardHeader><CardTitle className="text-sm uppercase font-black text-muted-foreground tracking-widest">Organizador</CardTitle></CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-14 w-14 border-2 border-secondary/20 p-0.5">
-                  <AvatarImage src={orgAvatar} alt={orgName} className="rounded-full object-cover" />
-                  <AvatarFallback className="font-bold">{orgName.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <h4 className="font-bold text-base">{orgName}</h4>
-                    {orgIsVerified && <InstagramVerifiedBadge className="w-4 h-4" />}
-                  </div>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Promotor Verificado</p>
-                </div>
               </div>
-              <Button variant="outline" className="w-full rounded-xl text-xs font-bold gap-2 h-10" asChild>
-                <Link href={`/${orgUsername}`}>Ver Perfil Completo <ExternalLink className="w-3 h-3" /></Link>
-              </Button>
-            </CardContent>
-          </Card>
+              <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-white tracking-tighter leadership-tight">{event.title}</h1>
+              <div className="flex flex-wrap gap-x-6 gap-y-3 text-white/90 text-sm font-semibold">
+                <span className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full">
+                  <MapPin className="w-4 h-4 text-secondary" />
+                  {addressString}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
-        <DialogContent className="max-w-md rounded-[2.5rem] p-0 overflow-hidden bg-background">
-          <div className="p-8 space-y-6">
-             <DialogHeader className="text-left space-y-2">
-                <div className="flex items-center gap-3 text-secondary">
-                   <CreditCard className="w-6 h-6" />
-                   <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Finalizar Reserva</DialogTitle>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-8 space-y-8">
+            <Card className="border-none shadow-sm bg-card rounded-[2rem] overflow-hidden">
+              <CardHeader className="bg-muted/30 pb-4">
+                <CardTitle className="flex items-center gap-2 text-xl font-bold">
+                  <Info className="w-5 h-5 text-secondary" /> 
+                  Sobre o Evento
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <p className="text-muted-foreground leading-relaxed text-lg whitespace-pre-line font-medium">
+                  {event.description || event.shortDescription}
+                </p>
+              </CardContent>
+            </Card>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Card className="border-none shadow-sm rounded-[1.5rem] bg-card p-6 flex flex-col items-center text-center gap-2">
+                <div className="p-3 bg-secondary/10 rounded-2xl"><Calendar className="w-6 h-6 text-secondary" /></div>
+                <div><p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Data</p><p className="text-lg font-bold">{start.date}</p></div>
+              </Card>
+              <Card className="border-none shadow-sm rounded-[1.5rem] bg-card p-6 flex flex-col items-center text-center gap-2">
+                <div className="p-3 bg-secondary/10 rounded-2xl"><Clock className="w-6 h-6 text-secondary" /></div>
+                <div><p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Horário</p><p className="text-lg font-bold">{start.time} {event.endDate && `até ${end.time}`}</p></div>
+              </Card>
+            </div>
+
+            <Card className="border-none shadow-sm bg-card rounded-[2rem] overflow-hidden">
+              <CardHeader className="bg-muted/30 pb-4">
+                <CardTitle className="flex items-center gap-2 text-xl font-bold">
+                  <MapIcon className="w-5 h-5 text-secondary" /> 
+                  Localização & Mapa
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-muted/20 rounded-[1.5rem] border-2 border-dashed border-border">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Endereço do Evento</p>
+                    <p className="font-bold text-lg">{addressString}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" className="rounded-xl font-bold gap-2 h-12" asChild>
+                      <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
+                        <Navigation className="w-4 h-4 text-blue-500" />
+                        Google Maps
+                      </a>
+                    </Button>
+                    <Button variant="outline" className="rounded-xl font-bold gap-2 h-12" asChild>
+                      <a href={wazeUrl} target="_blank" rel="noopener noreferrer">
+                        <WazeIcon className="w-4 h-4 text-orange-500" />
+                        Waze
+                      </a>
+                    </Button>
+                  </div>
                 </div>
-                <DialogDescription className="font-medium text-muted-foreground">Confira os valores da sua participação.</DialogDescription>
-             </DialogHeader>
-
-             <div className="space-y-4">
-                <div className="p-5 bg-muted/30 rounded-[1.5rem] border-2 border-dashed border-border space-y-4">
-                   <div className="flex justify-between items-center text-sm font-bold">
-                      <span className="text-muted-foreground uppercase text-[10px] tracking-widest">Ingresso ({activeBatch?.name})</span>
-                      <span>{formatCurrency(breakdown.ticketBasePrice)}</span>
-                   </div>
-                   
-                    <div className="space-y-3 pt-2">
-                      <div className="flex gap-2">
-                        <Input 
-                          placeholder="CUPOM" 
-                          value={couponCode} 
-                          onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                          className="rounded-xl border-dashed border-secondary/30 h-10 font-bold"
-                        />
-                        <Button 
-                          variant="secondary" 
-                          size="sm"
-                          onClick={handleApplyCoupon} 
-                          disabled={isVerifyingCoupon || !couponCode}
-                          className="rounded-xl font-bold"
-                        >
-                          {isVerifyingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
-                        </Button>
+                
+                <div className="relative aspect-video rounded-[1.5rem] overflow-hidden bg-muted border border-border">
+                   <iframe 
+                     width="100%" 
+                     height="100%" 
+                     style={{ border: 0 }} 
+                     loading="lazy" 
+                     allowFullScreen 
+                     referrerPolicy="no-referrer-when-downgrade"
+                     src={embedUrl}
+                     className="grayscale opacity-80 contrast-125"
+                   ></iframe>
+                   <div className="absolute top-4 left-4">
+                      <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2">
+                         <MapPin className="w-4 h-4 text-secondary" />
+                         <span className="text-[10px] font-black uppercase tracking-tight">Local Confirmado</span>
                       </div>
-                      {appliedCoupon && (
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-green-600 uppercase bg-green-50 p-2 rounded-lg">
-                          <CheckCircle2 className="w-3 h-3" />
-                          {appliedCoupon.code}: {appliedCoupon.discountType === 'percentage' ? `${appliedCoupon.discountValue}% OFF` : 'Desconto Ativo'}
-                          <Button variant="ghost" size="sm" onClick={() => {setAppliedCoupon(null); setCouponCode("");}} className="h-4 p-0 ml-auto text-destructive hover:bg-transparent">Remover</Button>
-                        </div>
-                      )}
+                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex justify-center pt-4">
+               <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
+                 <DialogTrigger asChild>
+                   <Button variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10 font-bold gap-2 rounded-full uppercase text-[10px] tracking-widest">
+                     <ShieldAlert className="w-4 h-4" /> Denunciar Evento
+                   </Button>
+                 </DialogTrigger>
+                 <DialogContent className="rounded-[2rem]">
+                   <DialogHeader>
+                     <DialogTitle className="text-xl font-black italic uppercase tracking-tighter">Denunciar este evento?</DialogTitle>
+                     <DialogDescription>Ajude-nos a manter o {siteName} seguro. Selecione o motivo e descreva o problema.</DialogDescription>
+                   </DialogHeader>
+                   <div className="space-y-4 py-4">
+                     <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Motivo</Label>
+                       <Select value={reportReason} onValueChange={setReportReason}>
+                         <SelectTrigger className="rounded-xl border-dashed border-secondary/30 h-12">
+                           <SelectValue placeholder="Selecione o motivo" />
+                         </SelectTrigger>
+                         <SelectContent>
+                           <SelectItem value="Conteúdo Inadequado">Conteúdo Inadequado</SelectItem>
+                           <SelectItem value="Fraude / Golpe">Fraude / Golpe</SelectItem>
+                           <SelectItem value="Evento Inexistente">Evento Inexistente</SelectItem>
+                           <SelectItem value="Propriedade Intelectual">Violação de Propriedade Intelectual</SelectItem>
+                           <SelectItem value="Outro">Outro Motivo</SelectItem>
+                         </SelectContent>
+                       </Select>
+                     </div>
+                     <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Descrição Detalhada</Label>
+                       <Textarea 
+                         placeholder="Descreva o que está errado..." 
+                         value={reportDescription}
+                         onChange={(e) => setReportDescription(e.target.value)}
+                         className="rounded-xl border-dashed border-secondary/30 min-h-[100px]"
+                       />
+                     </div>
+                   </div>
+                   <DialogFooter>
+                     <Button variant="ghost" onClick={() => setIsReportDialogOpen(false)} className="rounded-xl font-bold uppercase text-[10px] tracking-widest">Cancelar</Button>
+                     <Button 
+                       onClick={handleSendReport} 
+                       disabled={isSubmittingReport || !reportReason} 
+                       className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest h-12 px-6"
+                     >
+                       {isSubmittingReport ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                       Enviar Denúncia
+                     </Button>
+                   </DialogFooter>
+                 </DialogContent>
+               </Dialog>
+            </div>
+          </div>
+
+          <div className="lg:col-span-4 space-y-6">
+            <Card className={`border-none shadow-lg bg-card rounded-[2rem] border-t-8 ${saleStatus === 'open' ? 'border-secondary' : 'border-muted'} overflow-hidden`}>
+              <CardHeader><CardTitle className="flex items-center gap-2 text-lg font-bold"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                {saleStatus === 'open' && activeBatch ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black uppercase text-muted-foreground">Lote Atual</span>
+                        <Badge variant="outline" className="text-[10px] font-bold border-secondary text-secondary uppercase">{activeBatch.name}</Badge>
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <p className={cn(
+                          "text-2xl font-black",
+                          appliedCoupon ? "text-muted-foreground line-through text-sm" : "text-primary"
+                        )}>
+                          {activeBatch.price === 0 ? "GRATUITO" : formatCurrency(activeBatch.price)}
+                        </p>
+                        {appliedCoupon && (
+                          <p className="text-2xl font-black text-green-600">
+                            {breakdown.ticketBasePrice === 0 ? "GRÁTIS" : formatCurrency(breakdown.ticketBasePrice)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between pt-1">
+                        <p className="text-[10px] font-medium text-muted-foreground">Vendas terminam em: {new Date(activeBatch.endDate).toLocaleString('pt-BR')}</p>
+                        {activeBatch.remaining < 20 && (
+                          <Badge variant="destructive" className="text-[8px] h-4 font-black">SÓ RESTAM {activeBatch.remaining}</Badge>
+                        )}
+                      </div>
                     </div>
 
-                   <div className="flex justify-between items-center text-sm font-bold">
-                      <div className="flex items-center gap-1.5 text-muted-foreground uppercase text-[10px] tracking-widest">
-                         Taxa Administrativa
-                         <Info className="w-3 h-3 opacity-40" />
+                    <p className="text-[10px] text-muted-foreground font-medium bg-muted/50 p-3 rounded-lg leading-tight">
+                      * Uma taxa de serviço de 15% será aplicada ao valor final do ingresso no checkout.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center space-y-2 bg-muted/20 rounded-2xl">
+                    {saleStatus === 'soldout' ? (
+                      <>
+                        <AlertTriangle className="w-8 h-8 text-orange-500 mx-auto mb-2" />
+                        <p className="font-black text-lg uppercase italic tracking-tighter">Esgotado</p>
+                        <p className="text-xs text-muted-foreground">Todos os ingressos deste evento foram adquiridos.</p>
+                      </>
+                    ) : saleStatus === 'pending' ? (
+                      <>
+                        <Clock className="w-8 h-8 text-secondary mx-auto mb-2" />
+                        <p className="font-black text-lg uppercase italic tracking-tighter">Em Breve</p>
+                        <p className="text-xs text-muted-foreground">As vendas ainda não iniciaram. Fique atento!</p>
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                        <p className="font-black text-lg uppercase italic tracking-tighter">Encerrado</p>
+                        <p className="text-xs text-muted-foreground">O período de vendas para este evento terminou.</p>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                <Button 
+                  onClick={() => setIsCheckoutOpen(true)} 
+                  disabled={registering || saleStatus !== 'open'} 
+                  className={cn(
+                    "w-full font-black py-7 rounded-2xl text-lg shadow-xl text-white",
+                    saleStatus === 'open' ? "bg-secondary hover:bg-secondary/90" : "bg-muted cursor-not-allowed"
+                  )}
+                >
+                  {registering ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
+                  {getButtonText()}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Seção de Todos os Lotes */}
+            <Card className="border-none shadow-sm bg-card rounded-[2rem] overflow-hidden">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-muted-foreground">
+                  <History className="w-4 h-4" /> Todos os Lotes
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-0">
+                 <div className="divide-y border-t">
+                    {batchesStatus.map((batch, i) => (
+                      <div key={i} className={cn(
+                        "p-4 flex items-center justify-between transition-colors",
+                        batch.status === 'open' ? "bg-secondary/5" : "bg-white"
+                      )}>
+                         <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                               <p className={cn("text-xs font-bold uppercase", batch.status === 'ended' ? "text-muted-foreground line-through" : "text-foreground")}>
+                                 {batch.name}
+                               </p>
+                               {batch.status === 'open' && (
+                                 <Badge className="bg-green-500 text-[8px] h-4 uppercase font-black">Ativo</Badge>
+                               )}
+                               {batch.status === 'soldout' && (
+                                 <Badge variant="outline" className="text-orange-500 border-orange-200 text-[8px] h-4 uppercase font-black">Esgotado</Badge>
+                               )}
+                            </div>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase">
+                              {batch.price === 0 ? "Gratuito" : formatCurrency(batch.price)}
+                            </p>
+                         </div>
+                         <div className="text-right">
+                            {batch.status === 'upcoming' ? (
+                              <div className="flex flex-col items-end">
+                                 <Badge variant="outline" className="text-[8px] font-black uppercase opacity-60">Em Breve</Badge>
+                                 <p className="text-[8px] text-muted-foreground mt-1">Início: {new Date(batch.startDate).toLocaleDateString('pt-BR')}</p>
+                              </div>
+                            ) : batch.status === 'open' ? (
+                              <div className="flex flex-col items-end">
+                                 <p className="text-[9px] font-black text-secondary uppercase">Disponível</p>
+                                 <p className="text-[8px] text-muted-foreground mt-1">{batch.remaining} restantes</p>
+                              </div>
+                            ) : (
+                              <Lock className="w-3.5 h-3.5 text-muted-foreground/30" />
+                            )}
+                         </div>
                       </div>
-                      <span className="text-secondary">{formatCurrency(breakdown.administrativeFeeAmount)}</span>
-                   </div>
+                    ))}
+                 </div>
+              </CardContent>
+            </Card>
 
-                   <Separator className="bg-border/60" />
-
-                   <div className="flex justify-between items-center">
-                      <span className="text-lg font-black uppercase italic tracking-tighter">Total a Pagar</span>
-                      <span className="text-2xl font-black text-primary">{formatCurrency(breakdown.customerFinalPrice)}</span>
-                   </div>
+            <Card className="border-none shadow-sm bg-card rounded-[2rem]">
+              <CardHeader><CardTitle className="text-sm uppercase font-black text-muted-foreground tracking-widest">Organizador</CardTitle></CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-14 w-14 border-2 border-secondary/20 p-0.5">
+                    <AvatarImage src={orgAvatar} alt={orgName} className="rounded-full object-cover" />
+                    <AvatarFallback className="font-bold">{orgName.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="font-bold text-base">{orgName}</h4>
+                      {orgIsVerified && <InstagramVerifiedBadge className="w-4 h-4" />}
+                    </div>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase">Promotor Verificado</p>
+                  </div>
                 </div>
-
-                <Accordion type="single" collapsible className="w-full">
-                  <AccordionItem value="terms" className="border-none">
-                    <AccordionTrigger className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:no-underline py-2">
-                      Políticas e Regras do Evento
-                    </AccordionTrigger>
-                    <AccordionContent className="text-[10px] text-muted-foreground leading-relaxed bg-muted/20 p-4 rounded-xl">
-                      Ao clicar em confirmar, você aceita os termos de uso do Viby e as políticas de cancelamento do produtor. 
-                      A taxa administrativa da plataforma não é reembolsável após o processamento.
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-             </div>
-
-             <Button 
-                onClick={handleRegisterInterest}
-                disabled={registering}
-                className="w-full h-16 bg-secondary text-white font-black text-xl rounded-2xl shadow-xl shadow-secondary/20 uppercase italic transition-all hover:scale-[1.02] active:scale-95"
-             >
-                {registering ? <Loader2 className="w-6 h-6 animate-spin mr-3" /> : <ChevronRight className="w-6 h-6 mr-1" />}
-                {breakdown.customerFinalPrice > 0 ? "Pagar e Confirmar" : "Confirmar e Gerar Voucher"}
-             </Button>
+                <Button variant="outline" className="w-full rounded-xl text-xs font-bold gap-2 h-10" asChild>
+                  <Link href={`/${orgUsername}`}>Ver Perfil Completo <ExternalLink className="w-3 h-3" /></Link>
+                </Button>
+              </CardContent>
+            </Card>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+
+        <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
+          <DialogContent className="max-w-md rounded-[2.5rem] p-0 overflow-hidden bg-background">
+            <div className="p-8 space-y-6">
+               <DialogHeader className="text-left space-y-2">
+                  <div className="flex items-center gap-3 text-secondary">
+                     <CreditCard className="w-6 h-6" />
+                     <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Finalizar Reserva</DialogTitle>
+                  </div>
+                  <DialogDescription className="font-medium text-muted-foreground">Confira os valores da sua participação.</DialogDescription>
+               </DialogHeader>
+
+               <div className="space-y-4">
+                  <div className="p-5 bg-muted/30 rounded-[1.5rem] border-2 border-dashed border-border space-y-4">
+                     <div className="flex justify-between items-center text-sm font-bold">
+                        <span className="text-muted-foreground uppercase text-[10px] tracking-widest">Ingresso ({activeBatch?.name})</span>
+                        <span>{formatCurrency(breakdown.ticketBasePrice)}</span>
+                     </div>
+                     
+                      <div className="space-y-3 pt-2">
+                        <div className="flex gap-2">
+                          <Input 
+                            placeholder="CUPOM" 
+                            value={couponCode} 
+                            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                            className="rounded-xl border-dashed border-secondary/30 h-10 font-bold"
+                          />
+                          <Button 
+                            variant="secondary" 
+                            size="sm"
+                            onClick={handleApplyCoupon} 
+                            disabled={isVerifyingCoupon || !couponCode}
+                            className="rounded-xl font-bold"
+                          >
+                            {isVerifyingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
+                          </Button>
+                        </div>
+                        {appliedCoupon && (
+                          <div className="flex items-center gap-2 text-[10px] font-bold text-green-600 uppercase bg-green-50 p-2 rounded-lg">
+                            <CheckCircle2 className="w-3 h-3" />
+                            {appliedCoupon.code}: {appliedCoupon.discountType === 'percentage' ? `${appliedCoupon.discountValue}% OFF` : 'Desconto Ativo'}
+                            <Button variant="ghost" size="sm" onClick={() => {setAppliedCoupon(null); setCouponCode("");}} className="h-4 p-0 ml-auto text-destructive hover:bg-transparent">Remover</Button>
+                          </div>
+                        )}
+                      </div>
+
+                     <div className="flex justify-between items-center text-sm font-bold">
+                        <div className="flex items-center gap-1.5 text-muted-foreground uppercase text-[10px] tracking-widest">
+                           Taxa Administrativa
+                           <Info className="w-3 h-3 opacity-40" />
+                        </div>
+                        <span className="text-secondary">{formatCurrency(breakdown.administrativeFeeAmount)}</span>
+                     </div>
+
+                     <Separator className="bg-border/60" />
+
+                     <div className="flex justify-between items-center">
+                        <span className="text-lg font-black uppercase italic tracking-tighter">Total a Pagar</span>
+                        <span className="text-2xl font-black text-primary">{formatCurrency(breakdown.customerFinalPrice)}</span>
+                     </div>
+                  </div>
+
+                  <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="terms" className="border-none">
+                      <AccordionTrigger className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:no-underline py-2">
+                        Políticas e Regras do Evento
+                      </AccordionTrigger>
+                      <AccordionContent className="text-[10px] text-muted-foreground leading-relaxed bg-muted/20 p-4 rounded-xl">
+                        Ao clicar em confirmar, você aceita os termos de uso do {siteName} e as políticas de cancelamento do produtor. 
+                        A taxa administrativa da plataforma não é reembolsável após o processamento.
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+               </div>
+
+               <Button 
+                  onClick={handleRegisterInterest}
+                  disabled={registering}
+                  className="w-full h-16 bg-secondary text-white font-black text-xl rounded-2xl shadow-xl shadow-secondary/20 uppercase italic transition-all hover:scale-[1.02] active:scale-95"
+               >
+                  {registering ? <Loader2 className="w-6 h-6 animate-spin mr-3" /> : <ChevronRight className="w-6 h-6 mr-1" />}
+                  {breakdown.customerFinalPrice > 0 ? "Pagar e Confirmar" : "Confirmar e Gerar Voucher"}
+               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   )
 }
