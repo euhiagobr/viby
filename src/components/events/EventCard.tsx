@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { Calendar, MapPin, Clock, Ticket } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
@@ -14,6 +15,16 @@ interface EventCardProps {
 
 export function EventCard({ event }: EventCardProps) {
   const router = useRouter()
+  const [imgSrc, setImgSrc] = React.useState<string>("")
+
+  React.useEffect(() => {
+    // Evita erro de hidratação ao carregar a imagem apenas no cliente
+    if (event.image) {
+      setImgSrc(event.image)
+    } else {
+      setImgSrc(`https://picsum.photos/seed/${event.id || 'default'}/600/400`)
+    }
+  }, [event.image, event.id])
   
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
@@ -77,7 +88,6 @@ export function EventCard({ event }: EventCardProps) {
     router.push(profileLink)
   }
 
-  // Categoria amigável vinda do firestore ou fallback do mock
   const categoryDisplay = event.categoryName || event.type || "Evento";
 
   return (
@@ -86,14 +96,16 @@ export function EventCard({ event }: EventCardProps) {
       onClick={handleCardClick}
     >
       <div className="relative h-48 w-full">
-        <Image
-          src={event.image || "https://picsum.photos/seed/event/600/400"}
-          alt={event.title}
-          fill
-          className="object-cover transition-transform group-hover:scale-105"
-          unoptimized
-          data-ai-hint="event cover"
-        />
+        {imgSrc && (
+          <Image
+            src={imgSrc}
+            alt={event.title}
+            fill
+            className="object-cover transition-transform group-hover:scale-105"
+            unoptimized
+            data-ai-hint="event cover"
+          />
+        )}
         <div className="absolute top-3 left-3 flex flex-col gap-2">
           <Badge className="bg-secondary text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider">
             {categoryDisplay}

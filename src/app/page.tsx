@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -35,7 +34,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             {settings?.logoUrl ? (
-              <div className="w-8 h-8 relative flex items-center justify-center">
+              <div className="w-10 h-10 relative flex items-center justify-center">
                 <img src={settings.logoUrl} alt={siteName} className="max-h-full max-w-full object-contain" />
               </div>
             ) : (
@@ -78,7 +77,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 relative z-10 text-center space-y-8">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/10 text-secondary text-sm font-bold animate-fade-in">
             {settings?.iconUrl ? (
-               <img src={settings.iconUrl} className="w-4 h-4 object-contain" alt="Site Icon" />
+               <img src={settings.iconUrl} className="w-5 h-5 object-contain" alt="Site Icon" />
             ) : (
                <Globe className="w-4 h-4" />
             )}
@@ -146,7 +145,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 text-center">
           <div className="flex items-center justify-center gap-2 mb-6">
             {settings?.logoUrl ? (
-              <img src={settings.logoUrl} alt={siteName} className="h-6 object-contain" />
+              <img src={settings.logoUrl} alt={siteName} className="h-8 object-contain" />
             ) : (
               <>
                 <div className="w-6 h-6 bg-secondary rounded flex items-center justify-center">

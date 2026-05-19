@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // VIBY PLATFORM RULES - Versão: 1.3.0
+    // VIBY PLATFORM RULES - Versão: 1.4.0
     // Banco de Dados: eventosviby
 
     function isSignedIn() {
@@ -9,7 +9,6 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // Verificação robusta de administrador no banco eventosviby
       return isSignedIn() && 
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
@@ -21,13 +20,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Usuários: Leitura pública, escrita para o próprio ou Admin
+    // Usuários: Leitura pública (para perfis), escrita para o próprio ou Admin
     match /users/{userId} {
       allow read: if true;
       allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
 
-    // Unicidade de nomes de usuário
+    // Unicidade de nomes de usuário: Leitura pública para busca, escrita por qualquer autenticado
     match /usernames/{username} {
       allow read: if true;
       allow write: if isSignedIn();
@@ -60,9 +59,9 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Regra padrão de segurança
+    // Regra padrão de segurança para o banco eventosviby
     match /{allPaths=**} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() || isAdmin();
       allow write: if isAdmin();
     }
   }

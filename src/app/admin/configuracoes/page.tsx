@@ -37,13 +37,12 @@ export default function AdminConfiguracoesPage() {
     }
   }, [settings])
 
-  // Explicitamente usando o bucket viby
   const storage = React.useMemo(() => {
     if (!app) return null;
     try {
       return getStorage(app, "gs://viby");
     } catch (e) {
-      console.error("Erro ao inicializar storage viby, tentando padrão", e);
+      console.error("Erro ao inicializar storage viby", e);
       return getStorage(app);
     }
   }, [app])
