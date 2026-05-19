@@ -43,9 +43,9 @@ export default function EventoDetalhesPage() {
     (db && event?.organizerId) ? doc(db, "users", event.organizerId) : null, 
     [db, event?.organizerId]
   )
-  const { data: organizerProfile, loading: organizerLoading } = useDoc<any>(organizerRef)
+  const { data: organizerProfile } = useDoc<any>(organizerRef)
 
-  // Perfil do usuário logado para capturar o sexo/gênero e nascimento
+  // Perfil do usuário logado para capturar dados cadastrais no registro
   const currentUserRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: currentUserProfile } = useDoc<any>(currentUserRef)
   
@@ -100,7 +100,7 @@ export default function EventoDetalhesPage() {
       eventId,
       eventTitle: event.title,
       userId: user.uid,
-      userName: currentUserProfile?.name || user.displayName || user.email,
+      userName: currentUserProfile?.name || user.displayName || user.email || "Usuário",
       userEmail: user.email,
       userGender: currentUserProfile?.gender || "Não informado",
       userBirthDate: currentUserProfile?.birthDate || "",
@@ -115,7 +115,7 @@ export default function EventoDetalhesPage() {
     addDoc(collection(db, "registrations"), regData)
       .then(() => {
         setIsRegistered(true)
-        toast({ title: "Confirmado!", description: "O organizador foi notificado do seu interesse." })
+        toast({ title: "Sucesso!", description: "Sua presença foi registrada na lista do organizador." })
       })
       .catch(async (error) => {
         const permissionError = new FirestorePermissionError({
