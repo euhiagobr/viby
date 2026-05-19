@@ -4,7 +4,7 @@
 import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useFirestore, useAuth, useUser, useFirebaseApp } from "@/firebase"
+import { useFirestore, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, addDoc, serverTimestamp } from "firebase/firestore"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { toast } from "@/hooks/use-toast"
 import { 
   ArrowLeft, 
@@ -24,7 +26,8 @@ import {
   Loader2, 
   Image as ImageIcon,
   Map as MapIcon,
-  Tag
+  Tag,
+  Hash
 } from "lucide-react"
 import Link from "next/link"
 import { Separator } from "@/components/ui/separator"
@@ -45,10 +48,19 @@ export default function NovoEventoPage() {
   const app = useFirebaseApp()
   const storage = app ? getStorage(app) : null
 
+  // Categorias do banco
+  const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
+  const { data: categories } = useCollection<any>(categoriesQuery)
+
   const [loading, setLoading] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   
+  // Opções Extras
+  const [selectedCategory, setSelectedCategory] = useState("")
+  const [tags, setTags] = useState("")
+  const [isFree, setIsFree] = useState(false)
+
   // Endereço
   const [cep, setCep] = useState("")
   const [address, setAddress] = useState({
@@ -63,7 +75,7 @@ export default function NovoEventoPage() {
 
   // Lotes
   const [batches, setBatches] = useState<Batch[]>([
-    { name: "1º Lote", price: "0.00", startDate: "", endDate: "", available: "100" }
+    { name: "Lote Único", price: "0.00", startDate: "", endDate: "", available: "100" }
   ])
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -113,6 +125,11 @@ export default function NovoEventoPage() {
     e.preventDefault()
     if (!db || !user || !storage) return
 
+    if (!selectedCategory) {
+      toast({ variant: "destructive", title: "Erro", description: "Selecione uma categoria para o evento." })
+      return
+    }
+
     setLoading(true)
     const formData = new FormData(e.currentTarget)
     
@@ -130,10 +147,13 @@ export default function NovoEventoPage() {
         description: formData.get("description") as string,
         startDate: formData.get("startDate") as string,
         endDate: formData.get("endDate") as string,
+        categoryId: selectedCategory,
+        tags: tags.split(",").map(t => t.trim()).filter(t => t !== ""),
+        isFree: isFree,
         cep: cep,
         address: address,
         coords: coords,
-        batches: batches.map(b => ({
+        batches: isFree ? [{ name: "Gratuito", price: 0, available: parseInt(formData.get("freeCapacity") as string) || 0 }] : batches.map(b => ({
           ...b,
           price: parseFloat(b.price) || 0,
           available: parseInt(b.available) || 0
@@ -146,7 +166,7 @@ export default function NovoEventoPage() {
           isVerified: false
         },
         status: "Ativo",
-        type: "Público", // Default
+        type: "Público",
         city: address.city,
         createdAt: serverTimestamp()
       }
@@ -217,9 +237,24 @@ export default function NovoEventoPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="title">Nome do Evento</Label>
-              <Input id="title" name="title" placeholder="Ex: Festival de Verão Viby 2024" required />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="title">Nome do Evento</Label>
+                <Input id="title" name="title" placeholder="Ex: Festival de Verão Viby 2024" required />
+              </div>
+              <div className="space-y-2">
+                <Label>Categoria</Label>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories?.map((cat: any) => (
+                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -236,6 +271,14 @@ export default function NovoEventoPage() {
                   <Input id="endDate" name="endDate" type="datetime-local" className="pl-10" required />
                   <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tags">Tags (separadas por vírgula)</Label>
+              <div className="relative">
+                <Input id="tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="musica, festival, artes..." className="pl-10" />
+                <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               </div>
             </div>
 
@@ -303,64 +346,82 @@ export default function NovoEventoPage() {
                   <Input value={coords.lng} onChange={(e) => setCoords({...coords, lng: e.target.value})} />
                 </div>
               </div>
-              <div className="aspect-[21/9] bg-muted rounded-xl flex items-center justify-center border border-border">
-                <p className="text-sm text-muted-foreground flex items-center gap-2 italic">
-                  <MapPin className="w-4 h-4" />
-                  Mapa Interativo (Placeholder)
-                </p>
-              </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Lotes e Valores */}
-        <Card className="border-none shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <div>
+        <Card className="border-none shadow-sm overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6 border-b border-border">
+            <div className="space-y-1">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Tag className="w-5 h-5 text-secondary" />
                 Ingressos e Lotes
               </CardTitle>
+              <CardDescription>Configure como o público terá acesso ao evento.</CardDescription>
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={addBatch} className="gap-2">
-              <Plus className="w-4 h-4" /> Adicionar Lote
-            </Button>
+            <div className="flex items-center gap-3 bg-muted/50 px-4 py-2 rounded-full">
+              <Label htmlFor="free-event" className="font-bold text-xs uppercase cursor-pointer">Ingresso Grátis</Label>
+              <Switch id="free-event" checked={isFree} onCheckedChange={setIsFree} />
+            </div>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {batches.map((batch, index) => (
-              <div key={index} className="p-4 rounded-xl border border-border bg-muted/20 space-y-4">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-bold text-sm">Lote #{index + 1}</h4>
-                  {batches.length > 1 && (
-                    <Button type="button" variant="ghost" size="icon" onClick={() => removeBatch(index)} className="text-destructive h-8 w-8">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
+          <CardContent className="p-6">
+            {isFree ? (
+              <div className="space-y-6 animate-in fade-in slide-in-from-top-2">
+                <div className="p-8 border-2 border-dashed border-secondary/30 rounded-2xl bg-secondary/5 text-center">
+                  <Plus className="w-10 h-10 mx-auto text-secondary mb-4" />
+                  <h4 className="font-bold text-lg">Este é um Evento Gratuito</h4>
+                  <p className="text-sm text-muted-foreground max-w-sm mx-auto mt-2">
+                    Não haverá cobrança de valores. Você pode definir apenas a capacidade máxima de interessados.
+                  </p>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>Nome do Lote</Label>
-                    <Input value={batch.name} onChange={(e) => updateBatch(index, "name", e.target.value)} placeholder="Ex: VIP" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Preço (R$)</Label>
-                    <Input value={batch.price} onChange={(e) => updateBatch(index, "price", e.target.value)} type="number" step="0.01" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Disponíveis</Label>
-                    <Input value={batch.available} onChange={(e) => updateBatch(index, "available", e.target.value)} type="number" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Vendas Início</Label>
-                    <Input value={batch.startDate} onChange={(e) => updateBatch(index, "startDate", e.target.value)} type="datetime-local" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Vendas Fim</Label>
-                    <Input value={batch.endDate} onChange={(e) => updateBatch(index, "endDate", e.target.value)} type="datetime-local" required />
-                  </div>
+                <div className="space-y-2 max-w-xs mx-auto">
+                  <Label htmlFor="freeCapacity">Capacidade de Ingressos</Label>
+                  <Input id="freeCapacity" name="freeCapacity" type="number" placeholder="Ex: 500" required />
                 </div>
               </div>
-            ))}
+            ) : (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                {batches.map((batch, index) => (
+                  <div key={index} className="p-4 rounded-xl border border-border bg-muted/20 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-bold text-sm">Lote #{index + 1}</h4>
+                      {batches.length > 1 && (
+                        <button type="button" onClick={() => removeBatch(index)} className="text-destructive hover:bg-destructive/10 p-2 rounded-lg transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label>Nome do Lote</Label>
+                        <Input value={batch.name} onChange={(e) => updateBatch(index, "name", e.target.value)} placeholder="Ex: VIP" required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Preço (R$)</Label>
+                        <Input value={batch.price} onChange={(e) => updateBatch(index, "price", e.target.value)} type="number" step="0.01" required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Disponíveis</Label>
+                        <Input value={batch.available} onChange={(e) => updateBatch(index, "available", e.target.value)} type="number" required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Vendas Início</Label>
+                        <Input value={batch.startDate} onChange={(e) => updateBatch(index, "startDate", e.target.value)} type="datetime-local" required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Vendas Fim</Label>
+                        <Input value={batch.endDate} onChange={(e) => updateBatch(index, "endDate", e.target.value)} type="datetime-local" required />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <Button type="button" variant="outline" className="w-full border-dashed border-2 py-8 hover:bg-secondary/5 hover:border-secondary/50 group" onClick={addBatch}>
+                  <Plus className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" /> 
+                  Adicionar Novo Lote de Ingressos
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 

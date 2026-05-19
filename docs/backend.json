@@ -40,6 +40,9 @@
         "status": { "type": "string", "enum": ["A fazer", "Em progresso", "Concluído"] },
         "image": { "type": "string" },
         "organizerId": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "isFree": { "type": "boolean" },
         "organizer": { "$ref": "#/backend/entities/Organizer" }
       },
       "required": ["title", "date", "location", "organizerId"]
