@@ -19,11 +19,14 @@ import {
   Download,
   Share2,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Lock,
+  CreditCard
 } from "lucide-react"
 import Image from "next/image"
 import { QRCodeSVG } from "qrcode.react"
 import { formatCurrency } from "@/lib/financial-utils"
+import { cn } from "@/lib/utils"
 
 export default function VoucherPage() {
   const params = useParams()
@@ -82,6 +85,8 @@ export default function VoucherPage() {
     )
   }
 
+  const isPaid = registration.paymentStatus === "Pago" || registration.paymentStatus === "Disponível" || registration.price === 0;
+
   return (
     <div className="max-w-xl mx-auto space-y-8 pb-20 pt-6">
       <div className="flex items-center justify-between px-4">
@@ -93,9 +98,11 @@ export default function VoucherPage() {
            <Button variant="outline" size="icon" className="rounded-full">
              <Share2 className="w-4 h-4" />
            </Button>
-           <Button variant="outline" size="icon" className="rounded-full" onClick={() => window.print()}>
-             <Download className="w-4 h-4" />
-           </Button>
+           {isPaid && (
+             <Button variant="outline" size="icon" className="rounded-full" onClick={() => window.print()}>
+               <Download className="w-4 h-4" />
+             </Button>
+           )}
         </div>
       </div>
 
@@ -120,6 +127,11 @@ export default function VoucherPage() {
                 {registration.checkedIn && (
                   <Badge className="bg-green-500 text-white border-none text-[10px] font-black uppercase flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" /> Utilizado
+                  </Badge>
+                )}
+                {!isPaid && (
+                  <Badge className="bg-orange-500 text-white border-none text-[10px] font-black uppercase flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> Pendente
                   </Badge>
                 )}
               </div>
@@ -175,35 +187,62 @@ export default function VoucherPage() {
                 </div>
               </div>
 
-              <div className="flex flex-col items-center justify-center p-8 bg-muted/30 rounded-[2rem] gap-6">
-                <div className="p-4 bg-white rounded-3xl shadow-inner">
+              <div className={cn(
+                "flex flex-col items-center justify-center p-8 rounded-[2rem] gap-6 transition-all",
+                isPaid ? "bg-muted/30" : "bg-orange-50 border-2 border-dashed border-orange-200"
+              )}>
+                <div className="p-4 bg-white rounded-3xl shadow-inner relative overflow-hidden">
                    <div className="w-48 h-48 relative flex items-center justify-center">
-                      {registration.ticketCode ? (
-                        <QRCodeSVG 
-                          value={registration.ticketCode} 
-                          size={192}
-                          level="H"
-                          includeMargin={false}
-                        />
+                      {isPaid ? (
+                        registration.ticketCode ? (
+                          <QRCodeSVG 
+                            value={registration.ticketCode} 
+                            size={192}
+                            level="H"
+                            includeMargin={false}
+                          />
+                        ) : (
+                          <Ticket className="w-20 h-20 text-secondary opacity-20" />
+                        )
                       ) : (
-                        <Ticket className="w-20 h-20 text-secondary opacity-20" />
+                        <div className="flex flex-col items-center gap-4 text-orange-500 animate-pulse">
+                          <Lock className="w-16 h-16" />
+                          <p className="text-[10px] font-black uppercase text-center leading-tight">
+                            QR Code bloqueado<br/>até a confirmação
+                          </p>
+                        </div>
                       )}
                    </div>
                 </div>
                 
                 <div className="text-center space-y-1">
                   <p className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Ticket ID</p>
-                  <p className="text-xl font-mono font-black tracking-tighter text-secondary">
-                    {registration.ticketCode || "GERANDO-ID-TICKET"}
+                  <p className={cn(
+                    "text-xl font-mono font-black tracking-tighter",
+                    isPaid ? "text-secondary" : "text-muted-foreground/30"
+                  )}>
+                    {isPaid ? (registration.ticketCode || "GERANDO-ID-TICKET") : "****-****-****-****"}
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="pt-4 text-center">
-              <p className="text-[9px] text-muted-foreground font-medium max-w-[200px] mx-auto uppercase tracking-tighter">
-                Apresente este voucher na entrada do evento para validação via app organizador.
-              </p>
+              {isPaid ? (
+                <p className="text-[9px] text-muted-foreground font-medium max-w-[200px] mx-auto uppercase tracking-tighter">
+                  Apresente este voucher na entrada do evento para validação via app organizador.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center gap-2 text-orange-600">
+                    <CreditCard className="w-4 h-4" />
+                    <p className="text-xs font-black uppercase italic tracking-tighter">Pagamento em processamento</p>
+                  </div>
+                  <p className="text-[9px] text-muted-foreground font-medium max-w-[240px] mx-auto uppercase tracking-tighter">
+                    Assim que o pagamento for confirmado pelo banco, seu QR Code de acesso será liberado automaticamente nesta página.
+                  </p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
