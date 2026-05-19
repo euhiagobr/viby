@@ -4,7 +4,7 @@
 import * as React from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useFirestore, useAuth, useUser } from "@/firebase"
-import { collection, addDoc, serverTimestamp, doc, updateDoc, increment } from "firebase/firestore"
+import { doc, updateDoc, serverTimestamp, increment } from "firebase/firestore"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, CheckCircle2, Ticket, ArrowRight } from "lucide-react"
@@ -34,55 +34,36 @@ export default function CheckoutSucessoPage() {
         }
 
         const metadata = session.metadata;
-        if (!metadata) return;
-
-        // Verificar se já processamos esse ingresso para evitar duplicatas (idempotência básica)
-        // Em produção, isso seria feito via Webhook de forma definitiva
-        
-        const regData = {
-          eventId: metadata.eventId,
-          eventTitle: metadata.eventTitle,
-          eventImage: metadata.eventImage || "",
-          eventDate: metadata.eventDate,
-          eventCity: metadata.eventCity || "",
-          userId: metadata.userId,
-          userName: metadata.userName,
-          userEmail: metadata.userEmail,
-          organizerId: metadata.organizerId,
-          timestamp: serverTimestamp(),
-          createdAt: serverTimestamp(),
-          
-          ticketBasePrice: parseFloat(metadata.ticketBasePrice),
-          price: parseFloat(metadata.price), 
-          administrativeFeeAmount: parseFloat(metadata.administrativeFeeAmount),
-          producerFeeAmount: parseFloat(metadata.producerFeeAmount),
-          producerNetAmount: parseFloat(metadata.producerNetAmount),
-          financialBreakdown: JSON.parse(metadata.financialBreakdown),
-
-          batchName: metadata.batchName,
-          checkedIn: false,
-          paymentStatus: "Pago",
-          stripeSessionId: sessionId,
-          ticketCode: metadata.ticketCode,
-          status: "Ativo",
-          visibility: "public",
-          purchaseType: "paid",
-          couponCode: metadata.couponCode || null
+        if (!metadata || !metadata.registrationId) {
+          toast({ variant: "destructive", title: "Erro na transação", description: "Metadados do ingresso não encontrados." });
+          router.push('/dashboard');
+          return;
         }
 
-        const docRef = await addDoc(collection(db, "registrations"), regData);
-        setRegistrationId(docRef.id);
+        const regId = metadata.registrationId;
+        setRegistrationId(regId);
 
+        // Atualizar o doc PENDENTE para PAGO
+        const regRef = doc(db, "registrations", regId);
+        
+        await updateDoc(regRef, {
+          paymentStatus: "Pago",
+          stripeSessionId: sessionId,
+          updatedAt: serverTimestamp(),
+          confirmedAt: serverTimestamp()
+        });
+
+        // Incrementar uso do cupom se existir
         if (metadata.couponId) {
-          updateDoc(doc(db, "coupons", metadata.couponId), {
+          await updateDoc(doc(db, "coupons", metadata.couponId), {
             currentUses: increment(1)
           });
         }
 
-        toast({ title: "Pagamento Confirmado!", description: "Seu ingresso foi gerado com sucesso." });
+        toast({ title: "Pagamento Confirmado!", description: "Seu ingresso foi liberado com sucesso." });
       } catch (error) {
         console.error("Erro ao processar sucesso:", error);
-        toast({ variant: "destructive", title: "Erro ao processar" });
+        toast({ variant: "destructive", title: "Erro ao sincronizar", description: "Seu pagamento foi feito, mas houve um erro ao atualizar o ingresso. Contate o suporte." });
       } finally {
         setLoading(false);
       }
@@ -95,7 +76,7 @@ export default function CheckoutSucessoPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-        <p className="font-bold text-muted-foreground animate-pulse uppercase tracking-widest text-xs">Confirmando seu pagamento...</p>
+        <p className="font-bold text-muted-foreground animate-pulse uppercase tracking-widest text-xs">Confirmando seu pagamento no Stripe...</p>
       </div>
     )
   }
@@ -108,11 +89,11 @@ export default function CheckoutSucessoPage() {
             <CheckCircle2 className="w-10 h-10" />
           </div>
           <h1 className="text-3xl font-black italic uppercase tracking-tighter">Tudo Certo!</h1>
-          <p className="text-green-50 font-medium text-center opacity-80">Sua reserva foi confirmada e o pagamento processado com sucesso.</p>
+          <p className="text-green-50 font-medium text-center opacity-80">Sua reserva foi reconhecida e o pagamento processado com sucesso.</p>
         </div>
         <CardContent className="p-10 space-y-8 text-center">
           <div className="space-y-2">
-            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Seu ingresso está disponível em</p>
+            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Seu QR Code de acesso já está disponível em</p>
             <div className="flex items-center justify-center gap-2 text-xl font-bold text-primary">
               <Ticket className="w-6 h-6 text-secondary" />
               Meus Ingressos

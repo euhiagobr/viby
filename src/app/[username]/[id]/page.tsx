@@ -142,8 +142,11 @@ export default function EventoDetalhesPage() {
       }
 
       const salesPerBatch = (allRegistrations || []).reduce((acc: Record<string, number>, reg: any) => {
-        const bName = reg.batchName || "Lote Único"
-        acc[bName] = (acc[bName] || 0) + 1
+        // Apenas contagem de pagos ou disponíveis conta contra o estoque
+        if (reg.paymentStatus === 'Pago' || reg.paymentStatus === 'Disponível') {
+          const bName = reg.batchName || "Lote Único"
+          acc[bName] = (acc[bName] || 0) + 1
+        }
         return acc
       }, {})
 
@@ -194,7 +197,7 @@ export default function EventoDetalhesPage() {
 
   React.useEffect(() => {
     if (!user || !allRegistrations) return
-    const userReg = allRegistrations.find((r: any) => r.userId === user.uid)
+    const userReg = allRegistrations.find((r: any) => r.userId === user.uid && (r.paymentStatus === 'Pago' || r.paymentStatus === 'Disponível'))
     setIsRegistered(!!userReg)
   }, [user, allRegistrations])
 
@@ -314,7 +317,7 @@ export default function EventoDetalhesPage() {
         administrativeFeeAmount: breakdown.administrativeFeeAmount,
         producerFeeAmount: breakdown.producerFeeAmount,
         producerNetAmount: breakdown.producerNetAmount,
-        financialBreakdown: JSON.stringify(breakdown), // Serializado para o Stripe
+        financialBreakdown: breakdown,
 
         batchName: batchName,
         checkedIn: false,
@@ -323,11 +326,16 @@ export default function EventoDetalhesPage() {
         status: "Ativo",
         visibility: "public",
         purchaseType: breakdown.customerFinalPrice === 0 ? "free" : "paid",
-        couponCode: appliedCoupon?.code || null
+        couponCode: appliedCoupon?.code || null,
+        createdAt: serverTimestamp(),
+        timestamp: serverTimestamp()
       }
 
-      // Se for pago, vai para o Stripe
+      // Se for pago, cria o doc como PENDENTE e vai para o Stripe
       if (breakdown.customerFinalPrice > 0) {
+        // Criar o registro no banco antes do redirect para o Stripe
+        const docRef = await addDoc(collection(db, "registrations"), regData);
+
         const { url } = await createCheckoutSession({
           eventId,
           eventTitle: event.title,
@@ -337,7 +345,9 @@ export default function EventoDetalhesPage() {
           userEmail: user.email!,
           totalAmount: breakdown.customerFinalPrice * 100, // Centavos
           metadata: {
-            ...regData,
+            registrationId: docRef.id,
+            eventId,
+            userId: user.uid,
             batchName: batchName,
             ticketCode: ticketCode,
             isCouponApplied: !!appliedCoupon,
@@ -353,12 +363,9 @@ export default function EventoDetalhesPage() {
         }
       }
 
-      // Se for grátis, salva direto
-      addDoc(collection(db, "registrations"), {
+      // Se for grátis, salva direto como disponível
+      await addDoc(collection(db, "registrations"), {
         ...regData,
-        timestamp: serverTimestamp(),
-        createdAt: serverTimestamp(),
-        financialBreakdown: breakdown,
         paymentStatus: "Disponível"
       })
       
