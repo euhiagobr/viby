@@ -109,6 +109,7 @@
         "userGender": { "type": "string" },
         "userBirthDate": { "type": "string", "format": "date" },
         "organizerId": { "type": "string" },
+        "organizerUsername": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" },
         "price": { "type": "number", "description": "Preço final pago pelo comprador" },
         "ticketBasePrice": { "type": "number", "description": "Valor nominal do ingresso definido pelo produtor" },

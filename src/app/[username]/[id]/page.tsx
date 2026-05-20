@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -350,6 +351,7 @@ export default function EventoDetalhesPage() {
         userGender: currentUserProfile?.gender || "Não informado",
         userBirthDate: currentUserProfile?.birthDate || "",
         organizerId: event.organizerId,
+        organizerUsername: usernameFromUrl,
         
         ticketBasePrice: breakdown.ticketBasePrice,
         price: breakdown.customerFinalPrice, 
@@ -415,7 +417,8 @@ export default function EventoDetalhesPage() {
         ticketCode: regData.ticketCode,
         eventDate: eventDate,
         eventCity: regData.eventCity || "Local Confirmado",
-        voucherUrl: `${window.location.origin}/dashboard/ingressos/${newDocRef.id}/voucher`
+        voucherUrl: `${window.location.origin}/dashboard/ingressos/${newDocRef.id}/voucher`,
+        eventUrl: `https://viby.club/${usernameFromUrl}/${eventId}`
       });
 
       if (appliedCoupon) {
@@ -440,7 +443,7 @@ export default function EventoDetalhesPage() {
       return
     }
 
-    if (!db || !eventId || !reportReason) return
+    if (!db || !eventId || !event || !reportReason) return
 
     setIsSubmittingReport(true)
     const reportData = {
