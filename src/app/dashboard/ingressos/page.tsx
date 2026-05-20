@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -69,7 +70,7 @@ export default function MeusIngressosPage() {
     )
   }
 
-  // Separar ingressos que o usuário precisa aceitar
+  // Filtros de estados do ingresso
   const pendingIncoming = (registrations || []).filter(r => r.sharedWithUid === user?.uid && r.transferStatus === 'pending');
   const myOwned = (registrations || []).filter(r => (r.userId === user?.uid && !r.sharedWithUid) || (r.sharedWithUid === user?.uid && r.transferStatus === 'accepted'));
   const mySent = (registrations || []).filter(r => r.userId === user?.uid && r.sharedWithUid && r.transferStatus === 'pending');
@@ -81,11 +82,15 @@ export default function MeusIngressosPage() {
         <p className="text-muted-foreground font-medium">Sua coleção de experiências e acessos confirmados.</p>
       </div>
 
+      {/* SEÇÃO 1: CONVITES PARA VOCÊ ACEITAR */}
       {pendingIncoming.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-sm font-black uppercase tracking-widest text-secondary flex items-center gap-2">
-             <UserCheck className="w-4 h-4" /> Convites Recebidos ({pendingIncoming.length})
-          </h2>
+        <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-sm font-black uppercase tracking-widest text-secondary flex items-center gap-2">
+               <UserCheck className="w-4 h-4" /> Convites Recebidos ({pendingIncoming.length})
+            </h2>
+            <p className="text-[10px] text-muted-foreground font-medium">Outros usuários vincularam estes ingressos ao seu CPF. Aceite para visualizar o voucher.</p>
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {pendingIncoming.map((reg) => (
               <TicketListItem key={reg.id} registration={reg} isIncoming />
@@ -108,11 +113,12 @@ export default function MeusIngressosPage() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-12">
+           {/* SEÇÃO 2: SEUS INGRESSOS (COMPRADOS OU ACEITOS) */}
            {myOwned.length > 0 && (
              <div className="space-y-4">
                <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                  <Ticket className="w-4 h-4" /> Ingressos Ativos
+                  <Ticket className="w-4 h-4" /> Seus Ingressos Ativos
                </h2>
                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                  {myOwned.map((reg) => (
@@ -122,11 +128,15 @@ export default function MeusIngressosPage() {
              </div>
            )}
 
+           {/* SEÇÃO 3: INGRESSOS QUE VOCÊ ENVIOU PARA OUTROS */}
            {mySent.length > 0 && (
              <div className="space-y-4">
-               <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                  <Share2 className="w-4 h-4" /> Nomeados para Terceiros
-               </h2>
+               <div className="flex flex-col gap-1">
+                 <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                    <Share2 className="w-4 h-4" /> Nomeados para Terceiros ({mySent.length})
+                 </h2>
+                 <p className="text-[10px] text-muted-foreground font-medium">Estes ingressos foram vinculados a outros CPFs e aguardam o aceite do destinatário.</p>
+               </div>
                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                  {mySent.map((reg) => (
                    <TicketListItem key={reg.id} registration={reg} isSent />
@@ -175,16 +185,7 @@ function TicketListItem({ registration, isIncoming = false, isSent = false }: { 
   const formatCPF = (v: string) => {
     v = v.replace(/\D/g, "");
     if (v.length > 11) v = v.slice(0, 11);
-    if (v.length > 9) {
-      return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-    }
-    if (v.length > 6) {
-      return v.replace(/(\d{3})(\d{3})(\d{1,3})/, "$1.$2.$3");
-    }
-    if (v.length > 3) {
-      return v.replace(/(\d{3})(\d{1,3})/, "$1.$2");
-    }
-    return v;
+    return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4").replace(/(\d{3})(\d{3})(\d{3})/, "$1.$2.$3").replace(/(\d{3})(\d{3})/, "$1.$2");
   }
 
   const handleUseMyData = () => {
@@ -201,16 +202,12 @@ function TicketListItem({ registration, isIncoming = false, isSent = false }: { 
       let sharedWithUid = null;
       let transferStatus = null;
 
-      // Se o CPF for preenchido, verificar se pertence a algum usuário cadastrado
       if (attendeeCPF) {
-        // Criptografa o CPF de forma determinística para buscar no banco
         const encryptedCpfSearch = encryptDeterministic(attendeeCPF.trim());
-        
         const q = query(collection(db, "users"), where("cpf", "==", encryptedCpfSearch));
         const snap = await getDocs(q);
         if (!snap.empty) {
           const targetUid = snap.docs[0].id;
-          // Não permitir transferir para si mesmo se já for o dono
           if (targetUid !== user?.uid) {
             sharedWithUid = targetUid;
             transferStatus = 'pending';
