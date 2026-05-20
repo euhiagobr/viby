@@ -57,8 +57,6 @@ export async function sendTicketEmail(data: EmailData) {
     }
 
     // Gerar o Buffer da imagem do QR Code
-    // Muitos clientes de e-mail bloqueiam Data URIs (base64) diretamente no HTML.
-    // O uso de CID (Content-ID) como anexo é a forma mais robusta de garantir a exibição.
     const qrCodeBuffer = await QRCode.toBuffer(data.ticketCode, {
       margin: 1,
       width: 400,
@@ -97,6 +95,8 @@ export async function sendTicketEmail(data: EmailData) {
           .label { font-size: 10px; text-transform: uppercase; font-weight: 900; color: #64748b; letter-spacing: 1px; margin-bottom: 4px; }
           .event-link { margin-top: 15px; padding-top: 15px; border-top: 1px solid #cbd5e1; text-align: center; }
           .event-link a { color: #2563eb; text-decoration: none; font-size: 11px; font-weight: bold; text-transform: uppercase; }
+          .social-section { text-align: center; margin-top: 40px; padding-top: 30px; border-top: 1px solid #f1f5f9; }
+          .social-link { color: #E1306C; text-decoration: none; font-weight: bold; font-size: 14px; }
         </style>
       </head>
       <body>
@@ -131,14 +131,19 @@ export async function sendTicketEmail(data: EmailData) {
 
             <div class="qr-container">
               <div class="label">Apresente este QR Code na entrada</div>
-              <!-- Referenciando a imagem anexada via cid -->
               <img src="cid:ticket-qrcode" alt="Ticket QR Code" class="qr-image" />
               <div class="ticket-code">${data.ticketCode}</div>
-              <p style="font-size: 11px; color: #94a3b8; margin-top: 15px;">Dica: Salve este e-mail ou tire um print do QR Code.</p>
             </div>
 
             <div style="text-align: center; margin-top: 30px;">
               <a href="${data.voucherUrl}" class="button">Ver Voucher Completo</a>
+            </div>
+
+            <div class="social-section">
+              <p style="margin: 0 0 10px 0; font-size: 13px; color: #64748b; font-weight: 500;">Fique por dentro das novidades!</p>
+              <a href="https://instagram.com/vibyclub" target="_blank" class="social-link">
+                Siga nosso Instagram oficial →
+              </a>
             </div>
           </div>
           <div class="footer">
@@ -159,7 +164,7 @@ export async function sendTicketEmail(data: EmailData) {
         {
           filename: 'qrcode.png',
           content: qrCodeBuffer,
-          cid: 'ticket-qrcode' // Content-ID referenciado no HTML
+          cid: 'ticket-qrcode'
         }
       ]
     });
