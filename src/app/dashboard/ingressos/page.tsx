@@ -95,8 +95,7 @@ export default function MeusIngressosPage() {
     (r.sharedWithUid === user?.uid && r.transferStatus === 'accepted')
   );
 
-  // 3. Ingressos que eu transferi para alguém (Sou o dono original, mas não tenho mais a posse)
-  // Ou sou o titular intermediário que passou para frente
+  // 3. Ingressos que eu transferi para alguém (Sou o dono original, mas não tenho mais a posse ativa)
   const myHistorical = (registrations || []).filter(r => 
     r.userId === user?.uid && 
     r.sharedWithUid && 
@@ -237,7 +236,6 @@ function TicketListItem({ registration, isIncoming = false, isHistorical = false
     setIsSaving(true)
     try {
       let sharedWithUid = null;
-      let targetUser = null;
 
       const cleanCPF = attendeeCPF.replace(/\D/g, "");
       const encryptedCpfSearch = encryptDeterministic(cleanCPF);
@@ -246,12 +244,11 @@ function TicketListItem({ registration, isIncoming = false, isHistorical = false
       
       if (!snap.empty) {
         sharedWithUid = snap.docs[0].id;
-        targetUser = snap.docs[0].data();
       }
 
       const historyEntry = {
         fromUid: user.uid,
-        fromName: profile?.name || user.displayName || "Antigo Titular",
+        fromName: profile?.name || user.displayName || "Titular",
         toUid: sharedWithUid,
         toName: attendeeName,
         timestamp: new Date().toISOString(),
@@ -350,10 +347,10 @@ function TicketListItem({ registration, isIncoming = false, isHistorical = false
   }
 
   const formatDate = (dateValue: any) => {
-    if (!dateValue) return "A definir";
+    if (!dateValue) return "---";
     try {
       let d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
-      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
     } catch (e) { return "---"; }
   }
 
@@ -397,7 +394,7 @@ function TicketListItem({ registration, isIncoming = false, isHistorical = false
             </div>
             <div className="flex items-center gap-2 text-[10px] font-bold text-primary uppercase">
               <UserIcon className="w-3 h-3 text-muted-foreground" />
-              <span>{registration.attendeeName || "Participante não definido"}</span>
+              <span className="truncate max-w-[150px]">{registration.attendeeName || registration.userName}</span>
             </div>
           </div>
         </div>
@@ -457,8 +454,8 @@ function TicketListItem({ registration, isIncoming = false, isHistorical = false
                              <div className="flex items-center gap-3">
                                 <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white text-[10px] font-black">1</div>
                                 <div className="space-y-0.5">
-                                   <p className="text-xs font-black uppercase">{registration.userName} (Comprador)</p>
-                                   <p className="text-[10px] text-muted-foreground uppercase">Comprado em {formatDate(registration.timestamp)}</p>
+                                   <p className="text-xs font-black uppercase">{registration.userName} (Comprador Original)</p>
+                                   <p className="text-[10px] text-muted-foreground uppercase">Adquirido em {formatDate(registration.timestamp)}</p>
                                 </div>
                              </div>
                              {(registration.transferChain || []).map((step: any, i: number) => (
@@ -472,15 +469,23 @@ function TicketListItem({ registration, isIncoming = false, isHistorical = false
                                          step.status === 'accepted' ? "bg-green-500" : step.status === 'pending' ? "bg-orange-500" : "bg-muted"
                                       )}>{i + 2}</div>
                                       <div className="space-y-0.5">
-                                         <p className="text-xs font-black uppercase">{step.toName}</p>
+                                         <p className="text-xs font-black uppercase">Enviado para: {step.toName}</p>
                                          <p className="text-[10px] text-muted-foreground uppercase">
                                             {step.status === 'accepted' ? `Aceito em ${new Date(step.acceptedAt).toLocaleDateString('pt-BR')}` :
-                                             step.status === 'pending' ? 'Aguardando Aceite...' : 'Cancelado'}
+                                             step.status === 'pending' ? 'Aguardando aceite...' : 
+                                             step.status === 'rejected' ? 'Recusado pelo destinatário' : 'Cancelado pelo remetente'}
                                          </p>
                                       </div>
                                    </div>
                                 </React.Fragment>
                              ))}
+                          </div>
+
+                          <div className="p-4 bg-muted/50 rounded-2xl border-2 border-dashed border-border flex gap-3">
+                             <Info className="w-5 h-5 text-secondary shrink-0" />
+                             <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
+                               O portador atual do ingresso é <strong>{registration.attendeeName || registration.userName}</strong>. Apenas o titular atual tem acesso ao QR Code válido para entrada.
+                             </p>
                           </div>
                        </div>
                     </DialogContent>
@@ -523,6 +528,10 @@ function TicketListItem({ registration, isIncoming = false, isHistorical = false
                       <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase opacity-60">Nome Completo</Label>
                         <Input value={attendeeName} onChange={(e) => setAttendeeName(e.target.value)} placeholder="Nome do participante" className="rounded-xl" />
+                      </div>
+                      <div className="p-3 bg-muted/50 rounded-lg flex gap-2">
+                        <Info className="w-4 h-4 text-secondary shrink-0" />
+                        <p className="text-[9px] text-muted-foreground leading-tight">Se o CPF pertencer a outro usuário, o ingresso aparecerá no painel dele para aceite.</p>
                       </div>
                     </div>
                     <DialogFooter>
