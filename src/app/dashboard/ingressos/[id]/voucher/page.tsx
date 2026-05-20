@@ -21,7 +21,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Lock,
-  CreditCard
+  History
 } from "lucide-react"
 import Image from "next/image"
 import { QRCodeSVG } from "qrcode.react"
@@ -43,7 +43,6 @@ export default function VoucherPage() {
     if (!dateValue) return "A definir";
     try {
       let d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
-      if (isNaN(d.getTime())) return "A definir";
       return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     } catch (e) { return "---"; }
   }
@@ -52,7 +51,6 @@ export default function VoucherPage() {
     if (!dateValue) return "";
     try {
       let d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
-      if (isNaN(d.getTime())) return "";
       return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     } catch (e) { return ""; }
   }
@@ -75,17 +73,15 @@ export default function VoucherPage() {
     )
   }
 
-  if (user && registration.userId !== user.uid && registration.sharedWithUid !== user.uid) {
-    return (
-       <div className="flex flex-col items-center justify-center h-[70vh] gap-4">
-        <h2 className="text-xl font-bold text-destructive">Acesso Negado</h2>
-        <p className="text-muted-foreground">Este voucher não pertence à sua conta.</p>
-        <Button onClick={() => router.push('/dashboard/ingressos')}>Meus Ingressos</Button>
-      </div>
-    )
-  }
+  // Verificação de POSSE ATIVA
+  // Um usuário tem a posse ativa se:
+  // 1. É o destinatário compartilhado E aceitou o ingresso
+  // 2. É o comprador original E não transferiu para ninguém (ou o convite foi cancelado/recusado)
+  const isAcceptedHolder = registration.sharedWithUid === user?.uid && registration.transferStatus === 'accepted';
+  const isOriginalActiveOwner = registration.userId === user?.uid && !registration.sharedWithUid;
+  const isCurrentActivePossessor = isAcceptedHolder || isOriginalActiveOwner;
 
-  const isPaid = registration.paymentStatus === "Pago" || registration.paymentStatus === "Disponível" || registration.price === 0;
+  const isPaid = registration.paymentStatus === "Pago" || registration.paymentStatus === "Disponível" || (registration.price || 0) === 0;
 
   return (
     <div className="max-w-xl mx-auto space-y-8 pb-20 pt-6">
@@ -98,7 +94,7 @@ export default function VoucherPage() {
            <Button variant="outline" size="icon" className="rounded-full">
              <Share2 className="w-4 h-4" />
            </Button>
-           {isPaid && (
+           {isCurrentActivePossessor && isPaid && (
              <Button variant="outline" size="icon" className="rounded-full" onClick={() => window.print()}>
                <Download className="w-4 h-4" />
              </Button>
@@ -129,9 +125,9 @@ export default function VoucherPage() {
                     <CheckCircle2 className="w-3 h-3" /> Utilizado
                   </Badge>
                 )}
-                {!isPaid && (
+                {!isCurrentActivePossessor && (
                   <Badge className="bg-orange-500 text-white border-none text-[10px] font-black uppercase flex items-center gap-1">
-                    <Lock className="w-3 h-3" /> Pendente
+                    <History className="w-3 h-3" /> Transferido
                   </Badge>
                 )}
               </div>
@@ -148,14 +144,14 @@ export default function VoucherPage() {
             <div className="grid grid-cols-2 gap-8">
               <div className="space-y-1">
                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Data</p>
-                <div className="flex items-center gap-2 font-bold text-sm">
+                <div className="flex items-center gap-2 font-bold text-sm text-primary">
                   <Calendar className="w-3.5 h-3.5 text-secondary" />
                   {formatDate(registration.eventDate)}
                 </div>
               </div>
               <div className="space-y-1">
                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Horário</p>
-                <div className="flex items-center gap-2 font-bold text-sm">
+                <div className="flex items-center gap-2 font-bold text-sm text-primary">
                   <Clock className="w-3.5 h-3.5 text-secondary" />
                   {formatTime(registration.eventDate)}
                 </div>
@@ -164,54 +160,47 @@ export default function VoucherPage() {
 
             <div className="space-y-1">
               <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Local</p>
-              <div className="flex items-start gap-2 font-bold text-sm">
+              <div className="flex items-start gap-2 font-bold text-sm text-primary">
                 <MapPin className="w-3.5 h-3.5 text-secondary shrink-0 mt-0.5" />
-                <span className="line-clamp-1">{registration.eventCity || "Local a definir"}</span>
+                <span className="line-clamp-1">{registration.eventCity || "Local Confirmado"}</span>
               </div>
             </div>
 
             <div className="pt-6 border-t border-dashed border-border/60 space-y-6">
               <div className="flex justify-between items-end">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Participante</p>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Titular do Ingresso</p>
                   <div className="flex items-center gap-2 font-black text-base italic uppercase text-primary">
                     <User className="w-4 h-4 text-secondary" />
                     {registration.attendeeName || registration.userName}
                   </div>
-                  {registration.attendeeCPF && (
-                    <p className="text-[10px] font-bold text-muted-foreground ml-6">CPF: {registration.attendeeCPF}</p>
-                  )}
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Preço</p>
-                  <p className="font-bold text-sm">
-                    {registration.price === 0 ? "GRÁTIS" : formatCurrency(registration.price)}
+                  <p className="font-black text-sm text-primary">
+                    {formatCurrency(registration.price || 0)}
                   </p>
                 </div>
               </div>
 
               <div className={cn(
                 "flex flex-col items-center justify-center p-8 rounded-[2rem] gap-6 transition-all",
-                isPaid ? "bg-muted/30" : "bg-orange-50 border-2 border-dashed border-orange-200"
+                isCurrentActivePossessor ? "bg-muted/30" : "bg-orange-50 border-2 border-dashed border-orange-200"
               )}>
                 <div className="p-4 bg-white rounded-3xl shadow-inner relative overflow-hidden">
                    <div className="w-48 h-48 relative flex items-center justify-center">
-                      {isPaid ? (
-                        registration.ticketCode ? (
-                          <QRCodeSVG 
-                            value={registration.ticketCode} 
-                            size={192}
-                            level="H"
-                            includeMargin={false}
-                          />
-                        ) : (
-                          <Ticket className="w-20 h-20 text-secondary opacity-20" />
-                        )
+                      {isCurrentActivePossessor && isPaid ? (
+                        <QRCodeSVG 
+                          value={registration.ticketCode || "VOID"} 
+                          size={192}
+                          level="H"
+                        />
                       ) : (
-                        <div className="flex flex-col items-center gap-4 text-orange-500 animate-pulse">
-                          <Lock className="w-16 h-16" />
-                          <p className="text-[10px] font-black uppercase text-center leading-tight">
-                            QR Code bloqueado<br/>até a confirmação
+                        <div className="flex flex-col items-center gap-4 text-orange-500 text-center">
+                          <Lock className="w-16 h-16 opacity-30" />
+                          <p className="text-[10px] font-black uppercase leading-tight">
+                            QR Code Indisponível<br/>
+                            {!isCurrentActivePossessor ? "Ingresso Transferido" : "Aguardando Pagamento"}
                           </p>
                         </div>
                       )}
@@ -219,40 +208,33 @@ export default function VoucherPage() {
                 </div>
                 
                 <div className="text-center space-y-1">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Ticket ID</p>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Voucher ID</p>
                   <p className={cn(
                     "text-xl font-mono font-black tracking-tighter",
-                    isPaid ? "text-secondary" : "text-muted-foreground/30"
+                    isCurrentActivePossessor ? "text-secondary" : "text-muted-foreground/30"
                   )}>
-                    {isPaid ? (registration.ticketCode || "GERANDO-ID-TICKET") : "****-****-****-****"}
+                    {isCurrentActivePossessor ? (registration.ticketCode || "GERANDO...") : "****-****-****-****"}
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="pt-4 text-center">
-              {isPaid ? (
-                <p className="text-[9px] text-muted-foreground font-medium max-w-[200px] mx-auto uppercase tracking-tighter">
-                  Apresente este voucher na entrada do evento para validação via app organizador.
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-center gap-2 text-orange-600">
-                    <CreditCard className="w-4 h-4" />
-                    <p className="text-xs font-black uppercase italic tracking-tighter">Pagamento em processamento</p>
-                  </div>
-                  <p className="text-[9px] text-muted-foreground font-medium max-w-[240px] mx-auto uppercase tracking-tighter">
-                    Assim que o pagamento for confirmado pelo banco, seu QR Code de acesso será liberado automaticamente nesta página.
-                  </p>
+              {!isCurrentActivePossessor && registration.userId === user?.uid ? (
+                <div className="space-y-2">
+                   <p className="text-[10px] font-black text-orange-600 uppercase italic">Este ingresso foi transferido por você.</p>
+                   <p className="text-[9px] text-muted-foreground font-medium max-w-[200px] mx-auto uppercase">
+                     Você ainda pode acompanhar o rastro de posse no seu painel de ingressos.
+                   </p>
                 </div>
+              ) : (
+                <p className="text-[9px] text-muted-foreground font-medium max-w-[200px] mx-auto uppercase tracking-tighter">
+                  Apresente este voucher na entrada do evento para validação.
+                </p>
               )}
             </div>
           </CardContent>
         </Card>
-      </div>
-      
-      <div className="text-center">
-        <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest opacity-40">Viby Club Platform</p>
       </div>
     </div>
   )
