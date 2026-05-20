@@ -1,4 +1,3 @@
-
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -36,19 +35,25 @@ async function getEmailConfig() {
     throw new Error('Configuração de e-mail não encontrada no painel administrativo.');
   }
 
+  const data = emailDoc.data();
   return {
-    smtpUser: emailDoc.data().smtpUser,
-    smtpPass: emailDoc.data().smtpPass,
+    smtpUser: data.smtpUser as string,
+    smtpPass: data.smtpPass as string,
   };
 }
 
 export async function sendTicketEmail(data: EmailData) {
   try {
+    // Validação básica de entrada
+    if (!data.to || typeof data.to !== 'string') {
+      return { success: false, error: 'E-mail do destinatário inválido ou ausente.' };
+    }
+
     const { smtpUser, smtpPass } = await getEmailConfig();
 
     if (!smtpUser || !smtpPass) {
       console.warn('Configurações de e-mail incompletas no banco de dados.');
-      return { success: false, error: 'Credenciais de e-mail ausentes' };
+      return { success: false, error: 'Credenciais de e-mail (SMTP) não configuradas no sistema.' };
     }
 
     // Gerar QR Code como Data URI para embutir no e-mail
@@ -151,6 +156,6 @@ export async function sendTicketEmail(data: EmailData) {
     return { success: true };
   } catch (error: any) {
     console.error('Erro ao enviar e-mail:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error.message || 'Erro desconhecido no servidor de e-mail.' };
   }
 }

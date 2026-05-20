@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -234,14 +233,18 @@ function TicketListItem({ registration, isIncoming = false, isHistorical = false
   }
 
   const handleResendEmail = async () => {
-    if (!registration) return
+    if (!registration || !user?.email) {
+      toast({ variant: "destructive", title: "Erro", description: "Seu e-mail não foi encontrado para envio." })
+      return
+    }
+    
     setIsSendingEmail(true)
     try {
       const eventDate = registration.eventDate?.toDate ? registration.eventDate.toDate().toLocaleString('pt-BR') : new Date(registration.eventDate).toLocaleString('pt-BR');
       
       const result = await sendTicketEmail({
-        to: registration.userEmail,
-        userName: registration.attendeeName || registration.userName,
+        to: user.email, // Enviamos sempre para o e-mail do usuário logado que está visualizando o ingresso
+        userName: registration.attendeeName || registration.userName || user.displayName || "Participante",
         eventTitle: registration.eventTitle,
         ticketCode: registration.ticketCode,
         eventDate: eventDate,
@@ -251,7 +254,7 @@ function TicketListItem({ registration, isIncoming = false, isHistorical = false
       });
 
       if (result.success) {
-        toast({ title: "E-mail enviado!", description: `O ingresso foi enviado para ${registration.userEmail}.` })
+        toast({ title: "E-mail enviado!", description: `O ingresso foi enviado para ${user.email}.` })
       } else {
         throw new Error(result.error)
       }
