@@ -31,6 +31,16 @@ import {
   TableRow 
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/financial-utils"
@@ -39,6 +49,7 @@ import Link from "next/link"
 export default function AdminAnunciosPage() {
   const db = useFirestore()
   const [search, setSearch] = React.useState("")
+  const [adToDelete, setAdToDelete] = React.useState<{id: string, title: string} | null>(null)
 
   const adsQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -69,14 +80,15 @@ export default function AdminAnunciosPage() {
     }
   }
 
-  const handleDeleteAd = async (id: string) => {
-    if (!db) return
-    if (!confirm("Excluir permanentemente este registro de anúncio?")) return
+  const handleDeleteAd = async () => {
+    if (!db || !adToDelete) return
     try {
-      await deleteDoc(doc(db, "ads", id))
+      await deleteDoc(doc(db, "ads", adToDelete.id))
       toast({ title: "Anúncio removido" })
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao remover" })
+    } finally {
+      setAdToDelete(null)
     }
   }
 
@@ -143,20 +155,40 @@ export default function AdminAnunciosPage() {
         </TabsList>
 
         <TabsContent value="pending">
-          <AdTable ads={pendingAds} onUpdate={handleUpdateStatus} onDelete={handleDeleteAd} />
+          <AdTable ads={pendingAds} onUpdate={handleUpdateStatus} onDelete={(id, title) => setAdToDelete({id, title})} />
         </TabsContent>
         <TabsContent value="active">
-          <AdTable ads={activeAds} onUpdate={handleUpdateStatus} onDelete={handleDeleteAd} />
+          <AdTable ads={activeAds} onUpdate={handleUpdateStatus} onDelete={(id, title) => setAdToDelete({id, title})} />
         </TabsContent>
         <TabsContent value="all">
-          <AdTable ads={otherAds} onUpdate={handleUpdateStatus} onDelete={handleDeleteAd} />
+          <AdTable ads={otherAds} onUpdate={handleUpdateStatus} onDelete={(id, title) => setAdToDelete({id, title})} />
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={!!adToDelete} onOpenChange={(open) => !open && setAdToDelete(null)}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-bold">Excluir este anúncio?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A campanha do evento <strong>"{adToDelete?.title}"</strong> será removida permanentemente. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl font-bold">Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteAd}
+              className="bg-destructive text-white hover:bg-destructive/90 rounded-xl font-bold"
+            >
+              Confirmar Exclusão
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
 
-function AdTable({ ads, onUpdate, onDelete }: { ads: any[], onUpdate: (id: string, s: string) => void, onDelete: (id: string) => void }) {
+function AdTable({ ads, onUpdate, onDelete }: { ads: any[], onUpdate: (id: string, s: string) => void, onDelete: (id: string, title: string) => void }) {
   if (ads.length === 0) {
     return (
       <Card className="border-none shadow-sm rounded-2xl bg-white p-12 text-center">
@@ -237,7 +269,7 @@ function AdTable({ ads, onUpdate, onDelete }: { ads: any[], onUpdate: (id: strin
                     variant="ghost" 
                     size="icon" 
                     className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                    onClick={() => onDelete(ad.id)}
+                    onClick={() => onDelete(ad.id, ad.eventTitle)}
                     title="Excluir"
                   >
                     <Trash2 className="w-4 h-4" />
