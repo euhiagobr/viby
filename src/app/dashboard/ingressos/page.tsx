@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -26,7 +25,8 @@ import {
   AlertTriangle,
   XCircle,
   ArrowRight,
-  Info
+  Info,
+  Undo2
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -269,6 +269,26 @@ function TicketListItem({ registration, isIncoming = false, isSent = false }: { 
     }
   }
 
+  const handleCancelNomination = async () => {
+    if (!db || !registration.id) return
+    if (!confirm("Tem certeza que deseja cancelar esta nomeação? O ingresso voltará a ser seu.")) return
+
+    setIsSaving(true)
+    try {
+      await updateDoc(doc(db, "registrations", registration.id), {
+        sharedWithUid: null,
+        transferStatus: null,
+        attendeeCPF: "",
+        attendeeName: ""
+      })
+      toast({ title: "Nomeação cancelada!", description: "O ingresso voltou para sua lista ativa." })
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao cancelar" })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
     try {
@@ -360,7 +380,9 @@ function TicketListItem({ registration, isIncoming = false, isSent = false }: { 
                 </Button>
               </>
             ) : isSent ? (
-              <Badge variant="secondary" className="h-9 px-4 text-[9px] font-black uppercase rounded-xl">Aguardando Destinatário</Badge>
+              <Button size="sm" variant="outline" onClick={handleCancelNomination} disabled={isSaving} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-orange-500 text-orange-600 hover:bg-orange-50">
+                 {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Undo2 className="w-3.5 h-3.5 mr-1" />} Cancelar Nomeação
+              </Button>
             ) : (
               <>
                 <Dialog open={isNameModalOpen} onOpenChange={setIsNameModalOpen}>
