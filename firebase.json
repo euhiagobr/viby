@@ -12,22 +12,7 @@
   ],
   "hosting": [
     {
-      "target": "ong",
-      "public": "apps/ong/out",
-      "ignore": [
-        "firebase.json",
-        "**/.*",
-        "**/node_modules/**"
-      ],
-      "rewrites": [
-        {
-          "source": "**",
-          "destination": "/index.html"
-        }
-      ]
-    },
-    {
-      "target": "viby",
+      "target": "eventosviby",
       "public": "out",
       "ignore": [
         "firebase.json",
