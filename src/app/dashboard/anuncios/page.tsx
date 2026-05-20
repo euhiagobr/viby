@@ -25,7 +25,8 @@ import {
   CreditCard,
   Clock,
   AlertTriangle,
-  Coins
+  Coins,
+  Info
 } from "lucide-react"
 import {
   Dialog,
@@ -49,6 +50,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { createAdCheckoutSession } from "@/app/actions/stripe"
 import { formatCurrency } from "@/lib/financial-utils"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export default function AnunciosPage() {
   const db = useFirestore()
@@ -179,8 +181,6 @@ export default function AnunciosPage() {
     const diffTime = end.getTime() - now.getTime();
     const daysRemaining = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
     
-    // Se o consumo for baixo, o saldo médio por dia pode subir. 
-    // Para exibição, vamos mostrar o que ele tem disponível hoje, limitado ao orçamento total.
     const average = ad.budget / daysRemaining;
     return average;
   }
@@ -352,8 +352,6 @@ export default function AnunciosPage() {
             <div className="divide-y">
               {ads.map((ad: any) => {
                 const remainingDaily = calculateRemainingDaily(ad);
-                // Se a média diária restante for maior que o original por falta de uso,
-                // mostramos o original como "capacidade atual" para não confundir.
                 const displayDaily = Math.min(remainingDaily, ad.dailyBudget || Infinity);
                 const isUnderperforming = remainingDaily > (ad.dailyBudget || 0) * 1.1;
 
@@ -444,17 +442,15 @@ export default function AnunciosPage() {
         <div className="space-y-2 text-center md:text-left">
           <h3 className="text-xl font-black italic uppercase tracking-tighter">Como funciona o consumo?</h3>
           <p className="text-sm text-muted-foreground font-medium max-w-xl leading-relaxed">
-            Seu orçamento é consumido automaticamente: a cada 1.000 visualizações descontamos um valor proporcional do <strong>CPM</strong>, e a cada clique único descontamos o valor do <strong>CPC</strong>. O saldo diário restante mostra quanto você ainda pode performar hoje com base no seu saldo atual.
+            Seu orçamento é consumido automaticamente: a cada 1.000 visualizações descontamos um valor proporcional do <strong>CPM</strong>, e a cada clique único descontamos o valor do <strong>CPC</strong>.
           </p>
         </div>
         <Button variant="outline" className="h-12 px-6 ml-auto text-xs font-black uppercase border-secondary text-secondary rounded-xl gap-2" asChild>
-           <Link href="/dashboard/suporte">
-              <Coins className="w-4 h-4" /> Entender Taxas
+           <Link href="/dashboard/anuncios/valores">
+              <Coins className="w-4 h-4" /> Ver Tabela de Valores
            </Link>
         </Button>
       </div>
     </div>
   )
 }
-
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
