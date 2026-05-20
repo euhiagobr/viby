@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -71,6 +70,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { Footer } from "@/components/layout/Footer"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
@@ -528,7 +528,7 @@ export default function EventoDetalhesPage() {
   const embedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(addressString)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col">
       {/* Menu Superior */}
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -576,7 +576,7 @@ export default function EventoDetalhesPage() {
         </div>
       </nav>
 
-      <div className="space-y-8 pb-20 max-w-6xl mx-auto px-4 pt-10">
+      <div className="space-y-8 pb-20 max-w-6xl mx-auto px-4 pt-10 flex-1">
         <div className="flex items-center justify-between">
           <Button variant="ghost" onClick={() => router.back()} className="gap-2 font-semibold">
             <ArrowLeft className="w-4 h-4" />
@@ -621,7 +621,7 @@ export default function EventoDetalhesPage() {
                   </Badge>
                 )}
               </div>
-              <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-white tracking-tighter leadership-tight">{event.title}</h1>
+              <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-white tracking-tighter leading-tight">{event.title}</h1>
               <div className="flex flex-wrap gap-x-6 gap-y-3 text-white/90 text-sm font-semibold">
                 <span className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full">
                   <MapPin className="w-4 h-4 text-secondary" />
@@ -998,6 +998,7 @@ export default function EventoDetalhesPage() {
           </DialogContent>
         </Dialog>
       </div>
+      <Footer />
     </div>
   )
 }

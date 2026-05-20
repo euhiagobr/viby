@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -14,6 +13,7 @@ import { doc, getDoc } from "firebase/firestore"
 import { signOut } from "firebase/auth"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
+import Footer from "@/components/layout/Footer"
 
 export default function DashboardLayout({
   children,
@@ -90,7 +90,7 @@ export default function DashboardLayout({
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-[#f8fafc]">
         <AppSidebar />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto flex flex-col">
           <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur-md">
             <SidebarTrigger />
             
@@ -138,9 +138,10 @@ export default function DashboardLayout({
               )}
             </div>
           </header>
-          <div className="p-6 lg:p-10 max-w-7xl mx-auto">
+          <div className="p-6 lg:p-10 max-w-7xl mx-auto w-full flex-1">
             {children}
           </div>
+          <Footer />
         </main>
       </div>
     </SidebarProvider>

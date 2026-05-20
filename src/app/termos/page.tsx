@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -9,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { ArrowLeft, FileText, Globe, Mail, MapPin, User } from "lucide-react"
 import Link from "next/link"
 import { Separator } from "@/components/ui/separator"
+import { Footer } from "@/components/layout/Footer"
 
 export default function TermosDeUsoPage() {
   const db = useFirestore()
@@ -18,7 +18,7 @@ export default function TermosDeUsoPage() {
   const siteName = settings?.siteName || "Viby"
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col">
       {/* Menu Superior Simples */}
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -43,7 +43,7 @@ export default function TermosDeUsoPage() {
         </div>
       </nav>
 
-      <div className="container mx-auto px-4 py-12 md:py-20">
+      <div className="container mx-auto px-4 py-12 md:py-20 flex-1">
         <div className="max-w-4xl mx-auto space-y-12">
           <div className="space-y-4 text-center md:text-left">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary/10 text-secondary text-[10px] font-black uppercase tracking-widest">
@@ -145,7 +145,7 @@ export default function TermosDeUsoPage() {
                   <h2 className="text-xl font-black uppercase italic tracking-tight text-primary flex items-center gap-3">
                     <span className="text-secondary">7.</span> Conteúdo Proibido
                   </h2>
-                  <p>É proibida a utilização da plataforma para: discurso de ódio, discriminação, ameaças, assédio, conteúdos ilegais, divulgação enganosa, criação de eventos falsos, utilização de perfis falsos, spam, tentativa de fraude, violação de direitos autorais ou atividades ilícitas.</p>
+                  <p>É proibida a utilização da plataforma para: discurso de dódio, discriminação, ameaças, assédio, conteúdos ilegais, divulgação enganosa, criação de eventos falsos, utilização de perfis falsos, spam, tentativa de fraude, violação de direitos autorais ou atividades ilícitas.</p>
                 </section>
 
                 <section className="space-y-4">
@@ -239,18 +239,9 @@ export default function TermosDeUsoPage() {
               </div>
             </CardContent>
           </Card>
-
-          <div className="text-center space-y-4">
-             <div className="flex items-center justify-center gap-4 opacity-30">
-                <Globe className="w-5 h-5" />
-                <span className="text-xs font-black uppercase tracking-widest">Viby Club Platform - Brasil</span>
-             </div>
-             <p className="text-[10px] font-bold text-muted-foreground uppercase">
-               Este documento é parte integrante da experiência Viby.
-             </p>
-          </div>
         </div>
       </div>
+      <Footer />
     </div>
   )
 }

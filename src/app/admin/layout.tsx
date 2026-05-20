@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button';
 import { signOut } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import Footer from '@/components/layout/Footer';
 
 export default function AdminLayout({
   children,
@@ -160,9 +161,10 @@ export default function AdminLayout({
              </div>
           </div>
         </header>
-        <div className="p-10 max-w-7xl mx-auto w-full">
+        <div className="p-10 max-w-7xl mx-auto w-full flex-1">
           {children}
         </div>
+        <Footer />
       </main>
     </div>
   );

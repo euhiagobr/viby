@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ArrowLeft, ShieldCheck, Globe, Mail, MapPin, User, Lock, Eye, Database, Globe2 } from "lucide-react"
 import Link from "next/link"
+import { Footer } from "@/components/layout/Footer"
 
 export default function PoliticaPrivacidadePage() {
   const db = useFirestore()
@@ -16,7 +17,7 @@ export default function PoliticaPrivacidadePage() {
   const siteName = settings?.siteName || "Viby"
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col">
       {/* Menu Superior Simples */}
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -41,7 +42,7 @@ export default function PoliticaPrivacidadePage() {
         </div>
       </nav>
 
-      <div className="container mx-auto px-4 py-12 md:py-20">
+      <div className="container mx-auto px-4 py-12 md:py-20 flex-1">
         <div className="max-w-4xl mx-auto space-y-12">
           <div className="space-y-4 text-center md:text-left">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary/10 text-secondary text-[10px] font-black uppercase tracking-widest">
@@ -192,15 +193,9 @@ export default function PoliticaPrivacidadePage() {
               </div>
             </CardContent>
           </Card>
-
-          <div className="text-center space-y-4">
-             <div className="flex items-center justify-center gap-4 opacity-30">
-                <Globe2 className="w-5 h-5" />
-                <span className="text-xs font-black uppercase tracking-widest">Viby Club Platform - Proteção de Dados</span>
-             </div>
-          </div>
         </div>
       </div>
+      <Footer />
     </div>
   )
 }

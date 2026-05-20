@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -12,8 +11,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { Globe, Loader2, User, Mail } from "lucide-react"
+import { Globe, Loader2, User, Mail, ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import { Footer } from "@/components/layout/Footer"
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState("")
@@ -89,59 +89,85 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4 font-body">
-      <Card className="w-full max-w-md border-none shadow-xl">
-        <CardHeader className="space-y-1 flex flex-col items-center">
-          <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 overflow-hidden">
+    <div className="min-h-screen flex flex-col bg-muted/30 font-body">
+      <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
             {settings?.logoUrl ? (
-              <img src={settings.logoUrl} alt={siteName} className="max-w-full max-h-full object-contain p-2" />
+              <div className="w-8 h-8 relative flex items-center justify-center">
+                <img src={settings.logoUrl} alt={siteName} className="max-h-full max-w-full object-contain" />
+              </div>
             ) : (
-              <Globe className="text-white w-7 h-7" />
+              <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg">{siteName.charAt(0)}</span>
+              </div>
             )}
-          </div>
-          <CardTitle className="text-2xl font-bold">{siteName} Login</CardTitle>
-          <CardDescription>Acesse sua conta com e-mail ou nome de usuário.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="identifier">Identificador (E-mail ou Usuário)</Label>
-              <div className="relative">
-                <Input 
-                  id="identifier" 
-                  placeholder="seu@email.com ou seu_usuario" 
-                  value={identifier} 
-                  onChange={(e) => setIdentifier(e.target.value)} 
-                  className="pl-10"
-                  required 
-                />
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  {identifier.includes("@") ? <Mail className="h-4 w-4" /> : <User className="h-4 w-4" />}
+            <span className="text-xl font-bold tracking-tight">{siteName}</span>
+          </Link>
+          <Button variant="ghost" asChild className="font-semibold">
+            <Link href="/">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Voltar ao Início
+            </Link>
+          </Button>
+        </div>
+      </nav>
+
+      <div className="flex-1 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md border-none shadow-xl">
+          <CardHeader className="space-y-1 flex flex-col items-center">
+            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 overflow-hidden">
+              {settings?.logoUrl ? (
+                <img src={settings.logoUrl} alt={siteName} className="max-w-full max-h-full object-contain p-2" />
+              ) : (
+                <Globe className="text-white w-7 h-7" />
+              )}
+            </div>
+            <CardTitle className="text-2xl font-bold">{siteName} Login</CardTitle>
+            <CardDescription>Acesse sua conta com e-mail ou nome de usuário.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="identifier">Identificador (E-mail ou Usuário)</Label>
+                <div className="relative">
+                  <Input 
+                    id="identifier" 
+                    placeholder="seu@email.com ou seu_usuario" 
+                    value={identifier} 
+                    onChange={(e) => setIdentifier(e.target.value)} 
+                    className="pl-10"
+                    required 
+                  />
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                    {identifier.includes("@") ? <Mail className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label htmlFor="password">Senha</Label>
-                <Link href="#" className="text-xs text-secondary hover:underline">Esqueceu a senha?</Link>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label htmlFor="password">Senha</Label>
+                  <Link href="#" className="text-xs text-secondary hover:underline">Esqueceu a senha?</Link>
+                </div>
+                <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </div>
-              <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
-            </div>
-            <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold" disabled={loading}>
-              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Entrar no {siteName}
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex justify-center border-t border-border mt-4 pt-6">
-          <p className="text-sm text-muted-foreground">
-            Ainda não tem conta no {siteName}?{" "}
-            <Link href="/cadastro" className="text-secondary font-bold hover:underline">
-              Cadastrar-se
-            </Link>
-          </p>
-        </CardFooter>
-      </Card>
+              <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold" disabled={loading}>
+                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Entrar no {siteName}
+              </Button>
+            </form>
+          </CardContent>
+          <CardFooter className="flex justify-center border-t border-border mt-4 pt-6">
+            <p className="text-sm text-muted-foreground">
+              Ainda não tem conta no {siteName}?{" "}
+              <Link href="/cadastro" className="text-secondary font-bold hover:underline">
+                Cadastrar-se
+              </Link>
+            </p>
+          </CardFooter>
+        </Card>
+      </div>
+      <Footer />
     </div>
   )
 }

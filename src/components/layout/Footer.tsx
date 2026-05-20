@@ -6,7 +6,7 @@ import { Globe } from "lucide-react"
 import { useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
 
-export function Footer() {
+export default function Footer() {
   const db = useFirestore()
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)

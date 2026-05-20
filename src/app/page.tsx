@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { getCurrentLocation, calculateDistance, type Coordinates } from "@/lib/location-utils"
+import Footer from "@/components/layout/Footer"
 
 export default function LandingPage() {
   const db = useFirestore()
@@ -29,7 +30,6 @@ export default function LandingPage() {
   const [selectedCategory, setSelectedCategory] = React.useState("all")
   const [sortBy, setSortBy] = React.useState<'date' | 'distance'>('date')
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
-  const [locationError, setLocationError] = React.useState(false)
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
@@ -50,7 +50,7 @@ export default function LandingPage() {
         const loc = await getCurrentLocation()
         setUserLocation(loc)
       } catch (err) {
-        setLocationError(true)
+        // Ignora silenciosamente erro de localização
       }
     }
     fetchLocation()
@@ -115,7 +115,7 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -244,7 +244,7 @@ export default function LandingPage() {
       </section>
 
       {/* Events Feed */}
-      <section className="py-24 container mx-auto px-4">
+      <section className="py-24 container mx-auto px-4 flex-1">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
           <div className="space-y-2">
             <h2 className="text-4xl font-black tracking-tighter uppercase italic text-primary">
@@ -312,6 +312,7 @@ export default function LandingPage() {
           </div>
         )}
       </section>
+      <Footer />
     </div>
   )
 }

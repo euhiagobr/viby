@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -12,6 +11,7 @@ import { getStripeSession } from "@/app/actions/stripe"
 import { sendTicketEmail } from "@/app/actions/email"
 import { toast } from "@/hooks/use-toast"
 import Link from "next/link"
+import { Footer } from "@/components/layout/Footer"
 
 export default function CheckoutSucessoPage() {
   const searchParams = useSearchParams()
@@ -119,61 +119,64 @@ export default function CheckoutSucessoPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-muted/30">
-      <Card className="max-w-md w-full border-none shadow-2xl rounded-[3rem] overflow-hidden bg-white">
-        <div className="bg-green-500 p-12 flex flex-col items-center text-white gap-4">
-          <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md">
-            <CheckCircle2 className="w-10 h-10" />
+    <div className="min-h-screen flex flex-col bg-muted/30">
+      <div className="flex-1 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full border-none shadow-2xl rounded-[3rem] overflow-hidden bg-white">
+          <div className="bg-green-500 p-12 flex flex-col items-center text-white gap-4">
+            <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+            <h1 className="text-3xl font-black italic uppercase tracking-tighter">Tudo Certo!</h1>
+            <p className="text-green-50 font-medium text-center opacity-80">
+              {type === 'plan' ? 'Seu plano foi atualizado com sucesso.' : 'Sua reserva foi reconhecida e seu ingresso enviado por e-mail.'}
+            </p>
           </div>
-          <h1 className="text-3xl font-black italic uppercase tracking-tighter">Tudo Certo!</h1>
-          <p className="text-green-50 font-medium text-center opacity-80">
-            {type === 'plan' ? 'Seu plano foi atualizado com sucesso.' : 'Sua reserva foi reconhecida e seu ingresso enviado por e-mail.'}
-          </p>
-        </div>
-        <CardContent className="p-10 space-y-8 text-center">
-          {type === 'ticket' ? (
-            <>
-              <div className="space-y-2">
-                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Seu QR Code de acesso já está disponível em</p>
-                <div className="flex items-center justify-center gap-2 text-xl font-bold text-primary">
-                  <Ticket className="w-6 h-6 text-secondary" />
-                  Meus Ingressos
+          <CardContent className="p-10 space-y-8 text-center">
+            {type === 'ticket' ? (
+              <>
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Seu QR Code de acesso já está disponível em</p>
+                  <div className="flex items-center justify-center gap-2 text-xl font-bold text-primary">
+                    <Ticket className="w-6 h-6 text-secondary" />
+                    Meus Ingressos
+                  </div>
                 </div>
-              </div>
-              <div className="flex flex-col gap-3">
-                <Button asChild className="h-14 bg-secondary text-white font-black rounded-2xl shadow-xl shadow-secondary/20 uppercase italic">
-                  <Link href={`/dashboard/ingressos/${registrationId}/voucher`}>
-                    Ver meu Voucher
-                    <ArrowRight className="ml-2 w-5 h-5" />
-                  </Link>
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="space-y-2">
-                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Novas ferramentas liberadas em</p>
-                <div className="flex items-center justify-center gap-2 text-xl font-bold text-primary">
-                  <ShieldCheck className="w-6 h-6 text-secondary" />
-                  Minha Conta PRO
+                <div className="flex flex-col gap-3">
+                  <Button asChild className="h-14 bg-secondary text-white font-black rounded-2xl shadow-xl shadow-secondary/20 uppercase italic">
+                    <Link href={`/dashboard/ingressos/${registrationId}/voucher`}>
+                      Ver meu Voucher
+                      <ArrowRight className="ml-2 w-5 h-5" />
+                    </Link>
+                  </Button>
                 </div>
-              </div>
-              <div className="flex flex-col gap-3">
-                <Button asChild className="h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic">
-                  <Link href="/dashboard/projetos">
-                    Ir para Meus Eventos
-                    <ArrowRight className="ml-2 w-5 h-5" />
-                  </Link>
-                </Button>
-              </div>
-            </>
-          )}
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Novas ferramentas liberadas em</p>
+                  <div className="flex items-center justify-center gap-2 text-xl font-bold text-primary">
+                    <ShieldCheck className="w-6 h-6 text-secondary" />
+                    Minha Conta PRO
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <Button asChild className="h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic">
+                    <Link href="/dashboard/projetos">
+                      Ir para Meus Eventos
+                      <ArrowRight className="ml-2 w-5 h-5" />
+                    </Link>
+                  </Button>
+                </div>
+              </>
+            )}
 
-          <Button variant="ghost" asChild className="font-bold text-muted-foreground hover:bg-muted/50">
-            <Link href="/dashboard">Voltar para a Home</Link>
-          </Button>
-        </CardContent>
-      </Card>
+            <Button variant="ghost" asChild className="font-bold text-muted-foreground hover:bg-muted/50">
+              <Link href="/dashboard">Voltar para a Home</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+      <Footer />
     </div>
   )
 }
