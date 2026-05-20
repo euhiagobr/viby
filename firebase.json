@@ -12,7 +12,7 @@
   ],
   "hosting": [
     {
-      "target": "eventosviby",
+      "site": "eventosviby",
       "public": "out",
       "ignore": [
         "firebase.json",
