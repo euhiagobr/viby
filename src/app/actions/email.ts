@@ -8,7 +8,7 @@ import { firebaseConfig } from '@/firebase/config';
 
 /**
  * @fileOverview Ação de servidor para envio de e-mails de confirmação de ingresso.
- * Busca as credenciais dinamicamente do Firestore e inclui QR Code gerado.
+ * Busca as credenciais dinamicamente do Firestore e inclui QR Code gerado como anexo CID.
  */
 
 interface EmailData {
@@ -56,10 +56,12 @@ export async function sendTicketEmail(data: EmailData) {
       return { success: false, error: 'Credenciais de e-mail (SMTP) não configuradas no sistema.' };
     }
 
-    // Gerar QR Code como Data URI para embutir no e-mail
-    const qrCodeDataUri = await QRCode.toDataURL(data.ticketCode, {
+    // Gerar o Buffer da imagem do QR Code
+    // Muitos clientes de e-mail bloqueiam Data URIs (base64) diretamente no HTML.
+    // O uso de CID (Content-ID) como anexo é a forma mais robusta de garantir a exibição.
+    const qrCodeBuffer = await QRCode.toBuffer(data.ticketCode, {
       margin: 1,
-      width: 250,
+      width: 400,
       color: {
         dark: '#000000',
         light: '#ffffff',
@@ -129,7 +131,8 @@ export async function sendTicketEmail(data: EmailData) {
 
             <div class="qr-container">
               <div class="label">Apresente este QR Code na entrada</div>
-              <img src="${qrCodeDataUri}" alt="Ticket QR Code" class="qr-image" />
+              <!-- Referenciando a imagem anexada via cid -->
+              <img src="cid:ticket-qrcode" alt="Ticket QR Code" class="qr-image" />
               <div class="ticket-code">${data.ticketCode}</div>
               <p style="font-size: 11px; color: #94a3b8; margin-top: 15px;">Dica: Salve este e-mail ou tire um print do QR Code.</p>
             </div>
@@ -152,6 +155,13 @@ export async function sendTicketEmail(data: EmailData) {
       to: data.to,
       subject: `Confirmado! Seu ingresso para ${data.eventTitle} chegou! 🎟️`,
       html: htmlContent,
+      attachments: [
+        {
+          filename: 'qrcode.png',
+          content: qrCodeBuffer,
+          cid: 'ticket-qrcode' // Content-ID referenciado no HTML
+        }
+      ]
     });
     return { success: true };
   } catch (error: any) {
