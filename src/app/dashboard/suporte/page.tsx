@@ -22,11 +22,14 @@ import {
   Paperclip,
   FileText,
   X,
-  ChevronRight
+  ChevronRight,
+  Inbox,
+  Archive
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 
@@ -42,7 +45,7 @@ export default function SuportePage() {
     return query(
       collection(db, "support_tickets"), 
       where("userId", "==", user.uid),
-      orderBy("createdAt", "desc")
+      orderBy("updatedAt", "desc")
     )
   }, [db, user])
 
@@ -128,6 +131,9 @@ export default function SuportePage() {
     }
   }
 
+  const openTickets = tickets?.filter((t: any) => t.status !== 'Encerrada') || []
+  const closedTickets = tickets?.filter((t: any) => t.status === 'Encerrada') || []
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -206,47 +212,85 @@ export default function SuportePage() {
         </Dialog>
       </div>
 
-      {ticketsLoading ? (
-        <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
-      ) : !tickets || tickets.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[2.5rem] border-2 border-dashed border-border gap-6 shadow-sm">
-          <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center">
-            <LifeBuoy className="w-10 h-10 text-muted-foreground opacity-30" />
-          </div>
-          <div className="text-center space-y-2">
-            <p className="text-xl font-bold">Nenhum ticket aberto.</p>
-            <p className="text-sm text-muted-foreground">Sempre que precisar de ajuda, abra um ticket aqui.</p>
-          </div>
-        </div>
-      ) : (
-        <div className="grid gap-4">
-          {tickets.map((ticket: any) => (
-            <Link key={ticket.id} href={`/dashboard/suporte/${ticket.id}`}>
-              <Card className="hover:border-secondary/50 transition-all group rounded-2xl shadow-sm border-border bg-white overflow-hidden">
-                <CardContent className="p-6 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-secondary/10 rounded-xl group-hover:bg-secondary group-hover:text-white transition-colors">
-                      <MessageSquare className="w-5 h-5" />
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">#{ticket.protocol}</span>
-                        {getStatusBadge(ticket.status)}
-                      </div>
-                      <h3 className="font-bold text-lg leading-tight line-clamp-1">{ticket.subject}</h3>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                        <Clock className="w-3 h-3" />
-                        Aberto em {ticket.createdAt?.toDate?.()?.toLocaleDateString('pt-BR') || 'agora'}
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
+      <Tabs defaultValue="active" className="space-y-6">
+        <TabsList className="bg-muted/50 p-1 rounded-xl h-12">
+          <TabsTrigger value="active" className="rounded-lg px-8 font-bold gap-2">
+            <Inbox className="w-4 h-4" />
+            Em Aberto ({openTickets.length})
+          </TabsTrigger>
+          <TabsTrigger value="closed" className="rounded-lg px-8 font-bold gap-2">
+            <Archive className="w-4 h-4" />
+            Encerrados ({closedTickets.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="active">
+          {ticketsLoading ? (
+            <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
+          ) : openTickets.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[2.5rem] border-2 border-dashed border-border gap-6 shadow-sm">
+              <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center">
+                <LifeBuoy className="w-10 h-10 text-muted-foreground opacity-30" />
+              </div>
+              <div className="text-center space-y-2">
+                <p className="text-xl font-bold">Nenhum ticket em aberto.</p>
+                <p className="text-sm text-muted-foreground">Sempre que precisar de ajuda, abra um ticket aqui.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {openTickets.map((ticket: any) => (
+                <TicketCard key={ticket.id} ticket={ticket} getStatusBadge={getStatusBadge} />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="closed">
+          {ticketsLoading ? (
+            <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
+          ) : closedTickets.length === 0 ? (
+            <div className="p-20 text-center border-2 border-dashed rounded-3xl bg-muted/20">
+              <Archive className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-20" />
+              <p className="text-muted-foreground font-medium italic">Nenhum ticket encerrado no histórico.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {closedTickets.map((ticket: any) => (
+                <TicketCard key={ticket.id} ticket={ticket} getStatusBadge={getStatusBadge} />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
+  )
+}
+
+function TicketCard({ ticket, getStatusBadge }: { ticket: any, getStatusBadge: (status: string) => React.ReactNode }) {
+  return (
+    <Link href={`/dashboard/suporte/${ticket.id}`}>
+      <Card className="hover:border-secondary/50 transition-all group rounded-2xl shadow-sm border-border bg-white overflow-hidden">
+        <CardContent className="p-6 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-secondary/10 rounded-xl group-hover:bg-secondary group-hover:text-white transition-colors">
+              <MessageSquare className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">#{ticket.protocol}</span>
+                {getStatusBadge(ticket.status)}
+              </div>
+              <h3 className="font-bold text-lg leading-tight line-clamp-1">{ticket.subject}</h3>
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Clock className="w-3 h-3" />
+                Aberto em {ticket.createdAt?.toDate?.()?.toLocaleDateString('pt-BR') || 'agora'}
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-muted-foreground opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+        </CardContent>
+      </Card>
+    </Link>
   )
 }
