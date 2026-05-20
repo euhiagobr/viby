@@ -11,7 +11,7 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { calculateDistance, type Coordinates } from "@/lib/location-utils"
-import { useFirestore } from "@/firebase"
+import { useFirestore, useDoc } from "@/firebase"
 import { doc, updateDoc, increment } from "firebase/firestore"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
@@ -42,7 +42,44 @@ interface EventCardProps {
 export function EventCard({ event, userLocation, isSponsored }: EventCardProps) {
   const router = useRouter()
   const db = useFirestore()
+  const cardRef = React.useRef<HTMLDivElement>(null)
+  const hasTrackedImpression = React.useRef(false)
+
+  // Buscar configurações globais de Ads para CPC e CPM
+  const adsSettingsRef = React.useMemo(() => db ? doc(db, 'settings', 'ads') : null, [db])
+  const { data: adsSettings } = useDoc<any>(adsSettingsRef)
   
+  // Logica de visualização (Impression/CPM)
+  React.useEffect(() => {
+    if (!isSponsored || !event.adId || !db || !adsSettings || hasTrackedImpression.current) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !hasTrackedImpression.current) {
+          hasTrackedImpression.current = true
+          
+          const cpmValue = adsSettings.cpmValue || 0
+          const costPerImpression = cpmValue / 1000
+
+          const adRef = doc(db, "ads", event.adId)
+          updateDoc(adRef, { 
+            reach: increment(1),
+            budget: increment(-costPerImpression)
+          }).catch(() => {})
+          
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.5 }
+    )
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current)
+    }
+
+    return () => observer.disconnect()
+  }, [isSponsored, event.adId, db, adsSettings])
+
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
     try {
@@ -104,9 +141,13 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }, [userLocation, event.latitude, event.longitude]);
 
   const handleCardClick = () => {
-    if (isSponsored && event.adId && db) {
+    if (isSponsored && event.adId && db && adsSettings) {
+      const cpcValue = adsSettings.cpcValue || 0
       const adRef = doc(db, "ads", event.adId);
-      updateDoc(adRef, { clicks: increment(1) }).catch(() => {});
+      updateDoc(adRef, { 
+        clicks: increment(1),
+        budget: increment(-cpcValue)
+      }).catch(() => {});
     }
     router.push(eventLink)
   }
@@ -120,6 +161,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
   return (
     <Card 
+      ref={cardRef}
       className={cn(
         "group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[1.5rem] cursor-pointer relative",
         isSponsored && "ring-2 ring-secondary/20 shadow-secondary/10"

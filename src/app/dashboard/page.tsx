@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -75,12 +76,12 @@ export default function ExplorarPage() {
     return result;
   }, [events, search, filter, userLocation])
 
-  // Lógica de Intercalação de ADS para o Dashboard com verificação de data
+  // Lógica de Intercalação de ADS para o Dashboard com verificação de orçamento
   const interleavedContent = React.useMemo(() => {
     if (!filteredEvents || filteredEvents.length === 0) return []
     
     const now = new Date()
-    now.setHours(0, 0, 0, 0) // Normaliza data
+    now.setHours(0, 0, 0, 0)
 
     const sponsoredPool = (activeAds || [])
       .map((ad: any) => {
@@ -91,7 +92,9 @@ export default function ExplorarPage() {
         if (end) end.setHours(23, 59, 59, 999)
 
         const isDateValid = (!start || now >= start) && (!end || now <= end)
-        if (!isDateValid) return null
+        const hasBudget = (ad.budget || 0) > 0 // Verifica se tem orçamento
+
+        if (!isDateValid || !hasBudget) return null
 
         const fullEvent = events?.find((e: any) => e.id === ad.eventId)
         return fullEvent ? { ...fullEvent, isSponsored: true, adId: ad.id } : null
@@ -106,14 +109,12 @@ export default function ExplorarPage() {
     const sponsoredEventIds = new Set(sponsoredPool.map(s => s.id));
     const organic = filteredEvents.filter(e => !sponsoredEventIds.has(e.id));
 
-    // 1. Sempre o primeiro é um ADS
     result.push(sponsoredPool[0])
 
     let organicIdx = 0
     let adIdx = 1
 
     while (organicIdx < organic.length) {
-      // 2. Intervalo aleatório entre 5 e 9 postagens
       const interval = Math.floor(Math.random() * (9 - 5 + 1)) + 5
       const chunk = organic.slice(organicIdx, organicIdx + interval)
       result.push(...chunk.map(e => ({ ...e, isSponsored: false })))
