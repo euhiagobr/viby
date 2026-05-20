@@ -11,7 +11,7 @@ import { getStripeSession } from "@/app/actions/stripe"
 import { sendTicketEmail } from "@/app/actions/email"
 import { toast } from "@/hooks/use-toast"
 import Link from "next/link"
-import { Footer } from "@/components/layout/Footer"
+import Footer from "@/components/layout/Footer"
 
 export default function CheckoutSucessoPage() {
   const searchParams = useSearchParams()
@@ -96,7 +96,7 @@ export default function CheckoutSucessoPage() {
             });
           }
 
-          toast({ title: "Pagamento Confirmado!", description: "Seu ingresso foi liberado e enviado por e-mail." });
+          toast({ title: "Pagamento Confirmao!", description: "Seu ingresso foi liberado e enviado por e-mail." });
         }
       } catch (error) {
         console.error("Erro ao processar sucesso:", error);

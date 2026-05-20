@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { XCircle, ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import { Footer } from "@/components/layout/Footer"
+import Footer from "@/components/layout/Footer"
 
 export default function CheckoutCanceladoPage() {
   const router = useRouter()

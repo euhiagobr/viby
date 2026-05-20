@@ -70,7 +70,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { Footer } from "@/components/layout/Footer"
+import Footer from "@/components/layout/Footer"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (

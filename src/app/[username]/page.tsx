@@ -56,7 +56,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Footer } from "@/components/layout/Footer"
+import Footer from "@/components/layout/Footer"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (

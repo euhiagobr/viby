@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from "@/hooks/use-toast"
 import { Globe, Loader2, User, Mail, ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import { Footer } from "@/components/layout/Footer"
+import Footer from "@/components/layout/Footer"
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState("")

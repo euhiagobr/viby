@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "@/hooks/use-toast"
 import { Globe, Loader2, Check, X, ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import { Footer } from "@/components/layout/Footer"
+import Footer from "@/components/layout/Footer"
 
 export default function CadastroPage() {
   const [name, setName] = useState("")

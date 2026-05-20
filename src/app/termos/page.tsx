@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { ArrowLeft, FileText, Globe, Mail, MapPin, User } from "lucide-react"
 import Link from "next/link"
 import { Separator } from "@/components/ui/separator"
-import { Footer } from "@/components/layout/Footer"
+import Footer from "@/components/layout/Footer"
 
 export default function TermosDeUsoPage() {
   const db = useFirestore()
@@ -152,7 +152,7 @@ export default function TermosDeUsoPage() {
                   <h2 className="text-xl font-black uppercase italic tracking-tight text-primary flex items-center gap-3">
                     <span className="text-secondary">8.</span> Suspensão e Remoção de Contas
                   </h2>
-                  <p>A {siteName} poderá, a qualquer momento e sem aviso prévio: remover conteúdos, cancelar eventos, suspender contas, bloquear funcionalidades, excluir perfis ou restringir acessos.</p>
+                  <p>A {siteName} poderá, a qualquer momento e sem aviso prévio: remover conteúdos, cancelar eventos, suspender contas, bloquear funcionalidades, excluir perfis ou registrar acessos.</p>
                   <p>Isso poderá ocorrer em casos de violação destes Termos, denúncias recorrentes, atividades suspeitas, fraudes, eventos falsos, ofensas ou discurso de ódio, e descumprimento da legislação aplicável.</p>
                 </section>
 

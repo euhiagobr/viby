@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ArrowLeft, ShieldCheck, Globe, Mail, MapPin, User, Lock, Eye, Database, Globe2 } from "lucide-react"
 import Link from "next/link"
-import { Footer } from "@/components/layout/Footer"
+import Footer from "@/components/layout/Footer"
 
 export default function PoliticaPrivacidadePage() {
   const db = useFirestore()
