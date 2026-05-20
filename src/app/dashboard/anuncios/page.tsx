@@ -25,7 +25,8 @@ import {
   Filter,
   CreditCard,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  Coins
 } from "lucide-react"
 import {
   Dialog,
@@ -47,6 +48,7 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { createAdCheckoutSession } from "@/app/actions/stripe"
+import { formatCurrency } from "@/lib/financial-utils"
 
 export default function AnunciosPage() {
   const db = useFirestore()
@@ -117,7 +119,7 @@ export default function AnunciosPage() {
       type: adType,
       status: "Pendente Pagamento",
       dailyBudget: dailyBudget,
-      budget: totalBudget,
+      budget: totalBudget, // Orçamento total inicial
       durationDays: days,
       startDate: startDateStr,
       endDate: endDateStr,
@@ -143,7 +145,6 @@ export default function AnunciosPage() {
           return;
         }
       } else {
-        // Se o orçamento for zero, ativa na hora (aprovação automática)
         await updateDoc(doc(db, "ads", docRef.id), { status: "Ativo" });
       }
 
@@ -166,6 +167,19 @@ export default function AnunciosPage() {
       return acc
     }, { reach: 0, clicks: 0, active: 0 })
   }, [ads])
+
+  const calculateRemainingDaily = (ad: any) => {
+    if (!ad.budget || ad.budget <= 0) return 0;
+    const now = new Date();
+    const end = new Date(ad.endDate);
+    
+    if (now > end) return 0;
+
+    const diffTime = Math.abs(end.getTime() - now.getTime());
+    const daysRemaining = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    
+    return ad.budget / daysRemaining;
+  }
 
   if (profileLoading || adsLoading) {
     return (
@@ -308,7 +322,7 @@ export default function AnunciosPage() {
                   <BarChart3 className="w-5 h-5 text-secondary" />
                   Minhas Campanhas
                 </CardTitle>
-                <CardDescription>Acompanhe o desempenho de cada impulsionamento.</CardDescription>
+                <CardDescription>Acompanhe o desempenho e o saldo de cada impulsionamento.</CardDescription>
               </div>
               <div className="flex gap-2">
                  <div className="relative">
@@ -332,49 +346,61 @@ export default function AnunciosPage() {
 
           {ads && ads.length > 0 ? (
             <div className="divide-y">
-              {ads.map((ad: any) => (
-                <div key={ad.id} className="p-6 flex flex-col gap-6 transition-colors md:flex-row md:items-center md:justify-between hover:bg-muted/20">
-                  <div className="flex gap-4">
-                    <div className="flex items-center justify-center shrink-0 w-12 h-12 rounded-2xl bg-secondary/10">
-                       <Megaphone className="w-6 h-6 text-secondary" />
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-sm leading-tight uppercase">{ad.eventTitle}</h4>
-                        <Badge className={cn(
-                          "text-[8px] font-black uppercase h-4",
-                          ad.status === 'Ativo' ? "bg-green-500" :
-                          ad.status === 'Pendente Pagamento' ? "bg-orange-500" :
-                          ad.status === 'Pendente' ? "bg-blue-500" : "bg-muted"
-                        )}>
-                          {ad.status}
-                        </Badge>
+              {ads.map((ad: any) => {
+                const remainingDaily = calculateRemainingDaily(ad);
+                return (
+                  <div key={ad.id} className="p-6 flex flex-col gap-6 transition-colors lg:flex-row lg:items-center lg:justify-between hover:bg-muted/20">
+                    <div className="flex gap-4 min-w-[300px]">
+                      <div className="flex items-center justify-center shrink-0 w-12 h-12 rounded-2xl bg-secondary/10">
+                         <Megaphone className="w-6 h-6 text-secondary" />
                       </div>
-                      <div className="flex items-center gap-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                        <span className="flex items-center gap-1"><Target className="w-3 h-3" /> {ad.type}</span>
-                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {ad.startDate ? new Date(ad.startDate).toLocaleDateString() : '---'} - {ad.endDate ? new Date(ad.endDate).toLocaleDateString() : '---'}</span>
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {ad.durationDays || '---'} dias</span>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-sm leading-tight uppercase">{ad.eventTitle}</h4>
+                          <Badge className={cn(
+                            "text-[8px] font-black uppercase h-4",
+                            ad.status === 'Ativo' ? "bg-green-500" :
+                            ad.status === 'Pendente Pagamento' ? "bg-orange-500" :
+                            ad.status === 'Pendente' ? "bg-blue-500" : "bg-muted"
+                          )}>
+                            {ad.status}
+                          </Badge>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                          <span className="flex items-center gap-1"><Target className="w-3 h-3" /> {ad.type}</span>
+                          <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {ad.startDate ? new Date(ad.startDate).toLocaleDateString('pt-BR') : '---'} - {ad.endDate ? new Date(ad.endDate).toLocaleDateString('pt-BR') : '---'}</span>
+                          <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {ad.durationDays || '---'} dias</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-8 md:gap-12">
-                    <div className="text-center">
-                       <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Alcance</p>
-                       <p className="font-black text-sm">{ad.reach?.toLocaleString() || 0}</p>
-                    </div>
-                    <div className="text-center">
-                       <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Cliques</p>
-                       <p className="font-black text-sm">{ad.clicks?.toLocaleString() || 0}</p>
-                    </div>
-                    <div className="text-right">
-                       <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Investimento Total</p>
-                       <p className="font-black text-primary">R$ {ad.budget?.toFixed(2)}</p>
-                       <p className="text-[8px] text-muted-foreground font-bold uppercase">R$ {ad.dailyBudget?.toFixed(2)}/dia</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8 flex-1">
+                      <div className="text-center">
+                         <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Alcance</p>
+                         <p className="font-black text-sm">{ad.reach?.toLocaleString() || 0}</p>
+                      </div>
+                      <div className="text-center">
+                         <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Cliques</p>
+                         <p className="font-black text-sm">{ad.clicks?.toLocaleString() || 0}</p>
+                      </div>
+                      <div className="text-center">
+                         <p className="text-[10px] font-black text-secondary uppercase mb-1">Saldo Diário</p>
+                         <div className="flex flex-col">
+                            <span className="font-black text-sm text-secondary">{formatCurrency(remainingDaily)}</span>
+                            <span className="text-[8px] text-muted-foreground font-bold uppercase">Original: {formatCurrency(ad.dailyBudget || 0)}</span>
+                         </div>
+                      </div>
+                      <div className="text-right pr-4">
+                         <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Saldo Restante</p>
+                         <div className="flex flex-col">
+                            <span className="font-black text-sm text-primary">{formatCurrency(ad.budget || 0)}</span>
+                            <span className="text-[8px] text-muted-foreground font-bold uppercase">Total Pago: {formatCurrency(ad.dailyBudget * ad.durationDays)}</span>
+                         </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : !adsLoading && (
             <div className="py-24 text-center">
@@ -391,13 +417,15 @@ export default function AnunciosPage() {
           <TrendingUp className="w-10 h-10 text-secondary" />
         </div>
         <div className="space-y-2 text-center md:text-left">
-          <h3 className="text-xl font-black italic uppercase tracking-tighter">Quer vender 3x mais?</h3>
-          <p className="text-sm text-muted-foreground font-medium max-w-xl">
-            Anúncios com o selo <strong>Impulsionado pelo Viby</strong> aparecem no topo das buscas e são enviados via notificação push para usuários que seguem categorias similares.
+          <h3 className="text-xl font-black italic uppercase tracking-tighter">Como funciona o consumo?</h3>
+          <p className="text-sm text-muted-foreground font-medium max-w-xl leading-relaxed">
+            Seu orçamento é consumido automaticamente: a cada 1.000 visualizações descontamos um valor proporcional do <strong>CPM</strong>, e a cada clique único descontamos o valor do <strong>CPC</strong>. O saldo diário restante mostra quanto você ainda pode performar hoje com base no seu saldo atual.
           </p>
         </div>
-        <Button variant="outline" className="h-12 px-6 ml-auto text-xs font-black uppercase border-secondary text-secondary rounded-xl">
-          Saiba Mais
+        <Button variant="outline" className="h-12 px-6 ml-auto text-xs font-black uppercase border-secondary text-secondary rounded-xl gap-2" asChild>
+           <Link href="/dashboard/suporte">
+              <Coins className="w-4 h-4" /> Entender Taxas
+           </Link>
         </Button>
       </div>
     </div>
