@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -14,7 +15,8 @@ import {
   Heart,
   LifeBuoy,
   Wallet,
-  CreditCard
+  CreditCard,
+  Megaphone
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -71,6 +73,13 @@ export function AppSidebar() {
       url: "/dashboard/projetos",
       icon: LayoutGrid,
       authRequired: true
+    },
+    {
+      title: "Anúncios",
+      url: "/dashboard/anuncios",
+      icon: Megaphone,
+      authRequired: true,
+      companyOnly: true
     },
     {
       title: "Meu financeiro",

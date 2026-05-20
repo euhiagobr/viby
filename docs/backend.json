@@ -142,6 +142,25 @@
       },
       "required": ["code", "discountType", "discountValue", "eventId", "organizerId"]
     },
+    "Ad": {
+      "title": "Anúncio",
+      "description": "Campanha de impulsionamento de evento",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string" },
+        "eventTitle": { "type": "string" },
+        "organizerId": { "type": "string" },
+        "type": { "type": "string", "enum": ["highlight", "banner", "feed"] },
+        "status": { "type": "string", "enum": ["Ativo", "Pausado", "Pendente", "Finalizado"] },
+        "reach": { "type": "number" },
+        "clicks": { "type": "number" },
+        "budget": { "type": "number" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["eventId", "organizerId", "type", "status"]
+    },
     "Category": {
       "title": "Categoria",
       "description": "Categorias de classificação para eventos",
@@ -216,6 +235,10 @@
     "/coupons/{couponId}": {
       "schema": "Coupon",
       "description": "Cupons de desconto gerenciados pelos organizadores"
+    },
+    "/ads/{adId}": {
+      "schema": "Ad",
+      "description": "Campanhas publicitárias criadas pelas empresas"
     },
     "/categories/{catId}": {
       "schema": "Category",
