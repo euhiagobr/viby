@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -47,6 +46,7 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { createAdCheckoutSession } from "@/app/actions/stripe"
 import { formatCurrency } from "@/lib/financial-utils"
 
@@ -119,7 +119,7 @@ export default function AnunciosPage() {
       type: adType,
       status: "Pendente Pagamento",
       dailyBudget: dailyBudget,
-      budget: totalBudget, // Orçamento total inicial
+      budget: totalBudget, 
       durationDays: days,
       startDate: startDateStr,
       endDate: endDateStr,
