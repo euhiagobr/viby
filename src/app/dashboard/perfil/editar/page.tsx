@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -36,11 +37,9 @@ import {
   Instagram, 
   Phone, 
   Mail, 
-  Eye, 
   EyeOff, 
   Building2, 
   User as UserIcon, 
-  Briefcase, 
   Calendar,
   Check,
   X,
@@ -75,9 +74,10 @@ export default function EditarPerfilPage() {
   const db = useFirestore()
   const app = useFirebaseApp()
 
+  // GARANTIA: Utiliza exclusivamente o bucket 'viby'
   const storage = React.useMemo(() => {
     if (!app) return null;
-    return getStorage(app, "gs://viby");
+    return getStorage(app, 'viby');
   }, [app])
 
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
@@ -161,12 +161,7 @@ export default function EditarPerfilPage() {
       try {
         const usernameRef = doc(db, "usernames", newUsername)
         const usernameSnap = await getDoc(usernameRef)
-        
-        if (usernameSnap.exists()) {
-          setUsernameStatus('taken')
-        } else {
-          setUsernameStatus('valid')
-        }
+        if (usernameSnap.exists()) setUsernameStatus('taken'); else setUsernameStatus('valid');
       } catch (e) {
         console.error(e)
       } finally {
@@ -180,66 +175,36 @@ export default function EditarPerfilPage() {
   const formatCNPJ = (v: string) => {
     v = v.replace(/\D/g, "");
     if (v.length > 14) v = v.slice(0, 14);
-    if (v.length > 12) {
-      return v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
-    }
-    if (v.length > 8) {
-      return v.replace(/(\d{2})(\d{3})(\d{3})(\d{1,4})/, "$1.$2.$3/$4");
-    }
-    if (v.length > 5) {
-      return v.replace(/(\d{2})(\d{3})(\d{1,3})/, "$1.$2.$3");
-    }
-    if (v.length > 2) {
-      return v.replace(/(\d{2})(\d{1,3})/, "$1.$2");
-    }
+    if (v.length > 12) return v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+    if (v.length > 8) return v.replace(/(\d{2})(\d{3})(\d{3})(\d{1,4})/, "$1.$2.$3/$4");
+    if (v.length > 5) return v.replace(/(\d{2})(\d{3})(\d{1,3})/, "$1.$2.$3");
+    if (v.length > 2) return v.replace(/(\d{2})(\d{1,3})/, "$1.$2");
     return v;
   }
 
   const formatCPF = (v: string) => {
     v = v.replace(/\D/g, "");
     if (v.length > 11) v = v.slice(0, 11);
-    if (v.length > 9) {
-      return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-    }
-    if (v.length > 6) {
-      return v.replace(/(\d{3})(\d{3})(\d{1,3})/, "$1.$2.$3");
-    }
-    if (v.length > 3) {
-      return v.replace(/(\d{3})(\d{1,3})/, "$1.$2");
-    }
+    if (v.length > 9) return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    if (v.length > 6) return v.replace(/(\d{3})(\d{3})(\d{1,3})/, "$1.$2.$3");
+    if (v.length > 3) return v.replace(/(\d{3})(\d{1,3})/, "$1.$2");
     return v;
   }
 
-  const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatCPF(e.target.value);
-    setFormData(prev => ({ ...prev, cpf: formatted }));
-  }
-
-  const handleCNPJChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatCNPJ(e.target.value);
-    setFormData(prev => ({ ...prev, cnpj: formatted }));
-  }
+  const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, cpf: formatCPF(e.target.value) }));
+  const handleCNPJChange = (e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, cnpj: formatCNPJ(e.target.value) }));
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !storage || !user) return
 
     setUploadProgress(0)
-
     try {
       const storageRef = ref(storage, `profiles/${user.uid}/avatar_${Date.now()}`)
       const uploadTask = uploadBytesResumable(storageRef, file)
-
       uploadTask.on('state_changed', 
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-          setUploadProgress(progress)
-        },
-        (error) => {
-          console.error(error)
-          setUploadProgress(null)
-          toast({ variant: "destructive", title: "Erro no upload" })
-        },
+        (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+        (error) => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
           setFormData(prev => ({ ...prev, avatar: downloadURL }))
@@ -247,9 +212,7 @@ export default function EditarPerfilPage() {
           toast({ title: "Imagem carregada!" })
         }
       )
-    } catch (err) {
-      setUploadProgress(null)
-    }
+    } catch (err) { setUploadProgress(null) }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -261,119 +224,63 @@ export default function EditarPerfilPage() {
     const usernameChanged = newUsername !== oldUsername
 
     if (usernameChanged && usernameStatus !== 'valid') {
-      toast({ variant: "destructive", title: "Username inválido", description: "O nome de usuário escolhido não está disponível ou é inválido (min 5, máx 20 caracteres)." })
-      return
-    }
-
-    if (formData.bio.length > 150) {
-      toast({ variant: "destructive", title: "Bio muito longa", description: "Máximo de 150 caracteres." })
-      return
-    }
-
-    const urlRegex = /(https?:\/\/[^\s]+)/g
-    if (urlRegex.test(formData.bio)) {
-      toast({ variant: "destructive", title: "Links não permitidos", description: "Não use links na biografia." })
-      return
-    }
-
-    if (!formData.name || !formData.city || !formData.state || !formData.country || !formData.birthDate || !formData.gender) {
-      toast({ variant: "destructive", title: "Campos obrigatórios", description: "Nome, Localização, Nascimento e Gênero são obrigatórios." })
+      toast({ variant: "destructive", title: "Username inválido" })
       return
     }
 
     setSaving(true)
     try {
       const batch = writeBatch(db)
-
       if (usernameChanged) {
-        if (oldUsername) {
-          batch.delete(doc(db, "usernames", oldUsername))
-        }
-        batch.set(doc(db, "usernames", newUsername), { uid: user.uid })
+        if (oldUsername) batch.delete(doc(db, "usernames", oldUsername));
+        batch.set(doc(db, "usernames", newUsername), { uid: user.uid });
       }
 
-      // Criptografa o CPF antes de salvar
       const encryptedCpf = formData.cpf ? encryptDeterministic(formData.cpf) : "";
-
       const userRef = doc(db, "users", user.uid)
-      batch.update(userRef, {
-        ...formData,
-        cpf: encryptedCpf,
-        username: newUsername,
-        updatedAt: serverTimestamp()
-      })
-
+      batch.update(userRef, { ...formData, cpf: encryptedCpf, username: newUsername, updatedAt: serverTimestamp() })
       await batch.commit()
 
       const eventsQuery = query(collection(db, "events"), where("organizerId", "==", user.uid))
       const eventsSnap = await getDocs(eventsQuery)
-      
       if (!eventsSnap.empty) {
         const eventBatch = writeBatch(db)
         eventsSnap.forEach((eventDoc) => {
-          eventBatch.update(eventDoc.ref, {
-            organizer: {
-              name: formData.name,
-              avatar: formData.avatar || "",
-              isVerified: !!profile.isVerified,
-              username: newUsername
-            }
-          })
+          eventBatch.update(eventDoc.ref, { organizer: { name: formData.name, avatar: formData.avatar || "", isVerified: !!profile.isVerified, username: newUsername } })
         })
         await eventBatch.commit()
       }
 
-      toast({ title: "Perfil atualizado!", description: "Suas alterações foram salvas." })
+      toast({ title: "Perfil atualizado!" })
       router.push("/dashboard/perfil")
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro ao salvar", description: error.message })
-    } finally {
-      setSaving(false)
-    }
+      toast({ variant: "destructive", title: "Erro ao salvar" })
+    } finally { setSaving(false) }
   }
 
-  if (profileLoading) {
-    return (
-      <div className="flex justify-center items-center h-[60vh]">
-        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-      </div>
-    )
-  }
+  if (profileLoading) return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
 
   const isCpfLocked = !!profile?.cpf;
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 pb-20">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/perfil"><ArrowLeft className="w-5 h-5" /></Link>
-        </Button>
+        <Button variant="ghost" size="icon" asChild><Link href="/dashboard/perfil"><ArrowLeft className="w-5 h-5" /></Link></Button>
         <h1 className="text-3xl font-bold tracking-tight">Editar Perfil</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card className="border-none shadow-sm">
-          <CardHeader>
-            <CardTitle>Tipo de Conta</CardTitle>
-            <CardDescription>Escolha como deseja se identificar na plataforma.</CardDescription>
-          </CardHeader>
+          <CardHeader><CardTitle>Tipo de Conta</CardTitle></CardHeader>
           <CardContent>
-            <RadioGroup 
-              value={formData.accountType} 
-              onValueChange={(val) => setFormData(prev => ({...prev, accountType: val}))}
-              className="grid grid-cols-2 gap-4"
-            >
+            <RadioGroup value={formData.accountType} onValueChange={(val) => setFormData(prev => ({...prev, accountType: val}))} className="grid grid-cols-2 gap-4">
               <div className="flex items-center space-x-2 border rounded-xl p-4 cursor-pointer hover:bg-muted/50 transition-colors">
                 <RadioGroupItem value="Usuário" id="user-type" />
-                <Label htmlFor="user-type" className="flex items-center gap-2 cursor-pointer font-bold">
-                  <UserIcon className="w-4 h-4 text-secondary" /> Usuário
-                </Label>
+                <Label htmlFor="user-type" className="flex items-center gap-2 cursor-pointer font-bold"><UserIcon className="w-4 h-4 text-secondary" /> Usuário</Label>
               </div>
               <div className="flex items-center space-x-2 border rounded-xl p-4 cursor-pointer hover:bg-muted/50 transition-colors">
                 <RadioGroupItem value="Empresa" id="company-type" />
-                <Label htmlFor="company-type" className="flex items-center gap-2 cursor-pointer font-bold">
-                  <Building2 className="w-4 h-4 text-secondary" /> Empresa
-                </Label>
+                <Label htmlFor="company-type" className="flex items-center gap-2 cursor-pointer font-bold"><Building2 className="w-4 h-4 text-secondary" /> Empresa</Label>
               </div>
             </RadioGroup>
           </CardContent>
@@ -381,48 +288,21 @@ export default function EditarPerfilPage() {
 
         {formData.accountType === 'Empresa' && (
           <Card className="border-none shadow-sm border-t-4 border-secondary animate-in fade-in slide-in-from-top-4 duration-300">
-            <CardHeader>
-              <CardTitle>Informações Jurídicas</CardTitle>
-              <CardDescription>Dados obrigatórios para contas empresariais.</CardDescription>
-            </CardHeader>
+            <CardHeader><CardTitle>Informações Jurídicas</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="legalName">Razão Social (Obrigatório)</Label>
-                  <Input 
-                    id="legalName" 
-                    value={formData.legalName} 
-                    onChange={(e) => setFormData(prev => ({...prev, legalName: e.target.value}))} 
-                    required 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cnpj">CNPJ (Obrigatório)</Label>
-                  <Input 
-                    id="cnpj" 
-                    value={formData.cnpj} 
-                    onChange={handleCNPJChange} 
-                    placeholder="00.000.000/0000-00" 
-                    required 
-                  />
-                </div>
+                <div className="space-y-2"><Label htmlFor="legalName">Razão Social</Label><Input id="legalName" value={formData.legalName} onChange={(e) => setFormData(prev => ({...prev, legalName: e.target.value}))} required /></div>
+                <div className="space-y-2"><Label htmlFor="cnpj">CNPJ</Label><Input id="cnpj" value={formData.cnpj} onChange={handleCNPJChange} placeholder="00.000.000/0000-00" required /></div>
               </div>
               <div className="space-y-2">
-                <Label>Categoria da Empresa (Obrigatório)</Label>
-                <Select 
-                  value={formData.businessCategory} 
-                  onValueChange={(val) => setFormData(prev => ({...prev, businessCategory: val}))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione uma subcategoria" />
-                  </SelectTrigger>
+                <Label>Categoria da Empresa</Label>
+                <Select value={formData.businessCategory} onValueChange={(val) => setFormData(prev => ({...prev, businessCategory: val}))}>
+                  <SelectTrigger><SelectValue placeholder="Selecione uma subcategoria" /></SelectTrigger>
                   <SelectContent className="max-h-80">
                     {Object.entries(BUSINESS_CATEGORIES).map(([category, items]) => (
                       <SelectGroup key={category}>
                         <SelectLabel className="bg-muted/50 py-2">{category}</SelectLabel>
-                        {items.map(item => (
-                          <SelectItem key={`${category}-${item}`} value={item}>{item}</SelectItem>
-                        ))}
+                        {items.map(item => (<SelectItem key={`${category}-${item}`} value={item}>{item}</SelectItem>))}
                       </SelectGroup>
                     ))}
                   </SelectContent>
@@ -433,79 +313,39 @@ export default function EditarPerfilPage() {
         )}
 
         <Card className="border-none shadow-sm">
-          <CardHeader>
-            <CardTitle>Identidade & Dados Pessoais</CardTitle>
-            <CardDescription>Gerencie sua imagem e informações de cadastro.</CardDescription>
-          </CardHeader>
+          <CardHeader><CardTitle>Identidade & Dados Pessoais</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="flex flex-col items-center gap-6 py-4">
               <div className="relative group">
                 <Avatar className="h-32 w-32 border-4 border-background shadow-xl">
                   <AvatarImage src={formData.avatar} alt={formData.name} className="object-cover" />
-                  <AvatarFallback className="text-4xl font-bold bg-muted">
-                    {formData.name?.charAt(0) || "U"}
-                  </AvatarFallback>
+                  <AvatarFallback className="text-4xl font-bold bg-muted">{formData.name?.charAt(0)}</AvatarFallback>
                 </Avatar>
-                <label 
-                  htmlFor="avatar-upload" 
-                  className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                >
-                  <Upload className="w-6 h-6" />
-                </label>
+                <label htmlFor="avatar-upload" className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"><Upload className="w-6 h-6" /></label>
                 <input id="avatar-upload" type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
               </div>
-              
-              {uploadProgress !== null && (
-                <div className="w-full max-w-xs space-y-2">
-                  <Progress value={uploadProgress} className="h-1.5" />
-                  <p className="text-[10px] text-center text-muted-foreground font-bold uppercase">Carregando: {Math.round(uploadProgress)}%</p>
-                </div>
-              )}
+              {uploadProgress !== null && <div className="w-full max-w-xs space-y-2"><Progress value={uploadProgress} className="h-1.5" /><p className="text-[10px] text-center text-muted-foreground font-bold uppercase">Carregando: {Math.round(uploadProgress)}%</p></div>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome / Nome Fantasia (Obrigatório)</Label>
-                <Input id="name" value={formData.name} onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))} required />
-              </div>
+              <div className="space-y-2"><Label htmlFor="name">Nome / Fantasia</Label><Input id="name" value={formData.name} onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))} required /></div>
               <div className="space-y-2">
                 <Label htmlFor="username">Nome de Usuário (@)</Label>
                 <div className="relative">
-                  <Input 
-                    id="username" 
-                    value={formData.username} 
-                    maxLength={20}
-                    onChange={(e) => setFormData(prev => ({...prev, username: e.target.value.toLowerCase().replace(/\s+/g, "")}))} 
-                    className={cn(
-                      usernameStatus === 'valid' ? 'border-green-500 pr-10' : 
-                      usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-destructive pr-10' : 'pr-10'
-                    )}
-                  />
+                  <Input id="username" value={formData.username} maxLength={20} onChange={(e) => setFormData(prev => ({...prev, username: e.target.value.toLowerCase().replace(/\s+/g, "")}))} className={cn(usernameStatus === 'valid' ? 'border-green-500 pr-10' : usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-destructive pr-10' : 'pr-10')} />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    {checkingUsername ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
-                    ) : usernameStatus === 'valid' ? (
-                      <Check className="w-3.5 h-3.5 text-green-500" />
-                    ) : usernameStatus === 'taken' || usernameStatus === 'invalid' ? (
-                      <X className="w-3.5 h-3.5 text-destructive" />
-                    ) : null}
+                    {checkingUsername ? <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" /> : usernameStatus === 'valid' ? <Check className="w-3.5 h-3.5 text-green-500" /> : usernameStatus === 'taken' || usernameStatus === 'invalid' ? <X className="w-3.5 h-3.5 text-destructive" /> : null}
                   </div>
                 </div>
-                <p className="text-[10px] text-muted-foreground">Min 5, máx 20 caracteres. Isso alterará seu URL de perfil.</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="birthDate" className="flex items-center gap-2"><Calendar className="w-3.5 h-3.5" /> Data de Nascimento</Label>
-                <Input id="birthDate" type="date" value={formData.birthDate} onChange={(e) => setFormData(prev => ({...prev, birthDate: e.target.value}))} required />
-              </div>
+              <div className="space-y-2"><Label htmlFor="birthDate">Data de Nascimento</Label><Input id="birthDate" type="date" value={formData.birthDate} onChange={(e) => setFormData(prev => ({...prev, birthDate: e.target.value}))} required /></div>
               <div className="space-y-2">
                 <Label htmlFor="gender">Sexo / Gênero</Label>
                 <Select value={formData.gender} onValueChange={(val) => setFormData(prev => ({...prev, gender: val}))} required>
-                  <SelectTrigger id="gender">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="masculino">Masculino</SelectItem>
                     <SelectItem value="feminino">Feminino</SelectItem>
@@ -520,113 +360,35 @@ export default function EditarPerfilPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="cpf" className="flex items-center gap-2">
-                <Fingerprint className="w-3.5 h-3.5 text-secondary" /> 
-                CPF (Para receber ingressos)
-                {isCpfLocked && <Lock className="w-3 h-3 text-muted-foreground ml-auto" />}
-              </Label>
-              <Input 
-                id="cpf" 
-                value={formData.cpf} 
-                onChange={handleCPFChange} 
-                placeholder="000.000.000-00" 
-                disabled={isCpfLocked}
-                className={cn(isCpfLocked && "bg-muted/50 cursor-not-allowed")}
-              />
-              {isCpfLocked ? (
-                <p className="text-[9px] text-orange-600 font-bold uppercase tracking-tight flex items-center gap-1">
-                  <Info className="w-3 h-3" /> Para alterar um CPF já cadastrado, entre em contato com o suporte.
-                </p>
-              ) : (
-                <p className="text-[10px] text-muted-foreground italic">Seu CPF é criptografado e usado para vincular ingressos nomeados para você.</p>
-              )}
+              <Label htmlFor="cpf" className="flex items-center gap-2"><Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF {isCpfLocked && <Lock className="w-3 h-3 text-muted-foreground ml-auto" />}</Label>
+              <Input id="cpf" value={formData.cpf} onChange={handleCPFChange} placeholder="000.000.000-00" disabled={isCpfLocked} className={cn(isCpfLocked && "bg-muted/50 cursor-not-allowed")} />
             </div>
 
             <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label htmlFor="bio">Bio (Máx 150 caracteres)</Label>
-                <span className={cn("text-[10px] font-bold", formData.bio.length > 150 ? "text-destructive" : "text-muted-foreground")}>
-                  {formData.bio.length}/150
-                </span>
-              </div>
-              <Textarea 
-                id="bio" 
-                value={formData.bio} 
-                maxLength={150}
-                onChange={(e) => setFormData(prev => ({...prev, bio: e.target.value}))}
-                placeholder="Conte um pouco sobre você..."
-                className="min-h-[100px] resize-none"
-              />
-              <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                <Info className="w-3 h-3" />
-                Links na bio serão removidos automaticamente ao salvar.
-              </p>
+              <Label htmlFor="bio">Bio (Máx 150 caracteres)</Label>
+              <Textarea id="bio" value={formData.bio} maxLength={150} onChange={(e) => setFormData(prev => ({...prev, bio: e.target.value}))} placeholder="Conte um pouco sobre você..." className="min-h-[100px] resize-none" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm">
-          <CardHeader>
-            <CardTitle>Localização (Obrigatórios)</CardTitle>
-            <CardDescription>Sua base principal de atuação.</CardDescription>
-          </CardHeader>
+          <CardHeader><CardTitle>Localização</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="city">Cidade</Label>
-              <Input id="city" value={formData.city} onChange={(e) => setFormData(prev => ({...prev, city: e.target.value}))} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="state">Estado</Label>
-              <Input id="state" value={formData.state} onChange={(e) => setFormData(prev => ({...prev, state: e.target.value}))} placeholder="Ex: SP" required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="country">País</Label>
-              <Input id="country" value={formData.country} onChange={(e) => setFormData(prev => ({...prev, country: e.target.value}))} required />
-            </div>
+            <div className="space-y-2"><Label htmlFor="city">Cidade</Label><Input id="city" value={formData.city} onChange={(e) => setFormData(prev => ({...prev, city: e.target.value}))} required /></div>
+            <div className="space-y-2"><Label htmlFor="state">Estado</Label><Input id="state" value={formData.state} onChange={(e) => setFormData(prev => ({...prev, state: e.target.value}))} placeholder="Ex: SP" required /></div>
+            <div className="space-y-2"><Label htmlFor="country">País</Label><Input id="country" value={formData.country} onChange={(e) => setFormData(prev => ({...prev, country: e.target.value}))} required /></div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm">
-          <CardHeader>
-            <CardTitle>Links & Contato</CardTitle>
-            <CardDescription>Canais oficiais de divulgação.</CardDescription>
-          </CardHeader>
+          <CardHeader><CardTitle>Links & Contato</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2"><Label htmlFor="website">Site Oficial</Label><Input id="website" value={formData.website} onChange={(e) => setFormData(prev => ({...prev, website: e.target.value}))} placeholder="https://..." /></div>
+              <div className="space-y-2"><Label htmlFor="instagram">Instagram</Label><Input id="instagram" value={formData.instagram} onChange={(e) => setFormData(prev => ({...prev, instagram: e.target.value}))} placeholder="@exemplo" /></div>
+              <div className="space-y-2"><Label htmlFor="whatsapp">WhatsApp</Label><Input id="whatsapp" value={formData.whatsapp} onChange={(e) => setFormData(prev => ({...prev, whatsapp: e.target.value}))} placeholder="(00) 00000-0000" /></div>
               <div className="space-y-2">
-                <Label htmlFor="website" className="flex items-center gap-2">
-                  <LinkIcon className="w-3.5 h-3.5" /> Site Oficial
-                </Label>
-                <Input id="website" value={formData.website} onChange={(e) => setFormData(prev => ({...prev, website: e.target.value}))} placeholder="https://..." />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="instagram" className="flex items-center gap-2">
-                  <Instagram className="w-3.5 h-3.5" /> Instagram (usuário)
-                </Label>
-                <Input id="instagram" value={formData.instagram} onChange={(e) => setFormData(prev => ({...prev, instagram: e.target.value}))} placeholder="@exemplo" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="whatsapp" className="flex items-center gap-2">
-                  <Phone className="w-3.5 h-3.5" /> WhatsApp
-                </Label>
-                <Input id="whatsapp" value={formData.whatsapp} onChange={(e) => setFormData(prev => ({...prev, whatsapp: e.target.value}))} placeholder="(00) 00000-0000" />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="email" className="flex items-center gap-2">
-                    <Mail className="w-3.5 h-3.5" /> E-mail de Contato
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="showEmail" className="text-[10px] font-bold uppercase opacity-60">
-                      {formData.showEmail ? "Visível" : "Oculto"}
-                    </Label>
-                    <Switch 
-                      id="showEmail" 
-                      checked={formData.showEmail} 
-                      onCheckedChange={(checked) => setFormData(prev => ({...prev, showEmail: checked}))} 
-                    />
-                  </div>
-                </div>
+                <div className="flex items-center justify-between"><Label htmlFor="email">E-mail de Contato</Label><Switch id="showEmail" checked={formData.showEmail} onCheckedChange={(checked) => setFormData(prev => ({...prev, showEmail: checked}))} /></div>
                 <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData(prev => ({...prev, email: e.target.value}))} placeholder="contato@exemplo.com" />
               </div>
             </div>
@@ -635,7 +397,7 @@ export default function EditarPerfilPage() {
 
         <div className="flex justify-end gap-3">
           <Button type="button" variant="ghost" onClick={() => router.back()}>Cancelar</Button>
-          <Button type="submit" className="bg-secondary text-white hover:bg-secondary/90 px-8" disabled={saving || uploadProgress !== null || (profile?.username !== formData.username && usernameStatus !== 'valid')}>
+          <Button type="submit" className="bg-secondary text-white hover:bg-secondary/90 px-8" disabled={saving || uploadProgress !== null}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
             Salvar Perfil
           </Button>

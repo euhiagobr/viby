@@ -2,8 +2,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
+    // REGRAS VIBY - Versão: 2.1.0
+    // Estas regras aplicam-se exclusivamente ao banco de dados 'eventosviby'
     
-    // Funções Auxiliares
     function isSignedIn() {
       return request.auth != null;
     }
@@ -34,13 +35,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Chaves do Stripe (Segurança Crítica)
+    // Chaves do Stripe
     match /settings/stripe {
       allow read: if isSignedIn(); 
       allow write: if isAdmin();
     }
 
-    // Configurações de E-mail (Segurança Crítica)
+    // Configurações de E-mail
     match /settings/email {
       allow read: if isSignedIn(); 
       allow write: if isAdmin();
@@ -82,10 +83,8 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isSignedIn();
       allow delete: if isAdmin() || (isSignedIn() && resource.data.organizerId == request.auth.uid);
-      // Permite que qualquer usuário (mesmo deslogado) atualize métricas de alcance e cliques
-      // Isso é necessário para que a visualização de um visitante conte como "alcance"
       allow update: if isAdmin() || (isSignedIn() && resource.data.organizerId == request.auth.uid) || 
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reach', 'clicks', 'budget', 'updatedAt']));
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reach', 'clicks', 'budget', 'updatedAt', 'stats_gender_masculino', 'stats_gender_feminino', 'stats_gender_outros', 'stats_gender_desconhecido', 'stats_age_sub18', 'stats_age_18_24', 'stats_age_25_34', 'stats_age_35_44', 'stats_age_45plus', 'stats_age_desconhecido', 'click_stats_gender_masculino', 'click_stats_gender_feminino', 'click_stats_gender_outros', 'click_stats_gender_desconhecido', 'click_stats_age_sub18', 'click_stats_age_18_24', 'click_stats_age_25_34', 'click_stats_age_35_44', 'click_stats_age_45plus', 'click_stats_age_desconhecido']));
     }
 
     // Registros de Interesse / Ingressos
@@ -133,7 +132,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Bloqueio padrão para qualquer outra coleção não especificada (exceto para Admin)
+    // Bloqueio padrão
     match /{allPaths=**} {
       allow read: if true;
       allow write: if isAdmin();

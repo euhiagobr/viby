@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -35,7 +36,6 @@ export default function AdminConfiguracoesPage() {
   const db = useFirestore();
   const app = useFirebaseApp();
   
-  // Settings Refs
   const settingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'site') : null), [db]);
   const stripeRef = React.useMemo(() => (db ? doc(db, 'settings', 'stripe') : null), [db]);
   const emailRef = React.useMemo(() => (db ? doc(db, 'settings', 'email') : null), [db]);
@@ -50,22 +50,15 @@ export default function AdminConfiguracoesPage() {
   const [logoUploadProgress, setLogoUploadProgress] = React.useState<number | null>(null);
   const [iconUploadProgress, setIconUploadProgress] = React.useState<number | null>(null);
   
-  // Brand State
   const [logoUrl, setLogoUrl] = React.useState('');
   const [iconUrl, setIconUrl] = React.useState('');
   const [siteName, setSiteName] = React.useState('');
-
-  // Stripe State
   const [stripePublishableKey, setStripePublishableKey] = React.useState('');
   const [stripeSecretKey, setStripeSecretKey] = React.useState('');
   const [showSecret, setShowSecret] = React.useState(false);
-
-  // Email State
   const [smtpUser, setSmtpUser] = React.useState('');
   const [smtpPass, setSmtpPass] = React.useState('');
   const [showEmailPass, setShowEmailPass] = React.useState(false);
-
-  // Ads/Valores State
   const [cpcValue, setCpcValue] = React.useState('');
   const [cpmValue, setCpmValue] = React.useState('');
 
@@ -98,9 +91,10 @@ export default function AdminConfiguracoesPage() {
     }
   }, [adsSettings]);
 
+  // GARANTIA: Utiliza exclusivamente o bucket 'viby'
   const storage = React.useMemo(() => {
     if (!app) return null;
-    return getStorage(app, 'gs://viby');
+    return getStorage(app, 'viby');
   }, [app]);
 
   const handleFileUpload = async (file: File, type: 'logo' | 'icon') => {
@@ -174,7 +168,7 @@ export default function AdminConfiguracoesPage() {
     };
 
     setDoc(doc(db, 'settings', 'stripe'), stripeData, { merge: true })
-      .then(() => toast({ title: 'Chaves do Stripe salvas!', description: 'A integração financeira está ativa.' }))
+      .then(() => toast({ title: 'Chaves do Stripe salvas!' }))
       .catch(async (error) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: 'settings/stripe',
@@ -197,7 +191,7 @@ export default function AdminConfiguracoesPage() {
     };
 
     setDoc(doc(db, 'settings', 'email'), emailData, { merge: true })
-      .then(() => toast({ title: 'Configurações de E-mail salvas!', description: 'O sistema de notificações está ativo.' }))
+      .then(() => toast({ title: 'Configurações de E-mail salvas!' }))
       .catch(async (error) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: 'settings/email',
@@ -220,7 +214,7 @@ export default function AdminConfiguracoesPage() {
     };
 
     setDoc(doc(db, 'settings', 'ads'), adsData, { merge: true })
-      .then(() => toast({ title: 'Valores de Publicidade salvos!', description: 'As taxas de CPC e CPM foram atualizadas.' }))
+      .then(() => toast({ title: 'Valores de Publicidade salvos!' }))
       .catch(async (error) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: 'settings/ads',
@@ -232,11 +226,7 @@ export default function AdminConfiguracoesPage() {
   };
 
   if (loadingSettings || loadingStripe || loadingEmail || loadingAds) {
-    return (
-      <div className="flex justify-center items-center h-[60vh]">
-        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-      </div>
-    );
+    return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
   }
 
   return (
@@ -248,18 +238,10 @@ export default function AdminConfiguracoesPage() {
 
       <Tabs defaultValue="brand" className="space-y-6">
         <TabsList className="bg-muted/50 p-1 rounded-xl">
-          <TabsTrigger value="brand" className="gap-2 rounded-lg font-bold">
-            <Layout className="w-4 h-4" /> Marca
-          </TabsTrigger>
-          <TabsTrigger value="payments" className="gap-2 rounded-lg font-bold">
-            <CreditCard className="w-4 h-4" /> Pagamentos
-          </TabsTrigger>
-          <TabsTrigger value="email" className="gap-2 rounded-lg font-bold">
-            <Mail className="w-4 h-4" /> E-mail
-          </TabsTrigger>
-          <TabsTrigger value="values" className="gap-2 rounded-lg font-bold">
-            <Coins className="w-4 h-4" /> Valores
-          </TabsTrigger>
+          <TabsTrigger value="brand" className="gap-2 rounded-lg font-bold"><Layout className="w-4 h-4" /> Marca</TabsTrigger>
+          <TabsTrigger value="payments" className="gap-2 rounded-lg font-bold"><CreditCard className="w-4 h-4" /> Pagamentos</TabsTrigger>
+          <TabsTrigger value="email" className="gap-2 rounded-lg font-bold"><Mail className="w-4 h-4" /> E-mail</TabsTrigger>
+          <TabsTrigger value="values" className="gap-2 rounded-lg font-bold"><Coins className="w-4 h-4" /> Valores</TabsTrigger>
         </TabsList>
 
         <TabsContent value="brand">
@@ -272,43 +254,21 @@ export default function AdminConfiguracoesPage() {
               <CardContent className="space-y-6">
                 <div className="space-y-2">
                   <Label htmlFor="siteName">Nome do Site</Label>
-                  <Input 
-                    id="siteName" 
-                    value={siteName}
-                    onChange={(e) => setSiteName(e.target.value)}
-                    placeholder="Viby"
-                    className="rounded-xl h-12"
-                  />
+                  <Input id="siteName" value={siteName} onChange={(e) => setSiteName(e.target.value)} placeholder="Viby" className="rounded-xl h-12" />
                 </div>
-                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-4">
                     <Label>Logotipo</Label>
-                    <div 
-                      className="relative aspect-square rounded-2xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden group cursor-pointer"
-                      onClick={() => document.getElementById('logo-upload')?.click()}
-                    >
-                      {logoUrl ? (
-                        <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-4" />
-                      ) : (
-                        <Upload className="w-8 h-8 text-muted-foreground opacity-20" />
-                      )}
+                    <div className="relative aspect-square rounded-2xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden group cursor-pointer" onClick={() => document.getElementById('logo-upload')?.click()}>
+                      {logoUrl ? <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-4" /> : <Upload className="w-8 h-8 text-muted-foreground opacity-20" />}
                       <input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'logo')} />
                     </div>
                     {logoUploadProgress !== null && <Progress value={logoUploadProgress} className="h-1" />}
                   </div>
-
                   <div className="space-y-4">
                     <Label>Ícone</Label>
-                    <div 
-                      className="relative aspect-square rounded-2xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden group cursor-pointer"
-                      onClick={() => document.getElementById('icon-upload')?.click()}
-                    >
-                      {iconUrl ? (
-                        <img src={iconUrl} alt="Icon" className="w-16 h-16 object-contain" />
-                      ) : (
-                        <ImageIcon className="w-8 h-8 text-muted-foreground opacity-20" />
-                      )}
+                    <div className="relative aspect-square rounded-2xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden group cursor-pointer" onClick={() => document.getElementById('icon-upload')?.click()}>
+                      {iconUrl ? <img src={iconUrl} alt="Icon" className="w-16 h-16 object-contain" /> : <ImageIcon className="w-8 h-8 text-muted-foreground opacity-20" />}
                       <input id="icon-upload" type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'icon')} />
                     </div>
                     {iconUploadProgress !== null && <Progress value={iconUploadProgress} className="h-1" />}
@@ -328,9 +288,7 @@ export default function AdminConfiguracoesPage() {
             <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
               <CardHeader>
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-50 rounded-lg">
-                    <CreditCard className="w-5 h-5 text-blue-600" />
-                  </div>
+                  <div className="p-2 bg-blue-50 rounded-lg"><CreditCard className="w-5 h-5 text-blue-600" /></div>
                   <div>
                     <CardTitle className="text-xl">Configuração do Stripe</CardTitle>
                     <CardDescription>Integre sua conta do Stripe para processar pagamentos.</CardDescription>
@@ -339,54 +297,21 @@ export default function AdminConfiguracoesPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Key className="w-3.5 h-3.5 text-muted-foreground" />
-                    Stripe Publishable Key
-                  </Label>
-                  <Input 
-                    value={stripePublishableKey}
-                    onChange={(e) => setStripePublishableKey(e.target.value)}
-                    placeholder="pk_test_..."
-                    className="rounded-xl font-mono text-xs h-12"
-                  />
-                  <p className="text-[10px] text-muted-foreground">Utilizada no frontend para inicializar o Stripe.</p>
+                  <Label className="flex items-center gap-2"><Key className="w-3.5 h-3.5 text-muted-foreground" /> Stripe Publishable Key</Label>
+                  <Input value={stripePublishableKey} onChange={(e) => setStripePublishableKey(e.target.value)} placeholder="pk_test_..." className="rounded-xl font-mono text-xs h-12" />
                 </div>
-
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
-                    Stripe Secret Key
-                  </Label>
+                  <Label className="flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5 text-blue-600" /> Stripe Secret Key</Label>
                   <div className="relative">
-                    <Input 
-                      type={showSecret ? "text" : "password"}
-                      value={stripeSecretKey}
-                      onChange={(e) => setStripeSecretKey(e.target.value)}
-                      placeholder="sk_test_..."
-                      className="rounded-xl font-mono text-xs h-12 pr-12"
-                    />
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
-                      size="icon" 
-                      className="absolute right-2 top-1/2 -translate-y-1/2"
-                      onClick={() => setShowSecret(!showSecret)}
-                    >
+                    <Input type={showSecret ? "text" : "password"} value={stripeSecretKey} onChange={(e) => setStripeSecretKey(e.target.value)} placeholder="sk_test_..." className="rounded-xl font-mono text-xs h-12 pr-12" />
+                    <Button type="button" variant="ghost" size="icon" className="absolute right-2 top-1/2 -translate-y-1/2" onClick={() => setShowSecret(!showSecret)}>
                       {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </Button>
                   </div>
-                  <p className="text-[10px] text-red-500 font-bold uppercase tracking-tight">Cuidado: Nunca compartilhe sua Secret Key.</p>
-                </div>
-
-                <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex gap-3">
-                  <Info className="w-5 h-5 text-blue-600 shrink-0" />
-                  <p className="text-[10px] text-blue-800 font-medium leading-tight">
-                    Essas chaves são salvas no banco de dados e utilizadas dinamicamente pelo servidor do Viby para criar sessões de pagamento seguras.
-                  </p>
                 </div>
               </CardContent>
             </Card>
-            <Button type="submit" disabled={saving} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-lg shadow-secondary/20">
+            <Button type="submit" disabled={saving} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-lg">
               {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
               Salvar Configurações de Pagamento
             </Button>
@@ -398,9 +323,7 @@ export default function AdminConfiguracoesPage() {
             <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
               <CardHeader>
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-50 rounded-lg">
-                    <Mail className="w-5 h-5 text-purple-600" />
-                  </div>
+                  <div className="p-2 bg-purple-50 rounded-lg"><Mail className="w-5 h-5 text-purple-600" /></div>
                   <div>
                     <CardTitle className="text-xl">Configuração de E-mail</CardTitle>
                     <CardDescription>Configure o Google Workspace para envio de ingressos.</CardDescription>
@@ -409,60 +332,21 @@ export default function AdminConfiguracoesPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Mail className="w-3.5 h-3.5 text-muted-foreground" />
-                    E-mail do Remetente (Google Workspace)
-                  </Label>
-                  <Input 
-                    value={smtpUser}
-                    onChange={(e) => setSmtpUser(e.target.value)}
-                    placeholder="contato@suaempresa.com.br"
-                    className="rounded-xl h-12"
-                  />
-                  <p className="text-[10px] text-muted-foreground">O e-mail que aparecerá como remetente para o usuário.</p>
+                  <Label className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-muted-foreground" /> E-mail do Remetente</Label>
+                  <Input value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} placeholder="contato@suaempresa.com.br" className="rounded-xl h-12" />
                 </div>
-
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Key className="w-3.5 h-3.5 text-purple-600" />
-                    Senha de App (Google)
-                  </Label>
+                  <Label className="flex items-center gap-2"><Key className="w-3.5 h-3.5 text-purple-600" /> Senha de App (Google)</Label>
                   <div className="relative">
-                    <Input 
-                      type={showEmailPass ? "text" : "password"}
-                      value={smtpPass}
-                      onChange={(e) => setSmtpPass(e.target.value)}
-                      placeholder="abcd efgh ijkl mnop"
-                      className="rounded-xl font-mono text-xs h-12 pr-12"
-                    />
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
-                      size="icon" 
-                      className="absolute right-2 top-1/2 -translate-y-1/2"
-                      onClick={() => setShowEmailPass(!showEmailPass)}
-                    >
+                    <Input type={showEmailPass ? "text" : "password"} value={smtpPass} onChange={(e) => setSmtpPass(e.target.value)} placeholder="abcd efgh ijkl mnop" className="rounded-xl font-mono text-xs h-12 pr-12" />
+                    <Button type="button" variant="ghost" size="icon" className="absolute right-2 top-1/2 -translate-y-1/2" onClick={() => setShowEmailPass(!showEmailPass)}>
                       {showEmailPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </Button>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">Não use sua senha normal. Gere uma "Senha de App" nas configurações de segurança do seu Google Account.</p>
-                </div>
-
-                <div className="p-4 bg-purple-50 border border-purple-100 rounded-xl flex gap-3">
-                  <Info className="w-5 h-5 text-purple-600 shrink-0" />
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-purple-800 font-bold uppercase">Como configurar?</p>
-                    <ol className="text-[10px] text-purple-800 list-decimal ml-4 space-y-1">
-                      <li>Acesse sua Conta Google &gt; Segurança</li>
-                      <li>Ative a "Verificação em duas etapas"</li>
-                      <li>Vá em "Senhas de App" e crie uma para "E-mail"</li>
-                      <li>Copie o código de 16 letras e cole aqui</li>
-                    </ol>
                   </div>
                 </div>
               </CardContent>
             </Card>
-            <Button type="submit" disabled={saving} className="w-full bg-primary text-white font-black h-14 rounded-2xl shadow-lg">
+            <Button type="submit" disabled={saving} className="w-full bg-primary text-white font-black h-14 rounded-2xl">
               {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
               Salvar Configurações de E-mail
             </Button>
@@ -474,63 +358,31 @@ export default function AdminConfiguracoesPage() {
             <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
               <CardHeader>
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-orange-50 rounded-lg">
-                    <Coins className="w-5 h-5 text-orange-600" />
-                  </div>
+                  <div className="p-2 bg-orange-50 rounded-lg"><Coins className="w-5 h-5 text-orange-600" /></div>
                   <div>
                     <CardTitle className="text-xl">Valores de Publicidade</CardTitle>
-                    <CardDescription>Defina os custos padrão para impulsionamento de eventos.</CardDescription>
+                    <CardDescription>Defina os custos padrão para impulsionamento.</CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <MousePointer2 className="w-3.5 h-3.5 text-muted-foreground" />
-                    Valor por Clique (CPC)
-                  </Label>
+                  <Label className="flex items-center gap-2"><MousePointer2 className="w-3.5 h-3.5 text-muted-foreground" /> Valor por Clique (CPC)</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">R$</span>
-                    <Input 
-                      type="number"
-                      step="0.01"
-                      value={cpcValue}
-                      onChange={(e) => setCpcValue(e.target.value)}
-                      placeholder="0.15"
-                      className="rounded-xl pl-9 h-12 font-bold"
-                    />
+                    <Input type="number" step="0.01" value={cpcValue} onChange={(e) => setCpcValue(e.target.value)} placeholder="0.15" className="rounded-xl pl-9 h-12 font-bold" />
                   </div>
-                  <p className="text-[10px] text-muted-foreground">Custo debitado do orçamento do produtor a cada clique único no card.</p>
                 </div>
-
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <TrendingUp className="w-3.5 h-3.5 text-muted-foreground" />
-                    Valor por Mil Impressões (CPM)
-                  </Label>
+                  <Label className="flex items-center gap-2"><TrendingUp className="w-3.5 h-3.5 text-muted-foreground" /> Valor por Mil Impressões (CPM)</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">R$</span>
-                    <Input 
-                      type="number"
-                      step="0.01"
-                      value={cpmValue}
-                      onChange={(e) => setCpmValue(e.target.value)}
-                      placeholder="5.00"
-                      className="rounded-xl pl-9 h-12 font-bold"
-                    />
+                    <Input type="number" step="0.01" value={cpmValue} onChange={(e) => setCpmValue(e.target.value)} placeholder="5.00" className="rounded-xl pl-9 h-12 font-bold" />
                   </div>
-                  <p className="text-[10px] text-muted-foreground">Custo para cada 1.000 vezes que o anúncio for exibido no feed.</p>
-                </div>
-
-                <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl flex gap-3">
-                  <Info className="w-5 h-5 text-orange-600 shrink-0" />
-                  <p className="text-[10px] text-orange-800 font-medium leading-tight">
-                    Esses valores servem de base para o sistema calcular o consumo automático dos orçamentos diários contratados pelos produtores.
-                  </p>
                 </div>
               </CardContent>
             </Card>
-            <Button type="submit" disabled={saving} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-lg shadow-secondary/20 uppercase italic">
+            <Button type="submit" disabled={saving} className="w-full bg-secondary text-white font-black h-14 rounded-2xl uppercase italic">
               {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
               Salvar Parâmetros de Custo
             </Button>

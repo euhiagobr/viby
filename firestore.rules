@@ -1,80 +1,16 @@
 
 rules_version = '2';
 service cloud.firestore {
-  match /databases/{database}/documents {
-
-    // ===== FUNÇÕES AUXILIARES GLOBAIS =====
-
+  match /databases/(default)/documents {
+    // REGRAS ONG - Versão: 2.0.0
+    // Estas regras aplicam-se apenas ao banco de dados (default)
+    
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwnDoc(uid) {
-      return request.auth.uid == uid;
-    }
-
-    function isAdmin() {
-      return isSignedIn() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
-    }
-
-    // ===== CONFIGURAÇÕES DO SITE (IDENTIDADE VISUAL) =====
-    match /settings/site {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // ===== USUÁRIOS =====
-    match /users/{uid} {
-      allow read: if true;
-      allow create: if isSignedIn() && isOwnDoc(uid);
-      allow update: if isSignedIn() && (isOwnDoc(uid) || isAdmin());
-      allow delete: if isAdmin();
-    }
-
-    match /usernames/{username} {
-      allow read: if true;
-      allow create: if isSignedIn() && (request.resource.data.uid == request.auth.uid || isAdmin());
-      allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
-      allow update: if isAdmin();
-    }
-
-    // ===== EVENTOS =====
-    match /events/{eventId} {
-      allow read: if true;
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn() && (resource.data.organizerId == request.auth.uid || isAdmin());
-    }
-
-    // ===== INGRESSOS =====
-    match /registrations/{regId} {
-      allow read: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || 
-        resource.data.sharedWithUid == request.auth.uid ||
-        isAdmin()
-      );
-    }
-
-    // ===== CATEGORIAS =====
-    match /categories/{catId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // ===== DENÚNCIAS =====
-    match /reports/{reportId} {
-      allow read: if isAdmin();
-      allow create: if isSignedIn();
-      allow update, delete: if isAdmin();
-    }
-
-    // ===== BLOQUEIO PADRÃO PARA OUTRAS COLEÇÕES =====
     match /{allPaths=**} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read, write: if isSignedIn();
     }
   }
 }

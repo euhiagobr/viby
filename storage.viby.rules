@@ -2,6 +2,8 @@
 rules_version = '2';
 service firebase.storage {
   match /b/viby/o {
+    // REGRAS VIBY - Versão: 2.0.0
+    // Isolamento para o bucket exclusivo 'viby'
     
     function isSignedIn() {
       return request.auth != null;
@@ -10,7 +12,7 @@ service firebase.storage {
     // Assets globais da marca
     match /site_assets/{allPaths=**} {
       allow read: if true;
-      allow write: if isSignedIn(); // Admin logic no cliente
+      allow write: if isSignedIn();
     }
 
     // Fotos de perfil
@@ -25,7 +27,7 @@ service firebase.storage {
       allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // Outros arquivos
+    // Outros arquivos do sistema Viby
     match /{allPaths=**} {
       allow read: if true;
       allow write: if isSignedIn();
