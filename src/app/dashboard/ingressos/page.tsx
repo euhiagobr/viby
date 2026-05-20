@@ -52,7 +52,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -246,25 +245,58 @@ function TicketListItem({ registration, isIncoming = false, isHistorical = false
         sharedWithUid = snap.docs[0].id;
       }
 
-      const historyEntry = {
-        fromUid: user.uid,
-        fromName: profile?.name || user.displayName || "Titular",
-        toUid: sharedWithUid,
-        toName: attendeeName,
-        timestamp: new Date().toISOString(),
-        status: 'pending'
-      };
+      const isTargetSelf = sharedWithUid === user.uid || cleanCPF === decryptData(profile?.cpf || "");
 
-      await updateDoc(doc(db, "registrations", registration.id), {
-        attendeeName,
-        attendeeCPF, 
-        sharedWithUid,
-        transferStatus: 'pending',
-        transferChain: arrayUnion(historyEntry),
-        updatedAt: serverTimestamp()
-      });
+      if (isTargetSelf) {
+        // Auto-nomeação ou atualização de dados próprios: ignora fluxo de aceite
+        const updateData: any = {
+          attendeeName,
+          attendeeCPF,
+          updatedAt: serverTimestamp()
+        };
 
-      toast({ title: "Convite enviado!", description: "O novo titular precisa aceitar no painel dele." });
+        // Se o comprador está se nomeando, limpa qualquer compartilhamento anterior
+        if (registration.userId === user.uid) {
+          updateData.sharedWithUid = null;
+          updateData.transferStatus = null;
+        } else {
+          // Se já era um recebedor, mantém status aceito
+          updateData.transferStatus = 'accepted';
+        }
+
+        await updateDoc(doc(db, "registrations", registration.id), updateData);
+        toast({ title: "Ingresso nomeado!", description: "Seus dados foram vinculados com sucesso." });
+      } else if (sharedWithUid) {
+        // Transferência real para outro usuário cadastrado
+        const historyEntry = {
+          fromUid: user.uid,
+          fromName: profile?.name || user.displayName || "Titular",
+          toUid: sharedWithUid,
+          toName: attendeeName,
+          timestamp: new Date().toISOString(),
+          status: 'pending'
+        };
+
+        await updateDoc(doc(db, "registrations", registration.id), {
+          attendeeName,
+          attendeeCPF, 
+          sharedWithUid,
+          transferStatus: 'pending',
+          transferChain: arrayUnion(historyEntry),
+          updatedAt: serverTimestamp()
+        });
+        toast({ title: "Convite enviado!", description: "O novo titular precisa aceitar no painel dele." });
+      } else {
+        // Nomeação simples para alguém sem conta (apenas texto no voucher)
+        await updateDoc(doc(db, "registrations", registration.id), {
+          attendeeName,
+          attendeeCPF,
+          // Não define sharedWithUid nem muda status, continua na posse do remetente
+          updatedAt: serverTimestamp()
+        });
+        toast({ title: "Ingresso atualizado!", description: "O nome no voucher foi alterado." });
+      }
+
       setIsNameModalOpen(false)
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao salvar" })
