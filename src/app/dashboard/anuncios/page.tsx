@@ -23,7 +23,8 @@ import {
   BarChart3,
   Search,
   Filter,
-  CreditCard
+  CreditCard,
+  Clock
 } from "lucide-react"
 import {
   Dialog,
@@ -90,7 +91,18 @@ export default function AnunciosPage() {
     setIsSubmitting(true)
     const formData = new FormData(e.currentTarget)
     const event = myEvents?.find(ev => ev.id === selectedEventId)
-    const budget = parseFloat(formData.get("budget") as string) || 0
+    
+    const dailyBudget = parseFloat(formData.get("budget") as string) || 0
+    const startDateStr = formData.get("startDate") as string
+    const endDateStr = formData.get("endDate") as string
+
+    // Calcular dias de duração
+    const start = new Date(startDateStr)
+    const end = new Date(endDateStr)
+    const diffTime = Math.abs(end.getTime() - start.getTime())
+    const days = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)))
+    
+    const totalBudget = dailyBudget * days
 
     const adData = {
       eventId: selectedEventId,
@@ -98,9 +110,11 @@ export default function AnunciosPage() {
       organizerId: user.uid,
       type: adType,
       status: "Pendente Pagamento",
-      budget: budget,
-      startDate: formData.get("startDate") as string,
-      endDate: formData.get("endDate") as string,
+      dailyBudget: dailyBudget,
+      budget: totalBudget, // Orçamento Total = Diário * Dias
+      durationDays: days,
+      startDate: startDateStr,
+      endDate: endDateStr,
       reach: 0,
       clicks: 0,
       createdAt: serverTimestamp()
@@ -109,14 +123,14 @@ export default function AnunciosPage() {
     try {
       const docRef = await addDoc(collection(db, "ads"), adData)
       
-      // Iniciar Checkout se o orçamento for maior que zero
-      if (budget > 0) {
+      // Iniciar Checkout se o orçamento total for maior que zero
+      if (totalBudget > 0) {
         const { url } = await createAdCheckoutSession({
           adId: docRef.id,
           eventTitle: adData.eventTitle,
           userId: user.uid,
           userEmail: user.email!,
-          totalAmount: budget * 100 // Em centavos
+          totalAmount: totalBudget * 100 // Em centavos
         });
 
         if (url) {
@@ -215,15 +229,16 @@ export default function AnunciosPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Orçamento Total da Campanha (R$)</Label>
-                  <Input name="budget" type="number" step="0.01" placeholder="Ex: 150.00" required className="rounded-xl h-12 text-lg font-bold" />
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Orçamento Diário (R$)</Label>
+                  <Input name="budget" type="number" step="0.01" placeholder="Ex: 50.00" required className="rounded-xl h-12 text-lg font-bold" />
+                  <p className="text-[9px] text-muted-foreground italic">* O valor total será multiplicado pela quantidade de dias selecionados.</p>
                 </div>
               </div>
 
               <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex gap-3">
                 <Target className="w-5 h-5 text-secondary shrink-0" />
                 <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
-                  Ao confirmar, você será redirecionado para o pagamento seguro. O anúncio entrará no ar após a compensação.
+                  Ao confirmar, você será redirecionado para o pagamento seguro. O anúncio entrará no ar após a compensação do valor total do período.
                 </p>
               </div>
 
@@ -317,6 +332,7 @@ export default function AnunciosPage() {
                       <div className="flex items-center gap-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                         <span className="flex items-center gap-1"><Target className="w-3 h-3" /> {ad.type}</span>
                         <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(ad.startDate).toLocaleDateString()} - {new Date(ad.endDate).toLocaleDateString()}</span>
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {ad.durationDays || '---'} dias</span>
                       </div>
                     </div>
                   </div>
@@ -331,8 +347,9 @@ export default function AnunciosPage() {
                        <p className="font-black text-sm">{ad.clicks?.toLocaleString() || 0}</p>
                     </div>
                     <div className="text-right">
-                       <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Budget Total</p>
+                       <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Investimento Total</p>
                        <p className="font-black text-primary">R$ {ad.budget?.toFixed(2)}</p>
+                       <p className="text-[8px] text-muted-foreground font-bold uppercase">R$ {ad.dailyBudget?.toFixed(2)}/dia</p>
                     </div>
                   </div>
                 </div>
