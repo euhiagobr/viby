@@ -27,7 +27,8 @@ import {
   XCircle,
   ArrowRight,
   Info,
-  Undo2
+  Undo2,
+  Search
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -176,6 +177,7 @@ function TicketListItem({ registration, isIncoming = false, isSent = false }: { 
   const [attendeeName, setAttendeeName] = React.useState(registration.attendeeName || "")
   const [attendeeCPF, setAttendeeCPF] = React.useState(registration.attendeeCPF || "")
   const [isSaving, setIsSaving] = React.useState(false)
+  const [isSearchingUser, setIsSearchingUser] = React.useState(false)
 
   React.useEffect(() => {
     if (!db || !registration.eventId) return
@@ -194,6 +196,33 @@ function TicketListItem({ registration, isIncoming = false, isSent = false }: { 
     }
     fetchEvent()
   }, [db, registration.eventId])
+
+  // Lógica de Autocomplete por CPF
+  React.useEffect(() => {
+    const lookupUser = async () => {
+      const cleanCPF = attendeeCPF.replace(/\D/g, "");
+      if (cleanCPF.length === 11 && db) {
+        setIsSearchingUser(true);
+        try {
+          const encryptedCpfSearch = encryptDeterministic(cleanCPF);
+          const q = query(collection(db, "users"), where("cpf", "==", encryptedCpfSearch));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const foundUser = snap.docs[0].data();
+            setAttendeeName(foundUser.name || "");
+            toast({ title: "Usuário encontrado!", description: `Nome preenchido: ${foundUser.name}` });
+          }
+        } catch (e) {
+          console.error("Erro ao buscar usuário por CPF:", e);
+        } finally {
+          setIsSearchingUser(false);
+        }
+      }
+    };
+
+    const timer = setTimeout(lookupUser, 300);
+    return () => clearTimeout(timer);
+  }, [attendeeCPF, db]);
 
   const formatCPF = (v: string) => {
     v = v.replace(/\D/g, "");
@@ -438,12 +467,27 @@ function TicketListItem({ registration, isIncoming = false, isSent = false }: { 
                       </Button>
                       <Separator />
                       <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase opacity-60">Nome Completo</Label>
-                        <Input value={attendeeName} onChange={(e) => setAttendeeName(e.target.value)} placeholder="Nome do participante" className="rounded-xl" />
+                        <Label className="text-[10px] font-black uppercase opacity-60">CPF do Participante</Label>
+                        <div className="relative">
+                          <Input 
+                            value={attendeeCPF} 
+                            onChange={(e) => setAttendeeCPF(formatCPF(e.target.value))} 
+                            placeholder="000.000.000-00" 
+                            className={cn("rounded-xl", isSearchingUser && "pr-10")} 
+                          />
+                          {isSearchingUser && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <Loader2 className="w-4 h-4 animate-spin text-secondary" />
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-[9px] text-muted-foreground flex items-center gap-1">
+                          <Search className="w-3 h-3" /> Digite o CPF completo para buscar o usuário.
+                        </p>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase opacity-60">CPF</Label>
-                        <Input value={attendeeCPF} onChange={(e) => setAttendeeCPF(formatCPF(e.target.value))} placeholder="000.000.000-00" className="rounded-xl" />
+                        <Label className="text-[10px] font-black uppercase opacity-60">Nome Completo</Label>
+                        <Input value={attendeeName} onChange={(e) => setAttendeeName(e.target.value)} placeholder="Nome do participante" className="rounded-xl" />
                       </div>
                       <div className="p-3 bg-muted/50 rounded-lg flex gap-2">
                         <Info className="w-4 h-4 text-secondary shrink-0" />
