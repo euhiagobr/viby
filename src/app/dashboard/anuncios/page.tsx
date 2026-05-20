@@ -26,7 +26,9 @@ import {
   Clock,
   AlertTriangle,
   Coins,
-  Info
+  Info,
+  Pause,
+  Play
 } from "lucide-react"
 import {
   Dialog,
@@ -88,6 +90,7 @@ export default function AnunciosPage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [selectedEventId, setSelectedEventId] = React.useState("")
   const [adType, setAdType] = React.useState("feed")
+  const [actionLoadingId, setActionLoadingId] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (!profileLoading && profile && profile.accountType !== 'Empresa') {
@@ -160,6 +163,28 @@ export default function AnunciosPage() {
     }
   }
 
+  const handleToggleStatus = async (adId: string, currentStatus: string) => {
+    if (!db) return
+    
+    const newStatus = currentStatus === 'Ativo' ? 'Pausado' : 'Ativo'
+    setActionLoadingId(adId)
+    
+    try {
+      await updateDoc(doc(db, "ads", adId), { 
+        status: newStatus,
+        updatedAt: serverTimestamp()
+      })
+      toast({ 
+        title: newStatus === 'Pausado' ? "Campanha pausada" : "Campanha reativada", 
+        description: newStatus === 'Pausado' ? "O anúncio não será mais exibido até que você o reative." : "Seu anúncio voltou a ser exibido no feed." 
+      })
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao atualizar", description: "Não foi possível alterar o status da campanha." })
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
   const stats = React.useMemo(() => {
     if (!ads) return { reach: 0, clicks: 0, active: 0 }
     return ads.reduce((acc, ad) => {
@@ -174,7 +199,7 @@ export default function AnunciosPage() {
     if (!ad.budget || ad.budget <= 0) return 0;
     const now = new Date();
     const end = new Date(ad.endDate);
-    end.setHours(23, 59, 59, 999); // Garante que o último dia conte até o fim
+    end.setHours(23, 59, 59, 999);
     
     if (now > end) return 0;
 
@@ -356,8 +381,8 @@ export default function AnunciosPage() {
                 const isUnderperforming = remainingDaily > (ad.dailyBudget || 0) * 1.1;
 
                 return (
-                  <div key={ad.id} className="p-6 flex flex-col gap-6 transition-colors lg:flex-row lg:items-center lg:justify-between hover:bg-muted/20">
-                    <div className="flex gap-4 min-w-[300px]">
+                  <div key={ad.id} className="p-6 flex flex-col gap-6 transition-colors lg:flex-row lg:items-center lg:justify-between hover:bg-muted/10">
+                    <div className="flex gap-4 min-w-[280px]">
                       <div className="flex items-center justify-center shrink-0 w-12 h-12 rounded-2xl bg-secondary/10">
                          <Megaphone className="w-6 h-6 text-secondary" />
                       </div>
@@ -367,6 +392,7 @@ export default function AnunciosPage() {
                           <Badge className={cn(
                             "text-[8px] font-black uppercase h-4",
                             ad.status === 'Ativo' ? "bg-green-500" :
+                            ad.status === 'Pausado' ? "bg-yellow-500" :
                             ad.status === 'Pendente Pagamento' ? "bg-orange-500" :
                             ad.status === 'Pendente' ? "bg-blue-500" : "bg-muted"
                           )}>
@@ -376,19 +402,14 @@ export default function AnunciosPage() {
                         <div className="flex flex-wrap items-center gap-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                           <span className="flex items-center gap-1"><Target className="w-3 h-3" /> {ad.type}</span>
                           <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {ad.startDate ? new Date(ad.startDate).toLocaleDateString('pt-BR') : '---'} - {ad.endDate ? new Date(ad.endDate).toLocaleDateString('pt-BR') : '---'}</span>
-                          <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {ad.durationDays || '---'} dias</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8 flex-1">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-6 flex-1 px-4">
                       <div className="text-center">
-                         <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Alcance</p>
-                         <p className="font-black text-sm">{ad.reach?.toLocaleString() || 0}</p>
-                      </div>
-                      <div className="text-center">
-                         <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Cliques</p>
-                         <p className="font-black text-sm">{ad.clicks?.toLocaleString() || 0}</p>
+                         <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Impactos / Cliques</p>
+                         <p className="font-black text-sm">{ad.reach?.toLocaleString() || 0} <span className="opacity-30">/</span> {ad.clicks?.toLocaleString() || 0}</p>
                       </div>
                       <div className="text-center">
                          <p className="text-[10px] font-black text-secondary uppercase mb-1">Disponível p/ hoje</p>
@@ -413,13 +434,45 @@ export default function AnunciosPage() {
                             </div>
                          </div>
                       </div>
-                      <div className="text-right pr-4">
+                      <div className="text-right">
                          <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Saldo Restante</p>
                          <div className="flex flex-col">
                             <span className="font-black text-sm text-primary">{formatCurrency(ad.budget || 0)}</span>
-                            <span className="text-[8px] text-muted-foreground font-bold uppercase">Total Pago: {formatCurrency((ad.dailyBudget || 0) * (ad.durationDays || 1))}</span>
+                            <span className="text-[8px] text-muted-foreground font-bold uppercase">De {formatCurrency((ad.dailyBudget || 0) * (ad.durationDays || 1))}</span>
                          </div>
                       </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 shrink-0">
+                       {(ad.status === 'Ativo' || ad.status === 'Pausado') && (
+                         <Button 
+                           variant="outline" 
+                           size="sm" 
+                           onClick={() => handleToggleStatus(ad.id, ad.status)}
+                           disabled={actionLoadingId === ad.id}
+                           className={cn(
+                             "h-9 px-4 rounded-xl font-bold text-[10px] uppercase gap-2 transition-all",
+                             ad.status === 'Ativo' ? "hover:bg-yellow-50 hover:text-yellow-600 hover:border-yellow-200" : "bg-green-50 text-green-600 border-green-200 hover:bg-green-100"
+                           )}
+                         >
+                           {actionLoadingId === ad.id ? (
+                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                           ) : ad.status === 'Ativo' ? (
+                             <>
+                               <Pause className="w-3.5 h-3.5" />
+                               Pausar
+                             </>
+                           ) : (
+                             <>
+                               <Play className="w-3.5 h-3.5" />
+                               Reativar
+                             </>
+                           )}
+                         </Button>
+                       )}
+                       <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl text-muted-foreground hover:text-primary">
+                          <MoreHorizontal className="w-4 h-4" />
+                       </Button>
                     </div>
                   </div>
                 );
@@ -451,6 +504,33 @@ export default function AnunciosPage() {
            </Link>
         </Button>
       </div>
+
+      <div className="text-center pt-4">
+        <Button variant="ghost" asChild className="font-bold text-muted-foreground uppercase text-xs tracking-widest hover:text-secondary">
+          <Link href="/dashboard/suporte">Dúvidas sobre cobrança? Fale conosco</Link>
+        </Button>
+      </div>
     </div>
+  )
+}
+
+function MoreHorizontal(props: any) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+      <circle cx="5" cy="12" r="1" />
+    </svg>
   )
 }
