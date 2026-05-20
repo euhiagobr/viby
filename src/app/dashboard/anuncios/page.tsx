@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { collection, query, where, addDoc, serverTimestamp, doc } from "firebase/firestore"
+import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -57,7 +57,6 @@ export default function AnunciosPage() {
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile, loading: profileLoading } = useDoc<any>(userDocRef)
 
-  // Consulta simplificada para evitar erro de índice composto
   const adsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
     return query(collection(db, "ads"), where("organizerId", "==", user.uid))
@@ -65,7 +64,6 @@ export default function AnunciosPage() {
 
   const { data: rawAds, loading: adsLoading, error: adsError } = useCollection<any>(adsQuery)
 
-  // Ordenação client-side para garantir que funcione sem índices compostos
   const ads = React.useMemo(() => {
     if (!rawAds) return []
     return [...rawAds].sort((a, b) => {
@@ -75,7 +73,6 @@ export default function AnunciosPage() {
     })
   }, [rawAds])
 
-  // Eventos para selecionar na criação do anúncio
   const eventsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
     return query(collection(db, "events"), where("organizerId", "==", user.uid), where("status", "==", "Ativo"))
@@ -145,9 +142,12 @@ export default function AnunciosPage() {
           window.location.href = url;
           return;
         }
+      } else {
+        // Se o orçamento for zero, ativa na hora (aprovação automática)
+        await updateDoc(doc(db, "ads", docRef.id), { status: "Ativo" });
       }
 
-      toast({ title: "Campanha criada!", description: "Seu anúncio gratuito foi enviado para análise." })
+      toast({ title: "Campanha ativa!", description: "Seu anúncio já está rodando na plataforma." })
       setIsCreateDialogOpen(false)
       setSelectedEventId("")
     } catch (error: any) {

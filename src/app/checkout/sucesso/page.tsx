@@ -66,12 +66,12 @@ export default function CheckoutSucessoPage() {
           setTargetId(metadata.adId);
           const adRef = doc(db, "ads", metadata.adId);
           await updateDoc(adRef, {
-            status: "Pendente", // Agora aguarda revisão do admin
+            status: "Ativo", // Aprovação automática após pagamento concluído
             paymentConfirmedAt: serverTimestamp(),
             stripeSessionId: sessionId,
             updatedAt: serverTimestamp()
           });
-          toast({ title: "Pagamento do Anúncio!", description: "Sua campanha foi enviada para ativação." });
+          toast({ title: "Campanha Ativa!", description: "Seu anúncio já está rodando na plataforma." });
         }
 
         // Caso 3: Compra de Ingresso
@@ -144,7 +144,7 @@ export default function CheckoutSucessoPage() {
             <h1 className="text-3xl font-black italic uppercase tracking-tighter">Tudo Certo!</h1>
             <p className="font-medium text-center text-green-50 opacity-80">
               {type === 'plan' ? 'Seu plano foi atualizado com sucesso.' : 
-               type === 'ad' ? 'Seu pagamento foi confirmado e a campanha será ativada.' :
+               type === 'ad' ? 'Seu pagamento foi confirmado e o anúncio já está no ar!' :
                'Sua reserva foi reconhecida e seu ingresso enviado por e-mail.'}
             </p>
           </div>
@@ -172,7 +172,7 @@ export default function CheckoutSucessoPage() {
             {type === 'ad' && (
               <>
                 <div className="space-y-2">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Sua campanha entrará no ar em breve</p>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Sua campanha já está gerando impactos</p>
                   <div className="flex items-center justify-center gap-2 text-xl font-bold text-primary">
                     <Megaphone className="w-6 h-6 text-secondary" />
                     Central de Anúncios
@@ -181,7 +181,7 @@ export default function CheckoutSucessoPage() {
                 <div className="flex flex-col gap-3">
                   <Button asChild className="h-14 bg-secondary text-white font-black rounded-2xl shadow-xl shadow-secondary/20 uppercase italic">
                     <Link href="/dashboard/anuncios">
-                      Voltar para Anúncios
+                      Ver Desempenho
                       <ArrowRight className="ml-2 w-5 h-5" />
                     </Link>
                   </Button>
