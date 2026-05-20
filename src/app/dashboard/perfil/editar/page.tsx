@@ -50,6 +50,7 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
+import { encryptDeterministic, decryptData } from "@/lib/crypto-utils"
 
 const BUSINESS_CATEGORIES = {
   "Organizadores": ["Produtora de eventos", "Agência de marketing", "Agência de eventos", "Cerimonialista", "Organizador independente", "Assessoria de eventos"],
@@ -124,7 +125,7 @@ export default function EditarPerfilPage() {
         instagram: profile.instagram || "",
         whatsapp: profile.whatsapp || "",
         email: profile.email || "",
-        cpf: profile.cpf || "",
+        cpf: profile.cpf ? decryptData(profile.cpf) : "",
         showEmail: profile.showEmail !== undefined ? profile.showEmail : true,
         accountType: profile.accountType || "Usuário",
         businessCategory: profile.businessCategory || "",
@@ -277,9 +278,13 @@ export default function EditarPerfilPage() {
         batch.set(doc(db, "usernames", newUsername), { uid: user.uid })
       }
 
+      // Criptografa o CPF antes de salvar
+      const encryptedCpf = formData.cpf ? encryptDeterministic(formData.cpf) : "";
+
       const userRef = doc(db, "users", user.uid)
       batch.update(userRef, {
         ...formData,
+        cpf: encryptedCpf,
         username: newUsername,
         updatedAt: serverTimestamp()
       })
@@ -506,7 +511,7 @@ export default function EditarPerfilPage() {
                 onChange={handleCPFChange} 
                 placeholder="000.000.000-00" 
               />
-              <p className="text-[10px] text-muted-foreground italic">Seu CPF é usado para vincular ingressos que outras pessoas nomearem para você.</p>
+              <p className="text-[10px] text-muted-foreground italic">Seu CPF é criptografado e usado para vincular ingressos nomeados para você.</p>
             </div>
 
             <div className="space-y-2">

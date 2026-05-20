@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -12,9 +13,10 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
-import { Globe, Loader2, Check, X, ArrowLeft } from "lucide-react"
+import { Globe, Loader2, Check, X, ArrowLeft, Fingerprint } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
+import { encryptDeterministic } from "@/lib/crypto-utils"
 
 export default function CadastroPage() {
   const [name, setName] = useState("")
@@ -23,6 +25,7 @@ export default function CadastroPage() {
   const [password, setPassword] = useState("")
   const [birthDate, setBirthDate] = useState("")
   const [gender, setGender] = useState("")
+  const [cpf, setCpf] = useState("")
   const [loading, setLoading] = useState(false)
   const [checkingUsername, setCheckingUsername] = useState(false)
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
@@ -75,6 +78,15 @@ export default function CadastroPage() {
     return () => clearTimeout(timer)
   }, [username, db])
 
+  const formatCPF = (value: string) => {
+    const numbers = value.replace(/\D/g, "")
+    let formatted = numbers;
+    if (numbers.length > 3) formatted = numbers.substring(0, 3) + "." + numbers.substring(3);
+    if (numbers.length > 6) formatted = formatted.substring(0, 7) + "." + numbers.substring(7);
+    if (numbers.length > 9) formatted = formatted.substring(0, 11) + "-" + numbers.substring(11);
+    return formatted.substring(0, 14);
+  }
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!auth || !db) return
@@ -83,8 +95,9 @@ export default function CadastroPage() {
       return
     }
 
-    if (!birthDate || !gender) {
-      toast({ variant: "destructive", title: "Campos obrigatórios", description: "Preencha a data de nascimento e o gênero." })
+    const isCompany = gender === 'empresa'
+    if (!birthDate || !gender || (!isCompany && !cpf)) {
+      toast({ variant: "destructive", title: "Campos obrigatórios", description: "Preencha todos os campos obrigatórios." })
       return
     }
 
@@ -97,6 +110,8 @@ export default function CadastroPage() {
 
       await updateProfile(user, { displayName: name })
 
+      const encryptedCpf = !isCompany ? encryptDeterministic(cpf) : "";
+
       await runTransaction(db, async (transaction) => {
         const usernameRef = doc(db, "usernames", normalizedUsername)
         const userRef = doc(db, "users", user.uid)
@@ -106,8 +121,6 @@ export default function CadastroPage() {
           throw new Error("Nome de usuário acaba de ser ocupado.")
         }
 
-        const isCompany = gender === 'empresa'
-
         transaction.set(usernameRef, { uid: user.uid })
         transaction.set(userRef, {
           name,
@@ -115,6 +128,7 @@ export default function CadastroPage() {
           email,
           birthDate,
           gender,
+          cpf: encryptedCpf,
           avatar: `https://picsum.photos/seed/${user.uid}/100/100`,
           isVerified: false,
           totalEvents: 0,
@@ -171,7 +185,7 @@ export default function CadastroPage() {
           <CardHeader className="space-y-1 flex flex-col items-center">
             <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 overflow-hidden">
               {settings?.logoUrl ? (
-                <img src={settings.logoUrl} alt={siteName} className="max-h-full max-w-full object-contain p-2" />
+                <img src={settings.logoUrl} alt={siteName} className="max-w-full max-h-full object-contain p-2" />
               ) : (
                 <Globe className="text-white w-7 h-7" />
               )}
@@ -212,11 +226,7 @@ export default function CadastroPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="birthDate">Data de Nascimento</Label>
-                  <Input id="birthDate" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="gender">Sexo / Gênero</Label>
+                  <Label htmlFor="gender">Eu sou...</Label>
                   <Select value={gender} onValueChange={setGender} required>
                     <SelectTrigger id="gender">
                       <SelectValue placeholder="Selecione" />
@@ -228,11 +238,32 @@ export default function CadastroPage() {
                       <SelectItem value="mulher trans">Mulher Trans</SelectItem>
                       <SelectItem value="agênero">Agênero</SelectItem>
                       <SelectItem value="prefiro não dizer">Prefiro não dizer</SelectItem>
-                      <SelectItem value="empresa">Empresa</SelectItem>
+                      <SelectItem value="empresa">Uma Empresa / Produtor</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="birthDate">Nascimento</Label>
+                  <Input id="birthDate" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} required />
+                </div>
               </div>
+
+              {gender && gender !== 'empresa' && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <Label htmlFor="cpf" className="flex items-center gap-2">
+                    <Fingerprint className="w-4 h-4 text-secondary" />
+                    Seu CPF (Dado Sensível)
+                  </Label>
+                  <Input 
+                    id="cpf" 
+                    placeholder="000.000.000-00" 
+                    value={cpf} 
+                    onChange={(e) => setCpf(formatCPF(e.target.value))} 
+                    required 
+                  />
+                  <p className="text-[9px] text-muted-foreground italic">Seu CPF será criptografado e utilizado apenas para vinculação de ingressos.</p>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="email">E-mail</Label>
@@ -242,9 +273,9 @@ export default function CadastroPage() {
                 <Label htmlFor="password">Senha</Label>
                 <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </div>
-              <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold" disabled={loading || usernameStatus !== 'valid'}>
+              <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold h-12 rounded-xl" disabled={loading || usernameStatus !== 'valid'}>
                 {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Cadastrar no {siteName}
+                Finalizar Cadastro
               </Button>
             </form>
           </CardContent>

@@ -10,6 +10,7 @@
         "username": { "type": "string", "description": "Nome de usuário único, min 5 chars, alfanumérico" },
         "avatar": { "type": "string" },
         "email": { "type": "string" },
+        "cpf": { "type": "string", "description": "CPF criptografado do usuário" },
         "birthDate": { "type": "string", "format": "date" },
         "gender": { "type": "string", "enum": ["masculino", "feminino", "homem trans", "mulher trans", "agênero", "prefiro não dizer", "empresa"] },
         "showEmail": { "type": "boolean", "description": "Define se o e-mail é visível publicamente" },

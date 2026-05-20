@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -40,6 +41,7 @@ import {
 } from "@/components/ui/dialog"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { encryptDeterministic, decryptData } from "@/lib/crypto-utils"
 
 export default function MeusIngressosPage() {
   const db = useFirestore()
@@ -183,7 +185,7 @@ function TicketListItem({ registration, isIncoming = false, isSent = false }: { 
   const handleUseMyData = () => {
     if (profile) {
       setAttendeeName(profile.name || "")
-      setAttendeeCPF(profile.cpf || "")
+      setAttendeeCPF(profile.cpf ? decryptData(profile.cpf) : "")
     }
   }
 
@@ -196,7 +198,10 @@ function TicketListItem({ registration, isIncoming = false, isSent = false }: { 
 
       // Se o CPF for preenchido, verificar se pertence a algum usuário cadastrado
       if (attendeeCPF) {
-        const q = query(collection(db, "users"), where("cpf", "==", attendeeCPF.trim()));
+        // Criptografa o CPF de forma determinística para buscar no banco
+        const encryptedCpfSearch = encryptDeterministic(attendeeCPF.trim());
+        
+        const q = query(collection(db, "users"), where("cpf", "==", encryptedCpfSearch));
         const snap = await getDocs(q);
         if (!snap.empty) {
           const targetUid = snap.docs[0].id;
@@ -210,7 +215,7 @@ function TicketListItem({ registration, isIncoming = false, isSent = false }: { 
 
       await updateDoc(doc(db, "registrations", registration.id), {
         attendeeName,
-        attendeeCPF,
+        attendeeCPF, // Aqui mantemos legível para o voucher, ou podemos criptografar também se desejar
         sharedWithUid,
         transferStatus,
         namedAt: serverTimestamp()
