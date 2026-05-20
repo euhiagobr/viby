@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -45,7 +46,7 @@ export function Footer() {
           <div className="space-y-4">
             <h4 className="font-black uppercase tracking-widest text-xs">Legal</h4>
             <nav className="flex flex-col gap-3">
-              <Link href="#" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Termos de Uso</Link>
+              <Link href="/termos" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Termos de Uso</Link>
               <Link href="#" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Privacidade</Link>
               <Link href="/dashboard/suporte" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Suporte</Link>
             </nav>
