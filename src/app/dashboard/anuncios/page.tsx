@@ -172,13 +172,17 @@ export default function AnunciosPage() {
     if (!ad.budget || ad.budget <= 0) return 0;
     const now = new Date();
     const end = new Date(ad.endDate);
+    end.setHours(23, 59, 59, 999); // Garante que o último dia conte até o fim
     
     if (now > end) return 0;
 
-    const diffTime = Math.abs(end.getTime() - now.getTime());
+    const diffTime = end.getTime() - now.getTime();
     const daysRemaining = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
     
-    return ad.budget / daysRemaining;
+    // Se o consumo for baixo, o saldo médio por dia pode subir. 
+    // Para exibição, vamos mostrar o que ele tem disponível hoje, limitado ao orçamento total.
+    const average = ad.budget / daysRemaining;
+    return average;
   }
 
   if (profileLoading || adsLoading) {
@@ -348,6 +352,11 @@ export default function AnunciosPage() {
             <div className="divide-y">
               {ads.map((ad: any) => {
                 const remainingDaily = calculateRemainingDaily(ad);
+                // Se a média diária restante for maior que o original por falta de uso,
+                // mostramos o original como "capacidade atual" para não confundir.
+                const displayDaily = Math.min(remainingDaily, ad.dailyBudget || Infinity);
+                const isUnderperforming = remainingDaily > (ad.dailyBudget || 0) * 1.1;
+
                 return (
                   <div key={ad.id} className="p-6 flex flex-col gap-6 transition-colors lg:flex-row lg:items-center lg:justify-between hover:bg-muted/20">
                     <div className="flex gap-4 min-w-[300px]">
@@ -384,17 +393,33 @@ export default function AnunciosPage() {
                          <p className="font-black text-sm">{ad.clicks?.toLocaleString() || 0}</p>
                       </div>
                       <div className="text-center">
-                         <p className="text-[10px] font-black text-secondary uppercase mb-1">Saldo Diário</p>
+                         <p className="text-[10px] font-black text-secondary uppercase mb-1">Disponível p/ hoje</p>
                          <div className="flex flex-col">
-                            <span className="font-black text-sm text-secondary">{formatCurrency(remainingDaily)}</span>
-                            <span className="text-[8px] text-muted-foreground font-bold uppercase">Original: {formatCurrency(ad.dailyBudget || 0)}</span>
+                            <span className="font-black text-sm text-secondary">
+                              {formatCurrency(displayDaily)}
+                            </span>
+                            <div className="flex items-center justify-center gap-1">
+                               <span className="text-[8px] text-muted-foreground font-bold uppercase">Original: {formatCurrency(ad.dailyBudget || 0)}</span>
+                               {isUnderperforming && (
+                                 <TooltipProvider>
+                                   <Tooltip>
+                                     <TooltipTrigger asChild>
+                                        <Info className="w-2.5 h-2.5 text-orange-500 cursor-help" />
+                                     </TooltipTrigger>
+                                     <TooltipContent className="max-w-xs text-[10px] font-medium">
+                                       Seu orçamento não foi totalmente consumido nos dias anteriores. O saldo diário disponível é o teto configurado originalmente.
+                                     </TooltipContent>
+                                   </Tooltip>
+                                 </TooltipProvider>
+                               )}
+                            </div>
                          </div>
                       </div>
                       <div className="text-right pr-4">
                          <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">Saldo Restante</p>
                          <div className="flex flex-col">
                             <span className="font-black text-sm text-primary">{formatCurrency(ad.budget || 0)}</span>
-                            <span className="text-[8px] text-muted-foreground font-bold uppercase">Total Pago: {formatCurrency(ad.dailyBudget * ad.durationDays)}</span>
+                            <span className="text-[8px] text-muted-foreground font-bold uppercase">Total Pago: {formatCurrency((ad.dailyBudget || 0) * (ad.durationDays || 1))}</span>
                          </div>
                       </div>
                     </div>
@@ -431,3 +456,5 @@ export default function AnunciosPage() {
     </div>
   )
 }
+
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
