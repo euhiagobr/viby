@@ -2,9 +2,9 @@
 "use client"
 
 import * as React from "react"
-import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, where, doc, getDoc, updateDoc } from "firebase/firestore"
-import { Card, CardContent } from "@/components/ui/card"
+import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
+import { collection, query, where, doc, getDoc, updateDoc, getDocs, or } from "firebase/firestore"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,7 +19,12 @@ import {
   QrCode, 
   User as UserIcon,
   Save,
-  CheckCircle2
+  CheckCircle2,
+  Share2,
+  UserCheck,
+  AlertTriangle,
+  XCircle,
+  ArrowRight
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -33,15 +38,23 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { toast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 
 export default function MeusIngressosPage() {
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
 
+  // Consultar ingressos onde o usuário é o comprador OU onde ele é o destinatário compartilhado
   const registrationsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
-    return query(collection(db, "registrations"), where("userId", "==", user.uid))
+    return query(
+      collection(db, "registrations"), 
+      or(
+        where("userId", "==", user.uid),
+        where("sharedWithUid", "==", user.uid)
+      )
+    )
   }, [db, user])
 
   const { data: registrations, loading: regLoading } = useCollection<any>(registrationsQuery)
@@ -54,6 +67,11 @@ export default function MeusIngressosPage() {
     )
   }
 
+  // Separar ingressos que o usuário precisa aceitar
+  const pendingIncoming = (registrations || []).filter(r => r.sharedWithUid === user?.uid && r.transferStatus === 'pending');
+  const myOwned = (registrations || []).filter(r => (r.userId === user?.uid && !r.sharedWithUid) || (r.sharedWithUid === user?.uid && r.transferStatus === 'accepted'));
+  const mySent = (registrations || []).filter(r => r.userId === user?.uid && r.sharedWithUid && r.transferStatus === 'pending');
+
   return (
     <div className="space-y-8 pb-20">
       <div className="flex flex-col gap-2">
@@ -61,7 +79,20 @@ export default function MeusIngressosPage() {
         <p className="text-muted-foreground font-medium">Sua coleção de experiências e acessos confirmados.</p>
       </div>
 
-      {!registrations || registrations.length === 0 ? (
+      {pendingIncoming.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-sm font-black uppercase tracking-widest text-secondary flex items-center gap-2">
+             <UserCheck className="w-4 h-4" /> Convites Recebidos ({pendingIncoming.length})
+          </h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {pendingIncoming.map((reg) => (
+              <TicketListItem key={reg.id} registration={reg} isIncoming />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(!registrations || registrations.length === 0) ? (
         <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[2.5rem] border-2 border-dashed border-border gap-6 shadow-sm">
           <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center">
             <Ticket className="w-10 h-10 text-muted-foreground opacity-30" />
@@ -75,24 +106,51 @@ export default function MeusIngressosPage() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {registrations.map((reg) => (
-            <TicketListItem key={reg.id} registration={reg} />
-          ))}
+        <div className="space-y-8">
+           {myOwned.length > 0 && (
+             <div className="space-y-4">
+               <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <Ticket className="w-4 h-4" /> Ingressos Ativos
+               </h2>
+               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                 {myOwned.map((reg) => (
+                   <TicketListItem key={reg.id} registration={reg} />
+                 ))}
+               </div>
+             </div>
+           )}
+
+           {mySent.length > 0 && (
+             <div className="space-y-4">
+               <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <Share2 className="w-4 h-4" /> Nomeados para Terceiros
+               </h2>
+               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                 {mySent.map((reg) => (
+                   <TicketListItem key={reg.id} registration={reg} isSent />
+                 ))}
+               </div>
+             </div>
+           )}
         </div>
       )}
     </div>
   )
 }
 
-function TicketListItem({ registration }: { registration: any }) {
+function TicketListItem({ registration, isIncoming = false, isSent = false }: { registration: any, isIncoming?: boolean, isSent?: boolean }) {
   const db = useFirestore()
+  const auth = useAuth()
+  const { user } = useUser(auth)
+  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
+  const { data: profile } = useDoc<any>(userDocRef)
+
   const [event, setEvent] = React.useState<any>(null)
   const [loading, setLoading] = React.useState(!registration.eventTitle)
-  const [isAttendeeModalOpen, setIsAttendeeModalOpen] = React.useState(false)
-  const [attendeeName, setAttendeeName] = React.useState(registration.attendeeName || registration.userName || "")
+  const [isNameModalOpen, setIsNameModalOpen] = React.useState(false)
+  const [attendeeName, setAttendeeName] = React.useState(registration.attendeeName || "")
   const [attendeeCPF, setAttendeeCPF] = React.useState(registration.attendeeCPF || "")
-  const [isSavingAttendee, setIsSavingAttendee] = React.useState(false)
+  const [isSaving, setIsSaving] = React.useState(false)
 
   React.useEffect(() => {
     if (!db || !registration.eventId) return
@@ -104,7 +162,7 @@ function TicketListItem({ registration }: { registration: any }) {
           setEvent({ ...eventDoc.data(), id: eventDoc.id })
         }
       } catch (e) {
-        console.error("Erro ao carregar evento do ingresso:", e)
+        console.error("Erro ao carregar evento:", e)
       } finally {
         setLoading(false)
       }
@@ -112,20 +170,94 @@ function TicketListItem({ registration }: { registration: any }) {
     fetchEvent()
   }, [db, registration.eventId])
 
-  const handleUpdateAttendee = async () => {
+  const formatCPF = (value: string) => {
+    const numbers = value.replace(/\D/g, "")
+    let formatted = numbers;
+    if (numbers.length > 3) formatted = numbers.substring(0, 3) + "." + numbers.substring(3);
+    if (numbers.length > 6) formatted = formatted.substring(0, 7) + "." + numbers.substring(7);
+    if (numbers.length > 9) formatted = formatted.substring(0, 11) + "-" + numbers.substring(11);
+    return formatted.substring(0, 14);
+  }
+
+  const handleUseMyData = () => {
+    if (profile) {
+      setAttendeeName(profile.name || "")
+      setAttendeeCPF(profile.cpf || "")
+    }
+  }
+
+  const handleNameTicket = async () => {
     if (!db || !registration.id) return
-    setIsSavingAttendee(true)
+    setIsSaving(true)
     try {
+      let sharedWithUid = null;
+      let transferStatus = null;
+
+      // Se o CPF for preenchido, verificar se pertence a algum usuário cadastrado
+      if (attendeeCPF) {
+        const q = query(collection(db, "users"), where("cpf", "==", attendeeCPF.trim()));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const targetUid = snap.docs[0].id;
+          // Não permitir transferir para si mesmo se já for o dono
+          if (targetUid !== user?.uid) {
+            sharedWithUid = targetUid;
+            transferStatus = 'pending';
+          }
+        }
+      }
+
       await updateDoc(doc(db, "registrations", registration.id), {
         attendeeName,
-        attendeeCPF
+        attendeeCPF,
+        sharedWithUid,
+        transferStatus,
+        namedAt: serverTimestamp()
       })
-      toast({ title: "Dados atualizados!", description: "O nome e CPF do participante foram salvos." })
-      setIsAttendeeModalOpen(false)
+
+      toast({ 
+        title: sharedWithUid ? "Ingresso compartilhado!" : "Dados salvos!", 
+        description: sharedWithUid ? "O destinatário precisa aceitar o ingresso." : "Nome do participante atualizado." 
+      })
+      setIsNameModalOpen(false)
     } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao salvar", description: "Não foi possível atualizar os dados." })
+      toast({ variant: "destructive", title: "Erro ao salvar" })
     } finally {
-      setIsSavingAttendee(false)
+      setIsSaving(false)
+    }
+  }
+
+  const handleAcceptTicket = async () => {
+    if (!db || !registration.id) return
+    setIsSaving(true)
+    try {
+      await updateDoc(doc(db, "registrations", registration.id), {
+        transferStatus: 'accepted',
+        acceptedAt: serverTimestamp()
+      })
+      toast({ title: "Ingresso aceito!", description: "Ele agora está disponível na sua lista ativa." })
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao aceitar" })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleRejectTicket = async () => {
+    if (!db || !registration.id) return
+    setIsSaving(true)
+    try {
+      await updateDoc(doc(db, "registrations", registration.id), {
+        sharedWithUid: null,
+        transferStatus: null,
+        attendeeCPF: "",
+        attendeeName: ""
+      })
+      toast({ title: "Convite recusado" })
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao recusar" })
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -148,59 +280,43 @@ function TicketListItem({ registration }: { registration: any }) {
   }
 
   const getStatusBadge = () => {
+    if (isIncoming) return <Badge className="bg-secondary animate-pulse text-white uppercase text-[9px] font-black h-5 px-2">Aguardando Você</Badge>;
+    if (isSent) return <Badge variant="outline" className="text-orange-500 border-orange-200 uppercase text-[9px] font-black h-5 px-2">Pendente Aceite</Badge>;
+    
     const status = registration.paymentStatus || (registration.price === 0 ? "Disponível" : "Pendente");
     switch (status) {
       case "Disponível": return <Badge className="bg-green-500 text-white border-none text-[10px] font-black uppercase px-3">Válido</Badge>;
       case "Pago": return <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase px-3">Confirmado</Badge>;
       case "Pendente": return <Badge variant="outline" className="text-orange-500 border-orange-500 text-[10px] font-black uppercase px-3">Pendente</Badge>;
-      case "Expirado": return <Badge variant="destructive" className="text-[10px] font-black uppercase px-3">Expirado</Badge>;
       default: return <Badge variant="secondary" className="text-[10px] font-black uppercase px-3">{status}</Badge>;
     }
   }
 
   if (loading && !registration.eventTitle) {
-    return (
-      <Card className="h-40 border-none shadow-sm animate-pulse bg-white rounded-[1.5rem]">
-        <CardContent className="flex items-center justify-center h-full">
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground/20" />
-        </CardContent>
-      </Card>
-    )
+    return <Card className="h-40 border-none shadow-sm animate-pulse bg-white rounded-[1.5rem]" />
   }
 
   const displayTitle = event?.title || registration.eventTitle || "Evento";
   const displayImage = event?.image || registration.eventImage || "https://picsum.photos/seed/event/600/400";
   const displayDate = event?.date || registration.eventDate;
-  const displayCity = event?.city || registration.eventCity || "Local não definido";
 
   return (
-    <Card className="overflow-hidden border-none shadow-sm hover:shadow-md transition-all rounded-[1.5rem] bg-white flex flex-col sm:flex-row group">
+    <Card className={cn(
+      "overflow-hidden border-none shadow-sm hover:shadow-md transition-all rounded-[1.5rem] bg-white flex flex-col sm:flex-row group",
+      isIncoming && "ring-2 ring-secondary/30",
+      isSent && "opacity-70 grayscale"
+    )}>
       <div className="relative w-full sm:w-44 h-40 sm:h-auto bg-muted">
-        <Image 
-          src={displayImage} 
-          alt={displayTitle} 
-          fill 
-          className="object-cover group-hover:scale-105 transition-transform duration-500"
-          unoptimized
-        />
+        <Image src={displayImage} alt={displayTitle} fill className="object-cover group-hover:scale-105 transition-transform duration-500" unoptimized />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-        <div className="absolute bottom-3 left-3">
-          {getStatusBadge()}
-        </div>
+        <div className="absolute bottom-3 left-3">{getStatusBadge()}</div>
       </div>
       
       <CardContent className="p-6 flex-1 flex flex-col justify-between gap-4">
         <div className="space-y-3">
-          <div className="flex justify-between items-start gap-2">
-            <h3 className="font-black text-lg leading-tight line-clamp-1 uppercase italic tracking-tighter group-hover:text-secondary transition-colors">
-              {displayTitle}
-            </h3>
-            {registration.checkedIn && (
-              <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100 text-[9px] font-black uppercase h-5 px-2">
-                Check-in OK
-              </Badge>
-            )}
-          </div>
+          <h3 className="font-black text-lg leading-tight line-clamp-1 uppercase italic tracking-tighter group-hover:text-secondary transition-colors">
+            {displayTitle}
+          </h3>
           
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 text-[10px] font-black uppercase text-muted-foreground tracking-tight">
@@ -210,78 +326,77 @@ function TicketListItem({ registration }: { registration: any }) {
               <Clock className="w-3.5 h-3.5 text-secondary" />
               <span>{formatTime(displayDate)}</span>
             </div>
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase text-muted-foreground tracking-tight">
-              <MapPin className="w-3.5 h-3.5 text-secondary" />
-              <span className="line-clamp-1">{displayCity}</span>
-            </div>
-            <div className="flex items-center gap-2 pt-1">
+            <div className="flex items-center gap-2 text-[10px] font-bold text-primary uppercase">
               <UserIcon className="w-3 h-3 text-muted-foreground" />
-              <span className="text-[10px] font-bold text-primary uppercase">
-                Para: {registration.attendeeName || registration.userName || "Não definido"}
-              </span>
+              <span>{registration.attendeeName || "Ingresso não nomeado"}</span>
             </div>
           </div>
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t border-dashed border-border/60">
           <div className="flex flex-col">
-            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest leading-none">
-              {registration.batchName || "Lote Único"}
-            </span>
+            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{registration.batchName || "Lote Único"}</span>
             <span className="text-sm font-black text-primary mt-1">
               {registration.price === 0 ? "GRÁTIS" : `R$ ${parseFloat(registration.price).toFixed(2)}`}
             </span>
           </div>
+          
           <div className="flex gap-2">
-            <Dialog open={isAttendeeModalOpen} onOpenChange={setIsAttendeeModalOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" variant="outline" className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-dashed">
-                  <UserIcon className="w-3.5 h-3.5 mr-1.5" /> Participante
+            {isIncoming ? (
+              <>
+                <Button size="sm" variant="outline" onClick={handleRejectTicket} disabled={isSaving} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-destructive text-destructive hover:bg-destructive/10">
+                   <XCircle className="w-3.5 h-3.5 mr-1" /> Recusar
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="rounded-[2rem] max-w-sm">
-                <DialogHeader>
-                  <DialogTitle className="text-xl font-black italic uppercase tracking-tighter">Dados do Participante</DialogTitle>
-                  <DialogDescription>Quem vai usar este ingresso na portaria?</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Nome Completo</Label>
-                    <Input 
-                      value={attendeeName}
-                      onChange={(e) => setAttendeeName(e.target.value)}
-                      placeholder="Nome de quem vai entrar"
-                      className="rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">CPF</Label>
-                    <Input 
-                      value={attendeeCPF}
-                      onChange={(e) => setAttendeeCPF(e.target.value.replace(/\D/g, "").substring(0, 11))}
-                      placeholder="000.000.000-00"
-                      className="rounded-xl"
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button 
-                    onClick={handleUpdateAttendee} 
-                    disabled={isSavingAttendee || !attendeeName}
-                    className="w-full bg-secondary text-white font-black h-12 rounded-xl"
-                  >
-                    {isSavingAttendee ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                    Salvar Dados
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                <Button size="sm" onClick={handleAcceptTicket} disabled={isSaving} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl bg-green-600 text-white shadow-lg">
+                   {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1" />} Aceitar
+                </Button>
+              </>
+            ) : isSent ? (
+              <Badge variant="secondary" className="h-9 px-4 text-[9px] font-black uppercase rounded-xl">Aguardando Destinatário</Badge>
+            ) : (
+              <>
+                <Dialog open={isNameModalOpen} onOpenChange={setIsNameModalOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline" className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-dashed border-secondary text-secondary">
+                      <UserIcon className="w-3.5 h-3.5 mr-1.5" /> Nomear
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="rounded-[2rem] max-w-sm">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl font-black italic uppercase tracking-tighter">Nomear Ingresso</DialogTitle>
+                      <DialogDescription>O CPF permite compartilhar o ingresso com outro usuário.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <Button variant="secondary" onClick={handleUseMyData} className="w-full rounded-xl font-bold gap-2 text-xs h-12">
+                         <UserCheck className="w-4 h-4" /> Usar Meus Dados
+                      </Button>
+                      <Separator />
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase opacity-60">Nome Completo</Label>
+                        <Input value={attendeeName} onChange={(e) => setAttendeeName(e.target.value)} placeholder="Nome do participante" className="rounded-xl" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase opacity-60">CPF</Label>
+                        <Input value={attendeeCPF} onChange={(e) => setAttendeeCPF(formatCPF(e.target.value))} placeholder="000.000.000-00" className="rounded-xl" />
+                      </div>
+                      <div className="p-3 bg-muted/50 rounded-lg flex gap-2">
+                        <Info className="w-4 h-4 text-secondary shrink-0" />
+                        <p className="text-[9px] text-muted-foreground leading-tight">Se o CPF pertencer a outro usuário, o ingresso aparecerá no painel dele para aceite.</p>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button onClick={handleNameTicket} disabled={isSaving || !attendeeName} className="w-full bg-secondary text-white font-black h-12 rounded-xl">
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />} Salvar e Compartilhar
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
 
-            <Button size="sm" className="h-9 px-4 text-[10px] font-black uppercase rounded-xl bg-primary text-white hover:bg-primary/90 shadow-sm" asChild>
-               <Link href={`/dashboard/ingressos/${registration.id}/voucher`}>
-                 <QrCode className="w-3.5 h-3.5 mr-1.5" /> Voucher
-               </Link>
-            </Button>
+                <Button size="sm" className="h-9 px-4 text-[10px] font-black uppercase rounded-xl bg-primary text-white" asChild>
+                  <Link href={`/dashboard/ingressos/${registration.id}/voucher`}><QrCode className="w-3.5 h-3.5 mr-1.5" /> Voucher</Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </CardContent>

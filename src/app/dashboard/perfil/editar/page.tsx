@@ -44,7 +44,8 @@ import {
   Briefcase, 
   Calendar,
   Check,
-  X
+  X,
+  Fingerprint
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -95,6 +96,7 @@ export default function EditarPerfilPage() {
     instagram: "",
     whatsapp: "",
     email: "",
+    cpf: "",
     showEmail: true,
     accountType: "Usuário",
     businessCategory: "",
@@ -122,6 +124,7 @@ export default function EditarPerfilPage() {
         instagram: profile.instagram || "",
         whatsapp: profile.whatsapp || "",
         email: profile.email || "",
+        cpf: profile.cpf || "",
         showEmail: profile.showEmail !== undefined ? profile.showEmail : true,
         accountType: profile.accountType || "Usuário",
         businessCategory: profile.businessCategory || "",
@@ -181,6 +184,20 @@ export default function EditarPerfilPage() {
     if (numbers.length > 8) formatted = formatted.substring(0, 10) + "/" + numbers.substring(8);
     if (numbers.length > 12) formatted = formatted.substring(0, 15) + "-" + numbers.substring(12);
     return formatted.substring(0, 18);
+  }
+
+  const formatCPF = (value: string) => {
+    const numbers = value.replace(/\D/g, "")
+    let formatted = numbers;
+    if (numbers.length > 3) formatted = numbers.substring(0, 3) + "." + numbers.substring(3);
+    if (numbers.length > 6) formatted = formatted.substring(0, 7) + "." + numbers.substring(7);
+    if (numbers.length > 9) formatted = formatted.substring(0, 11) + "-" + numbers.substring(11);
+    return formatted.substring(0, 14);
+  }
+
+  const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatCPF(e.target.value);
+    setFormData(prev => ({ ...prev, cpf: formatted }));
   }
 
   const handleCNPJChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -247,13 +264,6 @@ export default function EditarPerfilPage() {
     if (!formData.name || !formData.city || !formData.state || !formData.country || !formData.birthDate || !formData.gender) {
       toast({ variant: "destructive", title: "Campos obrigatórios", description: "Nome, Localização, Nascimento e Gênero são obrigatórios." })
       return
-    }
-
-    if (formData.accountType === 'Empresa') {
-      if (!formData.legalName || !formData.cnpj || !formData.businessCategory) {
-        toast({ variant: "destructive", title: "Campos de Empresa", description: "Razão Social, CNPJ e Categoria são obrigatórios para empresas." })
-        return
-      }
     }
 
     setSaving(true)
@@ -486,6 +496,17 @@ export default function EditarPerfilPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cpf" className="flex items-center gap-2"><Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF (Para receber ingressos)</Label>
+              <Input 
+                id="cpf" 
+                value={formData.cpf} 
+                onChange={handleCPFChange} 
+                placeholder="000.000.000-00" 
+              />
+              <p className="text-[10px] text-muted-foreground italic">Seu CPF é usado para vincular ingressos que outras pessoas nomearem para você.</p>
             </div>
 
             <div className="space-y-2">
