@@ -107,7 +107,7 @@ export default function CheckoutSucessoPage() {
               ticketCode: regData.ticketCode,
               eventDate: eventDate,
               eventCity: regData.eventCity || "Local Confirmado",
-              voucherUrl: `${window.location.origin}/dashboard/ingressos/${regId}/voucher`,
+              voucherUrl: `https://viby.club/dashboard/ingressos/${regId}/voucher`,
               eventUrl: `https://viby.club/${regData.organizerUsername || 'evento'}/${regData.eventId}`
             });
           }

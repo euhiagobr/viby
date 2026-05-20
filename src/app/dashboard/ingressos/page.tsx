@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -249,7 +250,7 @@ function TicketListItem({ registration, isIncoming = false, isHistorical = false
         ticketCode: registration.ticketCode,
         eventDate: eventDate,
         eventCity: registration.eventCity || "Local Confirmado",
-        voucherUrl: `${window.location.origin}/dashboard/ingressos/${registration.id}/voucher`,
+        voucherUrl: `https://viby.club/dashboard/ingressos/${registration.id}/voucher`,
         eventUrl: `https://viby.club/${registration.organizerUsername || 'evento'}/${registration.eventId}`
       });
 
