@@ -30,30 +30,37 @@ async function getEmailConfig() {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
   const db = getFirestore(app, 'eventosviby');
   
-  const emailDoc = await getDoc(doc(db, 'settings', 'email'));
-  if (!emailDoc.exists()) {
-    throw new Error('Configuração de e-mail não encontrada no painel administrativo.');
+  try {
+    const emailDoc = await getDoc(doc(db, 'settings', 'email'));
+    if (!emailDoc.exists()) {
+      return { smtpUser: null, smtpPass: null };
+    }
+    const data = emailDoc.data();
+    return {
+      smtpUser: (data.smtpUser as string) || null,
+      smtpPass: (data.smtpPass as string) || null,
+    };
+  } catch (e) {
+    console.error('Erro ao buscar config de e-mail:', e);
+    return { smtpUser: null, smtpPass: null };
   }
-
-  const data = emailDoc.data();
-  return {
-    smtpUser: data.smtpUser as string,
-    smtpPass: data.smtpPass as string,
-  };
 }
 
 export async function sendTicketEmail(data: EmailData) {
   try {
-    // Validação básica de entrada
+    // Validação rigorosa de entrada para evitar "string required" errors
     if (!data.to || typeof data.to !== 'string') {
       return { success: false, error: 'E-mail do destinatário inválido ou ausente.' };
+    }
+    if (!data.ticketCode || typeof data.ticketCode !== 'string') {
+      return { success: false, error: 'Código do ingresso ausente para geração do QR Code.' };
     }
 
     const { smtpUser, smtpPass } = await getEmailConfig();
 
     if (!smtpUser || !smtpPass) {
-      console.warn('Configurações de e-mail incompletas no banco de dados.');
-      return { success: false, error: 'Credenciais de e-mail (SMTP) não configuradas no sistema.' };
+      console.warn('Configurações de e-mail (SMTP) não encontradas no Firestore.');
+      return { success: false, error: 'O sistema de e-mail ainda não foi configurado pelo administrador.' };
     }
 
     // Gerar o Buffer da imagem do QR Code

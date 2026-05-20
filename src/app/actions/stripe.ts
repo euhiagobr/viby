@@ -1,4 +1,3 @@
-
 'use server';
 
 import { headers } from 'next/headers';
@@ -14,15 +13,20 @@ async function getStripeKeys() {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
   const db = getFirestore(app, 'eventosviby');
   
-  const stripeDoc = await getDoc(doc(db, 'settings', 'stripe'));
-  if (!stripeDoc.exists()) {
-    throw new Error('Configuração do Stripe não encontrada no painel administrativo.');
+  try {
+    const stripeDoc = await getDoc(doc(db, 'settings', 'stripe'));
+    if (!stripeDoc.exists()) {
+      return { publishableKey: null, secretKey: null };
+    }
+    const data = stripeDoc.data();
+    return {
+      publishableKey: data.publishableKey || null,
+      secretKey: data.secretKey || null,
+    };
+  } catch (e) {
+    console.error('Erro ao buscar chaves do Stripe:', e);
+    return { publishableKey: null, secretKey: null };
   }
-
-  return {
-    publishableKey: stripeDoc.data().publishableKey,
-    secretKey: stripeDoc.data().secretKey,
-  };
 }
 
 /**
@@ -30,7 +34,9 @@ async function getStripeKeys() {
  */
 async function getStripeInstance() {
   const { secretKey } = await getStripeKeys();
-  if (!secretKey) throw new Error('Stripe Secret Key não configurada no painel.');
+  if (!secretKey || typeof secretKey !== 'string') {
+    throw new Error('A chave secreta do Stripe não foi configurada ou é inválida.');
+  }
   
   return new Stripe(secretKey, {
     typescript: true,
@@ -47,17 +53,20 @@ export async function createCheckoutSession(data: {
   totalAmount: number; // Em centavos
   metadata: any;
 }) {
-  const origin = (await headers()).get('origin');
+  const h = await headers();
+  const origin = h.get('origin') || '';
 
   try {
     const stripe = await getStripeInstance();
 
     const sanitizedMetadata: Record<string, string> = {};
-    Object.entries(data.metadata).forEach(([key, value]) => {
-      if (value !== null && value !== undefined) {
-        sanitizedMetadata[key] = typeof value === 'object' ? JSON.stringify(value) : String(value);
-      }
-    });
+    if (data.metadata) {
+      Object.entries(data.metadata).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) {
+          sanitizedMetadata[key] = typeof value === 'object' ? JSON.stringify(value) : String(value);
+        }
+      });
+    }
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -66,11 +75,11 @@ export async function createCheckoutSession(data: {
           price_data: {
             currency: 'brl',
             product_data: {
-              name: data.eventTitle,
+              name: data.eventTitle || 'Ingresso Viby',
               description: `Reserva de ingresso para ${data.eventTitle}`,
-              images: data.eventImage ? [data.eventImage] : [],
+              images: (data.eventImage && data.eventImage.startsWith('http')) ? [data.eventImage] : [],
             },
-            unit_amount: Math.round(data.totalAmount),
+            unit_amount: Math.max(1, Math.round(data.totalAmount)),
           },
           quantity: 1,
         },
@@ -84,8 +93,8 @@ export async function createCheckoutSession(data: {
 
     return { url: session.url };
   } catch (error: any) {
-    console.error('Erro Stripe:', error);
-    throw new Error(error.message || 'Erro ao processar pagamento');
+    console.error('Erro Stripe Checkout:', error);
+    throw new Error(error.message || 'Erro ao processar o checkout de pagamento');
   }
 }
 
@@ -97,7 +106,8 @@ export async function createPlanCheckoutSession(data: {
   userEmail: string;
   totalAmount: number; // Em centavos
 }) {
-  const origin = (await headers()).get('origin');
+  const h = await headers();
+  const origin = h.get('origin') || '';
 
   try {
     const stripe = await getStripeInstance();
@@ -112,7 +122,7 @@ export async function createPlanCheckoutSession(data: {
               name: `Viby ${data.planName}`,
               description: `Upgrade de conta para o plano ${data.planName} (${data.billingCycle === 'monthly' ? 'Mensal' : 'Anual'})`,
             },
-            unit_amount: Math.round(data.totalAmount),
+            unit_amount: Math.max(1, Math.round(data.totalAmount)),
           },
           quantity: 1,
         },
@@ -131,6 +141,7 @@ export async function createPlanCheckoutSession(data: {
 
     return { url: session.url };
   } catch (error: any) {
+    console.error('Erro Plan Checkout:', error);
     throw new Error(error.message || 'Erro ao gerar checkout do plano');
   }
 }
@@ -142,7 +153,8 @@ export async function createAdCheckoutSession(data: {
   userEmail: string;
   totalAmount: number; // Em centavos
 }) {
-  const origin = (await headers()).get('origin');
+  const h = await headers();
+  const origin = h.get('origin') || '';
 
   try {
     const stripe = await getStripeInstance();
@@ -157,7 +169,7 @@ export async function createAdCheckoutSession(data: {
               name: `Impulsionamento: ${data.eventTitle}`,
               description: `Campanha de anúncio no Viby Club`,
             },
-            unit_amount: Math.round(data.totalAmount),
+            unit_amount: Math.max(1, Math.round(data.totalAmount)),
           },
           quantity: 1,
         },
@@ -175,16 +187,19 @@ export async function createAdCheckoutSession(data: {
 
     return { url: session.url };
   } catch (error: any) {
+    console.error('Erro Ad Checkout:', error);
     throw new Error(error.message || 'Erro ao gerar checkout do anúncio');
   }
 }
 
 export async function getStripeSession(sessionId: string) {
+  if (!sessionId || typeof sessionId !== 'string') return null;
   try {
     const stripe = await getStripeInstance();
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     return session;
   } catch (error) {
+    console.error('Erro ao recuperar sessão Stripe:', error);
     return null;
   }
 }
