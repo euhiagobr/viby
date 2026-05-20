@@ -28,6 +28,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Configurações de Ads (Preços)
+    match /settings/ads {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Chaves do Stripe (Segurança Crítica)
     match /settings/stripe {
       allow read: if isSignedIn(); 
@@ -71,6 +77,17 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isSignedIn() && resource.data.organizerId == request.auth.uid);
     }
     
+    // Anúncios (Ads)
+    match /ads/{adId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.organizerId == request.auth.uid);
+      // Permite que qualquer usuário (mesmo deslogado) atualize métricas de alcance e cliques
+      // Isso é necessário para que a visualização de um visitante conte como "alcance"
+      allow update: if isAdmin() || (isSignedIn() && resource.data.organizerId == request.auth.uid) || 
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reach', 'clicks', 'budget', 'updatedAt']));
+    }
+
     // Registros de Interesse / Ingressos
     match /registrations/{regId} {
       allow read: if true;
@@ -78,7 +95,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
         resource.data.organizerId == request.auth.uid || 
-        resource.data.sharedWithUid == request.auth.uid || // Permite que o destinatário aceite/recuse
+        resource.data.sharedWithUid == request.auth.uid || 
         isAdmin()
       );
       allow delete: if isSignedIn() && (

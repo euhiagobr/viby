@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { calculateDistance, type Coordinates } from "@/lib/location-utils"
 import { useFirestore, useDoc } from "@/firebase"
-import { doc, updateDoc, increment } from "firebase/firestore"
+import { doc, updateDoc, increment, serverTimestamp } from "firebase/firestore"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
@@ -45,11 +45,9 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const cardRef = React.useRef<HTMLDivElement>(null)
   const hasTrackedImpression = React.useRef(false)
 
-  // Buscar configurações globais de Ads para CPC e CPM
   const adsSettingsRef = React.useMemo(() => db ? doc(db, 'settings', 'ads') : null, [db])
   const { data: adsSettings } = useDoc<any>(adsSettingsRef)
   
-  // Logica de visualização (Impression/CPM)
   React.useEffect(() => {
     if (!isSponsored || !event.adId || !db || !adsSettings || hasTrackedImpression.current) return
 
@@ -64,8 +62,11 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           const adRef = doc(db, "ads", event.adId)
           updateDoc(adRef, { 
             reach: increment(1),
-            budget: increment(-costPerImpression)
-          }).catch(() => {})
+            budget: increment(-costPerImpression),
+            updatedAt: serverTimestamp()
+          }).catch((err) => {
+            console.error("Erro ao registrar impressão:", err)
+          })
           
           observer.disconnect()
         }
@@ -146,8 +147,11 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       const adRef = doc(db, "ads", event.adId);
       updateDoc(adRef, { 
         clicks: increment(1),
-        budget: increment(-cpcValue)
-      }).catch(() => {});
+        budget: increment(-cpcValue),
+        updatedAt: serverTimestamp()
+      }).catch((err) => {
+        console.error("Erro ao registrar clique:", err)
+      });
     }
     router.push(eventLink)
   }
