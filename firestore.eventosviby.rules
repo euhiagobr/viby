@@ -78,6 +78,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
         resource.data.organizerId == request.auth.uid || 
+        resource.data.sharedWithUid == request.auth.uid || // Permite que o destinatário aceite/recuse
         isAdmin()
       );
       allow delete: if isSignedIn() && (

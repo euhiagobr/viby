@@ -47,6 +47,17 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && (resource.data.organizerId == request.auth.uid || isAdmin());
     }
 
+    // ===== INGRESSOS =====
+    match /registrations/{regId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.sharedWithUid == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
     // ===== CATEGORIAS =====
     match /categories/{catId} {
       allow read: if true;
