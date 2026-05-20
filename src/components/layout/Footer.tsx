@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Globe } from "lucide-react"
+import { Globe, Instagram } from "lucide-react"
 import { useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
 
@@ -16,7 +16,7 @@ export default function Footer() {
   return (
     <footer className="py-20 border-t border-border bg-white mt-auto">
       <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-12 mb-16">
           <div className="md:col-span-2 space-y-6">
             <Link href="/" className="flex items-center gap-2">
               {settings?.logoUrl ? (
@@ -48,6 +48,20 @@ export default function Footer() {
               <Link href="/termos" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Termos de Uso</Link>
               <Link href="/privacidade" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Privacidade</Link>
               <Link href="/dashboard/suporte" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Suporte</Link>
+            </nav>
+          </div>
+          <div className="space-y-4">
+            <h4 className="font-black uppercase tracking-widest text-xs">Social</h4>
+            <nav className="flex flex-col gap-3">
+              <a 
+                href="https://instagram.com/vibyclub" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors flex items-center gap-2"
+              >
+                <Instagram className="w-4 h-4" />
+                Instagram
+              </a>
             </nav>
           </div>
         </div>
