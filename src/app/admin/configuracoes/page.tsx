@@ -411,7 +411,7 @@ export default function AdminConfiguracoesPage() {
                   <div className="space-y-1">
                     <p className="text-[10px] text-purple-800 font-bold uppercase">Como configurar?</p>
                     <ol className="text-[10px] text-purple-800 list-decimal ml-4 space-y-1">
-                      <li>Acesse sua Conta Google > Segurança</li>
+                      <li>Acesse sua Conta Google &gt; Segurança</li>
                       <li>Ative a "Verificação em duas etapas"</li>
                       <li>Vá em "Senhas de App" e crie uma para "E-mail"</li>
                       <li>Copie o código de 16 letras e cole aqui</li>
