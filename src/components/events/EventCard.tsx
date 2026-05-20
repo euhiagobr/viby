@@ -11,7 +11,7 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { calculateDistance, type Coordinates } from "@/lib/location-utils"
-import { useFirestore, useDoc } from "@/firebase"
+import { useFirestore, useDoc, useAuth, useUser } from "@/firebase"
 import { doc, updateDoc, increment, serverTimestamp } from "firebase/firestore"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
@@ -42,11 +42,46 @@ interface EventCardProps {
 export function EventCard({ event, userLocation, isSponsored }: EventCardProps) {
   const router = useRouter()
   const db = useFirestore()
+  const auth = useAuth()
+  const { user } = useUser(auth)
   const cardRef = React.useRef<HTMLDivElement>(null)
   const hasTrackedImpression = React.useRef(false)
 
+  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
+  const { data: userProfile } = useDoc<any>(userDocRef)
+
   const adsSettingsRef = React.useMemo(() => db ? doc(db, 'settings', 'ads') : null, [db])
   const { data: adsSettings } = useDoc<any>(adsSettingsRef)
+  
+  const getAgeGroup = (birthDate: string) => {
+    if (!birthDate) return "desconhecido";
+    try {
+      const birth = new Date(birthDate);
+      const age = new Date().getFullYear() - birth.getFullYear();
+      if (age < 18) return "sub18";
+      if (age <= 24) return "18_24";
+      if (age <= 34) return "25_34";
+      if (age <= 44) return "35_44";
+      return "45plus";
+    } catch (e) { return "desconhecido"; }
+  }
+
+  const getDemographicsUpdate = () => {
+    const update: any = {}
+    if (userProfile) {
+      const gender = (userProfile.gender || "desconhecido").toLowerCase();
+      const ageGroup = getAgeGroup(userProfile.birthDate);
+      
+      const genderKey = gender === 'masculino' ? 'masculino' : gender === 'feminino' ? 'feminino' : 'outros';
+      
+      update[`stats_gender_${genderKey}`] = increment(1);
+      update[`stats_age_${ageGroup}`] = increment(1);
+    } else {
+      update[`stats_gender_desconhecido`] = increment(1);
+      update[`stats_age_desconhecido`] = increment(1);
+    }
+    return update;
+  }
   
   React.useEffect(() => {
     if (!isSponsored || !event.adId || !db || !adsSettings || hasTrackedImpression.current) return
@@ -60,10 +95,13 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           const costPerImpression = cpmValue / 1000
 
           const adRef = doc(db, "ads", event.adId)
+          const demoUpdate = getDemographicsUpdate();
+
           updateDoc(adRef, { 
             reach: increment(1),
             budget: increment(-costPerImpression),
-            updatedAt: serverTimestamp()
+            updatedAt: serverTimestamp(),
+            ...demoUpdate
           }).catch((err) => {
             console.error("Erro ao registrar impressão:", err)
           })
@@ -79,7 +117,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     }
 
     return () => observer.disconnect()
-  }, [isSponsored, event.adId, db, adsSettings])
+  }, [isSponsored, event.adId, db, adsSettings, userProfile])
 
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
@@ -145,10 +183,18 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     if (isSponsored && event.adId && db && adsSettings) {
       const cpcValue = adsSettings.cpcValue || 0
       const adRef = doc(db, "ads", event.adId);
+      const demoUpdate = getDemographicsUpdate();
+
       updateDoc(adRef, { 
         clicks: increment(1),
         budget: increment(-cpcValue),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        ...Object.keys(demoUpdate).reduce((acc: any, key) => {
+          // Diferenciar cliques de views nos campos de stats se necessário, 
+          // mas por simplificação, estamos rastreando "interessados" (quem viu/clicou)
+          acc[key.replace('stats_', 'click_stats_')] = increment(1);
+          return acc;
+        }, {})
       }).catch((err) => {
         console.error("Erro ao registrar clique:", err)
       });

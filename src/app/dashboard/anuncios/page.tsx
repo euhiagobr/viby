@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -28,7 +29,10 @@ import {
   Coins,
   Info,
   Pause,
-  Play
+  Play,
+  Users,
+  MoreHorizontal,
+  ArrowRight
 } from "lucide-react"
 import {
   Dialog,
@@ -53,6 +57,7 @@ import Link from "next/link"
 import { createAdCheckoutSession } from "@/app/actions/stripe"
 import { formatCurrency } from "@/lib/financial-utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Progress } from "@/components/ui/progress"
 
 export default function AnunciosPage() {
   const db = useFirestore()
@@ -91,6 +96,8 @@ export default function AnunciosPage() {
   const [selectedEventId, setSelectedEventId] = React.useState("")
   const [adType, setAdType] = React.useState("feed")
   const [actionLoadingId, setActionLoadingId] = React.useState<string | null>(null)
+  
+  const [selectedAdForMetrics, setSelectedAdForMetrics] = React.useState<any>(null)
 
   React.useEffect(() => {
     if (!profileLoading && profile && profile.accountType !== 'Empresa') {
@@ -444,6 +451,16 @@ export default function AnunciosPage() {
                     </div>
 
                     <div className="flex items-center justify-end gap-2 shrink-0">
+                       <Button 
+                         variant="outline" 
+                         size="icon" 
+                         className="h-9 w-9 rounded-xl text-secondary border-secondary/20 hover:bg-secondary/10"
+                         onClick={() => setSelectedAdForMetrics(ad)}
+                         title="Ver Demográficos"
+                       >
+                         <Eye className="w-4 h-4" />
+                       </Button>
+
                        {(ad.status === 'Ativo' || ad.status === 'Pausado') && (
                          <Button 
                            variant="outline" 
@@ -510,27 +527,131 @@ export default function AnunciosPage() {
           <Link href="/dashboard/suporte">Dúvidas sobre cobrança? Fale conosco</Link>
         </Button>
       </div>
+
+      {/* MODAL DE MÉTRICAS DEMOGRÁFICAS */}
+      <Dialog open={!!selectedAdForMetrics} onOpenChange={(open) => !open && setSelectedAdForMetrics(null)}>
+        <DialogContent className="max-w-2xl rounded-[2.5rem]">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-secondary/10 rounded-lg">
+                <BarChart3 className="w-6 h-6 text-secondary" />
+              </div>
+              <div>
+                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Insights da Campanha</DialogTitle>
+                <DialogDescription className="font-medium">{selectedAdForMetrics?.eventTitle}</DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-6">
+            {/* Distribuição por Sexo */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2">
+                 <Users className="w-4 h-4 text-muted-foreground" />
+                 <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Distribuição por Sexo</h4>
+              </div>
+              
+              <div className="space-y-4">
+                <DemographicBar 
+                  label="Masculino" 
+                  value={selectedAdForMetrics?.stats_gender_masculino || 0} 
+                  total={selectedAdForMetrics?.reach || 1} 
+                  color="bg-blue-500" 
+                />
+                <DemographicBar 
+                  label="Feminino" 
+                  value={selectedAdForMetrics?.stats_gender_feminino || 0} 
+                  total={selectedAdForMetrics?.reach || 1} 
+                  color="bg-pink-500" 
+                />
+                <DemographicBar 
+                  label="Outros" 
+                  value={selectedAdForMetrics?.stats_gender_outros || 0} 
+                  total={selectedAdForMetrics?.reach || 1} 
+                  color="bg-purple-500" 
+                />
+                <DemographicBar 
+                  label="Não logados / Desconhecido" 
+                  value={selectedAdForMetrics?.stats_gender_desconhecido || 0} 
+                  total={selectedAdForMetrics?.reach || 1} 
+                  color="bg-muted-foreground/30" 
+                />
+              </div>
+            </div>
+
+            {/* Distribuição por Idade */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2">
+                 <Clock className="w-4 h-4 text-muted-foreground" />
+                 <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Faixa Etária</h4>
+              </div>
+
+              <div className="space-y-4">
+                <DemographicBar 
+                  label="Menor de 18" 
+                  value={selectedAdForMetrics?.stats_age_sub18 || 0} 
+                  total={selectedAdForMetrics?.reach || 1} 
+                  color="bg-orange-400" 
+                />
+                <DemographicBar 
+                  label="18 - 24 anos" 
+                  value={selectedAdForMetrics?.stats_age_18_24 || 0} 
+                  total={selectedAdForMetrics?.reach || 1} 
+                  color="bg-secondary" 
+                />
+                <DemographicBar 
+                  label="25 - 34 anos" 
+                  value={selectedAdForMetrics?.stats_age_25_34 || 0} 
+                  total={selectedAdForMetrics?.reach || 1} 
+                  color="bg-primary" 
+                />
+                <DemographicBar 
+                  label="35 - 44 anos" 
+                  value={selectedAdForMetrics?.stats_age_35_44 || 0} 
+                  total={selectedAdForMetrics?.reach || 1} 
+                  color="bg-primary/70" 
+                />
+                <DemographicBar 
+                  label="45+ anos" 
+                  value={selectedAdForMetrics?.stats_age_45plus || 0} 
+                  total={selectedAdForMetrics?.reach || 1} 
+                  color="bg-primary/40" 
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 bg-muted/30 rounded-2xl border border-border/50 flex gap-3">
+            <Info className="w-5 h-5 text-muted-foreground shrink-0" />
+            <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
+              As métricas demográficas são baseadas nos perfis dos usuários cadastrados no Viby Club que visualizaram ou clicaram no seu anúncio. Visualizações de visitantes não logados são contabilizadas como "Desconhecido".
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSelectedAdForMetrics(null)} className="rounded-xl font-bold uppercase text-[10px] tracking-widest">Fechar Relatório</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function MoreHorizontal(props: any) {
+function DemographicBar({ label, value, total, color }: { label: string, value: number, total: number, color: string }) {
+  const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+  
   return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="1" />
-      <circle cx="19" cy="12" r="1" />
-      <circle cx="5" cy="12" r="1" />
-    </svg>
-  )
+    <div className="space-y-1.5">
+      <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-tight">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="text-primary">{percentage}% ({value})</span>
+      </div>
+      <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+        <div 
+          className={cn("h-full transition-all duration-1000 ease-out", color)} 
+          style={{ width: `${percentage}%` }} 
+        />
+      </div>
+    </div>
+  );
 }
