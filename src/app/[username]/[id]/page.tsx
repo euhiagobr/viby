@@ -402,13 +402,11 @@ export default function EventoDetalhesPage() {
         }
       }
 
-      // Ingressos Gratuitos
       const newDocRef = await addDoc(collection(db, "registrations"), {
         ...regData,
         paymentStatus: "Disponível"
       })
       
-      // Enviar e-mail de confirmação para ingresso gratuito
       const eventDate = regData.eventDate?.toDate ? regData.eventDate.toDate().toLocaleString('pt-BR') : new Date(regData.eventDate).toLocaleString('pt-BR');
       await sendTicketEmail({
         to: regData.userEmail!,
@@ -532,13 +530,12 @@ export default function EventoDetalhesPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
-      {/* Menu Superior */}
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             {settings?.logoUrl ? (
               <div className="w-10 h-10 relative flex items-center justify-center">
-                <img src={settings.logoUrl} alt={siteName} className="max-h-full max-w-full object-contain" />
+                <Image src={settings.logoUrl} alt={siteName} width={40} height={40} className="max-h-full max-w-full object-contain" />
               </div>
             ) : (
               <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
@@ -609,7 +606,6 @@ export default function EventoDetalhesPage() {
             alt={event.title} 
             fill 
             className="object-cover"
-            unoptimized 
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
           <div className="absolute bottom-0 left-0 p-6 md:p-10 w-full">
@@ -840,7 +836,6 @@ export default function EventoDetalhesPage() {
               </CardContent>
             </Card>
 
-            {/* Seção de Todos os Lotes */}
             <Card className="border-none shadow-sm bg-card rounded-[2rem] overflow-hidden">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-muted-foreground">

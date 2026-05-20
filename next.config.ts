@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
     appShell: false,
   },
   images: {
+    minimumCacheTTL: 31536000, // 1 ano de cache para imagens otimizadas
     remotePatterns: [
       {
         protocol: 'https',

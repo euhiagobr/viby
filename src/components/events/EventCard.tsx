@@ -190,8 +190,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         budget: increment(-cpcValue),
         updatedAt: serverTimestamp(),
         ...Object.keys(demoUpdate).reduce((acc: any, key) => {
-          // Diferenciar cliques de views nos campos de stats se necessário, 
-          // mas por simplificação, estamos rastreando "interessados" (quem viu/clicou)
           acc[key.replace('stats_', 'click_stats_')] = increment(1);
           return acc;
         }, {})
@@ -233,7 +231,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           alt={event.title}
           fill
           className="object-cover transition-transform group-hover:scale-105"
-          unoptimized
           data-ai-hint="event cover"
         />
         <div className="absolute top-3 left-3 flex flex-col gap-2">
