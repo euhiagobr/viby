@@ -18,7 +18,8 @@ import {
   LifeBuoy, 
   ShieldAlert, 
   Landmark,
-  Receipt
+  Receipt,
+  Megaphone
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -86,6 +87,7 @@ export default function AdminLayout({
   const navItems = [
     { title: 'Painel', url: '/admin', icon: LayoutDashboard },
     { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays },
+    { title: 'Anúncios', url: '/admin/anuncios', icon: Megaphone },
     { title: 'Financeiro (Contas)', url: '/admin/financeiro', icon: Landmark },
     { title: 'Extrato Global', url: '/admin/extrato', icon: Receipt },
     { title: 'Denúncias', url: '/admin/denuncias', icon: ShieldAlert },
