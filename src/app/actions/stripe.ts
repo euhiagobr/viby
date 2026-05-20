@@ -10,10 +10,10 @@ import { firebaseConfig } from '@/firebase/config';
  * Helper para obter as chaves do Stripe diretamente do Firestore.
  */
 async function getStripeKeys() {
-  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  const db = getFirestore(app, 'eventosviby');
-  
   try {
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    const db = getFirestore(app, 'eventosviby');
+    
     const stripeDoc = await getDoc(doc(db, 'settings', 'stripe'));
     if (!stripeDoc.exists()) {
       return { publishableKey: null, secretKey: null };
@@ -24,7 +24,7 @@ async function getStripeKeys() {
       secretKey: data.secretKey || null,
     };
   } catch (e) {
-    console.error('Erro ao buscar chaves do Stripe:', e);
+    console.error('Erro ao buscar chaves do Stripe no Firestore:', e);
     return { publishableKey: null, secretKey: null };
   }
 }
@@ -53,10 +53,10 @@ export async function createCheckoutSession(data: {
   totalAmount: number; // Em centavos
   metadata: any;
 }) {
-  const h = await headers();
-  const origin = h.get('origin') || '';
-
   try {
+    const h = await headers();
+    const origin = h.get('origin') || 'https://viby.club';
+
     const stripe = await getStripeInstance();
 
     const sanitizedMetadata: Record<string, string> = {};
@@ -93,7 +93,7 @@ export async function createCheckoutSession(data: {
 
     return { url: session.url };
   } catch (error: any) {
-    console.error('Erro Stripe Checkout:', error);
+    console.error('Erro crítico na Server Action createCheckoutSession:', error);
     throw new Error(error.message || 'Erro ao processar o checkout de pagamento');
   }
 }
@@ -106,10 +106,10 @@ export async function createPlanCheckoutSession(data: {
   userEmail: string;
   totalAmount: number; // Em centavos
 }) {
-  const h = await headers();
-  const origin = h.get('origin') || '';
-
   try {
+    const h = await headers();
+    const origin = h.get('origin') || 'https://viby.club';
+
     const stripe = await getStripeInstance();
 
     const session = await stripe.checkout.sessions.create({
@@ -141,7 +141,7 @@ export async function createPlanCheckoutSession(data: {
 
     return { url: session.url };
   } catch (error: any) {
-    console.error('Erro Plan Checkout:', error);
+    console.error('Erro crítico na Server Action createPlanCheckoutSession:', error);
     throw new Error(error.message || 'Erro ao gerar checkout do plano');
   }
 }
@@ -153,10 +153,10 @@ export async function createAdCheckoutSession(data: {
   userEmail: string;
   totalAmount: number; // Em centavos
 }) {
-  const h = await headers();
-  const origin = h.get('origin') || '';
-
   try {
+    const h = await headers();
+    const origin = h.get('origin') || 'https://viby.club';
+
     const stripe = await getStripeInstance();
 
     const session = await stripe.checkout.sessions.create({
@@ -187,7 +187,7 @@ export async function createAdCheckoutSession(data: {
 
     return { url: session.url };
   } catch (error: any) {
-    console.error('Erro Ad Checkout:', error);
+    console.error('Erro crítico na Server Action createAdCheckoutSession:', error);
     throw new Error(error.message || 'Erro ao gerar checkout do anúncio');
   }
 }

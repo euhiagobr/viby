@@ -27,10 +27,10 @@ interface EmailData {
  * Helper para obter as credenciais de e-mail do Firestore.
  */
 async function getEmailConfig() {
-  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  const db = getFirestore(app, 'eventosviby');
-  
   try {
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    const db = getFirestore(app, 'eventosviby');
+    
     const emailDoc = await getDoc(doc(db, 'settings', 'email'));
     if (!emailDoc.exists()) {
       return { smtpUser: null, smtpPass: null };
@@ -41,25 +41,25 @@ async function getEmailConfig() {
       smtpPass: (data.smtpPass as string) || null,
     };
   } catch (e) {
-    console.error('Erro ao buscar config de e-mail:', e);
+    console.error('Erro ao buscar config de e-mail no Firestore:', e);
     return { smtpUser: null, smtpPass: null };
   }
 }
 
 export async function sendTicketEmail(data: EmailData) {
   try {
-    // Validação rigorosa de entrada para evitar "string required" errors
-    if (!data.to || typeof data.to !== 'string') {
+    // Validação rigorosa de entrada
+    if (!data?.to || typeof data.to !== 'string') {
       return { success: false, error: 'E-mail do destinatário inválido ou ausente.' };
     }
-    if (!data.ticketCode || typeof data.ticketCode !== 'string') {
-      return { success: false, error: 'Código do ingresso ausente para geração do QR Code.' };
+    if (!data?.ticketCode || typeof data.ticketCode !== 'string') {
+      return { success: false, error: 'Código do ingresso inválido para QR Code.' };
     }
 
     const { smtpUser, smtpPass } = await getEmailConfig();
 
     if (!smtpUser || !smtpPass) {
-      console.warn('Configurações de e-mail (SMTP) não encontradas no Firestore.');
+      console.warn('SMTP não configurado no Firestore.');
       return { success: false, error: 'O sistema de e-mail ainda não foi configurado pelo administrador.' };
     }
 
@@ -147,9 +147,9 @@ export async function sendTicketEmail(data: EmailData) {
             </div>
 
             <div class="social-section">
-              <p style="margin: 0 0 10px 0; font-size: 13px; color: #64748b; font-weight: 500;">Fique por dentro das novidades!</p>
+              <p style="margin: 0 0 10px 0; font-size: 13px; color: #64748b; font-weight: 500;">Siga nosso Instagram oficial!</p>
               <a href="https://instagram.com/vibyclub" target="_blank" class="social-link">
-                Siga nosso Instagram oficial →
+                @vibyclub →
               </a>
             </div>
           </div>
@@ -177,7 +177,7 @@ export async function sendTicketEmail(data: EmailData) {
     });
     return { success: true };
   } catch (error: any) {
-    console.error('Erro ao enviar e-mail:', error);
-    return { success: false, error: error.message || 'Erro desconhecido no servidor de e-mail.' };
+    console.error('Erro crítico na Server Action sendTicketEmail:', error);
+    return { success: false, error: error.message || 'Erro inesperado no servidor de e-mail.' };
   }
 }
