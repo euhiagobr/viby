@@ -45,7 +45,8 @@ import {
   Calendar,
   Check,
   X,
-  Fingerprint
+  Fingerprint,
+  Lock
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -326,6 +327,8 @@ export default function EditarPerfilPage() {
     )
   }
 
+  const isCpfLocked = !!profile?.cpf;
+
   return (
     <div className="max-w-3xl mx-auto space-y-8 pb-20">
       <div className="flex items-center gap-4">
@@ -504,14 +507,26 @@ export default function EditarPerfilPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="cpf" className="flex items-center gap-2"><Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF (Para receber ingressos)</Label>
+              <Label htmlFor="cpf" className="flex items-center gap-2">
+                <Fingerprint className="w-3.5 h-3.5 text-secondary" /> 
+                CPF (Para receber ingressos)
+                {isCpfLocked && <Lock className="w-3 h-3 text-muted-foreground ml-auto" />}
+              </Label>
               <Input 
                 id="cpf" 
                 value={formData.cpf} 
                 onChange={handleCPFChange} 
                 placeholder="000.000.000-00" 
+                disabled={isCpfLocked}
+                className={cn(isCpfLocked && "bg-muted/50 cursor-not-allowed")}
               />
-              <p className="text-[10px] text-muted-foreground italic">Seu CPF é criptografado e usado para vincular ingressos nomeados para você.</p>
+              {isCpfLocked ? (
+                <p className="text-[9px] text-orange-600 font-bold uppercase tracking-tight flex items-center gap-1">
+                  <Info className="w-3 h-3" /> Para alterar um CPF já cadastrado, entre em contato com o suporte.
+                </p>
+              ) : (
+                <p className="text-[10px] text-muted-foreground italic">Seu CPF é criptografado e usado para vincular ingressos nomeados para você.</p>
+              )}
             </div>
 
             <div className="space-y-2">
