@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -53,6 +54,7 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { encryptDeterministic, decryptData } from "@/lib/crypto-utils"
+import { formatCurrency } from "@/lib/financial-utils"
 
 export default function MeusIngressosPage() {
   const db = useFirestore()
@@ -196,7 +198,10 @@ function TicketListItem({ registration, isIncoming = false, isSent = false }: { 
   const formatCPF = (v: string) => {
     v = v.replace(/\D/g, "");
     if (v.length > 11) v = v.slice(0, 11);
-    return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4").replace(/(\d{3})(\d{3})(\d{3})/, "$1.$2.$3").replace(/(\d{3})(\d{3})/, "$1.$2");
+    if (v.length > 9) return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    if (v.length > 6) return v.replace(/(\d{3})(\d{3})(\d{1,3})/, "$1.$2.$3");
+    if (v.length > 3) return v.replace(/(\d{3})(\d{1,3})/, "$1.$2");
+    return v;
   }
 
   const handleUseMyData = () => {
@@ -375,7 +380,7 @@ function TicketListItem({ registration, isIncoming = false, isSent = false }: { 
           <div className="flex flex-col">
             <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{registration.batchName || "Lote Único"}</span>
             <span className="text-sm font-black text-primary mt-1">
-              {registration.price === 0 ? "GRÁTIS" : `R$ ${parseFloat(registration.price).toFixed(2)}`}
+              {registration.price === 0 ? "GRÁTIS" : formatCurrency(registration.price)}
             </span>
           </div>
           

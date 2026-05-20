@@ -75,7 +75,7 @@ export default function VoucherPage() {
     )
   }
 
-  if (user && registration.userId !== user.uid) {
+  if (user && registration.userId !== user.uid && registration.sharedWithUid !== user.uid) {
     return (
        <div className="flex flex-col items-center justify-center h-[70vh] gap-4">
         <h2 className="text-xl font-bold text-destructive">Acesso Negado</h2>
