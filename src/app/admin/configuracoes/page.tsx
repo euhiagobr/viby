@@ -22,7 +22,10 @@ import {
   EyeOff,
   Key,
   Info,
-  Mail
+  Mail,
+  Coins,
+  TrendingUp,
+  MousePointer2
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -36,10 +39,12 @@ export default function AdminConfiguracoesPage() {
   const settingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'site') : null), [db]);
   const stripeRef = React.useMemo(() => (db ? doc(db, 'settings', 'stripe') : null), [db]);
   const emailRef = React.useMemo(() => (db ? doc(db, 'settings', 'email') : null), [db]);
+  const adsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
 
   const { data: settings, loading: loadingSettings } = useDoc<any>(settingsRef);
   const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
   const { data: emailSettings, loading: loadingEmail } = useDoc<any>(emailRef);
+  const { data: adsSettings, loading: loadingAds } = useDoc<any>(adsRef);
 
   const [saving, setSaving] = React.useState(false);
   const [logoUploadProgress, setLogoUploadProgress] = React.useState<number | null>(null);
@@ -59,6 +64,10 @@ export default function AdminConfiguracoesPage() {
   const [smtpUser, setSmtpUser] = React.useState('');
   const [smtpPass, setSmtpPass] = React.useState('');
   const [showEmailPass, setShowEmailPass] = React.useState(false);
+
+  // Ads/Valores State
+  const [cpcValue, setCpcValue] = React.useState('');
+  const [cpmValue, setCpmValue] = React.useState('');
 
   React.useEffect(() => {
     if (settings) {
@@ -81,6 +90,13 @@ export default function AdminConfiguracoesPage() {
       setSmtpPass(emailSettings.smtpPass || '');
     }
   }, [emailSettings]);
+
+  React.useEffect(() => {
+    if (adsSettings) {
+      setCpcValue(adsSettings.cpcValue?.toString() || '');
+      setCpmValue(adsSettings.cpmValue?.toString() || '');
+    }
+  }, [adsSettings]);
 
   const storage = React.useMemo(() => {
     if (!app) return null;
@@ -192,7 +208,30 @@ export default function AdminConfiguracoesPage() {
       .finally(() => setSaving(false));
   };
 
-  if (loadingSettings || loadingStripe || loadingEmail) {
+  const handleSaveAds = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!db) return;
+    setSaving(true);
+
+    const adsData = {
+      cpcValue: parseFloat(cpcValue) || 0,
+      cpmValue: parseFloat(cpmValue) || 0,
+      updatedAt: serverTimestamp(),
+    };
+
+    setDoc(doc(db, 'settings', 'ads'), adsData, { merge: true })
+      .then(() => toast({ title: 'Valores de Publicidade salvos!', description: 'As taxas de CPC e CPM foram atualizadas.' }))
+      .catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'settings/ads',
+          operation: 'write',
+          requestResourceData: adsData,
+        }));
+      })
+      .finally(() => setSaving(false));
+  };
+
+  if (loadingSettings || loadingStripe || loadingEmail || loadingAds) {
     return (
       <div className="flex justify-center items-center h-[60vh]">
         <Loader2 className="w-10 h-10 animate-spin text-secondary" />
@@ -217,6 +256,9 @@ export default function AdminConfiguracoesPage() {
           </TabsTrigger>
           <TabsTrigger value="email" className="gap-2 rounded-lg font-bold">
             <Mail className="w-4 h-4" /> E-mail
+          </TabsTrigger>
+          <TabsTrigger value="values" className="gap-2 rounded-lg font-bold">
+            <Coins className="w-4 h-4" /> Valores
           </TabsTrigger>
         </TabsList>
 
@@ -423,6 +465,74 @@ export default function AdminConfiguracoesPage() {
             <Button type="submit" disabled={saving} className="w-full bg-primary text-white font-black h-14 rounded-2xl shadow-lg">
               {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
               Salvar Configurações de E-mail
+            </Button>
+          </form>
+        </TabsContent>
+
+        <TabsContent value="values">
+          <form onSubmit={handleSaveAds} className="space-y-6 max-w-2xl">
+            <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-50 rounded-lg">
+                    <Coins className="w-5 h-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">Valores de Publicidade</CardTitle>
+                    <CardDescription>Defina os custos padrão para impulsionamento de eventos.</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <MousePointer2 className="w-3.5 h-3.5 text-muted-foreground" />
+                    Valor por Clique (CPC)
+                  </Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">R$</span>
+                    <Input 
+                      type="number"
+                      step="0.01"
+                      value={cpcValue}
+                      onChange={(e) => setCpcValue(e.target.value)}
+                      placeholder="0.15"
+                      className="rounded-xl pl-9 h-12 font-bold"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Custo debitado do orçamento do produtor a cada clique único no card.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <TrendingUp className="w-3.5 h-3.5 text-muted-foreground" />
+                    Valor por Mil Impressões (CPM)
+                  </Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">R$</span>
+                    <Input 
+                      type="number"
+                      step="0.01"
+                      value={cpmValue}
+                      onChange={(e) => setCpmValue(e.target.value)}
+                      placeholder="5.00"
+                      className="rounded-xl pl-9 h-12 font-bold"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Custo para cada 1.000 vezes que o anúncio for exibido no feed.</p>
+                </div>
+
+                <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl flex gap-3">
+                  <Info className="w-5 h-5 text-orange-600 shrink-0" />
+                  <p className="text-[10px] text-orange-800 font-medium leading-tight">
+                    Esses valores servem de base para o sistema calcular o consumo automático dos orçamentos diários contratados pelos produtores.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+            <Button type="submit" disabled={saving} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-lg shadow-secondary/20 uppercase italic">
+              {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
+              Salvar Parâmetros de Custo
             </Button>
           </form>
         </TabsContent>
