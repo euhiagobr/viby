@@ -103,7 +103,7 @@ export default function LandingPage() {
       })
     }
 
-    return result
+    return result;
   }, [events, searchName, selectedCity, selectedCategory, sortBy, userLocation])
 
   // Lógica de Intercalação de ADS
@@ -112,17 +112,22 @@ export default function LandingPage() {
     if (!activeAds || activeAds.length === 0) return filteredEvents.map(e => ({ ...e, isSponsored: false }))
 
     const result = []
-    const organic = [...filteredEvents]
+    
+    // Identifica quais eventos possuem anúncios ativos
     const sponsoredPool = activeAds.map((ad: any) => {
       const fullEvent = events?.find((e: any) => e.id === ad.eventId)
-      return fullEvent ? { ...fullEvent, isSponsored: true } : null
+      return fullEvent ? { ...fullEvent, isSponsored: true, adId: ad.id } : null
     }).filter(Boolean)
+
+    const sponsoredEventIds = new Set(sponsoredPool.map(s => s.id));
+    
+    // Filtra os orgânicos para não repetir os patrocinados
+    const organic = filteredEvents.filter(e => !sponsoredEventIds.has(e.id));
 
     if (sponsoredPool.length === 0) return filteredEvents.map(e => ({ ...e, isSponsored: false }))
 
     // 1. Sempre o primeiro é um ADS
-    const firstAd = sponsoredPool[0]
-    result.push(firstAd)
+    result.push(sponsoredPool[0])
 
     let organicIdx = 0
     let adIdx = 1 // Próximo ad do pool

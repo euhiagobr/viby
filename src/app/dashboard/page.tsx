@@ -82,11 +82,14 @@ export default function ExplorarPage() {
     if (!activeAds || activeAds.length === 0) return filteredEvents.map(e => ({ ...e, isSponsored: false }))
 
     const result = []
-    const organic = [...filteredEvents]
+
     const sponsoredPool = activeAds.map((ad: any) => {
       const fullEvent = events?.find((e: any) => e.id === ad.eventId)
-      return fullEvent ? { ...fullEvent, isSponsored: true } : null
+      return fullEvent ? { ...fullEvent, isSponsored: true, adId: ad.id } : null
     }).filter(Boolean)
+
+    const sponsoredEventIds = new Set(sponsoredPool.map(s => s.id));
+    const organic = filteredEvents.filter(e => !sponsoredEventIds.has(e.id));
 
     if (sponsoredPool.length === 0) return filteredEvents.map(e => ({ ...e, isSponsored: false }))
 

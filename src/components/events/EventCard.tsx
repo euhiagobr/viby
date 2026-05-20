@@ -11,6 +11,8 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { calculateDistance, type Coordinates } from "@/lib/location-utils"
+import { useFirestore } from "@/firebase"
+import { doc, updateDoc, increment } from "firebase/firestore"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
@@ -39,6 +41,7 @@ interface EventCardProps {
 
 export function EventCard({ event, userLocation, isSponsored }: EventCardProps) {
   const router = useRouter()
+  const db = useFirestore()
   
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
@@ -101,6 +104,10 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }, [userLocation, event.latitude, event.longitude]);
 
   const handleCardClick = () => {
+    if (isSponsored && event.adId && db) {
+      const adRef = doc(db, "ads", event.adId);
+      updateDoc(adRef, { clicks: increment(1) }).catch(() => {});
+    }
     router.push(eventLink)
   }
 
