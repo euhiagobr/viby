@@ -39,6 +39,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { encryptDeterministic, decryptData } from "@/lib/crypto-utils"
@@ -271,7 +282,6 @@ function TicketListItem({ registration, isIncoming = false, isSent = false }: { 
 
   const handleCancelNomination = async () => {
     if (!db || !registration.id) return
-    if (!confirm("Tem certeza que deseja cancelar esta nomeação? O ingresso voltará a ser seu.")) return
 
     setIsSaving(true)
     try {
@@ -380,9 +390,30 @@ function TicketListItem({ registration, isIncoming = false, isSent = false }: { 
                 </Button>
               </>
             ) : isSent ? (
-              <Button size="sm" variant="outline" onClick={handleCancelNomination} disabled={isSaving} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-orange-500 text-orange-600 hover:bg-orange-50">
-                 {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Undo2 className="w-3.5 h-3.5 mr-1" />} Cancelar Nomeação
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="outline" disabled={isSaving} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-orange-500 text-orange-600 hover:bg-orange-50">
+                    {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Undo2 className="w-3.5 h-3.5 mr-1" />} Cancelar Nomeação
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="rounded-[2rem]">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Cancelar Nomeação?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      O convite enviado para o CPF informado será invalidado e o ingresso voltará a ficar disponível para você nomear novamente ou utilizar.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px] tracking-widest">Manter Nomeação</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={handleCancelNomination}
+                      className="bg-orange-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-orange-700"
+                    >
+                      Confirmar Cancelamento
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             ) : (
               <>
                 <Dialog open={isNameModalOpen} onOpenChange={setIsNameModalOpen}>
