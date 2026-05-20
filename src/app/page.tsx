@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
-import { collection, query, limit, orderBy, doc } from "firebase/firestore"
+import { collection, query, limit, orderBy, doc, where } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { Button } from "@/components/ui/button"
 import { Globe, Search, ArrowRight, Loader2, MapPin, Tag, FilterX, Navigation } from "lucide-react"
@@ -44,19 +45,23 @@ export default function LandingPage() {
   const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
 
+  // Consulta de Anúncios Ativos
+  const adsQuery = useMemoFirebase(() => {
+    if (!db) return null
+    return query(collection(db, "ads"), where("status", "==", "Ativo"))
+  }, [db])
+  const { data: activeAds } = useCollection<any>(adsQuery)
+
   React.useEffect(() => {
     const fetchLocation = async () => {
       try {
         const loc = await getCurrentLocation()
         setUserLocation(loc)
-      } catch (err) {
-        // Ignora silenciosamente erro de localização
-      }
+      } catch (err) {}
     }
     fetchLocation()
   }, [])
 
-  // Extrair cidades únicas dos eventos para o filtro
   const uniqueCities = React.useMemo(() => {
     if (!events) return []
     const cities = events
@@ -65,7 +70,6 @@ export default function LandingPage() {
     return Array.from(new Set(cities)).sort() as string[]
   }, [events])
 
-  // Lógica de filtragem e ordenação
   const filteredEvents = React.useMemo(() => {
     if (!events) return []
     
@@ -80,7 +84,6 @@ export default function LandingPage() {
       return isNotDeleted && matchesSearch && matchesCity && matchesCategory;
     })
 
-    // Adicionar distância aos objetos para ordenação
     if (userLocation) {
       result = result.map((e: any) => ({
         ...e,
@@ -90,11 +93,9 @@ export default function LandingPage() {
       }))
     }
 
-    // Ordenação
     if (sortBy === 'distance' && userLocation) {
       result.sort((a, b) => (a._distance || 0) - (b._distance || 0))
     } else {
-      // Ordenação por data (mais próximos primeiro)
       result.sort((a, b) => {
         const dateA = a.date?.seconds || new Date(a.date).getTime() / 1000 || 0
         const dateB = b.date?.seconds || new Date(b.date).getTime() / 1000 || 0
@@ -104,6 +105,44 @@ export default function LandingPage() {
 
     return result
   }, [events, searchName, selectedCity, selectedCategory, sortBy, userLocation])
+
+  // Lógica de Intercalação de ADS
+  const interleavedContent = React.useMemo(() => {
+    if (!filteredEvents || filteredEvents.length === 0) return []
+    if (!activeAds || activeAds.length === 0) return filteredEvents.map(e => ({ ...e, isSponsored: false }))
+
+    const result = []
+    const organic = [...filteredEvents]
+    const sponsoredPool = activeAds.map((ad: any) => {
+      const fullEvent = events?.find((e: any) => e.id === ad.eventId)
+      return fullEvent ? { ...fullEvent, isSponsored: true } : null
+    }).filter(Boolean)
+
+    if (sponsoredPool.length === 0) return filteredEvents.map(e => ({ ...e, isSponsored: false }))
+
+    // 1. Sempre o primeiro é um ADS
+    const firstAd = sponsoredPool[0]
+    result.push(firstAd)
+
+    let organicIdx = 0
+    let adIdx = 1 // Próximo ad do pool
+
+    while (organicIdx < organic.length) {
+      // 2. Intervalo aleatório entre 5 e 9 postagens
+      const interval = Math.floor(Math.random() * (9 - 5 + 1)) + 5
+      const chunk = organic.slice(organicIdx, organicIdx + interval)
+      result.push(...chunk.map(e => ({ ...e, isSponsored: false })))
+      organicIdx += interval
+
+      if (organicIdx < organic.length) {
+        const nextAd = sponsoredPool[adIdx % sponsoredPool.length]
+        result.push(nextAd)
+        adIdx++
+      }
+    }
+
+    return result
+  }, [filteredEvents, activeAds, events])
 
   const siteName = settings?.siteName || "Viby"
 
@@ -116,7 +155,6 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
-      {/* Navigation */}
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
@@ -131,7 +169,6 @@ export default function LandingPage() {
             )}
             <span className="text-xl font-bold tracking-tight">{siteName}</span>
           </Link>
-
           <div className="flex items-center gap-4">
             {user ? (
               <Button asChild variant="ghost" className="font-semibold">
@@ -151,7 +188,6 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero Section */}
       <section className="relative py-24 overflow-hidden">
         <div className="container mx-auto px-4 relative z-10 text-center space-y-8">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/10 text-secondary text-sm font-black uppercase tracking-widest animate-in fade-in slide-in-from-top-4 duration-700">
@@ -177,11 +213,9 @@ export default function LandingPage() {
             </Button>
           </div>
         </div>
-
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[700px] bg-secondary/5 rounded-full blur-[120px] pointer-events-none -z-10" />
       </section>
 
-      {/* Filter Section */}
       <section className="container mx-auto px-4 -mt-10 relative z-20">
         <Card className="border-none shadow-2xl rounded-[2.5rem] p-4 bg-white/80 backdrop-blur-xl border border-white">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
@@ -194,7 +228,6 @@ export default function LandingPage() {
                 className="h-16 pl-12 rounded-2xl border-none bg-muted/30 focus-visible:ring-secondary font-bold"
               />
             </div>
-            
             <div className="md:col-span-3">
               <Select value={selectedCity} onValueChange={setSelectedCity}>
                 <SelectTrigger className="h-16 rounded-2xl border-none bg-muted/30 focus:ring-secondary font-bold">
@@ -211,7 +244,6 @@ export default function LandingPage() {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="md:col-span-3">
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                 <SelectTrigger className="h-16 rounded-2xl border-none bg-muted/30 focus:ring-secondary font-bold">
@@ -228,7 +260,6 @@ export default function LandingPage() {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="md:col-span-2">
               <Button 
                 onClick={clearFilters}
@@ -243,7 +274,6 @@ export default function LandingPage() {
         </Card>
       </section>
 
-      {/* Events Feed */}
       <section className="py-24 container mx-auto px-4 flex-1">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
           <div className="space-y-2">
@@ -252,7 +282,7 @@ export default function LandingPage() {
             </h2>
             <div className="flex flex-wrap items-center gap-4 mt-2">
               <p className="text-muted-foreground font-medium">
-                {filteredEvents.length} {filteredEvents.length === 1 ? 'experiência disponível' : 'experiências disponíveis'}
+                {interleavedContent.length} {interleavedContent.length === 1 ? 'experiência disponível' : 'experiências disponíveis'}
               </p>
               <div className="h-6 w-px bg-border hidden md:block" />
               <div className="flex gap-2">
@@ -286,9 +316,14 @@ export default function LandingPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredEvents.length > 0 ? (
-              filteredEvents.map((event: any) => (
-                <EventCard key={event.id} event={event} userLocation={userLocation} />
+            {interleavedContent.length > 0 ? (
+              interleavedContent.map((item: any, idx: number) => (
+                <EventCard 
+                  key={`${item.id}-${idx}`} 
+                  event={item} 
+                  userLocation={userLocation} 
+                  isSponsored={item.isSponsored}
+                />
               ))
             ) : (
               <div className="col-span-full py-24 text-center bg-white rounded-[3rem] border-4 border-dashed border-muted/50 flex flex-col items-center justify-center gap-6 shadow-inner">

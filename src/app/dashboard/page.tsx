@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
-import { collection, doc } from "firebase/firestore"
+import { collection, doc, query, where, limit, orderBy } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { Button } from "@/components/ui/button"
 import { Search, Filter, Loader2, ShieldCheck, Navigation } from "lucide-react"
@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { getCurrentLocation, calculateDistance, type Coordinates } from "@/lib/location-utils"
+import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 
 export default function ExplorarPage() {
   const [filter, setFilter] = useState('all')
@@ -29,10 +30,17 @@ export default function ExplorarPage() {
 
   const eventsQuery = React.useMemo(() => {
     if (!db) return null
-    return collection(db, "events")
+    return query(collection(db, "events"), limit(100))
   }, [db])
 
   const { data: events, loading, error } = useCollection<any>(eventsQuery)
+
+  // Consulta de Anúncios Ativos
+  const adsQuery = useMemoFirebase(() => {
+    if (!db) return null
+    return query(collection(db, "ads"), where("status", "==", "Ativo"))
+  }, [db])
+  const { data: activeAds } = useCollection<any>(adsQuery)
 
   React.useEffect(() => {
     if (filter === 'nearby' && !userLocation) {
@@ -42,7 +50,6 @@ export default function ExplorarPage() {
     }
   }, [filter, userLocation])
 
-  // Filtro de busca, categoria e exclusão lógica
   const filteredEvents = React.useMemo(() => {
     if (!events) return []
     
@@ -53,7 +60,6 @@ export default function ExplorarPage() {
       return isNotDeleted && matchesSearch;
     })
 
-    // Lógica por Tabs
     if (filter === 'nearby' && userLocation) {
        result = result.map((e: any) => ({
          ...e,
@@ -69,6 +75,42 @@ export default function ExplorarPage() {
 
     return result;
   }, [events, search, filter, userLocation])
+
+  // Lógica de Intercalação de ADS para o Dashboard
+  const interleavedContent = React.useMemo(() => {
+    if (!filteredEvents || filteredEvents.length === 0) return []
+    if (!activeAds || activeAds.length === 0) return filteredEvents.map(e => ({ ...e, isSponsored: false }))
+
+    const result = []
+    const organic = [...filteredEvents]
+    const sponsoredPool = activeAds.map((ad: any) => {
+      const fullEvent = events?.find((e: any) => e.id === ad.eventId)
+      return fullEvent ? { ...fullEvent, isSponsored: true } : null
+    }).filter(Boolean)
+
+    if (sponsoredPool.length === 0) return filteredEvents.map(e => ({ ...e, isSponsored: false }))
+
+    // 1. Sempre o primeiro é um ADS
+    result.push(sponsoredPool[0])
+
+    let organicIdx = 0
+    let adIdx = 1
+
+    while (organicIdx < organic.length) {
+      // 2. Intervalo aleatório entre 5 e 9 postagens
+      const interval = Math.floor(Math.random() * (9 - 5 + 1)) + 5
+      const chunk = organic.slice(organicIdx, organicIdx + interval)
+      result.push(...chunk.map(e => ({ ...e, isSponsored: false })))
+      organicIdx += interval
+
+      if (organicIdx < organic.length) {
+        result.push(sponsoredPool[adIdx % sponsoredPool.length])
+        adIdx++
+      }
+    }
+
+    return result
+  }, [filteredEvents, activeAds, events])
 
   return (
     <div className="space-y-8">
@@ -128,15 +170,20 @@ export default function ExplorarPage() {
         </div>
       )}
 
-      {!loading && !error && filteredEvents.length === 0 && (
+      {!loading && !error && interleavedContent.length === 0 && (
         <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-border shadow-sm">
           <p className="text-muted-foreground font-medium uppercase text-[10px] font-black tracking-widest">Nenhum evento ativo encontrado.</p>
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredEvents.map((event: any) => (
-          <EventCard key={event.id} event={event} userLocation={userLocation} />
+        {interleavedContent.map((item: any, idx: number) => (
+          <EventCard 
+            key={`${item.id}-${idx}`} 
+            event={item} 
+            userLocation={userLocation} 
+            isSponsored={item.isSponsored}
+          />
         ))}
       </div>
     </div>

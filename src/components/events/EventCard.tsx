@@ -2,7 +2,7 @@
 "use client"
 
 import * as React from "react"
-import { Calendar, MapPin, Clock, Ticket, Navigation } from "lucide-react"
+import { Calendar, MapPin, Clock, Ticket, Navigation, Megaphone } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -34,9 +34,10 @@ function InstagramVerifiedBadge({ className }: { className?: string }) {
 interface EventCardProps {
   event: any 
   userLocation?: Coordinates | null
+  isSponsored?: boolean
 }
 
-export function EventCard({ event, userLocation }: EventCardProps) {
+export function EventCard({ event, userLocation, isSponsored }: EventCardProps) {
   const router = useRouter()
   
   const formatDate = (dateValue: any) => {
@@ -112,9 +113,21 @@ export function EventCard({ event, userLocation }: EventCardProps) {
 
   return (
     <Card 
-      className="group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[1.5rem] cursor-pointer"
+      className={cn(
+        "group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[1.5rem] cursor-pointer relative",
+        isSponsored && "ring-2 ring-secondary/20 shadow-secondary/10"
+      )}
       onClick={handleCardClick}
     >
+      {isSponsored && (
+        <div className="absolute top-0 right-0 z-20">
+          <Badge className="bg-primary text-white rounded-none rounded-bl-xl font-black text-[9px] uppercase px-3 py-1.5 flex items-center gap-1.5">
+            <Megaphone className="w-3 h-3 text-secondary" />
+            Patrocinado
+          </Badge>
+        </div>
+      )}
+
       <div className="relative h-48 w-full bg-muted">
         <Image
           src={event.image || `https://picsum.photos/seed/${event.id}/600/400`}
