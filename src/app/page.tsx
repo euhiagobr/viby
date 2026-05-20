@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -106,31 +105,43 @@ export default function LandingPage() {
     return result;
   }, [events, searchName, selectedCity, selectedCategory, sortBy, userLocation])
 
-  // Lógica de Intercalação de ADS
+  // Lógica de Intercalação de ADS com verificação de data
   const interleavedContent = React.useMemo(() => {
     if (!filteredEvents || filteredEvents.length === 0) return []
-    if (!activeAds || activeAds.length === 0) return filteredEvents.map(e => ({ ...e, isSponsored: false }))
+    
+    const now = new Date()
+    now.setHours(0, 0, 0, 0) // Normaliza para comparação de apenas data
+
+    // Identifica quais eventos possuem anúncios ativos E dentro da validade
+    const sponsoredPool = (activeAds || [])
+      .map((ad: any) => {
+        const start = ad.startDate ? new Date(ad.startDate) : null
+        const end = ad.endDate ? new Date(ad.endDate) : null
+        
+        if (start) start.setHours(0, 0, 0, 0)
+        if (end) end.setHours(23, 59, 59, 999)
+
+        const isDateValid = (!start || now >= start) && (!end || now <= end)
+        if (!isDateValid) return null
+
+        const fullEvent = events?.find((e: any) => e.id === ad.eventId)
+        return fullEvent ? { ...fullEvent, isSponsored: true, adId: ad.id } : null
+      })
+      .filter(Boolean)
+
+    if (sponsoredPool.length === 0) {
+      return filteredEvents.map(e => ({ ...e, isSponsored: false }))
+    }
 
     const result = []
-    
-    // Identifica quais eventos possuem anúncios ativos
-    const sponsoredPool = activeAds.map((ad: any) => {
-      const fullEvent = events?.find((e: any) => e.id === ad.eventId)
-      return fullEvent ? { ...fullEvent, isSponsored: true, adId: ad.id } : null
-    }).filter(Boolean)
-
     const sponsoredEventIds = new Set(sponsoredPool.map(s => s.id));
-    
-    // Filtra os orgânicos para não repetir os patrocinados
     const organic = filteredEvents.filter(e => !sponsoredEventIds.has(e.id));
-
-    if (sponsoredPool.length === 0) return filteredEvents.map(e => ({ ...e, isSponsored: false }))
 
     // 1. Sempre o primeiro é um ADS
     result.push(sponsoredPool[0])
 
     let organicIdx = 0
-    let adIdx = 1 // Próximo ad do pool
+    let adIdx = 1
 
     while (organicIdx < organic.length) {
       // 2. Intervalo aleatório entre 5 e 9 postagens

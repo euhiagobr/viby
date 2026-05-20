@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -76,22 +75,36 @@ export default function ExplorarPage() {
     return result;
   }, [events, search, filter, userLocation])
 
-  // Lógica de Intercalação de ADS para o Dashboard
+  // Lógica de Intercalação de ADS para o Dashboard com verificação de data
   const interleavedContent = React.useMemo(() => {
     if (!filteredEvents || filteredEvents.length === 0) return []
-    if (!activeAds || activeAds.length === 0) return filteredEvents.map(e => ({ ...e, isSponsored: false }))
+    
+    const now = new Date()
+    now.setHours(0, 0, 0, 0) // Normaliza data
+
+    const sponsoredPool = (activeAds || [])
+      .map((ad: any) => {
+        const start = ad.startDate ? new Date(ad.startDate) : null
+        const end = ad.endDate ? new Date(ad.endDate) : null
+        
+        if (start) start.setHours(0, 0, 0, 0)
+        if (end) end.setHours(23, 59, 59, 999)
+
+        const isDateValid = (!start || now >= start) && (!end || now <= end)
+        if (!isDateValid) return null
+
+        const fullEvent = events?.find((e: any) => e.id === ad.eventId)
+        return fullEvent ? { ...fullEvent, isSponsored: true, adId: ad.id } : null
+      })
+      .filter(Boolean)
+
+    if (sponsoredPool.length === 0) {
+      return filteredEvents.map(e => ({ ...e, isSponsored: false }))
+    }
 
     const result = []
-
-    const sponsoredPool = activeAds.map((ad: any) => {
-      const fullEvent = events?.find((e: any) => e.id === ad.eventId)
-      return fullEvent ? { ...fullEvent, isSponsored: true, adId: ad.id } : null
-    }).filter(Boolean)
-
     const sponsoredEventIds = new Set(sponsoredPool.map(s => s.id));
     const organic = filteredEvents.filter(e => !sponsoredEventIds.has(e.id));
-
-    if (sponsoredPool.length === 0) return filteredEvents.map(e => ({ ...e, isSponsored: false }))
 
     // 1. Sempre o primeiro é um ADS
     result.push(sponsoredPool[0])
@@ -139,7 +152,7 @@ export default function ExplorarPage() {
               placeholder="Buscar por tema..." 
               className="pl-10" 
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => setSearch(searchName => e.target.value)}
             />
           </div>
           <Button variant="outline" className="gap-2">
