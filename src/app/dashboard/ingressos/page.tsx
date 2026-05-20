@@ -30,7 +30,8 @@ import {
   Undo2,
   Search,
   History,
-  ArrowDown
+  ArrowDown,
+  Mail
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -57,6 +58,7 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { encryptDeterministic, decryptData } from "@/lib/crypto-utils"
 import { formatCurrency } from "@/lib/financial-utils"
+import { sendTicketEmail } from "@/app/actions/email"
 
 export default function MeusIngressosPage() {
   const db = useFirestore()
@@ -187,6 +189,7 @@ function TicketListItem({ registration, isIncoming = false, isHistorical = false
   const [attendeeCPF, setAttendeeCPF] = React.useState(registration.attendeeCPF || "")
   const [isSaving, setIsSaving] = React.useState(false)
   const [isSearchingUser, setIsSearchingUser] = React.useState(false)
+  const [isSendingEmail, setIsSendingEmail] = React.useState(false)
 
   // Lógica de Autocomplete por CPF
   React.useEffect(() => {
@@ -227,6 +230,34 @@ function TicketListItem({ registration, isIncoming = false, isHistorical = false
     if (profile) {
       setAttendeeName(profile.name || "")
       setAttendeeCPF(profile.cpf ? decryptData(profile.cpf) : "")
+    }
+  }
+
+  const handleResendEmail = async () => {
+    if (!registration) return
+    setIsSendingEmail(true)
+    try {
+      const eventDate = registration.eventDate?.toDate ? registration.eventDate.toDate().toLocaleString('pt-BR') : new Date(registration.eventDate).toLocaleString('pt-BR');
+      
+      const result = await sendTicketEmail({
+        to: registration.userEmail,
+        userName: registration.attendeeName || registration.userName,
+        eventTitle: registration.eventTitle,
+        ticketCode: registration.ticketCode,
+        eventDate: eventDate,
+        eventCity: registration.eventCity || "Local Confirmado",
+        voucherUrl: `${window.location.origin}/dashboard/ingressos/${registration.id}/voucher`
+      });
+
+      if (result.success) {
+        toast({ title: "E-mail enviado!", description: `O ingresso foi enviado para ${registration.userEmail}.` })
+      } else {
+        throw new Error(result.error)
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao enviar e-mail", description: e.message })
+    } finally {
+      setIsSendingEmail(false)
     }
   }
 
@@ -525,6 +556,17 @@ function TicketListItem({ registration, isIncoming = false, isHistorical = false
               </div>
             ) : (
               <>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={handleResendEmail} 
+                  disabled={isSendingEmail}
+                  className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-secondary text-secondary"
+                  title="Enviar Ingresso por E-mail"
+                >
+                  {isSendingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+                </Button>
+
                 <Dialog open={isNameModalOpen} onOpenChange={setIsNameModalOpen}>
                   <DialogTrigger asChild>
                     <Button size="sm" variant="outline" className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-dashed border-secondary text-secondary">
