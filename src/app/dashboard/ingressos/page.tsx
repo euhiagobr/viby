@@ -1,9 +1,8 @@
-
 "use client"
 
 import * as React from "react"
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { collection, query, where, doc, getDoc, updateDoc, getDocs, or } from "firebase/firestore"
+import { collection, query, where, doc, getDoc, updateDoc, getDocs, or, serverTimestamp } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -173,13 +172,19 @@ function TicketListItem({ registration, isIncoming = false, isSent = false }: { 
     fetchEvent()
   }, [db, registration.eventId])
 
-  const formatCPF = (value: string) => {
-    const numbers = value.replace(/\D/g, "")
-    let formatted = numbers;
-    if (numbers.length > 3) formatted = numbers.substring(0, 3) + "." + numbers.substring(3);
-    if (numbers.length > 6) formatted = formatted.substring(0, 7) + "." + numbers.substring(7);
-    if (numbers.length > 9) formatted = formatted.substring(0, 11) + "-" + numbers.substring(11);
-    return formatted.substring(0, 14);
+  const formatCPF = (v: string) => {
+    v = v.replace(/\D/g, "");
+    if (v.length > 11) v = v.slice(0, 11);
+    if (v.length > 9) {
+      return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    }
+    if (v.length > 6) {
+      return v.replace(/(\d{3})(\d{3})(\d{1,3})/, "$1.$2.$3");
+    }
+    if (v.length > 3) {
+      return v.replace(/(\d{3})(\d{1,3})/, "$1.$2");
+    }
+    return v;
   }
 
   const handleUseMyData = () => {
@@ -215,7 +220,7 @@ function TicketListItem({ registration, isIncoming = false, isSent = false }: { 
 
       await updateDoc(doc(db, "registrations", registration.id), {
         attendeeName,
-        attendeeCPF, // Aqui mantemos legível para o voucher, ou podemos criptografar também se desejar
+        attendeeCPF, 
         sharedWithUid,
         transferStatus,
         namedAt: serverTimestamp()

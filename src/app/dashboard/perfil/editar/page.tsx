@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -178,23 +177,37 @@ export default function EditarPerfilPage() {
     return () => clearTimeout(timer)
   }, [formData.username, profile, db])
 
-  const formatCNPJ = (value: string) => {
-    const numbers = value.replace(/\D/g, "")
-    let formatted = numbers;
-    if (numbers.length > 2) formatted = numbers.substring(0, 2) + "." + numbers.substring(2);
-    if (numbers.length > 5) formatted = formatted.substring(0, 6) + "." + numbers.substring(5);
-    if (numbers.length > 8) formatted = formatted.substring(0, 10) + "/" + numbers.substring(8);
-    if (numbers.length > 12) formatted = formatted.substring(0, 15) + "-" + numbers.substring(12);
-    return formatted.substring(0, 18);
+  const formatCNPJ = (v: string) => {
+    v = v.replace(/\D/g, "");
+    if (v.length > 14) v = v.slice(0, 14);
+    if (v.length > 12) {
+      return v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+    }
+    if (v.length > 8) {
+      return v.replace(/(\d{2})(\d{3})(\d{3})(\d{1,4})/, "$1.$2.$3/$4");
+    }
+    if (v.length > 5) {
+      return v.replace(/(\d{2})(\d{3})(\d{1,3})/, "$1.$2.$3");
+    }
+    if (v.length > 2) {
+      return v.replace(/(\d{2})(\d{1,3})/, "$1.$2");
+    }
+    return v;
   }
 
-  const formatCPF = (value: string) => {
-    const numbers = value.replace(/\D/g, "")
-    let formatted = numbers;
-    if (numbers.length > 3) formatted = numbers.substring(0, 3) + "." + numbers.substring(3);
-    if (numbers.length > 6) formatted = formatted.substring(0, 7) + "." + numbers.substring(7);
-    if (numbers.length > 9) formatted = formatted.substring(0, 11) + "-" + numbers.substring(11);
-    return formatted.substring(0, 14);
+  const formatCPF = (v: string) => {
+    v = v.replace(/\D/g, "");
+    if (v.length > 11) v = v.slice(0, 11);
+    if (v.length > 9) {
+      return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    }
+    if (v.length > 6) {
+      return v.replace(/(\d{3})(\d{3})(\d{1,3})/, "$1.$2.$3");
+    }
+    if (v.length > 3) {
+      return v.replace(/(\d{3})(\d{1,3})/, "$1.$2");
+    }
+    return v;
   }
 
   const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
