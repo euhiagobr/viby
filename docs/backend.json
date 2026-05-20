@@ -151,10 +151,12 @@
         "eventTitle": { "type": "string" },
         "organizerId": { "type": "string" },
         "type": { "type": "string", "enum": ["highlight", "banner", "feed"] },
-        "status": { "type": "string", "enum": ["Ativo", "Pausado", "Pendente", "Finalizado"] },
+        "status": { "type": "string", "enum": ["Ativo", "Pausado", "Pendente", "Finalizado", "Pendente Pagamento"] },
         "reach": { "type": "number" },
         "clicks": { "type": "number" },
+        "dailyBudget": { "type": "number" },
         "budget": { "type": "number" },
+        "durationDays": { "type": "number" },
         "startDate": { "type": "string", "format": "date-time" },
         "endDate": { "type": "string", "format": "date-time" },
         "createdAt": { "type": "string", "format": "date-time" }

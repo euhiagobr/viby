@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { collection, query, where, addDoc, serverTimestamp, doc, orderBy } from "firebase/firestore"
+import { collection, query, where, addDoc, serverTimestamp, doc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,7 +24,8 @@ import {
   Search,
   Filter,
   CreditCard,
-  Clock
+  Clock,
+  AlertTriangle
 } from "lucide-react"
 import {
   Dialog,
@@ -44,7 +45,6 @@ import {
 } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createAdCheckoutSession } from "@/app/actions/stripe"
 
@@ -57,13 +57,23 @@ export default function AnunciosPage() {
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile, loading: profileLoading } = useDoc<any>(userDocRef)
 
-  // Campanhas de anúncios do organizador
+  // Consulta simplificada para evitar erro de índice composto
   const adsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
-    return query(collection(db, "ads"), where("organizerId", "==", user.uid), orderBy("createdAt", "desc"))
+    return query(collection(db, "ads"), where("organizerId", "==", user.uid))
   }, [db, user])
 
-  const { data: ads, loading: adsLoading } = useCollection<any>(adsQuery)
+  const { data: rawAds, loading: adsLoading, error: adsError } = useCollection<any>(adsQuery)
+
+  // Ordenação client-side para garantir que funcione sem índices compostos
+  const ads = React.useMemo(() => {
+    if (!rawAds) return []
+    return [...rawAds].sort((a, b) => {
+      const timeA = a.createdAt?.seconds || 0
+      const timeB = b.createdAt?.seconds || 0
+      return timeB - timeA
+    })
+  }, [rawAds])
 
   // Eventos para selecionar na criação do anúncio
   const eventsQuery = useMemoFirebase(() => {
@@ -96,7 +106,6 @@ export default function AnunciosPage() {
     const startDateStr = formData.get("startDate") as string
     const endDateStr = formData.get("endDate") as string
 
-    // Calcular dias de duração
     const start = new Date(startDateStr)
     const end = new Date(endDateStr)
     const diffTime = Math.abs(end.getTime() - start.getTime())
@@ -111,7 +120,7 @@ export default function AnunciosPage() {
       type: adType,
       status: "Pendente Pagamento",
       dailyBudget: dailyBudget,
-      budget: totalBudget, // Orçamento Total = Diário * Dias
+      budget: totalBudget,
       durationDays: days,
       startDate: startDateStr,
       endDate: endDateStr,
@@ -123,14 +132,13 @@ export default function AnunciosPage() {
     try {
       const docRef = await addDoc(collection(db, "ads"), adData)
       
-      // Iniciar Checkout se o orçamento total for maior que zero
       if (totalBudget > 0) {
         const { url } = await createAdCheckoutSession({
           adId: docRef.id,
           eventTitle: adData.eventTitle,
           userId: user.uid,
           userEmail: user.email!,
-          totalAmount: totalBudget * 100 // Em centavos
+          totalAmount: totalBudget * 100
         });
 
         if (url) {
@@ -160,7 +168,12 @@ export default function AnunciosPage() {
   }, [ads])
 
   if (profileLoading || adsLoading) {
-    return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Sincronizando campanhas...</p>
+      </div>
+    )
   }
 
   return (
@@ -309,6 +322,14 @@ export default function AnunciosPage() {
            </div>
         </CardHeader>
         <CardContent className="p-0">
+          {adsError && (
+             <div className="p-10 text-center space-y-4">
+                <AlertTriangle className="w-12 h-12 text-destructive mx-auto opacity-50" />
+                <p className="text-sm font-bold text-destructive uppercase tracking-widest">Erro na consulta do banco de dados.</p>
+                <p className="text-xs text-muted-foreground max-w-sm mx-auto">Houve uma falha ao tentar listar seus anúncios. Tente recarregar a página.</p>
+             </div>
+          )}
+
           {ads && ads.length > 0 ? (
             <div className="divide-y">
               {ads.map((ad: any) => (
@@ -331,7 +352,7 @@ export default function AnunciosPage() {
                       </div>
                       <div className="flex items-center gap-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                         <span className="flex items-center gap-1"><Target className="w-3 h-3" /> {ad.type}</span>
-                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(ad.startDate).toLocaleDateString()} - {new Date(ad.endDate).toLocaleDateString()}</span>
+                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {ad.startDate ? new Date(ad.startDate).toLocaleDateString() : '---'} - {ad.endDate ? new Date(ad.endDate).toLocaleDateString() : '---'}</span>
                         <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {ad.durationDays || '---'} dias</span>
                       </div>
                     </div>
@@ -355,7 +376,7 @@ export default function AnunciosPage() {
                 </div>
               ))}
             </div>
-          ) : (
+          ) : !adsLoading && (
             <div className="py-24 text-center">
               <Megaphone className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-10" />
               <p className="text-muted-foreground font-black uppercase tracking-widest text-xs">Você ainda não tem anúncios ativos.</p>
