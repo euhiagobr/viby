@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -6,7 +7,7 @@ import { useFirestore, useAuth, useUser } from "@/firebase"
 import { doc, updateDoc, serverTimestamp, increment, getDoc } from "firebase/firestore"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, CheckCircle2, Ticket, ArrowRight, UserCheck, ShieldCheck } from "lucide-react"
+import { Loader2, CheckCircle2, Ticket, ArrowRight, UserCheck, ShieldCheck, Megaphone } from "lucide-react"
 import { getStripeSession } from "@/app/actions/stripe"
 import { sendTicketEmail } from "@/app/actions/email"
 import { toast } from "@/hooks/use-toast"
@@ -22,8 +23,8 @@ export default function CheckoutSucessoPage() {
   const sessionId = searchParams.get('session_id')
   
   const [loading, setLoading] = React.useState(true)
-  const [type, setType] = React.useState<'ticket' | 'plan'>('ticket')
-  const [registrationId, setRegistrationId] = React.useState<string | null>(null)
+  const [type, setType] = React.useState<'ticket' | 'plan' | 'ad'>('ticket')
+  const [targetId, setTargetId] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (!sessionId || !db || !user) return;
@@ -59,11 +60,25 @@ export default function CheckoutSucessoPage() {
           toast({ title: "Upgrade Realizado!", description: `Bem-vindo ao plano ${metadata.plan}!` });
         } 
         
-        // Caso 2: Compra de Ingresso
+        // Caso 2: Pagamento de Anúncio
+        else if (metadata.type === 'ad_payment') {
+          setType('ad');
+          setTargetId(metadata.adId);
+          const adRef = doc(db, "ads", metadata.adId);
+          await updateDoc(adRef, {
+            status: "Pendente", // Agora aguarda revisão do admin
+            paymentConfirmedAt: serverTimestamp(),
+            stripeSessionId: sessionId,
+            updatedAt: serverTimestamp()
+          });
+          toast({ title: "Pagamento do Anúncio!", description: "Sua campanha foi enviada para ativação." });
+        }
+
+        // Caso 3: Compra de Ingresso
         else if (metadata.registrationId) {
           setType('ticket');
           const regId = metadata.registrationId;
-          setRegistrationId(regId);
+          setTargetId(regId);
 
           const regRef = doc(db, "registrations", regId);
           await updateDoc(regRef, {
@@ -96,7 +111,7 @@ export default function CheckoutSucessoPage() {
             });
           }
 
-          toast({ title: "Pagamento Confirmao!", description: "Seu ingresso foi liberado e enviado por e-mail." });
+          toast({ title: "Pagamento Confirmado!", description: "Seu ingresso foi liberado e enviado por e-mail." });
         }
       } catch (error) {
         console.error("Erro ao processar sucesso:", error);
@@ -113,26 +128,28 @@ export default function CheckoutSucessoPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-        <p className="font-bold text-muted-foreground animate-pulse uppercase tracking-widest text-xs">Confirmando transação...</p>
+        <p className="text-xs font-bold text-muted-foreground animate-pulse uppercase tracking-widest">Confirmando transação...</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-muted/30">
-      <div className="flex-1 flex items-center justify-center p-4">
+    <div className="flex flex-col min-h-screen bg-muted/30">
+      <div className="flex flex-col items-center justify-center flex-1 p-4">
         <Card className="max-w-md w-full border-none shadow-2xl rounded-[3rem] overflow-hidden bg-white">
-          <div className="bg-green-500 p-12 flex flex-col items-center text-white gap-4">
-            <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md">
+          <div className="flex flex-col items-center gap-4 p-12 text-white bg-green-500">
+            <div className="flex items-center justify-center w-20 h-20 bg-white/20 rounded-full backdrop-blur-md">
               <CheckCircle2 className="w-10 h-10" />
             </div>
             <h1 className="text-3xl font-black italic uppercase tracking-tighter">Tudo Certo!</h1>
-            <p className="text-green-50 font-medium text-center opacity-80">
-              {type === 'plan' ? 'Seu plano foi atualizado com sucesso.' : 'Sua reserva foi reconhecida e seu ingresso enviado por e-mail.'}
+            <p className="font-medium text-center text-green-50 opacity-80">
+              {type === 'plan' ? 'Seu plano foi atualizado com sucesso.' : 
+               type === 'ad' ? 'Seu pagamento foi confirmado e a campanha será ativada.' :
+               'Sua reserva foi reconhecida e seu ingresso enviado por e-mail.'}
             </p>
           </div>
           <CardContent className="p-10 space-y-8 text-center">
-            {type === 'ticket' ? (
+            {type === 'ticket' && (
               <>
                 <div className="space-y-2">
                   <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Seu QR Code de acesso já está disponível em</p>
@@ -143,14 +160,36 @@ export default function CheckoutSucessoPage() {
                 </div>
                 <div className="flex flex-col gap-3">
                   <Button asChild className="h-14 bg-secondary text-white font-black rounded-2xl shadow-xl shadow-secondary/20 uppercase italic">
-                    <Link href={`/dashboard/ingressos/${registrationId}/voucher`}>
+                    <Link href={`/dashboard/ingressos/${targetId}/voucher`}>
                       Ver meu Voucher
                       <ArrowRight className="ml-2 w-5 h-5" />
                     </Link>
                   </Button>
                 </div>
               </>
-            ) : (
+            )}
+
+            {type === 'ad' && (
+              <>
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Sua campanha entrará no ar em breve</p>
+                  <div className="flex items-center justify-center gap-2 text-xl font-bold text-primary">
+                    <Megaphone className="w-6 h-6 text-secondary" />
+                    Central de Anúncios
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <Button asChild className="h-14 bg-secondary text-white font-black rounded-2xl shadow-xl shadow-secondary/20 uppercase italic">
+                    <Link href="/dashboard/anuncios">
+                      Voltar para Anúncios
+                      <ArrowRight className="ml-2 w-5 h-5" />
+                    </Link>
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {type === 'plan' && (
               <>
                 <div className="space-y-2">
                   <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Novas ferramentas liberadas em</p>

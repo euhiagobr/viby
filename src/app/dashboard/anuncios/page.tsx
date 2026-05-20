@@ -22,7 +22,8 @@ import {
   CheckCircle2,
   BarChart3,
   Search,
-  Filter
+  Filter,
+  CreditCard
 } from "lucide-react"
 import {
   Dialog,
@@ -44,6 +45,7 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { createAdCheckoutSession } from "@/app/actions/stripe"
 
 export default function AnunciosPage() {
   const db = useFirestore()
@@ -88,14 +90,15 @@ export default function AnunciosPage() {
     setIsSubmitting(true)
     const formData = new FormData(e.currentTarget)
     const event = myEvents?.find(ev => ev.id === selectedEventId)
+    const budget = parseFloat(formData.get("budget") as string) || 0
 
     const adData = {
       eventId: selectedEventId,
       eventTitle: event?.title || "Evento",
       organizerId: user.uid,
       type: adType,
-      status: "Pendente", // Precisa de aprovação do admin em um sistema real
-      budget: parseFloat(formData.get("budget") as string) || 0,
+      status: "Pendente Pagamento",
+      budget: budget,
       startDate: formData.get("startDate") as string,
       endDate: formData.get("endDate") as string,
       reach: 0,
@@ -104,12 +107,29 @@ export default function AnunciosPage() {
     }
 
     try {
-      await addDoc(collection(db, "ads"), adData)
-      toast({ title: "Campanha criada!", description: "Seu anúncio foi enviado para análise." })
+      const docRef = await addDoc(collection(db, "ads"), adData)
+      
+      // Iniciar Checkout se o orçamento for maior que zero
+      if (budget > 0) {
+        const { url } = await createAdCheckoutSession({
+          adId: docRef.id,
+          eventTitle: adData.eventTitle,
+          userId: user.uid,
+          userEmail: user.email!,
+          totalAmount: budget * 100 // Em centavos
+        });
+
+        if (url) {
+          window.location.href = url;
+          return;
+        }
+      }
+
+      toast({ title: "Campanha criada!", description: "Seu anúncio gratuito foi enviado para análise." })
       setIsCreateDialogOpen(false)
       setSelectedEventId("")
-    } catch (error) {
-      toast({ variant: "destructive", title: "Erro ao criar campanha" })
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Erro ao criar campanha", description: error.message })
     } finally {
       setIsSubmitting(false)
     }
@@ -131,7 +151,7 @@ export default function AnunciosPage() {
 
   return (
     <div className="space-y-8 pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
             <Megaphone className="w-8 h-8 text-secondary" />
@@ -195,21 +215,21 @@ export default function AnunciosPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Orçamento Diário (R$)</Label>
-                  <Input name="budget" type="number" step="1" placeholder="Ex: 50.00" required className="rounded-xl h-12 text-lg font-bold" />
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Orçamento Total da Campanha (R$)</Label>
+                  <Input name="budget" type="number" step="0.01" placeholder="Ex: 150.00" required className="rounded-xl h-12 text-lg font-bold" />
                 </div>
               </div>
 
               <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex gap-3">
                 <Target className="w-5 h-5 text-secondary shrink-0" />
                 <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
-                  Seu anúncio será exibido para usuários com interesses similares ao seu evento na região de {profile?.city}.
+                  Ao confirmar, você será redirecionado para o pagamento seguro. O anúncio entrará no ar após a compensação.
                 </p>
               </div>
 
               <DialogFooter>
                 <Button type="submit" disabled={isSubmitting || !selectedEventId} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Confirmar e Publicar"}
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <><CreditCard className="w-5 h-5 mr-2" /> Ir para Pagamento</>}
                 </Button>
               </DialogFooter>
             </form>
@@ -225,7 +245,7 @@ export default function AnunciosPage() {
           <CardContent>
             <div className="text-3xl font-black">{stats.reach.toLocaleString()} <span className="text-xs opacity-40 font-bold uppercase">Impactos</span></div>
             <div className="flex items-center gap-1 mt-2 text-secondary text-[10px] font-black uppercase">
-              <TrendingUp className="w-3 h-3" /> +12% esta semana
+              <TrendingUp className="w-3 h-3" /> Crescimento Orgânico
             </div>
           </CardContent>
           <Eye className="absolute -bottom-2 -right-2 w-20 h-20 opacity-5 rotate-12 group-hover:scale-110 transition-transform" />
@@ -254,7 +274,7 @@ export default function AnunciosPage() {
 
       <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
         <CardHeader className="bg-white border-b pb-6">
-           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <CardTitle className="text-xl flex items-center gap-2">
                   <BarChart3 className="w-5 h-5 text-secondary" />
@@ -277,9 +297,9 @@ export default function AnunciosPage() {
           {ads && ads.length > 0 ? (
             <div className="divide-y">
               {ads.map((ad: any) => (
-                <div key={ad.id} className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:bg-muted/20 transition-colors">
+                <div key={ad.id} className="p-6 flex flex-col gap-6 transition-colors md:flex-row md:items-center md:justify-between hover:bg-muted/20">
                   <div className="flex gap-4">
-                    <div className="w-12 h-12 bg-secondary/10 rounded-2xl flex items-center justify-center shrink-0">
+                    <div className="flex items-center justify-center shrink-0 w-12 h-12 rounded-2xl bg-secondary/10">
                        <Megaphone className="w-6 h-6 text-secondary" />
                     </div>
                     <div className="space-y-1">
@@ -288,7 +308,8 @@ export default function AnunciosPage() {
                         <Badge className={cn(
                           "text-[8px] font-black uppercase h-4",
                           ad.status === 'Ativo' ? "bg-green-500" :
-                          ad.status === 'Pendente' ? "bg-orange-500" : "bg-muted"
+                          ad.status === 'Pendente Pagamento' ? "bg-orange-500" :
+                          ad.status === 'Pendente' ? "bg-blue-500" : "bg-muted"
                         )}>
                           {ad.status}
                         </Badge>
@@ -328,7 +349,7 @@ export default function AnunciosPage() {
       </Card>
 
       <div className="bg-white border-2 border-dashed border-secondary/20 rounded-[2.5rem] p-8 flex flex-col md:flex-row items-center gap-8">
-        <div className="w-20 h-20 bg-secondary/10 rounded-full flex items-center justify-center shrink-0">
+        <div className="flex items-center justify-center shrink-0 w-20 h-20 rounded-full bg-secondary/10">
           <TrendingUp className="w-10 h-10 text-secondary" />
         </div>
         <div className="space-y-2 text-center md:text-left">
@@ -337,7 +358,7 @@ export default function AnunciosPage() {
             Anúncios com o selo <strong>Impulsionado pelo Viby</strong> aparecem no topo das buscas e são enviados via notificação push para usuários que seguem categorias similares.
           </p>
         </div>
-        <Button variant="outline" className="rounded-xl border-secondary text-secondary font-black uppercase text-xs h-12 px-6 ml-auto">
+        <Button variant="outline" className="h-12 px-6 ml-auto text-xs font-black uppercase border-secondary text-secondary rounded-xl">
           Saiba Mais
         </Button>
       </div>

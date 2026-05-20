@@ -27,7 +27,6 @@ async function getStripeKeys() {
 
 /**
  * Inicializa uma instância do Stripe com a Secret Key do banco.
- * Removido apiVersion explícito para evitar erros de compatibilidade.
  */
 async function getStripeInstance() {
   const { secretKey } = await getStripeKeys();
@@ -53,7 +52,6 @@ export async function createCheckoutSession(data: {
   try {
     const stripe = await getStripeInstance();
 
-    // Converter metadados para string (exigência do Stripe)
     const sanitizedMetadata: Record<string, string> = {};
     Object.entries(data.metadata).forEach(([key, value]) => {
       if (value !== null && value !== undefined) {
@@ -134,6 +132,50 @@ export async function createPlanCheckoutSession(data: {
     return { url: session.url };
   } catch (error: any) {
     throw new Error(error.message || 'Erro ao gerar checkout do plano');
+  }
+}
+
+export async function createAdCheckoutSession(data: {
+  adId: string;
+  eventTitle: string;
+  userId: string;
+  userEmail: string;
+  totalAmount: number; // Em centavos
+}) {
+  const origin = (await headers()).get('origin');
+
+  try {
+    const stripe = await getStripeInstance();
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'brl',
+            product_data: {
+              name: `Impulsionamento: ${data.eventTitle}`,
+              description: `Campanha de anúncio no Viby Club`,
+            },
+            unit_amount: Math.round(data.totalAmount),
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      customer_email: data.userEmail,
+      success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/checkout/cancelado`,
+      metadata: {
+        type: 'ad_payment',
+        adId: data.adId,
+        userId: data.userId,
+      },
+    });
+
+    return { url: session.url };
+  } catch (error: any) {
+    throw new Error(error.message || 'Erro ao gerar checkout do anúncio');
   }
 }
 
