@@ -69,7 +69,7 @@ export function AppSidebar() {
   const orgItems = currentOrg ? [
     { title: "Dashboard", url: `/dashboard/organizacoes/${currentOrg.username}`, icon: LayoutGrid },
     { title: "Eventos", url: `/dashboard/organizacoes/${currentOrg.username}/events`, icon: Megaphone, visible: isAtLeastEditor },
-    { title: "Membros", url: `/dashboard/organizacoes/${currentOrg.username}/members`, icon: Users, visible: ['owner', 'admin'].includes(userRole || '') },
+    { title: "Equipe", url: `/dashboard/organizacoes/${currentOrg.username}/equipe`, icon: Users, visible: ['owner', 'admin'].includes(userRole || '') },
     { title: "Financeiro", url: `/dashboard/organizacoes/${currentOrg.username}/finance`, icon: Wallet, visible: ['owner', 'admin', 'finance'].includes(userRole || '') },
     { title: "Configurações", url: `/dashboard/organizacoes/${currentOrg.username}/settings`, icon: Settings, visible: ['owner', 'admin'].includes(userRole || '') },
   ].filter(item => item.visible !== false) : [];
