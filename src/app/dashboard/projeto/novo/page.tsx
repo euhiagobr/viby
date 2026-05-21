@@ -49,6 +49,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { sendPartnerInvitationEmail } from "@/app/actions/email"
 
 interface TicketType {
@@ -125,6 +135,7 @@ export default function NovoEventoPage() {
   const [coOrganizers, setCoOrganizers] = useState<any[]>([])
   const [searchUsername, setSearchUsername] = useState("")
   const [isSearching, setIsSearching] = useState(false)
+  const [orgToDelete, setOrgToDelete] = useState<any | null>(null)
   
   const [isDistributeOpen, setIsDistributeOpen] = useState(false)
   const [distributeBatchIdx, setDistributeBatchIdx] = useState<number | null>(null)
@@ -400,15 +411,15 @@ export default function NovoEventoPage() {
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase opacity-60">Número</Label>
-                  <Input value={address.number} onChange={e => setAddress(prev => ({ ...prev, number: e.target.value }))} className="rounded-xl h-11" />
+                  <Input id="number" value={address.number} onChange={e => setAddress(prev => ({ ...prev, number: e.target.value }))} className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label>
-                  <Input value={address.complement} onChange={e => setAddress(prev => ({ ...prev, complement: e.target.value }))} className="rounded-xl h-11" />
+                  <Input id="complement" value={address.complement} onChange={e => setAddress(prev => ({ ...prev, complement: e.target.value }))} className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label>
-                  <Input value={address.neighborhood} onChange={e => setAddress(prev => ({ ...prev, neighborhood: e.target.value }))} className="rounded-xl h-11" />
+                  <Input id="neighborhood" value={address.neighborhood} onChange={e => setAddress(prev => ({ ...prev, neighborhood: e.target.value }))} className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label>
@@ -472,7 +483,7 @@ export default function NovoEventoPage() {
                       variant="ghost" 
                       size="icon" 
                       className="h-8 w-8 text-destructive rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => setCoOrganizers(coOrganizers.filter(o => o.id !== org.id))}
+                      onClick={() => setOrgToDelete(org)}
                     >
                       <X className="w-4 h-4" />
                     </Button>
@@ -646,6 +657,26 @@ export default function NovoEventoPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!orgToDelete} onOpenChange={(open) => !open && setOrgToDelete(null)}>
+        <AlertDialogContent className="rounded-[2rem]">
+           <AlertDialogHeader>
+              <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Remover Co-organizador?</AlertDialogTitle>
+              <AlertDialogDescription>
+                 A organização <strong>{orgToDelete?.name}</strong> deixará de figurar como parceira deste evento.
+              </AlertDialogDescription>
+           </AlertDialogHeader>
+           <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px] tracking-widest">Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={() => { setCoOrganizers(coOrganizers.filter(o => o.id !== orgToDelete.id)); setOrgToDelete(null); }}
+                className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-destructive/90"
+              >
+                Confirmar Remoção
+              </AlertDialogAction>
+           </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

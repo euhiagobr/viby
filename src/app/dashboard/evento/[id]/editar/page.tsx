@@ -50,6 +50,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { sendPartnerInvitationEmail } from "@/app/actions/email"
 
 interface TicketType {
@@ -116,6 +126,7 @@ export default function EditarEventoPage() {
   const [coOrganizers, setCoOrganizers] = useState<any[]>([])
   const [searchUsername, setSearchUsername] = useState("")
   const [isSearching, setIsSearching] = useState(false)
+  const [orgToDelete, setOrgToDelete] = useState<any | null>(null)
 
   const [isDistributeOpen, setIsDistributeOpen] = useState(false)
   const [distributeBatchIdx, setDistributeBatchIdx] = useState<number | null>(null)
@@ -216,15 +227,21 @@ export default function EditarEventoPage() {
     }
   }
 
-  const handleRemoveOrganizer = async (orgId: string) => {
-    const org = coOrganizers.find(o => o.id === orgId)
-    if (!org) return
+  const handleRemoveOrganizer = async () => {
+    if (!orgToDelete) return
+    const orgId = orgToDelete.id
 
-    if (!org._isNew && db && eventId) {
-      if (!confirm("Remover esta parceria permanentemente?")) return
-      await deleteDoc(doc(db, 'events', eventId, 'partners', orgId))
+    if (!orgToDelete._isNew && db && eventId) {
+      try {
+        await deleteDoc(doc(db, 'events', eventId, 'partners', orgId))
+        toast({ title: "Parceria removida" })
+      } catch (e) {
+        toast({ variant: "destructive", title: "Erro ao remover", description: "Verifique suas permissões." })
+        return
+      }
     }
     setCoOrganizers(coOrganizers.filter(o => o.id !== orgId))
+    setOrgToDelete(null)
   }
 
   const handleDistribute = () => {
@@ -469,7 +486,7 @@ export default function EditarEventoPage() {
                       variant="ghost" 
                       size="icon" 
                       className="h-8 w-8 text-destructive rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => handleRemoveOrganizer(org.id)}
+                      onClick={() => setOrgToDelete(org)}
                     >
                       <X className="w-4 h-4" />
                     </Button>
@@ -620,6 +637,26 @@ export default function EditarEventoPage() {
           <DialogFooter><Button onClick={handleDistribute} className="w-full bg-secondary text-white font-black h-12 rounded-xl shadow-lg uppercase italic">Confirmar Distribuição</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!orgToDelete} onOpenChange={(open) => !open && setOrgToDelete(null)}>
+        <AlertDialogContent className="rounded-[2rem]">
+           <AlertDialogHeader>
+              <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Remover Co-organizador?</AlertDialogTitle>
+              <AlertDialogDescription>
+                 A organização <strong>{orgToDelete?.name || orgToDelete?.orgName}</strong> deixará de figurar como parceira deste evento. Convites pendentes serão invalidados.
+              </AlertDialogDescription>
+           </AlertDialogHeader>
+           <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px] tracking-widest">Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleRemoveOrganizer}
+                className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-destructive/90"
+              >
+                Confirmar Remoção
+              </AlertDialogAction>
+           </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.11.0
+    // REGRAS VIBY - Versão: 2.11.1
     // Database Exclusivo: eventosviby
     
     function isSignedIn() {
@@ -37,7 +37,6 @@ service cloud.firestore {
     match /{path=**}/members/{memberId} {
       allow read: if isSignedIn() && (request.auth.uid == memberId || resource.data.userId == request.auth.uid || isOrgMember(path[3]));
       allow create: if isSignedIn();
-      // O próprio usuário pode recusar (delete) ou aceitar (update status) seu convite
       allow delete: if isSignedIn() && (request.auth.uid == memberId || hasOrgRole(path[3], ['owner', 'admin']));
       allow update: if isSignedIn() && (request.auth.uid == memberId || hasOrgRole(path[3], ['owner', 'admin']));
     }
@@ -77,6 +76,12 @@ service cloud.firestore {
       allow create: if hasOrgRole(request.resource.data.organizationId, ['owner', 'admin', 'editor']);
       allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
       allow delete: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
+      
+      // Parceiros do Evento
+      match /partners/{partnerId} {
+        allow read: if true;
+        allow write: if hasOrgRole(get(/databases/eventosviby/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']);
+      }
     }
     
     // Anúncios (Ads)
@@ -89,7 +94,6 @@ service cloud.firestore {
 
     // Registros de Interesse / Ingressos
     match /registrations/{regId} {
-      // PERMISSÃO AMPLIADA PARA PROTÓTIPO: permite que logados contem vendas para atualizar estoque
       allow read: if isSignedIn();
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (
