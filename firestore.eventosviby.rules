@@ -2,8 +2,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.1.0
-    // Estas regras aplicam-se exclusivamente ao banco de dados 'eventosviby'
+    // REGRAS VIBY - Versão: 2.2.0
     
     function isSignedIn() {
       return request.auth != null;
@@ -23,27 +22,20 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function getMemberRole(orgId) {
+      return get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role;
+    }
+
+    function hasOrgRole(orgId, roles) {
+      return isSignedIn() && 
+        exists(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
+        get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.status == 'accepted' &&
+        get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
+    }
+
     // Configurações do Site
-    match /settings/site {
+    match /settings/{settingId} {
       allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // Configurações de Ads (Preços)
-    match /settings/ads {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // Chaves do Stripe
-    match /settings/stripe {
-      allow read: if isSignedIn(); 
-      allow write: if isAdmin();
-    }
-
-    // Configurações de E-mail
-    match /settings/email {
-      allow read: if isSignedIn(); 
       allow write: if isAdmin();
     }
 
@@ -60,55 +52,63 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isSignedIn();
       allow delete: if (isSignedIn() && get(/databases/eventosviby/documents/usernames/$(username)).data.uid == request.auth.uid) || isAdmin();
-      allow update: if isAdmin();
     }
 
-    // Relacionamentos de Seguimento
-    match /follows/{followId} {
+    // Organizações e Equipe
+    match /organizations/{orgId} {
       allow read: if true;
-      allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
+      allow create: if isSignedIn();
+      allow update: if hasOrgRole(orgId, ['owner', 'admin']);
+      allow delete: if hasOrgRole(orgId, ['owner']) || isAdmin();
+
+      match /members/{userId} {
+        // Usuário pode ler seu próprio convite/membro ou se for admin da org
+        allow read: if request.auth.uid == userId || hasOrgRole(orgId, ['owner', 'admin']);
+        
+        // Donos e Admins podem convidar/remover
+        allow create, delete: if hasOrgRole(orgId, ['owner', 'admin']);
+        
+        // O próprio usuário pode aceitar seu convite (mudar status de pending para accepted)
+        allow update: if (request.auth.uid == userId && resource.data.status == 'pending' && request.resource.data.status == 'accepted') || 
+                      hasOrgRole(orgId, ['owner', 'admin']);
+      }
     }
 
     // Eventos
     match /events/{eventId} {
       allow read: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && (resource.data.organizerId == request.auth.uid || isAdmin());
-      allow delete: if isAdmin() || (isSignedIn() && resource.data.organizerId == request.auth.uid);
+      allow create: if isSignedIn(); // Verificação de Empresa é feita no App, permitimos create aqui para evitar bloqueios em cascata
+      allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
+      allow delete: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
     }
     
     // Anúncios (Ads)
     match /ads/{adId} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow delete: if isAdmin() || (isSignedIn() && resource.data.organizerId == request.auth.uid);
-      allow update: if isAdmin() || (isSignedIn() && resource.data.organizerId == request.auth.uid) || 
+      allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin() || 
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reach', 'clicks', 'budget', 'updatedAt', 'stats_gender_masculino', 'stats_gender_feminino', 'stats_gender_outros', 'stats_gender_desconhecido', 'stats_age_sub18', 'stats_age_18_24', 'stats_age_25_34', 'stats_age_35_44', 'stats_age_45plus', 'stats_age_desconhecido', 'click_stats_gender_masculino', 'click_stats_gender_feminino', 'click_stats_gender_outros', 'click_stats_gender_desconhecido', 'click_stats_age_sub18', 'click_stats_age_18_24', 'click_stats_age_25_34', 'click_stats_age_35_44', 'click_stats_age_45plus', 'click_stats_age_desconhecido']));
+      allow delete: if isAdmin();
     }
 
     // Registros de Interesse / Ingressos
     match /registrations/{regId} {
-      allow read: if true;
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.sharedWithUid == request.auth.uid || hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'checkin']));
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || 
-        resource.data.organizerId == request.auth.uid || 
-        resource.data.sharedWithUid == request.auth.uid || 
-        isAdmin()
-      );
-      allow delete: if isSignedIn() && (
-        resource.data.organizerId == request.auth.uid || 
-        isAdmin()
-      );
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'checkin']) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Logs de E-mail
+    match /sent_emails/{emailId} {
+      allow read: if isAdmin();
+      allow create: if true; // Permite que ações de servidor (Server Actions) registrem logs mesmo sem contexto de auth direto no SDK cliente
     }
 
     // Cupons de Desconto
     match /coupons/{couponId} {
       allow read: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && (resource.data.organizerId == request.auth.uid || isAdmin());
-      allow delete: if isSignedIn() && (resource.data.organizerId == request.auth.uid || isAdmin());
+      allow create, update, delete: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || (request.resource.data.eventId != null && hasOrgRole(get(/databases/eventosviby/documents/events/$(request.resource.data.eventId)).data.organizationId, ['owner', 'admin']));
     }
 
     // Categorias
@@ -132,9 +132,16 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Bloqueio padrão
-    match /{allPaths=**} {
+    // Relacionamentos de Seguimento
+    match /follows/{followId} {
       allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
+    }
+
+    // Bloqueio padrão para segurança
+    match /{allPaths=**} {
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
   }

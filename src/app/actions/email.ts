@@ -90,21 +90,10 @@ export async function sendTicketEmail(data: EmailData) {
 
     const { smtpUser, smtpPass } = await getEmailConfig();
 
-    if (!smtpUser || !smtpPass) {
-      return { success: false, error: 'SMTP não configurado.' };
-    }
-
     const qrCodeBuffer = await QRCode.toBuffer(data.ticketCode, {
       margin: 1,
       width: 400,
       color: { dark: '#000000', light: '#ffffff' },
-    });
-
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: { user: smtpUser, pass: smtpPass },
     });
 
     const htmlContent = `
@@ -171,14 +160,7 @@ export async function sendTicketEmail(data: EmailData) {
 
     const subject = `Confirmado! Seu ingresso para ${data.eventTitle} chegou! 🎟️`;
 
-    await transporter.sendMail({
-      from: `"Viby Club" <${smtpUser}>`,
-      to: data.to,
-      subject: subject,
-      html: htmlContent,
-      attachments: [{ filename: 'qrcode.png', content: qrCodeBuffer, cid: 'ticket-qrcode' }]
-    });
-
+    // Log antes de tentar enviar (para auditoria de intenção)
     await logEmail({
       sender: "Viby System",
       recipientName: data.userName,
@@ -186,6 +168,25 @@ export async function sendTicketEmail(data: EmailData) {
       subject: subject,
       content: htmlContent,
       type: "ticket_confirmation"
+    });
+
+    if (!smtpUser || !smtpPass) {
+      return { success: false, error: 'SMTP não configurado.' };
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    await transporter.sendMail({
+      from: `"Viby Club" <${smtpUser}>`,
+      to: data.to,
+      subject: subject,
+      html: htmlContent,
+      attachments: [{ filename: 'qrcode.png', content: qrCodeBuffer, cid: 'ticket-qrcode' }]
     });
 
     return { success: true };
@@ -203,14 +204,6 @@ export async function sendWelcomeEmail(data: WelcomeEmailData) {
     if (!data?.to || typeof data.to !== 'string') return { success: false };
 
     const { smtpUser, smtpPass } = await getEmailConfig();
-    if (!smtpUser || !smtpPass) return { success: false };
-
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: { user: smtpUser, pass: smtpPass },
-    });
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -271,13 +264,6 @@ export async function sendWelcomeEmail(data: WelcomeEmailData) {
 
     const subject = `Olá, ${data.userName}! 👋`;
 
-    await transporter.sendMail({
-      from: `"Viby.Club" <${smtpUser}>`,
-      to: data.to,
-      subject: subject,
-      html: htmlContent,
-    });
-
     await logEmail({
       sender: "Viby System",
       recipientName: data.userName,
@@ -285,6 +271,22 @@ export async function sendWelcomeEmail(data: WelcomeEmailData) {
       subject: subject,
       content: htmlContent,
       type: "welcome_email"
+    });
+
+    if (!smtpUser || !smtpPass) return { success: false };
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    await transporter.sendMail({
+      from: `"Viby.Club" <${smtpUser}>`,
+      to: data.to,
+      subject: subject,
+      html: htmlContent,
     });
 
     return { success: true };
@@ -300,12 +302,6 @@ export async function sendWelcomeEmail(data: WelcomeEmailData) {
 export async function sendTeamInvitationEmail(data: { to: string, orgName: string, role: string, inviterName: string }) {
   try {
     const { smtpUser, smtpPass } = await getEmailConfig();
-    if (!smtpUser || !smtpPass) return { success: false };
-
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com', port: 465, secure: true,
-      auth: { user: smtpUser, pass: smtpPass },
-    });
 
     const html = `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 20px; overflow: hidden;">
@@ -325,13 +321,6 @@ export async function sendTeamInvitationEmail(data: { to: string, orgName: strin
 
     const subject = `Convite: Faça parte da equipe de ${data.orgName} 🤝`;
 
-    await transporter.sendMail({
-      from: `"Viby.Club" <${smtpUser}>`,
-      to: data.to,
-      subject: subject,
-      html
-    });
-
     await logEmail({
       sender: data.inviterName,
       recipientName: "Colaborador",
@@ -339,6 +328,20 @@ export async function sendTeamInvitationEmail(data: { to: string, orgName: strin
       subject: subject,
       content: html,
       type: "team_invitation"
+    });
+
+    if (!smtpUser || !smtpPass) return { success: false };
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com', port: 465, secure: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    await transporter.sendMail({
+      from: `"Viby.Club" <${smtpUser}>`,
+      to: data.to,
+      subject: subject,
+      html
     });
 
     return { success: true };
@@ -351,12 +354,6 @@ export async function sendTeamInvitationEmail(data: { to: string, orgName: strin
 export async function sendTeamInvitationNoticeEmail(data: { to: string, inviteeName: string, orgName: string, role: string }) {
   try {
     const { smtpUser, smtpPass } = await getEmailConfig();
-    if (!smtpUser || !smtpPass) return { success: false };
-
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com', port: 465, secure: true,
-      auth: { user: smtpUser, pass: smtpPass },
-    });
 
     const html = `
       <div style="font-family: sans-serif; padding: 30px;">
@@ -368,13 +365,6 @@ export async function sendTeamInvitationNoticeEmail(data: { to: string, inviteeN
 
     const subject = `Convite enviado para ${data.inviteeName}`;
 
-    await transporter.sendMail({
-      from: `"Viby.Club" <${smtpUser}>`,
-      to: data.to,
-      subject: subject,
-      html
-    });
-
     await logEmail({
       sender: "Viby System",
       recipientName: "Administrador",
@@ -382,6 +372,20 @@ export async function sendTeamInvitationNoticeEmail(data: { to: string, inviteeN
       subject: subject,
       content: html,
       type: "invitation_notice"
+    });
+
+    if (!smtpUser || !smtpPass) return { success: false };
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com', port: 465, secure: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    await transporter.sendMail({
+      from: `"Viby.Club" <${smtpUser}>`,
+      to: data.to,
+      subject: subject,
+      html
     });
 
     return { success: true };
@@ -394,12 +398,6 @@ export async function sendTeamInvitationNoticeEmail(data: { to: string, inviteeN
 export async function sendTeamInvitationStatusEmail(data: { to: string, userName: string, orgName: string, status: 'accepted' | 'declined' }) {
   try {
     const { smtpUser, smtpPass } = await getEmailConfig();
-    if (!smtpUser || !smtpPass) return { success: false };
-
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com', port: 465, secure: true,
-      auth: { user: smtpUser, pass: smtpPass },
-    });
 
     const isAccepted = data.status === 'accepted';
     const statusText = isAccepted ? 'ACEITOU' : 'RECUSOU';
@@ -414,13 +412,6 @@ export async function sendTeamInvitationStatusEmail(data: { to: string, userName
 
     const subject = `Resultado do Convite: ${data.orgName}`;
 
-    await transporter.sendMail({
-      from: `"Viby.Club" <${smtpUser}>`,
-      to: data.to,
-      subject: subject,
-      html
-    });
-
     await logEmail({
       sender: "Viby System",
       recipientName: "Responsável",
@@ -428,6 +419,20 @@ export async function sendTeamInvitationStatusEmail(data: { to: string, userName
       subject: subject,
       content: html,
       type: "invitation_result"
+    });
+
+    if (!smtpUser || !smtpPass) return { success: false };
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com', port: 465, secure: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    await transporter.sendMail({
+      from: `"Viby.Club" <${smtpUser}>`,
+      to: data.to,
+      subject: subject,
+      html
     });
 
     return { success: true };
