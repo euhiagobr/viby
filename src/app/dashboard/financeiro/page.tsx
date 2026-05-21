@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -19,7 +18,8 @@ import {
   ChevronRight,
   ShieldAlert,
   Wallet,
-  Coins
+  Coins,
+  CreditCard
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
