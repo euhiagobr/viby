@@ -8,6 +8,12 @@
         "email": "string",
         "avatar": "url",
         "bio": "string",
+        "cpf": "string (AES CTR encrypted)",
+        "gender": "masculino | feminino | etc",
+        "birthDate": "string (YYYY-MM-DD)",
+        "city": "string",
+        "state": "string",
+        "country": "string",
         "plan": "free | pro | top",
         "createdAt": "timestamp"
       }

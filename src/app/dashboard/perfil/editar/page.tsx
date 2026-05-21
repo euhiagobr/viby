@@ -9,10 +9,6 @@ import {
   updateDoc, 
   serverTimestamp, 
   getDoc, 
-  getDocs, 
-  query, 
-  collection, 
-  where, 
   writeBatch 
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
@@ -30,10 +26,6 @@ import {
   ArrowLeft, 
   Save, 
   Upload, 
-  Info, 
-  Instagram, 
-  Phone, 
-  EyeOff, 
   User as UserIcon, 
   Check,
   X,
@@ -268,7 +260,12 @@ export default function EditarPerfilPage() {
               <div className="space-y-2"><Label htmlFor="birthDate">Data de Nascimento</Label><Input id="birthDate" type="date" value={formData.birthDate} onChange={(e) => setFormData(prev => ({...prev, birthDate: e.target.value}))} required /></div>
               <div className="space-y-2">
                 <Label htmlFor="gender">Sexo / Gênero</Label>
-                <Select value={formData.gender} onValueChange={(val) => setFormData(prev => ({...prev, gender: val}))} required>
+                <Select 
+                  key={formData.gender || 'loading'}
+                  value={formData.gender} 
+                  onValueChange={(val) => setFormData(prev => ({...prev, gender: val}))} 
+                  required
+                >
                   <SelectTrigger id="gender"><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="masculino">Masculino</SelectItem>
