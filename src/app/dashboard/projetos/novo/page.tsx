@@ -68,7 +68,7 @@ interface Batch {
   ticketTypes: TicketType[]
 }
 
-const DEFAULT_TICKET_TYPES = [
+const TICKET_CATEGORIES = [
   { name: "Inteira", isLegalHalf: false, requiresProof: false },
   { name: "Meia Estudante", isLegalHalf: true, requiresProof: true },
   { name: "Meia PCD", isLegalHalf: true, requiresProof: true },
@@ -115,9 +115,7 @@ export default function NovoEventoPage() {
     }
   ])
 
-  const [cep, setCep] = useState("")
   const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "" })
-  const [coords, setCoords] = useState({ lat: "", lng: "" })
   
   const [isDistributeOpen, setIsDistributeOpen] = useState(false)
   const [distributeBatchIdx, setDistributeBatchIdx] = useState<number | null>(null)
@@ -176,12 +174,11 @@ export default function NovoEventoPage() {
   const addBatch = () => setBatches([...batches, { id: crypto.randomUUID(), name: `Lote ${batches.length + 1}`, description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 50, requiresProof: false, isLegalHalf: false, description: "" }] }])
   const removeBatch = (i: number) => setBatches(batches.filter((_, idx) => idx !== i))
   const updateBatchField = (i: number, f: keyof Batch, v: any) => { const n = [...batches]; n[i] = { ...n[i], [f]: v }; setBatches(n); }
-  const addTicketType = (bi: number) => { const n = [...batches]; n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Novo Tipo", price: 0, quantity: 0, requiresProof: false, isLegalHalf: false, description: "" }); setBatches(n); }
+  const addTicketType = (bi: number) => { const n = [...batches]; n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 50, requiresProof: false, isLegalHalf: false, description: "" }); setBatches(n); }
   const removeTicketType = (bi: number, ti: number) => { const n = [...batches]; if(n[bi].ticketTypes.length > 1) { n[bi].ticketTypes.splice(ti, 1); setBatches(n); } }
   const updateTicketTypeField = (bi: number, ti: number, f: keyof TicketType, v: any) => { const n = [...batches]; n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; setBatches(n); }
 
   const calculateHalfPriceStats = (batch: Batch) => {
-    // Para pools, contamos apenas uma vez a quantidade total do pool
     const poolQuantities: Record<string, number> = {}
     const individualTotal = batch.ticketTypes.reduce((acc, t) => {
       if (t.poolId) {
@@ -307,28 +304,51 @@ export default function NovoEventoPage() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                       <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl" disabled={isFreeMode} /></div>
+                       <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl" disabled={isFreeMode} /></div>
                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2"><Label className="text-[10px] uppercase font-black opacity-40">Início</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
-                          <div className="space-y-2"><Label className="text-[10px] uppercase font-black opacity-40">Fim</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                          <div className="space-y-2"><Label className="text-[10px] uppercase font-black opacity-40">Início das Vendas</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                          <div className="space-y-2"><Label className="text-[10px] uppercase font-black opacity-40">Fim das Vendas</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
                        </div>
                     </div>
 
                     <div className="space-y-4">
                        <div className="flex items-center justify-between border-b pb-2">
-                          <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Tipos</h4>
-                          {!isFreeMode && <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase" onClick={() => addTicketType(bi)}>Novo Tipo</Button>}
+                          <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Tipos de Ingresso</h4>
+                          {!isFreeMode && <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase" onClick={() => addTicketType(bi)}>Adicionar Tipo</Button>}
                        </div>
                        <div className="space-y-3">
                           {batch.ticketTypes.map((type, ti) => (
                             <div key={type.id} className="p-4 bg-white rounded-2xl border shadow-sm space-y-4">
                                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                                  <div className="md:col-span-4 space-y-2">
+                                  <div className="md:col-span-3 space-y-2">
                                      <Label className="text-[10px] font-black uppercase opacity-40">Nome</Label>
                                      <div className="flex flex-col gap-1">
-                                        <Input value={type.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" />
-                                        {type.poolName && <span className="text-[8px] font-black text-secondary uppercase px-1">Estoque Compartilhado: {type.poolName}</span>}
+                                        <Input value={type.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" disabled={isFreeMode} />
+                                        {type.poolName && <span className="text-[8px] font-black text-secondary uppercase px-1">Pool: {type.poolName}</span>}
                                      </div>
+                                  </div>
+                                  <div className="md:col-span-3 space-y-2">
+                                     <Label className="text-[10px] font-black uppercase opacity-40">Tipo/Categoria</Label>
+                                     <Select 
+                                       value={TICKET_CATEGORIES.find(c => c.name === type.name)?.name || "Personalizado"} 
+                                       onValueChange={(val) => {
+                                          const cat = TICKET_CATEGORIES.find(c => c.name === val);
+                                          if (cat) {
+                                            updateTicketTypeField(bi, ti, 'name', cat.name);
+                                            updateTicketTypeField(bi, ti, 'isLegalHalf', cat.isLegalHalf);
+                                            updateTicketTypeField(bi, ti, 'requiresProof', cat.requiresProof);
+                                          }
+                                       }}
+                                       disabled={isFreeMode}
+                                     >
+                                        <SelectTrigger className="h-10 rounded-xl">
+                                           <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-xl">
+                                           {TICKET_CATEGORIES.map(c => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
+                                           <SelectItem value="Personalizado">Personalizado</SelectItem>
+                                        </SelectContent>
+                                     </Select>
                                   </div>
                                   <div className="md:col-span-2 space-y-2">
                                      <Label className="text-[10px] font-black uppercase opacity-40">Qtd {type.poolId && "(Pool)"}</Label>
@@ -347,12 +367,16 @@ export default function NovoEventoPage() {
                                      <Label className="text-[10px] font-black uppercase opacity-40">Valor (R$)</Label>
                                      <Input type="number" step="0.01" value={type.price} onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} className="rounded-xl h-10 font-black text-secondary" disabled={isFreeMode} />
                                   </div>
-                                  <div className="md:col-span-3 flex items-center justify-around pb-2">
-                                     <div className="flex flex-col items-center gap-1"><Switch checked={type.isLegalHalf} onCheckedChange={v => updateTicketTypeField(bi, ti, 'isLegalHalf', v)} disabled={isFreeMode} /><Label className="text-[8px] font-black uppercase">Meia</Label></div>
-                                     <div className="flex flex-col items-center gap-1"><Switch checked={type.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} /><Label className="text-[8px] font-black uppercase">Doc.</Label></div>
-                                  </div>
-                                  <div className="md:col-span-1 flex justify-end pb-1">
-                                     {!isFreeMode && batch.ticketTypes.length > 1 && <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTicketType(bi, ti)}><Trash2 className="w-4 h-4" /></Button>}
+                                  <div className="md:col-span-2 flex items-center justify-end pb-1 gap-2">
+                                     <div className="flex flex-col items-center gap-1">
+                                        <Switch checked={type.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} />
+                                        <Label className="text-[8px] font-black uppercase">Doc.</Label>
+                                     </div>
+                                     {!isFreeMode && batch.ticketTypes.length > 1 && (
+                                       <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => removeTicketType(bi, ti)}>
+                                          <Trash2 className="w-4 h-4" />
+                                       </Button>
+                                     )}
                                   </div>
                                </div>
                             </div>
@@ -371,12 +395,6 @@ export default function NovoEventoPage() {
                              <p className={cn("text-xl font-black italic", stats.percentage < 40 ? "text-orange-500" : "text-green-600")}>{stats.percentage.toFixed(1)}%</p>
                           </div>
                        </div>
-                       {stats.percentage < 40 && (
-                         <div className="p-3 rounded-xl bg-orange-50 border border-orange-100 flex gap-2">
-                            <AlertTriangle className="w-3 h-3 text-orange-600 shrink-0" />
-                            <p className="text-[9px] text-orange-800 font-bold uppercase leading-relaxed">Abaixo dos 40% recomendados ({stats.legalHalf} de {stats.total} ingressos).</p>
-                         </div>
-                       )}
                     </div>
                  </div>
                )

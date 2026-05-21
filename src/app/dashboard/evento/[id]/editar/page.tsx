@@ -68,6 +68,17 @@ interface Batch {
   ticketTypes: TicketType[]
 }
 
+const TICKET_CATEGORIES = [
+  { name: "Inteira", isLegalHalf: false, requiresProof: false },
+  { name: "Meia Estudante", isLegalHalf: true, requiresProof: true },
+  { name: "Meia PCD", isLegalHalf: true, requiresProof: true },
+  { name: "Meia Idoso", isLegalHalf: true, requiresProof: true },
+  { name: "Meia ID Jovem", isLegalHalf: true, requiresProof: true },
+  { name: "Ingresso Social", isLegalHalf: false, requiresProof: true },
+  { name: "Cortesia", isLegalHalf: false, requiresProof: false },
+  { name: "Promocional", isLegalHalf: false, requiresProof: false },
+]
+
 export default function EditarEventoPage() {
   const params = useParams()
   const router = useRouter()
@@ -94,7 +105,6 @@ export default function EditarEventoPage() {
   const [ticketMode, setTicketMode] = useState<'free' | 'paid_single' | 'batches'>('free')
   const [batches, setBatches] = useState<Batch[]>([])
 
-  const [cep, setCep] = useState("")
   const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "" })
   
   const [isDistributeOpen, setIsDistributeOpen] = useState(false)
@@ -108,7 +118,6 @@ export default function EditarEventoPage() {
       setSelectedCategory(event.categoryId || event.category || "")
       setTicketMode(event.ticketMode || (event.isFree ? 'free' : 'batches'))
       setBatches(event.batches || [])
-      setCep(event.cep || "")
       setAddress(event.address || { street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "" })
       setImagePreview(event.image || null)
       setUploadedImageUrl(event.image || null)
@@ -151,16 +160,30 @@ export default function EditarEventoPage() {
   const addBatch = () => setBatches([...batches, { id: crypto.randomUUID(), name: `Lote ${batches.length + 1}`, description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 50, requiresProof: false, isLegalHalf: false, description: "" }] }])
   const removeBatch = (i: number) => setBatches(batches.filter((_, idx) => idx !== i))
   const updateBatchField = (i: number, f: keyof Batch, v: any) => { const n = [...batches]; n[i] = { ...n[i], [f]: v }; setBatches(n); }
-  const addTicketType = (bi: number) => { const n = [...batches]; n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Novo Tipo", price: 0, quantity: 0, requiresProof: false, isLegalHalf: false, description: "" }); setBatches(n); }
+  const addTicketType = (bi: number) => { const n = [...batches]; n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 50, requiresProof: false, isLegalHalf: false, description: "" }); setBatches(n); }
   const removeTicketType = (bi: number, ti: number) => { const n = [...batches]; if(n[bi].ticketTypes.length > 1) { n[bi].ticketTypes.splice(ti, 1); setBatches(n); } }
   const updateTicketTypeField = (bi: number, ti: number, f: keyof TicketType, v: any) => { const n = [...batches]; n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; setBatches(n); }
 
   const calculateHalfPriceStats = (batch: Batch) => {
-    const pools: Record<string, number> = {}
-    const ind = batch.ticketTypes.reduce((acc, t) => { if(t.poolId) { pools[t.poolId] = t.quantity; return acc; } return acc + (parseInt(t.quantity as any) || 0); }, 0)
-    const total = ind + Object.values(pools).reduce((acc, q) => acc + q, 0)
-    const legalHalf = batch.ticketTypes.filter(t => t.isLegalHalf).reduce((acc, t) => { if(t.poolId) return acc; return acc + (parseInt(t.quantity as any) || 0); }, 0) + Object.keys(pools).filter(pid => batch.ticketTypes.find(t => t.poolId === pid && t.isLegalHalf)).reduce((acc, pid) => acc + pools[pid], 0)
-    return { total, legalHalf, percentage: total > 0 ? (legalHalf / total) * 100 : 0 }
+    const poolQuantities: Record<string, number> = {}
+    const individualTotal = batch.ticketTypes.reduce((acc, t) => {
+      if (t.poolId) {
+        poolQuantities[t.poolId] = t.quantity
+        return acc
+      }
+      return acc + (parseInt(t.quantity as any) || 0)
+    }, 0)
+    
+    const poolTotal = Object.values(poolQuantities).reduce((acc, q) => acc + q, 0)
+    const total = individualTotal + poolTotal
+
+    const legalHalfTypes = batch.ticketTypes.filter(t => t.isLegalHalf)
+    const legalPoolIds = new Set(legalHalfTypes.filter(t => t.poolId).map(t => t.poolId!))
+    const individualLegalHalf = legalHalfTypes.filter(t => !t.poolId).reduce((acc, t) => acc + (parseInt(t.quantity as any) || 0), 0)
+    const poolLegalHalf = Array.from(legalPoolIds).reduce((acc, pid) => acc + (poolQuantities[pid] || 0), 0)
+    const legalHalf = individualLegalHalf + poolLegalHalf
+    const percentage = total > 0 ? (legalHalf / total) * 100 : 0
+    return { total, legalHalf, percentage }
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -252,22 +275,48 @@ export default function EditarEventoPage() {
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                         <div className="space-y-2"><Label className="text-[10px] uppercase opacity-60">Nome</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" disabled={isFreeMode} /></div>
+                         <div className="space-y-2"><Label className="text-[10px] uppercase opacity-60">Nome do Lote</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" disabled={isFreeMode} /></div>
                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2"><Label className="text-[10px] uppercase opacity-40">Início</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
-                            <div className="space-y-2"><Label className="text-[10px] uppercase opacity-40">Fim</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                            <div className="space-y-2"><Label className="text-[10px] uppercase opacity-40">Início das Vendas</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                            <div className="space-y-2"><Label className="text-[10px] uppercase font-black opacity-40">Fim das Vendas</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
                          </div>
                       </div>
 
                       <div className="space-y-4">
-                         <div className="flex items-center justify-between border-b pb-2"><h4 className="text-xs font-black uppercase text-muted-foreground">Tipos</h4>{!isFreeMode && <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase" onClick={() => addTicketType(bi)}>Adicionar Tipo</Button>}</div>
+                         <div className="flex items-center justify-between border-b pb-2"><h4 className="text-xs font-black uppercase text-muted-foreground">Tipos de Ingresso</h4>{!isFreeMode && <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase" onClick={() => addTicketType(bi)}>Adicionar Tipo</Button>}</div>
                          <div className="space-y-3">
                             {batch.ticketTypes.map((t, ti) => (
                               <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm space-y-4">
                                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                                    <div className="md:col-span-4 space-y-2">
+                                    <div className="md:col-span-3 space-y-2">
                                        <Label className="text-[10px] font-black uppercase opacity-40">Nome</Label>
-                                       <div className="flex flex-col gap-1"><Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" />{t.poolName && <span className="text-[8px] font-black text-secondary uppercase">Pool: {t.poolName}</span>}</div>
+                                       <div className="flex flex-col gap-1">
+                                          <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" disabled={isFreeMode} />
+                                          {t.poolName && <span className="text-[8px] font-black text-secondary uppercase">Pool: {t.poolName}</span>}
+                                       </div>
+                                    </div>
+                                    <div className="md:col-span-3 space-y-2">
+                                       <Label className="text-[10px] font-black uppercase opacity-40">Tipo/Categoria</Label>
+                                       <Select 
+                                         value={TICKET_CATEGORIES.find(c => c.name === t.name)?.name || "Personalizado"} 
+                                         onValueChange={(val) => {
+                                            const cat = TICKET_CATEGORIES.find(c => c.name === val);
+                                            if (cat) {
+                                              updateTicketTypeField(bi, ti, 'name', cat.name);
+                                              updateTicketTypeField(bi, ti, 'isLegalHalf', cat.isLegalHalf);
+                                              updateTicketTypeField(bi, ti, 'requiresProof', cat.requiresProof);
+                                            }
+                                         }}
+                                         disabled={isFreeMode}
+                                       >
+                                          <SelectTrigger className="h-10 rounded-xl">
+                                             <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent className="rounded-xl">
+                                             {TICKET_CATEGORIES.map(c => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
+                                             <SelectItem value="Personalizado">Personalizado</SelectItem>
+                                          </SelectContent>
+                                       </Select>
                                     </div>
                                     <div className="md:col-span-2 space-y-2">
                                        <Label className="text-[10px] font-black uppercase opacity-40">Qtd {t.poolId && "(Pool)"}</Label>
@@ -277,22 +326,28 @@ export default function EditarEventoPage() {
                                        <Label className="text-[10px] font-black uppercase opacity-40">Valor (R$)</Label>
                                        <Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} className="rounded-xl h-10 font-black text-secondary" disabled={isFreeMode} />
                                     </div>
-                                    <div className="md:col-span-3 flex items-center justify-around pb-2">
-                                       <div className="flex flex-col items-center gap-1"><Switch checked={t.isLegalHalf} onCheckedChange={v => updateTicketTypeField(bi, ti, 'isLegalHalf', v)} disabled={isFreeMode} /><span className="text-[8px] font-black uppercase">Meia</span></div>
-                                       <div className="flex flex-col items-center gap-1"><Switch checked={t.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} /><span className="text-[8px] font-black uppercase">Doc.</span></div>
+                                    <div className="md:col-span-2 flex items-center justify-end pb-1 gap-2">
+                                       <div className="flex flex-col items-center gap-1">
+                                          <Switch checked={t.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} />
+                                          <span className="text-[8px] font-black uppercase">Doc.</span>
+                                       </div>
+                                       {!isFreeMode && batch.ticketTypes.length > 1 && (
+                                         <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => removeTicketType(bi, ti)}>
+                                            <Trash2 className="w-4 h-4" />
+                                         </Button>
+                                       )}
                                     </div>
-                                    <div className="md:col-span-1 flex justify-end pb-1">{!isFreeMode && batch.ticketTypes.length > 1 && <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTicketType(bi, ti)}><Trash2 className="w-4 h-4" /></Button>}</div>
                                  </div>
                               </div>
                             ))}
                          </div>
                       </div>
 
-                      <div className={cn("p-5 bg-white rounded-3xl border shadow-inner space-y-4", stats.percentage < 40 ? "border-orange-200" : "border-green-200")}>
+                      <div className={cn("p-5 bg-white rounded-3xl border space-y-4", stats.percentage < 40 ? "border-orange-200" : "border-green-200")}>
                          <div className="flex justify-between items-center">
                             <div className="space-y-1">
-                               <div className="flex items-center gap-2"><Info className="w-4 h-4 text-secondary" /><h5 className="text-[10px] font-black uppercase text-primary">Conformidade</h5></div>
-                               <p className="text-[9px] text-muted-foreground font-medium">Recomenda-se 40% para Meia Legal.</p>
+                               <div className="flex items-center gap-2"><Info className="w-4 h-4 text-secondary" /><h5 className="text-[10px] font-black uppercase tracking-widest text-primary">Conformidade Legal</h5></div>
+                               <p className="text-[9px] text-muted-foreground font-medium">Recomenda-se 40% para Meia-Entrada Legal.</p>
                             </div>
                             <p className={cn("text-xl font-black italic", stats.percentage < 40 ? "text-orange-500" : "text-green-600")}>{stats.percentage.toFixed(1)}%</p>
                          </div>
