@@ -30,6 +30,8 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/financial-utils"
@@ -52,6 +54,9 @@ export default function EventoDetalhesPage() {
   
   const organizationRef = React.useMemo(() => (db && event?.organizationId) ? doc(db, "organizations", event.organizationId) : null, [db, event?.organizationId])
   const { data: organizationProfile } = useDoc<any>(organizationRef)
+
+  const mapsSettingsRef = React.useMemo(() => db ? doc(db, 'settings', 'maps') : null, [db])
+  const { data: mapsSettings } = useDoc<any>(mapsSettingsRef)
 
   const availabilityQuery = useMemoFirebase(() => {
     if (!db || !eventId) return null
@@ -167,6 +172,12 @@ export default function EventoDetalhesPage() {
     event.location;
 
   const mapQuery = encodeURIComponent(fullAddress);
+  
+  // Lógica do Mapa: Se tiver API Key usa o Embed oficial, senão usa o modo busca simplificado
+  const mapsApiKey = mapsSettings?.apiKey;
+  const mapUrl = mapsApiKey 
+    ? `https://www.google.com/maps/embed/v1/place?key=${mapsApiKey}&q=${mapQuery}`
+    : `https://maps.google.com/maps?q=${mapQuery}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
@@ -243,7 +254,7 @@ export default function EventoDetalhesPage() {
                        </div>
                     </div>
 
-                    <div className="h-[300px] w-full rounded-2xl overflow-hidden border bg-muted shadow-inner">
+                    <div className="h-[350px] w-full rounded-2xl overflow-hidden border bg-muted shadow-inner">
                        <iframe 
                          width="100%" 
                          height="100%" 
@@ -251,7 +262,7 @@ export default function EventoDetalhesPage() {
                          loading="lazy" 
                          allowFullScreen 
                          referrerPolicy="no-referrer-when-downgrade"
-                         src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyA88_O1t5mP1y9u4_6B4g4e7T9W5_5-0&q=${mapQuery}`}
+                         src={mapUrl}
                        ></iframe>
                     </div>
                  </CardContent>

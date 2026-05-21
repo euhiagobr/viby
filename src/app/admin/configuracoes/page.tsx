@@ -29,7 +29,8 @@ import {
   TrendingUp,
   MousePointer2,
   Lock,
-  X
+  X,
+  Map as MapIcon
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -43,12 +44,14 @@ export default function AdminConfiguracoesPage() {
   const stripeRef = React.useMemo(() => (db ? doc(db, 'settings', 'stripe') : null), [db]);
   const emailRef = React.useMemo(() => (db ? doc(db, 'settings', 'email') : null), [db]);
   const adsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
+  const mapsRef = React.useMemo(() => (db ? doc(db, 'settings', 'maps') : null), [db]);
   const blockedRef = React.useMemo(() => (db ? doc(db, 'settings', 'blocked_usernames') : null), [db]);
 
   const { data: settings, loading: loadingSettings } = useDoc<any>(settingsRef);
   const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
   const { data: emailSettings, loading: loadingEmail } = useDoc<any>(emailRef);
   const { data: adsSettings, loading: loadingAds } = useDoc<any>(adsRef);
+  const { data: mapsSettings, loading: loadingMaps } = useDoc<any>(mapsRef);
   const { data: blockedData, loading: loadingBlocked } = useDoc<any>(blockedRef);
 
   const [saving, setSaving] = React.useState(false);
@@ -66,6 +69,7 @@ export default function AdminConfiguracoesPage() {
   const [showEmailPass, setShowEmailPass] = React.useState(false);
   const [cpcValue, setCpcValue] = React.useState('');
   const [cpmValue, setCpmValue] = React.useState('');
+  const [googleMapsApiKey, setGoogleMapsApiKey] = React.useState('');
 
   const [blockedInput, setBlockedInput] = React.useState('');
   const [blockedList, setBlockedList] = React.useState<string[]>([]);
@@ -98,6 +102,12 @@ export default function AdminConfiguracoesPage() {
       setCpmValue(adsSettings.cpmValue?.toString() || '');
     }
   }, [adsSettings]);
+
+  React.useEffect(() => {
+    if (mapsSettings) {
+      setGoogleMapsApiKey(mapsSettings.apiKey || '');
+    }
+  }, [mapsSettings]);
 
   React.useEffect(() => {
     if (blockedData) {
@@ -175,6 +185,17 @@ export default function AdminConfiguracoesPage() {
       .finally(() => setSaving(false));
   };
 
+  const handleSaveMaps = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!db) return;
+    setSaving(true);
+    const mapsData = { apiKey: googleMapsApiKey.trim(), updatedAt: serverTimestamp() };
+    setDoc(doc(db, 'settings', 'maps'), mapsData, { merge: true })
+      .then(() => toast({ title: 'Chave do Google Maps salva!' }))
+      .catch(async (error) => { errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'settings/maps', operation: 'write', requestResourceData: mapsData })); })
+      .finally(() => setSaving(false));
+  };
+
   const handleAddBlocked = () => {
     const names = blockedInput.split(',').map(n => n.trim().toLowerCase()).filter(n => n.length > 0);
     if (names.length === 0) return;
@@ -197,7 +218,7 @@ export default function AdminConfiguracoesPage() {
       .finally(() => setSaving(false));
   };
 
-  if (loadingSettings || loadingStripe || loadingEmail || loadingAds || loadingBlocked) {
+  if (loadingSettings || loadingStripe || loadingEmail || loadingAds || loadingBlocked || loadingMaps) {
     return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
   }
 
@@ -214,6 +235,7 @@ export default function AdminConfiguracoesPage() {
           <TabsTrigger value="usernames" className="gap-2 rounded-lg font-bold"><Lock className="w-4 h-4" /> Usernames</TabsTrigger>
           <TabsTrigger value="payments" className="gap-2 rounded-lg font-bold"><CreditCard className="w-4 h-4" /> Pagamentos</TabsTrigger>
           <TabsTrigger value="email" className="gap-2 rounded-lg font-bold"><Mail className="w-4 h-4" /> E-mail</TabsTrigger>
+          <TabsTrigger value="maps" className="gap-2 rounded-lg font-bold"><MapIcon className="w-4 h-4" /> Maps</TabsTrigger>
           <TabsTrigger value="values" className="gap-2 rounded-lg font-bold"><Coins className="w-4 h-4" /> Valores</TabsTrigger>
         </TabsList>
 
@@ -365,6 +387,43 @@ export default function AdminConfiguracoesPage() {
             <Button type="submit" disabled={saving} className="w-full bg-primary text-white font-black h-14 rounded-2xl">
               {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
               Salvar Configurações de E-mail
+            </Button>
+          </form>
+        </TabsContent>
+
+        <TabsContent value="maps">
+          <form onSubmit={handleSaveMaps} className="space-y-6 max-w-2xl">
+            <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-50 rounded-lg"><MapIcon className="w-5 h-5 text-green-600" /></div>
+                  <div>
+                    <CardTitle className="text-xl">Google Maps API</CardTitle>
+                    <CardDescription>Configure sua chave de API para habilitar os mapas interativos nos eventos.</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2"><Key className="w-3.5 h-3.5 text-muted-foreground" /> Maps API Key</Label>
+                  <Input 
+                    value={googleMapsApiKey} 
+                    onChange={(e) => setGoogleMapsApiKey(e.target.value)} 
+                    placeholder="AIzaSy..." 
+                    className="rounded-xl font-mono text-xs h-12" 
+                  />
+                  <div className="p-3 bg-muted/50 rounded-lg flex gap-3 mt-2">
+                     <Info className="w-4 h-4 text-primary shrink-0" />
+                     <p className="text-[10px] text-muted-foreground leading-tight">
+                        Sua chave deve ter as permissões de <strong>Maps Embed API</strong> habilitadas no Google Cloud Console. Se deixado vazio, o sistema usará um modo de busca simplificado sem recursos avançados.
+                     </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Button type="submit" disabled={saving} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-lg">
+              {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
+              Salvar Configuração de Mapas
             </Button>
           </form>
         </TabsContent>
