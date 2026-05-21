@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, limit } from 'firebase/firestore';
+import { collection, query, where, limit, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,14 @@ import {
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/financial-utils';
 
+const roleTranslations: Record<string, string> = {
+  owner: 'Proprietário',
+  admin: 'Administrador',
+  editor: 'Editor',
+  finance: 'Financeiro',
+  checkin: 'Check-in'
+};
+
 export default function OrganizationDashboardPage() {
   const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization();
   const db = useFirestore();
@@ -29,6 +37,7 @@ export default function OrganizationDashboardPage() {
     return query(
       collection(db, 'events'), 
       where('organizationId', '==', currentOrg.id),
+      where('status', '!=', 'Excluído'),
       limit(5)
     );
   }, [db, currentOrg?.id]);
@@ -41,6 +50,35 @@ export default function OrganizationDashboardPage() {
   }, [db, currentOrg?.id]);
 
   const { data: members } = useCollection<any>(membersQuery);
+
+  // Consulta de Seguidores
+  const followersQuery = useMemoFirebase(() => {
+    if (!db || !currentOrg) return null;
+    return query(collection(db, 'follows'), where('followingId', '==', currentOrg.id));
+  }, [db, currentOrg?.id]);
+
+  const { data: followers } = useCollection<any>(followersQuery);
+
+  const followerStats = React.useMemo(() => {
+    if (!followers) return { total: 0, last30Days: 0, growth: 0 };
+    
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+
+    const last30 = followers.filter((f: any) => {
+      const date = f.timestamp?.toDate ? f.timestamp.toDate() : new Date(f.timestamp);
+      return date > thirtyDaysAgo;
+    }).length;
+
+    const previousTotal = followers.length - last30;
+    const growth = previousTotal > 0 ? (last30 / previousTotal) * 100 : (last30 > 0 ? 100 : 0);
+
+    return {
+      total: followers.length,
+      last30Days: last30,
+      growth: Math.round(growth)
+    };
+  }, [followers]);
 
   if (orgLoading) {
     return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
@@ -110,7 +148,7 @@ export default function OrganizationDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-black uppercase italic">{userRole || 'Carregando...'}</div>
+            <div className="text-xl font-black uppercase italic">{userRole ? roleTranslations[userRole] || userRole : 'Carregando...'}</div>
           </CardContent>
         </Card>
       </div>
@@ -165,9 +203,15 @@ export default function OrganizationDashboardPage() {
             </p>
             <div className="p-6 bg-white/10 rounded-2xl border border-white/10">
                <div className="flex justify-between items-end">
-                  <div>
-                     <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Visualizações Totais</p>
-                     <p className="text-4xl font-black italic">0</p>
+                  <div className="space-y-1">
+                     <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Seguidores Totais</p>
+                     <p className="text-4xl font-black italic">{followerStats.total}</p>
+                     {followerStats.last30Days > 0 && (
+                       <div className="flex items-center gap-2 text-green-400 text-[10px] font-black uppercase">
+                         <TrendingUp className="w-3 h-3" />
+                         +{followerStats.last30Days} nos últimos 30 dias ({followerStats.growth}%)
+                       </div>
+                     )}
                   </div>
                   <Button asChild className="bg-secondary text-white font-black uppercase text-[10px] italic h-10 px-6 rounded-xl hover:scale-105 transition-transform shadow-xl">
                     <Link href="/dashboard/anuncios">Impulsionar</Link>
