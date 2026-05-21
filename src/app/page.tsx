@@ -108,17 +108,15 @@ export default function LandingPage() {
   }, [events, searchName, selectedCity, selectedCategory, sortBy, userLocation])
 
   const interleavedContent = React.useMemo(() => {
-    if (!filteredEvents || filteredEvents.length === 0) return []
-    
     const now = new Date()
 
     const parseAdDate = (val: any) => {
       if (!val) return null;
-      if (val.toDate) return val.toDate();
+      if (typeof val.toDate === 'function') return val.toDate();
       return new Date(val);
     };
 
-    // 1. Pool de anúncios ativos, filtrados por data/hora e orçamento, ordenados por saldo
+    // 1. Pool de anúncios ativos e válidos
     const sponsoredPool = (activeAds || [])
       .map((ad: any) => {
         const start = parseAdDate(ad.startDate);
@@ -138,8 +136,12 @@ export default function LandingPage() {
       .filter(Boolean)
       .sort((a: any, b: any) => (b._remainingBudget || 0) - (a._remainingBudget || 0))
 
-    const organic = filteredEvents.map(e => ({ ...e, isSponsored: false, _isAdObject: false }))
+    const organic = (filteredEvents || []).map(e => ({ ...e, isSponsored: false, _isAdObject: false }))
 
+    // Se não houver orgânicos, mostra apenas patrocinados
+    if (organic.length === 0) return sponsoredPool
+
+    // Se não houver patrocinados, mostra apenas orgânicos
     if (sponsoredPool.length === 0) return organic
 
     const result = []
@@ -159,7 +161,6 @@ export default function LandingPage() {
         result.push(sponsoredPool[adIdx])
         adIdx++
       } else if (sponsoredPool.length > 0 && organicIdx < filteredOrganic.length) {
-        // Repete anúncios favorecendo os de maior orçamento
         const topWeightedIdx = Math.floor(Math.random() * Math.ceil(sponsoredPool.length / 2))
         result.push(sponsoredPool[topWeightedIdx])
       }
@@ -315,6 +316,12 @@ export default function LandingPage() {
                 />
               )
             ))}
+          </div>
+        )}
+
+        {!eventsLoading && interleavedContent.length === 0 && (
+          <div className="py-12 text-center text-muted-foreground">
+             Nenhum evento ou patrocínio disponível nesta região.
           </div>
         )}
       </section>

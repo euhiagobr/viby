@@ -79,18 +79,16 @@ export default function ExplorarPage() {
 
   // Lógica de Intercalação de ADS com Prioridade por Orçamento e Horário Sincronizado
   const interleavedContent = React.useMemo(() => {
-    if (!filteredEvents || filteredEvents.length === 0) return []
-    
     const now = new Date()
 
     // Helper para converter campos de data que podem ser string ou Timestamp
     const parseAdDate = (val: any) => {
       if (!val) return null;
-      if (val.toDate) return val.toDate(); // Firestore Timestamp
-      return new Date(val); // ISO String
+      if (typeof val.toDate === 'function') return val.toDate(); // Firestore Timestamp
+      return new Date(val); // ISO String ou objeto Date
     };
 
-    // 1. Criar o Pool de anúncios válidos e ordenar por maior orçamento restante
+    // 1. Pool de anúncios patrocinados válidos
     const sponsoredPool = (activeAds || [])
       .map((ad: any) => {
         const start = parseAdDate(ad.startDate);
@@ -110,10 +108,14 @@ export default function ExplorarPage() {
         return { ...ad, isSponsored: true, _remainingBudget: ad.remainingBudget, _isAdObject: true }
       })
       .filter(Boolean)
-      .sort((a, b) => (b._remainingBudget || 0) - (a._remainingBudget || 0)) // Prioridade: Maior orçamento no topo
+      .sort((a, b) => (b._remainingBudget || 0) - (a._remainingBudget || 0))
 
-    const organic = filteredEvents.map(e => ({ ...e, isSponsored: false, _isAdObject: false }))
+    const organic = (filteredEvents || []).map(e => ({ ...e, isSponsored: false, _isAdObject: false }))
 
+    // Se não houver orgânicos, mostra apenas patrocinados
+    if (organic.length === 0) return sponsoredPool
+
+    // Se não houver patrocinados, mostra apenas orgânicos
     if (sponsoredPool.length === 0) return organic
 
     const result = []
@@ -123,19 +125,20 @@ export default function ExplorarPage() {
     let organicIdx = 0
     let adIdx = 0
 
+    // Loop de intercalação
     while (organicIdx < filteredOrganic.length || adIdx < sponsoredPool.length) {
-      // Adiciona bloco orgânico (intervalo aleatório entre 4 e 7)
+      // Adiciona bloco orgânico
       const interval = Math.floor(Math.random() * 4) + 4
       const chunk = filteredOrganic.slice(organicIdx, organicIdx + interval)
       result.push(...chunk)
       organicIdx += interval
 
-      // Insere anúncio respeitando a ordem de prioridade de orçamento
+      // Insere anúncio patrocinado
       if (adIdx < sponsoredPool.length) {
         result.push(sponsoredPool[adIdx])
         adIdx++
       } else if (sponsoredPool.length > 0 && organicIdx < filteredOrganic.length) {
-        // Repetição: Anúncios com maior orçamento continuam aparecendo mais vezes
+        // Repetição se houver muitos eventos orgânicos
         const topWeightedIdx = Math.floor(Math.random() * Math.ceil(sponsoredPool.length / 2))
         result.push(sponsoredPool[topWeightedIdx])
       }
@@ -193,6 +196,12 @@ export default function ExplorarPage() {
       {loading && (
         <div className="flex justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+        </div>
+      )}
+
+      {!loading && interleavedContent.length === 0 && (
+        <div className="py-24 text-center">
+          <p className="text-muted-foreground font-medium italic">Nenhum evento ou anúncio disponível no momento.</p>
         </div>
       )}
 
