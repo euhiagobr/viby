@@ -64,7 +64,7 @@ export default function EditarEventoPage() {
   }, [app])
 
   const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
-  const { data: categories } = useCollection<any>(categoriesQuery)
+  const { data: categories, loading: categoriesLoading } = useCollection<any>(categoriesQuery)
 
   const sortedCategories = React.useMemo(() => {
     if (!categories) return []
@@ -103,7 +103,8 @@ export default function EditarEventoPage() {
 
   useEffect(() => {
     if (event) {
-      setSelectedCategory(event.categoryId || "")
+      // Sincroniza a categoria salvando tanto o ID quanto verificando fallbacks
+      setSelectedCategory(event.categoryId || event.category || "")
       setTags(event.tags?.join(", ") || "")
       setIsFree(event.isFree || false)
       setCep(event.cep || "")
@@ -334,10 +335,14 @@ export default function EditarEventoPage() {
               <div className="space-y-2"><Label htmlFor="title">Nome do Evento</Label><Input id="title" name="title" defaultValue={event?.title} required /></div>
               <div className="space-y-2">
                 <Label>Categoria</Label>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger><SelectValue placeholder="Selecione uma categoria" /></SelectTrigger>
-                  <SelectContent>{sortedCategories.map((cat: any) => (<SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>))}</SelectContent>
-                </Select>
+                {sortedCategories.length > 0 ? (
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <SelectTrigger><SelectValue placeholder="Selecione uma categoria" /></SelectTrigger>
+                    <SelectContent>{sortedCategories.map((cat: any) => (<SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>))}</SelectContent>
+                  </Select>
+                ) : (
+                  <div className="h-10 rounded-md border border-input bg-muted/20 animate-pulse flex items-center px-3 text-xs text-muted-foreground">Carregando categorias...</div>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
