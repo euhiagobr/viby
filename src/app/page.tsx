@@ -132,7 +132,7 @@ export default function LandingPage() {
           return { ...fullEvent, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: false }
         }
 
-        return { ...ad, isSponsored: true, _remainingBudget: ad.remainingBudget, _isAdObject: true }
+        return { ...ad, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: true }
       })
       .filter(Boolean)
       .sort((a: any, b: any) => (b._remainingBudget || 0) - (a._remainingBudget || 0))
@@ -304,7 +304,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
             {interleavedContent.map((item: any, idx: number) => (
               item._isAdObject ? (
-                <AdCard key={`ad-land-${item.id}-${idx}`} ad={item} />
+                <AdCard key={`ad-land-${item.id || item.adId}-${idx}`} ad={item} />
               ) : (
                 <EventCard 
                   key={`event-land-${item.id}-${idx}`} 

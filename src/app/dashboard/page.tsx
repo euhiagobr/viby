@@ -98,14 +98,13 @@ export default function ExplorarPage() {
         if (ad.type === 'evento') {
           const fullEvent = events?.find((e: any) => e.id === ad.eventId)
           if (!fullEvent) {
-            // Se o evento não estiver na lista carregada, usamos os dados do anúncio
             return { ...ad, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: true }
           }
           return { ...fullEvent, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: false }
         }
 
         // Marcas, Banners e Links
-        return { ...ad, isSponsored: true, _remainingBudget: ad.remainingBudget, _isAdObject: true }
+        return { ...ad, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: true }
       })
       .filter(Boolean)
       .sort((a: any, b: any) => (b._remainingBudget || 0) - (a._remainingBudget || 0))
@@ -201,7 +200,7 @@ export default function ExplorarPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {interleavedContent.map((item: any, idx: number) => (
           item._isAdObject ? (
-            <AdCard key={`ad-${item.id}-${idx}`} ad={item} />
+            <AdCard key={`ad-${item.id || item.adId}-${idx}`} ad={item} />
           ) : (
             <EventCard 
               key={`event-${item.id}-${idx}`} 

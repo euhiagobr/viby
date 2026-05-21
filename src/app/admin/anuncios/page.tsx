@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore"
+import { collection, query, orderBy, doc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -74,7 +74,11 @@ export default function AdminAnunciosPage() {
   const handleUpdateStatus = async (adId: string, status: string) => {
     if (!db) return
     try {
-      await updateDoc(doc(db, "ads", adId), { status, updatedAt: new Date() })
+      await updateDoc(doc(db, "ads", adId), { 
+        status, 
+        updatedAt: serverTimestamp(),
+        approvedAt: status === 'Ativo' ? serverTimestamp() : null
+      })
       toast({ title: "Status atualizado!", description: `Anúncio agora está ${status}.` })
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao atualizar" })
@@ -199,6 +203,14 @@ function AdTable({ ads, onUpdate, onDelete }: { ads: any[], onUpdate: (id: strin
     )
   }
 
+  const formatAdDate = (dateVal: any) => {
+    if (!dateVal) return "---";
+    try {
+      const d = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
+      return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return "---"; }
+  }
+
   return (
     <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white">
       <Table>
@@ -228,8 +240,8 @@ function AdTable({ ads, onUpdate, onDelete }: { ads: any[], onUpdate: (id: strin
               </TableCell>
               <TableCell>
                 <div className="flex flex-col gap-1 text-[11px] font-medium text-muted-foreground">
-                  <span className="flex items-center gap-1.5"><Clock className="w-3 h-3 text-secondary" /> {new Date(ad.startDate?.toDate ? ad.startDate.toDate() : ad.startDate).toLocaleString('pt-BR')}</span>
-                  <span className="flex items-center gap-1.5 text-destructive"><Clock className="w-3 h-3" /> {new Date(ad.endDate?.toDate ? ad.endDate.toDate() : ad.endDate).toLocaleString('pt-BR')}</span>
+                  <span className="flex items-center gap-1.5"><Clock className="w-3 h-3 text-secondary" /> {formatAdDate(ad.startDate)}</span>
+                  <span className="flex items-center gap-1.5 text-destructive"><Clock className="w-3 h-3" /> {formatAdDate(ad.endDate)}</span>
                 </div>
               </TableCell>
               <TableCell className="text-center">

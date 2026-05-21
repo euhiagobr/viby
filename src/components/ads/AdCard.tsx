@@ -2,7 +2,7 @@
 "use client"
 
 import * as React from "react"
-import { ExternalLink, Globe, Layout, Megaphone, Navigation, Users, CheckCircle2, ArrowRight } from "lucide-react"
+import { ExternalLink, Globe, Layout, Megaphone, Navigation, Users, CheckCircle2, ArrowRight, ImageIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,8 @@ export function AdCard({ ad }: AdCardProps) {
   const { user } = useUser(auth)
   const cardRef = React.useRef<HTMLDivElement>(null)
   const hasTrackedImpression = React.useRef(false)
+
+  const adId = ad.id || ad.adId;
 
   const orgRef = React.useMemo(() => (db && ad.organizationId) ? doc(db, "organizations", ad.organizationId) : null, [db, ad.organizationId])
   const { data: organization } = useDoc<any>(orgRef)
@@ -83,15 +85,12 @@ export function AdCard({ ad }: AdCardProps) {
       
       update[`stats_gender_${genderKey}`] = increment(1);
       update[`stats_age_${ageGroup}`] = increment(1);
-    } else {
-      update[`stats_gender_desconhecido`] = increment(1);
-      update[`stats_age_desconhecido`] = increment(1);
     }
     return update;
   }
 
   React.useEffect(() => {
-    if (!db || !adsSettings || hasTrackedImpression.current) return
+    if (!db || !adsSettings || hasTrackedImpression.current || !adId) return
 
     const observer = new IntersectionObserver(
       async (entries) => {
@@ -99,7 +98,7 @@ export function AdCard({ ad }: AdCardProps) {
           hasTrackedImpression.current = true
           const cost = (adsSettings.cpmValue || 0) / 1000
           
-          const adRef = doc(db, "ads", ad.id)
+          const adRef = doc(db, "ads", adId)
           const updateData: any = { 
             reach: increment(1),
             remainingBudget: increment(-cost),
@@ -108,19 +107,15 @@ export function AdCard({ ad }: AdCardProps) {
 
           // Alcance Único e Demografia (Somente no primeiro acesso do usuário)
           if (user) {
-            const viewerRef = doc(db, "ads", ad.id, "viewers", user.uid);
+            const viewerRef = doc(db, "ads", adId, "viewers", user.uid);
             const viewerSnap = await getDoc(viewerRef);
             if (!viewerSnap.exists()) {
               await setDoc(viewerRef, { timestamp: serverTimestamp() });
               updateData.uniqueReach = increment(1);
               
-              // Incrementa demografia APENAS para novos usuários únicos
               const demoUpdate = getDemographicsUpdate();
               Object.assign(updateData, demoUpdate);
             }
-          } else {
-            // Para anônimos, apenas incrementamos as visualizações totais (reach)
-            // Não incrementamos demografia para evitar distorções de repetição
           }
 
           updateDoc(adRef, updateData).then(() => {
@@ -138,19 +133,18 @@ export function AdCard({ ad }: AdCardProps) {
 
     if (cardRef.current) observer.observe(cardRef.current)
     return () => observer.disconnect()
-  }, [ad.id, ad.organizationId, db, adsSettings, userProfile, user])
+  }, [adId, ad.organizationId, db, adsSettings, userProfile, user])
 
   const handleClick = () => {
-    if (db && adsSettings) {
+    if (db && adsSettings && adId) {
       const cost = adsSettings.cpcValue || 0
-      const adRef = doc(db, "ads", ad.id)
+      const adRef = doc(db, "ads", adId)
       const demoUpdate = getDemographicsUpdate()
 
       updateDoc(adRef, { 
         clicks: increment(1),
         remainingBudget: increment(-cost),
         updatedAt: serverTimestamp(),
-        // Para cliques, incrementamos sempre, pois representam interesse ativo repetido
         ...Object.keys(demoUpdate).reduce((acc: any, key) => {
           acc[key.replace('stats_', 'click_stats_')] = increment(1);
           return acc;
@@ -203,7 +197,7 @@ export function AdCard({ ad }: AdCardProps) {
           </div>
           <div className="space-y-1">
              <div className="flex items-center justify-center gap-1.5">
-                <h3 className="text-lg font-black uppercase italic tracking-tighter">{dispName}</h3>
+                <h3 className="text-lg font-black uppercase italic tracking-tighter leading-tight">{dispName}</h3>
                 {organization?.verified && <InstagramVerifiedBadge />}
              </div>
              <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">@{dispUsername}</p>
@@ -215,7 +209,7 @@ export function AdCard({ ad }: AdCardProps) {
              </div>
              <div className="w-px h-6 bg-border" />
              <div className="text-center">
-                <p className="text-xs font-black">{organization?.type || "Marca"}</p>
+                <p className="text-xs font-black truncate max-w-[80px]">{organization?.type || ad.type || "Marca"}</p>
                 <p className="text-[8px] font-bold text-muted-foreground uppercase">Segmento</p>
              </div>
           </div>
@@ -235,7 +229,11 @@ export function AdCard({ ad }: AdCardProps) {
           </Badge>
         </div>
         <div className="relative aspect-video w-full bg-muted">
-           <Image src={ad.adImage || "https://picsum.photos/seed/ad/800/400"} alt="Anúncio" fill className="object-cover group-hover:scale-105 transition-transform duration-700" unoptimized />
+           {ad.adImage ? (
+             <Image src={ad.adImage} alt="Anúncio" fill className="object-cover group-hover:scale-105 transition-transform duration-700" unoptimized data-ai-hint="ad banner" />
+           ) : (
+             <div className="flex flex-col items-center justify-center h-full opacity-20"><ImageIcon className="w-12 h-12" /></div>
+           )}
            {(ad.type === 'site' || ad.type === 'banner') && (
              <div className="absolute bottom-3 left-3">
                 <Badge className="bg-white/90 text-primary border-none shadow-sm text-[9px] font-black uppercase flex items-center gap-1.5">
@@ -246,7 +244,7 @@ export function AdCard({ ad }: AdCardProps) {
         </div>
         <CardContent className="p-6 space-y-4">
            <div className="space-y-1">
-              <h3 className="font-black text-lg uppercase italic tracking-tighter leading-tight">{ad.eventTitle}</h3>
+              <h3 className="font-black text-lg uppercase italic tracking-tighter leading-tight line-clamp-1">{ad.eventTitle}</h3>
               {ad.externalUrl && <p className="text-[10px] text-muted-foreground font-medium truncate">{ad.externalUrl.replace(/^https?:\/\//, '')}</p>}
            </div>
            <Button variant="outline" className="w-full h-10 rounded-xl font-bold uppercase text-[10px] tracking-widest gap-2 border-secondary/20 text-secondary hover:bg-secondary/5">
