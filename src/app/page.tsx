@@ -112,23 +112,25 @@ export default function LandingPage() {
     
     const now = new Date()
 
+    // 1. Pool de anúncios ativos, filtrados por data/hora e orçamento, ordenados por saldo
     const sponsoredPool = (activeAds || [])
       .map((ad: any) => {
         const start = ad.startDate ? new Date(ad.startDate) : null
         const end = ad.endDate ? new Date(ad.endDate) : null
         const isDateValid = (!start || now >= start) && (!end || now <= end)
-        const hasBudget = (ad.remainingBudget || ad.budget || 0) > 0
+        const hasBudget = (ad.remainingBudget || 0) > 0
 
         if (!isDateValid || !hasBudget) return null
 
         if (ad.type === 'evento') {
           const fullEvent = events?.find((e: any) => e.id === ad.eventId)
-          return fullEvent ? { ...fullEvent, isSponsored: true, adId: ad.id, _isAdObject: false } : null
+          return fullEvent ? { ...fullEvent, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: false } : null
         }
 
-        return { ...ad, isSponsored: true, _isAdObject: true }
+        return { ...ad, isSponsored: true, _remainingBudget: ad.remainingBudget, _isAdObject: true }
       })
       .filter(Boolean)
+      .sort((a: any, b: any) => (b._remainingBudget || 0) - (a._remainingBudget || 0))
 
     const organic = filteredEvents.map(e => ({ ...e, isSponsored: false, _isAdObject: false }))
 
@@ -151,8 +153,9 @@ export default function LandingPage() {
         result.push(sponsoredPool[adIdx])
         adIdx++
       } else if (sponsoredPool.length > 0 && organicIdx < filteredOrganic.length) {
-        result.push(sponsoredPool[adIdx % sponsoredPool.length])
-        adIdx++
+        // Repete anúncios favorecendo os de maior orçamento
+        const topWeightedIdx = Math.floor(Math.random() * Math.ceil(sponsoredPool.length / 2))
+        result.push(sponsoredPool[topWeightedIdx])
       }
     }
 
@@ -296,7 +299,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
             {interleavedContent.map((item: any, idx: number) => (
               item._isAdObject ? (
-                <AdCard key={item.id} ad={item} />
+                <AdCard key={`${item.id}-${idx}`} ad={item} />
               ) : (
                 <EventCard 
                   key={`${item.id}-${idx}`} 

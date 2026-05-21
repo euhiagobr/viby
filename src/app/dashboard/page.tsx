@@ -77,32 +77,32 @@ export default function ExplorarPage() {
     return result;
   }, [events, search, filter, userLocation])
 
-  // Lógica de Intercalação de ADS Unificada
+  // Lógica de Intercalação de ADS com Prioridade por Orçamento e Horário
   const interleavedContent = React.useMemo(() => {
     if (!filteredEvents || filteredEvents.length === 0) return []
     
     const now = new Date()
 
+    // 1. Criar o Pool de anúncios válidos e ordenar por maior orçamento restante
     const sponsoredPool = (activeAds || [])
       .map((ad: any) => {
         const start = ad.startDate ? new Date(ad.startDate) : null
         const end = ad.endDate ? new Date(ad.endDate) : null
         const isDateValid = (!start || now >= start) && (!end || now <= end)
-        const hasBudget = (ad.remainingBudget || ad.budget || 0) > 0
+        const hasBudget = (ad.remainingBudget || 0) > 0
 
         if (!isDateValid || !hasBudget) return null
 
-        // Se for um anúncio de evento, tentamos carregar os dados completos do evento para manter consistência no card
         if (ad.type === 'evento') {
           const fullEvent = events?.find((e: any) => e.id === ad.eventId)
           if (!fullEvent) return null
-          return { ...fullEvent, isSponsored: true, adId: ad.id, _isAdObject: false }
+          return { ...fullEvent, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: false }
         }
 
-        // Para outros tipos (pagina, banner, site), retornamos o objeto do anúncio marcado para o AdCard
-        return { ...ad, isSponsored: true, _isAdObject: true }
+        return { ...ad, isSponsored: true, _remainingBudget: ad.remainingBudget, _isAdObject: true }
       })
       .filter(Boolean)
+      .sort((a, b) => (b._remainingBudget || 0) - (a._remainingBudget || 0)) // Prioridade: Maior orçamento no topo
 
     const organic = filteredEvents.map(e => ({ ...e, isSponsored: false, _isAdObject: false }))
 
@@ -112,25 +112,25 @@ export default function ExplorarPage() {
     const sponsoredEventIds = new Set(sponsoredPool.filter(s => !s._isAdObject).map(s => s.id));
     const filteredOrganic = organic.filter(e => !sponsoredEventIds.has(e.id));
 
-    // Intercalação aleatória: 1 anúncio a cada 4-7 cards orgânicos
     let organicIdx = 0
     let adIdx = 0
 
     while (organicIdx < filteredOrganic.length || adIdx < sponsoredPool.length) {
-      // Adiciona bloco orgânico
+      // Adiciona bloco orgânico (intervalo aleatório entre 4 e 7)
       const interval = Math.floor(Math.random() * 4) + 4
       const chunk = filteredOrganic.slice(organicIdx, organicIdx + interval)
       result.push(...chunk)
       organicIdx += interval
 
-      // Insere anúncio se disponível
+      // Insere anúncio respeitando a ordem de prioridade de orçamento
       if (adIdx < sponsoredPool.length) {
         result.push(sponsoredPool[adIdx])
         adIdx++
       } else if (sponsoredPool.length > 0 && organicIdx < filteredOrganic.length) {
-        // Se acabarem os anúncios inéditos mas ainda houver conteúdo orgânico, repete anúncios em carrossel
-        result.push(sponsoredPool[adIdx % sponsoredPool.length])
-        adIdx++
+        // Repetição: Anúncios com maior orçamento continuam aparecendo mais vezes
+        // Usamos uma lógica que favorece a primeira metade (maior orçamento) do pool ordenado
+        const topWeightedIdx = Math.floor(Math.random() * Math.ceil(sponsoredPool.length / 2))
+        result.push(sponsoredPool[topWeightedIdx])
       }
     }
 
@@ -192,7 +192,7 @@ export default function ExplorarPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {interleavedContent.map((item: any, idx: number) => (
           item._isAdObject ? (
-            <AdCard key={item.id} ad={item} />
+            <AdCard key={`${item.id}-${idx}`} ad={item} />
           ) : (
             <EventCard 
               key={`${item.id}-${idx}`} 
