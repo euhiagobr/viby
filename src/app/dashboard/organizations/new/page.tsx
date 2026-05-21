@@ -31,9 +31,7 @@ import {
   Mail,
   Instagram,
   Fingerprint,
-  Info,
-  Eye,
-  EyeOff
+  Info
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -134,7 +132,7 @@ export default function NovaOrganizacaoPage() {
 
   const storage = React.useMemo(() => {
     if (!app) return null;
-    return getStorage(app, 'viby');
+    return getStorage(app, 'gs://viby');
   }, [app])
 
   useEffect(() => {
@@ -171,6 +169,27 @@ export default function NovaOrganizacaoPage() {
 
     return () => clearTimeout(timer)
   }, [formData.username, db, blockedData])
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = e.target.value;
+    
+    // Normalizar o nome para sugerir um username (remover acentos, espaços e caracteres especiais)
+    const suggestedUsername = newName
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "") // Mantém apenas letras e números
+      .substring(0, 20); // Limita tamanho
+
+    setFormData(prev => ({
+      ...prev,
+      name: newName,
+      // Só preenche o username automaticamente se ele estiver vazio ou se for igual à sugestão anterior
+      username: (prev.username === "" || prev.username === prev.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 20)) 
+        ? suggestedUsername 
+        : prev.username
+    }));
+  }
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'banner') => {
     const file = e.target.files?.[0]
@@ -246,7 +265,6 @@ export default function NovaOrganizacaoPage() {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           verified: false,
-          plan: 'free',
           payoutSettings: { status: 'none' }
         })
 
@@ -345,7 +363,7 @@ export default function NovaOrganizacaoPage() {
                     id="name" 
                     placeholder="Ex: Viby Entretenimento" 
                     value={formData.name}
-                    onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={handleNameChange}
                     required 
                     className="rounded-xl h-11"
                   />
