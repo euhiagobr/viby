@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -52,6 +53,9 @@ export default function EditarPerfilPage() {
 
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile, loading: profileLoading } = useDoc<any>(userDocRef)
+
+  const blockedRef = React.useMemo(() => (db ? doc(db, 'settings', 'blocked_usernames') : null), [db]);
+  const { data: blockedData } = useDoc<any>(blockedRef);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -116,6 +120,13 @@ export default function EditarPerfilPage() {
       return
     }
 
+    // Verificar lista de bloqueados
+    if (blockedData?.list?.includes(newUsername)) {
+      setUsernameStatus('taken')
+      setCheckingUsername(false)
+      return
+    }
+
     setUsernameStatus('idle')
     setCheckingUsername(true)
 
@@ -132,7 +143,7 @@ export default function EditarPerfilPage() {
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [formData.username, profile, db])
+  }, [formData.username, profile, db, blockedData])
 
   const formatCPF = (v: string) => {
     v = v.replace(/\D/g, "");

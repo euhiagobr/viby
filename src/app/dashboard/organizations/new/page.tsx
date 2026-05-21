@@ -1,9 +1,10 @@
+
 "use client"
 
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth, useUser, useFirestore, useFirebaseApp } from "@/firebase"
+import { useAuth, useUser, useFirestore, useFirebaseApp, useDoc } from "@/firebase"
 import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -86,6 +87,9 @@ export default function NovaOrganizacaoPage() {
   const db = useFirestore()
   const app = useFirebaseApp()
 
+  const blockedRef = React.useMemo(() => (db ? doc(db, 'settings', 'blocked_usernames') : null), [db]);
+  const { data: blockedData } = useDoc<any>(blockedRef);
+
   const [loading, setLoading] = useState(false)
   const [checkingUsername, setCheckingUsername] = useState(false)
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
@@ -113,8 +117,15 @@ export default function NovaOrganizacaoPage() {
     const newUsername = formData.username.toLowerCase().trim()
     const regex = /^[a-zA-Z0-9_-]+$/
     
-    if (newUsername.length < 3 || !regex.test(newUsername)) {
+    // Mínimo de 5 caracteres conforme solicitado
+    if (newUsername.length < 5 || !regex.test(newUsername)) {
       setUsernameStatus('invalid')
+      return
+    }
+
+    // Verificar na lista de bloqueados do admin
+    if (blockedData?.list?.includes(newUsername)) {
+      setUsernameStatus('taken')
       return
     }
 
@@ -132,7 +143,7 @@ export default function NovaOrganizacaoPage() {
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [formData.username, db])
+  }, [formData.username, db, blockedData])
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -275,7 +286,7 @@ export default function NovaOrganizacaoPage() {
                      usernameStatus === 'taken' || usernameStatus === 'invalid' ? <X className="w-4 h-4 text-destructive" /> : null}
                   </div>
                 </div>
-                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">Este será o link público: viby.club/{formData.username || 'seu-nome'}</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">Mínimo 5 caracteres. URL: viby.club/{formData.username || 'seu-nome'}</p>
               </div>
             </div>
 

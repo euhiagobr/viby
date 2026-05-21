@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -35,6 +36,9 @@ export default function CadastroPage() {
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
 
+  const blockedRef = React.useMemo(() => (db ? doc(db, 'settings', 'blocked_usernames') : null), [db]);
+  const { data: blockedData } = useDoc<any>(blockedRef);
+
   const siteName = settings?.siteName || "Viby"
 
   useEffect(() => {
@@ -53,12 +57,18 @@ export default function CadastroPage() {
       return
     }
 
+    // Verificar na lista de bloqueados do admin
+    const normalized = username.toLowerCase()
+    if (blockedData?.list?.includes(normalized)) {
+      setUsernameStatus('taken')
+      return
+    }
+
     setUsernameStatus('idle')
     setCheckingUsername(true)
 
     const timer = setTimeout(async () => {
       try {
-        const normalized = username.toLowerCase()
         const usernameRef = doc(db, "usernames", normalized)
         const usernameSnap = await getDoc(usernameRef)
         
@@ -75,7 +85,7 @@ export default function CadastroPage() {
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [username, db])
+  }, [username, db, blockedData])
 
   const formatCPF = (v: string) => {
     v = v.replace(/\D/g, "");
@@ -141,7 +151,7 @@ export default function CadastroPage() {
           city: "",
           state: "",
           country: "Brasil",
-          createdAt: new Date().toISOString()
+          createdAt: serverTimestamp()
         })
       })
 

@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { 
   Loader2, 
   Save, 
@@ -26,7 +27,9 @@ import {
   Mail,
   Coins,
   TrendingUp,
-  MousePointer2
+  MousePointer2,
+  Lock,
+  X
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -40,11 +43,13 @@ export default function AdminConfiguracoesPage() {
   const stripeRef = React.useMemo(() => (db ? doc(db, 'settings', 'stripe') : null), [db]);
   const emailRef = React.useMemo(() => (db ? doc(db, 'settings', 'email') : null), [db]);
   const adsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
+  const blockedRef = React.useMemo(() => (db ? doc(db, 'settings', 'blocked_usernames') : null), [db]);
 
   const { data: settings, loading: loadingSettings } = useDoc<any>(settingsRef);
   const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
   const { data: emailSettings, loading: loadingEmail } = useDoc<any>(emailRef);
   const { data: adsSettings, loading: loadingAds } = useDoc<any>(adsRef);
+  const { data: blockedData, loading: loadingBlocked } = useDoc<any>(blockedRef);
 
   const [saving, setSaving] = React.useState(false);
   const [logoUploadProgress, setLogoUploadProgress] = React.useState<number | null>(null);
@@ -61,6 +66,9 @@ export default function AdminConfiguracoesPage() {
   const [showEmailPass, setShowEmailPass] = React.useState(false);
   const [cpcValue, setCpcValue] = React.useState('');
   const [cpmValue, setCpmValue] = React.useState('');
+
+  const [blockedInput, setBlockedInput] = React.useState('');
+  const [blockedList, setBlockedList] = React.useState<string[]>([]);
 
   React.useEffect(() => {
     if (settings) {
@@ -91,7 +99,12 @@ export default function AdminConfiguracoesPage() {
     }
   }, [adsSettings]);
 
-  // GARANTIA: Utiliza exclusivamente o bucket 'viby'
+  React.useEffect(() => {
+    if (blockedData) {
+      setBlockedList(blockedData.list || []);
+    }
+  }, [blockedData]);
+
   const storage = React.useMemo(() => {
     if (!app) return null;
     return getStorage(app, 'viby');
@@ -99,60 +112,33 @@ export default function AdminConfiguracoesPage() {
 
   const handleFileUpload = async (file: File, type: 'logo' | 'icon') => {
     if (!storage) return;
-
     const setProgress = type === 'logo' ? setLogoUploadProgress : setIconUploadProgress;
     const setUrl = type === 'logo' ? setLogoUrl : setIconUrl;
-    
     setProgress(0);
-
     try {
       const fileName = `${type}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
       const storageRef = ref(storage, `site_assets/${fileName}`);
       const uploadTask = uploadBytesResumable(storageRef, file);
-
-      uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setProgress(progress);
-        },
-        (error) => {
-          setProgress(null);
-          toast({ variant: 'destructive', title: 'Erro no upload', description: error.message });
-        },
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          setUrl(downloadURL);
-          setProgress(null);
-          toast({ title: 'Upload concluído!' });
-        }
-      );
-    } catch (err) {
-      setProgress(null);
-    }
+      uploadTask.on('state_changed', (snapshot) => setProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100), (error) => {
+        setProgress(null);
+        toast({ variant: 'destructive', title: 'Erro no upload', description: error.message });
+      }, async () => {
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+        setUrl(downloadURL);
+        setProgress(null);
+        toast({ title: 'Upload concluído!' });
+      });
+    } catch (err) { setProgress(null); }
   };
 
   const handleSaveBrand = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!db) return;
     setSaving(true);
-    
-    const settingsData = {
-      siteName: siteName || 'Viby',
-      logoUrl,
-      iconUrl,
-      updatedAt: serverTimestamp(),
-    };
-
+    const settingsData = { siteName: siteName || 'Viby', logoUrl, iconUrl, updatedAt: serverTimestamp() };
     setDoc(doc(db, 'settings', 'site'), settingsData, { merge: true })
       .then(() => toast({ title: 'Marca atualizada!' }))
-      .catch(async (error) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'settings/site',
-          operation: 'write',
-          requestResourceData: settingsData,
-        }));
-      })
+      .catch(async (error) => { errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'settings/site', operation: 'write', requestResourceData: settingsData })); })
       .finally(() => setSaving(false));
   };
 
@@ -160,22 +146,10 @@ export default function AdminConfiguracoesPage() {
     e.preventDefault();
     if (!db) return;
     setSaving(true);
-
-    const stripeData = {
-      publishableKey: stripePublishableKey.trim(),
-      secretKey: stripeSecretKey.trim(),
-      updatedAt: serverTimestamp(),
-    };
-
+    const stripeData = { publishableKey: stripePublishableKey.trim(), secretKey: stripeSecretKey.trim(), updatedAt: serverTimestamp() };
     setDoc(doc(db, 'settings', 'stripe'), stripeData, { merge: true })
       .then(() => toast({ title: 'Chaves do Stripe salvas!' }))
-      .catch(async (error) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'settings/stripe',
-          operation: 'write',
-          requestResourceData: stripeData,
-        }));
-      })
+      .catch(async (error) => { errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'settings/stripe', operation: 'write', requestResourceData: stripeData })); })
       .finally(() => setSaving(false));
   };
 
@@ -183,22 +157,10 @@ export default function AdminConfiguracoesPage() {
     e.preventDefault();
     if (!db) return;
     setSaving(true);
-
-    const emailData = {
-      smtpUser: smtpUser.trim(),
-      smtpPass: smtpPass.trim(),
-      updatedAt: serverTimestamp(),
-    };
-
+    const emailData = { smtpUser: smtpUser.trim(), smtpPass: smtpPass.trim(), updatedAt: serverTimestamp() };
     setDoc(doc(db, 'settings', 'email'), emailData, { merge: true })
       .then(() => toast({ title: 'Configurações de E-mail salvas!' }))
-      .catch(async (error) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'settings/email',
-          operation: 'write',
-          requestResourceData: emailData,
-        }));
-      })
+      .catch(async (error) => { errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'settings/email', operation: 'write', requestResourceData: emailData })); })
       .finally(() => setSaving(false));
   };
 
@@ -206,26 +168,36 @@ export default function AdminConfiguracoesPage() {
     e.preventDefault();
     if (!db) return;
     setSaving(true);
-
-    const adsData = {
-      cpcValue: parseFloat(cpcValue) || 0,
-      cpmValue: parseFloat(cpmValue) || 0,
-      updatedAt: serverTimestamp(),
-    };
-
+    const adsData = { cpcValue: parseFloat(cpcValue) || 0, cpmValue: parseFloat(cpmValue) || 0, updatedAt: serverTimestamp() };
     setDoc(doc(db, 'settings', 'ads'), adsData, { merge: true })
       .then(() => toast({ title: 'Valores de Publicidade salvos!' }))
-      .catch(async (error) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'settings/ads',
-          operation: 'write',
-          requestResourceData: adsData,
-        }));
-      })
+      .catch(async (error) => { errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'settings/ads', operation: 'write', requestResourceData: adsData })); })
       .finally(() => setSaving(false));
   };
 
-  if (loadingSettings || loadingStripe || loadingEmail || loadingAds) {
+  const handleAddBlocked = () => {
+    const names = blockedInput.split(',').map(n => n.trim().toLowerCase()).filter(n => n.length > 0);
+    if (names.length === 0) return;
+    const newList = Array.from(new Set([...blockedList, ...names])).sort();
+    setBlockedList(newList);
+    setBlockedInput('');
+  };
+
+  const removeBlocked = (name: string) => {
+    setBlockedList(prev => prev.filter(n => n !== name));
+  };
+
+  const handleSaveBlocked = async () => {
+    if (!db) return;
+    setSaving(true);
+    const data = { list: blockedList, updatedAt: serverTimestamp() };
+    setDoc(doc(db, 'settings', 'blocked_usernames'), data)
+      .then(() => toast({ title: 'Lista de Usernames Reservados salva!' }))
+      .catch(async (error) => { errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'settings/blocked_usernames', operation: 'write', requestResourceData: data })); })
+      .finally(() => setSaving(false));
+  };
+
+  if (loadingSettings || loadingStripe || loadingEmail || loadingAds || loadingBlocked) {
     return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
   }
 
@@ -233,12 +205,13 @@ export default function AdminConfiguracoesPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight text-primary">Configurações do Sistema</h1>
-        <p className="text-muted-foreground">Gerencie a identidade visual e as integrações da plataforma.</p>
+        <p className="text-muted-foreground">Gerencie a identidade visual, integrações e segurança da plataforma.</p>
       </div>
 
       <Tabs defaultValue="brand" className="space-y-6">
-        <TabsList className="bg-muted/50 p-1 rounded-xl">
+        <TabsList className="bg-muted/50 p-1 rounded-xl flex-wrap h-auto">
           <TabsTrigger value="brand" className="gap-2 rounded-lg font-bold"><Layout className="w-4 h-4" /> Marca</TabsTrigger>
+          <TabsTrigger value="usernames" className="gap-2 rounded-lg font-bold"><Lock className="w-4 h-4" /> Usernames</TabsTrigger>
           <TabsTrigger value="payments" className="gap-2 rounded-lg font-bold"><CreditCard className="w-4 h-4" /> Pagamentos</TabsTrigger>
           <TabsTrigger value="email" className="gap-2 rounded-lg font-bold"><Mail className="w-4 h-4" /> E-mail</TabsTrigger>
           <TabsTrigger value="values" className="gap-2 rounded-lg font-bold"><Coins className="w-4 h-4" /> Valores</TabsTrigger>
@@ -281,6 +254,49 @@ export default function AdminConfiguracoesPage() {
               Salvar Alterações de Marca
             </Button>
           </form>
+        </TabsContent>
+
+        <TabsContent value="usernames">
+          <div className="space-y-6 max-w-2xl">
+            <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
+              <CardHeader>
+                <CardTitle className="text-xl">Usernames Reservados</CardTitle>
+                <CardDescription>Estes nomes não poderão ser usados por novos usuários ou organizações.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label>Adicionar Nomes (separados por vírgula)</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      value={blockedInput} 
+                      onChange={(e) => setBlockedInput(e.target.value)} 
+                      placeholder="cocacola, nike, apple, etc..." 
+                      className="rounded-xl h-12"
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddBlocked())}
+                    />
+                    <Button type="button" onClick={handleAddBlocked} variant="secondary" className="h-12 rounded-xl font-bold">Adicionar</Button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 min-h-[100px] p-4 bg-muted/20 rounded-2xl border border-dashed border-border">
+                  {blockedList.length > 0 ? (
+                    blockedList.map((name) => (
+                      <Badge key={name} className="gap-1.5 py-1.5 px-3 rounded-full bg-secondary text-white font-bold uppercase text-[10px]">
+                        {name}
+                        <X className="w-3 h-3 cursor-pointer hover:text-white/70" onClick={() => removeBlocked(name)} />
+                      </Badge>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic flex items-center justify-center w-full">Nenhum nome reservado ainda.</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+            <Button onClick={handleSaveBlocked} disabled={saving} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-lg shadow-secondary/20">
+              {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
+              Salvar Usernames Reservados
+            </Button>
+          </div>
         </TabsContent>
 
         <TabsContent value="payments">
