@@ -21,7 +21,8 @@ import {
   Landmark,
   Receipt,
   Megaphone,
-  Mail
+  Mail,
+  Trophy
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -90,6 +91,7 @@ export default function AdminLayout({
     { title: 'Painel', url: '/admin', icon: LayoutDashboard },
     { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays },
     { title: 'Anúncios', url: '/admin/anuncios', icon: Megaphone },
+    { title: 'Planos', url: '/admin/planos', icon: Trophy },
     { title: 'Financeiro (Contas)', url: '/admin/financeiro', icon: Landmark },
     { title: 'Extrato Global', url: '/admin/extrato', icon: Receipt },
     { title: 'E-mails Enviados', url: '/admin/notificacoes', icon: Mail },

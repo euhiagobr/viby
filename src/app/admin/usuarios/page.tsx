@@ -11,8 +11,6 @@ import {
   updateDoc, 
   deleteDoc, 
   getDoc, 
-  getDocs, 
-  where, 
   writeBatch,
   serverTimestamp 
 } from "firebase/firestore"
@@ -51,7 +49,11 @@ import {
   Settings,
   Mail,
   Phone,
-  Calendar
+  Calendar,
+  Trophy,
+  Percent,
+  Coins,
+  Ticket
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -182,7 +184,7 @@ export default function AdminUsuariosPage() {
         (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100),
         () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }) },
         async () => {
-          const url = await getDownloadURL(uploadTask.snapshot.ref)
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
           if (coll === 'users') setEditingUser((p: any) => ({ ...p, [type]: url }))
           else setEditingOrg((p: any) => ({ ...p, [type]: url }))
           setUploadProgress(null)
@@ -230,6 +232,16 @@ export default function AdminUsuariosPage() {
       setIsEditOrgOpen(false)
     } catch (e) { toast({ variant: "destructive", title: "Erro ao salvar" }) }
     finally { setIsSaving(false) }
+  }
+
+  const handleOverrideField = (field: string, value: any) => {
+    setEditingUser((prev: any) => ({
+      ...prev,
+      planOverride: {
+        ...(prev.planOverride || {}),
+        [field]: value
+      }
+    }))
   }
 
   return (
@@ -335,6 +347,146 @@ export default function AdminUsuariosPage() {
           </TabsContent>
         </Tabs>
       </Card>
+
+      {/* DIALOG EDITAR USUÁRIO PESSOAL - COM GESTÃO DE PLANO */}
+      <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+        <DialogContent className="max-w-4xl h-[90vh] p-0 overflow-hidden rounded-[2.5rem]">
+           <DialogHeader className="p-8 border-b bg-muted/30">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg"><UserIcon className="w-6 h-6 text-primary" /></div>
+                <div>
+                   <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Gerenciar Usuário: {editingUser?.name}</DialogTitle>
+                   <DialogDescription className="font-medium">Gestão de perfil, permissões e limites de plano.</DialogDescription>
+                </div>
+              </div>
+           </DialogHeader>
+
+           <form onSubmit={handleUpdateUser} className="flex-1 flex flex-col min-h-0">
+              <ScrollArea className="flex-1">
+                 <Tabs defaultValue="perfil" className="w-full">
+                    <TabsList className="w-full justify-start rounded-none border-b h-14 bg-transparent px-8 gap-8">
+                       <TabsTrigger value="perfil" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full px-0 font-bold uppercase text-[10px] tracking-widest">Identidade</TabsTrigger>
+                       <TabsTrigger value="plano" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full px-0 font-bold uppercase text-[10px] tracking-widest flex items-center gap-2"><Trophy className="w-3 h-3" /> Plano e Limites</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="perfil" className="p-8 space-y-8">
+                       <div className="flex flex-col items-center gap-4">
+                          <div className="relative group">
+                             <Avatar className="h-28 w-28 border-4 border-white shadow-xl">
+                                <AvatarImage src={editingUser?.avatar} />
+                                <AvatarFallback>{editingUser?.name?.charAt(0)}</AvatarFallback>
+                             </Avatar>
+                             <label htmlFor="adm-user-avatar" className="absolute inset-0 bg-black/30 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity"><Camera className="w-6 h-6" /></label>
+                             <input id="adm-user-avatar" type="file" className="hidden" onChange={e => e.target.files?.[0] && handleImageUpload(e.target.files[0], 'avatar', editingUser.id, 'users')} />
+                          </div>
+                          {uploadProgress !== null && <Progress value={uploadProgress} className="w-full max-w-xs h-1" />}
+                       </div>
+                       
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-2"><Label>Nome Completo</Label><Input value={editingUser?.name || ""} onChange={e => setEditingUser({...editingUser, name: e.target.value})} className="rounded-xl h-11" required /></div>
+                          <div className="space-y-2">
+                             <Label>Username (@)</Label>
+                             <div className="relative">
+                                <Input value={editingUser?.username || ""} onChange={e => setEditingUser({...editingUser, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} className="rounded-xl h-11 pr-10" />
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                   {checkingUsername && <Loader2 className="w-4 h-4 animate-spin opacity-40" />}
+                                </div>
+                             </div>
+                          </div>
+                          <div className="space-y-2"><Label>E-mail</Label><Input value={editingUser?.email || ""} onChange={e => setEditingUser({...editingUser, email: e.target.value})} className="rounded-xl h-11" required /></div>
+                          <div className="space-y-2">
+                             <Label>Cargo / Permissão</Label>
+                             <Select value={editingUser?.role || "user"} onValueChange={v => setEditingUser({...editingUser, role: v})}>
+                                <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                                <SelectContent className="rounded-xl"><SelectItem value="user">Usuário Comum</SelectItem><SelectItem value="admin">Administrador</SelectItem></SelectContent>
+                             </Select>
+                          </div>
+                       </div>
+
+                       <div className="flex items-center justify-between p-5 bg-muted/20 rounded-2xl border border-border">
+                          <div className="space-y-0.5">
+                             <Label className="font-bold">Selo de Verificado</Label>
+                             <p className="text-[10px] uppercase font-black opacity-40">Atribuir autoridade manual ao perfil</p>
+                          </div>
+                          <Switch checked={editingUser?.isVerified || false} onCheckedChange={v => setEditingUser({...editingUser, isVerified: v})} />
+                       </div>
+                    </TabsContent>
+
+                    <TabsContent value="plano" className="p-8 space-y-10">
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          <div className="space-y-6">
+                             <h3 className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                                <Trophy className="w-4 h-4" /> Assinatura Base
+                             </h3>
+                             <div className="space-y-2">
+                                <Label>Alterar Plano Ativo</Label>
+                                <Select value={editingUser?.plan || "START"} onValueChange={v => setEditingUser({...editingUser, plan: v})}>
+                                   <SelectTrigger className="rounded-xl h-12 bg-muted/30 border-none font-black uppercase italic"><SelectValue /></SelectTrigger>
+                                   <SelectContent className="rounded-xl">
+                                      <SelectItem value="START" className="font-bold uppercase">Viby Start</SelectItem>
+                                      <SelectItem value="PRO" className="font-bold uppercase">Viby Pro</SelectItem>
+                                      <SelectItem value="TOP" className="font-bold uppercase">Viby Top</SelectItem>
+                                   </SelectContent>
+                                </Select>
+                             </div>
+                          </div>
+
+                          <div className="space-y-6">
+                             <h3 className="text-xs font-black uppercase tracking-widest text-secondary flex items-center gap-2">
+                                <Settings className="w-4 h-4" /> Personalizar Limites
+                             </h3>
+                             <p className="text-[10px] font-medium text-muted-foreground uppercase leading-relaxed">Estes valores sobrescrevem o plano padrão para este usuário específico.</p>
+                          </div>
+                       </div>
+
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-muted/10 p-8 rounded-[2rem] border-2 border-dashed">
+                          <div className="space-y-6">
+                             <div className="space-y-3">
+                                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Building2 className="w-3.5 h-3.5" /> Máx. Organizações</Label>
+                                <Input type="number" value={editingUser?.planOverride?.maxOrganizations ?? ""} onChange={e => handleOverrideField('maxOrganizations', parseInt(e.target.value))} placeholder="Seguir plano" className="rounded-xl" />
+                             </div>
+                             <div className="space-y-3">
+                                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><CalendarDays className="w-3.5 h-3.5" /> Máx. Eventos Ativos</Label>
+                                <Input type="number" value={editingUser?.planOverride?.maxActiveEvents ?? ""} onChange={e => handleOverrideField('maxActiveEvents', parseInt(e.target.value))} placeholder="Seguir plano" className="rounded-xl" />
+                             </div>
+                             <div className="space-y-3">
+                                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Ticket className="w-3.5 h-3.5" /> Máx. Ingressos/Evento</Label>
+                                <Input type="number" value={editingUser?.planOverride?.maxTicketsPerEvent ?? ""} onChange={e => handleOverrideField('maxTicketsPerEvent', parseInt(e.target.value))} placeholder="Seguir plano (0=Ilimitado)" className="rounded-xl" />
+                             </div>
+                          </div>
+
+                          <div className="space-y-6">
+                             <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-3">
+                                   <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Percent className="w-3.5 h-3.5" /> Taxa %</Label>
+                                   <Input type="number" step="0.1" value={editingUser?.planOverride?.feePercent ?? ""} onChange={e => handleOverrideField('feePercent', parseFloat(e.target.value))} placeholder="Ex: 12" className="rounded-xl" />
+                                </div>
+                                <div className="space-y-3">
+                                   <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Coins className="w-3.5 h-3.5" /> Mín (R$)</Label>
+                                   <Input type="number" step="0.01" value={editingUser?.planOverride?.minFeeAmount ?? ""} onChange={e => handleOverrideField('minFeeAmount', parseFloat(e.target.value))} placeholder="Ex: 5.00" className="rounded-xl" />
+                                </div>
+                             </div>
+
+                             <div className="flex items-center justify-between p-4 bg-white rounded-2xl border">
+                                <Label className="font-bold text-xs">Liberar Relatórios VIP</Label>
+                                <Switch checked={editingUser?.planOverride?.hasReports || false} onCheckedChange={v => handleOverrideField('hasReports', v)} />
+                             </div>
+                          </div>
+                       </div>
+                    </TabsContent>
+                 </Tabs>
+              </ScrollArea>
+              
+              <DialogFooter className="p-8 bg-muted/30 border-t gap-3">
+                 <Button type="button" variant="ghost" onClick={() => setIsEditUserOpen(false)} className="rounded-xl font-bold uppercase text-[10px]">Cancelar</Button>
+                 <Button type="submit" disabled={isSaving || (usernameStatus === 'taken')} className="bg-primary text-white font-black h-14 rounded-2xl px-12 shadow-xl uppercase italic">
+                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
+                    Salvar Alterações do Usuário
+                 </Button>
+              </DialogFooter>
+           </form>
+        </DialogContent>
+      </Dialog>
 
       {/* DIALOG EDITAR PÁGINA (ORGANIZAÇÃO) */}
       <Dialog open={isEditOrgOpen} onOpenChange={setIsEditOrgOpen}>
@@ -491,67 +643,6 @@ export default function AdminUsuariosPage() {
                  <Button type="submit" disabled={isSaving || (usernameStatus === 'taken')} className="bg-secondary text-white font-black h-14 rounded-2xl px-12 shadow-xl shadow-secondary/20 uppercase italic transition-all hover:scale-105">
                     {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
                     Salvar Alterações da Página
-                 </Button>
-              </DialogFooter>
-           </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* DIALOG EDITAR USUÁRIO PESSOAL */}
-      <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
-        <DialogContent className="max-w-3xl h-[85vh] p-0 overflow-hidden rounded-[2.5rem]">
-           <DialogHeader className="p-8 border-b bg-muted/30">
-              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-                 <UserIcon className="w-6 h-6 text-primary" /> Editar Usuário: {editingUser?.name}
-              </DialogTitle>
-           </DialogHeader>
-           <form onSubmit={handleUpdateUser} className="flex-1 flex flex-col min-h-0">
-              <ScrollArea className="flex-1 p-8">
-                 <div className="space-y-8">
-                    <div className="flex flex-col items-center gap-4">
-                       <div className="relative group">
-                          <Avatar className="h-28 w-28 border-4 border-white shadow-xl">
-                             <AvatarImage src={editingUser?.avatar} />
-                             <AvatarFallback>{editingUser?.name?.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <label htmlFor="adm-user-avatar" className="absolute inset-0 bg-black/30 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity"><Camera className="w-6 h-6" /></label>
-                          <input id="adm-user-avatar" type="file" className="hidden" onChange={e => e.target.files?.[0] && handleImageUpload(e.target.files[0], 'avatar', editingUser.id, 'users')} />
-                       </div>
-                       {uploadProgress !== null && <Progress value={uploadProgress} className="w-full max-w-xs h-1" />}
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                       <div className="space-y-2"><Label>Nome Completo</Label><Input value={editingUser?.name || ""} onChange={e => setEditingUser({...editingUser, name: e.target.value})} className="rounded-xl" required /></div>
-                       <div className="space-y-2">
-                          <Label>Username (@)</Label>
-                          <div className="relative">
-                             <Input value={editingUser?.username || ""} onChange={e => setEditingUser({...editingUser, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} className="rounded-xl pr-10" />
-                             <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                {checkingUsername && <Loader2 className="w-4 h-4 animate-spin opacity-40" />}
-                             </div>
-                          </div>
-                       </div>
-                       <div className="space-y-2"><Label>E-mail</Label><Input value={editingUser?.email || ""} onChange={e => setEditingUser({...editingUser, email: e.target.value})} className="rounded-xl" required /></div>
-                       <div className="space-y-2">
-                          <Label>Cargo / Permissão</Label>
-                          <Select value={editingUser?.role || "user"} onValueChange={v => setEditingUser({...editingUser, role: v})}>
-                             <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                             <SelectContent><SelectItem value="user">Usuário Comum</SelectItem><SelectItem value="admin">Administrador</SelectItem></SelectContent>
-                          </Select>
-                       </div>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 bg-muted/20 rounded-xl border">
-                       <Label className="font-bold">Selo de Verificado</Label>
-                       <Switch checked={editingUser?.isVerified || false} onCheckedChange={v => setEditingUser({...editingUser, isVerified: v})} />
-                    </div>
-                 </div>
-              </ScrollArea>
-              <DialogFooter className="p-8 bg-muted/30 border-t gap-3">
-                 <Button type="button" variant="ghost" onClick={() => setIsEditUserOpen(false)} className="rounded-xl font-bold uppercase text-[10px]">Cancelar</Button>
-                 <Button type="submit" disabled={isSaving || (usernameStatus === 'taken')} className="bg-primary text-white font-black h-14 rounded-2xl px-12 shadow-xl uppercase italic">
-                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-                    Salvar Alterações
                  </Button>
               </DialogFooter>
            </form>

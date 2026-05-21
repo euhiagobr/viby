@@ -1,9 +1,10 @@
+
 "use client"
 
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
+import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, query, where, getDocs, limit } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -36,7 +37,8 @@ import {
   Search,
   CheckCircle2,
   X,
-  AtSign
+  AtSign,
+  Trophy
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -101,6 +103,18 @@ export default function NovoEventoPage() {
   const app = useFirebaseApp()
   const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization()
 
+  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
+  const { data: profile } = useDoc<any>(userDocRef)
+
+  const plansRef = React.useMemo(() => db ? doc(db, 'settings', 'plans') : null, [db])
+  const { data: plansSettings } = useDoc<any>(plansRef)
+
+  const activeEventsQuery = useMemoFirebase(() => {
+    if (!db || !currentOrg) return null
+    return query(collection(db, "events"), where("organizationId", "==", currentOrg.id), where("status", "==", "Ativo"))
+  }, [db, currentOrg?.id])
+  const { data: activeEvents } = useCollection<any>(activeEventsQuery)
+
   const storage = React.useMemo(() => {
     if (!app) return null;
     return getStorage(app, "gs://viby");
@@ -124,7 +138,7 @@ export default function NovoEventoPage() {
       startDate: "", 
       endDate: "", 
       ticketTypes: [
-        { id: crypto.randomUUID(), name: "Entrada Franca", price: 0, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }
+        { id: crypto.randomUUID(), name: "Entrada Franca", price: 0, quantity: 30, requiresProof: false, isLegalHalf: false, description: "" }
       ] 
     }
   ])
@@ -142,6 +156,13 @@ export default function NovoEventoPage() {
   const [totalToDistribute, setTotalToDistribute] = useState("")
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
+
+  // Limites do Plano
+  const userPlan = profile?.plan || "START"
+  const planLimits = profile?.planOverride || plansSettings?.[userPlan.toLowerCase()] || {}
+  const maxActive = planLimits?.maxActiveEvents ?? 1
+  const maxTickets = planLimits?.maxTicketsPerEvent ?? 30
+  const isLimitedByTickets = maxTickets > 0
 
   useEffect(() => {
     if (!orgLoading && (!currentOrg || !isAtLeastEditor)) {
@@ -226,6 +247,11 @@ export default function NovoEventoPage() {
     const total = parseInt(totalToDistribute)
     if (isNaN(total)) return
 
+    if (isLimitedByTickets && total > maxTickets) {
+      toast({ variant: "destructive", title: "Limite do Plano", description: `Seu plano permite no máximo ${maxTickets} ingressos por evento.` })
+      return
+    }
+
     const meiaPoolId = crypto.randomUUID()
     const meiaQuantity = Math.floor(total * 0.4)
     const inteiraQuantity = total - meiaQuantity
@@ -250,7 +276,17 @@ export default function NovoEventoPage() {
   const updateBatchField = (i: number, f: keyof Batch, v: any) => { const n = [...batches]; n[i] = { ...n[i], [f]: v }; setBatches(n); }
   const addTicketType = (bi: number) => { const n = [...batches]; n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 50, requiresProof: false, isLegalHalf: false, description: "" }); setBatches(n); }
   const removeTicketType = (bi: number, ti: number) => { const n = [...batches]; if(n[bi].ticketTypes.length > 1) { n[bi].ticketTypes.splice(ti, 1); setBatches(n); } }
-  const updateTicketTypeField = (bi: number, ti: number, f: keyof TicketType, v: any) => { const n = [...batches]; n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; setBatches(n); }
+  
+  const updateTicketTypeField = (bi: number, ti: number, f: keyof TicketType, v: any) => { 
+    if (f === 'quantity' && isLimitedByTickets) {
+      const val = parseInt(v) || 0
+      if (val > maxTickets) {
+        toast({ variant: "destructive", title: "Limite atingido", description: `Seu plano atual permite apenas ${maxTickets} ingressos.` })
+        return
+      }
+    }
+    const n = [...batches]; n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; setBatches(n); 
+  }
 
   const calculateHalfPriceStats = (batch: Batch) => {
     const poolQuantities: Record<string, number> = {}
@@ -277,6 +313,22 @@ export default function NovoEventoPage() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!db || !user || !currentOrg || !isAtLeastEditor) return
+
+    // Validar limite de eventos ativos
+    if (maxActive !== 0 && (activeEvents?.length || 0) >= maxActive) {
+      toast({ variant: "destructive", title: "Limite de Eventos", description: `Seu plano permite apenas ${maxActive} evento(s) ativo(s) simultaneamente.` })
+      return
+    }
+
+    // Validar quantidade de ingressos
+    if (isLimitedByTickets) {
+      const allTickets = batches.reduce((acc, b) => acc + calculateHalfPriceStats(b).total, 0)
+      if (allTickets > maxTickets) {
+        toast({ variant: "destructive", title: "Muitos Ingressos", description: `Seu plano permite apenas ${maxTickets} ingressos por evento.` })
+        return
+      }
+    }
+
     setLoading(true)
     const formData = new FormData(e.currentTarget)
     try {
@@ -368,6 +420,17 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
+        {isLimitedByTickets && (
+           <Card className="border-none bg-orange-50 border-2 border-dashed border-orange-200 rounded-3xl">
+              <CardContent className="p-4 flex items-center gap-3">
+                 <Trophy className="w-5 h-5 text-orange-600" />
+                 <p className="text-xs font-bold text-orange-800 uppercase italic">
+                    Plano {userPlan}: Você pode criar até {maxTickets} ingressos para este evento.
+                 </p>
+              </CardContent>
+           </Card>
+        )}
+
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Info className="w-5 h-5 text-secondary" /> Informações Básicas</CardTitle></CardHeader>
           <CardContent className="space-y-6">
@@ -394,7 +457,7 @@ export default function NovoEventoPage() {
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">CEP</Label>
+                  <Label htmlFor="cep" className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
                   <Input 
                     value={address.cep} 
                     onChange={e => setAddress(prev => ({ ...prev, cep: e.target.value.replace(/\D/g, "").substring(0, 8) }))}
@@ -404,25 +467,25 @@ export default function NovoEventoPage() {
                   />
                 </div>
                 <div className="md:col-span-3 space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Logradouro</Label>
-                  <Input value={address.street} onChange={e => setAddress(prev => ({ ...prev, street: e.target.value }))} className="rounded-xl h-11" />
+                  <Label htmlFor="street" className="text-[10px] font-black uppercase tracking-widest opacity-60">Logradouro</Label>
+                  <Input id="street" value={address.street} onChange={e => setAddress(prev => ({ ...prev, street: e.target.value }))} className="rounded-xl h-11" />
                 </div>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Número</Label>
+                  <Label htmlFor="number" className="text-[10px] font-black uppercase tracking-widest opacity-60">Número</Label>
                   <Input id="number" value={address.number} onChange={e => setAddress(prev => ({ ...prev, number: e.target.value }))} className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label>
+                  <Label htmlFor="complement" className="text-[10px] font-black uppercase tracking-widest opacity-60">Complemento</Label>
                   <Input id="complement" value={address.complement} onChange={e => setAddress(prev => ({ ...prev, complement: e.target.value }))} className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label>
+                  <Label htmlFor="neighborhood" className="text-[10px] font-black uppercase tracking-widest opacity-60">Bairro</Label>
                   <Input id="neighborhood" value={address.neighborhood} onChange={e => setAddress(prev => ({ ...prev, neighborhood: e.target.value }))} className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label>
+                  <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest opacity-60">Cidade / UF</Label>
                   <div className="flex gap-2">
                     <Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" />
                     <Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30 w-16" />
@@ -504,8 +567,8 @@ export default function NovoEventoPage() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Configuração de Ingressos</CardTitle>
               <div className="bg-white p-1 rounded-xl border flex gap-1">
-                <Button type="button" variant={ticketMode === 'free' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('free'); setBatches([{ id: crypto.randomUUID(), name: "Grátis", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Entrada Franca", price: 0, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Grátis</Button>
-                <Button type="button" variant={ticketMode === 'paid_single' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('paid_single'); setBatches([{ id: crypto.randomUUID(), name: "Único", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Único Pago</Button>
+                <Button type="button" variant={ticketMode === 'free' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('free'); setBatches([{ id: crypto.randomUUID(), name: "Grátis", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Entrada Franca", price: 0, quantity: isLimitedByTickets ? maxTickets : 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Grátis</Button>
+                <Button type="button" variant={ticketMode === 'paid_single' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('paid_single'); setBatches([{ id: crypto.randomUUID(), name: "Único", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: isLimitedByTickets ? maxTickets : 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Único</Button>
                 <Button type="button" variant={ticketMode === 'batches' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('batches')}>Lotes</Button>
               </div>
             </div>
@@ -598,7 +661,7 @@ export default function NovoEventoPage() {
                                   <div className="md:col-span-2 flex items-center justify-end pb-1 gap-2">
                                      <div className="flex flex-col items-center gap-1">
                                         <Switch checked={type.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} />
-                                        <Label className="text-[8px] font-black uppercase">Doc.</Label>
+                                        <div className="text-[8px] font-black uppercase">Doc.</div>
                                      </div>
                                      {!isFreeMode && batch.ticketTypes.length > 1 && (
                                        <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => removeTicketType(bi, ti)}>

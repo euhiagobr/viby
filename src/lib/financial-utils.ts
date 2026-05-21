@@ -1,23 +1,17 @@
-/**
- * @fileOverview Utilitários financeiros atualizados para o modelo de Organizações.
- * A taxa administrativa agora é calculada com base no plano do USUÁRIO (owner),
- * mas as transações pertencem à ORGANIZAÇÃO.
- */
 
-export type UserPlan = 'free' | 'pro' | 'top' | 'START' | 'PRO' | 'TOP';
+/**
+ * @fileOverview Utilitários financeiros atualizados para o modelo de Planos Dinâmicos.
+ */
 
 export interface PlanConfig {
   percent: number;
   min: number;
-  orgLimit: number;
+  maxOrganizations: number;
+  maxActiveEvents: number;
+  maxTicketsPerEvent: number;
+  isVerified: boolean;
+  hasReports: boolean;
 }
-
-export const PLAN_CONFIGS: Record<string, PlanConfig> = {
-  free: { percent: 0.16, min: 9.99, orgLimit: 1 },
-  start: { percent: 0.16, min: 9.99, orgLimit: 1 },
-  pro: { percent: 0.10, min: 7.49, orgLimit: 5 },
-  top: { percent: 0.08, min: 3.99, orgLimit: 10 },
-};
 
 export const ADMINISTRATIVE_FEE_PERCENT = 0.15;
 
@@ -29,7 +23,12 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
-export function calculateFinancialBreakdown(basePrice: number, ownerPlan: string = 'free') {
+/**
+ * Calcula a quebra financeira com base no plano atual do usuário.
+ * @param basePrice Valor de face do ingresso
+ * @param planData Dados do plano (sobrescritos ou padrão) obtidos do Firestore
+ */
+export function calculateFinancialBreakdown(basePrice: number, planData?: any) {
   const price = parseFloat(basePrice as any) || 0;
   if (price <= 0) {
     return { 
@@ -42,9 +41,9 @@ export function calculateFinancialBreakdown(basePrice: number, ownerPlan: string
     };
   }
 
-  // Normaliza o plano para buscar na config (PRO -> pro, START -> free)
-  const normalizedPlan = (ownerPlan || 'free').toLowerCase();
-  const config = PLAN_CONFIGS[normalizedPlan] || PLAN_CONFIGS['free'];
+  // Se não houver planData, usamos valores conservadores do plano Start
+  const feePercent = (planData?.feePercent ?? 16) / 100;
+  const minFeeAmount = planData?.minFeeAmount ?? 9.99;
   
   // 1. Taxa administrativa cobrada do COMPRADOR (15% sobre o valor do ingresso)
   const administrativeFeeAmount = Number((price * ADMINISTRATIVE_FEE_PERCENT).toFixed(2));
@@ -53,8 +52,8 @@ export function calculateFinancialBreakdown(basePrice: number, ownerPlan: string
   const customerFinalPrice = Number((price + administrativeFeeAmount).toFixed(2));
 
   // 3. Taxa do plano cobrada do PRODUTOR (Descontada do valor base do ingresso)
-  const producerFeeCalculated = Number((price * config.percent).toFixed(2));
-  const producerFeeAmount = Math.max(producerFeeCalculated, config.min);
+  const producerFeeCalculated = Number((price * feePercent).toFixed(2));
+  const producerFeeAmount = Math.max(producerFeeCalculated, minFeeAmount);
 
   // 4. Valor líquido que o produtor recebe por ingresso
   const producerNetAmount = Math.max(0, Number((price - producerFeeAmount).toFixed(2)));
@@ -65,6 +64,6 @@ export function calculateFinancialBreakdown(basePrice: number, ownerPlan: string
     administrativeFeeAmount,
     producerFeeAmount,
     producerNetAmount,
-    producerFeePercent: config.percent
+    producerFeePercent: feePercent
   };
 }

@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -35,7 +36,8 @@ import {
   Layers,
   Users,
   AtSign,
-  X
+  X,
+  Trophy
 } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
@@ -106,6 +108,12 @@ export default function EditarEventoPage() {
 
   const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
+
+  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
+  const { data: profile } = useDoc<any>(userDocRef)
+
+  const plansRef = React.useMemo(() => db ? doc(db, 'settings', 'plans') : null, [db])
+  const { data: plansSettings } = useDoc<any>(plansRef)
   
   const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
   const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
@@ -134,7 +142,12 @@ export default function EditarEventoPage() {
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
 
-  // Carregar parceiros existentes
+  // Limites do Plano
+  const userPlan = profile?.plan || "START"
+  const planLimits = profile?.planOverride || plansSettings?.[userPlan.toLowerCase()] || {}
+  const maxTickets = planLimits?.maxTicketsPerEvent ?? 30
+  const isLimitedByTickets = maxTickets > 0
+
   useEffect(() => {
     if (!db || !eventId) return
     const fetchPartners = async () => {
@@ -249,6 +262,11 @@ export default function EditarEventoPage() {
     const total = parseInt(totalToDistribute)
     if (isNaN(total)) return
 
+    if (isLimitedByTickets && total > maxTickets) {
+      toast({ variant: "destructive", title: "Limite do Plano", description: `Seu plano permite no máximo ${maxTickets} ingressos por evento.` })
+      return
+    }
+
     const meiaPoolId = crypto.randomUUID()
     const meiaQuantity = Math.floor(total * 0.4)
     const inteiraQuantity = total - meiaQuantity
@@ -269,7 +287,17 @@ export default function EditarEventoPage() {
   const updateBatchField = (i: number, f: keyof Batch, v: any) => { const n = [...batches]; n[i] = { ...n[i], [f]: v }; setBatches(n); }
   const addTicketType = (bi: number) => { const n = [...batches]; n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 50, requiresProof: false, isLegalHalf: false, description: "" }); setBatches(n); }
   const removeTicketType = (bi: number, ti: number) => { const n = [...batches]; if(n[bi].ticketTypes.length > 1) { n[bi].ticketTypes.splice(ti, 1); setBatches(n); } }
-  const updateTicketTypeField = (bi: number, ti: number, f: keyof TicketType, v: any) => { const n = [...batches]; n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; setBatches(n); }
+  
+  const updateTicketTypeField = (bi: number, ti: number, f: keyof TicketType, v: any) => { 
+    if (f === 'quantity' && isLimitedByTickets) {
+      const val = parseInt(v) || 0
+      if (val > maxTickets) {
+        toast({ variant: "destructive", title: "Limite atingido", description: `Seu plano atual permite apenas ${maxTickets} ingressos.` })
+        return
+      }
+    }
+    const n = [...batches]; n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; setBatches(n); 
+  }
 
   const calculateHalfPriceStats = (batch: Batch) => {
     const poolQuantities: Record<string, number> = {}
@@ -296,6 +324,16 @@ export default function EditarEventoPage() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!db || !user || !eventRef || !isAtLeastEditor) return
+
+    // Validar total de ingressos do plano
+    if (isLimitedByTickets) {
+      const totalTickets = batches.reduce((acc, b) => acc + calculateHalfPriceStats(b).total, 0)
+      if (totalTickets > maxTickets) {
+         toast({ variant: "destructive", title: "Muitos ingressos", description: `Seu plano permite no máximo ${maxTickets} ingressos.` })
+         return
+      }
+    }
+
     setSaving(true)
     const formData = new FormData(e.currentTarget)
     try {
@@ -357,6 +395,17 @@ export default function EditarEventoPage() {
         <Button variant="ghost" size="icon" asChild><Link href="/dashboard/projetos"><ArrowLeft className="w-5 h-5" /></Link></Button>
         <h1 className="text-3xl font-black italic tracking-tighter text-primary uppercase">Editar Evento</h1>
       </div>
+
+      {isLimitedByTickets && (
+         <Card className="border-none bg-orange-50 border-2 border-dashed border-orange-200 rounded-3xl">
+            <CardContent className="p-4 flex items-center gap-3">
+               <Trophy className="w-5 h-5 text-orange-600" />
+               <p className="text-xs font-bold text-orange-800 uppercase italic">
+                  Plano {userPlan}: Você pode gerenciar até {maxTickets} ingressos para este evento.
+               </p>
+            </CardContent>
+         </Card>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-8">
          <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
@@ -502,8 +551,8 @@ export default function EditarEventoPage() {
                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <CardTitle className="text-lg">Ingressos</CardTitle>
                   <div className="bg-white p-1 rounded-xl border flex gap-1">
-                    <Button type="button" variant={ticketMode === 'free' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('free'); setBatches([{ id: crypto.randomUUID(), name: "Grátis", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Entrada Franca", price: 0, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Grátis</Button>
-                    <Button type="button" variant={ticketMode === 'paid_single' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('paid_single'); setBatches([{ id: crypto.randomUUID(), name: "Único", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Único</Button>
+                    <Button type="button" variant={ticketMode === 'free' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('free'); setBatches([{ id: crypto.randomUUID(), name: "Grátis", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Entrada Franca", price: 0, quantity: isLimitedByTickets ? maxTickets : 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Grátis</Button>
+                    <Button type="button" variant={ticketMode === 'paid_single' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('paid_single'); setBatches([{ id: crypto.randomUUID(), name: "Único", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: isLimitedByTickets ? maxTickets : 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Único</Button>
                     <Button type="button" variant={ticketMode === 'batches' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('batches')}>Lotes</Button>
                   </div>
                </div>
@@ -525,8 +574,8 @@ export default function EditarEventoPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" disabled={isFreeMode} /></div>
                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Início das Vendas</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
-                            <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Fim das Vendas</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                            <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity(40)">Início das Vendas</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                            <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity(40)">Fim das Vendas</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
                          </div>
                       </div>
 
