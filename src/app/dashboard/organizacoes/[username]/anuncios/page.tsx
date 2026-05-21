@@ -39,7 +39,8 @@ import {
   Layout,
   RefreshCw,
   Wallet,
-  Undo2
+  Undo2,
+  MousePointer2
 } from "lucide-react"
 import {
   Dialog,
@@ -204,7 +205,7 @@ export default function OrganizationAdsPage() {
       adImage: adImageUrl || (adType === 'pagina' ? currentOrg.avatar : null),
       organizationId: currentOrg.id, organizerId: user.uid,
       type: adType, status: status, dailyBudget, initialBudget: totalBudget, remainingBudget: totalBudget, budget: totalBudget, 
-      durationDays: days, startDate: start, endDate: end, reach: 0, clicks: 0, createdAt: serverTimestamp()
+      durationDays: days, startDate: start, endDate: end, reach: 0, uniqueReach: 0, clicks: 0, createdAt: serverTimestamp()
     }
 
     try {
@@ -258,11 +259,17 @@ export default function OrganizationAdsPage() {
   }
 
   const stats = React.useMemo(() => {
-    if (!ads) return { reach: 0, clicks: 0, active: 0 }
-    return ads.reduce((acc, ad) => {
-      acc.reach += (ad.reach || 0); acc.clicks += (ad.clicks || 0);
-      if (ad.status === 'Ativo') acc.active++; return acc
-    }, { reach: 0, clicks: 0, active: 0 })
+    if (!ads) return { reach: 0, uniqueReach: 0, clicks: 0, active: 0, avgCtr: 0 }
+    const res = ads.reduce((acc, ad) => {
+      acc.reach += (ad.reach || 0); 
+      acc.uniqueReach += (ad.uniqueReach || 0);
+      acc.clicks += (ad.clicks || 0);
+      if (ad.status === 'Ativo') acc.active++; 
+      return acc
+    }, { reach: 0, uniqueReach: 0, clicks: 0, active: 0 })
+    
+    const ctr = res.reach > 0 ? (res.clicks / res.reach) * 100 : 0
+    return { ...res, avgCtr: ctr }
   }, [ads])
 
   if (orgLoading || adsLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
@@ -318,11 +325,32 @@ export default function OrganizationAdsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="border-none shadow-sm bg-primary text-white overflow-hidden relative group"><CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Engajamento Total</CardTitle></CardHeader><CardContent><div className="text-3xl font-black">{(stats.reach + stats.clicks).toLocaleString()}</div></CardContent><Eye className="absolute -bottom-2 -right-2 w-20 h-20 opacity-5 rotate-12" /></Card>
-        <Card className="border-none shadow-sm bg-white"><CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Saldo Disponível</CardTitle></CardHeader><CardContent><div className="text-3xl font-black text-foreground">{formatCurrency(currentOrg?.adBalance || 0)}</div></CardContent></Card>
-        <Card className="border-none shadow-sm bg-white border-l-4 border-secondary"><CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Bloqueado (Ativos)</CardTitle></CardHeader><CardContent><div className="text-3xl font-black text-secondary">{formatCurrency(currentOrg?.blockedBalance || 0)}</div></CardContent></Card>
-        <Card className="border-none shadow-sm bg-white"><CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Ativos Hoje</CardTitle></CardHeader><CardContent><div className="text-3xl font-black text-primary">{stats.active}</div></CardContent></Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+        <Card className="border-none shadow-sm bg-primary text-white overflow-hidden relative group">
+          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Visualizações</CardTitle></CardHeader>
+          <CardContent><div className="text-3xl font-black">{(stats.reach).toLocaleString()}</div></CardContent>
+          <Eye className="absolute -bottom-2 -right-2 w-20 h-20 opacity-5 rotate-12" />
+        </Card>
+        <Card className="border-none shadow-sm bg-white border-l-4 border-secondary">
+          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Alcance Único</CardTitle></CardHeader>
+          <CardContent><div className="text-3xl font-black text-secondary">{(stats.uniqueReach).toLocaleString()}</div></CardContent>
+          <Users className="absolute -bottom-2 -right-2 w-16 h-16 opacity-5 rotate-12" />
+        </Card>
+        <Card className="border-none shadow-sm bg-white border-l-4 border-primary">
+          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Cliques</CardTitle></CardHeader>
+          <CardContent><div className="text-3xl font-black text-primary">{(stats.clicks).toLocaleString()}</div></CardContent>
+          <MousePointer2 className="absolute -bottom-2 -right-2 w-16 h-16 opacity-5 rotate-12" />
+        </Card>
+        <Card className="border-none shadow-sm bg-white">
+          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">CTR Médio</CardTitle></CardHeader>
+          <CardContent><div className="text-3xl font-black">{stats.avgCtr.toFixed(2)}%</div></CardContent>
+          <TrendingUp className="absolute -bottom-2 -right-2 w-16 h-16 opacity-5 rotate-12" />
+        </Card>
+        <Card className="border-none shadow-sm bg-secondary text-white">
+          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Saldo Livre</CardTitle></CardHeader>
+          <CardContent><div className="text-2xl font-black">{formatCurrency(currentOrg?.adBalance || 0)}</div></CardContent>
+          <Wallet className="absolute -bottom-2 -right-2 w-16 h-16 opacity-5 rotate-12" />
+        </Card>
       </div>
 
       <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
@@ -332,16 +360,38 @@ export default function OrganizationAdsPage() {
             <div className="divide-y">{ads.map((ad: any) => {
               const isFinished = ad.status === 'Finalizado' || ad.status === 'Cancelado';
               const usedAmount = (ad.initialBudget || ad.budget || 0) - (ad.remainingBudget || 0);
+              const ctr = ad.reach > 0 ? (ad.clicks / ad.reach) * 100 : 0;
               return (
                 <div key={ad.id} className={cn("p-8 flex flex-col gap-8 transition-colors lg:flex-row lg:items-center lg:justify-between hover:bg-muted/10", isFinished && "opacity-50")}>
-                  <div className="flex gap-4 min-w-[300px]"><div className="p-4 rounded-2xl bg-secondary/10 h-fit border border-secondary/10">{ad.type === 'evento' ? <Calendar className="w-6 h-6 text-secondary" /> : ad.type === 'pagina' ? <Layout className="w-6 h-6 text-secondary" /> : <Megaphone className="w-6 h-6 text-secondary" />}</div>
-                  <div className="space-y-1"><div className="flex items-center gap-2"><h4 className="font-bold text-base uppercase truncate max-w-[200px]">{ad.eventTitle}</h4><Badge className={cn("text-[8px] font-black uppercase h-4", ad.status === 'Ativo' ? "bg-green-500" : ad.status === 'Pendente' ? "bg-orange-500" : "bg-muted")}>{ad.status}</Badge></div>
-                  <div className="text-[10px] font-black text-muted-foreground uppercase flex flex-col gap-1.5 mt-2"><span className="flex items-center gap-1.5 text-secondary"><Target className="w-3.5 h-3.5" /> Objetivo: {ad.type}</span><div className="flex flex-wrap items-center gap-x-4 gap-y-1"><span>Início: {formatAdDate(ad.startDate)}</span><span className="text-destructive">Fim: {formatAdDate(ad.endDate)}</span></div></div></div></div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 flex-1 text-center bg-muted/20 p-4 rounded-2xl lg:bg-transparent lg:p-0">
-                     <div className="space-y-1"><p className="text-[9px] font-black opacity-40 uppercase">Investimento</p><p className="font-black text-sm">{formatCurrency(ad.initialBudget || ad.budget || 0)}</p></div>
-                     <div className="space-y-1"><p className="text-[9px] font-black text-primary uppercase">Utilizado</p><p className="font-black text-primary text-sm">{formatCurrency(usedAmount)}</p></div>
-                     <div className="space-y-1"><p className={cn("text-[9px] font-black uppercase", isFinished ? "text-green-600" : "text-secondary")}>{isFinished ? "Estornado" : "Restante"}</p><p className={cn("font-black text-sm", isFinished ? "text-green-600" : "text-secondary")}>{formatCurrency(isFinished ? ad.refundedAmount || 0 : ad.remainingBudget || 0)}</p></div>
+                  <div className="flex gap-4 min-w-[280px]">
+                    <div className="p-4 rounded-2xl bg-secondary/10 h-fit border border-secondary/10">
+                      {ad.type === 'evento' ? <Calendar className="w-6 h-6 text-secondary" /> : ad.type === 'pagina' ? <Layout className="w-6 h-6 text-secondary" /> : <Megaphone className="w-6 h-6 text-secondary" />}
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-base uppercase truncate max-w-[180px]">{ad.eventTitle}</h4>
+                        <Badge className={cn("text-[8px] font-black uppercase h-4", ad.status === 'Ativo' ? "bg-green-500" : ad.status === 'Pendente' ? "bg-orange-500" : "bg-muted")}>{ad.status}</Badge>
+                      </div>
+                      <div className="text-[10px] font-black text-muted-foreground uppercase flex flex-col gap-1.5 mt-2">
+                        <span className="flex items-center gap-1.5 text-secondary"><Target className="w-3.5 h-3.5" /> {ad.type}</span>
+                        <span>Fim: {formatAdDate(ad.endDate)}</span>
+                      </div>
+                    </div>
                   </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 flex-1 text-center bg-muted/20 p-4 rounded-2xl lg:bg-transparent lg:p-0">
+                     <div className="space-y-1"><p className="text-[9px] font-black opacity-40 uppercase">Visualizações</p><p className="font-black text-sm">{ad.reach?.toLocaleString()}</p></div>
+                     <div className="space-y-1"><p className="text-[9px] font-black opacity-40 uppercase">Alcance Único</p><p className="font-black text-sm">{ad.uniqueReach?.toLocaleString() || 0}</p></div>
+                     <div className="space-y-1"><p className="text-[9px] font-black text-primary uppercase">Cliques</p><p className="font-black text-primary text-sm">{ad.clicks?.toLocaleString()}</p></div>
+                     <div className="space-y-1"><p className="text-[9px] font-black text-secondary uppercase">CTR</p><p className="font-black text-secondary text-sm">{ctr.toFixed(2)}%</p></div>
+                  </div>
+
+                  <div className="flex flex-col gap-1 min-w-[140px] text-right">
+                     <p className="text-[9px] font-black uppercase opacity-40">Investimento</p>
+                     <p className="font-black text-sm">{formatCurrency(ad.initialBudget || ad.budget || 0)}</p>
+                     <p className="text-[10px] font-bold text-secondary uppercase">Saldo: {formatCurrency(isFinished ? ad.refundedAmount || 0 : ad.remainingBudget || 0)}</p>
+                  </div>
+
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl border-secondary/20 text-secondary" onClick={() => setSelectedAdForMetrics(ad)}><TrendingUp className="w-5 h-5" /></Button>
                     {!isFinished && (
@@ -360,10 +410,29 @@ export default function OrganizationAdsPage() {
 
       <Dialog open={!!selectedAdForMetrics} onOpenChange={(o) => !o && setSelectedAdForMetrics(null)}>
         <DialogContent className="max-w-2xl rounded-[2.5rem]">
-           <DialogHeader><DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Métricas de Performance</DialogTitle><DialogDescription className="font-bold text-secondary uppercase">{selectedAdForMetrics?.eventTitle}</DialogDescription></DialogHeader>
+           <DialogHeader>
+              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Métricas de Performance</DialogTitle>
+              <DialogDescription className="font-bold text-secondary uppercase">{selectedAdForMetrics?.eventTitle}</DialogDescription>
+           </DialogHeader>
+           
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="p-4 bg-muted/30 rounded-2xl text-center">
+                 <p className="text-[9px] font-black uppercase opacity-40">Visu. Totais</p>
+                 <p className="text-xl font-black">{selectedAdForMetrics?.reach?.toLocaleString()}</p>
+              </div>
+              <div className="p-4 bg-secondary/10 rounded-2xl text-center">
+                 <p className="text-[9px] font-black uppercase text-secondary">Alcance Único</p>
+                 <p className="text-xl font-black text-secondary">{selectedAdForMetrics?.uniqueReach?.toLocaleString() || 0}</p>
+              </div>
+              <div className="p-4 bg-primary/10 rounded-2xl text-center">
+                 <p className="text-[9px] font-black uppercase text-primary">Cliques Reais</p>
+                 <p className="text-xl font-black text-primary">{selectedAdForMetrics?.clicks?.toLocaleString()}</p>
+              </div>
+           </div>
+
            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-6">
               <div className="space-y-6">
-                 <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Users className="w-4 h-4" /> Distribuição por Sexo</h4>
+                 <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Users className="w-4 h-4" /> Perfil de Gênero</h4>
                  <div className="space-y-4">
                     <DemographicBar label="Masculino" value={selectedAdForMetrics?.stats_gender_masculino || 0} total={selectedAdForMetrics?.reach || 1} color="bg-blue-500" />
                     <DemographicBar label="Feminino" value={selectedAdForMetrics?.stats_gender_feminino || 0} total={selectedAdForMetrics?.reach || 1} color="bg-pink-500" />
@@ -374,7 +443,7 @@ export default function OrganizationAdsPage() {
                  </div>
               </div>
               <div className="space-y-6">
-                 <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Clock className="w-4 h-4" /> Faixa Etária</h4>
+                 <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Clock className="w-4 h-4" /> Distribuição de Idade</h4>
                  <div className="space-y-4">
                     <DemographicBar label="0 - 18 anos" value={selectedAdForMetrics?.stats_age_0_18 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-teal-400" />
                     <DemographicBar label="19 - 24" value={selectedAdForMetrics?.stats_age_19_24 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-emerald-400" />
@@ -388,7 +457,7 @@ export default function OrganizationAdsPage() {
                  </div>
               </div>
            </div>
-           <div className="p-4 bg-muted/30 rounded-2xl flex gap-3"><Info className="w-5 h-5 text-secondary shrink-0" /><p className="text-[9px] text-muted-foreground font-bold uppercase">Dados baseados em usuários autenticados.</p></div>
+           <div className="p-4 bg-muted/30 rounded-2xl flex gap-3"><Info className="w-5 h-5 text-secondary shrink-0" /><p className="text-[9px] text-muted-foreground font-bold uppercase leading-tight">Métricas baseadas em usuários logados. O Alcance Único identifica indivíduos únicos, enquanto as Visualizações contam cada exibição do card.</p></div>
         </DialogContent>
       </Dialog>
 

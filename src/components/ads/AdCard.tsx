@@ -11,7 +11,7 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useFirestore, useDoc, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
-import { doc, updateDoc, increment, serverTimestamp, collection, query, where } from "firebase/firestore"
+import { doc, updateDoc, increment, serverTimestamp, collection, query, where, getDoc, setDoc } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
@@ -94,7 +94,7 @@ export function AdCard({ ad }: AdCardProps) {
     if (!db || !adsSettings || hasTrackedImpression.current) return
 
     const observer = new IntersectionObserver(
-      (entries) => {
+      async (entries) => {
         if (entries[0].isIntersecting && !hasTrackedImpression.current) {
           hasTrackedImpression.current = true
           const cost = (adsSettings.cpmValue || 0) / 1000
@@ -102,12 +102,24 @@ export function AdCard({ ad }: AdCardProps) {
           const adRef = doc(db, "ads", ad.id)
           const demoUpdate = getDemographicsUpdate()
 
-          updateDoc(adRef, { 
+          const updateData: any = { 
             reach: increment(1),
             remainingBudget: increment(-cost),
             updatedAt: serverTimestamp(),
             ...demoUpdate
-          }).then(() => {
+          };
+
+          // Alcance Único
+          if (user) {
+            const viewerRef = doc(db, "ads", ad.id, "viewers", user.uid);
+            const viewerSnap = await getDoc(viewerRef);
+            if (!viewerSnap.exists()) {
+              await setDoc(viewerRef, { timestamp: serverTimestamp() });
+              updateData.uniqueReach = increment(1);
+            }
+          }
+
+          updateDoc(adRef, updateData).then(() => {
             if (ad.organizationId) {
               updateDoc(doc(db, "organizations", ad.organizationId), {
                 blockedBalance: increment(-cost)
@@ -122,7 +134,7 @@ export function AdCard({ ad }: AdCardProps) {
 
     if (cardRef.current) observer.observe(cardRef.current)
     return () => observer.disconnect()
-  }, [ad.id, ad.organizationId, db, adsSettings, userProfile])
+  }, [ad.id, ad.organizationId, db, adsSettings, userProfile, user])
 
   const handleClick = () => {
     if (db && adsSettings) {

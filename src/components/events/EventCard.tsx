@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { calculateDistance, type Coordinates } from "@/lib/location-utils"
 import { useFirestore, useDoc, useAuth, useUser } from "@/firebase"
-import { doc, updateDoc, increment, serverTimestamp } from "firebase/firestore"
+import { doc, updateDoc, increment, serverTimestamp, getDoc, setDoc } from "firebase/firestore"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
@@ -133,7 +133,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     if (!isSponsored || !event.adId || !db || !adsSettings || hasTrackedImpression.current) return
 
     const observer = new IntersectionObserver(
-      (entries) => {
+      async (entries) => {
         if (entries[0].isIntersecting && !hasTrackedImpression.current) {
           hasTrackedImpression.current = true
           
@@ -143,12 +143,24 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           const adRef = doc(db, "ads", event.adId)
           const demoUpdate = getDemographicsUpdate();
 
-          updateDoc(adRef, { 
+          const updateData: any = { 
             reach: increment(1),
             remainingBudget: increment(-costPerImpression),
             updatedAt: serverTimestamp(),
             ...demoUpdate
-          }).then(() => {
+          };
+
+          // Alcance Único
+          if (user) {
+            const viewerRef = doc(db, "ads", event.adId, "viewers", user.uid);
+            const viewerSnap = await getDoc(viewerRef);
+            if (!viewerSnap.exists()) {
+              await setDoc(viewerRef, { timestamp: serverTimestamp() });
+              updateData.uniqueReach = increment(1);
+            }
+          }
+
+          updateDoc(adRef, updateData).then(() => {
             if (event.organizationId) {
               updateDoc(doc(db, "organizations", event.organizationId), {
                 blockedBalance: increment(-costPerImpression)
@@ -166,7 +178,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
     if (cardRef.current) observer.observe(cardRef.current)
     return () => observer.disconnect()
-  }, [isSponsored, event.adId, db, adsSettings, userProfile, event.organizationId])
+  }, [isSponsored, event.adId, db, adsSettings, userProfile, event.organizationId, user]);
 
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
