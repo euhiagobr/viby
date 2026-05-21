@@ -36,7 +36,6 @@ export default function ExplorarPage() {
 
   const { data: events, loading, error } = useCollection<any>(eventsQuery)
 
-  // Consulta de Anúncios Ativos
   const adsQuery = useMemoFirebase(() => {
     if (!db) return null
     return query(collection(db, "ads"), where("status", "==", "Ativo"))
@@ -77,18 +76,15 @@ export default function ExplorarPage() {
     return result;
   }, [events, search, filter, userLocation])
 
-  // Lógica de Intercalação de ADS com Prioridade por Orçamento e Horário Sincronizado
   const interleavedContent = React.useMemo(() => {
     const now = new Date()
 
-    // Helper para converter campos de data que podem ser string ou Timestamp
     const parseAdDate = (val: any) => {
       if (!val) return null;
-      if (typeof val.toDate === 'function') return val.toDate(); // Firestore Timestamp
-      return new Date(val); // ISO String ou objeto Date
+      if (typeof val.toDate === 'function') return val.toDate();
+      return new Date(val);
     };
 
-    // 1. Pool de anúncios patrocinados válidos
     const sponsoredPool = (activeAds || [])
       .map((ad: any) => {
         const start = parseAdDate(ad.startDate);
@@ -101,21 +97,22 @@ export default function ExplorarPage() {
 
         if (ad.type === 'evento') {
           const fullEvent = events?.find((e: any) => e.id === ad.eventId)
-          if (!fullEvent) return null
+          if (!fullEvent) {
+            // Se o evento não estiver na lista carregada, usamos os dados do anúncio
+            return { ...ad, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: true }
+          }
           return { ...fullEvent, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: false }
         }
 
+        // Marcas, Banners e Links
         return { ...ad, isSponsored: true, _remainingBudget: ad.remainingBudget, _isAdObject: true }
       })
       .filter(Boolean)
-      .sort((a, b) => (b._remainingBudget || 0) - (a._remainingBudget || 0))
+      .sort((a: any, b: any) => (b._remainingBudget || 0) - (a._remainingBudget || 0))
 
     const organic = (filteredEvents || []).map(e => ({ ...e, isSponsored: false, _isAdObject: false }))
 
-    // Se não houver orgânicos, mostra apenas patrocinados
     if (organic.length === 0) return sponsoredPool
-
-    // Se não houver patrocinados, mostra apenas orgânicos
     if (sponsoredPool.length === 0) return organic
 
     const result = []
@@ -125,21 +122,17 @@ export default function ExplorarPage() {
     let organicIdx = 0
     let adIdx = 0
 
-    // Loop de intercalação
     while (organicIdx < filteredOrganic.length || adIdx < sponsoredPool.length) {
-      // Adiciona bloco orgânico
-      const interval = Math.floor(Math.random() * 4) + 4
+      const interval = Math.floor(Math.random() * 3) + 3
       const chunk = filteredOrganic.slice(organicIdx, organicIdx + interval)
       result.push(...chunk)
       organicIdx += interval
 
-      // Insere anúncio patrocinado
       if (adIdx < sponsoredPool.length) {
         result.push(sponsoredPool[adIdx])
         adIdx++
       } else if (sponsoredPool.length > 0 && organicIdx < filteredOrganic.length) {
-        // Repetição se houver muitos eventos orgânicos
-        const topWeightedIdx = Math.floor(Math.random() * Math.ceil(sponsoredPool.length / 2))
+        const topWeightedIdx = Math.floor(Math.random() * Math.min(3, sponsoredPool.length))
         result.push(sponsoredPool[topWeightedIdx])
       }
     }
@@ -208,10 +201,10 @@ export default function ExplorarPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {interleavedContent.map((item: any, idx: number) => (
           item._isAdObject ? (
-            <AdCard key={`${item.id}-${idx}`} ad={item} />
+            <AdCard key={`ad-${item.id}-${idx}`} ad={item} />
           ) : (
             <EventCard 
-              key={`${item.id}-${idx}`} 
+              key={`event-${item.id}-${idx}`} 
               event={item} 
               userLocation={userLocation} 
               isSponsored={item.isSponsored}

@@ -2,9 +2,9 @@
 "use client"
 
 import * as React from "react"
-import { ExternalLink, Globe, Layout, Megaphone, Navigation, Users, CheckCircle2 } from "lucide-react"
+import { ExternalLink, Globe, Layout, Megaphone, Navigation, Users, CheckCircle2, ArrowRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
@@ -33,11 +33,9 @@ export function AdCard({ ad }: AdCardProps) {
   const cardRef = React.useRef<HTMLDivElement>(null)
   const hasTrackedImpression = React.useRef(false)
 
-  // Dados da Organização para o card de Página
   const orgRef = React.useMemo(() => (db && ad.organizationId) ? doc(db, "organizations", ad.organizationId) : null, [db, ad.organizationId])
   const { data: organization } = useDoc<any>(orgRef)
 
-  // Seguidores para o card de Página
   const followersQuery = useMemoFirebase(() => {
     if (!db || !ad.organizationId) return null
     return query(collection(db, "follows"), where("followingId", "==", ad.organizationId))
@@ -98,13 +96,16 @@ export function AdCard({ ad }: AdCardProps) {
     }
   }
 
-  // Se for um anúncio de evento comum, usa o EventCard que já possui sua própria lógica
-  if (ad.type === 'evento') {
-    return <EventCard event={{...ad, id: ad.eventId}} isSponsored />
+  if (ad.type === 'evento' && !ad._isAdObject) {
+    return <EventCard event={ad} isSponsored />
   }
 
-  // Card para "Página da Marca"
   if (ad.type === 'pagina') {
+    const dispName = organization?.name || ad.eventTitle || "Organização"
+    const dispUsername = organization?.username || "marca"
+    const dispAvatar = organization?.avatar || ad.adImage || ""
+    const dispBanner = organization?.banner || "https://picsum.photos/seed/banner/800/400"
+
     return (
       <Card ref={cardRef} onClick={handleClick} className="group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[2rem] cursor-pointer relative ring-2 ring-secondary/10">
         <div className="absolute top-0 right-0 z-20">
@@ -114,7 +115,7 @@ export function AdCard({ ad }: AdCardProps) {
         </div>
 
         <div className="relative h-32 w-full bg-muted">
-          <Image src={organization?.banner || "https://picsum.photos/seed/banner/800/400"} alt="Capa" fill className="object-cover" unoptimized />
+          <Image src={dispBanner} alt="Capa" fill className="object-cover" unoptimized />
           <div className="absolute inset-0 bg-black/20" />
         </div>
 
@@ -122,18 +123,18 @@ export function AdCard({ ad }: AdCardProps) {
           <div className="absolute -top-12 left-1/2 -translate-x-1/2">
              <div className="p-1 bg-background rounded-full shadow-xl ring-4 ring-background">
                 <Avatar className="h-20 w-20">
-                   <AvatarImage src={organization?.avatar} className="object-cover" />
-                   <AvatarFallback className="font-bold text-xl">{organization?.name?.charAt(0)}</AvatarFallback>
+                   <AvatarImage src={dispAvatar} className="object-cover" />
+                   <AvatarFallback className="font-bold text-xl">{dispName.charAt(0)}</AvatarFallback>
                 </Avatar>
              </div>
           </div>
           
           <div className="space-y-1">
              <div className="flex items-center justify-center gap-1.5">
-                <h3 className="text-lg font-black uppercase italic tracking-tighter">{organization?.name || ad.eventTitle}</h3>
+                <h3 className="text-lg font-black uppercase italic tracking-tighter">{dispName}</h3>
                 {organization?.verified && <InstagramVerifiedBadge />}
              </div>
-             <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">@{organization?.username}</p>
+             <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">@{dispUsername}</p>
           </div>
 
           <div className="flex items-center justify-center gap-6 mt-6 py-4 border-y border-dashed border-border/60">
@@ -156,7 +157,6 @@ export function AdCard({ ad }: AdCardProps) {
     )
   }
 
-  // Card para "Banner" ou "Link Externo"
   return (
     <Card ref={cardRef} onClick={handleClick} className="group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[2rem] cursor-pointer relative ring-2 ring-secondary/10">
        <div className="absolute top-0 right-0 z-20">

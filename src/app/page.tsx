@@ -46,7 +46,6 @@ export default function LandingPage() {
   const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
 
-  // Consulta de Anúncios Ativos
   const adsQuery = useMemoFirebase(() => {
     if (!db) return null
     return query(collection(db, "ads"), where("status", "==", "Ativo"))
@@ -116,7 +115,6 @@ export default function LandingPage() {
       return new Date(val);
     };
 
-    // 1. Pool de anúncios ativos e válidos
     const sponsoredPool = (activeAds || [])
       .map((ad: any) => {
         const start = parseAdDate(ad.startDate);
@@ -128,7 +126,10 @@ export default function LandingPage() {
 
         if (ad.type === 'evento') {
           const fullEvent = events?.find((e: any) => e.id === ad.eventId)
-          return fullEvent ? { ...fullEvent, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: false } : null
+          if (!fullEvent) {
+            return { ...ad, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: true }
+          }
+          return { ...fullEvent, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: false }
         }
 
         return { ...ad, isSponsored: true, _remainingBudget: ad.remainingBudget, _isAdObject: true }
@@ -138,10 +139,7 @@ export default function LandingPage() {
 
     const organic = (filteredEvents || []).map(e => ({ ...e, isSponsored: false, _isAdObject: false }))
 
-    // Se não houver orgânicos, mostra apenas patrocinados
     if (organic.length === 0) return sponsoredPool
-
-    // Se não houver patrocinados, mostra apenas orgânicos
     if (sponsoredPool.length === 0) return organic
 
     const result = []
@@ -152,7 +150,7 @@ export default function LandingPage() {
     let adIdx = 0
 
     while (organicIdx < filteredOrganic.length || adIdx < sponsoredPool.length) {
-      const interval = Math.floor(Math.random() * 4) + 4
+      const interval = Math.floor(Math.random() * 3) + 3
       const chunk = filteredOrganic.slice(organicIdx, organicIdx + interval)
       result.push(...chunk)
       organicIdx += interval
@@ -161,7 +159,7 @@ export default function LandingPage() {
         result.push(sponsoredPool[adIdx])
         adIdx++
       } else if (sponsoredPool.length > 0 && organicIdx < filteredOrganic.length) {
-        const topWeightedIdx = Math.floor(Math.random() * Math.ceil(sponsoredPool.length / 2))
+        const topWeightedIdx = Math.floor(Math.random() * Math.min(3, sponsoredPool.length))
         result.push(sponsoredPool[topWeightedIdx])
       }
     }
@@ -306,10 +304,10 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
             {interleavedContent.map((item: any, idx: number) => (
               item._isAdObject ? (
-                <AdCard key={`${item.id}-${idx}`} ad={item} />
+                <AdCard key={`ad-land-${item.id}-${idx}`} ad={item} />
               ) : (
                 <EventCard 
-                  key={`${item.id}-${idx}`} 
+                  key={`event-land-${item.id}-${idx}`} 
                   event={item} 
                   userLocation={userLocation} 
                   isSponsored={item.isSponsored}
