@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -57,8 +56,6 @@ export function AppSidebar() {
     }
   }
 
-  const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
-
   const personalItems = [
     { title: "Explorar", url: "/dashboard", icon: Globe },
     { title: "Meus Ingressos", url: "/dashboard/ingressos", icon: Ticket },
@@ -69,12 +66,38 @@ export function AppSidebar() {
     { title: "Suporte", url: "/dashboard/suporte", icon: LifeBuoy },
   ];
 
+  // RBAC Sidebar Rules
   const orgItems = currentOrg ? [
-    { title: "Dashboard", url: `/dashboard/organizacoes/${currentOrg.username}`, icon: LayoutGrid },
-    { title: "Eventos", url: `/dashboard/organizacoes/${currentOrg.username}/events`, icon: Megaphone, visible: isAtLeastEditor },
-    { title: "Equipe", url: `/dashboard/organizacoes/${currentOrg.username}/equipe`, icon: Users, visible: ['owner', 'admin'].includes(userRole || '') },
-    { title: "Financeiro", url: `/dashboard/organizacoes/${currentOrg.username}/finance`, icon: Wallet, visible: ['owner', 'admin', 'finance'].includes(userRole || '') },
-    { title: "Configurações", url: `/dashboard/organizacoes/${currentOrg.username}/settings`, icon: Settings, visible: ['owner', 'admin'].includes(userRole || '') },
+    { 
+      title: "Dashboard", 
+      url: `/dashboard/organizacoes/${currentOrg.username}`, 
+      icon: LayoutGrid,
+      visible: true 
+    },
+    { 
+      title: "Eventos", 
+      url: `/dashboard/organizacoes/${currentOrg.username}/events`, 
+      icon: Megaphone, 
+      visible: true // Todos veem a lista (para checkin ou consulta)
+    },
+    { 
+      title: "Equipe", 
+      url: `/dashboard/organizacoes/${currentOrg.username}/equipe`, 
+      icon: Users, 
+      visible: ['owner', 'admin'].includes(userRole || '') 
+    },
+    { 
+      title: "Financeiro", 
+      url: `/dashboard/organizacoes/${currentOrg.username}/finance`, 
+      icon: Wallet, 
+      visible: ['owner', 'admin', 'finance'].includes(userRole || '') 
+    },
+    { 
+      title: "Configurações", 
+      url: `/dashboard/organizacoes/${currentOrg.username}/settings`, 
+      icon: Settings, 
+      visible: ['owner', 'admin', 'editor'].includes(userRole || '') 
+    },
   ].filter(item => item.visible !== false) : [];
 
   return (

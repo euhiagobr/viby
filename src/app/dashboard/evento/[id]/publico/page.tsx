@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -36,7 +35,8 @@ import {
   DollarSign,
   TrendingUp,
   Percent,
-  Layers
+  Layers,
+  ShieldAlert
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -47,6 +47,7 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Html5Qrcode } from "html5-qrcode"
 import { formatCurrency } from "@/lib/financial-utils"
+import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 
 export default function EventoPublicoPage() {
   const params = useParams()
@@ -55,6 +56,7 @@ export default function EventoPublicoPage() {
   const db = useFirestore()
   const auth = useAuth()
   const { user: currentUser } = useUser(auth)
+  const { userRole } = useCurrentOrganization()
   
   const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
@@ -109,6 +111,8 @@ export default function EventoPublicoPage() {
       (reg.ticketCode?.toLowerCase() || "").includes(search.toLowerCase())
     )
   }, [registrations, search])
+
+  const canAction = ['owner', 'admin', 'editor', 'checkin'].includes(userRole || '');
 
   const startScanning = async () => {
     setScanMode('scanning');
@@ -229,7 +233,7 @@ export default function EventoPublicoPage() {
   }
 
   const handleCheckIn = async (regId: string, currentStatus: boolean) => {
-    if (!db) return
+    if (!db || !canAction) return
     try {
       await updateDoc(doc(db, "registrations", regId), {
         checkedIn: !currentStatus,
@@ -244,7 +248,7 @@ export default function EventoPublicoPage() {
   }
 
   const handleRepairData = async () => {
-    if (!db || !registrations || !event) return
+    if (!db || !registrations || !event || !['owner', 'admin'].includes(userRole || '')) return
     setIsSyncing(true)
     const batch = writeBatch(db)
     let count = 0
@@ -274,6 +278,17 @@ export default function EventoPublicoPage() {
     finally { setIsSyncing(false) }
   }
 
+  if (!canAction && userRole) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+        <ShieldAlert className="w-16 h-16 text-muted-foreground opacity-20" />
+        <h2 className="text-xl font-bold italic uppercase tracking-tighter">Acesso Negado</h2>
+        <p className="text-muted-foreground font-medium max-w-sm">Seu cargo ({userRole}) não permite realizar check-in neste evento.</p>
+        <Button asChild variant="outline" className="rounded-full mt-4"><Link href="/dashboard">Voltar</Link></Button>
+      </div>
+    );
+  }
+
   if (eventLoading) return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
   if (!event) return <div className="flex flex-col items-center justify-center h-[60vh] gap-4"><h2 className="text-2xl font-bold">Evento não encontrado</h2><Button onClick={() => router.push('/dashboard/projetos')}>Voltar</Button></div>
 
@@ -297,15 +312,17 @@ export default function EventoPublicoPage() {
             <ScanQrCode className="w-4 h-4" />
             Scanner Check-in
           </Button>
-          <Button 
-            variant="outline" 
-            className="rounded-xl font-bold gap-2 text-xs border-secondary text-secondary hover:bg-secondary/10"
-            onClick={handleRepairData}
-            disabled={isSyncing}
-          >
-            {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5" />}
-            Sincronizar
-          </Button>
+          {['owner', 'admin'].includes(userRole || '') && (
+            <Button 
+              variant="outline" 
+              className="rounded-xl font-bold gap-2 text-xs border-secondary text-secondary hover:bg-secondary/10"
+              onClick={handleRepairData}
+              disabled={isSyncing}
+            >
+              {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5" />}
+              Sincronizar
+            </Button>
+          )}
         </div>
       </div>
 
@@ -420,12 +437,14 @@ export default function EventoPublicoPage() {
                     </TableCell>
                     <TableCell><span className="text-[10px] font-mono font-bold text-secondary">{reg.ticketCode}</span></TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" onClick={async () => {
-                        if (confirm(`Remover inscrição de ${reg.userName}?`)) {
-                          await deleteDoc(doc(db!, "registrations", reg.id))
-                          toast({ title: "Inscrição removida" })
-                        }
-                      }}><Trash2 className="w-4 h-4" /></Button>
+                      {['owner', 'admin'].includes(userRole || '') && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" onClick={async () => {
+                          if (confirm(`Remover inscrição de ${reg.userName}?`)) {
+                            await deleteDoc(doc(db!, "registrations", reg.id))
+                            toast({ title: "Inscrição removida" })
+                          }
+                        }}><Trash2 className="w-4 h-4" /></Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

@@ -84,6 +84,7 @@ export default function OrganizationEventsPage() {
   }, [events, search]);
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
+  const canCheckIn = ['owner', 'admin', 'editor', 'checkin'].includes(userRole || '');
 
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
@@ -233,12 +234,14 @@ export default function OrganizationEventsPage() {
                              </Link>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem 
-                            className="flex items-center gap-2 text-destructive focus:text-destructive py-2 cursor-pointer"
-                            onSelect={() => setEventToDelete({ id: event.id, title: event.title })}
-                          >
-                            <Trash2 className="w-4 h-4" /> Excluir Evento
-                          </DropdownMenuItem>
+                          {userRole === 'owner' || userRole === 'admin' ? (
+                            <DropdownMenuItem 
+                              className="flex items-center gap-2 text-destructive focus:text-destructive py-2 cursor-pointer"
+                              onSelect={() => setEventToDelete({ id: event.id, title: event.title })}
+                            >
+                              <Trash2 className="w-4 h-4" /> Excluir Evento
+                            </DropdownMenuItem>
+                          ) : null}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     )}
@@ -265,9 +268,10 @@ export default function OrganizationEventsPage() {
                     <Button 
                       variant={isToday ? "default" : "secondary"} 
                       size="sm" 
+                      disabled={!canCheckIn}
                       className={cn(
                         "text-[10px] font-black uppercase h-9 rounded-xl gap-1.5",
-                        isToday && "bg-green-600 text-white hover:bg-green-700 shadow-md animate-pulse"
+                        isToday && canCheckIn && "bg-green-600 text-white hover:bg-green-700 shadow-md animate-pulse"
                       )} 
                       asChild
                     >

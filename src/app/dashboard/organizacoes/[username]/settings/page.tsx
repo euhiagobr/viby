@@ -23,7 +23,8 @@ import {
   Phone, 
   Mail, 
   Instagram, 
-  Info
+  Info,
+  ShieldAlert
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
@@ -102,9 +103,20 @@ export default function OrganizationSettingsPage() {
     }
   };
 
-  if (!formData) return null;
+  const canEditSettings = ['owner', 'admin', 'editor'].includes(userRole || '');
 
-  const isOwnerOrAdmin = ['owner', 'admin'].includes(userRole || '');
+  if (!canEditSettings) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+        <ShieldAlert className="w-16 h-16 text-muted-foreground opacity-20" />
+        <h2 className="text-xl font-bold italic uppercase tracking-tighter">Acesso Restrito</h2>
+        <p className="text-muted-foreground font-medium max-w-sm">Você não tem permissão para editar as configurações desta marca.</p>
+        <Button asChild variant="outline" className="rounded-full mt-4"><Link href={`/dashboard/organizacoes/${currentOrg?.username}`}>Voltar ao Início</Link></Button>
+      </div>
+    );
+  }
+
+  if (!formData) return null;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -223,7 +235,7 @@ export default function OrganizationSettingsPage() {
            <Button 
              type="submit" 
              className="bg-secondary text-white font-black h-14 rounded-2xl px-12 shadow-xl shadow-secondary/20 uppercase italic transition-all hover:scale-[1.02]"
-             disabled={saving || !isOwnerOrAdmin}
+             disabled={saving}
            >
               {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
               Salvar Alterações

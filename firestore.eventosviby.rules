@@ -1,8 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.12.0
-    // Database Exclusivo: eventosviby
+    // REGRAS VIBY - Versão: 2.13.0
+    // RBAC atualizado para suportar Proprietário, Admin, Editor, Financeiro e Check-in
     
     function isSignedIn() {
       return request.auth != null;
@@ -70,8 +70,8 @@ service cloud.firestore {
     match /organizations/{orgId} {
       allow read: if true;
       allow create: if isSignedIn();
-      // Permitir que visitantes incrementem visualizações e alcance
-      allow update: if hasOrgRole(orgId, ['owner', 'admin']) || isAdmin() || (
+      // Editor também pode atualizar configurações básicas da marca
+      allow update: if hasOrgRole(orgId, ['owner', 'admin', 'editor']) || isAdmin() || (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalViews', 'metrics_views_current', 'totalReach', 'metrics_reach_current'])
       );
       allow delete: if hasOrgRole(orgId, ['owner']) || isAdmin();
@@ -107,6 +107,7 @@ service cloud.firestore {
     match /registrations/{regId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
+      // Check-in também pode atualizar o status do ingresso
       allow update: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
         resource.data.sharedWithUid == request.auth.uid ||
