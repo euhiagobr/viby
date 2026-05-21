@@ -521,7 +521,6 @@ export default function AdminUsuariosPage() {
                     Salvar Alterações do Usuário
                  </Button>
               </DialogFooter>
-           </DialogHeader>
            </form>
         </DialogContent>
       </Dialog>
