@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -14,8 +15,7 @@ import {
   setDoc, 
   deleteDoc, 
   serverTimestamp,
-  collectionGroup,
-  or
+  collectionGroup
 } from "firebase/firestore"
 import { 
   Loader2, 
@@ -33,7 +33,8 @@ import {
   Bell,
   Plus,
   Check,
-  CheckCircle2
+  Handshake,
+  Info
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -134,7 +135,6 @@ function ProfileHeader() {
           <>
             <Button variant="ghost" size="icon" className="relative h-9 w-9">
               <Bell className="h-5 w-5" />
-              {/* Notificação para convites pendentes poderia entrar aqui */}
             </Button>
             <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold border border-border shadow-sm overflow-hidden">
               {user.photoURL ? (
@@ -162,10 +162,12 @@ function UniversalProfileContent() {
   const [data, setData] = React.useState<any>(null)
   const [type, setType] = React.useState<'user' | 'organization' | null>(null)
   const [followActionLoading, setFollowActionLoading] = React.useState(false)
-  const [mergedEvents, setMergedEvents] = React.useState<any[]>([])
+  
+  const [ownedEvents, setOwnedEvents] = React.useState<any[]>([])
+  const [partneredEvents, setPartneredEvents] = React.useState<any[]>([])
   const [eventsLoading, setEventsLoading] = React.useState(false)
 
-  // Resolvedor robusto de username com fallback
+  // Resolvedor de username
   React.useEffect(() => {
     if (!db || !username) return
 
@@ -185,20 +187,6 @@ function UniversalProfileContent() {
           const uData = usernameSnap.data()
           targetUid = uData.uid
           resolvedType = uData.type || 'user'
-        } else {
-          const usersQuery = query(collection(db, "users"), where("username", "==", username), limit(1))
-          const usersSnap = await getDocs(usersQuery)
-          if (!usersSnap.empty) {
-            targetUid = usersSnap.docs[0].id
-            resolvedType = 'user'
-          } else {
-            const orgsQuery = query(collection(db, "organizations"), where("username", "==", username), limit(1))
-            const orgsSnap = await getDocs(orgsQuery)
-            if (!orgsSnap.empty) {
-              targetUid = orgsSnap.docs[0].id
-              resolvedType = 'organization'
-            }
-          }
         }
 
         if (targetUid && resolvedType) {
@@ -220,7 +208,7 @@ function UniversalProfileContent() {
     resolveUsername()
   }, [db, username])
 
-  // Busca eventos híbridos (Produzidos + Co-produzidos)
+  // Busca eventos separados (Produzidos vs Parcerias)
   React.useEffect(() => {
     if (!db || !data?.id || type !== 'organization') return
 
@@ -230,38 +218,22 @@ function UniversalProfileContent() {
         // 1. Eventos produzidos pela marca
         const qOwned = query(collection(db, "events"), where("organizationId", "==", data.id), where("status", "==", "Ativo"))
         const snapOwned = await getDocs(qOwned)
-        const owned = snapOwned.docs.map(d => ({ id: d.id, ...d.data(), _source: 'owned' }))
+        setOwnedEvents(snapOwned.docs.map(d => ({ id: d.id, ...d.data() })))
 
         // 2. Eventos co-produzidos (aceitos)
         const qPartnered = query(collectionGroup(db, 'partners'), where('orgId', '==', data.id), where('status', '==', 'accepted'))
         const snapPartnered = await getDocs(qPartnered)
         const partneredEventIds = snapPartnered.docs.map(d => d.ref.parent.parent?.id).filter(Boolean) as string[]
 
-        let partnered: any[] = []
         if (partneredEventIds.length > 0) {
-           const chunks = []
-           for (let i = 0; i < partneredEventIds.length; i += 10) {
-             chunks.push(partneredEventIds.slice(i, i + 10))
-           }
-
-           const partneredPromises = chunks.map(chunk => 
-             getDocs(query(collection(db, 'events'), where('__name__', 'in', chunk), where('status', '==', 'Ativo')))
-           )
+           const partneredPromises = partneredEventIds.map(id => getDoc(doc(db, 'events', id!)))
            const partneredSnaps = await Promise.all(partneredPromises)
-           partnered = partneredSnaps.flatMap(s => s.docs.map(d => ({ id: d.id, ...d.data(), _source: 'partnered' })))
+           setPartneredEvents(partneredSnaps.filter(s => s.exists() && s.data()?.status === 'Ativo').map(s => ({ id: s.id, ...s.data() })))
+        } else {
+          setPartneredEvents([])
         }
-
-        const all = [...owned, ...partnered].sort((a, b) => {
-          const tA = a.createdAt?.seconds || 0
-          const tB = b.createdAt?.seconds || 0
-          return tB - tA
-        })
-
-        // Remove duplicatas se houver
-        const unique = Array.from(new Map(all.map(e => [e.id, e])).values())
-        setMergedEvents(unique)
       } catch (e) {
-        console.error("Erro ao carregar eventos do perfil:", e)
+        console.error("Erro ao carregar eventos:", e)
       } finally {
         setEventsLoading(false)
       }
@@ -289,12 +261,6 @@ function UniversalProfileContent() {
     return query(collection(db, "follows"), where("followingId", "==", data.id))
   }, [db, data?.id])
   const { data: followersList } = useCollection<any>(followersCountQuery)
-
-  const followingCountQuery = useMemoFirebase(() => {
-    if (!db || !data?.id) return null
-    return query(collection(db, "follows"), where("followerId", "==", data.id))
-  }, [db, data?.id])
-  const { data: followingList } = useCollection<any>(followingCountQuery)
 
   const handleFollowToggle = async () => {
     if (!user) {
@@ -340,7 +306,6 @@ function UniversalProfileContent() {
       <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-6">
         <AlertTriangle className="w-16 h-16 text-muted-foreground opacity-20" />
         <h2 className="text-2xl font-bold">Perfil não encontrado</h2>
-        <p className="text-muted-foreground max-w-xs">O link que você seguiu pode estar quebrado ou o perfil foi removido.</p>
         <Button asChild className="rounded-full px-8 bg-secondary text-white">
           <Link href="/dashboard">Voltar ao Início</Link>
         </Button>
@@ -352,15 +317,6 @@ function UniversalProfileContent() {
   const displayName = isOrg ? data.name : data.name || data.displayName
   const avatar = data.avatar || `https://picsum.photos/seed/${data.id}/200/200`
   const isVerified = data.verified === true || data.isVerified === true
-
-  const getCreationYear = (ts: any) => {
-    if (!ts) return '---'
-    try {
-      const date = ts.toDate ? ts.toDate() : new Date(ts)
-      if (isNaN(date.getTime())) return '---'
-      return date.getFullYear()
-    } catch (e) { return '---' }
-  }
 
   return (
     <div className="flex-1">
@@ -381,9 +337,7 @@ function UniversalProfileContent() {
                    <div className="p-1 rounded-full bg-gradient-to-tr from-secondary to-primary shadow-xl">
                       <Avatar className="h-32 w-32 md:h-40 md:w-40 border-4 border-background">
                          <AvatarImage src={avatar} className="object-cover" />
-                         <AvatarFallback className="text-4xl font-bold bg-muted">
-                            {displayName?.charAt(0)}
-                         </AvatarFallback>
+                         <AvatarFallback className="text-4xl font-bold bg-muted">{displayName?.charAt(0)}</AvatarFallback>
                       </Avatar>
                    </div>
                 </div>
@@ -400,159 +354,129 @@ function UniversalProfileContent() {
                           disabled={followActionLoading}
                           className={cn(
                             "font-bold rounded-lg h-9 px-6 text-sm transition-all",
-                            isFollowing 
-                              ? "bg-muted text-foreground hover:bg-muted/80" 
-                              : "bg-secondary text-white hover:bg-secondary/90"
+                            isFollowing ? "bg-muted text-foreground" : "bg-secondary text-white"
                           )}
                         >
-                           {followActionLoading ? (
-                             <Loader2 className="w-4 h-4 animate-spin" />
-                           ) : isFollowing ? (
-                             <><Check className="w-4 h-4 mr-2" /> Seguindo</>
-                           ) : (
-                             "Seguir"
-                           )}
+                           {followActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : isFollowing ? "Seguindo" : "Seguir"}
                         </Button>
-                        <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg">
-                           <Share2 className="w-4 h-4" />
-                        </Button>
+                        <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg"><Share2 className="w-4 h-4" /></Button>
                       </div>
                    </div>
 
                    <div className="flex justify-center md:justify-start gap-8">
-                      <div className="flex flex-col md:flex-row items-center gap-1">
-                         <span className="font-bold text-lg">{isOrg ? mergedEvents?.length || 0 : 0}</span>
-                         <span className="text-sm text-muted-foreground">{isOrg ? 'Eventos' : 'Publicações'}</span>
+                      <div className="flex flex-col items-center">
+                         <span className="font-bold text-lg">{ownedEvents.length}</span>
+                         <span className="text-xs text-muted-foreground uppercase font-black tracking-widest">Eventos</span>
                       </div>
-                      <div className="flex flex-col md:flex-row items-center gap-1">
+                      <div className="flex flex-col items-center">
                          <span className="font-bold text-lg">{followersList?.length || 0}</span>
-                         <span className="text-sm text-muted-foreground">Seguidores</span>
-                      </div>
-                      <div className="flex flex-col md:flex-row items-center gap-1">
-                         <span className="font-bold text-lg">{followingList?.length || 0}</span>
-                         <span className="text-sm text-muted-foreground">Seguindo</span>
+                         <span className="text-xs text-muted-foreground uppercase font-black tracking-widest">Seguidores</span>
                       </div>
                    </div>
 
                    <div className="space-y-1">
                       <p className="text-sm font-bold text-secondary">@{data.username}</p>
-                      {isOrg && data.type && (
-                        <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">{data.type}</p>
-                      )}
                       <p className="text-sm font-medium leading-relaxed max-w-lg mx-auto md:mx-0">
                          {data.bio || "Nenhuma biografia disponível."}
                       </p>
-                      
                       <div className="flex flex-wrap justify-center md:justify-start gap-4 pt-2">
-                         {data.website && (
-                           <a href={data.website} target="_blank" className="flex items-center gap-1.5 text-sm font-bold text-blue-600 hover:underline">
-                              <ExternalLink className="w-3.5 h-3.5" />
-                              {data.website.replace(/^https?:\/\//, '')}
-                           </a>
-                         )}
-                         {data.instagram && (
-                           <a href={`https://instagram.com/${data.instagram}`} target="_blank" className="flex items-center gap-1.5 text-sm font-bold hover:text-pink-600">
-                              <Instagram className="w-3.5 h-3.5" />
-                              @{data.instagram}
-                           </a>
-                         )}
-                         {data.city && (
-                           <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
-                              <MapPin className="w-3.5 h-3.5" />
-                              {data.city}, {data.state}
-                           </div>
-                         )}
+                         {data.website && <a href={data.website} target="_blank" className="text-sm font-bold text-blue-600 flex items-center gap-1"><Globe className="w-3.5 h-3.5" /> {data.website.replace(/^https?:\/\//, '')}</a>}
+                         {data.instagram && <a href={`https://instagram.com/${data.instagram}`} target="_blank" className="text-sm font-bold flex items-center gap-1"><Instagram className="w-3.5 h-3.5" /> @{data.instagram}</a>}
+                         {data.city && <div className="text-sm font-medium text-muted-foreground flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {data.city}, {data.state}</div>}
                       </div>
                    </div>
                 </div>
              </div>
 
-             <Separator className="mb-0" />
-
              <Tabs defaultValue="events" className="w-full">
-                <div className="flex justify-center border-t border-transparent">
-                  <TabsList className="bg-transparent h-auto p-0 gap-12">
+                <div className="flex justify-center border-b mb-8">
+                  <TabsList className="bg-transparent h-auto p-0 gap-8">
                     <TabsTrigger 
                       value="events" 
-                      className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground data-[state=active]:border-t-2 data-[state=active]:border-foreground rounded-none px-0 py-4 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100 transition-all"
+                      className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-4 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
                     >
-                      <Grid className="w-3.5 h-3.5" />
-                      {isOrg ? 'Eventos' : 'Publicações'}
+                      <Grid className="w-3.5 h-3.5" /> {isOrg ? 'Eventos' : 'Publicações'}
                     </TabsTrigger>
+                    {isOrg && (
+                      <TabsTrigger 
+                        value="partnerships" 
+                        className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-4 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
+                      >
+                        <Handshake className="w-3.5 h-3.5" /> Eventos e Parcerias
+                      </TabsTrigger>
+                    )}
                     <TabsTrigger 
                       value="about" 
-                      className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground data-[state=active]:border-t-2 data-[state=active]:border-foreground rounded-none px-0 py-4 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100 transition-all"
+                      className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-4 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
                     >
-                      <Users className="w-3.5 h-3.5" />
-                      Sobre
+                      <Info className="w-3.5 h-3.5" /> Sobre
                     </TabsTrigger>
                   </TabsList>
                 </div>
 
-                <TabsContent value="events" className="pt-8">
+                <TabsContent value="events" className="animate-in fade-in duration-500">
                    {eventsLoading ? (
-                     <div className="py-20 flex justify-center">
-                        <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-                     </div>
-                   ) : mergedEvents.length > 0 ? (
+                     <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+                   ) : ownedEvents.length > 0 ? (
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {mergedEvents.map((event: any) => (
-                           <EventCard key={event.id} event={event} />
-                        ))}
+                        {ownedEvents.map(e => <EventCard key={e.id} event={e} />)}
                      </div>
-                   ) : (
-                     <div className="py-32 text-center space-y-4">
-                        <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto opacity-20">
-                           <Calendar className="w-10 h-10" />
-                        </div>
-                        <p className="text-muted-foreground font-medium italic">Nenhum evento ativo no momento.</p>
-                     </div>
-                   )}
+                   ) : <NoContentPlaceholder message="Nenhum evento produzido no momento." />}
                 </TabsContent>
 
-                <TabsContent value="about" className="pt-8">
-                   <div className="max-w-2xl mx-auto bg-muted/30 p-8 rounded-3xl border space-y-6">
-                      <h3 className="font-bold text-lg">Informações Detalhadas</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                         <div className="space-y-4">
-                            {isOrg && (
-                              <div className="space-y-1">
-                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Tipo</p>
-                                 <p className="font-bold">{data.type || "Não informado"}</p>
-                              </div>
-                            )}
+                <TabsContent value="partnerships" className="animate-in fade-in duration-500">
+                   {eventsLoading ? (
+                     <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+                   ) : partneredEvents.length > 0 ? (
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {partneredEvents.map(e => <EventCard key={e.id} event={e} />)}
+                     </div>
+                   ) : <NoContentPlaceholder message="Nenhuma parceria ativa no momento." />}
+                </TabsContent>
+
+                <TabsContent value="about" className="animate-in fade-in duration-500">
+                   <div className="max-w-2xl mx-auto space-y-10">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-8 rounded-3xl shadow-sm border">
+                         <div className="space-y-6">
                             <div className="space-y-1">
-                               <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Desde</p>
-                               <p className="font-bold">{getCreationYear(data.createdAt)}</p>
+                               <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Razão Social</p>
+                               <p className="font-bold text-sm">{data.legalName || "Não informada"}</p>
+                            </div>
+                            <div className="space-y-1">
+                               <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Documento (CNPJ)</p>
+                               <p className="font-mono text-sm">{data.cnpj || "---"}</p>
                             </div>
                          </div>
-                         <div className="space-y-4">
-                            {isOrg && data.legalName && (
-                              <div className="space-y-1">
-                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Razão Social</p>
-                                 <p className="font-bold">{data.legalName}</p>
-                              </div>
-                            )}
-                            {isOrg && data.cnpj && (
-                              <div className="space-y-1">
-                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Documento</p>
-                                 <p className="font-mono text-sm">{data.cnpj}</p>
-                              </div>
-                            )}
+                         <div className="space-y-6">
+                            <div className="space-y-1">
+                               <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Segmento</p>
+                               <Badge variant="outline" className="bg-secondary/10 text-secondary border-none uppercase text-[10px] font-black">{data.type || "Marca"}</Badge>
+                            </div>
+                            <div className="space-y-1">
+                               <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Localidade</p>
+                               <p className="font-bold text-sm">{data.city ? `${data.city}, ${data.state}` : "Localização Global"}</p>
+                            </div>
                          </div>
                       </div>
                       
-                      <div className="pt-6 border-t border-dashed">
-                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-4">Descrição Completa</p>
-                        <p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-line">
-                           {data.bio || "Nenhuma descrição adicional informada."}
-                        </p>
+                      <div className="bg-muted/30 p-8 rounded-3xl border border-dashed">
+                         <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-4">Sobre a {displayName}</p>
+                         <p className="text-sm leading-relaxed whitespace-pre-line text-foreground/80">{data.bio || "Nenhuma descrição adicional informada."}</p>
                       </div>
                    </div>
                 </TabsContent>
              </Tabs>
           </div>
        </div>
+    </div>
+  )
+}
+
+function NoContentPlaceholder({ message }: { message: string }) {
+  return (
+    <div className="py-24 text-center space-y-4">
+      <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto opacity-20"><Calendar className="w-8 h-8" /></div>
+      <p className="text-muted-foreground font-medium italic">{message}</p>
     </div>
   )
 }
