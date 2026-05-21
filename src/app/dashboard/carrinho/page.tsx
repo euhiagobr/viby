@@ -1,9 +1,8 @@
-
 "use client"
 
 import * as React from "react"
 import { useCart } from "@/contexts/CartContext"
-import { useAuth, useUser, useFirestore } from "@/firebase"
+import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -21,7 +20,9 @@ import {
   Info,
   Loader2,
   Ticket,
-  ShieldAlert
+  ShieldCheck,
+  ExternalLink,
+  RefreshCw
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -30,6 +31,7 @@ import { createCheckoutSession } from "@/app/actions/stripe"
 import { toast } from "@/hooks/use-toast"
 import { doc, addDoc, collection, serverTimestamp } from "firebase/firestore"
 import { generateUniqueTicketCode } from "@/lib/ticket-utils"
+import { sendCartPendingEmail } from "@/app/actions/email"
 
 export default function CarrinhoPage() {
   const { items, removeItem, updateQuantity, clearCart } = useCart()
@@ -37,11 +39,16 @@ export default function CarrinhoPage() {
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
+  
+  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
+  const { data: settings } = useDoc<any>(settingsRef)
+
   const [processing, setProcessing] = React.useState(false)
+  const [isWaitingPayment, setIsWaitingPayment] = React.useState(false)
 
   const cartTotals = React.useMemo(() => {
     return items.reduce((acc, item) => {
-      const breakdown = calculateFinancialBreakdown(item.price); // Default plan for buyer view
+      const breakdown = calculateFinancialBreakdown(item.price);
       acc.subtotal += item.price * item.quantity;
       acc.fees += breakdown.administrativeFeeAmount * item.quantity;
       acc.total += breakdown.customerFinalPrice * item.quantity;
@@ -55,10 +62,6 @@ export default function CarrinhoPage() {
 
     setProcessing(true)
     try {
-      // Para múltiplos itens, criamos uma sessão do Stripe com múltiplos line_items.
-      // No Viby, as registrations são criadas após o sucesso, ou podemos criar como "Pendente".
-      // Vamos criar as registrations pendentes para rastrear no metadata.
-      
       const registrationIds = [];
       const lineItems = [];
 
@@ -106,7 +109,7 @@ export default function CarrinhoPage() {
             product_data: {
               name: item.eventTitle,
               description: `${item.ticketTypeName} (${item.quantity}x)`,
-              images: item.eventImage ? [item.eventImage] : [],
+              images: (item.eventImage && item.eventImage.startsWith('http')) ? [item.eventImage] : [],
             },
             unit_amount: Math.round(breakdown.customerFinalPrice * 100),
           },
@@ -114,8 +117,17 @@ export default function CarrinhoPage() {
         });
       }
 
+      // Envia e-mail de resumo antes de abrir o Stripe
+      await sendCartPendingEmail({
+        to: user.email!,
+        userName: user.displayName || "Usuário",
+        items: items,
+        totalAmount: cartTotals.total,
+        siteName: settings?.siteName || "Viby Club"
+      });
+
       const { url } = await createCheckoutSession({
-        eventId: "multiple", // Identificador genérico
+        eventId: "multiple",
         eventTitle: "Ingressos Viby Club",
         eventImage: "",
         userId: user.uid,
@@ -129,7 +141,12 @@ export default function CarrinhoPage() {
         }
       });
 
-      if (url) window.location.href = url;
+      if (url) {
+        // Abre Stripe em nova aba
+        window.open(url, '_blank');
+        // Muda estado para "Aguardando Confirmação"
+        setIsWaitingPayment(true);
+      }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro", description: e.message });
     } finally {
@@ -137,7 +154,7 @@ export default function CarrinhoPage() {
     }
   }
 
-  if (items.length === 0) {
+  if (items.length === 0 && !isWaitingPayment) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center space-y-6">
         <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center">
@@ -154,8 +171,46 @@ export default function CarrinhoPage() {
     )
   }
 
+  if (isWaitingPayment) {
+    return (
+      <div className="min-h-[80vh] flex flex-col items-center justify-center p-4">
+        <Card className="max-w-md w-full border-none shadow-2xl rounded-[3rem] overflow-hidden bg-white">
+           <div className="bg-primary p-12 flex flex-col items-center text-white gap-6">
+              <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center relative">
+                 <RefreshCw className="w-10 h-10 animate-spin text-secondary" />
+                 <CreditCard className="w-5 h-5 absolute text-white" />
+              </div>
+              <div className="text-center space-y-2">
+                 <h2 className="text-2xl font-black uppercase italic tracking-tighter">Aguardando Pagamento</h2>
+                 <p className="text-xs font-medium opacity-70">A página do Stripe foi aberta em uma nova janela.</p>
+              </div>
+           </div>
+           <CardContent className="p-10 space-y-8 text-center">
+              <div className="space-y-4">
+                 <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl border border-dashed text-left">
+                    <Info className="w-5 h-5 text-secondary shrink-0" />
+                    <p className="text-[10px] font-bold text-muted-foreground leading-relaxed uppercase">
+                       Assim que você concluir o pagamento na outra aba, este painel será atualizado automaticamente. Seus ingressos também serão enviados por e-mail.
+                    </p>
+                 </div>
+                 
+                 <div className="flex flex-col gap-3 pt-4">
+                    <Button variant="outline" className="h-12 rounded-xl font-bold gap-2" onClick={() => window.location.reload()}>
+                       <RefreshCw className="w-4 h-4" /> Verificar Status
+                    </Button>
+                    <Button variant="ghost" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setIsWaitingPayment(false)}>
+                       Voltar para o Carrinho
+                    </Button>
+                 </div>
+              </div>
+           </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-20">
+    <div className="max-w-6xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild><Link href="/dashboard"><ArrowLeft className="w-5 h-5" /></Link></Button>
@@ -236,10 +291,10 @@ export default function CarrinhoPage() {
 
                  <div className="p-4 bg-muted/30 rounded-2xl border border-dashed border-border space-y-2">
                     <div className="flex items-center gap-2 text-[10px] font-black uppercase text-muted-foreground">
-                       <Info className="w-3 h-3 text-secondary" /> Informação Legal
+                       <ShieldCheck className="w-3 h-3 text-secondary" /> Pagamento Seguro
                     </div>
                     <p className="text-[9px] text-muted-foreground font-medium leading-relaxed">
-                       Ao finalizar, você garante sua presença em todos os eventos listados. Os vouchers serão enviados individualmente para seu e-mail após a confirmação.
+                       Ao clicar no botão abaixo, você será redirecionado para o Stripe em uma nova janela para concluir o pagamento com total segurança.
                     </p>
                  </div>
 
@@ -248,7 +303,7 @@ export default function CarrinhoPage() {
                    disabled={processing}
                    className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform gap-3"
                  >
-                    {processing ? <Loader2 className="w-6 h-6 animate-spin" /> : <><CreditCard className="w-6 h-6" /> Finalizar Pagamento</>}
+                    {processing ? <Loader2 className="w-6 h-6 animate-spin" /> : <><CreditCard className="w-6 h-6" /> Pagar via Stripe</>}
                  </Button>
 
                  <Button variant="ghost" asChild className="w-full font-bold text-muted-foreground uppercase text-xs tracking-widest">

@@ -29,6 +29,14 @@ interface WelcomeEmailData {
   siteName: string;
 }
 
+interface CartPendingEmailData {
+  to: string;
+  userName: string;
+  items: any[];
+  totalAmount: number;
+  siteName: string;
+}
+
 /**
  * Helper para registrar o envio de e-mail no Firestore para auditoria.
  */
@@ -192,6 +200,117 @@ export async function sendTicketEmail(data: EmailData) {
   } catch (error: any) {
     console.error('Erro no envio de e-mail de ticket:', error);
     return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Envia o e-mail de resumo do carrinho pendente.
+ */
+export async function sendCartPendingEmail(data: CartPendingEmailData) {
+  try {
+    if (!data?.to || typeof data.to !== 'string') return { success: false };
+
+    const { smtpUser, smtpPass } = await getEmailConfig();
+
+    const formatBRL = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
+    const itemsHtml = data.items.map(item => `
+      <tr>
+        <td style="padding: 15px; border-bottom: 1px solid #f1f5f9;">
+          <p style="margin:0; font-weight: bold; font-size: 14px; color: #0f172a;">${item.eventTitle}</p>
+          <p style="margin:0; font-size: 11px; color: #64748b; text-transform: uppercase;">${item.ticketTypeName} (${item.quantity}x)</p>
+        </td>
+        <td style="padding: 15px; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: bold; color: #0f172a;">
+          ${formatBRL(item.price * item.quantity)}
+        </td>
+      </tr>
+    `).join('');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Poppins', sans-serif, Arial; background-color: #f8fafc; color: #1e293b; padding: 20px; margin: 0; }
+          .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 32px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
+          .header { background: #2563eb; color: white; padding: 40px 20px; text-align: center; }
+          .content { padding: 40px; }
+          .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          .total-box { background: #f8fafc; border-radius: 20px; padding: 20px; text-align: right; margin-top: 20px; border: 1px solid #e2e8f0; }
+          .footer { padding: 30px; text-align: center; font-size: 12px; color: #94a3b8; background: #f8fafc; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin:0; font-size: 24px; text-transform: uppercase; font-style: italic; letter-spacing: -0.5px;">Resumo do Pedido</h1>
+            <p style="margin: 5px 0 0 0; font-size: 12px; opacity: 0.9; font-weight: bold; text-transform: uppercase;">Viby.Club</p>
+          </div>
+          <div class="content">
+            <h2 style="margin-top:0; font-size: 20px;">Olá, ${data.userName}!</h2>
+            <p style="color: #475569; font-size: 14px;">Recebemos a sua intenção de compra. Assim que o pagamento for confirmado, seus ingressos serão liberados automaticamente.</p>
+            
+            <table class="table">
+              <thead>
+                <tr>
+                  <th style="text-align: left; font-size: 10px; text-transform: uppercase; color: #94a3b8; padding: 10px 15px;">Item</th>
+                  <th style="text-align: right; font-size: 10px; text-transform: uppercase; color: #94a3b8; padding: 10px 15px;">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHtml}
+              </tbody>
+            </table>
+
+            <div class="total-box">
+              <p style="margin:0; font-size: 12px; color: #64748b; font-weight: bold; text-transform: uppercase;">Valor Total Estimado</p>
+              <p style="margin:5px 0 0 0; font-size: 28px; font-weight: 900; color: #2563eb;">${formatBRL(data.totalAmount)}</p>
+            </div>
+
+            <p style="font-size: 12px; color: #94a3b8; margin-top: 30px; line-height: 1.6;">
+              <strong>Importante:</strong> Esta é apenas uma notificação de pedido pendente. Se você já realizou o pagamento via cartão de crédito, a confirmação pode levar alguns minutos. Caso tenha fechado a janela do Stripe, acesse seu painel para tentar novamente.
+            </p>
+          </div>
+          <div class="footer">
+            <p><strong>Viby.Club</strong> - Experiências que conectam</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const subject = `🛒 Resumo do seu pedido no ${data.siteName}`;
+
+    await logEmail({
+      sender: "Viby Checkout",
+      recipientName: data.userName,
+      recipientEmail: data.to,
+      subject: subject,
+      content: htmlContent,
+      type: "order_summary"
+    });
+
+    if (!smtpUser || !smtpPass) return { success: false };
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    await transporter.sendMail({
+      from: `"Viby Club" <${smtpUser}>`,
+      to: data.to,
+      subject: subject,
+      html: htmlContent,
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Erro no envio de e-mail de resumo de compra:', error);
+    return { success: false };
   }
 }
 
