@@ -154,8 +154,20 @@ export default function OrganizationAdsPage() {
     const startDateStr = formData.get("startDate") as string
     const endDateStr = formData.get("endDate") as string
 
+    // Converter strings de data local para objetos Date (UTC no Firestore)
     const start = new Date(startDateStr)
     const end = new Date(endDateStr)
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      toast({ variant: "destructive", title: "Data inválida", description: "Verifique os horários selecionados." });
+      return;
+    }
+
+    if (end <= start) {
+      toast({ variant: "destructive", title: "Horário inválido", description: "O término deve ser após o início." });
+      return;
+    }
+
     const diffTime = Math.abs(end.getTime() - start.getTime())
     const days = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)))
     
@@ -196,8 +208,8 @@ export default function OrganizationAdsPage() {
       remainingBudget: totalBudget,
       budget: totalBudget, 
       durationDays: days,
-      startDate: startDateStr,
-      endDate: endDateStr,
+      startDate: start, // Enviando objeto Date
+      endDate: end, // Enviando objeto Date
       reach: 0,
       clicks: 0,
       createdAt: serverTimestamp()
@@ -301,6 +313,14 @@ export default function OrganizationAdsPage() {
       setActionLoadingId(null)
       setAdToCancel(null)
     }
+  }
+
+  const formatAdDate = (dateVal: any) => {
+    if (!dateVal) return "---";
+    try {
+      const d = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
+      return d.toLocaleString('pt-BR');
+    } catch (e) { return "---"; }
   }
 
   const stats = React.useMemo(() => {
@@ -515,7 +535,7 @@ export default function OrganizationAdsPage() {
                         </div>
                         <div className="text-[10px] font-black text-muted-foreground uppercase flex flex-wrap items-center gap-x-4 gap-y-1">
                            <span className="flex items-center gap-1.5"><Target className="w-3 h-3" /> {ad.type}</span>
-                           <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> {new Date(ad.startDate).toLocaleString('pt-BR')}</span>
+                           <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> {formatAdDate(ad.startDate)}</span>
                         </div>
                       </div>
                     </div>

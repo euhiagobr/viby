@@ -112,11 +112,17 @@ export default function LandingPage() {
     
     const now = new Date()
 
+    const parseAdDate = (val: any) => {
+      if (!val) return null;
+      if (val.toDate) return val.toDate();
+      return new Date(val);
+    };
+
     // 1. Pool de anúncios ativos, filtrados por data/hora e orçamento, ordenados por saldo
     const sponsoredPool = (activeAds || [])
       .map((ad: any) => {
-        const start = ad.startDate ? new Date(ad.startDate) : null
-        const end = ad.endDate ? new Date(ad.endDate) : null
+        const start = parseAdDate(ad.startDate);
+        const end = parseAdDate(ad.endDate);
         const isDateValid = (!start || now >= start) && (!end || now <= end)
         const hasBudget = (ad.remainingBudget || 0) > 0
 
