@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.9.0
+    // REGRAS VIBY - Versão: 2.10.0
     // Database Exclusivo: eventosviby
     
     function isSignedIn() {
@@ -21,20 +21,23 @@ service cloud.firestore {
     function hasOrgRole(orgId, roles) {
       return isSignedIn() && 
         exists(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
-        (get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.status == 'accepted') &&
+        (get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.status == 'accepted' || 
+         !('status' in get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data)) &&
         get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
     }
 
     function isOrgMember(orgId) {
       return isSignedIn() && 
         exists(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
-        (get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.status == 'accepted');
+        (get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.status == 'accepted' ||
+         !('status' in get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data));
     }
 
     // Regra Crítica para buscas via collectionGroup (Dashboard e Convites)
     match /{path=**}/members/{memberId} {
       allow read: if isSignedIn() && (request.auth.uid == memberId || resource.data.userId == request.auth.uid || isOrgMember(path[3]));
       allow create: if isSignedIn();
+      // O próprio usuário pode recusar (delete) ou aceitar (update status) seu convite
       allow delete: if isSignedIn() && (request.auth.uid == memberId || hasOrgRole(path[3], ['owner', 'admin']));
       allow update: if isSignedIn() && (request.auth.uid == memberId || hasOrgRole(path[3], ['owner', 'admin']));
     }
@@ -86,7 +89,6 @@ service cloud.firestore {
 
     // Registros de Interesse / Ingressos
     match /registrations/{regId} {
-      // Permite ler se for o dono, se foi compartilhado com ele, ou se tem cargo na organização (incluindo editor/financeiro)
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
         resource.data.sharedWithUid == request.auth.uid || 

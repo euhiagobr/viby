@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/financial-utils';
+import { cn } from "@/lib/utils";
 
 const roleTranslations: Record<string, string> = {
   owner: 'Proprietário',
@@ -33,6 +34,7 @@ export default function OrganizationDashboardPage() {
   const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization();
   const db = useFirestore();
 
+  // Permissões
   const isFinanceManager = ['owner', 'admin', 'finance'].includes(userRole || '');
 
   const eventsQuery = useMemoFirebase(() => {
@@ -66,7 +68,8 @@ export default function OrganizationDashboardPage() {
     if (!followers) return { total: 0, last30Days: 0, growth: 0 };
     
     const now = new Date();
-    const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(now.getDate() - 30);
 
     const last30 = followers.filter((f: any) => {
       const date = f.timestamp?.toDate ? f.timestamp.toDate() : new Date(f.timestamp);
@@ -127,7 +130,7 @@ export default function OrganizationDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black">{members?.length || 0}</div>
+            <div className="text-3xl font-black">{members?.filter(m => m.status === 'accepted' || !m.status).length || 0}</div>
           </CardContent>
         </Card>
 
@@ -142,9 +145,9 @@ export default function OrganizationDashboardPage() {
             {isFinanceManager ? (
               <div className="text-2xl font-black text-green-600">{formatCurrency(0)}</div>
             ) : (
-              <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="flex items-center gap-2 text-muted-foreground bg-muted/50 p-2 rounded-lg">
                 <Lock className="w-4 h-4" />
-                <span className="text-xs font-bold uppercase tracking-tight">Acesso Restrito</span>
+                <span className="text-[10px] font-black uppercase tracking-tight">Acesso Restrito</span>
               </div>
             )}
           </CardContent>
@@ -158,7 +161,7 @@ export default function OrganizationDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-black uppercase italic">{userRole ? roleTranslations[userRole] || userRole : 'Carregando...'}</div>
+            <div className="text-xl font-black uppercase italic">{userRole ? roleTranslations[userRole] || userRole : 'Membro'}</div>
           </CardContent>
         </Card>
       </div>
@@ -187,7 +190,7 @@ export default function OrganizationDashboardPage() {
                          </div>
                          <div>
                             <p className="font-bold text-sm leading-tight">{event.title}</p>
-                            <p className="text-[10px] text-muted-foreground font-bold uppercase">{new Date(event.startDate || event.date).toLocaleDateString('pt-BR')}</p>
+                            <p className="text-[10px] text-muted-foreground font-bold uppercase">{event.startDate ? new Date(event.startDate).toLocaleDateString('pt-BR') : 'Sem data'}</p>
                          </div>
                       </div>
                       <Badge variant="outline" className="text-[9px] font-black uppercase">{event.status}</Badge>

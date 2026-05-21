@@ -63,12 +63,16 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
 
-  // Carrega todas as organizações onde o usuário é membro ACEITO
+  // Carrega todas as organizações onde o usuário é membro
   useEffect(() => {
+    let isMounted = true;
+
     if (!db || !user) {
-      setOrganizations([]);
-      setPendingInvitations([]);
-      setLoading(false);
+      if (isMounted) {
+        setOrganizations([]);
+        setPendingInvitations([]);
+        setLoading(false);
+      }
       return;
     }
 
@@ -84,6 +88,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             const orgId = memberDoc.ref.parent.parent?.id;
             if (!orgId) return null;
 
+            // Membro aceito ou sem status (legacy)
             if (mData.status === 'accepted' || !mData.status) {
               const orgSnap = await getDoc(doc(db, 'organizations', orgId));
               if (orgSnap.exists()) {
@@ -107,24 +112,37 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           const orgsData = (await Promise.all(orgsPromises)).filter((o): o is Organization => o !== null);
           const pingsData = (await Promise.all(pendingPromises)).filter(p => p !== null);
 
-          setOrganizations(orgsData);
-          setPendingInvitations(pingsData);
+          if (isMounted) {
+            setOrganizations(orgsData);
+            setPendingInvitations(pingsData);
+            
+            // Sincroniza cargo da org selecionada se ela ainda estiver na lista
+            if (currentOrg) {
+              const updatedActive = orgsData.find(o => o.id === currentOrg.id);
+              if (updatedActive) {
+                setUserRole(updatedActive._memberData?.role || null);
+              }
+            }
+          }
         } catch (e) {
           console.error("Erro ao processar dados de membros:", e);
         } finally {
-          setLoading(false);
+          if (isMounted) setLoading(false);
         }
       },
       (error) => {
         console.error("Erro no listener de organizações:", error);
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [db, user]);
 
-  // Sincroniza org atual e cargo
+  // Sincroniza org atual baseada na URL ou memória
   useEffect(() => {
     if (!db || !user || loading) return;
 
@@ -138,6 +156,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           setUserRole(found._memberData?.role || null);
         }
       } else {
+        // Busca direta caso não esteja no cache imediato (deep link)
         const q = query(collection(db, 'organizations'), where('username', '==', usernameFromUrl), limit(1));
         getDocs(q).then(async (snap) => {
           if (!snap.empty) {
@@ -147,7 +166,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             const mData = memberSnap.data();
             
             if (memberSnap.exists() && (mData?.status === 'accepted' || !mData?.status)) {
-              setCurrentOrg({ id: orgDoc.id, ...orgDoc.data() } as Organization);
+              const orgData = { id: orgDoc.id, ...orgDoc.data(), _memberData: mData } as Organization;
+              setCurrentOrg(orgData);
               setUserRole(mData?.role || null);
             }
           }
@@ -167,7 +187,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     if (!db || !currentOrg) return;
     const orgSnap = await getDoc(doc(db, 'organizations', currentOrg.id));
     if (orgSnap.exists()) {
-      setCurrentOrg({ id: orgSnap.id, ...orgSnap.data() } as Organization);
+      setCurrentOrg(prev => prev ? { ...prev, ...orgSnap.data() } : null);
     }
   };
 
