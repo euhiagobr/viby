@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -151,18 +152,29 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     }
 
     const orgIds = organizations.map(o => o.id);
-    const partnersQuery = query(collectionGroup(db, 'partners'), where('orgId', 'in', orgIds), where('status', '==', 'pending'));
+    // Para protótipo, removemos filtros que exigem índices compostos em collectionGroups para evitar crashes
+    // Filtramos o status pendente em memória
+    try {
+      const partnersQuery = query(collectionGroup(db, 'partners'));
 
-    const unsubscribe = onSnapshot(partnersQuery, (snapshot) => {
-      const pData = snapshot.docs.map(d => ({
-        id: d.id,
-        eventId: d.ref.parent.parent?.id,
-        ...d.data()
-      }));
-      setPendingPartnerships(pData);
-    });
+      const unsubscribe = onSnapshot(partnersQuery, (snapshot) => {
+        const pData = snapshot.docs
+          .map(d => ({
+            id: d.id,
+            eventId: d.ref.parent.parent?.id,
+            ...d.data()
+          }))
+          .filter((p: any) => p.status === 'pending' && orgIds.includes(p.orgId));
+        
+        setPendingPartnerships(pData);
+      }, (error) => {
+        console.warn("Aguardando criação de índice de collectionGroup para 'partners'...", error.message);
+      });
 
-    return () => unsubscribe();
+      return () => unsubscribe();
+    } catch (e) {
+      console.error("Erro ao iniciar listener de parcerias:", e);
+    }
   }, [db, organizations]);
 
   // Sincroniza org atual baseada na URL ou memória

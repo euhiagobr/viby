@@ -216,21 +216,35 @@ function UniversalProfileContent() {
       setEventsLoading(true)
       try {
         // 1. Eventos produzidos pela marca
-        const qOwned = query(collection(db, "events"), where("organizationId", "==", data.id), where("status", "==", "Ativo"))
+        // Consultamos apenas pelo ID da organização para evitar necessidade de índice composto (orgId + status) no ambiente de protótipo
+        const qOwned = query(collection(db, "events"), where("organizationId", "==", data.id))
         const snapOwned = await getDocs(qOwned)
-        setOwnedEvents(snapOwned.docs.map(d => ({ id: d.id, ...d.data() })))
+        // Filtramos o status em memória para ser mais resiliente
+        setOwnedEvents(snapOwned.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(e => e.status === 'Ativo')
+        )
 
         // 2. Eventos co-produzidos (aceitos)
-        const qPartnered = query(collectionGroup(db, 'partners'), where('orgId', '==', data.id), where('status', '==', 'accepted'))
-        const snapPartnered = await getDocs(qPartnered)
-        const partneredEventIds = snapPartnered.docs.map(d => d.ref.parent.parent?.id).filter(Boolean) as string[]
+        // Usamos try-catch para capturar erro de índice ausente em collectionGroups
+        try {
+          const qPartnered = query(collectionGroup(db, 'partners'), where('orgId', '==', data.id), where('status', '==', 'accepted'))
+          const snapPartnered = await getDocs(qPartnered)
+          const partneredEventIds = snapPartnered.docs.map(d => d.ref.parent.parent?.id).filter(Boolean) as string[]
 
-        if (partneredEventIds.length > 0) {
-           const partneredPromises = partneredEventIds.map(id => getDoc(doc(db, 'events', id!)))
-           const partneredSnaps = await Promise.all(partneredPromises)
-           setPartneredEvents(partneredSnaps.filter(s => s.exists() && s.data()?.status === 'Ativo').map(s => ({ id: s.id, ...s.data() })))
-        } else {
-          setPartneredEvents([])
+          if (partneredEventIds.length > 0) {
+             const partneredPromises = partneredEventIds.map(id => getDoc(doc(db, 'events', id!)))
+             const partneredSnaps = await Promise.all(partneredPromises)
+             setPartneredEvents(partneredSnaps
+               .filter(s => s.exists() && s.data()?.status === 'Ativo')
+               .map(s => ({ id: s.id, ...s.data() }))
+             )
+          } else {
+            setPartneredEvents([])
+          }
+        } catch (cgError: any) {
+          console.error("Índice de grupo de coleção ausente para 'partners':", cgError.message);
+          setPartneredEvents([]);
         }
       } catch (e) {
         console.error("Erro ao carregar eventos:", e)
