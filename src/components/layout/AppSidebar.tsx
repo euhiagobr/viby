@@ -67,7 +67,7 @@ export function AppSidebar() {
     { title: "Suporte", url: "/dashboard/suporte", icon: LifeBuoy },
   ];
 
-  // RBAC Sidebar Rules
+  // RBAC Sidebar Rules - Updated to point to brand-specific ad management
   const orgItems = currentOrg ? [
     { 
       title: "Dashboard", 
@@ -83,7 +83,7 @@ export function AppSidebar() {
     },
     { 
       title: "Anúncios", 
-      url: `/dashboard/anuncios`, 
+      url: `/dashboard/organizacoes/${currentOrg.username}/anuncios`, 
       icon: Megaphone, 
       visible: ['owner', 'admin', 'editor'].includes(userRole || '') 
     },
@@ -127,10 +127,10 @@ export function AppSidebar() {
               <SidebarMenu>
                 {orgItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={pathname === item.url}>
+                    <SidebarMenuButton asChild isActive={pathname === item.url || pathname?.startsWith(item.url)}>
                       <Link href={item.url} className={cn(
                         "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-semibold text-sm",
-                        pathname === item.url ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "hover:bg-muted text-muted-foreground"
+                        (pathname === item.url || pathname?.startsWith(item.url)) ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "hover:bg-muted text-muted-foreground"
                       )}>
                         <item.icon className="w-4 h-4" />
                         <span>{item.title}</span>
