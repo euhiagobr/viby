@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -15,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
+import { Switch } from "@/components/ui/switch"
 import { toast } from "@/hooks/use-toast"
 import { 
   Loader2, 
@@ -31,7 +31,9 @@ import {
   Mail,
   Instagram,
   Fingerprint,
-  Info
+  Info,
+  Eye,
+  EyeOff
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -123,7 +125,11 @@ export default function NovaOrganizacaoPage() {
     complement: "",
     neighborhood: "",
     city: "",
-    state: ""
+    state: "",
+    showPhone: true,
+    showEmail: true,
+    showWebsite: true,
+    showInstagram: true
   })
 
   const storage = React.useMemo(() => {
@@ -138,7 +144,6 @@ export default function NovaOrganizacaoPage() {
     }
 
     const newUsername = formData.username.toLowerCase().trim()
-    // Somente letras e números
     const regex = /^[a-zA-Z0-9]+$/
     
     if (newUsername.length < 5 || !regex.test(newUsername)) {
@@ -323,7 +328,7 @@ export default function NovaOrganizacaoPage() {
                 </div>
               </div>
             </div>
-            <div className="h-12" /> {/* Spacer for avatar overflow */}
+            <div className="h-12" />
           </CardContent>
         </Card>
 
@@ -495,9 +500,15 @@ export default function NovaOrganizacaoPage() {
              <CardTitle className="text-lg flex items-center gap-2"><Globe className="w-5 h-5 text-secondary" /> Contato & Presença Digital</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> Telefone para Contato</Label>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> Telefone/WhatsApp</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showPhone ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showPhone} onCheckedChange={checked => setFormData(prev => ({ ...prev, showPhone: checked }))} />
+                    </div>
+                  </div>
                   <Input 
                     id="phone" 
                     value={formData.phone}
@@ -506,8 +517,15 @@ export default function NovaOrganizacaoPage() {
                     className="rounded-xl h-11"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="contactEmail" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail para Contato</Label>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="contactEmail" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail para Contato</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showEmail ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showEmail} onCheckedChange={checked => setFormData(prev => ({ ...prev, showEmail: checked }))} />
+                    </div>
+                  </div>
                   <Input 
                     id="contactEmail" 
                     type="email"
@@ -518,9 +536,16 @@ export default function NovaOrganizacaoPage() {
                   />
                 </div>
              </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="website" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Site Oficial</Label>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="website" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Site Oficial</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showWebsite ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showWebsite} onCheckedChange={checked => setFormData(prev => ({ ...prev, showWebsite: checked }))} />
+                    </div>
+                  </div>
                   <Input 
                     id="website" 
                     value={formData.website}
@@ -529,8 +554,15 @@ export default function NovaOrganizacaoPage() {
                     className="rounded-xl h-11"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="instagram" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram Oficial</Label>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="instagram" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram Oficial</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showInstagram ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showInstagram} onCheckedChange={checked => setFormData(prev => ({ ...prev, showInstagram: checked }))} />
+                    </div>
+                  </div>
                   <Input 
                     id="instagram" 
                     value={formData.instagram}
