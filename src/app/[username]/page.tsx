@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -216,17 +215,14 @@ function UniversalProfileContent() {
       setEventsLoading(true)
       try {
         // 1. Eventos produzidos pela marca
-        // Consultamos apenas pelo ID da organização para evitar necessidade de índice composto (orgId + status) no ambiente de protótipo
         const qOwned = query(collection(db, "events"), where("organizationId", "==", data.id))
         const snapOwned = await getDocs(qOwned)
-        // Filtramos o status em memória para ser mais resiliente
         setOwnedEvents(snapOwned.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(e => e.status === 'Ativo')
         )
 
         // 2. Eventos co-produzidos (aceitos)
-        // Usamos try-catch para capturar erro de índice ausente em collectionGroups
         try {
           const qPartnered = query(collectionGroup(db, 'partners'), where('orgId', '==', data.id), where('status', '==', 'accepted'))
           const snapPartnered = await getDocs(qPartnered)
@@ -243,7 +239,8 @@ function UniversalProfileContent() {
             setPartneredEvents([])
           }
         } catch (cgError: any) {
-          console.error("Índice de grupo de coleção ausente para 'partners':", cgError.message);
+          // Falha graciosamente se houver erro de permissão ou índice ausente (não trava a UI)
+          console.warn("Informação: Buscando parcerias em modo reduzido (verifique índices no Firebase Console).");
           setPartneredEvents([]);
         }
       } catch (e) {

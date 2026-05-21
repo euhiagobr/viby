@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.11.1
+    // REGRAS VIBY - Versão: 2.11.2
     // Database Exclusivo: eventosviby
     
     function isSignedIn() {
@@ -33,12 +33,16 @@ service cloud.firestore {
          !('status' in get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data));
     }
 
-    // Regra Crítica para buscas via collectionGroup (Dashboard e Convites)
+    // Regras Críticas para buscas via collectionGroup
     match /{path=**}/members/{memberId} {
-      allow read: if isSignedIn() && (request.auth.uid == memberId || resource.data.userId == request.auth.uid || isOrgMember(path[3]));
+      allow read: if isSignedIn() && (request.auth.uid == memberId || resource.data.userId == request.auth.uid || isOrgMember(path[path.size() - 3]));
       allow create: if isSignedIn();
-      allow delete: if isSignedIn() && (request.auth.uid == memberId || hasOrgRole(path[3], ['owner', 'admin']));
-      allow update: if isSignedIn() && (request.auth.uid == memberId || hasOrgRole(path[3], ['owner', 'admin']));
+      allow delete: if isSignedIn() && (request.auth.uid == memberId || hasOrgRole(path[path.size() - 3], ['owner', 'admin']));
+      allow update: if isSignedIn() && (request.auth.uid == memberId || hasOrgRole(path[path.size() - 3], ['owner', 'admin']));
+    }
+
+    match /{path=**}/partners/{partnerId} {
+      allow read: if true;
     }
 
     // Configurações do Site
@@ -77,7 +81,7 @@ service cloud.firestore {
       allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
       allow delete: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
       
-      // Parceiros do Evento
+      // Parceiros do Evento (Sendo redundante para garantir acesso direto)
       match /partners/{partnerId} {
         allow read: if true;
         allow write: if hasOrgRole(get(/databases/eventosviby/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']);
