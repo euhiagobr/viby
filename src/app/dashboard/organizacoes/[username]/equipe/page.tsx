@@ -29,7 +29,8 @@ import {
   Check,
   AtSign,
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  UserX
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -90,7 +91,11 @@ export default function OrganizationMembersPage() {
   
   // Estado para troca de cargo
   const [pendingRoleChange, setPendingRoleChange] = React.useState<{ userId: string, userName: string, newRole: string } | null>(null);
+  
+  // Estado para exclusão de membro
+  const [memberToDelete, setMemberToDelete] = React.useState<{ userId: string, userName: string, isInvite: boolean } | null>(null);
   const [roleActionLoading, setRoleActionLoading] = React.useState(false);
+  const [deleteActionLoading, setDeleteActionLoading] = React.useState(false);
 
   React.useEffect(() => {
     if (!rawMembers || !db) return;
@@ -219,15 +224,21 @@ export default function OrganizationMembersPage() {
     }
   };
 
-  const handleRemoveMember = async (userId: string) => {
-    if (!db || !currentOrg) return;
-    if (!confirm("Tem certeza que deseja remover este membro ou cancelar o convite?")) return;
+  const handleConfirmRemoveMember = async () => {
+    if (!db || !currentOrg || !memberToDelete) return;
 
+    setDeleteActionLoading(true);
     try {
-      await deleteDoc(doc(db, 'organizations', currentOrg.id, 'members', userId));
-      toast({ title: "Membro/Convite removido" });
+      await deleteDoc(doc(db, 'organizations', currentOrg.id, 'members', memberToDelete.userId));
+      toast({ 
+        title: memberToDelete.isInvite ? "Convite removido" : "Membro removido", 
+        description: `${memberToDelete.userName} não faz mais parte da equipe.` 
+      });
+      setMemberToDelete(null);
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao remover" });
+    } finally {
+      setDeleteActionLoading(false);
     }
   };
 
@@ -386,7 +397,11 @@ export default function OrganizationMembersPage() {
                           variant="ghost" 
                           size="icon" 
                           className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full"
-                          onClick={() => handleRemoveMember(member.userId)}
+                          onClick={() => setMemberToDelete({ 
+                            userId: member.userId, 
+                            userName: member.profile?.name || member.profile?.displayName || "Colaborador",
+                            isInvite: member.status === 'pending'
+                          })}
                         >
                            <Trash2 className="w-4 h-4" />
                         </Button>
@@ -427,6 +442,40 @@ export default function OrganizationMembersPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* ALERT DIALOG PARA CONFIRMAÇÃO DE REMOÇÃO DE MEMBRO */}
+      <AlertDialog open={!!memberToDelete} onOpenChange={(open) => !open && setMemberToDelete(null)}>
+        <AlertDialogContent className="rounded-[2rem]">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+               <div className="p-2 bg-destructive/10 rounded-lg text-destructive">
+                  <UserX className="w-6 h-6" />
+               </div>
+               <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">
+                 {memberToDelete?.isInvite ? "Cancelar Convite?" : "Remover Membro?"}
+               </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="font-medium text-foreground/80 leading-relaxed">
+              {memberToDelete?.isInvite ? (
+                <>Você está removendo o convite pendente para <strong>{memberToDelete?.userName}</strong>. Ele não poderá mais aceitar o acesso.</>
+              ) : (
+                <>Tem certeza que deseja remover <strong>{memberToDelete?.userName}</strong> da equipe? O acesso dele às ferramentas de gestão será revogado instantaneamente.</>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3 mt-4">
+            <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px] tracking-widest border-none bg-muted hover:bg-muted/80">Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmRemoveMember}
+              disabled={deleteActionLoading}
+              className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-destructive/20 h-11 px-8"
+            >
+              {deleteActionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Confirmar Remoção
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
          <AlertTriangle className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
          <div className="space-y-1">
@@ -439,4 +488,3 @@ export default function OrganizationMembersPage() {
     </div>
   );
 }
-
