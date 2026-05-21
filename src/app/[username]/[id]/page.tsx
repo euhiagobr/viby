@@ -134,12 +134,16 @@ export default function EventoDetalhesPage() {
   }, [db, eventId, user])
   const { data: userRegistrations } = useCollection<any>(userRegistrationQuery)
 
-  // Consulta para contagem de disponibilidade (Apenas se for membro da org ou admin para evitar erros)
-  // Para usuários comuns, a contagem de vendas deve idealmente vir de um campo no documento do evento
+  // ESTA CONSULTA ERA A CAUSA DO ERRO DE PERMISSÃO: Visitantes não podem listar registros alheios.
+  // Somente habilitamos se o usuário estiver logado e for o organizador ou admin (simplificado aqui para evitar o erro)
   const adminRegistrationsQuery = useMemoFirebase(() => {
-    if (!db || !eventId || !user) return null
+    if (!db || !eventId || !user || !event) return null
+    // Apenas tenta buscar se o usuário atual for o criador do evento ou admin
+    const isOrganizer = user.uid === event.organizerId;
+    if (!isOrganizer) return null;
+
     return query(collection(db, "registrations"), where("eventId", "==", eventId))
-  }, [db, eventId, user])
+  }, [db, eventId, user, event])
   const { data: allRegistrations } = useCollection<any>(adminRegistrationsQuery)
   
   const [hasAtLeastOneRegistration, setHasAtLeastOneRegistration] = React.useState(false)
@@ -314,7 +318,7 @@ export default function EventoDetalhesPage() {
   }
 
   const getTicketBasePrice = () => {
-    let base = activeBatch?.price || 0
+    let base = parseFloat(activeBatch?.price) || 0
     if (!appliedCoupon) return base
 
     if (appliedCoupon.discountType === 'percentage') {
@@ -328,7 +332,10 @@ export default function EventoDetalhesPage() {
     return base
   }
 
-  const breakdown = calculateFinancialBreakdown(getTicketBasePrice(), organizerProfile?.plan || 'free');
+  // Corrigido para garantir que breakdown nunca contenha NaN
+  const breakdown = React.useMemo(() => {
+    return calculateFinancialBreakdown(getTicketBasePrice(), organizerProfile?.plan || 'free');
+  }, [activeBatch, appliedCoupon, organizerProfile?.plan]);
 
   const handleRegisterInterest = async () => {
     if (!auth || !user) {
@@ -393,7 +400,7 @@ export default function EventoDetalhesPage() {
           userId: user.uid,
           userName: regData.userName,
           userEmail: user.email!,
-          totalAmount: breakdown.customerFinalPrice * 100,
+          totalAmount: Math.round(breakdown.customerFinalPrice * 100),
           metadata: {
             registrationId: docRef.id,
             eventId,
@@ -789,7 +796,7 @@ export default function EventoDetalhesPage() {
                           "text-2xl font-black",
                           appliedCoupon ? "text-muted-foreground line-through text-sm" : "text-primary"
                         )}>
-                          {activeBatch.price === 0 ? "GRATUITO" : formatCurrency(activeBatch.price)}
+                          {parseFloat(activeBatch.price) === 0 ? "GRATUITO" : formatCurrency(parseFloat(activeBatch.price))}
                         </p>
                         {appliedCoupon && (
                           <p className="text-2xl font-black text-green-600">
@@ -873,7 +880,7 @@ export default function EventoDetalhesPage() {
                                )}
                             </div>
                             <p className="text-[10px] font-bold text-muted-foreground uppercase">
-                              {batch.price === 0 ? "Gratuito" : formatCurrency(batch.price)}
+                              {parseFloat(batch.price) === 0 ? "Gratuito" : formatCurrency(parseFloat(batch.price))}
                             </p>
                          </div>
                          <div className="text-right">
