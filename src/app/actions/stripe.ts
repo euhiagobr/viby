@@ -53,6 +53,7 @@ export async function createCheckoutSession(data: {
   userEmail: string;
   totalAmount: number; // Em centavos
   metadata: any;
+  lineItems?: any[]; // Suporte a múltiplos itens do carrinho
 }) {
   try {
     const h = await headers();
@@ -69,22 +70,24 @@ export async function createCheckoutSession(data: {
       });
     }
 
+    const items = data.lineItems || [
+      {
+        price_data: {
+          currency: 'brl',
+          product_data: {
+            name: data.eventTitle || 'Ingresso Viby',
+            description: `Reserva de ingresso`,
+            images: (data.eventImage && data.eventImage.startsWith('http')) ? [data.eventImage] : [],
+          },
+          unit_amount: Math.max(1, Math.round(data.totalAmount)),
+        },
+        quantity: 1,
+      },
+    ];
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'brl',
-            product_data: {
-              name: data.eventTitle || 'Ingresso Viby',
-              description: `Reserva de ingresso: ${data.metadata.ticketTypeName || 'Acesso Geral'}`,
-              images: (data.eventImage && data.eventImage.startsWith('http')) ? [data.eventImage] : [],
-            },
-            unit_amount: Math.max(1, Math.round(data.totalAmount)),
-          },
-          quantity: 1,
-        },
-      ],
+      line_items: items,
       mode: 'payment',
       customer_email: data.userEmail,
       success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,

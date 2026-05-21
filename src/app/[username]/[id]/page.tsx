@@ -4,13 +4,12 @@
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, addDoc, collection, serverTimestamp, query, where } from "firebase/firestore"
+import { doc, collection, query, where } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
 import { 
   Calendar, 
   MapPin, 
@@ -19,29 +18,20 @@ import {
   Ticket, 
   Info,
   Loader2,
-  CheckCircle2,
-  Clock,
-  ExternalLink,
   AlertTriangle,
-  CreditCard,
+  ExternalLink,
   ShieldCheck,
-  ShieldAlert,
-  Layers
+  Layers,
+  ShoppingCart,
+  Plus,
+  Minus
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
 import Link from "next/link"
-import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 import { cn } from "@/lib/utils"
-import { calculateFinancialBreakdown, formatCurrency } from "@/lib/financial-utils"
-import { createCheckoutSession } from "@/app/actions/stripe"
-import { sendTicketEmail } from "@/app/actions/email"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { formatCurrency } from "@/lib/financial-utils"
+import { useCart } from "@/contexts/CartContext"
 import Footer from "@/components/layout/Footer"
 
 export default function EventoDetalhesPage() {
@@ -50,6 +40,8 @@ export default function EventoDetalhesPage() {
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
+  const { addItem, items: cartItems } = useCart()
+  
   const eventId = params.id as string
   const usernameFromUrl = params.username as string
 
@@ -59,23 +51,16 @@ export default function EventoDetalhesPage() {
   const organizationRef = React.useMemo(() => (db && event?.organizationId) ? doc(db, "organizations", event.organizationId) : null, [db, event?.organizationId])
   const { data: organizationProfile } = useDoc<any>(organizationRef)
 
-  const ownerRef = React.useMemo(() => (db && event?.organizerId) ? doc(db, "users", event.organizerId) : null, [db, event?.organizerId])
-  const { data: ownerProfile } = useDoc<any>(ownerRef)
-
-  const currentUserRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
-  const { data: currentUserProfile } = useDoc<any>(currentUserRef)
-
   const availabilityQuery = useMemoFirebase(() => {
     if (!db || !eventId) return null
     return query(collection(db, "registrations"), where("eventId", "==", eventId))
   }, [db, eventId])
   const { data: allRegistrations } = useCollection<any>(availabilityQuery)
 
-  const [registering, setRegistering] = React.useState(false)
   const [activeBatch, setActiveBatch] = React.useState<any>(null)
   const [selectedTicketType, setSelectedTicketType] = React.useState<any>(null)
   const [saleStatus, setSaleStatus] = React.useState<'open' | 'pending' | 'ended' | 'soldout'>('pending')
-  const [isCheckoutOpen, setIsCheckoutOpen] = React.useState(false)
+  const [quantity, setQuantity] = React.useState(1)
 
   React.useEffect(() => {
     if (!event) return
@@ -137,53 +122,35 @@ export default function EventoDetalhesPage() {
     checkAvailability()
   }, [event, allRegistrations])
 
-  const breakdown = React.useMemo(() => {
-    return calculateFinancialBreakdown(selectedTicketType?.price || 0, ownerProfile?.plan || 'free');
-  }, [selectedTicketType, ownerProfile?.plan]);
+  const handleAddToCart = () => {
+    if (!selectedTicketType || !event || !activeBatch) return
 
-  const handleRegisterInterest = async () => {
-    if (!user) return router.push("/login")
-    if (!db || !eventId || !event || !selectedTicketType) return
+    addItem({
+      id: `${event.id}_${selectedTicketType.id}`,
+      eventId: event.id,
+      eventTitle: event.title,
+      eventImage: event.image || "",
+      eventDate: event.date,
+      eventCity: event.city || "",
+      organizationId: event.organizationId,
+      organizerId: event.organizerId,
+      organizerUsername: usernameFromUrl,
+      ticketTypeId: selectedTicketType.id,
+      ticketTypeName: selectedTicketType.name,
+      batchId: activeBatch.id,
+      batchName: activeBatch.name,
+      poolId: selectedTicketType.poolId,
+      poolName: selectedTicketType.poolName,
+      price: selectedTicketType.price,
+      quantity: quantity,
+      requiresProof: selectedTicketType.requiresProof
+    });
 
-    setRegistering(true)
-    try {
-      const ticketCode = await generateUniqueTicketCode(db);
-      const userName = currentUserProfile?.name || user.displayName || user.email || "Usuário";
-      const regData = {
-        eventId, eventTitle: event.title, eventImage: event.image || "", eventDate: event.date, eventCity: event.city || "",
-        userId: user.uid, userName, userEmail: user.email, attendeeName: userName, attendeeCPF: "",
-        userGender: currentUserProfile?.gender || "Não informado", userBirthDate: currentUserProfile?.birthDate || "",
-        organizationId: event.organizationId, organizerId: event.organizerId, organizerUsername: usernameFromUrl,
-        ticketBasePrice: breakdown.ticketBasePrice, price: breakdown.customerFinalPrice, 
-        administrativeFeeAmount: breakdown.administrativeFeeAmount, producerFeeAmount: breakdown.producerFeeAmount, producerNetAmount: breakdown.producerNetAmount,
-        financialBreakdown: breakdown, batchId: activeBatch.id, batchName: activeBatch.name,
-        ticketTypeId: selectedTicketType.id, ticketTypeName: selectedTicketType.name,
-        poolId: selectedTicketType.poolId || null, poolName: selectedTicketType.poolName || null,
-        checkedIn: false, paymentStatus: breakdown.customerFinalPrice === 0 ? "Disponível" : "Pendente",
-        ticketCode, status: "Ativo", purchaseType: breakdown.customerFinalPrice === 0 ? "free" : "paid",
-        createdAt: serverTimestamp(), timestamp: serverTimestamp()
-      }
-
-      if (breakdown.customerFinalPrice > 0) {
-        const docRef = await addDoc(collection(db, "registrations"), regData);
-        const { url } = await createCheckoutSession({
-          eventId, eventTitle: event.title, eventImage: event.image || "",
-          userId: user.uid, userName: regData.userName, userEmail: user.email!,
-          totalAmount: Math.round(breakdown.customerFinalPrice * 100),
-          metadata: { registrationId: docRef.id, eventId, userId: user.uid, ticketCode, ticketTypeName: regData.ticketTypeName }
-        });
-        if (url) window.location.href = url;
-      } else {
-        const newDocRef = await addDoc(collection(db, "registrations"), { ...regData, paymentStatus: "Disponível" })
-        await sendTicketEmail({
-          to: regData.userEmail!, userName: regData.attendeeName, eventTitle: regData.eventTitle, ticketCode: regData.ticketCode,
-          eventDate: new Date(regData.eventDate).toLocaleString('pt-BR'), eventCity: regData.eventCity,
-          voucherUrl: `https://viby.club/dashboard/ingressos/${newDocRef.id}/voucher`, eventUrl: `https://viby.club/${usernameFromUrl}/${eventId}`
-        });
-        setIsCheckoutOpen(false); toast({ title: "Reserva confirmada!" });
-      }
-    } catch (e: any) { toast({ variant: "destructive", title: "Erro", description: e.message }) }
-    finally { setRegistering(false) }
+    toast({ 
+      title: "Carrinho atualizado!", 
+      description: `${quantity}x ${selectedTicketType.name} adicionado.`,
+      action: <Button variant="secondary" size="sm" asChild><Link href="/dashboard/carrinho">Ver Carrinho</Link></Button>
+    });
   }
 
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
@@ -202,6 +169,12 @@ export default function EventoDetalhesPage() {
            </Button>
            <div className="flex gap-2">
               <Button variant="outline" size="icon" className="rounded-full h-10 w-10"><Share2 className="w-4 h-4" /></Button>
+              <Button variant="outline" size="icon" className="rounded-full h-10 w-10 relative" asChild>
+                <Link href="/dashboard/carrinho">
+                  <ShoppingCart className="w-4 h-4" />
+                  {cartItems.length > 0 && <span className="absolute -top-1 -right-1 bg-secondary text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">{cartItems.length}</span>}
+                </Link>
+              </Button>
            </div>
         </div>
 
@@ -220,7 +193,7 @@ export default function EventoDetalhesPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 pb-20">
            <div className="lg:col-span-8 space-y-8">
               <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
                  <CardHeader className="bg-muted/30 pb-4"><CardTitle className="flex items-center gap-2 text-xl font-bold"><Info className="w-5 h-5 text-secondary" /> Sobre o Evento</CardTitle></CardHeader>
@@ -259,12 +232,24 @@ export default function EventoDetalhesPage() {
                                 ))}
                              </div>
                           </div>
+
+                          {selectedTicketType && (
+                             <div className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border border-dashed border-border">
+                                <span className="text-[10px] font-black uppercase opacity-60">Quantidade</span>
+                                <div className="flex items-center gap-4">
+                                   <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setQuantity(Math.max(1, quantity - 1))}><Minus className="w-3 h-3" /></Button>
+                                   <span className="font-black text-lg">{quantity}</span>
+                                   <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setQuantity(Math.min(10, quantity + 1))}><Plus className="w-3 h-3" /></Button>
+                                </div>
+                             </div>
+                          )}
+
                           <Button 
                             disabled={!selectedTicketType} 
-                            onClick={() => setIsCheckoutOpen(true)}
-                            className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform"
+                            onClick={handleAddToCart}
+                            className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform gap-3"
                           >
-                             Garantir Ingresso
+                             <ShoppingCart className="w-6 h-6" /> Adicionar ao Carrinho
                           </Button>
                        </div>
                     ) : (
@@ -301,34 +286,6 @@ export default function EventoDetalhesPage() {
         </div>
       </div>
       <Footer />
-
-      <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
-         <DialogContent className="rounded-[2.5rem] max-w-md p-0 overflow-hidden">
-            <div className="p-8 space-y-6">
-               <DialogHeader><DialogTitle className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-3"><CreditCard className="w-6 h-6 text-secondary" /> Finalizar Reserva</DialogTitle></DialogHeader>
-               
-               <div className="p-6 bg-muted/20 rounded-[2rem] border-2 border-dashed border-border space-y-4">
-                  <div className="flex justify-between text-xs font-bold uppercase"><span className="opacity-60">{selectedTicketType?.name}</span><span>{formatCurrency(breakdown.ticketBasePrice)}</span></div>
-                  <div className="flex justify-between text-xs font-bold uppercase"><span className="opacity-60">Taxa Administrativa (15%)</span><span className="text-secondary">{formatCurrency(breakdown.administrativeFeeAmount)}</span></div>
-                  <Separator />
-                  <div className="flex justify-between items-center"><span className="text-lg font-black uppercase italic tracking-tighter">Total</span><span className="text-2xl font-black text-primary">{formatCurrency(breakdown.customerFinalPrice)}</span></div>
-               </div>
-
-               {selectedTicketType?.requiresProof && (
-                 <div className="p-4 rounded-xl bg-orange-50 border border-orange-100 flex gap-3 items-start">
-                    <ShieldAlert className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
-                    <p className="text-[10px] text-orange-800 font-bold uppercase leading-relaxed">
-                       Atenção: Este ingresso exige comprovação obrigatória na entrada do evento.
-                    </p>
-                 </div>
-               )}
-
-               <Button onClick={handleRegisterInterest} disabled={registering} className="w-full h-16 bg-secondary text-white font-black text-xl rounded-2xl shadow-xl uppercase italic">
-                  {registering ? <Loader2 className="animate-spin mr-2" /> : "Confirmar e Pagar"}
-               </Button>
-            </div>
-         </DialogContent>
-      </Dialog>
     </div>
   )
 }

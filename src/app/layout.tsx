@@ -1,7 +1,9 @@
+
 import type {Metadata} from 'next';
 import './globals.css';
 import {Toaster} from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
+import { CartProvider } from '@/contexts/CartContext';
 
 export const metadata: Metadata = {
   title: 'Viby | Gestão Inteligente de Eventos',
@@ -22,10 +24,12 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased bg-[#f8fafc] text-[#000000] flex flex-col min-h-screen">
         <FirebaseClientProvider>
-          <div className="flex-1 flex flex-col">
-            {children}
-          </div>
-          <Toaster />
+          <CartProvider>
+            <div className="flex-1 flex flex-col">
+              {children}
+            </div>
+            <Toaster />
+          </CartProvider>
         </FirebaseClientProvider>
       </body>
     </html>
