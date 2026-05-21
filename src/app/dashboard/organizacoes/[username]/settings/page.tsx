@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
 import { 
   Settings, 
   Save, 
@@ -24,7 +25,9 @@ import {
   Mail, 
   Instagram, 
   Info,
-  ShieldAlert
+  ShieldAlert,
+  MapPin,
+  Fingerprint
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
@@ -51,10 +54,23 @@ export default function OrganizationSettingsPage() {
         contactEmail: currentOrg.contactEmail || "",
         website: currentOrg.website || "",
         instagram: currentOrg.instagram || "",
+        cnpj: currentOrg.cnpj || "",
+        legalName: currentOrg.legalName || "",
+        cep: currentOrg.cep || "",
+        street: currentOrg.street || "",
+        number: currentOrg.number || "",
+        complement: currentOrg.complement || "",
+        neighborhood: currentOrg.neighborhood || "",
+        city: currentOrg.city || "",
+        state: currentOrg.state || "",
+        country: currentOrg.country || "Brasil",
         showPhone: currentOrg.showPhone ?? true,
         showEmail: currentOrg.showEmail ?? true,
         showWebsite: currentOrg.showWebsite ?? true,
         showInstagram: currentOrg.showInstagram ?? true,
+        showAddress: currentOrg.showAddress ?? true,
+        showNeighborhood: currentOrg.showNeighborhood ?? true,
+        showState: currentOrg.showState ?? true,
       });
     }
   }, [currentOrg]);
@@ -82,6 +98,28 @@ export default function OrganizationSettingsPage() {
         }
       );
     } catch (err) { setProgress(null); }
+  };
+
+  const handleCepBlur = async () => {
+    if (!formData.cep) return;
+    const cleanCep = formData.cep.replace(/\D/g, "");
+    if (cleanCep.length !== 8) return;
+    
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await response.json();
+      if (!data.erro) {
+        setFormData((prev: any) => ({
+          ...prev,
+          street: data.logradouro || prev.street,
+          neighborhood: data.bairro || prev.neighborhood,
+          city: data.localidade || prev.city,
+          state: data.uf || prev.state
+        }));
+      }
+    } catch (e) {
+      console.error("Erro ao buscar CEP", e);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -146,7 +184,7 @@ export default function OrganizationSettingsPage() {
                   className="h-48 bg-muted border-b border-border group cursor-pointer relative overflow-hidden"
                   onClick={() => document.getElementById('edit-org-banner')?.click()}
                 >
-                  {formData.banner ? <img src={formData.banner} className="w-full h-full object-cover" /> : null}
+                  {formData.banner ? <img src={formData.banner} className="w-full h-full object-cover" alt="Banner" /> : null}
                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <Camera className="text-white w-8 h-8" />
                   </div>
@@ -192,6 +230,148 @@ export default function OrganizationSettingsPage() {
                  />
               </div>
            </CardContent>
+        </Card>
+
+        {/* Dados Legais */}
+        <Card className="border-none shadow-sm rounded-[2rem]">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Fingerprint className="w-5 h-5 text-secondary" /> Dados Fiscais
+            </CardTitle>
+            <CardDescription>O CNPJ é obrigatório para emissão de notas e recebimentos.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase opacity-60">Razão Social</Label>
+                <Input 
+                  value={formData.legalName}
+                  onChange={e => setFormData({...formData, legalName: e.target.value})}
+                  className="rounded-xl h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase opacity-60">CNPJ (Obrigatório)</Label>
+                <Input 
+                  value={formData.cnpj}
+                  onChange={e => {
+                    const val = e.target.value.replace(/\D/g, "");
+                    setFormData({...formData, cnpj: val.substring(0, 14)});
+                  }}
+                  required
+                  placeholder="00.000.000/0000-00"
+                  className="rounded-xl h-11"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Endereço */}
+        <Card className="border-none shadow-sm rounded-[2rem]">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-secondary" /> Endereço e Localização
+            </CardTitle>
+            <CardDescription>Defina onde sua marca está sediada e controle o que aparece no perfil.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase opacity-60">CEP</Label>
+                <Input 
+                  value={formData.cep}
+                  onChange={e => setFormData({...formData, cep: e.target.value})}
+                  onBlur={handleCepBlur}
+                  required
+                  className="rounded-xl h-11"
+                />
+              </div>
+              <div className="md:col-span-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Logradouro / Rua</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[8px] font-bold uppercase opacity-40">{formData.showAddress ? 'Público' : 'Oculto'}</span>
+                    <Switch 
+                      checked={formData.showAddress} 
+                      onCheckedChange={checked => setFormData({...formData, showAddress: checked})} 
+                    />
+                  </div>
+                </div>
+                <Input 
+                  value={formData.street}
+                  onChange={e => setFormData({...formData, street: e.target.value})}
+                  required
+                  className="rounded-xl h-11"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase opacity-60">Número</Label>
+                <Input 
+                  value={formData.number}
+                  onChange={e => setFormData({...formData, number: e.target.value})}
+                  required
+                  className="rounded-xl h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label>
+                <Input 
+                  value={formData.complement}
+                  onChange={e => setFormData({...formData, complement: e.target.value})}
+                  className="rounded-xl h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[8px] font-bold uppercase opacity-40">{formData.showNeighborhood ? 'Público' : 'Oculto'}</span>
+                    <Switch 
+                      checked={formData.showNeighborhood} 
+                      onCheckedChange={checked => setFormData({...formData, showNeighborhood: checked})} 
+                    />
+                  </div>
+                </div>
+                <Input 
+                  value={formData.neighborhood}
+                  onChange={e => setFormData({...formData, neighborhood: e.target.value})}
+                  required
+                  className="rounded-xl h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[8px] font-bold uppercase opacity-40">{formData.showState ? 'Público' : 'Oculto'}</span>
+                    <Switch 
+                      checked={formData.showState} 
+                      onCheckedChange={checked => setFormData({...formData, showState: checked})} 
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Input value={formData.city} readOnly className="rounded-xl h-11 bg-muted/30" />
+                  <Input value={formData.state} readOnly className="rounded-xl h-11 bg-muted/30 w-16" />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
+                <Globe className="w-3 h-3" /> País (Sempre Visível)
+              </Label>
+              <Input 
+                value={formData.country}
+                readOnly
+                className="rounded-xl h-11 bg-muted/30"
+              />
+            </div>
+          </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2rem]">
@@ -246,7 +426,7 @@ export default function OrganizationSettingsPage() {
       <div className="p-6 bg-muted/30 rounded-3xl flex items-start gap-4">
          <Info className="w-6 h-6 text-primary shrink-0 opacity-20" />
          <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
-            A mudança de username (URL) da organização não está disponível nesta tela por motivos de SEO e integridade de links. Para solicitar alteração da sua URL personalizada (viby.club/nome), entre em contato com o suporte.
+            Os dados fiscais e de endereço são protegidos e utilizados para validação da conta. A visibilidade pública apenas oculta a exibição visual nos perfis, mas os dados permanecem registrados no sistema para auditoria.
          </p>
       </div>
     </div>
