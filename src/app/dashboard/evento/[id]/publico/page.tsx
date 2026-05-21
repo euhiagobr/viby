@@ -28,7 +28,7 @@ import {
   Trash2,
   Ticket,
   Clock,
-  RefreshCw,
+  RefreshCcw,
   AlertTriangle,
   ScanQrCode,
   X,
