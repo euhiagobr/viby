@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
+import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
 import { 
   ArrowLeft, 
@@ -313,19 +314,19 @@ export default function NovoEventoPage() {
             </div>
             <div className="space-y-2"><Label htmlFor="tags">Tags (separadas por vírgula)</Label><Input id="tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="musica, festival..." /></div>
             <div className="space-y-2"><Label htmlFor="shortDescription">Breve Descrição</Label><Input id="shortDescription" name="shortDescription" placeholder="Frase chamativa..." required /></div>
-            <div className="space-y-2"><Label htmlFor="description">Descrição Completa</Label><Textarea id="description" name="description" placeholder="Detalhes do evento..." className="min-h-[150px]" required /></div>
+            <div className="space-y-2"><Label htmlFor="description">Descrição Completa</Label><Textarea id="description" name="description" placeholder="Detalhes do evento..." className="min-h-[120px]" required /></div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm">
           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização & Geolocalização</CardTitle></CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="cep">CEP</Label>
                 <Input id="cep" value={cep} onChange={(e) => setCep(e.target.value)} onBlur={handleCepBlur} placeholder="00000-000" required />
               </div>
-              <div className="md:col-span-2 space-y-2">
+              <div className="md:col-span-3 space-y-2">
                 <Label htmlFor="street">Logradouro</Label>
                 <Input id="street" value={address.street} onChange={(e) => setAddress({...address, street: e.target.value})} placeholder="Rua..." required />
               </div>
