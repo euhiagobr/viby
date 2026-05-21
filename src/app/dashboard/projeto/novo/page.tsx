@@ -110,9 +110,9 @@ export default function NovoEventoPage() {
   const { data: plansSettings } = useDoc<any>(plansRef)
 
   const activeEventsQuery = useMemoFirebase(() => {
-    if (!db || !currentOrg) return null
-    return query(collection(db, "events"), where("organizationId", "==", currentOrg.id), where("status", "==", "Ativo"))
-  }, [db, currentOrg?.id])
+    if (!db || !user) return null
+    return query(collection(db, "events"), where("organizerId", "==", user.uid), where("status", "==", "Ativo"))
+  }, [db, user?.uid])
   const { data: activeEvents } = useCollection<any>(activeEventsQuery)
 
   const storage = React.useMemo(() => {
@@ -316,7 +316,7 @@ export default function NovoEventoPage() {
 
     // Validar limite de eventos ativos
     if (maxActive !== 0 && (activeEvents?.length || 0) >= maxActive) {
-      toast({ variant: "destructive", title: "Limite de Eventos", description: `Seu plano permite apenas ${maxActive} evento(s) ativo(s) simultaneamente.` })
+      toast({ variant: "destructive", title: "Limite de Eventos", description: `Seu plano (${userPlan}) permite apenas ${maxActive} evento(s) ativo(s) simultaneamente. Faça upgrade para aumentar.` })
       return
     }
 

@@ -5,7 +5,7 @@ import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useFirebaseApp, useDoc } from "@/firebase"
-import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore"
+import { doc, getDoc, runTransaction, serverTimestamp, query, collection, where, getDocs } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -253,7 +253,7 @@ export default function NovaOrganizacaoPage() {
     const existingOrgs = await getDocs(qOrgs)
     
     if (maxOrgs !== 0 && existingOrgs.size >= maxOrgs) {
-      toast({ variant: "destructive", title: "Limite do Plano", description: `Seu plano (${userPlan}) permite criar no máximo ${maxOrgs} organização(ões).` })
+      toast({ variant: "destructive", title: "Limite do Plano", description: `Seu plano (${userPlan}) permite criar no máximo ${maxOrgs} organização(ões). Faça um upgrade para liberar mais.` })
       return
     }
 
