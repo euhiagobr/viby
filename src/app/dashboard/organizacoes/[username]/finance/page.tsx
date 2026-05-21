@@ -38,7 +38,8 @@ import {
   BarChart3,
   Percent,
   ChevronRight,
-  Info
+  Info,
+  Lock
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
@@ -264,7 +265,7 @@ export default function OrganizationFinancePage() {
               </Card>
 
               <div className="p-6 bg-muted/20 rounded-3xl space-y-4">
-                 <div className="flex items-center gap-2 text-primary font-black uppercase text-[10px] tracking-widest"><Info className="w-4 h-4" /> Regras de Taxas</div>
+                 <div className="flex items-center gap-2 text-primary font-black uppercase text-[10px] tracking-widest"><Info className="w-4 h-4 text-primary" /> Regras de Taxas</div>
                  <p className="text-[10px] text-muted-foreground leading-relaxed">As taxas são calculadas por ingresso de acordo com o plano do proprietário da marca no momento da venda. O valor líquido é transferido para sua conta PJ verificada conforme o ciclo de repasse.</p>
               </div>
             </div>
@@ -283,7 +284,7 @@ export default function OrganizationFinancePage() {
                     <DialogHeader><DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Recarregar Saldo</DialogTitle></DialogHeader>
                     <div className="space-y-6 py-4">
                        <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase opacity-60">Valor da Recarga (R$)</Label>
+                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Valor da Recarga (R$)</Label>
                           <div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-secondary">R$</span><Input value={topUpAmount} onChange={e => setTopUpAmount(e.target.value)} className="h-14 pl-10 text-xl font-black rounded-2xl border-secondary/20" /></div>
                           <p className="text-[9px] text-muted-foreground font-bold italic">* Mínimo de R$ 10,00</p>
                        </div>
