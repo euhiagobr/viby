@@ -176,8 +176,8 @@ export default function OrganizationAdsPage() {
       const storageRef = ref(storage, fileName);
       const uploadTask = uploadBytesResumable(storageRef, file);
       uploadTask.on('state_changed', (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), () => setUploadProgress(null), async () => {
-        const url = await getDownloadURL(uploadTask.snapshot.ref);
-        setAdImageUrl(url); setUploadProgress(null); toast({ title: "Imagem carregada!" });
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+        setAdImageUrl(downloadURL); setUploadProgress(null); toast({ title: "Imagem carregada!" });
       });
     } catch (err) { setUploadProgress(null); }
   };
@@ -354,54 +354,90 @@ export default function OrganizationAdsPage() {
       </div>
 
       <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
-        <CardHeader className="border-b pb-6 p-8"><CardTitle className="text-xl flex items-center gap-2"><BarChart3 className="w-5 h-5 text-secondary" /> Histórico de Impulsionamento</CardTitle></CardHeader>
+        <CardHeader className="border-b pb-6 p-8">
+           <CardTitle className="text-xl flex items-center gap-2"><BarChart3 className="w-5 h-5 text-secondary" /> Histórico de Impulsionamento</CardTitle>
+        </CardHeader>
         <CardContent className="p-0">
           {ads.length > 0 ? (
-            <div className="divide-y">{ads.map((ad: any) => {
-              const isFinished = ad.status === 'Finalizado' || ad.status === 'Cancelado';
-              const usedAmount = (ad.initialBudget || ad.budget || 0) - (ad.remainingBudget || 0);
-              const ctr = ad.reach > 0 ? (ad.clicks / ad.reach) * 100 : 0;
-              return (
-                <div key={ad.id} className={cn("p-8 flex flex-col gap-8 transition-colors lg:flex-row lg:items-center lg:justify-between hover:bg-muted/10", isFinished && "opacity-50")}>
-                  <div className="flex gap-4 min-w-[280px]">
-                    <div className="p-4 rounded-2xl bg-secondary/10 h-fit border border-secondary/10">
-                      {ad.type === 'evento' ? <Calendar className="w-6 h-6 text-secondary" /> : ad.type === 'pagina' ? <Layout className="w-6 h-6 text-secondary" /> : <Megaphone className="w-6 h-6 text-secondary" />}
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-base uppercase truncate max-w-[180px]">{ad.eventTitle}</h4>
-                        <Badge className={cn("text-[8px] font-black uppercase h-4", ad.status === 'Ativo' ? "bg-green-500" : ad.status === 'Pendente' ? "bg-orange-500" : "bg-muted")}>{ad.status}</Badge>
-                      </div>
-                      <div className="text-[10px] font-black text-muted-foreground uppercase flex flex-col gap-1.5 mt-2">
-                        <span className="flex items-center gap-1.5 text-secondary"><Target className="w-3.5 h-3.5" /> {ad.type}</span>
-                        <span>Fim: {formatAdDate(ad.endDate)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 flex-1 text-center bg-muted/20 p-4 rounded-2xl lg:bg-transparent lg:p-0">
-                     <div className="space-y-1"><p className="text-[9px] font-black opacity-40 uppercase">Visualizações</p><p className="font-black text-sm">{ad.reach?.toLocaleString()}</p></div>
-                     <div className="space-y-1"><p className="text-[9px] font-black opacity-40 uppercase">Alcance Único</p><p className="font-black text-sm">{ad.uniqueReach?.toLocaleString() || 0}</p></div>
-                     <div className="space-y-1"><p className="text-[9px] font-black text-primary uppercase">Cliques</p><p className="font-black text-primary text-sm">{ad.clicks?.toLocaleString()}</p></div>
-                     <div className="space-y-1"><p className="text-[9px] font-black text-secondary uppercase">CTR</p><p className="font-black text-secondary text-sm">{ctr.toFixed(2)}%</p></div>
-                  </div>
-
-                  <div className="flex flex-col gap-1 min-w-[140px] text-right">
-                     <p className="text-[9px] font-black uppercase opacity-40">Investimento</p>
-                     <p className="font-black text-sm">{formatCurrency(ad.initialBudget || ad.budget || 0)}</p>
-                     <p className="text-[10px] font-bold text-secondary uppercase">Saldo: {formatCurrency(isFinished ? ad.refundedAmount || 0 : ad.remainingBudget || 0)}</p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl border-secondary/20 text-secondary" onClick={() => setSelectedAdForMetrics(ad)}><TrendingUp className="w-5 h-5" /></Button>
-                    {!isFinished && (
-                      <><Button variant="outline" className="h-10 px-4 rounded-xl uppercase font-black text-[10px] gap-2 border-secondary/20 text-secondary" onClick={() => handleToggleStatus(ad.id, ad.status)} disabled={actionLoadingId === ad.id}>{ad.status === 'Ativo' ? <><Pause className="w-4 h-4" /> Pausar</> : <><Play className="w-4 h-4" /> Ativar</>}</Button>
-                      <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl text-destructive hover:bg-destructive/10" onClick={() => setAdToCancel(ad)} disabled={actionLoadingId === ad.id}><XCircle className="w-5 h-5" /></Button></>
-                    )}
-                  </div>
+            <div className="w-full overflow-x-auto">
+              <div className="min-w-[1000px]">
+                {/* COLUNAS DE CABEÇALHO */}
+                <div className="bg-muted/30 px-8 py-4 grid grid-cols-12 gap-4 border-b">
+                   <div className="col-span-3 text-[10px] font-black uppercase tracking-widest opacity-40">Campanha / Vigência</div>
+                   <div className="col-span-1 text-[10px] font-black uppercase tracking-widest opacity-40 text-center">Visu.</div>
+                   <div className="col-span-1 text-[10px] font-black uppercase tracking-widest opacity-40 text-center">Alcance</div>
+                   <div className="col-span-1 text-[10px] font-black uppercase tracking-widest opacity-40 text-center">Cliques</div>
+                   <div className="col-span-1 text-[10px] font-black uppercase tracking-widest opacity-40 text-center">CTR</div>
+                   <div className="col-span-2 text-[10px] font-black uppercase tracking-widest opacity-40 text-right">Investimento</div>
+                   <div className="col-span-3 text-[10px] font-black uppercase tracking-widest opacity-40 text-right">Ações</div>
                 </div>
-              );
-            })}</div>
+
+                <div className="divide-y">
+                   {ads.map((ad: any) => {
+                     const isFinished = ad.status === 'Finalizado' || ad.status === 'Cancelado';
+                     const ctr = ad.reach > 0 ? (ad.clicks / ad.reach) * 100 : 0;
+                     
+                     return (
+                       <div key={ad.id} className={cn("px-8 py-6 grid grid-cols-12 gap-4 items-center transition-colors hover:bg-muted/5", isFinished && "opacity-60")}>
+                         {/* INFO BÁSICA */}
+                         <div className="col-span-3 flex gap-3">
+                           <div className="p-2.5 rounded-xl bg-secondary/10 h-fit">
+                             {ad.type === 'evento' ? <Calendar className="w-4 h-4 text-secondary" /> : ad.type === 'pagina' ? <Layout className="w-4 h-4 text-secondary" /> : <Megaphone className="w-4 h-4 text-secondary" />}
+                           </div>
+                           <div className="space-y-1">
+                             <div className="flex items-center gap-2">
+                               <h4 className="font-bold text-xs uppercase truncate max-w-[150px]">{ad.eventTitle}</h4>
+                               <Badge className={cn("text-[7px] font-black uppercase h-3.5 px-1", ad.status === 'Ativo' ? "bg-green-500" : ad.status === 'Pendente' ? "bg-orange-500" : "bg-muted")}>{ad.status}</Badge>
+                             </div>
+                             <div className="flex flex-col gap-0.5 text-[8px] font-bold text-muted-foreground uppercase">
+                               <span className="flex items-center gap-1"><Clock className="w-2.5 h-2.5 text-green-500" /> {formatAdDate(ad.startDate)}</span>
+                               <span className="flex items-center gap-1"><Clock className="w-2.5 h-2.5 text-red-500" /> {formatAdDate(ad.endDate)}</span>
+                             </div>
+                           </div>
+                         </div>
+
+                         {/* MÉTRICAS ALINHADAS */}
+                         <div className="col-span-1 text-center">
+                            <span className="font-black text-sm">{ad.reach?.toLocaleString() || 0}</span>
+                         </div>
+                         <div className="col-span-1 text-center">
+                            <span className="font-black text-sm text-secondary">{ad.uniqueReach?.toLocaleString() || 0}</span>
+                         </div>
+                         <div className="col-span-1 text-center">
+                            <span className="font-black text-sm text-primary">{ad.clicks?.toLocaleString() || 0}</span>
+                         </div>
+                         <div className="col-span-1 text-center">
+                            <span className="font-black text-xs bg-muted px-2 py-0.5 rounded-full">{ctr.toFixed(2)}%</span>
+                         </div>
+
+                         {/* FINANCEIRO */}
+                         <div className="col-span-2 text-right space-y-0.5">
+                            <p className="font-black text-xs">{formatCurrency(ad.initialBudget || ad.budget || 0)}</p>
+                            <p className="text-[8px] font-bold text-secondary uppercase">Saldo: {formatCurrency(isFinished ? ad.refundedAmount || 0 : ad.remainingBudget || 0)}</p>
+                         </div>
+
+                         {/* AÇÕES */}
+                         <div className="col-span-3 flex items-center justify-end gap-2">
+                            <Button variant="outline" size="sm" className="h-8 rounded-lg border-secondary/20 text-secondary gap-1.5 font-bold text-[9px] uppercase" onClick={() => setSelectedAdForMetrics(ad)}>
+                               <TrendingUp className="w-3.5 h-3.5" /> Métricas
+                            </Button>
+                            {!isFinished && (
+                              <div className="flex items-center gap-1">
+                                 <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-secondary/20 text-secondary" onClick={() => handleToggleStatus(ad.id, ad.status)} disabled={actionLoadingId === ad.id}>
+                                    {ad.status === 'Ativo' ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                                 </Button>
+                                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => setAdToCancel(ad)} disabled={actionLoadingId === ad.id}>
+                                    <XCircle className="w-3.5 h-3.5" />
+                                 </Button>
+                              </div>
+                            )}
+                         </div>
+                       </div>
+                     );
+                   })}
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="py-24 text-center"><Megaphone className="w-16 h-16 text-muted-foreground opacity-10 mx-auto mb-4" /><p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-xs">Nenhuma campanha registrada.</p></div>
           )}
