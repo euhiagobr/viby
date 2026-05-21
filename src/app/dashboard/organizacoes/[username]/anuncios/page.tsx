@@ -2,13 +2,15 @@
 "use client"
 
 import * as React from "react"
-import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
+import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from "@/firebase"
 import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, increment, writeBatch } from "firebase/firestore"
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Progress } from "@/components/ui/progress"
 import { 
   Megaphone, 
   Plus, 
@@ -32,7 +34,9 @@ import {
   CheckCircle2,
   Lock,
   Globe,
-  ImageIcon
+  ImageIcon,
+  Camera,
+  Layout
 } from "lucide-react"
 import {
   Dialog,
@@ -70,17 +74,23 @@ import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 export default function OrganizationAdsPage() {
   const db = useFirestore()
   const auth = useAuth()
+  const app = useFirebaseApp()
   const { user } = useUser(auth)
   const router = useRouter()
   const params = useParams()
   const { currentOrg, userRole, loading: orgLoading, refreshOrg } = useCurrentOrganization()
+
+  const storage = React.useMemo(() => {
+    if (!app) return null;
+    return getStorage(app, "gs://viby");
+  }, [app]);
 
   const adsQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null
     return query(collection(db, "ads"), where("organizationId", "==", currentOrg.id))
   }, [db, currentOrg?.id])
 
-  const { data: rawAds, loading: adsLoading, error: adsError } = useCollection<any>(adsQuery)
+  const { data: rawAds, loading: adsLoading } = useCollection<any>(adsQuery)
 
   const ads = React.useMemo(() => {
     if (!rawAds) return []
@@ -106,7 +116,34 @@ export default function OrganizationAdsPage() {
   const [selectedAdForMetrics, setSelectedAdForMetrics] = React.useState<any>(null)
   const [adToCancel, setAdToCancel] = React.useState<any>(null)
 
+  // Estados para Upload de Imagem do Anúncio
+  const [adImageUrl, setAdImageUrl] = React.useState<string | null>(null)
+  const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
+
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !storage || !currentOrg) return;
+
+    setUploadProgress(0);
+    try {
+      const fileName = `ads/${currentOrg.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+      const storageRef = ref(storage, fileName);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      uploadTask.on('state_changed', 
+        (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+        () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          setAdImageUrl(downloadURL);
+          setUploadProgress(null);
+          toast({ title: "Imagem do anúncio carregada!" });
+        }
+      );
+    } catch (err) { setUploadProgress(null); }
+  };
 
   const handleCreateAd = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -134,16 +171,22 @@ export default function OrganizationAdsPage() {
       return
     }
 
+    if ((adType === 'banner' || adType === 'site') && !adImageUrl) {
+      toast({ variant: "destructive", title: "Imagem necessária", description: "Carregue um criativo para este tipo de anúncio." });
+      return;
+    }
+
     setIsSubmitting(true)
     const event = myEvents?.find(ev => ev.id === selectedEventId)
     
-    // Status baseado no tipo de anúncio
-    const status = adType === 'evento' ? 'Ativo' : 'Pendente'
+    // Status baseado no tipo de anúncio (Eventos e Página são automáticos)
+    const status = (adType === 'evento' || adType === 'pagina') ? 'Ativo' : 'Pendente'
 
     const adData = {
       eventId: adType === 'evento' ? selectedEventId : null,
-      eventTitle: adType === 'evento' ? (event?.title || "Evento") : (formData.get("title") as string),
+      eventTitle: adType === 'evento' ? (event?.title || "Evento") : (adType === 'pagina' ? `Promover: ${currentOrg.name}` : (formData.get("title") as string)),
       externalUrl: adType === 'site' ? (formData.get("url") as string) : null,
+      adImage: adImageUrl || (adType === 'pagina' ? currentOrg.avatar : null),
       organizationId: currentOrg.id,
       organizerId: user.uid,
       type: adType,
@@ -163,11 +206,9 @@ export default function OrganizationAdsPage() {
     try {
       const batch = writeBatch(db)
       
-      // 1. Criar o anúncio
       const adRef = doc(collection(db, "ads"))
       batch.set(adRef, adData)
 
-      // 2. Bloquear o saldo na organização
       const orgRef = doc(db, "organizations", currentOrg.id)
       batch.update(orgRef, {
         adBalance: increment(-totalBudget),
@@ -175,7 +216,6 @@ export default function OrganizationAdsPage() {
         updatedAt: serverTimestamp()
       })
 
-      // 3. Registrar no histórico financeiro
       const txRef = doc(collection(db, 'organizations', currentOrg.id, 'transactions'))
       batch.set(txRef, {
         type: 'ad_reservation',
@@ -191,10 +231,11 @@ export default function OrganizationAdsPage() {
       
       toast({ 
         title: status === 'Ativo' ? "Campanha Ativa!" : "Enviado para Aprovação",
-        description: status === 'Ativo' ? "Seu evento já está sendo impulsionado." : "Campanhas de banners e sites são revisadas em até 24h."
+        description: status === 'Ativo' ? "Seu anúncio já está sendo impulsionado." : "Campanhas de banners e sites são revisadas em até 24h."
       })
       setIsCreateDialogOpen(false)
       setSelectedEventId("")
+      setAdImageUrl(null)
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao criar", description: error.message })
     } finally {
@@ -227,14 +268,12 @@ export default function OrganizationAdsPage() {
       
       const refundAmount = adToCancel.remainingBudget || 0
 
-      // 1. Marcar anúncio como cancelado
       batch.update(adRef, { 
         status: "Cancelado", 
         remainingBudget: 0,
         updatedAt: serverTimestamp() 
       })
 
-      // 2. Devolver saldo remanescente
       if (refundAmount > 0) {
         batch.update(orgRef, {
           adBalance: increment(refundAmount),
@@ -242,7 +281,6 @@ export default function OrganizationAdsPage() {
           updatedAt: serverTimestamp()
         })
 
-        // 3. Registrar estorno no histórico
         const txRef = doc(collection(db, 'organizations', currentOrg.id, 'transactions'))
         batch.set(txRef, {
           type: 'ad_refund',
@@ -251,11 +289,6 @@ export default function OrganizationAdsPage() {
           status: 'completed',
           createdAt: serverTimestamp(),
           userId: user?.uid
-        })
-      } else {
-        // Se não tem saldo a devolver, apenas limpa o bloqueado se houver erro de sync
-        batch.update(orgRef, {
-          blockedBalance: increment(-(adToCancel.remainingBudget || 0))
         })
       }
 
@@ -305,123 +338,154 @@ export default function OrganizationAdsPage() {
                 <Plus className="w-5 h-5" /> Nova Campanha
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md rounded-[2rem]">
-              <form onSubmit={handleCreateAd} className="space-y-6">
-                <DialogHeader>
-                  <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Criar Anúncio</DialogTitle>
-                  <DialogDescription>Use seu saldo de anúncios para impulsionar sua marca.</DialogDescription>
-                </DialogHeader>
+            <DialogContent className="max-w-md h-[90vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
+              <DialogHeader className="p-8 border-b bg-muted/30">
+                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Lançar Campanha</DialogTitle>
+                <DialogDescription className="font-medium">Defina o que você quer promover agora.</DialogDescription>
+              </DialogHeader>
 
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">O que deseja divulgar?</Label>
-                     <div className="grid grid-cols-3 gap-2">
-                        <Button type="button" variant={adType === 'evento' ? 'secondary' : 'outline'} className="h-14 flex-col text-[8px] font-black uppercase gap-1 rounded-xl" onClick={() => setAdType('evento')}>
+              <form onSubmit={handleCreateAd} className="flex-1 overflow-y-auto p-8 space-y-8">
+                  <div className="space-y-3">
+                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Objetivo da Divulgação</Label>
+                     <div className="grid grid-cols-2 gap-2">
+                        <Button type="button" variant={adType === 'evento' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1 rounded-xl" onClick={() => setAdType('evento')}>
                            <Calendar className="w-4 h-4" /> Evento
                         </Button>
-                        <Button type="button" variant={adType === 'banner' ? 'secondary' : 'outline'} className="h-14 flex-col text-[8px] font-black uppercase gap-1 rounded-xl" onClick={() => setAdType('banner')}>
-                           <ImageIcon className="w-4 h-4" /> Banner
+                        <Button type="button" variant={adType === 'pagina' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1 rounded-xl" onClick={() => setAdType('pagina')}>
+                           <Layout className="w-4 h-4" /> Perfil da Marca
                         </Button>
-                        <Button type="button" variant={adType === 'site' ? 'secondary' : 'outline'} className="h-14 flex-col text-[8px] font-black uppercase gap-1 rounded-xl" onClick={() => setAdType('site')}>
-                           <Globe className="w-4 h-4" /> Site
+                        <Button type="button" variant={adType === 'banner' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1 rounded-xl" onClick={() => setAdType('banner')}>
+                           <ImageIcon className="w-4 h-4" /> Banner (Mídia)
+                        </Button>
+                        <Button type="button" variant={adType === 'site' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1 rounded-xl" onClick={() => setAdType('site')}>
+                           <Globe className="w-4 h-4" /> Link Externo
                         </Button>
                      </div>
                   </div>
 
+                  {/* Campos Dinâmicos */}
                   {adType === 'evento' ? (
                     <div className="space-y-2">
                       <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Selecione o Evento</Label>
                       <Select value={selectedEventId} onValueChange={setSelectedEventId} required>
-                        <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione um evento ativo" /></SelectTrigger>
+                        <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Escolha um evento ativo" /></SelectTrigger>
                         <SelectContent className="rounded-xl">
                           {myEvents?.map((event: any) => (
                             <SelectItem key={event.id} value={event.id}>{event.title}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-[8px] text-green-600 font-bold uppercase flex items-center gap-1"><CheckCircle2 className="w-2.5 h-2.5" /> Aprovação Automática</p>
+                    </div>
+                  ) : adType === 'pagina' ? (
+                    <div className="p-4 bg-muted/50 rounded-2xl border border-dashed flex items-center gap-3">
+                       <CheckCircle2 className="w-5 h-5 text-green-500" />
+                       <p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">
+                         Promoveremos o perfil público <strong>@{currentOrg.username}</strong> no feed principal e em áreas de sugestão.
+                       </p>
                     </div>
                   ) : (
                     <>
                       <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Título da Campanha</Label>
-                        <Input name="title" required className="rounded-xl h-11" placeholder="Ex: Nova Coleção Inverno" />
+                        <Input name="title" required className="rounded-xl h-11" placeholder="Ex: Nova Coleção Primavera" />
                       </div>
                       {adType === 'site' && (
                         <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">URL de Destino</Label>
+                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Link de Destino</Label>
                           <Input name="url" type="url" required className="rounded-xl h-11" placeholder="https://seu-site.com" />
                         </div>
                       )}
-                      <p className="text-[8px] text-orange-500 font-bold uppercase flex items-center gap-1"><Clock className="w-2.5 h-2.5" /> Requer Aprovação do Admin</p>
+                      
+                      {/* Upload de Imagem Criativa */}
+                      <div className="space-y-3">
+                         <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Imagem do Anúncio (Obrigatório)</Label>
+                         <div 
+                           className="relative aspect-video bg-muted rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden cursor-pointer group"
+                           onClick={() => document.getElementById('ad-image-up')?.click()}
+                         >
+                            {adImageUrl ? (
+                              <img src={adImageUrl} className="w-full h-full object-cover" alt="Preview" />
+                            ) : (
+                              <div className="text-center opacity-40">
+                                <Camera className="w-8 h-8 mx-auto mb-2" />
+                                <p className="text-[8px] font-black uppercase">Clique para carregar mídia</p>
+                              </div>
+                            )}
+                            <input id="ad-image-up" type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                         </div>
+                         {uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}
+                      </div>
                     </>
                   )}
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Início</Label>
-                      <Input name="startDate" type="date" required className="rounded-xl" />
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Início da Veiculação</Label>
+                      <Input name="startDate" type="datetime-local" required className="rounded-xl h-11 text-xs" />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Fim</Label>
-                      <Input name="endDate" type="date" required className="rounded-xl" />
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Término da Veiculação</Label>
+                      <Input name="endDate" type="datetime-local" required className="rounded-xl h-11 text-xs" />
                     </div>
                   </div>
 
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Orçamento Diário (R$)</Label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-secondary">R$</span>
-                      <Input name="budget" type="number" step="0.01" placeholder="50.00" required className="rounded-xl h-12 pl-10 text-lg font-black" />
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-secondary">R$</span>
+                      <Input name="budget" type="number" step="0.01" placeholder="50,00" required className="rounded-2xl h-14 pl-12 text-xl font-black border-secondary/20" />
+                    </div>
+                    <div className="flex items-center gap-2 p-3 bg-secondary/5 rounded-xl">
+                       <Info className="w-4 h-4 text-secondary" />
+                       <p className="text-[8px] font-bold text-secondary uppercase">Seu saldo será reservado no lançamento.</p>
                     </div>
                   </div>
-
-                  <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-center justify-between">
-                     <div className="space-y-0.5">
-                        <p className="text-[9px] font-black uppercase text-muted-foreground">Saldo Disponível</p>
-                        <p className="text-sm font-black text-primary">{formatCurrency(currentOrg?.adBalance || 0)}</p>
-                     </div>
-                     <Link href={`/dashboard/organizacoes/${currentOrg.username}/finance`} className="p-2 bg-white rounded-lg border shadow-sm"><Plus className="w-4 h-4 text-secondary" /></Link>
-                  </div>
-                </div>
-
-                <DialogFooter>
-                  <Button type="submit" disabled={isSubmitting} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                    {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <><Target className="w-5 h-5 mr-2" /> Lançar Campanha</>}
-                  </Button>
-                </DialogFooter>
               </form>
+
+              <div className="p-8 border-t bg-muted/30">
+                 <Button 
+                   onClick={(e:any) => {
+                     const form = (e.target as any).closest('div').previousSibling;
+                     form.requestSubmit();
+                   }}
+                   type="submit" 
+                   disabled={isSubmitting || uploadProgress !== null} 
+                   className="w-full bg-secondary text-white font-black h-16 rounded-[2rem] shadow-xl uppercase italic text-lg"
+                 >
+                    {isSubmitting ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><Target className="w-6 h-6 mr-2" /> Iniciar Impulsionamento</>}
+                 </Button>
+              </div>
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
+      {/* Cards de Resumo */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="border-none shadow-sm bg-primary text-white overflow-hidden relative group">
-          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Acessos Acumulados</CardTitle></CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black">{(stats.reach + stats.clicks).toLocaleString()}</div>
-          </CardContent>
+          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Acessos Totais</CardTitle></CardHeader>
+          <CardContent><div className="text-3xl font-black">{(stats.reach + stats.clicks).toLocaleString()}</div></CardContent>
           <Eye className="absolute -bottom-2 -right-2 w-20 h-20 opacity-5 rotate-12" />
         </Card>
         <Card className="border-none shadow-sm bg-white">
-          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Saldo Disponível</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Saldo Ad Account</CardTitle></CardHeader>
           <CardContent><div className="text-3xl font-black text-foreground">{formatCurrency(currentOrg?.adBalance || 0)}</div></CardContent>
         </Card>
         <Card className="border-none shadow-sm bg-white border-l-4 border-secondary">
-          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Saldo em Campanha</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Orçamento Bloqueado</CardTitle></CardHeader>
           <CardContent><div className="text-3xl font-black text-secondary">{formatCurrency(currentOrg?.blockedBalance || 0)}</div></CardContent>
         </Card>
         <Card className="border-none shadow-sm bg-white">
-          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Campanhas Ativas</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Ativos Hoje</CardTitle></CardHeader>
           <CardContent><div className="text-3xl font-black text-primary">{stats.active}</div></CardContent>
         </Card>
       </div>
 
+      {/* Lista de Campanhas */}
       <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
-        <CardHeader className="border-b pb-6">
-           <CardTitle className="text-xl flex items-center gap-2"><BarChart3 className="w-5 h-5 text-secondary" /> Minhas Campanhas</CardTitle>
-           <CardDescription>Acompanhe o consumo e performance em tempo real.</CardDescription>
+        <CardHeader className="border-b pb-6 p-8">
+           <CardTitle className="text-xl flex items-center gap-2"><BarChart3 className="w-5 h-5 text-secondary" /> Histórico de Impulsionamento</CardTitle>
+           <CardDescription>Acompanhe a entrega e o consumo das suas campanhas.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {ads.length > 0 ? (
@@ -430,14 +494,18 @@ export default function OrganizationAdsPage() {
                 const isFinished = ad.status === 'Finalizado' || ad.status === 'Cancelado';
                 return (
                   <div key={ad.id} className={cn(
-                    "p-6 flex flex-col gap-6 transition-colors lg:flex-row lg:items-center lg:justify-between hover:bg-muted/10",
+                    "p-8 flex flex-col gap-8 transition-colors lg:flex-row lg:items-center lg:justify-between hover:bg-muted/10",
                     isFinished && "opacity-50"
                   )}>
-                    <div className="flex gap-4 min-w-[250px]">
-                      <div className="p-3 rounded-2xl bg-secondary/10 h-fit"><Megaphone className="w-5 h-5 text-secondary" /></div>
+                    <div className="flex gap-4 min-w-[300px]">
+                      <div className="p-4 rounded-2xl bg-secondary/10 h-fit border border-secondary/10">
+                         {ad.type === 'evento' ? <Calendar className="w-6 h-6 text-secondary" /> : 
+                          ad.type === 'pagina' ? <Layout className="w-6 h-6 text-secondary" /> :
+                          <Megaphone className="w-6 h-6 text-secondary" />}
+                      </div>
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-sm uppercase">{ad.eventTitle}</h4>
+                          <h4 className="font-bold text-base uppercase truncate max-w-[200px]">{ad.eventTitle}</h4>
                           <Badge className={cn(
                             "text-[8px] font-black uppercase h-4", 
                             ad.status === 'Ativo' ? "bg-green-500" : 
@@ -445,44 +513,43 @@ export default function OrganizationAdsPage() {
                             "bg-muted"
                           )}>{ad.status}</Badge>
                         </div>
-                        <div className="text-[9px] font-black text-muted-foreground uppercase flex items-center gap-3">
-                           <span><Target className="w-2.5 h-2.5 inline mr-1" /> {ad.type}</span>
-                           <span><Calendar className="w-2.5 h-2.5 inline mr-1" /> {new Date(ad.startDate).toLocaleDateString('pt-BR')} - {new Date(ad.endDate).toLocaleDateString('pt-BR')}</span>
+                        <div className="text-[10px] font-black text-muted-foreground uppercase flex flex-wrap items-center gap-x-4 gap-y-1">
+                           <span className="flex items-center gap-1.5"><Target className="w-3 h-3" /> {ad.type}</span>
+                           <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> {new Date(ad.startDate).toLocaleString('pt-BR')}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-6 flex-1 text-center">
-                       <div><p className="text-[10px] font-black opacity-40 uppercase">Alcance</p><p className="font-black">{ad.reach?.toLocaleString()}</p></div>
-                       <div><p className="text-[10px] font-black opacity-40 uppercase">Cliques</p><p className="font-black">{ad.clicks?.toLocaleString()}</p></div>
-                       <div>
-                          <p className="text-[10px] font-black text-secondary uppercase">Saldo Restante</p>
-                          <p className="font-black text-secondary">{formatCurrency(ad.remainingBudget || 0)}</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-8 flex-1 text-center">
+                       <div className="space-y-1"><p className="text-[10px] font-black opacity-40 uppercase tracking-widest">Alcance</p><p className="font-black text-lg">{ad.reach?.toLocaleString()}</p></div>
+                       <div className="space-y-1"><p className="text-[10px] font-black opacity-40 uppercase tracking-widest">Cliques</p><p className="font-black text-lg">{ad.clicks?.toLocaleString()}</p></div>
+                       <div className="space-y-1">
+                          <p className="text-[10px] font-black text-secondary uppercase tracking-widest">Restante</p>
+                          <p className="font-black text-secondary text-lg">{formatCurrency(ad.remainingBudget || 0)}</p>
                        </div>
                     </div>
 
-                    <div className="flex gap-2">
-                       <Button variant="outline" size="sm" className="h-9 rounded-xl border-secondary/20 text-secondary" onClick={() => setSelectedAdForMetrics(ad)}><Eye className="w-4 h-4" /></Button>
+                    <div className="flex items-center gap-2">
+                       <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl border-secondary/20 text-secondary" onClick={() => setSelectedAdForMetrics(ad)}><TrendingUp className="w-5 h-5" /></Button>
                        
                        {!isFinished && (
                          <>
                            <Button 
                              variant="outline" 
-                             size="sm" 
-                             className="h-9 rounded-xl uppercase font-bold text-[10px] gap-2"
+                             className="h-10 px-4 rounded-xl uppercase font-black text-[10px] gap-2 border-secondary/20 text-secondary"
                              onClick={() => handleToggleStatus(ad.id, ad.status)}
                              disabled={actionLoadingId === ad.id}
                            >
-                              {ad.status === 'Ativo' ? <><Pause className="w-3 h-3" /> Pausar</> : <><Play className="w-3 h-3" /> Ativar</>}
+                              {ad.status === 'Ativo' ? <><Pause className="w-4 h-4" /> Pausar</> : <><Play className="w-4 h-4" /> Ativar</>}
                            </Button>
                            <Button 
                              variant="ghost" 
                              size="icon" 
-                             className="h-9 w-9 rounded-xl text-destructive hover:bg-destructive/10"
+                             className="h-10 w-10 rounded-xl text-destructive hover:bg-destructive/10"
                              onClick={() => setAdToCancel(ad)}
                              disabled={actionLoadingId === ad.id}
                            >
-                              <XCircle className="w-4 h-4" />
+                              <XCircle className="w-5 h-5" />
                            </Button>
                          </>
                        )}
@@ -493,8 +560,8 @@ export default function OrganizationAdsPage() {
             </div>
           ) : (
             <div className="py-24 text-center">
-               <Megaphone className="w-12 h-12 text-muted-foreground opacity-10 mx-auto mb-4" />
-               <p className="text-muted-foreground font-bold italic">Nenhum anúncio criado para esta marca.</p>
+               <Megaphone className="w-16 h-16 text-muted-foreground opacity-10 mx-auto mb-4" />
+               <p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-xs">Aguardando sua primeira campanha.</p>
             </div>
           )}
         </CardContent>
@@ -504,8 +571,8 @@ export default function OrganizationAdsPage() {
       <Dialog open={!!selectedAdForMetrics} onOpenChange={(o) => !o && setSelectedAdForMetrics(null)}>
         <DialogContent className="max-w-2xl rounded-[2.5rem]">
            <DialogHeader>
-              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Insights da Campanha</DialogTitle>
-              <DialogDescription className="font-medium">{selectedAdForMetrics?.eventTitle}</DialogDescription>
+              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Métricas de Performance</DialogTitle>
+              <DialogDescription className="font-bold text-secondary uppercase">{selectedAdForMetrics?.eventTitle}</DialogDescription>
            </DialogHeader>
            
            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-6">
@@ -527,28 +594,24 @@ export default function OrganizationAdsPage() {
               </div>
            </div>
            
-           <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex gap-3">
+           <div className="p-4 bg-muted/30 rounded-2xl flex gap-3">
               <Info className="w-5 h-5 text-secondary shrink-0" />
-              <p className="text-[9px] text-muted-foreground font-medium italic">Dados baseados em usuários logados. O alcance total inclui visitantes anônimos.</p>
+              <p className="text-[9px] text-muted-foreground font-bold uppercase leading-relaxed">Dados consolidados baseados no comportamento de usuários autenticados na plataforma Viby.</p>
            </div>
         </DialogContent>
       </Dialog>
 
-      {/* ALERT DE CANCELAMENTO COM ESTORNO */}
       <AlertDialog open={!!adToCancel} onOpenChange={(o) => !o && setAdToCancel(null)}>
-        <AlertDialogContent className="rounded-[2rem]">
+        <AlertDialogContent className="rounded-[2.5rem]">
           <AlertDialogHeader>
-             <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-destructive/10 rounded-lg text-destructive"><AlertTriangle className="w-6 h-6" /></div>
-                <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Cancelar Campanha?</AlertDialogTitle>
-             </div>
+             <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Confirmar Cancelamento?</AlertDialogTitle>
              <AlertDialogDescription className="font-medium">
-                Ao cancelar, o anúncio para de ser veiculado e o saldo restante de <strong>{formatCurrency(adToCancel?.remainingBudget || 0)}</strong> será devolvido à conta da marca imediatamente.
+                Esta ação devolverá <strong>{formatCurrency(adToCancel?.remainingBudget || 0)}</strong> ao saldo disponível da sua marca imediatamente.
              </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-             <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Não, manter</AlertDialogCancel>
-             <AlertDialogAction onClick={handleCancelAd} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] px-8">Confirmar Cancelamento e Estorno</AlertDialogAction>
+             <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Não</AlertDialogCancel>
+             <AlertDialogAction onClick={handleCancelAd} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] px-8">Encerrar e Estornar</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -557,7 +620,7 @@ export default function OrganizationAdsPage() {
 }
 
 function DemographicBar({ label, value, total, color }: { label: string, value: number, total: number, color: string }) {
-  const percentage = Math.round((value / total) * 100)
+  const percentage = Math.round((value / (total || 1)) * 100)
   return (
     <div className="space-y-1.5">
       <div className="flex justify-between items-center text-[9px] font-black uppercase">
