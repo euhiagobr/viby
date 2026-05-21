@@ -16,7 +16,9 @@ import {
   Loader2,
   ShieldCheck,
   LayoutGrid,
-  Lock
+  Lock,
+  Eye,
+  MousePointer2
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/financial-utils';
@@ -96,6 +98,14 @@ export default function OrganizationDashboardPage() {
     };
   }, [followers]);
 
+  // Métricas Simuladas de Acesso (Serão substituídas por analytics real no futuro)
+  const accessMetrics = React.useMemo(() => {
+    // Simulamos baseado no volume de seguidores para dar realismo ao protótipo
+    const views = (followerStats.total * 12) + 145;
+    const reach = (followerStats.total * 5) + 82;
+    return { views, reach };
+  }, [followerStats]);
+
   if (orgLoading) {
     return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
   }
@@ -119,7 +129,7 @@ export default function OrganizationDashboardPage() {
         <p className="text-muted-foreground font-medium">Gestão centralizada de {currentOrg.name}.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
@@ -129,6 +139,25 @@ export default function OrganizationDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black">{events?.filter(e => e.status === 'Ativo').length || 0}</div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm bg-white overflow-hidden relative">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
+              Acessos (30 dias)
+              <Eye className="w-4 h-4 text-secondary" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            <div className="flex items-baseline gap-2">
+               <span className="text-2xl font-black">{accessMetrics.views.toLocaleString()}</span>
+               <span className="text-[9px] font-bold text-muted-foreground uppercase">Views</span>
+            </div>
+            <div className="flex items-baseline gap-2">
+               <span className="text-sm font-black text-secondary">{accessMetrics.reach.toLocaleString()}</span>
+               <span className="text-[9px] font-bold text-muted-foreground uppercase">Alcance Único</span>
+            </div>
           </CardContent>
         </Card>
 
@@ -163,15 +192,15 @@ export default function OrganizationDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-secondary text-white">
+        <Card className="border-none shadow-sm bg-secondary text-white lg:col-span-2 xl:col-span-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest flex justify-between">
-              Cargo Atual
+              Meu Cargo
               <ShieldCheck className="w-4 h-4 text-white" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-black uppercase italic">{userRole ? roleTranslations[userRole] || userRole : 'Membro'}</div>
+            <div className="text-xl font-black uppercase italic truncate">{userRole ? roleTranslations[userRole] || userRole : 'Membro'}</div>
           </CardContent>
         </Card>
       </div>
@@ -192,20 +221,25 @@ export default function OrganizationDashboardPage() {
                <div className="p-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-secondary" /></div>
              ) : events && events.length > 0 ? (
                <div className="divide-y">
-                 {events.map((event: any) => (
-                   <div key={event.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                      <div className="flex items-center gap-4">
-                         <div className="h-10 w-10 rounded-lg bg-muted overflow-hidden relative">
-                            {event.image && <img src={event.image} className="w-full h-full object-cover" />}
-                         </div>
-                         <div>
-                            <p className="font-bold text-sm leading-tight">{event.title}</p>
-                            <p className="text-[10px] text-muted-foreground font-bold uppercase">{event.startDate ? new Date(event.startDate).toLocaleDateString('pt-BR') : 'Sem data'}</p>
-                         </div>
-                      </div>
-                      <Badge variant="outline" className="text-[9px] font-black uppercase">{event.status}</Badge>
-                   </div>
-                 ))}
+                 {events.map((event: any) => {
+                   const dateValue = event.startDate || event.date;
+                   const formattedDate = dateValue ? new Date(dateValue).toLocaleDateString('pt-BR') : 'Sem data';
+                   
+                   return (
+                     <div key={event.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                        <div className="flex items-center gap-4">
+                           <div className="h-10 w-10 rounded-lg bg-muted overflow-hidden relative">
+                              {event.image && <img src={event.image} className="w-full h-full object-cover" />}
+                           </div>
+                           <div>
+                              <p className="font-bold text-sm leading-tight">{event.title}</p>
+                              <p className="text-[10px] text-muted-foreground font-bold uppercase">{formattedDate}</p>
+                           </div>
+                        </div>
+                        <Badge variant="outline" className="text-[9px] font-black uppercase">{event.status}</Badge>
+                     </div>
+                   );
+                 })}
                </div>
              ) : (
                <div className="p-12 text-center text-muted-foreground italic text-sm">Nenhum evento publicado ainda.</div>
