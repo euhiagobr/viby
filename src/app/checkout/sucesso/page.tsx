@@ -1,9 +1,10 @@
+
 "use client"
 
 import * as React from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useFirestore, useAuth, useUser } from "@/firebase"
-import { doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore"
+import { doc, updateDoc, serverTimestamp, getDoc, increment } from "firebase/firestore"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, CheckCircle2, ArrowRight } from "lucide-react"
@@ -67,6 +68,15 @@ export default function CheckoutSucessoPage() {
           });
           toast({ title: "Campanha Ativa!" });
         }
+        else if (metadata.type === 'ad_balance_topup') {
+          const orgRef = doc(db, "organizations", metadata.orgId);
+          const amountToCredit = parseFloat(metadata.baseAmount);
+          await updateDoc(orgRef, {
+            adBalance: increment(amountToCredit),
+            updatedAt: serverTimestamp()
+          });
+          toast({ title: "Saldo Recarregado!", description: `R$ ${amountToCredit.toFixed(2)} adicionados para anúncios.` });
+        }
         else if (metadata.type === 'cart_checkout' || metadata.registrationId) {
           const regIds = metadata.type === 'cart_checkout' 
             ? metadata.registrationIds.split(",") 
@@ -78,8 +88,6 @@ export default function CheckoutSucessoPage() {
             
             if (regSnap.exists()) {
               const regData = regSnap.data();
-              
-              // TRAVA DE SEGURANÇA: Só processa se não estiver pago ainda
               if (regData.paymentStatus !== "Pago") {
                 await updateDoc(regRef, {
                   paymentStatus: "Pago",
@@ -90,7 +98,6 @@ export default function CheckoutSucessoPage() {
 
                 const eventDate = regData.eventDate?.toDate ? regData.eventDate.toDate().toLocaleString('pt-BR') : new Date(regData.eventDate).toLocaleString('pt-BR');
                 
-                // Dispara e-mail APENAS UMA VEZ com detalhes financeiros reais
                 await sendTicketEmail({
                   to: regData.userEmail,
                   userName: regData.attendeeName || regData.userName,
@@ -138,15 +145,14 @@ export default function CheckoutSucessoPage() {
               <CheckCircle2 className="w-10 h-10" />
             </div>
             <h1 className="text-3xl font-black italic uppercase tracking-tighter">Tudo Certo!</h1>
-            <p className="font-medium text-center text-green-50 opacity-80">Sua reserva foi reconhecida e seus ingressos enviados por e-mail.</p>
+            <p className="font-medium text-center text-green-50 opacity-80">Sua transação foi concluída com sucesso.</p>
           </div>
           <CardContent className="p-10 space-y-8 text-center">
             <div className="flex flex-col gap-3">
               <Button asChild className="h-14 bg-secondary text-white font-black rounded-2xl shadow-xl shadow-secondary/20 uppercase italic">
-                <Link href={`/dashboard/ingressos`}>Ver meus Ingressos <ArrowRight className="ml-2 w-5 h-5" /></Link>
+                <Link href="/dashboard">Voltar para o Painel <ArrowRight className="ml-2 w-5 h-5" /></Link>
               </Button>
             </div>
-            <Button variant="ghost" asChild className="font-bold text-muted-foreground"><Link href="/dashboard">Voltar para a Home</Link></Button>
           </CardContent>
         </Card>
       </div>

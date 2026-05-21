@@ -53,7 +53,7 @@ export async function createCheckoutSession(data: {
   userEmail: string;
   totalAmount: number; // Em centavos
   metadata: any;
-  lineItems?: any[]; // Suporte a múltiplos itens do carrinho
+  lineItems?: any[];
 }) {
   try {
     const h = await headers();
@@ -99,6 +99,59 @@ export async function createCheckoutSession(data: {
   } catch (error: any) {
     console.error('Erro crítico na Server Action createCheckoutSession:', error);
     throw new Error(error.message || 'Erro ao processar o checkout de pagamento');
+  }
+}
+
+/**
+ * Cria sessão de checkout para recarga de saldo de anúncios da organização.
+ * Aplica taxas: Valor Base + 16% (Imposto) + 5% (Transação) + R$ 5,00 (Fixo)
+ */
+export async function createAdBalanceTopUpSession(data: {
+  orgId: string;
+  orgName: string;
+  userEmail: string;
+  baseAmount: number; // Valor que vai virar saldo (em reais)
+}) {
+  try {
+    const h = await headers();
+    const origin = h.get('origin') || 'https://viby.club';
+    const stripe = await getStripeInstance();
+
+    const taxAmount = data.baseAmount * 0.16;
+    const feeAmount = data.baseAmount * 0.05;
+    const fixedFee = 5.00;
+    const totalToCharge = data.baseAmount + taxAmount + feeAmount + fixedFee;
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'brl',
+            product_data: {
+              name: `Recarga de Saldo - ${data.orgName}`,
+              description: `Crédito de R$ ${data.baseAmount.toFixed(2)} para anúncios na plataforma Viby.`,
+            },
+            unit_amount: Math.round(totalToCharge * 100),
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      customer_email: data.userEmail,
+      success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/checkout/cancelado`,
+      metadata: {
+        type: 'ad_balance_topup',
+        orgId: data.orgId,
+        baseAmount: data.baseAmount.toString() // O valor que será creditado
+      },
+    });
+
+    return { url: session.url };
+  } catch (error: any) {
+    console.error('Erro ao gerar checkout de recarga:', error);
+    throw new Error('Erro ao processar recarga de saldo.');
   }
 }
 
