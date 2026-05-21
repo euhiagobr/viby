@@ -1,13 +1,13 @@
+
 "use client"
 
 import * as React from "react"
-import { useParams, useRouter } from "next/navigation"
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { useParams, useRouter, usePathname } from "next/navigation"
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
 import { doc, getDoc, collection, query, where, orderBy, limit } from "firebase/firestore"
 import { 
   Loader2, 
   AlertTriangle, 
-  ArrowLeft, 
   MapPin, 
   Globe, 
   Instagram, 
@@ -16,7 +16,10 @@ import {
   Grid,
   Heart,
   Share2,
-  ExternalLink
+  ExternalLink,
+  Building2,
+  Bell,
+  Plus
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -26,6 +29,18 @@ import { Separator } from "@/components/ui/separator"
 import { EventCard } from "@/components/events/EventCard"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+import { AppSidebar } from "@/components/layout/AppSidebar"
+import { OrganizationProvider, useCurrentOrganization } from "@/contexts/OrganizationContext"
+import Footer from "@/components/layout/Footer"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
@@ -46,9 +61,82 @@ function InstagramVerifiedBadge({ className }: { className?: string }) {
   )
 }
 
-export default function UniversalProfilePage() {
+function ProfileHeader() {
+  const { currentOrg, organizations, setCurrentOrg } = useCurrentOrganization()
+  const auth = useAuth()
+  const { user } = useUser(auth)
+
+  return (
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur-md">
+      <SidebarTrigger />
+      
+      <div className="flex items-center gap-4">
+        {user && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2 rounded-xl h-10 border-dashed border-secondary/40 hover:border-secondary transition-all">
+                <Building2 className="w-4 h-4 text-secondary" />
+                <span className="font-bold text-xs uppercase tracking-tight">
+                  {currentOrg?.name || "Selecionar Organização"}
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56 rounded-xl" align="start">
+              <DropdownMenuLabel className="text-[10px] uppercase font-black opacity-50">Minhas Organizações</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {organizations.map((org) => (
+                <DropdownMenuItem 
+                  key={org.id} 
+                  onClick={() => setCurrentOrg(org)}
+                  className={currentOrg?.id === org.id ? "bg-secondary/10 font-bold" : ""}
+                >
+                  {org.name}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/organizations/new" className="flex items-center gap-2 text-secondary font-bold">
+                  <Plus className="w-4 h-4" />
+                  Nova Organização
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+      
+      <div className="flex items-center gap-3 ml-auto">
+        {!user ? (
+          <>
+            <Button asChild variant="ghost" className="font-semibold text-sm">
+              <Link href="/login">Entrar</Link>
+            </Button>
+            <Button asChild className="bg-secondary text-white font-bold px-6 rounded-full h-9 text-xs">
+              <Link href="/cadastro">Cadastrar-se</Link>
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="ghost" size="icon" className="relative h-9 w-9">
+              <Bell className="h-5 w-5" />
+              <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full border-2 border-background" />
+            </Button>
+            <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold border border-border shadow-sm overflow-hidden">
+              {user.photoURL ? (
+                <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs uppercase">{user.displayName?.charAt(0) || 'U'}</span>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </header>
+  )
+}
+
+function UniversalProfileContent() {
   const params = useParams()
-  const router = useRouter()
   const db = useFirestore()
   const username = (params.username as string).toLowerCase()
 
@@ -105,7 +193,7 @@ export default function UniversalProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex-1 flex items-center justify-center bg-background">
         <Loader2 className="w-10 h-10 animate-spin text-secondary" />
       </div>
     )
@@ -113,7 +201,7 @@ export default function UniversalProfilePage() {
 
   if (!data) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center p-6">
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-6">
         <AlertTriangle className="w-16 h-16 text-muted-foreground opacity-20" />
         <h2 className="text-2xl font-bold">Perfil não encontrado</h2>
         <p className="text-muted-foreground max-w-xs">O link que você seguiu pode estar quebrado ou o perfil foi removido.</p>
@@ -129,7 +217,7 @@ export default function UniversalProfilePage() {
   const avatar = data.avatar || `https://picsum.photos/seed/${data.id}/200/200`
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex-1">
        {/* Banner Superior (Apenas Org) */}
        {isOrg && data.banner && (
          <div className="h-48 md:h-64 w-full relative overflow-hidden">
@@ -305,21 +393,23 @@ export default function UniversalProfilePage() {
              </Tabs>
           </div>
        </div>
-
-       {/* Footer Simples */}
-       <footer className="py-12 border-t mt-12 bg-muted/10">
-          <div className="container mx-auto px-4 text-center">
-             <div className="flex items-center justify-center gap-2 mb-4">
-                <div className="w-6 h-6 bg-secondary rounded flex items-center justify-center">
-                   <span className="text-white font-black text-xs">V</span>
-                </div>
-                <span className="font-bold text-sm tracking-tight italic uppercase">Viby Club</span>
-             </div>
-             <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
-                Explore o melhor da cultura e eventos.
-             </p>
-          </div>
-       </footer>
     </div>
+  )
+}
+
+export default function UniversalProfilePage() {
+  return (
+    <OrganizationProvider>
+      <SidebarProvider>
+        <div className="flex min-h-screen w-full bg-[#f8fafc]">
+          <AppSidebar />
+          <main className="flex-1 flex flex-col overflow-y-auto">
+            <ProfileHeader />
+            <UniversalProfileContent />
+            <Footer />
+          </main>
+        </div>
+      </SidebarProvider>
+    </OrganizationProvider>
   )
 }
