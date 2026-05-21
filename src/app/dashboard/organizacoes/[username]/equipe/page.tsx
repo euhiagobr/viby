@@ -122,6 +122,13 @@ export default function OrganizationMembersPage() {
 
       const targetUid = uData.uid;
 
+      // Verifica se já é membro
+      const memberRef = doc(db, 'organizations', currentOrg.id, 'members', targetUid);
+      const existingSnap = await getDoc(memberRef);
+      if (existingSnap.exists() && existingSnap.data().status === 'accepted') {
+        throw new Error("Este usuário já faz parte da equipe.");
+      }
+
       // Busca os dados do perfil para os e-mails
       const targetUserSnap = await getDoc(doc(db, 'users', targetUid));
       if (!targetUserSnap.exists()) {
@@ -132,8 +139,6 @@ export default function OrganizationMembersPage() {
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + 24);
 
-      const memberRef = doc(db, 'organizations', currentOrg.id, 'members', targetUid);
-      
       const inviteData = {
         userId: targetUid,
         role,
@@ -283,10 +288,10 @@ export default function OrganizationMembersPage() {
                       <div className="flex items-center gap-3">
                          <Avatar className="h-10 w-10 border border-muted">
                             <AvatarImage src={member.profile?.avatar} />
-                            <AvatarFallback className="font-bold bg-secondary text-white">{member.profile?.name?.charAt(0) || 'U'}</AvatarFallback>
+                            <AvatarFallback className="font-bold bg-secondary text-white">{member.profile?.name?.charAt(0) || member.profile?.displayName?.charAt(0) || 'U'}</AvatarFallback>
                          </Avatar>
                          <div className="flex flex-col">
-                            <span className="font-bold text-sm">{member.profile?.name || 'Usuário'}</span>
+                            <span className="font-bold text-sm">{member.profile?.name || member.profile?.displayName || 'Usuário'}</span>
                             <span className="text-[10px] text-muted-foreground">@{member.profile?.username}</span>
                          </div>
                       </div>
@@ -309,10 +314,12 @@ export default function OrganizationMembersPage() {
                              <span className="text-[8px] text-muted-foreground uppercase font-bold">Expira em 24h</span>
                            )}
                         </div>
-                      ) : (
+                      ) : member.status === 'accepted' ? (
                         <div className="flex items-center gap-1.5 text-green-600 font-black text-[10px] uppercase">
                           <Check className="w-3 h-3" /> Ativo
                         </div>
+                      ) : (
+                        <span className="text-[10px] font-bold text-muted-foreground opacity-30 uppercase italic">Verificando...</span>
                       )}
                    </TableCell>
                    <TableCell className="text-right">

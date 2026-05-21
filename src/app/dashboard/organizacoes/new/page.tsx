@@ -265,9 +265,11 @@ export default function NovaOrganizacaoPage() {
           payoutSettings: { status: 'none' }
         })
 
+        // Define status 'accepted' para o criador, garantindo acesso imediato
         transaction.set(memberRef, {
           userId: user.uid,
           role: 'owner',
+          status: 'accepted',
           createdAt: serverTimestamp()
         })
       })
