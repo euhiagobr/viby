@@ -4,10 +4,10 @@
 import * as React from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useFirestore, useAuth, useUser } from "@/firebase"
-import { doc, updateDoc, serverTimestamp, increment, getDoc } from "firebase/firestore"
+import { doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Loader2, CheckCircle2, Ticket, ArrowRight, UserCheck, ShieldCheck, Megaphone } from "lucide-react"
+import { Loader2, CheckCircle2, ArrowRight } from "lucide-react"
 import { getStripeSession } from "@/app/actions/stripe"
 import { sendTicketEmail } from "@/app/actions/email"
 import { toast } from "@/hooks/use-toast"
@@ -25,12 +25,13 @@ export default function CheckoutSucessoPage() {
   const sessionId = searchParams.get('session_id')
   
   const [loading, setLoading] = React.useState(true)
-  const [type, setType] = React.useState<'ticket' | 'plan' | 'ad' | 'cart'>('ticket')
+  const isProcessing = React.useRef(false)
 
   React.useEffect(() => {
-    if (!sessionId || !db || !user) return;
+    if (!sessionId || !db || !user || isProcessing.current) return;
 
     const processSuccess = async () => {
+      isProcessing.current = true;
       try {
         const session = await getStripeSession(sessionId);
         if (!session || session.payment_status !== 'paid') {
@@ -45,7 +46,6 @@ export default function CheckoutSucessoPage() {
         }
 
         if (metadata.type === 'plan_upgrade') {
-          setType('plan');
           const userRef = doc(db, "users", metadata.userId);
           const amountPaid = (session.amount_total || 0) / 100;
           await updateDoc(userRef, {
@@ -59,7 +59,6 @@ export default function CheckoutSucessoPage() {
           toast({ title: "Upgrade Realizado!" });
         } 
         else if (metadata.type === 'ad_payment') {
-          setType('ad');
           const adRef = doc(db, "ads", metadata.adId);
           await updateDoc(adRef, {
             status: "Ativo",
@@ -70,34 +69,40 @@ export default function CheckoutSucessoPage() {
           toast({ title: "Campanha Ativa!" });
         }
         else if (metadata.type === 'cart_checkout' || metadata.registrationId) {
-          setType(metadata.type === 'cart_checkout' ? 'cart' : 'ticket');
           const regIds = metadata.type === 'cart_checkout' 
             ? metadata.registrationIds.split(",") 
             : [metadata.registrationId];
           
           for (const regId of regIds) {
             const regRef = doc(db, "registrations", regId);
-            await updateDoc(regRef, {
-              paymentStatus: "Pago",
-              stripeSessionId: sessionId,
-              updatedAt: serverTimestamp(),
-              confirmedAt: serverTimestamp()
-            });
-
             const regSnap = await getDoc(regRef);
+            
             if (regSnap.exists()) {
               const regData = regSnap.data();
-              const eventDate = regData.eventDate?.toDate ? regData.eventDate.toDate().toLocaleString('pt-BR') : new Date(regData.eventDate).toLocaleString('pt-BR');
-              await sendTicketEmail({
-                to: regData.userEmail,
-                userName: regData.attendeeName || regData.userName,
-                eventTitle: regData.eventTitle,
-                ticketCode: regData.ticketCode,
-                eventDate: eventDate,
-                eventCity: regData.eventCity || "Local Confirmado",
-                voucherUrl: `https://viby.club/dashboard/ingressos/${regId}/voucher`,
-                eventUrl: `https://viby.club/${regData.organizerUsername || 'evento'}/${regData.eventId}`
-              });
+              
+              // TRAVA DE SEGURANÇA: Só processa se não estiver pago ainda
+              if (regData.paymentStatus !== "Pago") {
+                await updateDoc(regRef, {
+                  paymentStatus: "Pago",
+                  stripeSessionId: sessionId,
+                  updatedAt: serverTimestamp(),
+                  confirmedAt: serverTimestamp()
+                });
+
+                const eventDate = regData.eventDate?.toDate ? regData.eventDate.toDate().toLocaleString('pt-BR') : new Date(regData.eventDate).toLocaleString('pt-BR');
+                
+                // Dispara e-mail APENAS UMA VEZ
+                await sendTicketEmail({
+                  to: regData.userEmail,
+                  userName: regData.attendeeName || regData.userName,
+                  eventTitle: regData.eventTitle,
+                  ticketCode: regData.ticketCode,
+                  eventDate: eventDate,
+                  eventCity: regData.eventCity || "Local Confirmado",
+                  voucherUrl: `https://viby.club/dashboard/ingressos/${regId}/voucher`,
+                  eventUrl: `https://viby.club/${regData.organizerUsername || 'evento'}/${regData.eventId}`
+                });
+              }
             }
           }
 
@@ -105,7 +110,7 @@ export default function CheckoutSucessoPage() {
           toast({ title: "Pagamento Confirmado!" });
         }
       } catch (error) {
-        console.error(error);
+        console.error("Erro ao processar sucesso de pagamento:", error);
       } finally {
         setLoading(false);
       }
@@ -114,14 +119,21 @@ export default function CheckoutSucessoPage() {
     processSuccess();
   }, [sessionId, db, user, router, clearCart]);
 
-  if (loading) return <div className="flex flex-col items-center justify-center min-h-screen gap-4"><Loader2 className="w-12 h-12 animate-spin text-secondary" /><p className="text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Confirmando transação...</p></div>
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+      <Loader2 className="w-12 h-12 animate-spin text-secondary" />
+      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Confirmando transação...</p>
+    </div>
+  )
 
   return (
     <div className="flex flex-col min-h-screen bg-muted/30">
       <div className="flex flex-col items-center justify-center flex-1 p-4">
         <Card className="max-w-md w-full border-none shadow-2xl rounded-[3rem] overflow-hidden bg-white">
           <div className="flex flex-col items-center gap-4 p-12 text-white bg-green-500">
-            <div className="flex items-center justify-center w-20 h-20 bg-white/20 rounded-full backdrop-blur-md"><CheckCircle2 className="w-10 h-10" /></div>
+            <div className="flex items-center justify-center w-20 h-20 bg-white/20 rounded-full backdrop-blur-md">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
             <h1 className="text-3xl font-black italic uppercase tracking-tighter">Tudo Certo!</h1>
             <p className="font-medium text-center text-green-50 opacity-80">Sua reserva foi reconhecida e seus ingressos enviados por e-mail.</p>
           </div>

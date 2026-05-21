@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -19,10 +20,8 @@ import {
   MapPin, 
   Info,
   Loader2,
-  Ticket,
-  ShieldCheck,
-  ExternalLink,
-  RefreshCw
+  RefreshCw,
+  ShieldCheck
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -58,57 +57,65 @@ export default function CarrinhoPage() {
 
   const handleCheckout = async () => {
     if (!user) return router.push("/login")
-    if (!db || items.length === 0) return
+    if (!db || items.length === 0 || processing) return
 
     setProcessing(true)
     try {
       const registrationIds = [];
       const lineItems = [];
 
+      // CRIA DOCUMENTOS INDIVIDUAIS PARA CADA UNIDADE DE INGRESSO
       for (const item of items) {
         const breakdown = calculateFinancialBreakdown(item.price);
-        const ticketCode = await generateUniqueTicketCode(db);
         
-        const regData = {
-          eventId: item.eventId,
-          eventTitle: item.eventTitle,
-          eventImage: item.eventImage,
-          eventDate: item.eventDate,
-          eventCity: item.eventCity,
-          userId: user.uid,
-          userName: user.displayName || user.email || "Usuário",
-          userEmail: user.email,
-          attendeeName: user.displayName || user.email || "Participante",
-          organizationId: item.organizationId,
-          organizerId: item.organizerId,
-          organizerUsername: item.organizerUsername,
-          ticketBasePrice: item.price,
-          price: breakdown.customerFinalPrice,
-          administrativeFeeAmount: breakdown.administrativeFeeAmount,
-          batchId: item.batchId,
-          batchName: item.batchName,
-          ticketTypeId: item.ticketTypeId,
-          ticketTypeName: item.ticketTypeName,
-          poolId: item.poolId || null,
-          poolName: item.poolName || null,
-          quantity: item.quantity,
-          checkedIn: false,
-          paymentStatus: "Pendente",
-          ticketCode,
-          status: "Ativo",
-          createdAt: serverTimestamp(),
-          timestamp: serverTimestamp()
-        };
+        // Loop pela quantidade do item para gerar vouchers únicos
+        for (let i = 0; i < item.quantity; i++) {
+          const ticketCode = await generateUniqueTicketCode(db);
+          
+          const regData = {
+            eventId: item.eventId,
+            eventTitle: item.eventTitle,
+            eventImage: item.eventImage,
+            eventDate: item.eventDate,
+            eventCity: item.eventCity,
+            userId: user.uid,
+            userName: user.displayName || user.email || "Usuário",
+            userEmail: user.email,
+            attendeeName: user.displayName || user.email || "Participante",
+            organizationId: item.organizationId,
+            organizerId: item.organizerId,
+            organizerUsername: item.organizerUsername,
+            ticketBasePrice: item.price,
+            price: breakdown.customerFinalPrice,
+            administrativeFeeAmount: breakdown.administrativeFeeAmount,
+            producerFeeAmount: breakdown.producerFeeAmount,
+            producerNetAmount: breakdown.producerNetAmount,
+            batchId: item.batchId,
+            batchName: item.batchName,
+            ticketTypeId: item.ticketTypeId,
+            ticketTypeName: item.ticketTypeName,
+            poolId: item.poolId || null,
+            poolName: item.poolName || null,
+            quantity: 1, // Cada registro agora representa exatamente 1 unidade
+            checkedIn: false,
+            paymentStatus: "Pendente",
+            ticketCode,
+            status: "Ativo",
+            createdAt: serverTimestamp(),
+            timestamp: serverTimestamp()
+          };
 
-        const docRef = await addDoc(collection(db, "registrations"), regData);
-        registrationIds.push(docRef.id);
+          const docRef = await addDoc(collection(db, "registrations"), regData);
+          registrationIds.push(docRef.id);
+        }
 
+        // Para o Stripe, mantemos o agrupamento visual por tipo de ingresso
         lineItems.push({
           price_data: {
             currency: 'brl',
             product_data: {
-              name: item.eventTitle,
-              description: `${item.ticketTypeName} (${item.quantity}x)`,
+              name: `${item.eventTitle} - ${item.ticketTypeName}`,
+              description: `Voucher individual para acesso ao evento`,
               images: (item.eventImage && item.eventImage.startsWith('http')) ? [item.eventImage] : [],
             },
             unit_amount: Math.round(breakdown.customerFinalPrice * 100),
@@ -142,15 +149,12 @@ export default function CarrinhoPage() {
       });
 
       if (url) {
-        // Abre Stripe em nova aba
         window.open(url, '_blank');
-        // Muda estado para "Aguardando Confirmação"
         setIsWaitingPayment(true);
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro", description: e.message });
-    } finally {
-      setProcessing(false)
+      setProcessing(false);
     }
   }
 
@@ -190,7 +194,7 @@ export default function CarrinhoPage() {
                  <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl border border-dashed text-left">
                     <Info className="w-5 h-5 text-secondary shrink-0" />
                     <p className="text-[10px] font-bold text-muted-foreground leading-relaxed uppercase">
-                       Assim que você concluir o pagamento na outra aba, este painel será atualizado automaticamente. Seus ingressos também serão enviados por e-mail.
+                       Assim que você concluir o pagamento na outra aba, seu painel de "Meus Ingressos" será atualizado automaticamente.
                     </p>
                  </div>
                  
