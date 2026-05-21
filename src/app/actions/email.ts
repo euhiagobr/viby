@@ -7,8 +7,8 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 
 /**
- * @fileOverview Ação de servidor para envio de e-mails de confirmação de ingresso.
- * Busca as credenciais dinamicamente do Firestore e inclui QR Code gerado como anexo CID.
+ * @fileOverview Ação de servidor para envio de e-mails.
+ * Busca as credenciais dinamicamente do Firestore.
  */
 
 interface EmailData {
@@ -21,6 +21,12 @@ interface EmailData {
   voucherUrl: string;
   eventUrl: string;
   eventImage?: string;
+}
+
+interface WelcomeEmailData {
+  to: string;
+  userName: string;
+  siteName: string;
 }
 
 /**
@@ -46,41 +52,35 @@ async function getEmailConfig() {
   }
 }
 
+/**
+ * Envia o e-mail de confirmação de ingresso com QR Code.
+ */
 export async function sendTicketEmail(data: EmailData) {
   try {
-    // Validação rigorosa de entrada
     if (!data?.to || typeof data.to !== 'string') {
-      return { success: false, error: 'E-mail do destinatário inválido ou ausente.' };
+      return { success: false, error: 'E-mail do destinatário inválido.' };
     }
     if (!data?.ticketCode || typeof data.ticketCode !== 'string') {
-      return { success: false, error: 'Código do ingresso inválido para QR Code.' };
+      return { success: false, error: 'Código do ingresso inválido.' };
     }
 
     const { smtpUser, smtpPass } = await getEmailConfig();
 
     if (!smtpUser || !smtpPass) {
-      console.warn('SMTP não configurado no Firestore.');
-      return { success: false, error: 'O sistema de e-mail ainda não foi configurado pelo administrador.' };
+      return { success: false, error: 'SMTP não configurado.' };
     }
 
-    // Gerar o Buffer da imagem do QR Code
     const qrCodeBuffer = await QRCode.toBuffer(data.ticketCode, {
       margin: 1,
       width: 400,
-      color: {
-        dark: '#000000',
-        light: '#ffffff',
-      },
+      color: { dark: '#000000', light: '#ffffff' },
     });
 
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
       port: 465,
       secure: true,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
+      auth: { user: smtpUser, pass: smtpPass },
     });
 
     const htmlContent = `
@@ -100,10 +100,6 @@ export async function sendTicketEmail(data: EmailData) {
           .button { display: inline-block; padding: 18px 36px; background: #2563eb; color: white !important; text-decoration: none; border-radius: 16px; font-weight: bold; margin-top: 10px; font-size: 16px; }
           .footer { padding: 30px; text-align: center; font-size: 12px; color: #94a3b8; background: #f8fafc; }
           .label { font-size: 10px; text-transform: uppercase; font-weight: 900; color: #64748b; letter-spacing: 1px; margin-bottom: 4px; }
-          .event-link { margin-top: 15px; padding-top: 15px; border-top: 1px solid #cbd5e1; text-align: center; }
-          .event-link a { color: #2563eb; text-decoration: none; font-size: 11px; font-weight: bold; text-transform: uppercase; }
-          .social-section { text-align: center; margin-top: 40px; padding-top: 30px; border-top: 1px solid #f1f5f9; }
-          .social-link { color: #E1306C; text-decoration: none; font-weight: bold; font-size: 14px; }
         </style>
       </head>
       <body>
@@ -114,12 +110,11 @@ export async function sendTicketEmail(data: EmailData) {
           </div>
           <div class="content">
             <h2 style="margin-top:0; font-size: 24px; letter-spacing: -0.5px;">Olá, ${data.userName}! 👋</h2>
-            <p style="line-height: 1.6; color: #475569;">Prepare-se para uma experiência incrível. Seu acesso para o evento <strong>${data.eventTitle}</strong> já está garantido e confirmado.</p>
+            <p style="line-height: 1.6; color: #475569;">Prepare-se para uma experiência incrível. Seu acesso para <strong>${data.eventTitle}</strong> está garantido.</p>
             
             <div class="event-card">
               <div class="label">Evento</div>
               <p style="margin:0 0 20px 0; font-size: 20px; font-weight: 800; color: #0f172a;">${data.eventTitle}</p>
-              
               <div style="display: flex; gap: 20px;">
                 <div style="flex: 1;">
                   <div class="label">Data</div>
@@ -129,10 +124,6 @@ export async function sendTicketEmail(data: EmailData) {
                   <div class="label">Local</div>
                   <p style="margin:0; font-weight: bold; font-size: 14px;">📍 ${data.eventCity}</p>
                 </div>
-              </div>
-
-              <div class="event-link">
-                <a href="${data.eventUrl}">Acessar página do evento na Viby →</a>
               </div>
             </div>
 
@@ -145,16 +136,8 @@ export async function sendTicketEmail(data: EmailData) {
             <div style="text-align: center; margin-top: 30px;">
               <a href="${data.voucherUrl}" class="button">Ver Voucher Completo</a>
             </div>
-
-            <div class="social-section">
-              <p style="margin: 0 0 10px 0; font-size: 13px; color: #64748b; font-weight: 500;">Siga nosso Instagram oficial!</p>
-              <a href="https://instagram.com/vibyclub" target="_blank" class="social-link">
-                @vibyclub →
-              </a>
-            </div>
           </div>
           <div class="footer">
-            <p style="margin-bottom: 10px;">Este é um e-mail automático enviado por Viby Club.</p>
             <p><strong>Viby Club</strong> - A maior vitrine de eventos do Brasil</p>
           </div>
         </div>
@@ -167,17 +150,80 @@ export async function sendTicketEmail(data: EmailData) {
       to: data.to,
       subject: `Confirmado! Seu ingresso para ${data.eventTitle} chegou! 🎟️`,
       html: htmlContent,
-      attachments: [
-        {
-          filename: 'qrcode.png',
-          content: qrCodeBuffer,
-          cid: 'ticket-qrcode'
-        }
-      ]
+      attachments: [{ filename: 'qrcode.png', content: qrCodeBuffer, cid: 'ticket-qrcode' }]
     });
     return { success: true };
   } catch (error: any) {
-    console.error('Erro crítico na Server Action sendTicketEmail:', error);
-    return { success: false, error: error.message || 'Erro inesperado no servidor de e-mail.' };
+    console.error('Erro no envio de e-mail de ticket:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Envia o e-mail de boas-vindas ao criar conta.
+ */
+export async function sendWelcomeEmail(data: WelcomeEmailData) {
+  try {
+    if (!data?.to || typeof data.to !== 'string') return { success: false };
+
+    const { smtpUser, smtpPass } = await getEmailConfig();
+    if (!smtpUser || !smtpPass) return { success: false };
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Poppins', sans-serif, Arial; background-color: #f8fafc; color: #1e293b; padding: 20px; margin: 0; }
+          .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 32px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
+          .header { background: #000; color: white; padding: 50px 20px; text-align: center; }
+          .content { padding: 40px; text-align: center; }
+          .button { display: inline-block; padding: 18px 36px; background: #2563eb; color: white !important; text-decoration: none; border-radius: 16px; font-weight: bold; margin-top: 30px; font-size: 16px; }
+          .footer { padding: 30px; text-align: center; font-size: 12px; color: #94a3b8; background: #f8fafc; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin:0; font-size: 32px; text-transform: uppercase; font-style: italic; letter-spacing: -1px;">Bem-vindo à ${data.siteName}</h1>
+          </div>
+          <div class="content">
+            <h2 style="margin-top:0; font-size: 24px;">Olá, ${data.userName}! 🚀</h2>
+            <p style="line-height: 1.6; color: #475569; font-size: 16px;">
+              Ficamos muito felizes em ter você conosco. A partir de agora, você tem acesso às melhores experiências e eventos do Brasil.
+            </p>
+            <p style="line-height: 1.6; color: #475569; font-size: 16px;">
+              Explore nossa vitrine, siga suas marcas favoritas e garanta seus ingressos de forma rápida e segura.
+            </p>
+            <a href="https://viby.club/dashboard" class="button">Explorar Eventos</a>
+          </div>
+          <div class="footer">
+            <p>Este é um e-mail automático. Não responda a esta mensagem.</p>
+            <p><strong>${data.siteName}</strong> - Inteligência em Eventos</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await transporter.sendMail({
+      from: `"${data.siteName}" <${smtpUser}>`,
+      to: data.to,
+      subject: `Seja bem-vindo(a) à ${data.siteName}! 🚀`,
+      html: htmlContent,
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Erro no envio de e-mail de boas-vindas:', error);
+    return { success: false };
   }
 }

@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -18,6 +17,7 @@ import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import { encryptDeterministic } from "@/lib/crypto-utils"
 import { cn } from "@/lib/utils"
+import { sendWelcomeEmail } from "@/app/actions/email"
 
 export default function CadastroPage() {
   const [name, setName] = useState("")
@@ -72,13 +72,11 @@ export default function CadastroPage() {
         const isBlocked = blockedData?.list?.includes(normalized);
         
         if (usernameSnap.exists() || isBlocked) {
-          // Se o usuário não editou manualmente, tentamos sugerir com número
           if (!isUsernameCustom) {
              let nextNum = 1;
              let found = false;
              let currentTry = normalized;
 
-             // Tentamos até 15 variações para não sobrecarregar
              while(!found && nextNum <= 15) {
                 const tryName = `${normalized}${nextNum}`;
                 const tryRef = doc(db, "usernames", tryName);
@@ -119,7 +117,6 @@ export default function CadastroPage() {
     const val = e.target.value;
     setName(val);
     
-    // Se o usuário nunca editou o username, preenchemos automaticamente
     if (!isUsernameCustom) {
       const suggested = val
         .normalize("NFD")
@@ -133,7 +130,7 @@ export default function CadastroPage() {
 
   const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ""));
-    setIsUsernameCustom(true); // Marca que o usuário assumiu o controle do campo
+    setIsUsernameCustom(true);
   }
 
   const formatCPF = (v: string) => {
@@ -203,6 +200,13 @@ export default function CadastroPage() {
           createdAt: serverTimestamp()
         })
       })
+
+      // Envia e-mail de boas-vindas (assíncrono)
+      sendWelcomeEmail({
+        to: email,
+        userName: name,
+        siteName: siteName
+      });
 
       toast({ title: "Conta criada!", description: `Bem-vindo ao ${siteName}.` })
       router.push("/dashboard")
