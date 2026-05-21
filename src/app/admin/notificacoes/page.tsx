@@ -66,8 +66,18 @@ export default function AdminNotificacoesPage() {
   const handleResend = async (email: any) => {
     setResendingId(email.id);
     try {
-      // Passamos o objeto completo para a Server Action para evitar leitura unauthenticated no servidor
-      const result = await resendLoggedEmail(email);
+      // Next.js Server Actions exigem objetos planos (plain objects).
+      // Enviamos apenas os campos necessários, removendo o objeto 'timestamp' do Firestore
+      // que causa erro de serialização por possuir métodos internos.
+      const sanitizedEmail = {
+        recipientEmail: email.recipientEmail,
+        recipientName: email.recipientName,
+        subject: email.subject,
+        content: email.content,
+        type: email.type
+      };
+
+      const result = await resendLoggedEmail(sanitizedEmail);
       if (result.success) {
         toast({ title: "E-mail reenviado com sucesso!" });
       } else {
