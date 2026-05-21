@@ -1,14 +1,15 @@
+
 'use server';
 
 import nodemailer from 'nodemailer';
 import QRCode from 'qrcode';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 
 /**
  * @fileOverview Ação de servidor para envio de e-mails.
- * Busca as credenciais dinamicamente do Firestore.
+ * Busca as credenciais dinamicamente do Firestore e loga as mensagens enviadas.
  */
 
 interface EmailData {
@@ -27,6 +28,29 @@ interface WelcomeEmailData {
   to: string;
   userName: string;
   siteName: string;
+}
+
+/**
+ * Helper para registrar o envio de e-mail no Firestore para auditoria.
+ */
+async function logEmail(data: {
+  sender: string;
+  recipientName: string;
+  recipientEmail: string;
+  subject: string;
+  content: string;
+  type: string;
+}) {
+  try {
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    const db = getFirestore(app, 'eventosviby');
+    await addDoc(collection(db, 'sent_emails'), {
+      ...data,
+      timestamp: serverTimestamp(),
+    });
+  } catch (e) {
+    console.error('Erro ao logar e-mail no Firestore:', e);
+  }
 }
 
 /**
@@ -145,13 +169,25 @@ export async function sendTicketEmail(data: EmailData) {
       </html>
     `;
 
+    const subject = `Confirmado! Seu ingresso para ${data.eventTitle} chegou! 🎟️`;
+
     await transporter.sendMail({
       from: `"Viby Club" <${smtpUser}>`,
       to: data.to,
-      subject: `Confirmado! Seu ingresso para ${data.eventTitle} chegou! 🎟️`,
+      subject: subject,
       html: htmlContent,
       attachments: [{ filename: 'qrcode.png', content: qrCodeBuffer, cid: 'ticket-qrcode' }]
     });
+
+    await logEmail({
+      sender: "Viby System",
+      recipientName: data.userName,
+      recipientEmail: data.to,
+      subject: subject,
+      content: htmlContent,
+      type: "ticket_confirmation"
+    });
+
     return { success: true };
   } catch (error: any) {
     console.error('Erro no envio de e-mail de ticket:', error);
@@ -233,11 +269,22 @@ export async function sendWelcomeEmail(data: WelcomeEmailData) {
       </html>
     `;
 
+    const subject = `Olá, ${data.userName}! 👋`;
+
     await transporter.sendMail({
       from: `"Viby.Club" <${smtpUser}>`,
       to: data.to,
-      subject: `Olá, ${data.userName}! 👋`,
+      subject: subject,
       html: htmlContent,
+    });
+
+    await logEmail({
+      sender: "Viby System",
+      recipientName: data.userName,
+      recipientEmail: data.to,
+      subject: subject,
+      content: htmlContent,
+      type: "welcome_email"
     });
 
     return { success: true };
@@ -276,12 +323,24 @@ export async function sendTeamInvitationEmail(data: { to: string, orgName: strin
       </div>
     `;
 
+    const subject = `Convite: Faça parte da equipe de ${data.orgName} 🤝`;
+
     await transporter.sendMail({
       from: `"Viby.Club" <${smtpUser}>`,
       to: data.to,
-      subject: `Convite: Faça parte da equipe de ${data.orgName} 🤝`,
+      subject: subject,
       html
     });
+
+    await logEmail({
+      sender: data.inviterName,
+      recipientName: "Colaborador",
+      recipientEmail: data.to,
+      subject: subject,
+      content: html,
+      type: "team_invitation"
+    });
+
     return { success: true };
   } catch (e) { return { success: false }; }
 }
@@ -307,12 +366,24 @@ export async function sendTeamInvitationNoticeEmail(data: { to: string, inviteeN
       </div>
     `;
 
+    const subject = `Convite enviado para ${data.inviteeName}`;
+
     await transporter.sendMail({
       from: `"Viby.Club" <${smtpUser}>`,
       to: data.to,
-      subject: `Convite enviado para ${data.inviteeName}`,
+      subject: subject,
       html
     });
+
+    await logEmail({
+      sender: "Viby System",
+      recipientName: "Administrador",
+      recipientEmail: data.to,
+      subject: subject,
+      content: html,
+      type: "invitation_notice"
+    });
+
     return { success: true };
   } catch (e) { return { success: false }; }
 }
@@ -341,12 +412,24 @@ export async function sendTeamInvitationStatusEmail(data: { to: string, userName
       </div>
     `;
 
+    const subject = `Resultado do Convite: ${data.orgName}`;
+
     await transporter.sendMail({
       from: `"Viby.Club" <${smtpUser}>`,
       to: data.to,
-      subject: `Resultado do Convite: ${data.orgName}`,
+      subject: subject,
       html
     });
+
+    await logEmail({
+      sender: "Viby System",
+      recipientName: "Responsável",
+      recipientEmail: data.to,
+      subject: subject,
+      content: html,
+      type: "invitation_result"
+    });
+
     return { success: true };
   } catch (e) { return { success: false }; }
 }

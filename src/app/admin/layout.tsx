@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -19,7 +20,8 @@ import {
   ShieldAlert, 
   Landmark,
   Receipt,
-  Megaphone
+  Megaphone,
+  Mail
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -90,6 +92,7 @@ export default function AdminLayout({
     { title: 'Anúncios', url: '/admin/anuncios', icon: Megaphone },
     { title: 'Financeiro (Contas)', url: '/admin/financeiro', icon: Landmark },
     { title: 'Extrato Global', url: '/admin/extrato', icon: Receipt },
+    { title: 'E-mails Enviados', url: '/admin/notificacoes', icon: Mail },
     { title: 'Denúncias', url: '/admin/denuncias', icon: ShieldAlert },
     { title: 'Suporte', url: '/admin/suporte', icon: LifeBuoy },
     { title: 'Categorias', url: '/admin/categorias', icon: Tag },

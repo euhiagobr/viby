@@ -93,6 +93,20 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["organizationId", "title", "slug", "startDate", "status"]
+    },
+    "EmailLog": {
+      "title": "Log de E-mail",
+      "description": "Registro de e-mail disparado pelo sistema",
+      "type": "object",
+      "properties": {
+        "sender": { "type": "string" },
+        "recipientName": { "type": "string" },
+        "recipientEmail": { "type": "string" },
+        "subject": { "type": "string" },
+        "content": { "type": "string" },
+        "type": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "auth": {
@@ -114,6 +128,10 @@
     "/events/{eventId}": {
       "schema": "Event",
       "description": "Eventos de organizações"
+    },
+    "/sent_emails/{emailId}": {
+      "schema": "EmailLog",
+      "description": "Logs de auditoria de e-mails enviados"
     },
     "/follows/{followId}": {
       "description": "Relacionamentos genéricos entre usuários e orgs"
