@@ -10,7 +10,8 @@ import {
   getDocs, 
   doc, 
   getDoc,
-  onSnapshot
+  onSnapshot,
+  limit
 } from 'firebase/firestore';
 import { useParams, usePathname } from 'next/navigation';
 
@@ -58,7 +59,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
 
-  // Efeito para carregar todas as orgs do usuário
+  // Carrega todas as organizações onde o usuário é membro
   useEffect(() => {
     if (!db || !user) {
       setOrganizations([]);
@@ -89,14 +90,14 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     return () => unsubscribe();
   }, [db, user]);
 
-  // Efeito para sincronizar org atual com a URL [id]
+  // Sincroniza org atual com o username na URL
   useEffect(() => {
     if (!db || !user || loading) return;
 
-    const orgIdFromUrl = params?.id as string;
+    const usernameFromUrl = params?.username as string;
     
-    if (orgIdFromUrl && orgIdFromUrl !== 'new') {
-      const found = organizations.find(o => o.id === orgIdFromUrl);
+    if (usernameFromUrl && usernameFromUrl !== 'new') {
+      const found = organizations.find(o => o.username === usernameFromUrl);
       if (found) {
         if (currentOrg?.id !== found.id) {
           setCurrentOrg(found);
@@ -106,11 +107,14 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           });
         }
       } else {
-        // Se não achou na lista (ex: acesso direto via URL), tenta carregar
-        getDoc(doc(db, 'organizations', orgIdFromUrl)).then(async (orgSnap) => {
-          if (orgSnap.exists()) {
-            const orgData = { id: orgSnap.id, ...orgSnap.data() } as Organization;
-            const memberRef = doc(db, 'organizations', orgIdFromUrl, 'members', user.uid);
+        // Se não achou na lista pré-carregada, busca por username no banco
+        const q = query(collection(db, 'organizations'), where('username', '==', usernameFromUrl), limit(1));
+        getDocs(q).then(async (snap) => {
+          if (!snap.empty) {
+            const orgDoc = snap.docs[0];
+            const orgData = { id: orgDoc.id, ...orgDoc.data() } as Organization;
+            
+            const memberRef = doc(db, 'organizations', orgDoc.id, 'members', user.uid);
             const memberSnap = await getDoc(memberRef);
             
             if (memberSnap.exists()) {
@@ -123,8 +127,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           }
         });
       }
-    } else if (!pathname?.includes('/dashboard/organizations/')) {
-      // Se saiu da área de gestão, mantém a org salva no localstorage ou a primeira
+    } else if (!pathname?.includes('/dashboard/organizacoes/')) {
       const savedOrgId = localStorage.getItem('viby_current_org');
       const found = organizations.find(o => o.id === savedOrgId) || organizations[0];
       if (found && currentOrg?.id !== found.id) {
@@ -135,7 +138,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         });
       }
     }
-  }, [params?.id, organizations, db, user, loading, pathname]);
+  }, [params?.username, organizations, db, user, loading, pathname]);
 
   const refreshOrg = async () => {
     if (!db || !currentOrg) return;

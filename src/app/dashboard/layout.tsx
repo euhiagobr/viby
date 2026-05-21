@@ -4,8 +4,7 @@ import * as React from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
-import { Search, Bell, Loader2, Plus, Building2 } from "lucide-react"
-import { Input } from "@/components/ui/input"
+import { Bell, Loader2, Plus, Building2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth, useUser } from "@/firebase"
 import { OrganizationProvider, useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -66,7 +65,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                   ))}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/dashboard/organizations/new" className="flex items-center gap-2 text-secondary font-bold">
+                    <Link href="/dashboard/organizacoes/new" className="flex items-center gap-2 text-secondary font-bold">
                       <Plus className="w-4 h-4" />
                       Nova Organização
                     </Link>

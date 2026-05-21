@@ -60,18 +60,18 @@ export function AppSidebar() {
   const personalItems = [
     { title: "Explorar", url: "/dashboard", icon: Globe },
     { title: "Meus Ingressos", url: "/dashboard/ingressos", icon: Ticket },
-    { title: "Minhas Organizações", url: "/dashboard/organizations", icon: Building2 },
+    { title: "Minhas Organizações", url: "/dashboard/organizacoes", icon: Building2 },
     { title: "Seguindo", url: "/dashboard/seguindo", icon: Heart },
     { title: "Meu Perfil", url: "/dashboard/perfil", icon: User },
     { title: "Suporte", url: "/dashboard/suporte", icon: LifeBuoy },
   ];
 
   const orgItems = currentOrg ? [
-    { title: "Dashboard", url: `/dashboard/organizations/${currentOrg.id}`, icon: LayoutGrid },
-    { title: "Eventos", url: `/dashboard/organizations/${currentOrg.id}/events`, icon: Megaphone, visible: isAtLeastEditor },
-    { title: "Membros", url: `/dashboard/organizations/${currentOrg.id}/members`, icon: Users, visible: ['owner', 'admin'].includes(userRole || '') },
-    { title: "Financeiro", url: `/dashboard/organizations/${currentOrg.id}/finance`, icon: Wallet, visible: ['owner', 'admin', 'finance'].includes(userRole || '') },
-    { title: "Configurações", url: `/dashboard/organizations/${currentOrg.id}/settings`, icon: Settings, visible: ['owner', 'admin'].includes(userRole || '') },
+    { title: "Dashboard", url: `/dashboard/organizacoes/${currentOrg.username}`, icon: LayoutGrid },
+    { title: "Eventos", url: `/dashboard/organizacoes/${currentOrg.username}/events`, icon: Megaphone, visible: isAtLeastEditor },
+    { title: "Membros", url: `/dashboard/organizacoes/${currentOrg.username}/members`, icon: Users, visible: ['owner', 'admin'].includes(userRole || '') },
+    { title: "Financeiro", url: `/dashboard/organizacoes/${currentOrg.username}/finance`, icon: Wallet, visible: ['owner', 'admin', 'finance'].includes(userRole || '') },
+    { title: "Configurações", url: `/dashboard/organizacoes/${currentOrg.username}/settings`, icon: Settings, visible: ['owner', 'admin'].includes(userRole || '') },
   ].filter(item => item.visible !== false) : [];
 
   return (
@@ -88,7 +88,7 @@ export function AppSidebar() {
         {currentOrg && (
           <SidebarGroup>
             <SidebarGroupLabel className="px-6 text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">
-              Gestão de Marca
+              Gestão de Marca: {currentOrg.name}
             </SidebarGroupLabel>
             <SidebarGroupContent className="px-3">
               <SidebarMenu>
