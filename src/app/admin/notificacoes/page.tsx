@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -64,10 +63,11 @@ export default function AdminNotificacoesPage() {
     );
   }, [emails, search]);
 
-  const handleResend = async (id: string) => {
-    setResendingId(id);
+  const handleResend = async (email: any) => {
+    setResendingId(email.id);
     try {
-      const result = await resendLoggedEmail(id);
+      // Passamos o objeto completo para a Server Action para evitar leitura unauthenticated no servidor
+      const result = await resendLoggedEmail(email);
       if (result.success) {
         toast({ title: "E-mail reenviado com sucesso!" });
       } else {
@@ -169,7 +169,7 @@ export default function AdminNotificacoesPage() {
                             variant="outline" 
                             size="sm" 
                             className="h-8 gap-2 font-bold text-[9px] uppercase rounded-lg border-secondary/20 text-secondary hover:bg-secondary/10"
-                            onClick={() => handleResend(email.id)}
+                            onClick={() => handleResend(email)}
                             disabled={resendingId === email.id}
                           >
                              {resendingId === email.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCcw className="w-3 h-3" />}

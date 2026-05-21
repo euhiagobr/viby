@@ -1,4 +1,3 @@
-
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -440,17 +439,13 @@ export async function sendTeamInvitationStatusEmail(data: { to: string, userName
 }
 
 /**
- * Reenvia um e-mail a partir dos logs de auditoria.
+ * Reenvia um e-mail a partir dos dados do log de auditoria.
+ * Aceita o log completo para evitar leitura no Firestore no servidor (onde estaria desautenticado).
  */
-export async function resendLoggedEmail(logId: string) {
+export async function resendLoggedEmail(logData: any) {
   try {
-    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    const db = getFirestore(app, 'eventosviby');
+    if (!logData) return { success: false, error: 'Dados do e-mail não informados.' };
     
-    const logDoc = await getDoc(doc(db, 'sent_emails', logId));
-    if (!logDoc.exists()) return { success: false, error: 'Log não encontrado.' };
-    
-    const logData = logDoc.data();
     const { smtpUser, smtpPass } = await getEmailConfig();
 
     if (!smtpUser || !smtpPass) return { success: false, error: 'SMTP não configurado.' };
@@ -468,14 +463,13 @@ export async function resendLoggedEmail(logId: string) {
     });
 
     // Registra o reenvio no log também
-    await addDoc(collection(db, 'sent_emails'), {
+    await logEmail({
       sender: "Viby Admin (Reenvio)",
       recipientName: logData.recipientName,
       recipientEmail: logData.recipientEmail,
       subject: `[REENVIO] ${logData.subject}`,
       content: logData.content,
-      type: `resend_${logData.type}`,
-      timestamp: serverTimestamp()
+      type: `resend_${logData.type}`
     });
 
     return { success: true };

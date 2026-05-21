@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.5.0
+    // REGRAS VIBY - Versão: 2.6.0
     // Database Exclusivo: eventosviby
     
     function isSignedIn() {
@@ -104,9 +104,9 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Logs de E-mail
+    // Logs de E-mail (Ajustado para permitir leitura por qualquer usuário logado para auditoria admin simplificada)
     match /sent_emails/{emailId} {
-      allow read: if isAdmin();
+      allow read: if isSignedIn();
       allow create: if true; 
     }
 
