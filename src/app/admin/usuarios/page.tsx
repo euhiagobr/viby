@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -53,7 +52,8 @@ import {
   Trophy,
   Percent,
   Coins,
-  Ticket
+  Ticket,
+  CalendarDays
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -78,7 +78,7 @@ const ORG_TYPES = [
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 128 128" className={cn("w-5 h-5", className)} xmlns="http://www.w3.org/2000/svg">
-      <path fill="#0095f6" d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1-4.4 1.2-8.9-5.3 10.7l8.4 3.7 2.3 9c1.1-4.4 5.2-7.4 9.7 7l9.2-.7 6.5 6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.3-5.3 10.7-5.3l2.3 9-6.5 6.6c3.2-3.2 3.2-8.2 0-11.4z" />
+      <path fill="#0095f6" d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1-4.4 1.2-8.9-5.3 10.7l8.4 3.7 2.3 9c1.1-4.4 5.2-7.4 9.7 7l9.2-.7 6.5 6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.4-6.3 5.3-10.7l-2.3-9 6.5-6.6c3.2-3.2 3.2-8.2 0-11.4z" />
       <path fill="#fff" d="M57.6 86.8c-1.8 0-3.5-.7-4.8-2L38.2 70.2c-2.7-2.7-2.7-7 0-9.6s7-2.7 9.6 0l9.8 9.8 22.8-22.8c2.7-2.7 7-2.7 9.6 0s2.7 7 0 9.6L62.4 84.8c-1.3 1.3-3 2-4.8 2z" />
     </svg>
   )
@@ -185,8 +185,8 @@ export default function AdminUsuariosPage() {
         () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }) },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
-          if (coll === 'users') setEditingUser((p: any) => ({ ...p, [type]: url }))
-          else setEditingOrg((p: any) => ({ ...p, [type]: url }))
+          if (coll === 'users') setEditingUser((p: any) => ({ ...p, [type]: downloadURL }))
+          else setEditingOrg((p: any) => ({ ...p, [type]: downloadURL }))
           setUploadProgress(null)
           toast({ title: "Imagem carregada!" })
         }
@@ -242,6 +242,11 @@ export default function AdminUsuariosPage() {
         [field]: value
       }
     }))
+  }
+
+  const safeNumberValue = (val: any) => {
+    if (val === undefined || val === null || Number.isNaN(val)) return ""
+    return val.toString()
   }
 
   return (
@@ -443,15 +448,33 @@ export default function AdminUsuariosPage() {
                           <div className="space-y-6">
                              <div className="space-y-3">
                                 <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Building2 className="w-3.5 h-3.5" /> Máx. Organizações</Label>
-                                <Input type="number" value={editingUser?.planOverride?.maxOrganizations ?? ""} onChange={e => handleOverrideField('maxOrganizations', parseInt(e.target.value))} placeholder="Seguir plano" className="rounded-xl" />
+                                <Input 
+                                  type="number" 
+                                  value={safeNumberValue(editingUser?.planOverride?.maxOrganizations)} 
+                                  onChange={e => handleOverrideField('maxOrganizations', e.target.value === "" ? null : parseInt(e.target.value))} 
+                                  placeholder="Seguir plano" 
+                                  className="rounded-xl" 
+                                />
                              </div>
                              <div className="space-y-3">
                                 <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><CalendarDays className="w-3.5 h-3.5" /> Máx. Eventos Ativos</Label>
-                                <Input type="number" value={editingUser?.planOverride?.maxActiveEvents ?? ""} onChange={e => handleOverrideField('maxActiveEvents', parseInt(e.target.value))} placeholder="Seguir plano" className="rounded-xl" />
+                                <Input 
+                                  type="number" 
+                                  value={safeNumberValue(editingUser?.planOverride?.maxActiveEvents)} 
+                                  onChange={e => handleOverrideField('maxActiveEvents', e.target.value === "" ? null : parseInt(e.target.value))} 
+                                  placeholder="Seguir plano" 
+                                  className="rounded-xl" 
+                                />
                              </div>
                              <div className="space-y-3">
                                 <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Ticket className="w-3.5 h-3.5" /> Máx. Ingressos/Evento</Label>
-                                <Input type="number" value={editingUser?.planOverride?.maxTicketsPerEvent ?? ""} onChange={e => handleOverrideField('maxTicketsPerEvent', parseInt(e.target.value))} placeholder="Seguir plano (0=Ilimitado)" className="rounded-xl" />
+                                <Input 
+                                  type="number" 
+                                  value={safeNumberValue(editingUser?.planOverride?.maxTicketsPerEvent)} 
+                                  onChange={e => handleOverrideField('maxTicketsPerEvent', e.target.value === "" ? null : parseInt(e.target.value))} 
+                                  placeholder="Seguir plano (0=Ilimitado)" 
+                                  className="rounded-xl" 
+                                />
                              </div>
                           </div>
 
@@ -459,11 +482,25 @@ export default function AdminUsuariosPage() {
                              <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-3">
                                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Percent className="w-3.5 h-3.5" /> Taxa %</Label>
-                                   <Input type="number" step="0.1" value={editingUser?.planOverride?.feePercent ?? ""} onChange={e => handleOverrideField('feePercent', parseFloat(e.target.value))} placeholder="Ex: 12" className="rounded-xl" />
+                                   <Input 
+                                      type="number" 
+                                      step="0.1" 
+                                      value={safeNumberValue(editingUser?.planOverride?.feePercent)} 
+                                      onChange={e => handleOverrideField('feePercent', e.target.value === "" ? null : parseFloat(e.target.value))} 
+                                      placeholder="Ex: 12" 
+                                      className="rounded-xl" 
+                                   />
                                 </div>
                                 <div className="space-y-3">
                                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Coins className="w-3.5 h-3.5" /> Mín (R$)</Label>
-                                   <Input type="number" step="0.01" value={editingUser?.planOverride?.minFeeAmount ?? ""} onChange={e => handleOverrideField('minFeeAmount', parseFloat(e.target.value))} placeholder="Ex: 5.00" className="rounded-xl" />
+                                   <Input 
+                                      type="number" 
+                                      step="0.01" 
+                                      value={safeNumberValue(editingUser?.planOverride?.minFeeAmount)} 
+                                      onChange={e => handleOverrideField('minFeeAmount', e.target.value === "" ? null : parseFloat(e.target.value))} 
+                                      placeholder="Ex: 5.00" 
+                                      className="rounded-xl" 
+                                   />
                                 </div>
                              </div>
 
@@ -484,6 +521,7 @@ export default function AdminUsuariosPage() {
                     Salvar Alterações do Usuário
                  </Button>
               </DialogFooter>
+           </DialogHeader>
            </form>
         </DialogContent>
       </Dialog>

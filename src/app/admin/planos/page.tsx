@@ -109,6 +109,11 @@ export default function AdminPlanosPage() {
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
 
+  const safeNumberValue = (val: any) => {
+    if (val === undefined || val === null || Number.isNaN(val)) return ""
+    return val.toString()
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
@@ -147,8 +152,8 @@ export default function AdminPlanosPage() {
                           <Input 
                             type="number" 
                             step="0.01"
-                            value={plan.monthlyPrice} 
-                            onChange={e => handleUpdateField(key, 'monthlyPrice', parseFloat(e.target.value))}
+                            value={safeNumberValue(plan.monthlyPrice)} 
+                            onChange={e => handleUpdateField(key, 'monthlyPrice', e.target.value === "" ? 0 : parseFloat(e.target.value))}
                             className="rounded-xl h-11 bg-black/5 border-none font-black pl-8"
                           />
                         </div>
@@ -162,8 +167,8 @@ export default function AdminPlanosPage() {
                           <Input 
                             type="number" 
                             step="0.01"
-                            value={plan.annualPrice} 
-                            onChange={e => handleUpdateField(key, 'annualPrice', parseFloat(e.target.value))}
+                            value={safeNumberValue(plan.annualPrice)} 
+                            onChange={e => handleUpdateField(key, 'annualPrice', e.target.value === "" ? 0 : parseFloat(e.target.value))}
                             className="rounded-xl h-11 bg-black/5 border-none font-black pl-8"
                           />
                         </div>
@@ -182,8 +187,8 @@ export default function AdminPlanosPage() {
                       </Label>
                       <Input 
                         type="number" 
-                        value={plan.maxOrganizations} 
-                        onChange={e => handleUpdateField(key, 'maxOrganizations', parseInt(e.target.value))}
+                        value={safeNumberValue(plan.maxOrganizations)} 
+                        onChange={e => handleUpdateField(key, 'maxOrganizations', e.target.value === "" ? 0 : parseInt(e.target.value))}
                         className="rounded-xl h-11 bg-black/5 border-none font-bold"
                       />
                     </div>
@@ -193,8 +198,8 @@ export default function AdminPlanosPage() {
                       </Label>
                       <Input 
                         type="number" 
-                        value={plan.maxActiveEvents} 
-                        onChange={e => handleUpdateField(key, 'maxActiveEvents', parseInt(e.target.value))}
+                        value={safeNumberValue(plan.maxActiveEvents)} 
+                        onChange={e => handleUpdateField(key, 'maxActiveEvents', e.target.value === "" ? 0 : parseInt(e.target.value))}
                         className="rounded-xl h-11 bg-black/5 border-none font-bold"
                       />
                     </div>
@@ -204,8 +209,8 @@ export default function AdminPlanosPage() {
                       </Label>
                       <Input 
                         type="number" 
-                        value={plan.maxTicketsPerEvent} 
-                        onChange={e => handleUpdateField(key, 'maxTicketsPerEvent', parseInt(e.target.value))}
+                        value={safeNumberValue(plan.maxTicketsPerEvent)} 
+                        onChange={e => handleUpdateField(key, 'maxTicketsPerEvent', e.target.value === "" ? 0 : parseInt(e.target.value))}
                         placeholder="0 = Ilimitado"
                         className="rounded-xl h-11 bg-black/5 border-none font-bold"
                       />
@@ -223,8 +228,8 @@ export default function AdminPlanosPage() {
                       <Input 
                         type="number" 
                         step="0.1"
-                        value={plan.feePercent} 
-                        onChange={e => handleUpdateField(key, 'feePercent', parseFloat(e.target.value))}
+                        value={safeNumberValue(plan.feePercent)} 
+                        onChange={e => handleUpdateField(key, 'feePercent', e.target.value === "" ? 0 : parseFloat(e.target.value))}
                         className="rounded-xl h-11 bg-black/5 border-none font-bold"
                       />
                     </div>
@@ -235,8 +240,8 @@ export default function AdminPlanosPage() {
                       <Input 
                         type="number" 
                         step="0.01"
-                        value={plan.minFeeAmount} 
-                        onChange={e => handleUpdateField(key, 'minFeeAmount', parseFloat(e.target.value))}
+                        value={safeNumberValue(plan.minFeeAmount)} 
+                        onChange={e => handleUpdateField(key, 'minFeeAmount', e.target.value === "" ? 0 : parseFloat(e.target.value))}
                         className="rounded-xl h-11 bg-black/5 border-none font-bold"
                       />
                     </div>
@@ -251,7 +256,7 @@ export default function AdminPlanosPage() {
                         <p className="text-[8px] uppercase font-black opacity-40">Ativa selo automático</p>
                     </div>
                     <Switch 
-                      checked={plan.isVerified} 
+                      checked={plan.isVerified || false} 
                       onCheckedChange={v => handleUpdateField(key, 'isVerified', v)}
                     />
                   </div>
@@ -262,7 +267,7 @@ export default function AdminPlanosPage() {
                         <p className="text-[8px] uppercase font-black opacity-40">Acesso a métricas avançadas</p>
                     </div>
                     <Switch 
-                      checked={plan.hasReports} 
+                      checked={plan.hasReports || false} 
                       onCheckedChange={v => handleUpdateField(key, 'hasReports', v)}
                     />
                   </div>
