@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -224,12 +223,20 @@ function UniversalProfileContent() {
     return query(
       collection(db, "events"), 
       where("organizationId", "==", data.id),
-      where("status", "==", "Ativo"),
-      orderBy("startDate", "asc")
+      where("status", "==", "Ativo")
     )
   }, [db, data?.id, type])
 
-  const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
+  const { data: rawEvents, loading: eventsLoading } = useCollection<any>(eventsQuery)
+
+  const events = React.useMemo(() => {
+    if (!rawEvents) return [];
+    return [...rawEvents].sort((a, b) => {
+      const tA = a.createdAt?.seconds || 0;
+      const tB = b.createdAt?.seconds || 0;
+      return tB - tA;
+    });
+  }, [rawEvents]);
 
   // Lógica de Seguidores
   const followRelationQuery = useMemoFirebase(() => {
@@ -313,6 +320,7 @@ function UniversalProfileContent() {
   const isOrg = type === 'organization'
   const displayName = isOrg ? data.name : data.name || data.displayName
   const avatar = data.avatar || `https://picsum.photos/seed/${data.id}/200/200`
+  const isVerified = data.verified === true || data.isVerified === true
 
   // Helper para formatar ano de criação com segurança contra NaN
   const getCreationYear = (ts: any) => {
@@ -358,7 +366,7 @@ function UniversalProfileContent() {
                    <div className="flex flex-col md:flex-row md:items-center gap-4">
                       <div className="flex items-center justify-center md:justify-start gap-2">
                         <h1 className="text-2xl font-bold tracking-tight">{displayName}</h1>
-                        {data.isVerified && <InstagramVerifiedBadge />}
+                        {isVerified && <InstagramVerifiedBadge />}
                       </div>
                       <div className="flex items-center justify-center gap-2">
                         <Button 
