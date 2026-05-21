@@ -1,8 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.14.0
-    // RBAC aprimorado com escopo explícito para subcoleções
+    // REGRAS VIBY - Versão: 2.15.0
+    // RBAC aprimorado com permissões de aceite para convites e parcerias
     
     function isSignedIn() {
       return request.auth != null;
@@ -73,13 +73,14 @@ service cloud.firestore {
       );
       allow delete: if hasOrgRole(orgId, ['owner']) || isAdmin();
 
-      // Regra explícita para subcoleção de membros para evitar erros de listagem
       match /members/{userId} {
-        allow read: if isOrgMember(orgId) || isAdmin();
-        allow write: if hasOrgRole(orgId, ['owner', 'admin']) || isAdmin();
+        // Permite ler se for o próprio usuário convidado, membro da org ou admin
+        allow read: if isSignedIn() && (request.auth.uid == userId || isOrgMember(orgId) || isAdmin());
+        // Permite que o convidado aceite o convite ou que gestores gerenciem a equipe
+        allow update: if (isSignedIn() && request.auth.uid == userId && request.resource.data.status == 'accepted') || hasOrgRole(orgId, ['owner', 'admin']) || isAdmin();
+        allow create, delete: if hasOrgRole(orgId, ['owner', 'admin']) || isAdmin();
       }
 
-      // Subcoleções de rastreamento
       match /visitors/{visitorId} {
         allow read: if isOrgMember(orgId) || isAdmin();
         allow create, update: if isSignedIn();
@@ -95,7 +96,9 @@ service cloud.firestore {
       
       match /partners/{partnerId} {
         allow read: if true;
-        allow write: if hasOrgRole(get(/databases/eventosviby/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']);
+        // Permite que a organização convidada (partnerId) aceite/recuse ou que o dono do evento gerencie
+        allow update: if hasOrgRole(partnerId, ['owner', 'admin', 'editor']) || hasOrgRole(get(/databases/eventosviby/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']);
+        allow create, delete: if hasOrgRole(get(/databases/eventosviby/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']);
       }
     }
     

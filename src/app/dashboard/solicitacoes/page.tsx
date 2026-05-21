@@ -22,6 +22,8 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { cn } from "@/lib/utils";
 import { sendTeamInvitationStatusEmail } from '@/app/actions/email';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const roleLabels: Record<string, string> = {
   admin: 'Administrador',
@@ -38,63 +40,113 @@ export default function SolicitacoesPage() {
   const [actionLoadingId, setActionLoadingId] = React.useState<string | null>(null);
 
   const handleAcceptMember = async (invite: any) => {
-    if (!db || !user) return;
+    if (!db || !user || !invite.id) return;
+    
     if (invite.expiresAt && new Date() > new Date(invite.expiresAt)) {
       toast({ variant: "destructive", title: "Convite expirado" });
       return;
     }
 
     setActionLoadingId(invite.id);
-    try {
-      const memberRef = doc(db, 'organizations', invite.id, 'members', user.uid);
-      await updateDoc(memberRef, { status: 'accepted', acceptedAt: serverTimestamp() });
-      if (invite.inviterEmail) {
-        await sendTeamInvitationStatusEmail({ to: invite.inviterEmail, userName: invite.inviteeName || "O colaborador", orgName: invite.orgName, status: 'accepted' });
-      }
-      toast({ title: "Convite aceito!" });
-    } catch (e) { toast({ variant: "destructive", title: "Erro na operação" }); }
-    finally { setActionLoadingId(null); }
+    const memberRef = doc(db, 'organizations', invite.id, 'members', user.uid);
+    const updateData = { status: 'accepted', acceptedAt: serverTimestamp() };
+
+    updateDoc(memberRef, updateData)
+      .then(async () => {
+        if (invite.inviterEmail) {
+          await sendTeamInvitationStatusEmail({ 
+            to: invite.inviterEmail, 
+            userName: invite.inviteeName || "O colaborador", 
+            orgName: invite.orgName, 
+            status: 'accepted' 
+          });
+        }
+        toast({ title: "Convite aceito!", description: `Agora você faz parte da equipe de ${invite.orgName}.` });
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: memberRef.path,
+          operation: 'update',
+          requestResourceData: updateData
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => setActionLoadingId(null));
   };
 
   const handleDeclineMember = async (invite: any) => {
-    if (!db || !user) return;
+    if (!db || !user || !invite.id) return;
+    
     setActionLoadingId(invite.id);
-    try {
-      const memberRef = doc(db, 'organizations', invite.id, 'members', user.uid);
-      await deleteDoc(memberRef);
-      if (invite.inviterEmail) {
-        await sendTeamInvitationStatusEmail({ to: invite.inviterEmail, userName: invite.inviteeName || "O colaborador", orgName: invite.orgName, status: 'declined' });
-      }
-      toast({ title: "Convite recusado" });
-    } catch (e) { toast({ variant: "destructive", title: "Erro na operação" }); }
-    finally { setActionLoadingId(null); }
+    const memberRef = doc(db, 'organizations', invite.id, 'members', user.uid);
+
+    deleteDoc(memberRef)
+      .then(async () => {
+        if (invite.inviterEmail) {
+          await sendTeamInvitationStatusEmail({ 
+            to: invite.inviterEmail, 
+            userName: invite.inviteeName || "O colaborador", 
+            orgName: invite.orgName, 
+            status: 'declined' 
+          });
+        }
+        toast({ title: "Convite recusado" });
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: memberRef.path,
+          operation: 'delete'
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => setActionLoadingId(null));
   };
 
   const handleAcceptPartner = async (partnerInvite: any) => {
-    if (!db) return;
+    if (!db || !partnerInvite.eventId || !partnerInvite.orgId) return;
+    
     if (partnerInvite.expiresAt && new Date() > new Date(partnerInvite.expiresAt)) {
       toast({ variant: "destructive", title: "Convite expirado" });
       return;
     }
 
     setActionLoadingId(partnerInvite.id);
-    try {
-      const partnerRef = doc(db, 'events', partnerInvite.eventId, 'partners', partnerInvite.orgId);
-      await updateDoc(partnerRef, { status: 'accepted', acceptedAt: serverTimestamp() });
-      toast({ title: "Parceria confirmada!", description: "O evento agora será exibido no seu perfil." });
-    } catch (e) { toast({ variant: "destructive", title: "Erro ao aceitar" }); }
-    finally { setActionLoadingId(null); }
+    const partnerRef = doc(db, 'events', partnerInvite.eventId, 'partners', partnerInvite.orgId);
+    const updateData = { status: 'accepted', acceptedAt: serverTimestamp() };
+
+    updateDoc(partnerRef, updateData)
+      .then(() => {
+        toast({ title: "Parceria confirmada!", description: "O evento agora será exibido no seu perfil." });
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: partnerRef.path,
+          operation: 'update',
+          requestResourceData: updateData
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => setActionLoadingId(null));
   };
 
   const handleDeclinePartner = async (partnerInvite: any) => {
-    if (!db) return;
+    if (!db || !partnerInvite.eventId || !partnerInvite.orgId) return;
+    
     setActionLoadingId(partnerInvite.id);
-    try {
-      const partnerRef = doc(db, 'events', partnerInvite.eventId, 'partners', partnerInvite.orgId);
-      await deleteDoc(partnerRef);
-      toast({ title: "Convite removido" });
-    } catch (e) { toast({ variant: "destructive", title: "Erro ao recusar" }); }
-    finally { setActionLoadingId(null); }
+    const partnerRef = doc(db, 'events', partnerInvite.eventId, 'partners', partnerInvite.orgId);
+
+    deleteDoc(partnerRef)
+      .then(() => {
+        toast({ title: "Convite removido" });
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: partnerRef.path,
+          operation: 'delete'
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => setActionLoadingId(null));
   };
 
   if (loading) {
