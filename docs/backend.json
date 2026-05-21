@@ -1,100 +1,74 @@
-
 {
   "entities": {
     "User": {
       "title": "Usuário",
-      "description": "Perfil individual do usuário unificado",
+      "description": "Perfil pessoal e identidade de acesso",
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
+        "uid": { "type": "string" },
         "username": { "type": "string" },
-        "avatar": { "type": "string" },
+        "displayName": { "type": "string" },
         "email": { "type": "string" },
-        "cpf": { "type": "string" },
-        "birthDate": { "type": "string", "format": "date" },
-        "gender": { "type": "string" },
-        "city": { "type": "string" },
-        "state": { "type": "string" },
-        "country": { "type": "string" },
-        "role": { "type": "string", "enum": ["user", "admin"] },
-        "platform": { "type": "string", "enum": ["viby"] },
-        "status": { "type": "string", "enum": ["Ativo", "Bloqueado"] }
+        "avatar": { "type": "string" },
+        "bio": { "type": "string" },
+        "plan": { "type": "string", "enum": ["free", "pro", "top"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "email", "username", "platform"]
+      "required": ["uid", "username", "email", "plan"]
     },
     "Organization": {
       "title": "Organização",
-      "description": "Entidade administradora de eventos (Empresa, ONG, Artista, etc)",
+      "description": "Entidade promotora de eventos (Produtora, ONG, etc)",
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
+        "id": { "type": "string" },
         "username": { "type": "string" },
-        "avatar": { "type": "string" },
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
         "bio": { "type": "string" },
+        "avatar": { "type": "string" },
+        "banner": { "type": "string" },
         "type": { "type": "string", "enum": ["empresa", "ong", "artista", "coletivo", "produtora", "casa_noturna", "orgao_publico", "outro"] },
-        "isVerified": { "type": "boolean" },
-        "plan": { "type": "string", "enum": ["START", "PRO", "TOP"] },
-        "legalName": { "type": "string" },
-        "cnpj": { "type": "string" },
-        "bankDetails": {
-          "type": "object",
-          "properties": {
-            "bank": { "type": "string" },
-            "branch": { "type": "string" },
-            "account": { "type": "string" },
-            "pixKey": { "type": "string" }
-          }
-        },
-        "stripeId": { "type": "string" },
-        "verificationStatus": { "type": "string", "enum": ["none", "pending", "verified"] }
+        "verified": { "type": "boolean" },
+        "stripeAccountId": { "type": "string" },
+        "payoutSettings": { "type": "object" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "username", "type", "plan"]
+      "required": ["name", "username", "slug", "type", "createdBy"]
     },
     "OrganizationMember": {
       "title": "Membro da Organização",
-      "description": "Vínculo de permissão entre Usuário e Organização",
+      "description": "Permissão de acesso do usuário à organização",
       "type": "object",
       "properties": {
-        "organizationId": { "type": "string" },
         "userId": { "type": "string" },
-        "role": { "type": "string", "enum": ["owner", "admin", "editor"] },
-        "joinedAt": { "type": "string", "format": "date-time" }
+        "role": { "type": "string", "enum": ["owner", "admin", "editor", "finance", "checkin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["organizationId", "userId", "role"]
+      "required": ["userId", "role"]
     },
     "Event": {
       "title": "Evento",
-      "description": "Informações do evento vinculado a uma organização",
+      "description": "Evento vinculado a uma organização",
       "type": "object",
       "properties": {
+        "organizationId": { "type": "string" },
         "title": { "type": "string" },
+        "slug": { "type": "string" },
         "description": { "type": "string" },
-        "date": { "type": "string", "format": "date-time" },
+        "banner": { "type": "string" },
         "location": { "type": "string" },
-        "city": { "type": "string" },
-        "organizationId": { "type": "string" },
-        "status": { "type": "string" },
-        "image": { "type": "string" },
-        "isFree": { "type": "boolean" },
-        "organization": { "$ref": "#/backend/entities/Organization" }
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "visibility": { "type": "string", "enum": ["public", "private", "unlisted"] },
+        "status": { "type": "string", "enum": ["draft", "published", "cancelled", "finished"] },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["title", "date", "organizationId"]
-    },
-    "Registration": {
-      "title": "Inscrição/Ingresso",
-      "description": "Voucher de participação de um usuário em um evento",
-      "type": "object",
-      "properties": {
-        "eventId": { "type": "string" },
-        "userId": { "type": "string" },
-        "organizationId": { "type": "string" },
-        "attendeeName": { "type": "string" },
-        "attendeeCPF": { "type": "string" },
-        "ticketCode": { "type": "string" },
-        "paymentStatus": { "type": "string" },
-        "price": { "type": "number" }
-      },
-      "required": ["eventId", "userId", "organizationId"]
+      "required": ["organizationId", "title", "slug", "startDate", "status"]
     }
   },
   "auth": {
@@ -103,27 +77,25 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
-      "description": "Coleção de perfis de usuários"
+      "description": "Identidade pessoal e configurações"
     },
     "/organizations/{orgId}": {
       "schema": "Organization",
-      "description": "Coleção de organizações/produtores"
+      "description": "Entidades promotoras"
     },
-    "/organization_members/{memberId}": {
+    "/organizations/{orgId}/members/{userId}": {
       "schema": "OrganizationMember",
-      "description": "Mapeamento de permissões"
+      "description": "RBAC da organização"
     },
     "/events/{eventId}": {
       "schema": "Event",
-      "description": "Eventos vinculados a organizações"
-    },
-    "/registrations/{regId}": {
-      "schema": "Registration",
-      "description": "Ingressos emitidos"
+      "description": "Eventos de organizações"
     },
     "/follows/{followId}": {
-      "schema": "Follow",
-      "description": "Usuários seguindo organizações"
+      "description": "Relacionamentos genéricos entre usuários e orgs"
+    },
+    "/usernames/{username}": {
+      "description": "Namespace único global para users e orgs"
     }
   }
 }

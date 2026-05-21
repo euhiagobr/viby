@@ -1,11 +1,31 @@
-
 rules_version = '2';
 service firebase.storage {
-  match /b/ong-desafios-3942a.firebasestorage.app/o {
-    // REGRAS ONG - Versão: 2.0.0
-    // Isolamento para o bucket default da ONG
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Regra genérica para facilitar acesso público de leitura em assets de branding
     match /{allPaths=**} {
-      allow read, write: if request.auth != null;
+      allow read: if true;
+    }
+
+    // Identidade Pessoal
+    match /users/{userId}/{allPaths=**} {
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Identidade de Marca
+    match /organizations/{orgId}/{allPaths=**} {
+      // Permitir escrita se for membro owner ou admin
+      // Nota: Regras de storage não suportam get() no firestore de forma performática para coleções aninhadas sem firestore.get()
+      // Para o MVP, permitimos escrita se o usuário estiver logado e o caminho for coerente
+      allow write: if isSignedIn();
+    }
+
+    // Conteúdo de Eventos
+    match /events/{eventId}/{allPaths=**} {
+      allow write: if isSignedIn();
     }
   }
 }

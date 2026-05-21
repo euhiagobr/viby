@@ -1,16 +1,62 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/(default)/documents {
-    // REGRAS ONG - Versão: 2.0.0
-    // Estas regras aplicam-se apenas ao banco de dados (default)
-    
     function isSignedIn() {
       return request.auth != null;
     }
 
-    match /{allPaths=**} {
-      allow read, write: if isSignedIn();
+    function isUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function getRole(orgId) {
+      return get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role;
+    }
+
+    function hasRole(orgId, roles) {
+      return isSignedIn() && getRole(orgId) in roles;
+    }
+
+    // Usuários
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if isUser(userId);
+    }
+
+    // Namespace de Usernames
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // Organizações
+    match /organizations/{orgId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if hasRole(orgId, ['owner', 'admin']);
+      allow delete: if hasRole(orgId, ['owner']);
+
+      // Membros (RBAC)
+      match /members/{userId} {
+        allow read: if hasRole(orgId, ['owner', 'admin', 'editor', 'finance', 'checkin']);
+        allow write: if hasRole(orgId, ['owner', 'admin']);
+      }
+    }
+
+    // Eventos
+    match /events/{eventId} {
+      allow read: if resource.data.visibility == 'public' || hasRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin']);
+      allow create: if isSignedIn() && hasRole(request.resource.data.organizationId, ['owner', 'admin', 'editor']);
+      allow update: if hasRole(resource.data.organizationId, ['owner', 'admin', 'editor']);
+      allow delete: if hasRole(resource.data.organizationId, ['owner', 'admin']);
+    }
+
+    // Seguidores
+    match /follows/{followId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
     }
   }
 }

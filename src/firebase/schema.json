@@ -1,68 +1,55 @@
-
 {
   "collections": {
     "users": {
-      "id": "string (Auth UID)",
+      "id": "UID do Auth",
       "fields": {
-        "name": "string",
-        "username": "string (unique)",
+        "username": "string (único global)",
+        "displayName": "string",
         "email": "string",
-        "avatar": "string (url)",
-        "birthDate": "string (iso)",
-        "gender": "string",
-        "cpf": "string (encrypted)",
-        "city": "string",
-        "state": "string",
-        "country": "string",
-        "role": "admin | user",
-        "status": "Ativo | Bloqueado",
+        "avatar": "url",
+        "bio": "string",
+        "plan": "free | pro | top",
         "createdAt": "timestamp"
       }
     },
     "organizations": {
-      "id": "string (auto)",
+      "id": "auto-id",
       "fields": {
+        "username": "string (único global)",
         "name": "string",
-        "username": "string (unique)",
-        "avatar": "string (url)",
+        "slug": "string",
         "bio": "string",
-        "type": "string (enum)",
-        "plan": "START | PRO | TOP",
-        "isVerified": "boolean",
-        "legalName": "string",
-        "cnpj": "string",
-        "bankDetails": "map",
-        "stripeId": "string",
-        "verificationStatus": "string",
+        "type": "produtora | ong | artista | etc",
+        "avatar": "url",
+        "verified": "boolean",
+        "createdBy": "UID",
         "createdAt": "timestamp"
       }
     },
     "organization_members": {
-      "id": "string (auto)",
+      "id": "UID do Usuário",
+      "path": "organizations/{orgId}/members/{userId}",
       "fields": {
-        "organizationId": "string (ref:organizations)",
-        "userId": "string (ref:users)",
-        "role": "owner | admin | editor",
+        "role": "owner | admin | editor | finance | checkin",
         "joinedAt": "timestamp"
       }
     },
     "events": {
-      "id": "string (auto)",
+      "id": "auto-id",
       "fields": {
         "organizationId": "string (ref:organizations)",
         "title": "string",
-        "date": "timestamp",
-        "status": "string",
-        "image": "string",
-        "categoryId": "string"
+        "slug": "string",
+        "status": "published | draft",
+        "visibility": "public | private",
+        "createdAt": "timestamp"
       }
     },
-    "follows": {
-      "id": "string (auto)",
+    "usernames": {
+      "id": "username (lower)",
       "fields": {
-        "userId": "string (ref:users)",
-        "organizationId": "string (ref:organizations)",
-        "timestamp": "timestamp"
+        "uid": "ID do dono (user ou org)",
+        "type": "user | organization"
       }
     }
   }

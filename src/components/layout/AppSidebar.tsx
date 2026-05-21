@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -6,23 +5,21 @@ import {
   LayoutGrid,
   Globe,
   LogOut,
-  LogIn,
-  UserPlus,
-  ShieldCheck,
   User,
   Ticket,
-  Settings,
   Heart,
   LifeBuoy,
   Wallet,
   CreditCard,
-  Megaphone
+  Megaphone,
+  Settings,
+  Users
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
+import { useAuth, useUser } from "@/firebase"
+import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { signOut } from "firebase/auth"
-import { doc } from "firebase/firestore"
 
 import {
   Sidebar,
@@ -43,77 +40,8 @@ export function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const auth = useAuth()
-  const db = useFirestore()
   const { user } = useUser(auth)
-  
-  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
-  const { data: profile } = useDoc<any>(userDocRef)
-
-  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
-  const { data: settings } = useDoc<any>(settingsRef)
-  
-  const isAdmin = profile?.role === 'admin'
-  const isCompany = profile?.accountType === 'Empresa'
-  const siteName = settings?.siteName || "Viby"
-
-  const items = [
-    {
-      title: "Explorar",
-      url: "/dashboard",
-      icon: Globe,
-    },
-    {
-      title: "Tenho Interesse",
-      url: "/dashboard/seguindo",
-      icon: Heart,
-      authRequired: true
-    },
-    {
-      title: "Meus Eventos",
-      url: "/dashboard/projetos",
-      icon: LayoutGrid,
-      authRequired: true
-    },
-    {
-      title: "Anúncios",
-      url: "/dashboard/anuncios",
-      icon: Megaphone,
-      authRequired: true,
-      companyOnly: true
-    },
-    {
-      title: "Meu financeiro",
-      url: "/dashboard/financeiro",
-      icon: Wallet,
-      authRequired: true,
-      companyOnly: true
-    },
-    {
-      title: "Meu Plano",
-      url: "/dashboard/plano",
-      icon: CreditCard,
-      authRequired: true,
-      companyOnly: true
-    },
-    {
-      title: "Meus Ingressos",
-      url: "/dashboard/ingressos",
-      icon: Ticket,
-      authRequired: true
-    },
-    {
-      title: "Suporte",
-      url: "/dashboard/suporte",
-      icon: LifeBuoy,
-      authRequired: true
-    },
-    {
-      title: "Meu Perfil",
-      url: "/dashboard/perfil",
-      icon: User,
-      authRequired: true
-    },
-  ]
+  const { currentOrg, userRole } = useCurrentOrganization()
 
   const handleLogout = async () => {
     if (!auth) return
@@ -126,101 +54,91 @@ export function AppSidebar() {
     }
   }
 
+  const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
+
+  const personalItems = [
+    { title: "Explorar", url: "/dashboard", icon: Globe },
+    { title: "Meus Ingressos", url: "/dashboard/ingressos", icon: Ticket },
+    { title: "Seguindo", url: "/dashboard/seguindo", icon: Heart },
+    { title: "Meu Perfil", url: "/dashboard/perfil", icon: User },
+    { title: "Suporte", url: "/dashboard/suporte", icon: LifeBuoy },
+  ];
+
+  const orgItems = currentOrg ? [
+    { title: "Dashboard", url: `/dashboard/organizations/${currentOrg.id}`, icon: LayoutGrid },
+    { title: "Eventos", url: `/dashboard/organizations/${currentOrg.id}/events`, icon: Megaphone, visible: isAtLeastEditor },
+    { title: "Membros", url: `/dashboard/organizations/${currentOrg.id}/members`, icon: Users, visible: ['owner', 'admin'].includes(userRole || '') },
+    { title: "Financeiro", url: `/dashboard/organizations/${currentOrg.id}/finance`, icon: Wallet, visible: ['owner', 'admin', 'finance'].includes(userRole || '') },
+    { title: "Configurações", url: `/dashboard/organizations/${currentOrg.id}/settings`, icon: Settings, visible: ['owner', 'admin'].includes(userRole || '') },
+  ].filter(item => item.visible !== false) : [];
+
   return (
     <Sidebar className="border-r border-border">
       <SidebarHeader className="p-6">
-        <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-          {settings?.logoUrl ? (
-            <div className="w-8 h-8 relative flex items-center justify-center">
-              <img src={settings.logoUrl} alt={siteName} className="max-h-full max-w-full object-contain" />
-            </div>
-          ) : (
-            <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
-              <span className="text-secondary-foreground font-bold text-lg">{siteName.charAt(0)}</span>
-            </div>
-          )}
-          <span className="text-xl font-bold tracking-tight">{siteName}</span>
+        <Link href="/dashboard" className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
+            <span className="text-white font-black text-lg">V</span>
+          </div>
+          <span className="text-xl font-bold tracking-tight italic">Viby</span>
         </Link>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="px-6 text-xs font-black uppercase text-muted-foreground tracking-widest mb-4">Navegação</SidebarGroupLabel>
-          <SidebarGroupContent className="px-3">
-            <SidebarMenu>
-              {items.map((item) => {
-                if (item.authRequired && !user) return null;
-                if (item.companyOnly && !isCompany) return null;
-                
-                return (
+        {currentOrg && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="px-6 text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">
+              Gestão de Marca
+            </SidebarGroupLabel>
+            <SidebarGroupContent className="px-3">
+              <SidebarMenu>
+                {orgItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={pathname === item.url || (item.url !== "/dashboard" && pathname?.startsWith(item.url))}>
+                    <SidebarMenuButton asChild isActive={pathname === item.url}>
                       <Link href={item.url} className={cn(
                         "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-semibold text-sm",
-                        (pathname === item.url || (item.url !== "/dashboard" && pathname?.startsWith(item.url))) ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                        pathname === item.url ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "hover:bg-muted text-muted-foreground"
                       )}>
                         <item.icon className="w-4 h-4" />
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {isAdmin && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="px-6 text-xs font-black uppercase text-destructive tracking-widest mb-4">Administração</SidebarGroupLabel>
-            <SidebarGroupContent className="px-3">
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname?.startsWith("/admin")}>
-                    <Link href="/admin" className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-bold text-sm",
-                      pathname?.startsWith("/admin") ? "bg-primary text-white shadow-xl" : "bg-destructive/10 text-destructive hover:bg-destructive hover:text-white"
-                    )}>
-                      <ShieldCheck className="w-4 h-4" />
-                      <span>Painel Admin</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="px-6 text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">
+            Minha Conta
+          </SidebarGroupLabel>
+          <SidebarGroupContent className="px-3">
+            <SidebarMenu>
+              {personalItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild isActive={pathname === item.url}>
+                    <Link href={item.url} className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-semibold text-sm",
+                      pathname === item.url ? "bg-primary text-white" : "hover:bg-muted text-muted-foreground"
+                    )}>
+                      <item.icon className="w-4 h-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4 space-y-2">
-        {user ? (
-          <>
-            <div className="flex items-center gap-3 px-3 py-2 opacity-50">
-              <Settings className="w-4 h-4 cursor-pointer" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Versão 1.3.0</span>
-            </div>
-            <button 
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3 py-3 text-destructive hover:bg-destructive/10 rounded-xl transition-all text-sm font-bold"
-            >
-              <LogOut className="w-4 h-4" />
-              Sair da Conta
-            </button>
-          </>
-        ) : (
-          <div className="space-y-1">
-            <SidebarMenuButton asChild>
-              <Link href="/login" className="flex items-center gap-3 px-3 py-2 text-sm font-medium">
-                <LogIn className="w-5 h-5" />
-                Entrar
-              </Link>
-            </SidebarMenuButton>
-            <SidebarMenuButton asChild variant="outline" className="border-secondary/20 text-secondary">
-              <Link href="/cadastro" className="flex items-center gap-3 px-3 py-2 text-sm font-bold">
-                <UserPlus className="w-5 h-5" />
-                Cadastrar-se
-              </Link>
-            </SidebarMenuButton>
-          </div>
-        )}
+      <SidebarFooter className="p-4">
+        <button 
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-3 py-3 text-destructive hover:bg-destructive/10 rounded-xl transition-all text-sm font-bold"
+        >
+          <LogOut className="w-4 h-4" />
+          Sair da Conta
+        </button>
       </SidebarFooter>
     </Sidebar>
   )
