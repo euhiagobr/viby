@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/hooks/use-toast"
@@ -27,6 +27,57 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+
+const ORG_TYPES = [
+  {
+    category: "Arte, Cultura e Entretenimento",
+    items: ["Produtora de Eventos", "Casa Noturna", "Bar", "Pub", "Festival", "Coletivo Cultural", "Companhia Artística", "Banda", "DJ", "Artista", "Músico(a)", "Escola de Dança", "Teatro", "Cinema", "Centro Cultural", "Galeria de Arte", "Estúdio Criativo"]
+  },
+  {
+    category: "Beleza, Moda e Lifestyle",
+    items: ["Salão de Beleza", "Barbearia", "Clínica de Estética", "Estilista", "Marca de Moda", "Loja de Roupas", "Loja Vintage", "Estúdio de Tatuagem", "Spa", "Makeup Studio", "Agência de Modelos", "Fashion Brand"]
+  },
+  {
+    category: "Gastronomia",
+    items: ["Restaurante", "Cafeteria", "Hamburgueria", "Food Truck", "Buffet", "Confeitaria", "Pizzaria", "Vinícola", "Cervejaria", "Adega", "Bar de Drinks", "Chef", "Cozinha Autorais"]
+  },
+  {
+    category: "Empresas e Negócios",
+    items: ["Empresa", "Startup", "Agência de Marketing", "Agência Digital", "Coworking", "Consultoria", "Escritório", "Loja", "E-commerce", "Marca", "Franquia", "Empresa de Tecnologia"]
+  },
+  {
+    category: "Saúde e Bem-estar",
+    items: ["Academia", "Crossfit", "Estúdio de Yoga", "Clínica", "Psicologia", "Nutrição", "Personal Trainer", "Espaço Terapêutico"]
+  },
+  {
+    category: "Educação e Desenvolvimento",
+    items: ["Escola", "Universidade", "Curso", "Escola de Idiomas", "Escola Técnica", "Projeto Educacional", "Mentor(a)", "Palestrante", "Centro de Treinamento"]
+  },
+  {
+    category: "Turismo e Hospitalidade",
+    items: ["Hotel", "Hostel", "Pousada", "Agência de Turismo", "Parque", "Resort", "Espaço de Eventos"]
+  },
+  {
+    category: "Comunidade e Instituições",
+    items: ["ONG", "Associação", "Coletivo", "Fundação", "Organização Social", "Instituição Pública", "Prefeitura", "Secretaria", "Câmara Municipal", "Projeto Social", "Igreja", "Organização Religiosa", "Centro Comunitário"]
+  },
+  {
+    category: "Esporte e Comunidades",
+    items: ["Clube", "Time", "Organização Esportiva", "Liga", "Atlética", "Grupo de Corrida", "Comunidade Gamer", "Equipe de E-sports"]
+  },
+  {
+    category: "Tecnologia e Games",
+    items: ["Estúdio de Jogos", "Comunidade Tech", "Empresa de Software", "Desenvolvedora", "Plataforma Digital", "Criador de Conteúdo", "Streamer", "Podcast"]
+  },
+  {
+    category: "Comércio e Experiências",
+    items: ["Shopping", "Feira", "Mercado", "Loja Geek", "Livraria", "Pet Shop", "Sex Shop", "Tabacaria", "Floricultura"]
+  },
+  {
+    category: "Categoria Genérica",
+    items: ["Outro"]
+  }
+]
 
 export default function NovaOrganizacaoPage() {
   const router = useRouter()
@@ -147,7 +198,7 @@ export default function NovaOrganizacaoPage() {
       })
 
       toast({ title: "Organização criada!", description: "Você já pode começar a publicar eventos." })
-      router.push(`/dashboard/organizations/${orgId}`)
+      router.push(`/dashboard/organizations`)
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao criar", description: error.message })
     } finally {
@@ -238,14 +289,19 @@ export default function NovaOrganizacaoPage() {
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o tipo" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="empresa">Empresa / Produtora</SelectItem>
-                  <SelectItem value="ong">ONG / Social</SelectItem>
-                  <SelectItem value="artista">Artista / Banda</SelectItem>
-                  <SelectItem value="coletivo">Coletivo / Grupo</SelectItem>
-                  <SelectItem value="casa_noturna">Casa Noturna / Bar</SelectItem>
-                  <SelectItem value="orgao_publico">Órgão Público</SelectItem>
-                  <SelectItem value="outro">Outro</SelectItem>
+                <SelectContent className="max-h-[300px]">
+                  {ORG_TYPES.map((group) => (
+                    <SelectGroup key={group.category}>
+                      <SelectLabel className="bg-muted/50 py-2 px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                        {group.category}
+                      </SelectLabel>
+                      {group.items.map((item) => (
+                        <SelectItem key={item} value={item}>
+                          {item}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -264,12 +320,12 @@ export default function NovaOrganizacaoPage() {
         </Card>
 
         <div className="flex justify-end gap-3">
-          <Button type="button" variant="ghost" asChild>
-            <Link href="/dashboard/organizations">Cancelar</Link>
-          </Button>
+          <button type="button" onClick={() => router.back()} className="px-6 py-2 text-sm font-bold text-muted-foreground hover:text-primary transition-colors">
+            Cancelar
+          </button>
           <Button 
             type="submit" 
-            className="bg-secondary text-white hover:bg-secondary/90 px-10 h-12 rounded-xl font-bold" 
+            className="bg-secondary text-white hover:bg-secondary/90 px-10 h-12 rounded-xl font-bold shadow-lg" 
             disabled={loading || usernameStatus !== 'valid'}
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
