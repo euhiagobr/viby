@@ -37,7 +37,9 @@ import {
   ImageIcon,
   Camera,
   Layout,
-  RefreshCw
+  RefreshCw,
+  Wallet,
+  Undo2
 } from "lucide-react"
 import {
   Dialog,
@@ -147,6 +149,7 @@ export default function OrganizationAdsPage() {
         batch.update(adRef, {
           status: "Finalizado",
           remainingBudget: 0,
+          refundedAmount: refund,
           updatedAt: serverTimestamp()
         });
 
@@ -343,6 +346,7 @@ export default function OrganizationAdsPage() {
       batch.update(adRef, { 
         status: "Cancelado", 
         remainingBudget: 0,
+        refundedAmount: refundAmount,
         updatedAt: serverTimestamp() 
       })
 
@@ -562,6 +566,9 @@ export default function OrganizationAdsPage() {
             <div className="divide-y">
               {ads.map((ad: any) => {
                 const isFinished = ad.status === 'Finalizado' || ad.status === 'Cancelado';
+                const usedAmount = (ad.initialBudget || ad.budget || 0) - (ad.remainingBudget || 0);
+                const refunded = ad.refundedAmount || 0;
+
                 return (
                   <div key={ad.id} className={cn(
                     "p-8 flex flex-col gap-8 transition-colors lg:flex-row lg:items-center lg:justify-between hover:bg-muted/10",
@@ -593,12 +600,27 @@ export default function OrganizationAdsPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-8 flex-1 text-center">
-                       <div className="space-y-1"><p className="text-[10px] font-black opacity-40 uppercase tracking-widest">Alcance</p><p className="font-black text-lg">{ad.reach?.toLocaleString()}</p></div>
-                       <div className="space-y-1"><p className="text-[10px] font-black opacity-40 uppercase tracking-widest">Cliques</p><p className="font-black text-lg">{ad.clicks?.toLocaleString()}</p></div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 flex-1 text-center bg-muted/20 p-4 rounded-2xl lg:bg-transparent lg:p-0">
                        <div className="space-y-1">
-                          <p className="text-[10px] font-black text-secondary uppercase tracking-widest">Saldo Restante</p>
-                          <p className="font-black text-secondary text-lg">{formatCurrency(ad.remainingBudget || 0)}</p>
+                          <p className="text-[9px] font-black opacity-40 uppercase tracking-widest">Investimento Inicial</p>
+                          <p className="font-black text-sm">{formatCurrency(ad.initialBudget || ad.budget || 0)}</p>
+                       </div>
+                       <div className="space-y-1">
+                          <p className="text-[9px] font-black text-primary uppercase tracking-widest">Saldo Utilizado</p>
+                          <p className="font-black text-primary text-sm">{formatCurrency(usedAmount)}</p>
+                       </div>
+                       <div className="space-y-1">
+                          {isFinished ? (
+                             <>
+                                <p className="text-[9px] font-black text-green-600 uppercase tracking-widest">Valor Estornado</p>
+                                <p className="font-black text-green-600 text-sm">{formatCurrency(refunded)}</p>
+                             </>
+                          ) : (
+                             <>
+                                <p className="text-[9px] font-black text-secondary uppercase tracking-widest">Saldo Restante</p>
+                                <p className="font-black text-secondary text-sm">{formatCurrency(ad.remainingBudget || 0)}</p>
+                             </>
+                          )}
                        </div>
                     </div>
 
@@ -678,7 +700,7 @@ export default function OrganizationAdsPage() {
           <AlertDialogHeader>
              <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Confirmar Cancelamento?</AlertDialogTitle>
              <AlertDialogDescription className="font-medium">
-                Esta ação devolverá <strong>{formatCurrency(adToCancel?.remainingBudget || 0)}</strong> ao saldo disponível da sua marca imediatamente.
+                Esta ação encerrará a campanha e devolverá <strong>{formatCurrency(adToCancel?.remainingBudget || 0)}</strong> ao saldo disponível da sua marca imediatamente.
              </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
