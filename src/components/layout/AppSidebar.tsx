@@ -13,7 +13,8 @@ import {
   CreditCard,
   Megaphone,
   Settings,
-  Users
+  Users,
+  Building2
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -59,6 +60,7 @@ export function AppSidebar() {
   const personalItems = [
     { title: "Explorar", url: "/dashboard", icon: Globe },
     { title: "Meus Ingressos", url: "/dashboard/ingressos", icon: Ticket },
+    { title: "Minhas Organizações", url: "/dashboard/organizations", icon: Building2 },
     { title: "Seguindo", url: "/dashboard/seguindo", icon: Heart },
     { title: "Meu Perfil", url: "/dashboard/perfil", icon: User },
     { title: "Suporte", url: "/dashboard/suporte", icon: LifeBuoy },
