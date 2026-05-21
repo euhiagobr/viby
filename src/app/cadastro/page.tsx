@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -5,7 +6,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useFirestore, useDoc } from "@/firebase"
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
-import { doc, getDoc, runTransaction } from "firebase/firestore"
+import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -29,6 +30,8 @@ export default function CadastroPage() {
   const [loading, setLoading] = useState(false)
   const [checkingUsername, setCheckingUsername] = useState(false)
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
+  const [isUsernameCustom, setIsUsernameCustom] = useState(false)
+  
   const router = useRouter()
   const auth = useAuth()
   const db = useFirestore()
@@ -57,12 +60,7 @@ export default function CadastroPage() {
       return
     }
 
-    // Verificar na lista de bloqueados do admin
     const normalized = username.toLowerCase()
-    if (blockedData?.list?.includes(normalized)) {
-      setUsernameStatus('taken')
-      return
-    }
 
     setUsernameStatus('idle')
     setCheckingUsername(true)
@@ -71,9 +69,39 @@ export default function CadastroPage() {
       try {
         const usernameRef = doc(db, "usernames", normalized)
         const usernameSnap = await getDoc(usernameRef)
+        const isBlocked = blockedData?.list?.includes(normalized);
         
-        if (usernameSnap.exists()) {
-          setUsernameStatus('taken')
+        if (usernameSnap.exists() || isBlocked) {
+          // Se o usuário não editou manualmente, tentamos sugerir com número
+          if (!isUsernameCustom) {
+             let nextNum = 1;
+             let found = false;
+             let currentTry = normalized;
+
+             // Tentamos até 15 variações para não sobrecarregar
+             while(!found && nextNum <= 15) {
+                const tryName = `${normalized}${nextNum}`;
+                const tryRef = doc(db, "usernames", tryName);
+                const trySnap = await getDoc(tryRef);
+                const tryBlocked = blockedData?.list?.includes(tryName);
+                
+                if (!trySnap.exists() && !tryBlocked) {
+                   found = true;
+                   currentTry = tryName;
+                } else {
+                   nextNum++;
+                }
+             }
+
+             if (found) {
+                setUsername(currentTry);
+                setUsernameStatus('valid');
+             } else {
+                setUsernameStatus('taken');
+             }
+          } else {
+            setUsernameStatus('taken');
+          }
         } else {
           setUsernameStatus('valid')
         }
@@ -85,7 +113,28 @@ export default function CadastroPage() {
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [username, db, blockedData])
+  }, [username, db, blockedData, isUsernameCustom])
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setName(val);
+    
+    // Se o usuário nunca editou o username, preenchemos automaticamente
+    if (!isUsernameCustom) {
+      const suggested = val
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "")
+        .substring(0, 20);
+      setUsername(suggested);
+    }
+  }
+
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ""));
+    setIsUsernameCustom(true); // Marca que o usuário assumiu o controle do campo
+  }
 
   const formatCPF = (v: string) => {
     v = v.replace(/\D/g, "");
@@ -210,7 +259,14 @@ export default function CadastroPage() {
             <form onSubmit={handleRegister} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome Completo</Label>
-                <input id="name" placeholder="Seu nome" value={name} onChange={(e) => setName(e.target.value)} required className="flex h-11 w-full rounded-xl border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm" />
+                <input 
+                  id="name" 
+                  placeholder="Seu nome" 
+                  value={name} 
+                  onChange={handleNameChange} 
+                  required 
+                  className="flex h-11 w-full rounded-xl border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm" 
+                />
               </div>
               
               <div className="space-y-2">
@@ -220,8 +276,12 @@ export default function CadastroPage() {
                     id="username" 
                     placeholder="ex: joaosilva123" 
                     value={username} 
-                    onChange={(e) => setUsername(e.target.value)} 
-                    className={cn("rounded-xl h-11", usernameStatus === 'valid' ? 'border-green-500 pr-10' : usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-destructive pr-10' : 'pr-10')}
+                    onChange={handleUsernameChange} 
+                    className={cn(
+                      "rounded-xl h-11", 
+                      usernameStatus === 'valid' ? 'border-green-500 pr-10' : 
+                      usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-destructive pr-10' : 'pr-10'
+                    )}
                     required 
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -282,7 +342,7 @@ export default function CadastroPage() {
                 <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="rounded-xl h-11" />
               </div>
               
-              <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 font-black h-14 rounded-2xl shadow-xl shadow-secondary/20 uppercase italic mt-4" disabled={loading || usernameStatus !== 'valid'}>
+              <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 font-black h-14 rounded-2xl shadow-xl shadow-secondary/20 uppercase italic mt-4" disabled={loading || (usernameStatus !== 'valid' && usernameStatus !== 'idle')}>
                 {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 Finalizar Cadastro
               </Button>
