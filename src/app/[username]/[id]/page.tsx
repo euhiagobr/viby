@@ -24,7 +24,8 @@ import {
   Layers,
   ShoppingCart,
   Plus,
-  Minus
+  Minus,
+  Map as MapIcon
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -160,6 +161,12 @@ export default function EventoDetalhesPage() {
   const orgAvatar = organizationProfile?.avatar || event.organizer?.avatar;
   const isVerified = organizationProfile?.verified ?? event.organizer?.isVerified;
 
+  const fullAddress = event.address ? 
+    `${event.address.street}, ${event.address.number}${event.address.complement ? ` - ${event.address.complement}` : ''} - ${event.address.neighborhood}, ${event.address.city} - ${event.address.state}` : 
+    event.location;
+
+  const mapQuery = encodeURIComponent(fullAddress);
+
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
       <div className="max-w-6xl mx-auto px-4 pt-10 space-y-8 flex-1 w-full">
@@ -197,7 +204,40 @@ export default function EventoDetalhesPage() {
            <div className="lg:col-span-8 space-y-8">
               <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
                  <CardHeader className="bg-muted/30 pb-4"><CardTitle className="flex items-center gap-2 text-xl font-bold"><Info className="w-5 h-5 text-secondary" /> Sobre o Evento</CardTitle></CardHeader>
-                 <CardContent className="pt-6"><p className="text-muted-foreground leading-relaxed whitespace-pre-line text-lg font-medium">{event.description}</p></CardContent>
+                 <CardContent className="pt-6">
+                    <p className="text-muted-foreground leading-relaxed whitespace-pre-line text-lg font-medium">{event.description}</p>
+                 </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
+                 <CardHeader className="bg-muted/30 pb-4">
+                    <CardTitle className="flex items-center gap-2 text-xl font-bold">
+                      <MapIcon className="w-5 h-5 text-secondary" /> Localização
+                    </CardTitle>
+                 </CardHeader>
+                 <CardContent className="pt-6 space-y-6">
+                    <div className="flex items-start gap-3">
+                       <div className="p-2 bg-secondary/10 rounded-xl shrink-0">
+                          <MapPin className="w-5 h-5 text-secondary" />
+                       </div>
+                       <div className="space-y-1">
+                          <p className="font-bold text-lg leading-tight">{fullAddress}</p>
+                          <p className="text-sm text-muted-foreground uppercase font-black tracking-widest opacity-60">Endereço do Evento</p>
+                       </div>
+                    </div>
+
+                    <div className="h-[300px] w-full rounded-2xl overflow-hidden border bg-muted">
+                       <iframe 
+                         width="100%" 
+                         height="100%" 
+                         style={{ border: 0 }} 
+                         loading="lazy" 
+                         allowFullScreen 
+                         referrerPolicy="no-referrer-when-downgrade"
+                         src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyA88_O1t5mP1y9u4_6B4g4e7T9W5_5-0&q=${mapQuery}`}
+                       ></iframe>
+                    </div>
+                 </CardContent>
               </Card>
            </div>
            
@@ -222,7 +262,7 @@ export default function EventoDetalhesPage() {
                                      <div className="space-y-1">
                                         <p className="font-bold text-sm uppercase">{type.name}</p>
                                         <div className="flex flex-wrap gap-2">
-                                          {type.poolName && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase border-secondary/20 text-secondary gap-1"><Layers className="w-2 h-2" /> {type.poolName}</Badge>}
+                                          {type.poolName && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase border-secondary/20 text-secondary gap-1"><Layers className="w-2.5 h-2.5" /> {type.poolName}</Badge>}
                                           {type.remaining <= 10 && <span className="text-[8px] font-black text-red-500 uppercase">Restam {type.remaining}</span>}
                                           {type.requiresProof && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase border-orange-200 text-orange-600">Doc. Obrigatório</Badge>}
                                         </div>
