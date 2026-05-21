@@ -28,7 +28,9 @@ import {
   Save,
   ShieldAlert,
   Clock,
-  Building2
+  Building2,
+  Compass,
+  RefreshCw
 } from "lucide-react"
 import Link from "next/link"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -86,6 +88,8 @@ export default function EditarEventoPage() {
     number: "",
     complement: ""
   })
+  const [coords, setCoords] = useState({ lat: "", lng: "" })
+  const [isGeocoding, setIsGeocoding] = useState(false)
 
   const [batches, setBatches] = useState<Batch[]>([])
 
@@ -109,6 +113,10 @@ export default function EditarEventoPage() {
         country: "Brasil",
         number: "",
         complement: ""
+      })
+      setCoords({
+        lat: event.latitude?.toString() || "",
+        lng: event.longitude?.toString() || ""
       })
       setImagePreview(event.image || null)
       setUploadedImageUrl(event.image || null)
@@ -174,6 +182,30 @@ export default function EditarEventoPage() {
     }
   }
 
+  const geocodeAddress = async () => {
+    if (!address.street || !address.city || !address.number) return;
+    
+    setIsGeocoding(true);
+    const query = `${address.street}, ${address.number}, ${address.neighborhood}, ${address.city}, ${address.state}, Brasil`;
+    
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+      const data = await response.json();
+      
+      if (data && data[0]) {
+        setCoords({
+          lat: data[0].lat,
+          lng: data[0].lon
+        });
+        toast({ title: "Localização atualizada!", description: "Coordenadas sincronizadas pelo endereço." });
+      }
+    } catch (e) {
+      console.error("Erro na geolocalização:", e);
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
+
   const handleCepBlur = async () => {
     const cleanCep = cep.replace(/\D/g, "")
     if (cleanCep.length !== 8) return
@@ -188,6 +220,7 @@ export default function EditarEventoPage() {
           city: data.localidade || "",
           state: data.uf || ""
         }))
+        if (address.number) geocodeAddress();
       }
     } catch (e) {}
   }
@@ -222,6 +255,8 @@ export default function EditarEventoPage() {
         isFree: isFree,
         cep: cep,
         address: address,
+        latitude: parseFloat(coords.lat) || 0,
+        longitude: parseFloat(coords.lng) || 0,
         batches: isFree ? [{ 
           name: "Gratuito", 
           price: 0, 
@@ -314,17 +349,38 @@ export default function EditarEventoPage() {
         </Card>
 
         <Card className="border-none shadow-sm">
-          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização & Geolocalização</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2"><Label htmlFor="cep">CEP</Label><Input id="cep" value={cep} onChange={(e) => setCep(e.target.value)} onBlur={handleCepBlur} required /></div>
-              <div className="md:col-span-2 space-y-2"><Label htmlFor="street">Logradouro</Label><Input id="street" value={address.street} onChange={(e) => setAddress({...address, street: e.target.value})} required /></div>
+              <div className="md:col-span-2 space-y-2"><Label htmlFor="street">Logradouro</Label><Input id="street" value={address.street} onChange={(e) => setAddress({...address, street: e.target.value})} onBlur={geocodeAddress} required /></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="space-y-2"><Label htmlFor="number">Nº</Label><Input id="number" value={address.number} onChange={(e) => setAddress({...address, number: e.target.value})} required /></div>
-              <div className="space-y-2"><Label htmlFor="neighborhood">Bairro</Label><Input id="neighborhood" value={address.neighborhood} onChange={(e) => setAddress({...address, neighborhood: e.target.value})} required /></div>
+              <div className="space-y-2"><Label htmlFor="number">Nº</Label><Input id="number" value={address.number} onChange={(e) => setAddress({...address, number: e.target.value})} onBlur={geocodeAddress} required /></div>
+              <div className="space-y-2"><Label htmlFor="neighborhood">Bairro</Label><Input id="neighborhood" value={address.neighborhood} onChange={(e) => setAddress({...address, neighborhood: e.target.value})} onBlur={geocodeAddress} required /></div>
               <div className="space-y-2"><Label htmlFor="city">Cidade</Label><Input id="city" value={address.city} onChange={(e) => setAddress({...address, city: e.target.value})} required /></div>
               <div className="space-y-2"><Label htmlFor="state">UF</Label><Input id="state" value={address.state} onChange={(e) => setAddress({...address, state: e.target.value})} required /></div>
+            </div>
+
+            <Separator />
+            <div className="space-y-4">
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center gap-2">
+                   <Compass className="w-4 h-4 text-secondary" />
+                   <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Coordenadas de Descoberta</h4>
+                 </div>
+                 {isGeocoding && <div className="flex items-center gap-2 text-[10px] font-bold text-secondary animate-pulse uppercase"><RefreshCw className="w-3 h-3 animate-spin" /> Atualizando...</div>}
+               </div>
+               <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Latitude</Label>
+                    <Input value={coords.lat} onChange={(e) => setCoords({...coords, lat: e.target.value})} placeholder="Detectado automaticamente" readOnly className="bg-muted/30" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase opacity-60">Longitude</Label>
+                    <Input value={coords.lng} onChange={(e) => setCoords({...coords, lng: e.target.value})} placeholder="Detectado automaticamente" readOnly className="bg-muted/30" />
+                  </div>
+               </div>
             </div>
           </CardContent>
         </Card>

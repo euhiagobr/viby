@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -6,11 +7,11 @@ import { useRouter } from "next/navigation"
 import { useFirestore, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { collection, addDoc, serverTimestamp, doc } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Progress } from "@/components/ui/progress"
@@ -29,7 +30,8 @@ import {
   ShieldAlert,
   Clock,
   Compass,
-  Building2
+  Building2,
+  RefreshCw
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -84,6 +86,7 @@ export default function NovoEventoPage() {
     complement: ""
   })
   const [coords, setCoords] = useState({ lat: "", lng: "" })
+  const [isGeocoding, setIsGeocoding] = useState(false)
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
 
@@ -130,6 +133,31 @@ export default function NovoEventoPage() {
     }
   }
 
+  const geocodeAddress = async () => {
+    if (!address.street || !address.city || !address.number) return;
+    
+    setIsGeocoding(true);
+    const query = `${address.street}, ${address.number}, ${address.neighborhood}, ${address.city}, ${address.state}, Brasil`;
+    
+    try {
+      // Usando Nominatim (OpenStreetMap) para geocodificação gratuita em protótipos
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+      const data = await response.json();
+      
+      if (data && data[0]) {
+        setCoords({
+          lat: data[0].lat,
+          lng: data[0].lon
+        });
+        toast({ title: "Localização sincronizada!", description: "Coordenadas detectadas automaticamente." });
+      }
+    } catch (e) {
+      console.error("Erro na geolocalização:", e);
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
+
   const handleCepBlur = async () => {
     const cleanCep = cep.replace(/\D/g, "")
     if (cleanCep.length !== 8) return
@@ -144,6 +172,8 @@ export default function NovoEventoPage() {
           city: data.localidade || "",
           state: data.uf || ""
         }))
+        // Tenta geocodificar se já tiver número
+        if (address.number) geocodeAddress();
       }
     } catch (e) {}
   }
@@ -328,34 +358,37 @@ export default function NovoEventoPage() {
               </div>
               <div className="md:col-span-3 space-y-2">
                 <Label htmlFor="street">Logradouro</Label>
-                <Input id="street" value={address.street} onChange={(e) => setAddress({...address, street: e.target.value})} placeholder="Rua..." required />
+                <Input id="street" value={address.street} onChange={(e) => setAddress({...address, street: e.target.value})} onBlur={geocodeAddress} placeholder="Rua..." required />
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="space-y-2"><Label htmlFor="number">Número</Label><Input id="number" value={address.number} onChange={(e) => setAddress({...address, number: e.target.value})} required /></div>
-              <div className="space-y-2"><Label htmlFor="neighborhood">Bairro</Label><Input id="neighborhood" value={address.neighborhood} onChange={(e) => setAddress({...address, neighborhood: e.target.value})} required /></div>
+              <div className="space-y-2"><Label htmlFor="number">Número</Label><Input id="number" value={address.number} onChange={(e) => setAddress({...address, number: e.target.value})} onBlur={geocodeAddress} placeholder="Ex: 123" required /></div>
+              <div className="space-y-2"><Label htmlFor="neighborhood">Bairro</Label><Input id="neighborhood" value={address.neighborhood} onChange={(e) => setAddress({...address, neighborhood: e.target.value})} onBlur={geocodeAddress} required /></div>
               <div className="space-y-2"><Label htmlFor="city">Cidade</Label><Input id="city" value={address.city} onChange={(e) => setAddress({...address, city: e.target.value})} required /></div>
               <div className="space-y-2"><Label htmlFor="state">Estado</Label><Input id="state" value={address.state} onChange={(e) => setAddress({...address, state: e.target.value})} placeholder="Ex: SP" required /></div>
             </div>
             
             <Separator />
             <div className="space-y-4">
-               <div className="flex items-center gap-2">
-                 <Compass className="w-4 h-4 text-secondary" />
-                 <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Coordenadas para Descoberta (Obrigatório)</h4>
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center gap-2">
+                   <Compass className="w-4 h-4 text-secondary" />
+                   <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Coordenadas de Descoberta</h4>
+                 </div>
+                 {isGeocoding && <div className="flex items-center gap-2 text-[10px] font-bold text-secondary animate-pulse uppercase"><RefreshCw className="w-3 h-3 animate-spin" /> Buscando...</div>}
                </div>
                <p className="text-[10px] text-muted-foreground leading-relaxed">
-                 O Viby utiliza estas coordenadas para mostrar a distância real para o público. 
-                 Use sites como "Google Maps" para obter a Latitude e Longitude exatas do local.
+                 O Viby detecta automaticamente a Latitude e Longitude com base no endereço preenchido acima. 
+                 Isso é vital para que o público encontre seu evento pelo filtro de distância.
                </p>
                <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-bold uppercase opacity-60">Latitude</Label>
-                    <Input value={coords.lat} onChange={(e) => setCoords({...coords, lat: e.target.value})} placeholder="Ex: -23.5505" required />
+                    <Input value={coords.lat} onChange={(e) => setCoords({...coords, lat: e.target.value})} placeholder="Detectado automaticamente" readOnly className="bg-muted/30" />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] font-bold uppercase opacity-60">Longitude</Label>
-                    <Input value={coords.lng} onChange={(e) => setCoords({...coords, lng: e.target.value})} placeholder="Ex: -46.6333" required />
+                    <Input value={coords.lng} onChange={(e) => setCoords({...coords, lng: e.target.value})} placeholder="Detectado automaticamente" readOnly className="bg-muted/30" />
                   </div>
                </div>
             </div>
