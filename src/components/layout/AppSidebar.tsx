@@ -16,7 +16,8 @@ import {
   Users,
   Building2,
   UserCheck,
-  CalendarDays
+  CalendarDays,
+  Trophy
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -44,7 +45,7 @@ export function AppSidebar() {
   const router = useRouter()
   const auth = useAuth()
   const { user } = useUser(auth)
-  const { currentOrg, userRole, pendingInvitations } = useCurrentOrganization()
+  const { currentOrg, organizations, userRole, pendingInvitations } = useCurrentOrganization()
 
   const handleLogout = async () => {
     if (!auth) return
@@ -61,6 +62,8 @@ export function AppSidebar() {
     { title: "Explorar", url: "/dashboard", icon: Globe },
     { title: "Meus Ingressos", url: "/dashboard/ingressos", icon: Ticket },
     { title: "Minhas Organizações", url: "/dashboard/organizacoes", icon: Building2 },
+    // Só mostra Planos se o usuário já tiver pelo menos uma marca criada
+    ...(organizations.length > 0 ? [{ title: "Planos", url: "/dashboard/plano", icon: Trophy }] : []),
     { title: "Solicitações", url: "/dashboard/solicitacoes", icon: UserCheck, badge: pendingInvitations.length > 0 ? pendingInvitations.length : null },
     { title: "Seguindo", url: "/dashboard/seguindo", icon: Heart },
     { title: "Meu Perfil", url: "/dashboard/perfil", icon: User },

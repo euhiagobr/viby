@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -28,6 +27,7 @@ import { cn } from "@/lib/utils"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { createPlanCheckoutSession } from "@/app/actions/stripe"
 import { toast } from "@/hooks/use-toast"
+import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 
 const PLAN_INFO = {
   START: {
@@ -55,6 +55,7 @@ export default function PlanoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const router = useRouter()
+  const { organizations, loading: orgsLoading } = useCurrentOrganization()
   
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile, loading: profileLoading } = useDoc<any>(userDocRef)
@@ -64,6 +65,13 @@ export default function PlanoPage() {
 
   const [billingCycle, setBillingCycle] = React.useState<'monthly' | 'annual'>('annual')
   const [upgrading, setUpgrading] = React.useState<string | null>(null)
+
+  // Redireciona se o usuário não tiver organizações (requisito para liberar a página)
+  React.useEffect(() => {
+    if (!orgsLoading && organizations.length === 0) {
+      router.replace('/dashboard/organizacoes')
+    }
+  }, [organizations, orgsLoading, router])
 
   const handleUpgrade = async (planId: 'PRO' | 'TOP', planName: string, amount: number) => {
     if (!user) return
@@ -89,9 +97,11 @@ export default function PlanoPage() {
     }
   }
 
-  if (profileLoading || plansLoading) {
+  if (profileLoading || plansLoading || orgsLoading) {
     return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
   }
+
+  if (organizations.length === 0) return null;
 
   const currentPlan = profile?.plan?.toUpperCase() || "START"
   const override = profile?.planOverride
