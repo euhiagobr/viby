@@ -1,37 +1,34 @@
 
 {
   "collection": "events",
+  "description": "Estrutura de ingressos com suporte a estoques compartilhados (Pools)",
   "fields": {
     "ticketMode": "free | paid_single | batches",
     "batches": [
       {
         "id": "string",
         "name": "string",
-        "description": "string",
-        "startDate": "iso-date-string",
-        "endDate": "iso-date-string",
-        "totalCapacity": "number",
+        "startDate": "iso-date",
+        "endDate": "iso-date",
         "ticketTypes": [
           {
             "id": "string",
             "name": "string",
             "price": "number",
-            "quantity": "number",
-            "requiresProof": "boolean",
+            "quantity": "number (Limite do Pool se poolId existir, senão individual)",
+            "poolId": "string (Opcional - Tipos com mesmo poolId compartilham a quantidade)",
+            "poolName": "string (Opcional - Nome do grupo, ex: 'Meia-Entrada')",
             "isLegalHalf": "boolean",
-            "description": "string"
+            "requiresProof": "boolean"
           }
         ]
       }
     ]
   },
-  "collection_registrations": {
+  "registrations": {
     "fields": {
-      "ticketTypeId": "string",
-      "ticketTypeName": "string",
-      "batchId": "string",
-      "batchName": "string",
-      "isLegalHalf": "boolean"
+      "poolId": "string (Copiado do ticketType para facilitar contagem de estoque compartilhado)",
+      "poolName": "string"
     }
   }
 }

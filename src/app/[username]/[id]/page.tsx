@@ -4,14 +4,12 @@
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, updateDoc, increment } from "firebase/firestore"
+import { doc, addDoc, collection, serverTimestamp, query, where } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { 
   Calendar, 
@@ -25,17 +23,9 @@ import {
   Clock,
   ExternalLink,
   AlertTriangle,
-  Tag,
-  Gift,
-  ShieldAlert,
-  Send,
   CreditCard,
-  ChevronRight,
-  Plus,
-  Lock,
-  Navigation,
-  Map as MapIcon,
-  ShieldCheck
+  ShieldCheck,
+  ShieldAlert
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -48,24 +38,9 @@ import { sendTicketEmail } from "@/app/actions/email"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
 import Footer from "@/components/layout/Footer"
 
 export default function EventoDetalhesPage() {
@@ -77,9 +52,6 @@ export default function EventoDetalhesPage() {
   const eventId = params.id as string
   const usernameFromUrl = params.username as string
 
-  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
-  const { data: settings } = useDoc<any>(settingsRef)
-  
   const eventRef = React.useMemo(() => db ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
   
@@ -102,8 +74,6 @@ export default function EventoDetalhesPage() {
   const [activeBatch, setActiveBatch] = React.useState<any>(null)
   const [selectedTicketType, setSelectedTicketType] = React.useState<any>(null)
   const [saleStatus, setSaleStatus] = React.useState<'open' | 'pending' | 'ended' | 'soldout'>('pending')
-  
-  const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null)
   const [isCheckoutOpen, setIsCheckoutOpen] = React.useState(false)
 
   React.useEffect(() => {
@@ -112,48 +82,48 @@ export default function EventoDetalhesPage() {
     const checkAvailability = () => {
       const now = new Date()
       const batches = event.batches || []
-      const salesPerType = (allRegistrations || []).reduce((acc: Record<string, number>, reg: any) => {
+      
+      // Contagem de vendas por individual (typeId) e por pool (poolId)
+      const salesPerType = (allRegistrations || []).reduce((acc: any, reg: any) => {
         if (['Pago', 'Disponível'].includes(reg.paymentStatus)) {
-          const key = `${reg.batchId}_${reg.ticketTypeId}`
-          acc[key] = (acc[key] || 0) + 1
+          const tKey = `${reg.batchId}_${reg.ticketTypeId}`
+          acc.types[tKey] = (acc.types[tKey] || 0) + 1
+          
+          if (reg.poolId) {
+            const pKey = `${reg.batchId}_${reg.poolId}`
+            acc.pools[pKey] = (acc.pools[pKey] || 0) + 1
+          }
         }
         return acc
-      }, {})
+      }, { types: {}, pools: {} })
 
       let currentSaleStatus: 'open' | 'pending' | 'ended' | 'soldout' = 'ended'
       let foundActiveBatch = null
       let hasUpcoming = false
 
-      // Lógica de transição automática entre lotes
-      // Percorre os lotes ordenados
       for (const batch of batches) {
         const start = batch.startDate ? new Date(batch.startDate) : null
         const end = batch.endDate ? new Date(batch.endDate) : null
-        
         const isStarted = !start || now >= start
         const isNotEnded = !end || now <= end
 
-        // Se o lote ainda não começou
         if (!isStarted) {
           if (!foundActiveBatch) hasUpcoming = true
           continue
         }
 
-        // Se o lote já começou e não terminou por data
         if (isStarted && isNotEnded) {
           const typesWithStock = batch.ticketTypes.map((t: any) => {
-            const sold = salesPerType[`${batch.id}_${t.id}`] || 0
+            const sold = t.poolId ? (salesPerType.pools[`${batch.id}_${t.poolId}`] || 0) : (salesPerType.types[`${batch.id}_${t.id}`] || 0)
             const remaining = Math.max(0, (t.quantity || 0) - sold)
             return { ...t, remaining }
           }).filter((t: any) => t.remaining > 0)
 
-          // Se este lote tem estoque, ele é o ativo
           if (typesWithStock.length > 0) {
             foundActiveBatch = { ...batch, ticketTypes: typesWithStock }
             currentSaleStatus = 'open'
-            break // Para no primeiro lote válido (mais antigo não esgotado)
+            break
           } else {
-            // Se o lote esgotou, continuamos para o próximo automaticamente
             currentSaleStatus = 'soldout'
             continue
           }
@@ -165,19 +135,11 @@ export default function EventoDetalhesPage() {
     }
 
     checkAvailability()
-    const timer = setInterval(checkAvailability, 15000)
-    return () => clearInterval(timer)
   }, [event, allRegistrations])
 
   const breakdown = React.useMemo(() => {
-    let base = selectedTicketType?.price || 0
-    if (appliedCoupon) {
-      if (appliedCoupon.discountType === 'percentage') base = Math.max(0, base - (base * appliedCoupon.discountValue / 100))
-      else if (appliedCoupon.discountType === 'fixed') base = Math.max(0, base - appliedCoupon.discountValue)
-      else if (appliedCoupon.discountType === 'free_ticket') base = 0
-    }
-    return calculateFinancialBreakdown(base, ownerProfile?.plan || 'free');
-  }, [selectedTicketType, appliedCoupon, ownerProfile?.plan]);
+    return calculateFinancialBreakdown(selectedTicketType?.price || 0, ownerProfile?.plan || 'free');
+  }, [selectedTicketType, ownerProfile?.plan]);
 
   const handleRegisterInterest = async () => {
     if (!user) return router.push("/login")
@@ -196,9 +158,10 @@ export default function EventoDetalhesPage() {
         administrativeFeeAmount: breakdown.administrativeFeeAmount, producerFeeAmount: breakdown.producerFeeAmount, producerNetAmount: breakdown.producerNetAmount,
         financialBreakdown: breakdown, batchId: activeBatch.id, batchName: activeBatch.name,
         ticketTypeId: selectedTicketType.id, ticketTypeName: selectedTicketType.name,
+        poolId: selectedTicketType.poolId || null, poolName: selectedTicketType.poolName || null,
         checkedIn: false, paymentStatus: breakdown.customerFinalPrice === 0 ? "Disponível" : "Pendente",
         ticketCode, status: "Ativo", purchaseType: breakdown.customerFinalPrice === 0 ? "free" : "paid",
-        couponCode: appliedCoupon?.code || null, createdAt: serverTimestamp(), timestamp: serverTimestamp()
+        createdAt: serverTimestamp(), timestamp: serverTimestamp()
       }
 
       if (breakdown.customerFinalPrice > 0) {
@@ -248,7 +211,6 @@ export default function EventoDetalhesPage() {
           <div className="absolute bottom-10 left-10 text-white space-y-4 pr-10">
              <div className="flex flex-wrap gap-2">
                 <Badge className="bg-secondary px-4 py-1 rounded-full uppercase font-black tracking-widest">{event.categoryName || "Geral"}</Badge>
-                {event.isFree && <Badge className="bg-green-500 px-4 py-1 rounded-full uppercase font-black tracking-widest border-none">Grátis</Badge>}
              </div>
              <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-[0.9]">{event.title}</h1>
              <div className="flex flex-wrap items-center gap-6 text-sm font-bold opacity-80">
@@ -264,17 +226,6 @@ export default function EventoDetalhesPage() {
                  <CardHeader className="bg-muted/30 pb-4"><CardTitle className="flex items-center gap-2 text-xl font-bold"><Info className="w-5 h-5 text-secondary" /> Sobre o Evento</CardTitle></CardHeader>
                  <CardContent className="pt-6"><p className="text-muted-foreground leading-relaxed whitespace-pre-line text-lg font-medium">{event.description}</p></CardContent>
               </Card>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-border/50 flex flex-col items-center text-center gap-2">
-                    <div className="p-3 bg-secondary/10 rounded-2xl"><Calendar className="w-6 h-6 text-secondary" /></div>
-                    <div><p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Início do Evento</p><p className="text-lg font-bold">{new Date(event.date).toLocaleString('pt-BR')}</p></div>
-                 </div>
-                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-border/50 flex flex-col items-center text-center gap-2">
-                    <div className="p-3 bg-secondary/10 rounded-2xl"><Clock className="w-6 h-6 text-secondary" /></div>
-                    <div><p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Término Previsto</p><p className="text-lg font-bold">{event.endDate ? new Date(event.endDate).toLocaleString('pt-BR') : "Não informado"}</p></div>
-                 </div>
-              </div>
            </div>
            
            <div className="lg:col-span-4 space-y-6">
@@ -298,9 +249,9 @@ export default function EventoDetalhesPage() {
                                      <div className="space-y-1">
                                         <p className="font-bold text-sm uppercase">{type.name}</p>
                                         <div className="flex gap-2">
+                                          {type.poolName && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase border-secondary/20 text-secondary">{type.poolName}</Badge>}
                                           {type.remaining <= 10 && <span className="text-[8px] font-black text-red-500 uppercase">Restam {type.remaining}</span>}
                                           {type.requiresProof && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase border-orange-200 text-orange-600">Doc. Obrigatório</Badge>}
-                                          {type.isLegalHalf && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase border-blue-200 text-blue-600">Meia-Entrada</Badge>}
                                         </div>
                                      </div>
                                      <p className="font-black text-primary">{type.price === 0 ? 'GRÁTIS' : formatCurrency(type.price)}</p>
@@ -367,7 +318,7 @@ export default function EventoDetalhesPage() {
                  <div className="p-4 rounded-xl bg-orange-50 border border-orange-100 flex gap-3 items-start">
                     <ShieldAlert className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
                     <p className="text-[10px] text-orange-800 font-bold uppercase leading-relaxed">
-                       Atenção: Este ingresso exige comprovação obrigatória (documento ou requisito específico) na entrada do evento.
+                       Atenção: Este ingresso exige comprovação obrigatória na entrada do evento.
                     </p>
                  </div>
                )}
