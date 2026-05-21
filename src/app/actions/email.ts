@@ -433,3 +433,49 @@ export async function sendTeamInvitationStatusEmail(data: { to: string, userName
     return { success: true };
   } catch (e) { return { success: false }; }
 }
+
+/**
+ * Reenvia um e-mail a partir dos logs de auditoria.
+ */
+export async function resendLoggedEmail(logId: string) {
+  try {
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    const db = getFirestore(app, 'eventosviby');
+    
+    const logDoc = await getDoc(doc(db, 'sent_emails', logId));
+    if (!logDoc.exists()) return { success: false, error: 'Log não encontrado.' };
+    
+    const logData = logDoc.data();
+    const { smtpUser, smtpPass } = await getEmailConfig();
+
+    if (!smtpUser || !smtpPass) return { success: false, error: 'SMTP não configurado.' };
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com', port: 465, secure: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    await transporter.sendMail({
+      from: `"Viby Club" <${smtpUser}>`,
+      to: logData.recipientEmail,
+      subject: `[REENVIO] ${logData.subject}`,
+      html: logData.content,
+    });
+
+    // Registra o reenvio no log também
+    await addDoc(collection(db, 'sent_emails'), {
+      sender: "Viby Admin (Reenvio)",
+      recipientName: logData.recipientName,
+      recipientEmail: logData.recipientEmail,
+      subject: `[REENVIO] ${logData.subject}`,
+      content: logData.content,
+      type: `resend_${logData.type}`,
+      timestamp: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Erro ao reenviar e-mail:', error);
+    return { success: false, error: error.message };
+  }
+}
