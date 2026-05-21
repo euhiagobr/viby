@@ -16,7 +16,9 @@ import {
   Ticket, 
   BarChart3,
   Percent,
-  Coins
+  Coins,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -34,21 +36,26 @@ const PLAN_INFO = {
     label: "Gratuito",
     badge: "Básico",
     color: "muted",
-    icon: Zap
+    icon: Zap,
+    rank: 0
   },
   PRO: {
     label: "Recomendado",
     badge: "Popular",
     color: "secondary",
-    icon: Sparkles
+    icon: Sparkles,
+    rank: 1
   },
   TOP: {
     label: "Premium",
     badge: "Elite",
     color: "primary",
-    icon: Trophy
+    icon: Trophy,
+    rank: 2
   }
 }
+
+const PLAN_ORDER = ['START', 'PRO', 'TOP'];
 
 export default function PlanoPage() {
   const db = useFirestore()
@@ -66,7 +73,6 @@ export default function PlanoPage() {
   const [billingCycle, setBillingCycle] = React.useState<'monthly' | 'annual'>('annual')
   const [upgrading, setUpgrading] = React.useState<string | null>(null)
 
-  // Redireciona se o usuário não tiver organizações (requisito para liberar a página)
   React.useEffect(() => {
     if (!orgsLoading && organizations.length === 0) {
       router.replace('/dashboard/organizacoes')
@@ -103,7 +109,8 @@ export default function PlanoPage() {
 
   if (organizations.length === 0) return null;
 
-  const currentPlan = profile?.plan?.toUpperCase() || "START"
+  const currentPlan = (profile?.plan || "START").toUpperCase();
+  const currentRank = PLAN_INFO[currentPlan as keyof typeof PLAN_INFO]?.rank ?? 0;
   const override = profile?.planOverride
 
   const getPlanLimit = (planKey: string, field: string) => {
@@ -150,11 +157,13 @@ export default function PlanoPage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {['START', 'PRO', 'TOP'].map((planId) => {
+        {PLAN_ORDER.map((planId) => {
           const info = PLAN_INFO[planId as keyof typeof PLAN_INFO]
           const isCurrent = currentPlan === planId
           const planData = plansSettings?.[planId.toLowerCase()]
           const amount = getPlanPrice(planId)
+          const renderedRank = info.rank;
+          const isDowngrade = renderedRank < currentRank;
 
           return (
             <Card key={planId} className={cn(
@@ -224,6 +233,14 @@ export default function PlanoPage() {
                     <Button disabled className="w-full h-12 rounded-xl bg-green-500/20 text-green-600 font-black uppercase italic text-xs border-none">
                        Plano Atual
                     </Button>
+                 ) : isDowngrade ? (
+                    <Button 
+                      variant="outline" 
+                      className="w-full h-12 rounded-xl font-bold uppercase text-[10px] gap-2" 
+                      onClick={() => router.refresh()}
+                    >
+                      <ArrowDown className="w-3 h-3" /> Fazer Downgrade
+                    </Button>
                  ) : planId === 'START' ? (
                     <Button variant="outline" className="w-full h-12 rounded-xl font-bold uppercase text-[10px]" onClick={() => router.refresh()}>Fazer Downgrade</Button>
                  ) : (
@@ -231,11 +248,11 @@ export default function PlanoPage() {
                       onClick={() => handleUpgrade(planId as 'PRO' | 'TOP', planId, amount)}
                       disabled={!!upgrading}
                       className={cn(
-                        "w-full h-14 rounded-2xl font-black uppercase italic text-sm shadow-xl transition-all hover:scale-105",
+                        "w-full h-14 rounded-2xl font-black uppercase italic text-sm shadow-xl transition-all hover:scale-105 gap-2",
                         planId === 'PRO' ? "bg-secondary text-white shadow-secondary/20" : "bg-primary text-white shadow-primary/20"
                       )}
                     >
-                       {upgrading === planId ? <Loader2 className="w-5 h-5 animate-spin" /> : "Fazer Upgrade"}
+                       {upgrading === planId ? <Loader2 className="w-5 h-5 animate-spin" /> : <><ArrowUp className="w-4 h-4" /> Fazer Upgrade</>}
                     </Button>
                  )}
               </CardFooter>
