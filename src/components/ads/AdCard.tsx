@@ -1,0 +1,191 @@
+
+"use client"
+
+import * as React from "react"
+import { ExternalLink, Globe, Layout, Megaphone, Navigation, Users, CheckCircle2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import Image from "next/image"
+import { useRouter } from "next/navigation"
+import { cn } from "@/lib/utils"
+import { useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase"
+import { doc, updateDoc, increment, serverTimestamp, collection, query, where } from "firebase/firestore"
+import { EventCard } from "@/components/events/EventCard"
+
+function InstagramVerifiedBadge({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 128 128" className={cn("w-3.5 h-3.5", className)} xmlns="http://www.w3.org/2000/svg">
+      <path fill="#0095f6" d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1-4.4 1.2-8.9-5.3 10.7l8.4 3.7 2.3 9c1.1-4.4 5.2-7.4 9.7 7l9.2-.7 6.5 6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.4-6.3 5.3-10.7l-2.3-9 6.5-6.6c3.2-3.2 3.2-8.2 0-11.4z" />
+      <path fill="#fff" d="M57.6 86.8c-1.8 0-3.5-.7-4.8-2L38.2 70.2c-2.7-2.7-2.7-7 0-9.6s7-2.7 9.6 0l9.8 9.8 22.8-22.8c2.7-2.7 7-2.7 9.6 0s2.7 7 0 9.6L62.4 84.8c-1.3 1.3-3 2-4.8 2z" />
+    </svg>
+  )
+}
+
+interface AdCardProps {
+  ad: any
+}
+
+export function AdCard({ ad }: AdCardProps) {
+  const router = useRouter()
+  const db = useFirestore()
+  const cardRef = React.useRef<HTMLDivElement>(null)
+  const hasTrackedImpression = React.useRef(false)
+
+  // Dados da Organização para o card de Página
+  const orgRef = React.useMemo(() => (db && ad.organizationId) ? doc(db, "organizations", ad.organizationId) : null, [db, ad.organizationId])
+  const { data: organization } = useDoc<any>(orgRef)
+
+  // Seguidores para o card de Página
+  const followersQuery = useMemoFirebase(() => {
+    if (!db || !ad.organizationId) return null
+    return query(collection(db, "follows"), where("followingId", "==", ad.organizationId))
+  }, [db, ad.organizationId])
+  const { data: followers } = useCollection<any>(followersQuery)
+
+  const adsSettingsRef = React.useMemo(() => db ? doc(db, 'settings', 'ads') : null, [db])
+  const { data: adsSettings } = useDoc<any>(adsSettingsRef)
+
+  React.useEffect(() => {
+    if (!db || !adsSettings || hasTrackedImpression.current) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !hasTrackedImpression.current) {
+          hasTrackedImpression.current = true
+          const cost = (adsSettings.cpmValue || 0) / 1000
+          
+          updateDoc(doc(db, "ads", ad.id), { 
+            reach: increment(1),
+            remainingBudget: increment(-cost),
+            updatedAt: serverTimestamp()
+          }).then(() => {
+            updateDoc(doc(db, "organizations", ad.organizationId), {
+              blockedBalance: increment(-cost)
+            });
+          })
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.5 }
+    )
+
+    if (cardRef.current) observer.observe(cardRef.current)
+    return () => observer.disconnect()
+  }, [ad.id, ad.organizationId, db, adsSettings])
+
+  const handleClick = () => {
+    if (db && adsSettings) {
+      const cost = adsSettings.cpcValue || 0
+      updateDoc(doc(db, "ads", ad.id), { 
+        clicks: increment(1),
+        remainingBudget: increment(-cost),
+        updatedAt: serverTimestamp()
+      }).then(() => {
+        updateDoc(doc(db, "organizations", ad.organizationId), {
+          blockedBalance: increment(-cost)
+        });
+      })
+    }
+
+    if (ad.type === 'site' && ad.externalUrl) {
+      window.open(ad.externalUrl, '_blank')
+    } else if (ad.type === 'pagina' && organization) {
+      router.push(`/${organization.username}`)
+    } else if (ad.type === 'evento' && ad.eventId) {
+      router.push(`/${organization?.username || 'evento'}/${ad.eventId}`)
+    }
+  }
+
+  // Se for um anúncio de evento comum, usa o EventCard que já possui sua própria lógica
+  if (ad.type === 'evento') {
+    return <EventCard event={{...ad, id: ad.eventId}} isSponsored />
+  }
+
+  // Card para "Página da Marca"
+  if (ad.type === 'pagina') {
+    return (
+      <Card ref={cardRef} onClick={handleClick} className="group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[2rem] cursor-pointer relative ring-2 ring-secondary/10">
+        <div className="absolute top-0 right-0 z-20">
+          <Badge className="bg-primary text-white rounded-none rounded-bl-xl font-black text-[9px] uppercase px-3 py-1.5 flex items-center gap-1.5">
+            <Megaphone className="w-3 h-3 text-secondary" /> Patrocinado
+          </Badge>
+        </div>
+
+        <div className="relative h-32 w-full bg-muted">
+          <Image src={organization?.banner || "https://picsum.photos/seed/banner/800/400"} alt="Capa" fill className="object-cover" unoptimized />
+          <div className="absolute inset-0 bg-black/20" />
+        </div>
+
+        <CardContent className="px-6 pb-6 relative pt-12 text-center">
+          <div className="absolute -top-12 left-1/2 -translate-x-1/2">
+             <div className="p-1 bg-background rounded-full shadow-xl ring-4 ring-background">
+                <Avatar className="h-20 w-20">
+                   <AvatarImage src={organization?.avatar} className="object-cover" />
+                   <AvatarFallback className="font-bold text-xl">{organization?.name?.charAt(0)}</AvatarFallback>
+                </Avatar>
+             </div>
+          </div>
+          
+          <div className="space-y-1">
+             <div className="flex items-center justify-center gap-1.5">
+                <h3 className="text-lg font-black uppercase italic tracking-tighter">{organization?.name || ad.eventTitle}</h3>
+                {organization?.verified && <InstagramVerifiedBadge />}
+             </div>
+             <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">@{organization?.username}</p>
+          </div>
+
+          <div className="flex items-center justify-center gap-6 mt-6 py-4 border-y border-dashed border-border/60">
+             <div className="text-center">
+                <p className="text-xs font-black">{followers?.length || 0}</p>
+                <p className="text-[8px] font-bold text-muted-foreground uppercase">Seguidores</p>
+             </div>
+             <div className="w-px h-6 bg-border" />
+             <div className="text-center">
+                <p className="text-xs font-black">{organization?.type || "Marca"}</p>
+                <p className="text-[8px] font-bold text-muted-foreground uppercase">Segmento</p>
+             </div>
+          </div>
+
+          <Button className="w-full mt-6 bg-primary text-white font-black h-11 rounded-xl uppercase italic text-xs gap-2 group-hover:bg-secondary transition-colors">
+             Acessar Página <ArrowRight className="w-4 h-4" />
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Card para "Banner" ou "Link Externo"
+  return (
+    <Card ref={cardRef} onClick={handleClick} className="group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[2rem] cursor-pointer relative ring-2 ring-secondary/10">
+       <div className="absolute top-0 right-0 z-20">
+          <Badge className="bg-primary text-white rounded-none rounded-bl-xl font-black text-[9px] uppercase px-3 py-1.5 flex items-center gap-1.5">
+            <Megaphone className="w-3 h-3 text-secondary" /> Patrocinado
+          </Badge>
+        </div>
+
+        <div className="relative aspect-video w-full bg-muted">
+           <Image src={ad.adImage || "https://picsum.photos/seed/ad/800/400"} alt="Anúncio" fill className="object-cover group-hover:scale-105 transition-transform duration-700" unoptimized />
+           {ad.type === 'site' && (
+             <div className="absolute bottom-3 left-3">
+                <Badge className="bg-white/90 text-primary border-none shadow-sm text-[9px] font-black uppercase flex items-center gap-1.5">
+                   <Globe className="w-3 h-3 text-secondary" /> Link Externo
+                </Badge>
+             </div>
+           )}
+        </div>
+
+        <CardContent className="p-6 space-y-4">
+           <div className="space-y-1">
+              <h3 className="font-black text-lg uppercase italic tracking-tighter leading-tight">{ad.eventTitle}</h3>
+              {ad.externalUrl && <p className="text-[10px] text-muted-foreground font-medium truncate">{ad.externalUrl.replace(/^https?:\/\//, '')}</p>}
+           </div>
+           
+           <Button variant="outline" className="w-full h-10 rounded-xl font-bold uppercase text-[10px] tracking-widest gap-2 border-secondary/20 text-secondary hover:bg-secondary/5">
+              {ad.type === 'site' ? "Ver no Site" : "Saiba Mais"} <ExternalLink className="w-3 h-3" />
+           </Button>
+        </CardContent>
+    </Card>
+  )
+}

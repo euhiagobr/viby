@@ -5,6 +5,7 @@ import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
 import { collection, query, limit, orderBy, doc, where } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
+import { AdCard } from "@/components/ads/AdCard"
 import { Button } from "@/components/ui/button"
 import { Globe, Search, ArrowRight, Loader2, MapPin, Tag, FilterX, Navigation } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -37,7 +38,7 @@ export default function LandingPage() {
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
-    return query(collection(db, "events"), orderBy("createdAt", "desc"), limit(50))
+    return query(collection(db, "events"), orderBy("createdAt", "desc"), limit(100))
   }, [db])
 
   const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
@@ -106,53 +107,51 @@ export default function LandingPage() {
     return result;
   }, [events, searchName, selectedCity, selectedCategory, sortBy, userLocation])
 
-  // Lógica de Intercalação de ADS com verificação de data e orçamento
   const interleavedContent = React.useMemo(() => {
     if (!filteredEvents || filteredEvents.length === 0) return []
     
     const now = new Date()
-    now.setHours(0, 0, 0, 0)
 
     const sponsoredPool = (activeAds || [])
       .map((ad: any) => {
         const start = ad.startDate ? new Date(ad.startDate) : null
         const end = ad.endDate ? new Date(ad.endDate) : null
-        
-        if (start) start.setHours(0, 0, 0, 0)
-        if (end) end.setHours(23, 59, 59, 999)
-
         const isDateValid = (!start || now >= start) && (!end || now <= end)
-        const hasBudget = (ad.budget || 0) > 0 // Verifica se ainda tem orçamento
+        const hasBudget = (ad.remainingBudget || ad.budget || 0) > 0
 
         if (!isDateValid || !hasBudget) return null
 
-        const fullEvent = events?.find((e: any) => e.id === ad.eventId)
-        return fullEvent ? { ...fullEvent, isSponsored: true, adId: ad.id } : null
+        if (ad.type === 'evento') {
+          const fullEvent = events?.find((e: any) => e.id === ad.eventId)
+          return fullEvent ? { ...fullEvent, isSponsored: true, adId: ad.id, _isAdObject: false } : null
+        }
+
+        return { ...ad, isSponsored: true, _isAdObject: true }
       })
       .filter(Boolean)
 
-    if (sponsoredPool.length === 0) {
-      return filteredEvents.map(e => ({ ...e, isSponsored: false }))
-    }
+    const organic = filteredEvents.map(e => ({ ...e, isSponsored: false, _isAdObject: false }))
+
+    if (sponsoredPool.length === 0) return organic
 
     const result = []
-    const sponsoredEventIds = new Set(sponsoredPool.map(s => s.id));
-    const organic = filteredEvents.filter(e => !sponsoredEventIds.has(e.id));
-
-    result.push(sponsoredPool[0])
+    const sponsoredEventIds = new Set(sponsoredPool.filter(s => !s._isAdObject).map(s => s.id));
+    const filteredOrganic = organic.filter(e => !sponsoredEventIds.has(e.id));
 
     let organicIdx = 0
-    let adIdx = 1
+    let adIdx = 0
 
-    while (organicIdx < organic.length) {
-      const interval = Math.floor(Math.random() * (9 - 5 + 1)) + 5
-      const chunk = organic.slice(organicIdx, organicIdx + interval)
-      result.push(...chunk.map(e => ({ ...e, isSponsored: false })))
+    while (organicIdx < filteredOrganic.length || adIdx < sponsoredPool.length) {
+      const interval = Math.floor(Math.random() * 4) + 4
+      const chunk = filteredOrganic.slice(organicIdx, organicIdx + interval)
+      result.push(...chunk)
       organicIdx += interval
 
-      if (organicIdx < organic.length) {
-        const nextAd = sponsoredPool[adIdx % sponsoredPool.length]
-        result.push(nextAd)
+      if (adIdx < sponsoredPool.length) {
+        result.push(sponsoredPool[adIdx])
+        adIdx++
+      } else if (sponsoredPool.length > 0 && organicIdx < filteredOrganic.length) {
+        result.push(sponsoredPool[adIdx % sponsoredPool.length])
         adIdx++
       }
     }
@@ -161,13 +160,6 @@ export default function LandingPage() {
   }, [filteredEvents, activeAds, events])
 
   const siteName = settings?.siteName || "Viby"
-
-  const clearFilters = () => {
-    setSearchName("")
-    setSelectedCity("all")
-    setSelectedCategory("all")
-    setSortBy('date')
-  }
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
@@ -206,7 +198,7 @@ export default function LandingPage() {
 
       <section className="relative py-24 overflow-hidden">
         <div className="container mx-auto px-4 relative z-10 text-center space-y-8">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/10 text-secondary text-sm font-black uppercase tracking-widest animate-in fade-in slide-in-from-top-4 duration-700">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/10 text-secondary text-sm font-black uppercase tracking-widest">
             {settings?.iconUrl ? (
                <img src={settings.iconUrl} className="w-5 h-5 object-contain" alt="Site Icon" />
             ) : (
@@ -278,12 +270,11 @@ export default function LandingPage() {
             </div>
             <div className="md:col-span-2">
               <Button 
-                onClick={clearFilters}
+                onClick={() => { setSearchName(""); setSelectedCity("all"); setSelectedCategory("all"); }}
                 variant="ghost" 
                 className="w-full h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest text-muted-foreground hover:text-secondary hover:bg-secondary/5 transition-all"
               >
-                <FilterX className="w-4 h-4 mr-2" />
-                Limpar
+                <FilterX className="w-4 h-4 mr-2" /> Limpar
               </Button>
             </div>
           </div>
@@ -291,75 +282,30 @@ export default function LandingPage() {
       </section>
 
       <section className="py-24 container mx-auto px-4 flex-1">
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
-          <div className="space-y-2">
+        <div className="mb-12">
             <h2 className="text-4xl font-black tracking-tighter uppercase italic text-primary">
               Resultados <span className="text-secondary">Encontrados</span>
             </h2>
-            <div className="flex flex-wrap items-center gap-4 mt-2">
-              <p className="text-muted-foreground font-medium">
-                {interleavedContent.length} {interleavedContent.length === 1 ? 'experiência disponível' : 'experiências disponíveis'}
-              </p>
-              <div className="h-6 w-px bg-border hidden md:block" />
-              <div className="flex gap-2">
-                <Button 
-                  onClick={() => setSortBy('date')} 
-                  variant={sortBy === 'date' ? 'default' : 'outline'}
-                  size="sm"
-                  className="rounded-full font-bold h-8 text-[10px] uppercase"
-                >
-                  Por Data
-                </Button>
-                <Button 
-                  onClick={() => setSortBy('distance')} 
-                  disabled={!userLocation}
-                  variant={sortBy === 'distance' ? 'default' : 'outline'}
-                  size="sm"
-                  className="rounded-full font-bold h-8 text-[10px] uppercase gap-1.5"
-                >
-                  <Navigation className="w-3 h-3" />
-                  Perto de Mim
-                </Button>
-              </div>
-            </div>
-          </div>
         </div>
 
         {eventsLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-            <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px] animate-pulse">Carregando experiências...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {interleavedContent.length > 0 ? (
-              interleavedContent.map((item: any, idx: number) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+            {interleavedContent.map((item: any, idx: number) => (
+              item._isAdObject ? (
+                <AdCard key={item.id} ad={item} />
+              ) : (
                 <EventCard 
                   key={`${item.id}-${idx}`} 
                   event={item} 
                   userLocation={userLocation} 
                   isSponsored={item.isSponsored}
                 />
-              ))
-            ) : (
-              <div className="col-span-full py-24 text-center bg-white rounded-[3rem] border-4 border-dashed border-muted/50 flex flex-col items-center justify-center gap-6 shadow-inner">
-                <div className="w-24 h-24 bg-muted/50 rounded-full flex items-center justify-center">
-                  <FilterX className="w-10 h-10 text-muted-foreground/30" />
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-2xl font-black uppercase italic tracking-tighter">Nenhum evento encontrado</h3>
-                  <p className="text-muted-foreground font-medium max-w-sm mx-auto">
-                    Tente ajustar seus filtros ou pesquisar por termos mais genéricos.
-                  </p>
-                </div>
-                <Button 
-                  onClick={clearFilters}
-                  className="bg-secondary text-white font-black rounded-full px-8 h-12 shadow-lg"
-                >
-                  Resetar Filtros
-                </Button>
-              </div>
-            )}
+              )
+            ))}
           </div>
         )}
       </section>

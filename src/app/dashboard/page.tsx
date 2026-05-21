@@ -5,6 +5,7 @@ import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
 import { collection, doc, query, where, limit, orderBy } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
+import { AdCard } from "@/components/ads/AdCard"
 import { Button } from "@/components/ui/button"
 import { Search, Filter, Loader2, ShieldCheck, Navigation } from "lucide-react"
 import { useState } from "react"
@@ -76,51 +77,58 @@ export default function ExplorarPage() {
     return result;
   }, [events, search, filter, userLocation])
 
-  // Lógica de Intercalação de ADS para o Dashboard com verificação de orçamento
+  // Lógica de Intercalação de ADS Unificada
   const interleavedContent = React.useMemo(() => {
     if (!filteredEvents || filteredEvents.length === 0) return []
     
     const now = new Date()
-    now.setHours(0, 0, 0, 0)
 
     const sponsoredPool = (activeAds || [])
       .map((ad: any) => {
         const start = ad.startDate ? new Date(ad.startDate) : null
         const end = ad.endDate ? new Date(ad.endDate) : null
-        
-        if (start) start.setHours(0, 0, 0, 0)
-        if (end) end.setHours(23, 59, 59, 999)
-
         const isDateValid = (!start || now >= start) && (!end || now <= end)
-        const hasBudget = (ad.budget || 0) > 0 // Verifica se tem orçamento
+        const hasBudget = (ad.remainingBudget || ad.budget || 0) > 0
 
         if (!isDateValid || !hasBudget) return null
 
-        const fullEvent = events?.find((e: any) => e.id === ad.eventId)
-        return fullEvent ? { ...fullEvent, isSponsored: true, adId: ad.id } : null
+        // Se for um anúncio de evento, tentamos carregar os dados completos do evento para manter consistência no card
+        if (ad.type === 'evento') {
+          const fullEvent = events?.find((e: any) => e.id === ad.eventId)
+          if (!fullEvent) return null
+          return { ...fullEvent, isSponsored: true, adId: ad.id, _isAdObject: false }
+        }
+
+        // Para outros tipos (pagina, banner, site), retornamos o objeto do anúncio marcado para o AdCard
+        return { ...ad, isSponsored: true, _isAdObject: true }
       })
       .filter(Boolean)
 
-    if (sponsoredPool.length === 0) {
-      return filteredEvents.map(e => ({ ...e, isSponsored: false }))
-    }
+    const organic = filteredEvents.map(e => ({ ...e, isSponsored: false, _isAdObject: false }))
+
+    if (sponsoredPool.length === 0) return organic
 
     const result = []
-    const sponsoredEventIds = new Set(sponsoredPool.map(s => s.id));
-    const organic = filteredEvents.filter(e => !sponsoredEventIds.has(e.id));
+    const sponsoredEventIds = new Set(sponsoredPool.filter(s => !s._isAdObject).map(s => s.id));
+    const filteredOrganic = organic.filter(e => !sponsoredEventIds.has(e.id));
 
-    result.push(sponsoredPool[0])
-
+    // Intercalação aleatória: 1 anúncio a cada 4-7 cards orgânicos
     let organicIdx = 0
-    let adIdx = 1
+    let adIdx = 0
 
-    while (organicIdx < organic.length) {
-      const interval = Math.floor(Math.random() * (9 - 5 + 1)) + 5
-      const chunk = organic.slice(organicIdx, organicIdx + interval)
-      result.push(...chunk.map(e => ({ ...e, isSponsored: false })))
+    while (organicIdx < filteredOrganic.length || adIdx < sponsoredPool.length) {
+      // Adiciona bloco orgânico
+      const interval = Math.floor(Math.random() * 4) + 4
+      const chunk = filteredOrganic.slice(organicIdx, organicIdx + interval)
+      result.push(...chunk)
       organicIdx += interval
 
-      if (organicIdx < organic.length) {
+      // Insere anúncio se disponível
+      if (adIdx < sponsoredPool.length) {
+        result.push(sponsoredPool[adIdx])
+        adIdx++
+      } else if (sponsoredPool.length > 0 && organicIdx < filteredOrganic.length) {
+        // Se acabarem os anúncios inéditos mas ainda houver conteúdo orgânico, repete anúncios em carrossel
         result.push(sponsoredPool[adIdx % sponsoredPool.length])
         adIdx++
       }
@@ -153,7 +161,7 @@ export default function ExplorarPage() {
               placeholder="Buscar por tema..." 
               className="pl-10" 
               value={search}
-              onChange={(e) => setSearch(searchName => e.target.value)}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <Button variant="outline" className="gap-2">
@@ -181,26 +189,18 @@ export default function ExplorarPage() {
         </div>
       )}
 
-      {error && (
-        <div className="p-8 text-center bg-destructive/10 text-destructive rounded-xl border border-destructive/20 font-medium">
-          Erro ao carregar eventos: {error.message}
-        </div>
-      )}
-
-      {!loading && !error && interleavedContent.length === 0 && (
-        <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-border shadow-sm">
-          <p className="text-muted-foreground font-medium uppercase text-[10px] font-black tracking-widest">Nenhum evento ativo encontrado.</p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {interleavedContent.map((item: any, idx: number) => (
-          <EventCard 
-            key={`${item.id}-${idx}`} 
-            event={item} 
-            userLocation={userLocation} 
-            isSponsored={item.isSponsored}
-          />
+          item._isAdObject ? (
+            <AdCard key={item.id} ad={item} />
+          ) : (
+            <EventCard 
+              key={`${item.id}-${idx}`} 
+              event={item} 
+              userLocation={userLocation} 
+              isSponsored={item.isSponsored}
+            />
+          )
         ))}
       </div>
     </div>
