@@ -56,19 +56,15 @@ export default function CarrinhoPage() {
 
   const cartTotals = React.useMemo(() => {
     let subtotal = 0;
-    let fees = 0;
     let discount = 0;
 
-    // Calcular subtotal e taxas originais
+    // Calcular subtotal (face value)
     items.forEach(item => {
-      const breakdown = calculateFinancialBreakdown(item.price);
       subtotal += item.price * item.quantity;
-      fees += breakdown.administrativeFeeAmount * item.quantity;
     });
 
     // Calcular desconto se houver cupom
     if (appliedCoupon && items.length > 0) {
-      // Filtrar apenas itens do evento do cupom
       const validItems = items.filter(i => i.eventId === appliedCoupon.eventId);
       
       if (validItems.length > 0) {
@@ -86,7 +82,23 @@ export default function CarrinhoPage() {
       }
     }
 
-    const finalTotal = Math.max(0, subtotal - discount + fees);
+    // Agora calculamos as taxas baseadas no valor EFETIVAMENTE pago por cada item
+    // Precisamos distribuir o desconto entre as unidades do evento para calcular as taxas corretamente
+    let fees = 0;
+    const totalQtyEligible = items.reduce((acc, i) => acc + (appliedCoupon && i.eventId === appliedCoupon.eventId ? i.quantity : 0), 0);
+    const discountPerUnit = totalQtyEligible > 0 ? (discount / totalQtyEligible) : 0;
+
+    items.forEach(item => {
+      const isEligible = appliedCoupon && item.eventId === appliedCoupon.eventId;
+      const unitDiscount = isEligible ? discountPerUnit : 0;
+      const discountedUnitPrice = Math.max(0, item.price - unitDiscount);
+      
+      // A quebra financeira recalcula as taxas baseadas no novo preço
+      const breakdown = calculateFinancialBreakdown(discountedUnitPrice);
+      fees += breakdown.administrativeFeeAmount * item.quantity;
+    });
+
+    const finalTotal = Math.max(0, (subtotal - discount) + fees);
 
     return { subtotal, fees, discount, total: finalTotal };
   }, [items, appliedCoupon]);
@@ -134,7 +146,7 @@ export default function CarrinhoPage() {
       }
 
       setAppliedCoupon(couponData);
-      toast({ title: "Cupom aplicado!", description: "O desconto foi calculado no seu resumo." });
+      toast({ title: "Cupom aplicado!", description: "O desconto e as taxas foram recalculados." });
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao validar cupom" });
     } finally {
@@ -158,7 +170,8 @@ export default function CarrinhoPage() {
       const lineItems = [];
 
       // Proporção do desconto para cada ingresso se o cupom for global do evento
-      const discountPerUnit = appliedCoupon ? (cartTotals.discount / items.reduce((acc, i) => acc + (i.eventId === appliedCoupon.eventId ? i.quantity : 0), 0)) : 0;
+      const totalQtyEligible = items.reduce((acc, i) => acc + (appliedCoupon && i.eventId === appliedCoupon.eventId ? i.quantity : 0), 0);
+      const discountPerUnit = totalQtyEligible > 0 ? (cartTotals.discount / totalQtyEligible) : 0;
 
       for (const item of items) {
         const isEligibleForDiscount = appliedCoupon && item.eventId === appliedCoupon.eventId;
@@ -328,6 +341,8 @@ export default function CarrinhoPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-4">
            {items.map((item) => {
+             // Precisamos recalcular a quebra individual para exibição, mas sem saber o desconto aqui
+             // No card, exibimos o preço base + a taxa base para consistência
              const breakdown = calculateFinancialBreakdown(item.price);
              return (
                <Card key={item.id} className="border-none shadow-sm rounded-2xl overflow-hidden group">
@@ -433,7 +448,12 @@ export default function CarrinhoPage() {
                         <span>-{formatCurrency(cartTotals.discount)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Taxas de Serviço</span><span>{formatCurrency(cartTotals.fees)}</span></div>
+                    <div className="flex justify-between text-xs font-bold uppercase opacity-60">
+                       <span>Taxas de Serviço</span>
+                       <span className={cn(cartTotals.fees === 0 && "text-green-600 font-black")}>
+                          {cartTotals.fees > 0 ? formatCurrency(cartTotals.fees) : "ISENTO"}
+                       </span>
+                    </div>
                     <Separator className="bg-border/60" />
                     <div className="flex justify-between items-center">
                        <span className="text-lg font-black uppercase italic">Total</span>
@@ -446,7 +466,10 @@ export default function CarrinhoPage() {
                        <ShieldCheck className="w-3 h-3 text-secondary" /> Pagamento Seguro
                     </div>
                     <p className="text-[9px] text-muted-foreground font-medium leading-relaxed">
-                       Ao clicar no botão abaixo, você será redirecionado para o Stripe em uma nova janela para concluir o pagamento com total segurança.
+                       {cartTotals.total > 0 ? 
+                         "Ao clicar no botão abaixo, você será redirecionado para o Stripe em uma nova janela para concluir o pagamento com total segurança." :
+                         "Como seu pedido é gratuito, seus ingressos serão liberados imediatamente ao confirmar a reserva."
+                       }
                     </p>
                  </div>
 
@@ -455,7 +478,9 @@ export default function CarrinhoPage() {
                    disabled={processing}
                    className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform gap-3"
                  >
-                    {processing ? <Loader2 className="w-6 h-6 animate-spin" /> : <><CreditCard className="w-6 h-6" /> Pagar via Stripe</>}
+                    {processing ? <Loader2 className="w-6 h-6 animate-spin" /> : (
+                      cartTotals.total > 0 ? <><CreditCard className="w-6 h-6" /> Pagar via Stripe</> : <><CheckCircle2 className="w-6 h-6" /> Confirmar Reserva</>
+                    )}
                  </Button>
 
                  <Button variant="ghost" asChild className="w-full font-bold text-muted-foreground uppercase text-xs tracking-widest">
