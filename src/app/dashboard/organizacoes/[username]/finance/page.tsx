@@ -26,7 +26,7 @@ import {
   ArrowDownRight
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/financial-utils';
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -133,8 +133,7 @@ export default function OrganizationFinancePage() {
   const base = parseFloat(topUpAmount) || 0;
   const tax = base * 0.16;
   const fee = base * 0.05;
-  const fixed = 5.00;
-  const total = base + tax + fee + fixed;
+  const total = base + tax + fee;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -189,7 +188,6 @@ export default function OrganizationFinancePage() {
                           <div className="flex justify-between text-xs font-medium"><span>Crédito em Saldo:</span><span className="font-bold">{formatCurrency(base)}</span></div>
                           <div className="flex justify-between text-xs text-muted-foreground"><span>Impostos (16%):</span><span>+{formatCurrency(tax)}</span></div>
                           <div className="flex justify-between text-xs text-muted-foreground"><span>Taxa de Processamento (5%):</span><span>+{formatCurrency(fee)}</span></div>
-                          <div className="flex justify-between text-xs text-muted-foreground"><span>Custo Fixo de Transação:</span><span>+{formatCurrency(fixed)}</span></div>
                           <div className="h-px bg-border my-2" />
                           <div className="flex justify-between items-center"><span className="text-sm font-black uppercase">Total a Pagar:</span><span className="text-lg font-black text-primary">{formatCurrency(total)}</span></div>
                        </div>

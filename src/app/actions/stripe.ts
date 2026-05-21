@@ -1,4 +1,3 @@
-
 'use server';
 
 import { headers } from 'next/headers';
@@ -104,7 +103,7 @@ export async function createCheckoutSession(data: {
 
 /**
  * Cria sessão de checkout para recarga de saldo de anúncios da organização.
- * Aplica taxas: Valor Base + 16% (Imposto) + 5% (Transação) + R$ 5,00 (Fixo)
+ * Aplica taxas: Valor Base + 16% (Imposto) + 5% (Transação)
  */
 export async function createAdBalanceTopUpSession(data: {
   orgId: string;
@@ -119,8 +118,7 @@ export async function createAdBalanceTopUpSession(data: {
 
     const taxAmount = data.baseAmount * 0.16;
     const feeAmount = data.baseAmount * 0.05;
-    const fixedFee = 5.00;
-    const totalToCharge = data.baseAmount + taxAmount + feeAmount + fixedFee;
+    const totalToCharge = data.baseAmount + taxAmount + feeAmount;
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
