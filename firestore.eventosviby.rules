@@ -1,8 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.13.0
-    // RBAC atualizado para suportar Proprietário, Admin, Editor, Financeiro e Check-in
+    // REGRAS VIBY - Versão: 2.14.0
+    // RBAC aprimorado com escopo explícito para subcoleções
     
     function isSignedIn() {
       return request.auth != null;
@@ -33,12 +33,10 @@ service cloud.firestore {
          !('status' in get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data));
     }
 
-    // Regras para buscas via collectionGroup
+    // Regras globais para buscas via collectionGroup
     match /{path=**}/members/{memberId} {
-      allow read: if isSignedIn() && (request.auth.uid == memberId || resource.data.userId == request.auth.uid || isOrgMember(path[path.size() - 3]));
+      allow read: if isSignedIn() && (request.auth.uid == memberId || resource.data.userId == request.auth.uid);
       allow create: if isSignedIn();
-      allow delete: if isSignedIn() && (request.auth.uid == memberId || hasOrgRole(path[path.size() - 3], ['owner', 'admin']));
-      allow update: if isSignedIn() && (request.auth.uid == memberId || hasOrgRole(path[path.size() - 3], ['owner', 'admin']));
     }
 
     match /{path=**}/partners/{partnerId} {
@@ -70,11 +68,16 @@ service cloud.firestore {
     match /organizations/{orgId} {
       allow read: if true;
       allow create: if isSignedIn();
-      // Editor também pode atualizar configurações básicas da marca
       allow update: if hasOrgRole(orgId, ['owner', 'admin', 'editor']) || isAdmin() || (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalViews', 'metrics_views_current', 'totalReach', 'metrics_reach_current'])
       );
       allow delete: if hasOrgRole(orgId, ['owner']) || isAdmin();
+
+      // Regra explícita para subcoleção de membros para evitar erros de listagem
+      match /members/{userId} {
+        allow read: if isOrgMember(orgId) || isAdmin();
+        allow write: if hasOrgRole(orgId, ['owner', 'admin']) || isAdmin();
+      }
 
       // Subcoleções de rastreamento
       match /visitors/{visitorId} {
@@ -107,7 +110,6 @@ service cloud.firestore {
     match /registrations/{regId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-      // Check-in também pode atualizar o status do ingresso
       allow update: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
         resource.data.sharedWithUid == request.auth.uid ||
@@ -118,7 +120,7 @@ service cloud.firestore {
     }
 
     match /sent_emails/{emailId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() || isAdmin();
       allow create: if true; 
     }
 
