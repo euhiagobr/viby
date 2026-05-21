@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -21,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
 import { 
   Wallet, 
   TrendingUp, 
@@ -120,11 +120,12 @@ export default function OrganizationFinancePage() {
       const net = sale.producerNetAmount || 0;
       acc.netTotal += net;
 
-      // Lógica de disponibilidade
+      // Lógica de disponibilidade (D+30)
       const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp);
       const standardReleaseDate = new Date(saleDate);
       standardReleaseDate.setDate(standardReleaseDate.getDate() + 30);
 
+      // Se foi antecipado, libera em 1 dia após a solicitação
       const releaseDate = sale.advanceRequestedAt 
         ? new Date(new Date(sale.advanceRequestedAt).getTime() + 24 * 60 * 60 * 1000)
         : standardReleaseDate;
@@ -243,7 +244,7 @@ export default function OrganizationFinancePage() {
             </Card>
 
             <Card className="border-none shadow-sm bg-white border-l-4 border-orange-500">
-              <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Total Bloqueado (D+30)</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">Total Bloqueado (D+30)</CardTitle></CardHeader>
               <CardContent>
                 <div className="text-3xl font-black text-orange-600">{formatCurrency(salesStats.lockedTotal)}</div>
                 <p className="text-[9px] font-bold text-muted-foreground uppercase mt-2">Valores em fase de custódia</p>
@@ -381,7 +382,6 @@ export default function OrganizationFinancePage() {
         </TabsContent>
 
         <TabsContent value="anuncios" className="space-y-8 animate-in fade-in zoom-in-95 duration-300">
-           {/* CONTEÚDO DE ANÚNCIOS MANTIDO IGUAL - PARA FOCO NA MUDANÇA FINANCEIRA */}
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card className="border-none shadow-sm bg-secondary text-white overflow-hidden relative group">
               <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest flex justify-between">Saldo Livre para Ads <Coins className="w-4 h-4 text-white" /></CardTitle></CardHeader>
@@ -415,7 +415,6 @@ export default function OrganizationFinancePage() {
               <CardContent><div className="text-3xl font-black text-foreground">{formatCurrency(currentOrg?.blockedBalance || 0)}</div><p className="text-[9px] font-bold text-muted-foreground uppercase mt-2">Reservado para campanhas ativas</p></CardContent>
             </Card>
           </div>
-          {/* Histórico de Ads mantido para brevidade */}
         </TabsContent>
       </Tabs>
 
