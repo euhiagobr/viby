@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -26,9 +27,11 @@ import {
   ImageIcon,
   Save,
   ShieldAlert,
-  Clock
+  Clock,
+  Building2
 } from "lucide-react"
 import Link from "next/link"
+import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 
 interface Batch {
   name: string
@@ -46,12 +49,10 @@ export default function EditarEventoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const app = useFirebaseApp()
+  const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization()
 
   const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
-
-  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
-  const { data: profile, loading: profileLoading } = useDoc<any>(userDocRef)
   
   const storage = React.useMemo(() => {
     if (!app) return null;
@@ -92,6 +93,8 @@ export default function EditarEventoPage() {
   const [freeSalesStart, setFreeSalesStart] = useState("")
   const [freeSalesEnd, setFreeSalesEnd] = useState("")
 
+  const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
+
   useEffect(() => {
     if (event) {
       setSelectedCategory(event.categoryId || "")
@@ -129,11 +132,15 @@ export default function EditarEventoPage() {
   }, [event])
 
   useEffect(() => {
-    if (!profileLoading && profile && profile.accountType !== 'Empresa') {
-      toast({ variant: "destructive", title: "Acesso Restrito", description: "Apenas perfis de Empresa podem editar eventos." })
+    if (!orgLoading && (!currentOrg || !isAtLeastEditor)) {
+      toast({ 
+        variant: "destructive", 
+        title: "Acesso Restrito", 
+        description: "Você não tem permissão para editar eventos desta marca." 
+      })
       router.push("/dashboard/projetos")
     }
-  }, [profile, profileLoading, router])
+  }, [currentOrg, isAtLeastEditor, orgLoading, router])
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -195,7 +202,7 @@ export default function EditarEventoPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!db || !user || !eventRef || !profile) return
+    if (!db || !user || !eventRef || !currentOrg || !isAtLeastEditor) return
 
     setSaving(true)
     const formData = new FormData(e.currentTarget)
@@ -229,10 +236,10 @@ export default function EditarEventoPage() {
         image: uploadedImageUrl || event.image || "",
         city: address.city,
         organizer: {
-          name: profile.name || user.displayName || "Organizador",
-          avatar: profile.avatar || user.photoURL || "",
-          isVerified: !!profile.isVerified,
-          username: profile.username || "" 
+          name: currentOrg.name,
+          avatar: currentOrg.avatar || "",
+          isVerified: !!currentOrg.verified,
+          username: currentOrg.username
         },
         updatedAt: serverTimestamp()
       }
@@ -247,20 +254,10 @@ export default function EditarEventoPage() {
     }
   }
 
-  if (eventLoading || profileLoading) {
+  if (eventLoading || orgLoading) {
     return (
       <div className="flex justify-center items-center h-[60vh]">
         <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-      </div>
-    )
-  }
-
-  if (profile && profile.accountType !== 'Empresa') {
-    return (
-      <div className="flex flex-col items-center justify-center h-[60vh] gap-4 text-center p-6">
-        <ShieldAlert className="w-16 h-16 text-destructive mb-2" />
-        <h2 className="text-2xl font-bold">Acesso Restrito</h2>
-        <Button asChild className="mt-4 bg-secondary text-white font-bold px-8"><Link href="/dashboard/perfil/editar">Configurar como Empresa</Link></Button>
       </div>
     )
   }
@@ -269,7 +266,16 @@ export default function EditarEventoPage() {
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild><Link href="/dashboard/projetos"><ArrowLeft className="w-5 h-5" /></Link></Button>
-        <h1 className="text-3xl font-bold tracking-tight">Editar Evento</h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Editar Evento</h1>
+          <div className="flex items-center gap-2 mt-1">
+             <span className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Organização:</span>
+             <Badge variant="secondary" className="gap-1.5 font-black uppercase text-[10px] italic">
+                <Building2 className="w-3 h-3" />
+                {currentOrg?.name}
+             </Badge>
+          </div>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
@@ -386,7 +392,7 @@ export default function EditarEventoPage() {
           </CardContent>
         </Card>
 
-        <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 h-14 text-lg font-bold rounded-[1.5rem] shadow-lg shadow-secondary/20" disabled={saving || uploadProgress !== null}>
+        <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 h-14 text-lg font-bold rounded-[1.5rem] shadow-lg shadow-secondary/20 uppercase italic" disabled={saving || uploadProgress !== null}>
           {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
           Salvar Alterações
         </Button>

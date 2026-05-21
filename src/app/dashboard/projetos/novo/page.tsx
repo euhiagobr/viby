@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -27,9 +28,11 @@ import {
   ImageIcon,
   ShieldAlert,
   Clock,
-  Compass
+  Compass,
+  Building2
 } from "lucide-react"
 import Link from "next/link"
+import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 
 interface Batch {
   name: string
@@ -45,10 +48,8 @@ export default function NovoEventoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const app = useFirebaseApp()
+  const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization()
 
-  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
-  const { data: profile, loading: profileLoading } = useDoc<any>(userDocRef)
-  
   const storage = React.useMemo(() => {
     if (!app) return null;
     return getStorage(app, "gs://viby");
@@ -83,16 +84,18 @@ export default function NovoEventoPage() {
   })
   const [coords, setCoords] = useState({ lat: "", lng: "" })
 
+  const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
+
   useEffect(() => {
-    if (!profileLoading && profile && profile.accountType !== 'Empresa') {
+    if (!orgLoading && (!currentOrg || !isAtLeastEditor)) {
       toast({
         variant: "destructive",
         title: "Acesso Restrito",
-        description: "Apenas perfis de Empresa podem publicar eventos."
+        description: "Selecione uma organização onde você seja Editor para publicar eventos."
       })
-      router.push("/dashboard/projetos")
+      router.push("/dashboard/organizacoes")
     }
-  }, [profile, profileLoading, router])
+  }, [currentOrg, isAtLeastEditor, orgLoading, router])
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -158,7 +161,7 @@ export default function NovoEventoPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!db || !user || !profile || profile.accountType !== 'Empresa') return
+    if (!db || !user || !currentOrg || !isAtLeastEditor) return
 
     if (!selectedCategory) {
       toast({ variant: "destructive", title: "Erro", description: "Selecione uma categoria." })
@@ -197,12 +200,13 @@ export default function NovoEventoPage() {
           available: parseInt(b.available) || 0
         })),
         image: uploadedImageUrl || "",
-        organizerId: user.uid,
+        organizationId: currentOrg.id,
+        organizerId: user.uid, // ID do autor da criação
         organizer: {
-          name: profile.name || user.displayName || "Organizador",
-          avatar: profile.avatar || user.photoURL || "",
-          isVerified: !!profile.isVerified,
-          username: profile.username || "" 
+          name: currentOrg.name,
+          avatar: currentOrg.avatar || "",
+          isVerified: !!currentOrg.verified,
+          username: currentOrg.username
         },
         status: "Ativo",
         type: "Público",
@@ -220,7 +224,7 @@ export default function NovoEventoPage() {
     }
   }
 
-  if (profileLoading) {
+  if (orgLoading) {
     return (
       <div className="flex justify-center items-center h-[60vh]">
         <Loader2 className="w-10 h-10 animate-spin text-secondary" />
@@ -234,11 +238,19 @@ export default function NovoEventoPage() {
         <Button variant="ghost" size="icon" asChild>
           <Link href="/dashboard/projetos"><ArrowLeft className="w-5 h-5" /></Link>
         </Button>
-        <h1 className="text-3xl font-bold tracking-tight">Novo Evento</h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Novo Evento</h1>
+          <div className="flex items-center gap-2 mt-1">
+             <span className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Publicando como:</span>
+             <Badge variant="secondary" className="gap-1.5 font-black uppercase text-[10px] italic">
+                <Building2 className="w-3 h-3" />
+                {currentOrg?.name}
+             </Badge>
+          </div>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Capa */}
         <Card className="overflow-hidden border-none shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -270,7 +282,6 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
-        {/* Info Geral */}
         <Card className="border-none shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -306,7 +317,6 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
-        {/* Localização */}
         <Card className="border-none shadow-sm">
           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização & Geolocalização</CardTitle></CardHeader>
           <CardContent className="space-y-6">
@@ -351,7 +361,6 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
-        {/* Ingressos */}
         <Card className="border-none shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-6 border-b">
             <CardTitle className="text-lg flex items-center gap-2">Configuração de Ingressos</CardTitle>
@@ -419,7 +428,7 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
-        <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 h-14 text-lg font-bold rounded-[1.5rem] shadow-lg shadow-secondary/20" disabled={loading}>
+        <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 h-14 text-lg font-bold rounded-[1.5rem] shadow-lg shadow-secondary/20 uppercase italic" disabled={loading}>
           {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Publicar Evento"}
         </Button>
       </form>

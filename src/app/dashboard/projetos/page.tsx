@@ -19,7 +19,9 @@ import {
   Eye, 
   Users,
   Trash2,
-  TicketPercent
+  TicketPercent,
+  Search,
+  Megaphone
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -45,33 +47,28 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 
 export default function MeusEventosPage() {
   const db = useFirestore()
-  const auth = useAuth()
-  const { user } = useUser(auth)
-
-  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
-  const { data: profile, loading: profileLoading } = useDoc<any>(userDocRef)
+  const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization()
 
   const myEventsQuery = useMemoFirebase(() => {
-    if (!db || !user) return null
-    return query(collection(db, "events"), where("organizerId", "==", user.uid))
-  }, [db, user])
+    if (!db || !currentOrg) return null
+    return query(collection(db, "events"), where("organizationId", "==", currentOrg.id))
+  }, [db, currentOrg?.id])
 
   const { data: events, loading: eventsLoading } = useCollection<any>(myEventsQuery)
 
-  // Controle do Modal de Exclusão
   const [eventToDelete, setEventToDelete] = React.useState<{id: string, title: string} | null>(null)
   const [isDeleting, setIsDeleting] = React.useState(false)
 
-  // Filtro de exclusão lógica para o organizador
   const activeEvents = React.useMemo(() => {
     if (!events) return []
     return events.filter((e: any) => e.status !== 'Excluído')
   }, [events])
 
-  const isCompany = profile?.accountType === 'Empresa'
+  const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
 
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
@@ -112,47 +109,51 @@ export default function MeusEventosPage() {
     if (!db || !eventToDelete) return
 
     setIsDeleting(true)
-    
     try {
       const batch = writeBatch(db);
-      
-      // 1. Marcar o evento como excluído
       const eventRef = doc(db, "events", eventToDelete.id);
       batch.update(eventRef, { status: "Excluído" });
       
-      // 2. Buscar e excluir todos os ingressos (registrations) associados a este evento
       const regsQuery = query(collection(db, "registrations"), where("eventId", "==", eventToDelete.id));
       const regsSnap = await getDocs(regsQuery);
+      regsSnap.forEach((regDoc) => batch.delete(regDoc.ref));
       
-      regsSnap.forEach((regDoc) => {
-        batch.delete(regDoc.ref);
-      });
-      
-      // Executa todas as exclusões em uma única transação de lote
       await batch.commit();
-      
-      toast({ 
-        title: "Evento e ingressos removidos", 
-        description: `O evento "${eventToDelete.title}" e todos os vouchers vinculados foram excluídos.` 
-      });
+      toast({ title: "Evento removido", description: `O evento "${eventToDelete.title}" e seus vouchers foram excluídos.` });
     } catch (error: any) {
-      console.error("Erro ao excluir em cascata:", error);
-      const permissionError = new FirestorePermissionError({
+      errorEmitter.emit("permission-error", new FirestorePermissionError({
         path: `events/${eventToDelete.id}`,
         operation: "update",
         requestResourceData: { status: "Excluído" }
-      })
-      errorEmitter.emit("permission-error", permissionError)
+      }))
     } finally {
       setIsDeleting(false)
       setEventToDelete(null)
     }
   }
 
-  if (profileLoading) {
+  if (orgLoading) {
+    return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+  }
+
+  if (!currentOrg) {
     return (
-      <div className="flex justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+      <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[3rem] border-2 border-dashed border-border gap-6 shadow-sm">
+        <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center">
+          <Building2 className="w-10 h-10 text-muted-foreground opacity-30" />
+        </div>
+        <div className="text-center space-y-2">
+          <p className="text-xl font-bold">Nenhuma organização selecionada.</p>
+          <p className="text-sm text-muted-foreground max-w-xs mx-auto">Para gerenciar eventos, selecione ou crie um perfil de marca.</p>
+        </div>
+        <div className="flex gap-3">
+           <Button asChild variant="outline" className="rounded-full px-8 h-12 font-bold">
+              <Link href="/dashboard/organizacoes">Ver Minhas Marcas</Link>
+           </Button>
+           <Button asChild className="bg-secondary text-white font-black px-10 h-12 rounded-full shadow-lg">
+             <Link href="/dashboard/organizacoes/new">Criar Marca</Link>
+           </Button>
+        </div>
       </div>
     )
   }
@@ -161,120 +162,112 @@ export default function MeusEventosPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Meus Eventos</h1>
-          <p className="text-muted-foreground">Gerencie seus anúncios e veja quem está interessado.</p>
+          <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">Eventos da Marca</h1>
+          <p className="text-muted-foreground font-medium">Gestão de publicações de <strong>{currentOrg.name}</strong>.</p>
         </div>
         
-        {isCompany && (
-          <Button asChild className="gap-2 bg-secondary text-white hover:bg-secondary/90 font-bold rounded-full px-6">
+        {isAtLeastEditor && (
+          <Button asChild className="gap-2 bg-secondary text-white hover:bg-secondary/90 font-black rounded-full px-8 h-12 shadow-lg hover:scale-105 transition-transform uppercase italic">
             <Link href="/dashboard/projetos/novo">
-              <Plus className="w-4 h-4" />
+              <Plus className="w-5 h-5" />
               Novo Evento
             </Link>
           </Button>
         )}
       </div>
 
-      {!isCompany && (
-        <Alert className="bg-secondary/10 border-secondary/20">
-          <Building2 className="h-4 w-4 text-secondary" />
-          <AlertTitle className="font-bold text-secondary">Conta de Usuário</AlertTitle>
-          <AlertDescription className="text-muted-foreground">
-            Sua conta está configurada como perfil pessoal. Para criar e publicar eventos, você precisa atualizar seu tipo de conta para <strong>Empresa</strong> em seu perfil.
-            <div className="mt-3">
-              <Button asChild variant="outline" size="sm" className="border-secondary text-secondary hover:bg-secondary hover:text-white font-bold">
-                <Link href="/dashboard/perfil/editar">Mudar para Empresa</Link>
-              </Button>
-            </div>
+      {!isAtLeastEditor && (
+        <Alert className="bg-orange-50 border-orange-200">
+          <AlertCircle className="h-4 w-4 text-orange-600" />
+          <AlertTitle className="font-bold text-orange-800">Visualização Limitada</AlertTitle>
+          <AlertDescription className="text-orange-700">
+            Seu cargo nesta organização ({userRole}) permite apenas a visualização de eventos. Para criar ou editar, solicite permissão de <strong>Editor</strong> ao proprietário.
           </AlertDescription>
         </Alert>
       )}
 
       {eventsLoading ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-        </div>
+        <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {activeEvents?.map((event: any) => {
             const time = formatTime(event.date);
-            const username = event.organizer?.username || profile?.username || "evento";
+            const username = currentOrg.username;
             const eventLink = `/${username}/${event.id}`;
             
             return (
-              <Card key={event.id} className="overflow-hidden border-border hover:border-secondary/50 transition-all group shadow-sm rounded-2xl">
-                <div className="p-4 space-y-4">
-                  <div className="flex justify-between items-start">
-                    <Badge variant={event.status === 'Concluído' ? 'secondary' : 'default'} className="rounded-full px-3">
-                      {event.status || "Ativo"}
-                    </Badge>
-                    
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted rounded-full">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="rounded-xl w-48">
-                        <DropdownMenuItem asChild>
-                          <Link href={`/dashboard/evento/${event.id}/editar`} className="flex items-center gap-2 cursor-pointer font-medium py-2">
-                            <Edit2 className="w-4 h-4" />
-                            Editar Evento
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href={eventLink} target="_blank" className="flex items-center gap-2 cursor-pointer font-medium py-2">
-                            <Eye className="w-4 h-4" />
-                            Ver Anúncio
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href={`/dashboard/evento/${event.id}/cupons`} className="flex items-center gap-2 cursor-pointer font-medium py-2">
-                            <TicketPercent className="w-4 h-4 text-secondary" />
-                            Cupons do evento
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          className="flex items-center gap-2 text-destructive focus:text-destructive cursor-pointer font-medium py-2"
-                          onSelect={() => setEventToDelete({ id: event.id, title: event.title })}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Excluir Evento
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+              <Card key={event.id} className="overflow-hidden border-none shadow-sm hover:shadow-md transition-all group rounded-[1.5rem] bg-white">
+                <div className="relative h-40 bg-muted">
+                   {event.image ? (
+                     <img src={event.image} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                   ) : (
+                     <div className="flex items-center justify-center h-full opacity-20"><Megaphone className="w-10 h-10" /></div>
+                   )}
+                   <div className="absolute top-3 right-3">
+                      <Badge className="bg-white/90 text-primary font-black uppercase text-[8px] h-5 shadow-sm border-none">
+                        {event.status || "Ativo"}
+                      </Badge>
+                   </div>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="flex justify-between items-start gap-2">
+                    <h4 className="font-bold text-base leading-tight line-clamp-1">{event.title}</h4>
+                    {isAtLeastEditor && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full shrink-0">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl w-48">
+                          <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/evento/${event.id}/editar`} className="flex items-center gap-2 py-2 cursor-pointer">
+                              <Edit2 className="w-4 h-4" /> Editar Evento
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href={eventLink} target="_blank" className="flex items-center gap-2 py-2 cursor-pointer">
+                              <Eye className="w-4 h-4" /> Ver Anúncio
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/evento/${event.id}/cupons`} className="flex items-center gap-2 py-2 cursor-pointer">
+                              <TicketPercent className="w-4 h-4 text-secondary" /> Cupons
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            className="flex items-center gap-2 text-destructive focus:text-destructive py-2 cursor-pointer"
+                            onSelect={() => setEventToDelete({ id: event.id, title: event.title })}
+                          >
+                            <Trash2 className="w-4 h-4" /> Excluir Evento
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
 
-                  <div className="space-y-1">
-                    <h4 className="font-bold text-lg leading-tight group-hover:text-secondary transition-colors line-clamp-1">{event.title}</h4>
-                    <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2rem]">{event.shortDescription || event.description}</p>
-                  </div>
-
-                  <div className="space-y-1.5 py-3 border-y border-border">
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
+                  <div className="space-y-1.5 pt-3 border-t border-dashed">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
                       <CalendarIcon className="w-3.5 h-3.5 text-secondary" />
                       <span>{formatDate(event.date)}</span>
                       {time && (
                         <><span className="mx-1 opacity-30">|</span><Clock className="w-3.5 h-3.5 text-secondary" /><span>{time}</span></>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
                       <MapPin className="w-3.5 h-3.5 text-secondary" />
                       <span className="line-clamp-1">{event.city || "Local não definido"}</span>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 pt-1">
-                    <Button variant="outline" size="sm" className="text-[10px] font-bold uppercase h-8 rounded-lg gap-1.5" asChild>
-                      <Link href={eventLink}><Eye className="w-3 h-3" />Ver Anúncio</Link>
+                    <Button variant="outline" size="sm" className="text-[10px] font-black uppercase h-9 rounded-xl gap-1.5 border-secondary text-secondary hover:bg-secondary/5" asChild>
+                      <Link href={eventLink} target="_blank">Visualizar</Link>
                     </Button>
-                    <Button variant="outline" size="sm" className="text-[10px] font-bold uppercase h-8 rounded-lg gap-1.5 border-secondary text-secondary hover:bg-secondary hover:text-white" asChild>
-                      <Link href={`/dashboard/evento/${event.id}/editar`}><Edit2 className="w-3 h-3" />Editar</Link>
-                    </Button>
-                    <Button variant="secondary" size="sm" className="col-span-2 text-[10px] font-bold uppercase h-8 rounded-lg gap-1.5" asChild>
+                    <Button variant="secondary" size="sm" className="text-[10px] font-black uppercase h-9 rounded-xl gap-1.5" asChild>
                       <Link href={`/dashboard/evento/${event.id}/publico`}>
-                        <Users className="w-3 h-3" />Ver Público
+                        <Users className="w-3.5 h-3.5" /> Público
                       </Link>
                     </Button>
                   </div>
@@ -282,38 +275,32 @@ export default function MeusEventosPage() {
               </Card>
             );
           })}
-          {isCompany ? (
+          {isAtLeastEditor && (
             <Link 
               href="/dashboard/projetos/novo"
-              className="border-2 border-dashed border-border rounded-2xl p-8 flex flex-col items-center justify-center gap-3 text-muted-foreground hover:border-secondary/50 hover:text-secondary hover:bg-muted/30 transition-all min-h-[250px]"
+              className="border-2 border-dashed border-secondary/20 rounded-[1.5rem] p-8 flex flex-col items-center justify-center gap-3 text-muted-foreground hover:border-secondary/50 hover:text-secondary hover:bg-secondary/5 transition-all min-h-[250px] group"
             >
-              <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center shadow-inner"><Plus className="w-6 h-6" /></div>
-              <span className="font-bold uppercase text-xs tracking-widest">Publicar Novo Evento</span>
+              <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center group-hover:bg-secondary group-hover:text-white transition-colors"><Plus className="w-6 h-6" /></div>
+              <span className="font-black uppercase text-xs tracking-widest italic">Publicar Novo Evento</span>
             </Link>
-          ) : (
-            <div className="border-2 border-dashed border-border rounded-2xl p-8 flex flex-col items-center justify-center gap-3 text-muted-foreground/50 bg-muted/20 grayscale min-h-[250px]">
-              <AlertCircle className="w-12 h-12 mb-2 opacity-50" />
-              <span className="font-bold text-center text-xs uppercase tracking-widest">Disponível para Empresa</span>
-            </div>
           )}
         </div>
       )}
 
-      {/* AlertDialog de Confirmação */}
       <AlertDialog open={!!eventToDelete} onOpenChange={(open) => !open && setEventToDelete(null)}>
-        <AlertDialogContent className="rounded-2xl">
+        <AlertDialogContent className="rounded-[2rem]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold">Excluir este evento?</AlertDialogTitle>
+            <AlertDialogTitle className="text-xl font-black italic uppercase italic tracking-tighter">Excluir este evento?</AlertDialogTitle>
             <AlertDialogDescription>
-              O evento <strong>"{eventToDelete?.title}"</strong> será removido. <strong>Atenção:</strong> Todos os ingressos e vouchers já emitidos para este evento também serão excluídos permanentemente.
+              O evento <strong>"{eventToDelete?.title}"</strong> e todos os seus ingressos serão removidos permanentemente. Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl font-bold">Cancelar</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px] tracking-widest">Cancelar</AlertDialogCancel>
             <AlertDialogAction 
               onClick={confirmDelete}
               disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl font-bold"
+              className="bg-destructive text-white hover:bg-destructive/90 rounded-xl font-black uppercase text-[10px] tracking-widest"
             >
               {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
               Confirmar Exclusão
