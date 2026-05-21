@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -71,10 +70,23 @@ export default function CheckoutSucessoPage() {
         else if (metadata.type === 'ad_balance_topup') {
           const orgRef = doc(db, "organizations", metadata.orgId);
           const amountToCredit = parseFloat(metadata.baseAmount);
+          
+          // Atualiza saldo da organização
           await updateDoc(orgRef, {
             adBalance: increment(amountToCredit),
             updatedAt: serverTimestamp()
           });
+
+          // Atualiza a transação para concluída se houver um ID
+          if (metadata.transactionId) {
+            const txRef = doc(db, 'organizations', metadata.orgId, 'transactions', metadata.transactionId);
+            await updateDoc(txRef, {
+              status: 'completed',
+              updatedAt: serverTimestamp(),
+              stripeSessionId: sessionId
+            });
+          }
+
           toast({ title: "Saldo Recarregado!", description: `R$ ${amountToCredit.toFixed(2)} adicionados para anúncios.` });
         }
         else if (metadata.type === 'cart_checkout' || metadata.registrationId) {

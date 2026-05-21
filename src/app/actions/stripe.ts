@@ -110,6 +110,7 @@ export async function createAdBalanceTopUpSession(data: {
   orgName: string;
   userEmail: string;
   baseAmount: number; // Valor que vai virar saldo (em reais)
+  transactionId: string; // ID da transação criada no Firestore
 }) {
   try {
     const h = await headers();
@@ -142,7 +143,8 @@ export async function createAdBalanceTopUpSession(data: {
       metadata: {
         type: 'ad_balance_topup',
         orgId: data.orgId,
-        baseAmount: data.baseAmount.toString() // O valor que será creditado
+        baseAmount: data.baseAmount.toString(),
+        transactionId: data.transactionId
       },
     });
 
