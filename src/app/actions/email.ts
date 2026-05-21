@@ -185,29 +185,48 @@ export async function sendWelcomeEmail(data: WelcomeEmailData) {
           body { font-family: 'Poppins', sans-serif, Arial; background-color: #f8fafc; color: #1e293b; padding: 20px; margin: 0; }
           .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 32px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
           .header { background: #000; color: white; padding: 50px 20px; text-align: center; }
-          .content { padding: 40px; text-align: center; }
-          .button { display: inline-block; padding: 18px 36px; background: #2563eb; color: white !important; text-decoration: none; border-radius: 16px; font-weight: bold; margin-top: 30px; font-size: 16px; }
+          .content { padding: 40px; }
+          .list { list-style: none; padding: 0; margin: 25px 0; }
+          .list li { padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 500; display: flex; align-items: center; }
+          .list li::before { content: "•"; color: #0095f6; font-weight: bold; display: inline-block; width: 1em; margin-right: 10px; font-size: 20px; }
+          .button { display: inline-block; padding: 18px 36px; background: #0095f6; color: white !important; text-decoration: none; border-radius: 16px; font-weight: bold; margin-top: 30px; font-size: 16px; box-shadow: 0 10px 15px -3px rgba(0, 149, 246, 0.3); }
           .footer { padding: 30px; text-align: center; font-size: 12px; color: #94a3b8; background: #f8fafc; }
+          .signature { margin-top: 40px; border-top: 1px dashed #e2e8f0; pt: 20px; font-weight: bold; color: #0f172a; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h1 style="margin:0; font-size: 32px; text-transform: uppercase; font-style: italic; letter-spacing: -1px;">Bem-vindo à ${data.siteName}</h1>
+            <h1 style="margin:0; font-size: 32px; text-transform: uppercase; font-style: italic; letter-spacing: -1px;">Viby.Club</h1>
           </div>
           <div class="content">
-            <h2 style="margin-top:0; font-size: 24px;">Olá, ${data.userName}! 🚀</h2>
-            <p style="line-height: 1.6; color: #475569; font-size: 16px;">
-              Ficamos muito felizes em ter você conosco. A partir de agora, você tem acesso às melhores experiências e eventos do Brasil.
-            </p>
-            <p style="line-height: 1.6; color: #475569; font-size: 16px;">
-              Explore nossa vitrine, siga suas marcas favoritas e garanta seus ingressos de forma rápida e segura.
-            </p>
-            <a href="https://viby.club/dashboard" class="button">Explorar Eventos</a>
+            <h2 style="margin-top:0; font-size: 22px; letter-spacing: -0.5px;">Olá, ${data.userName}! 👋</h2>
+            <p style="line-height: 1.6; color: #475569; font-size: 15px;">A <strong>VIBY.CLUB</strong> nasceu para conectar pessoas através de experiências reais.</p>
+            
+            <p style="line-height: 1.6; color: #475569; font-size: 15px; margin-top: 20px;">Seu perfil já está ativo e você já pode:</p>
+            
+            <ul class="list">
+              <li>Explorar eventos</li>
+              <li>Criar sua comunidade</li>
+              <li>Publicar experiências</li>
+              <li>Comprar ingressos</li>
+              <li>Vender ingressos</li>
+              <li>Descobrir o que está acontecendo perto de você</li>
+            </ul>
+
+            <p style="font-weight: 700; font-size: 18px; margin: 30px 0 10px 0; color: #0095f6; font-style: italic;">Welcome to the club.</p>
+
+            <div style="text-align: center;">
+              <a href="https://viby.club" class="button">Acessar Viby.Club</a>
+            </div>
+
+            <div class="signature">
+              <p style="margin: 20px 0 0 0;">Equipe VIBY.CLUB</p>
+            </div>
           </div>
           <div class="footer">
             <p>Este é um e-mail automático. Não responda a esta mensagem.</p>
-            <p><strong>${data.siteName}</strong> - Inteligência em Eventos</p>
+            <p><strong>VIBY.CLUB</strong> - Inteligência em Eventos</p>
           </div>
         </div>
       </body>
@@ -215,9 +234,9 @@ export async function sendWelcomeEmail(data: WelcomeEmailData) {
     `;
 
     await transporter.sendMail({
-      from: `"${data.siteName}" <${smtpUser}>`,
+      from: `"Viby.Club" <${smtpUser}>`,
       to: data.to,
-      subject: `Seja bem-vindo(a) à ${data.siteName}! 🚀`,
+      subject: `Olá, ${data.userName}! 👋`,
       html: htmlContent,
     });
 
