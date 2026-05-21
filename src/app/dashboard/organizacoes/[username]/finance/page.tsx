@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -80,18 +81,28 @@ export default function OrganizationFinancePage() {
   const [selectedSaleForAdvance, setSelectedSaleForAdvance] = React.useState<any>(null);
   const [isAdvancing, setIsAdvancing] = React.useState(false);
 
-  // Consulta de Vendas (Ingressos)
+  // Consulta simplificada para evitar erros de índice composto no protótipo
   const salesQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null;
     return query(
       collection(db, "registrations"), 
-      where("organizationId", "==", currentOrg.id),
-      where("paymentStatus", "in", ["Pago", "Disponível"]),
-      orderBy("timestamp", "desc")
+      where("organizationId", "==", currentOrg.id)
     );
   }, [db, currentOrg?.id]);
 
-  const { data: sales, loading: salesLoading } = useCollection<any>(salesQuery);
+  const { data: rawSales, loading: salesLoading } = useCollection<any>(salesQuery);
+
+  // Processamento de dados em memória (Filtro de pagamento e Ordenação)
+  const sales = React.useMemo(() => {
+    if (!rawSales) return [];
+    return rawSales
+      .filter((r: any) => ["Pago", "Disponível"].includes(r.paymentStatus))
+      .sort((a, b) => {
+        const timeA = a.timestamp?.seconds || a.createdAt?.seconds || 0;
+        const timeB = b.timestamp?.seconds || b.createdAt?.seconds || 0;
+        return timeB - timeA;
+      });
+  }, [rawSales]);
 
   // Consulta de Transações de Ads
   const transactionsQuery = useMemoFirebase(() => {
@@ -379,6 +390,11 @@ export default function OrganizationFinancePage() {
               )}
             </CardContent>
           </Card>
+
+          <div className="p-6 bg-muted/20 rounded-3xl space-y-4">
+             <div className="flex items-center gap-2 text-primary font-black uppercase text-[10px] tracking-widest"><Info className="w-4 h-4" /> Regras de Taxas</div>
+             <p className="text-[10px] text-muted-foreground leading-relaxed">As taxas são calculadas por ingresso de acordo com o plano do proprietário da marca no momento da venda. O valor líquido é transferido para sua conta PJ verificada conforme o ciclo de repasse.</p>
+          </div>
         </TabsContent>
 
         <TabsContent value="anuncios" className="space-y-8 animate-in fade-in zoom-in-95 duration-300">
