@@ -1,8 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.15.0
-    // RBAC aprimorado com permissões de aceite para convites e parcerias
+    // REGRAS VIBY - Versão: 2.16.0
+    // RBAC aprimorado e suporte a transações de anúncios
     
     function isSignedIn() {
       return request.auth != null;
@@ -69,14 +69,13 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isSignedIn();
       allow update: if hasOrgRole(orgId, ['owner', 'admin', 'editor']) || isAdmin() || (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalViews', 'metrics_views_current', 'totalReach', 'metrics_reach_current'])
+        // Permite atualizações públicas de métricas de acesso
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalViews', 'metrics_views_current', 'totalReach', 'metrics_reach_current', 'adBalance', 'blockedBalance'])
       );
       allow delete: if hasOrgRole(orgId, ['owner']) || isAdmin();
 
       match /members/{userId} {
-        // Permite ler se for o próprio usuário convidado, membro da org ou admin
         allow read: if isSignedIn() && (request.auth.uid == userId || isOrgMember(orgId) || isAdmin());
-        // Permite que o convidado aceite o convite ou que gestores gerenciem a equipe
         allow update: if (isSignedIn() && request.auth.uid == userId && request.resource.data.status == 'accepted') || hasOrgRole(orgId, ['owner', 'admin']) || isAdmin();
         allow create, delete: if hasOrgRole(orgId, ['owner', 'admin']) || isAdmin();
       }
@@ -84,6 +83,11 @@ service cloud.firestore {
       match /visitors/{visitorId} {
         allow read: if isOrgMember(orgId) || isAdmin();
         allow create, update: if isSignedIn();
+      }
+
+      match /transactions/{txId} {
+        allow read: if hasOrgRole(orgId, ['owner', 'admin', 'finance']);
+        allow create: if hasOrgRole(orgId, ['owner', 'admin', 'editor', 'finance']);
       }
     }
 
@@ -96,18 +100,21 @@ service cloud.firestore {
       
       match /partners/{partnerId} {
         allow read: if true;
-        // Permite que a organização convidada (partnerId) aceite/recuse ou que o dono do evento gerencie
         allow update: if hasOrgRole(partnerId, ['owner', 'admin', 'editor']) || hasOrgRole(get(/databases/eventosviby/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']);
         allow create, delete: if hasOrgRole(get(/databases/eventosviby/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']);
       }
     }
     
-    // Outras coleções
+    // Anúncios
     match /ads/{adId} {
       allow read: if true;
-      allow create: if isSignedIn(); 
-      allow update: if isSignedIn() && (resource.data.organizerId == request.auth.uid || isAdmin());
-      allow delete: if isAdmin();
+      allow create: if isSignedIn() && hasOrgRole(request.resource.data.organizationId, ['owner', 'admin', 'editor']); 
+      allow update: if isSignedIn() || isAdmin(); // Permite atualização de métricas (reach/clicks) por qualquer usuário logado
+      allow delete: if isAdmin() || hasOrgRole(resource.data.organizationId, ['owner', 'admin']);
+
+      match /viewers/{userId} {
+        allow read, create: if isSignedIn() && request.auth.uid == userId;
+      }
     }
 
     match /registrations/{regId} {
