@@ -4,7 +4,19 @@
 import * as React from "react"
 import { useParams, useRouter, usePathname } from "next/navigation"
 import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
-import { doc, getDoc, collection, query, where, orderBy, limit, getDocs } from "firebase/firestore"
+import { 
+  doc, 
+  getDoc, 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  limit, 
+  getDocs, 
+  setDoc, 
+  deleteDoc, 
+  serverTimestamp 
+} from "firebase/firestore"
 import { 
   Loader2, 
   AlertTriangle, 
@@ -19,7 +31,8 @@ import {
   ExternalLink,
   Building2,
   Bell,
-  Plus
+  Plus,
+  Check
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -41,6 +54,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { toast } from "@/hooks/use-toast"
 
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
@@ -137,12 +151,16 @@ function ProfileHeader() {
 
 function UniversalProfileContent() {
   const params = useParams()
+  const router = useRouter()
   const db = useFirestore()
+  const auth = useAuth()
+  const { user } = useUser(auth)
   const username = (params.username as string).toLowerCase()
 
   const [loading, setLoading] = React.useState(true)
   const [data, setData] = React.useState<any>(null)
   const [type, setType] = React.useState<'user' | 'organization' | null>(null)
+  const [followActionLoading, setFollowActionLoading] = React.useState(false)
 
   // Resolvedor robusto de username com fallback
   React.useEffect(() => {
@@ -212,6 +230,64 @@ function UniversalProfileContent() {
   }, [db, data?.id, type])
 
   const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
+
+  // Lógica de Seguidores
+  const followRelationQuery = useMemoFirebase(() => {
+    if (!db || !user || !data?.id) return null
+    return query(
+      collection(db, "follows"),
+      where("followerId", "==", user.uid),
+      where("followingId", "==", data.id),
+      limit(1)
+    )
+  }, [db, user, data?.id])
+
+  const { data: followRel } = useCollection<any>(followRelationQuery)
+  const isFollowing = followRel && followRel.length > 0
+
+  // Contagem de seguidores e seguindo
+  const followersCountQuery = useMemoFirebase(() => {
+    if (!db || !data?.id) return null
+    return query(collection(db, "follows"), where("followingId", "==", data.id))
+  }, [db, data?.id])
+  const { data: followersList } = useCollection<any>(followersCountQuery)
+
+  const followingCountQuery = useMemoFirebase(() => {
+    if (!db || !data?.id) return null
+    return query(collection(db, "follows"), where("followerId", "==", data.id))
+  }, [db, data?.id])
+  const { data: followingList } = useCollection<any>(followingCountQuery)
+
+  const handleFollowToggle = async () => {
+    if (!user) {
+      toast({ title: "Ação necessária", description: "Entre para seguir perfis no Viby." })
+      router.push("/login")
+      return
+    }
+    if (!db || !data || followActionLoading) return
+
+    setFollowActionLoading(true)
+    const followId = `${user.uid}_${data.id}`
+    
+    try {
+      if (isFollowing) {
+        await deleteDoc(doc(db, "follows", followRel[0].id))
+        toast({ title: `Deixou de seguir ${displayName}` })
+      } else {
+        await setDoc(doc(db, "follows", followId), {
+          followerId: user.uid,
+          followingId: data.id,
+          targetType: type,
+          timestamp: serverTimestamp()
+        })
+        toast({ title: `Seguindo ${displayName}!` })
+      }
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro na operação" })
+    } finally {
+      setFollowActionLoading(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -285,8 +361,23 @@ function UniversalProfileContent() {
                         {data.isVerified && <InstagramVerifiedBadge />}
                       </div>
                       <div className="flex items-center justify-center gap-2">
-                        <Button className="bg-secondary text-white hover:bg-secondary/90 font-bold rounded-lg h-9 px-6 text-sm">
-                           Seguir
+                        <Button 
+                          onClick={handleFollowToggle}
+                          disabled={followActionLoading}
+                          className={cn(
+                            "font-bold rounded-lg h-9 px-6 text-sm transition-all",
+                            isFollowing 
+                              ? "bg-muted text-foreground hover:bg-muted/80" 
+                              : "bg-secondary text-white hover:bg-secondary/90"
+                          )}
+                        >
+                           {followActionLoading ? (
+                             <Loader2 className="w-4 h-4 animate-spin" />
+                           ) : isFollowing ? (
+                             <><Check className="w-4 h-4 mr-2" /> Seguindo</>
+                           ) : (
+                             "Seguir"
+                           )}
                         </Button>
                         <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg">
                            <Share2 className="w-4 h-4" />
@@ -300,11 +391,11 @@ function UniversalProfileContent() {
                          <span className="text-sm text-muted-foreground">{isOrg ? 'Eventos' : 'Publicações'}</span>
                       </div>
                       <div className="flex flex-col md:flex-row items-center gap-1">
-                         <span className="font-bold text-lg">0</span>
+                         <span className="font-bold text-lg">{followersList?.length || 0}</span>
                          <span className="text-sm text-muted-foreground">Seguidores</span>
                       </div>
                       <div className="flex flex-col md:flex-row items-center gap-1">
-                         <span className="font-bold text-lg">0</span>
+                         <span className="font-bold text-lg">{followingList?.length || 0}</span>
                          <span className="text-sm text-muted-foreground">Seguindo</span>
                       </div>
                    </div>
@@ -313,9 +404,6 @@ function UniversalProfileContent() {
                       <p className="text-sm font-bold text-secondary">@{data.username}</p>
                       {isOrg && data.type && (
                         <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">{data.type}</p>
-                      )}
-                      {!isOrg && (
-                        <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Participante</p>
                       )}
                       <p className="text-sm font-medium leading-relaxed max-w-lg mx-auto md:mx-0">
                          {data.bio || "Nenhuma biografia disponível."}
