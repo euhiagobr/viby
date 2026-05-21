@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -61,6 +60,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Separator } from "@/components/ui/separator"
 import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
@@ -74,7 +74,7 @@ const ORG_TYPES = [
 function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 128 128" className={cn("w-5 h-5", className)} xmlns="http://www.w3.org/2000/svg">
-      <path fill="#0095f6" d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1-4.4 1.2-8.9-5.3 10.7l8.4 3.7 2.3 9c1.1-4.4 5.2-7.4 9.7 7l9.2-.7 6.5 6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.4-6.3 5.3-10.7l-2.3-9 6.5-6.6c3.2-3.2 3.2-8.2 0-11.4z" />
+      <path fill="#0095f6" d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1-4.4 1.2-8.9-5.3 10.7l8.4 3.7 2.3 9c1.1-4.4 5.2-7.4 9.7 7l9.2-.7 6.5 6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.3-5.3 10.7-5.3l2.3 9-6.5 6.6c3.2-3.2 3.2-8.2 0-11.4z" />
       <path fill="#fff" d="M57.6 86.8c-1.8 0-3.5-.7-4.8-2L38.2 70.2c-2.7-2.7-2.7-7 0-9.6s7-2.7 9.6 0l9.8 9.8 22.8-22.8c2.7-2.7 7-2.7 9.6 0s2.7 7 0 9.6L62.4 84.8c-1.3 1.3-3 2-4.8 2z" />
     </svg>
   )
@@ -91,8 +91,6 @@ export default function AdminUsuariosPage() {
   // States para Usuários
   const [editingUser, setEditingUser] = React.useState<any>(null)
   const [isEditUserOpen, setIsEditUserOpen] = React.useState(false)
-  const [isPlanModalOpen, setIsPlanModalOpen] = React.useState(false)
-  const [selectedUserForPlan, setSelectedUserForPlan] = React.useState<any>(null)
 
   // States para Páginas (Organizações)
   const [editingOrg, setEditingOrg] = React.useState<any>(null)
@@ -144,8 +142,9 @@ export default function AdminUsuariosPage() {
     setCheckingUsername(true)
     const timer = setTimeout(async () => {
       try {
-        const snap = await getDoc(doc(db, "usernames", normalized))
-        setUsernameStatus(snap.exists() ? 'taken' : 'valid')
+        const usernameRef = doc(db, "usernames", normalized)
+        const usernameSnap = await getDoc(usernameRef)
+        setUsernameStatus(usernameSnap.exists() ? 'taken' : 'valid')
       } catch (e) {
         console.error(e)
       } finally {
@@ -153,7 +152,7 @@ export default function AdminUsuariosPage() {
       }
     }, 500)
     return () => clearTimeout(timer)
-  }, [editingUser?.username, editingOrg?.username, activeTab, db])
+  }, [editingUser?.username, editingOrg?.username, activeTab, db, users, orgs])
 
   const handleImageUpload = async (file: File, type: 'avatar' | 'banner', targetId: string, coll: 'users' | 'organizations') => {
     if (!storage) return
@@ -223,7 +222,7 @@ export default function AdminUsuariosPage() {
         <p className="text-muted-foreground font-medium">Controle administrativo sobre usuários e páginas de marcas.</p>
       </div>
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
@@ -242,7 +241,7 @@ export default function AdminUsuariosPage() {
       </div>
 
       <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
-        <Tabs value={activeTab}>
+        <Tabs value={activeTab} className="w-full">
           <TabsContent value="usuarios" className="m-0">
              <Table>
                <TableHeader className="bg-muted/30">
@@ -339,7 +338,7 @@ export default function AdminUsuariosPage() {
                             className="h-48 bg-muted rounded-3xl border-2 border-dashed border-border group cursor-pointer overflow-hidden relative"
                             onClick={() => document.getElementById('admin-org-banner')?.click()}
                           >
-                             {editingOrg?.banner ? <img src={editingOrg.banner} className="w-full h-full object-cover" /> : null}
+                             {editingOrg?.banner ? <img src={editingOrg.banner} className="w-full h-full object-cover" alt="Banner" /> : null}
                              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                 <Camera className="text-white w-10 h-10" />
                              </div>
