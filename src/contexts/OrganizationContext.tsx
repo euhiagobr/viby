@@ -26,6 +26,7 @@ interface Organization {
   plan?: string;
   verified?: boolean;
   createdBy?: string;
+  _memberData?: any;
   [key: string]: any;
 }
 
@@ -73,33 +74,28 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
     setLoading(true);
 
-    // Busca todos os membros com o UID do usuário em qualquer organização
     const membersQuery = query(collectionGroup(db, 'members'), where('userId', '==', user.uid));
     
     const unsubscribe = onSnapshot(membersQuery, 
       async (snapshot) => {
         try {
-          // Filtra organizações onde o acesso foi aceito ou é legado (sem status definido)
           const orgsPromises = snapshot.docs.map(async (memberDoc) => {
             const mData = memberDoc.data();
             const orgId = memberDoc.ref.parent.parent?.id;
             if (!orgId) return null;
 
-            // Aceita 'accepted' ou ausência de status (para compatibilidade com registros antigos)
             if (mData.status === 'accepted' || !mData.status) {
               const orgSnap = await getDoc(doc(db, 'organizations', orgId));
-              return orgSnap.exists() ? { id: orgSnap.id, ...orgSnap.data(), _memberData: mData } as Organization : null;
+              if (orgSnap.exists()) {
+                return { id: orgSnap.id, ...orgSnap.data(), _memberData: mData } as Organization;
+              }
             }
             return null;
           });
 
-          // Filtra convites pendentes
           const pendingPromises = snapshot.docs.map(async (memberDoc) => {
             const mData = memberDoc.data();
             if (mData.status === 'pending') {
-              // Ignorar se já expirou (24h)
-              if (inviteIsExpired(mData.expiresAt)) return null;
-
               const orgId = memberDoc.ref.parent.parent?.id;
               if (!orgId) return null;
               const orgSnap = await getDoc(doc(db, 'organizations', orgId));
@@ -128,13 +124,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     return () => unsubscribe();
   }, [db, user]);
 
-  const inviteIsExpired = (expiresAt: any) => {
-    if (!expiresAt) return false;
-    const expiryDate = expiresAt?.toDate ? expiresAt.toDate() : new Date(expiresAt);
-    return new Date() > expiryDate;
-  };
-
-  // Sincroniza org atual com o username na URL
+  // Sincroniza org atual e cargo
   useEffect(() => {
     if (!db || !user || loading) return;
 
@@ -148,7 +138,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           setUserRole(found._memberData?.role || null);
         }
       } else {
-        // Busca direta apenas se não estiver na lista (garantindo carregamento de orgs recém criadas)
         const q = query(collection(db, 'organizations'), where('username', '==', usernameFromUrl), limit(1));
         getDocs(q).then(async (snap) => {
           if (!snap.empty) {
@@ -159,17 +148,17 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             
             if (memberSnap.exists() && (mData?.status === 'accepted' || !mData?.status)) {
               setCurrentOrg({ id: orgDoc.id, ...orgDoc.data() } as Organization);
-              setUserRole(mData?.role || 'owner');
+              setUserRole(mData?.role || null);
             }
           }
         });
       }
-    } else if (!pathname?.includes('/dashboard/organizacoes/')) {
+    } else {
       const savedOrgId = typeof window !== 'undefined' ? localStorage.getItem('viby_current_org') : null;
       const found = organizations.find(o => o.id === savedOrgId) || organizations[0];
       if (found && currentOrg?.id !== found.id) {
         setCurrentOrg(found);
-        setUserRole(found._memberData?.role || 'owner');
+        setUserRole(found._memberData?.role || null);
       }
     }
   }, [params?.username, organizations, db, user, loading, pathname]);
@@ -184,6 +173,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
   const handleSetCurrentOrg = (org: Organization | null) => {
     setCurrentOrg(org);
+    setUserRole(org?._memberData?.role || null);
     if (org) {
       localStorage.setItem('viby_current_org', org.id);
     } else {

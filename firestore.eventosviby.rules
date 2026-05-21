@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.7.0
+    // REGRAS VIBY - Versão: 2.8.0
     // Database Exclusivo: eventosviby
     
     function isSignedIn() {
@@ -16,10 +16,6 @@ service cloud.firestore {
       return isSignedIn() && 
         exists(/databases/eventosviby/documents/users/$(request.auth.uid)) &&
         getUserData().role == 'admin';
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
     }
 
     function hasOrgRole(orgId, roles) {
@@ -39,7 +35,7 @@ service cloud.firestore {
 
     // Regra Crítica para buscas via collectionGroup (Dashboard e Convites)
     match /{path=**}/members/{memberId} {
-      allow read: if isSignedIn() && (request.auth.uid == memberId || resource.data.userId == request.auth.uid);
+      allow read: if isSignedIn() && (request.auth.uid == memberId || resource.data.userId == request.auth.uid || isOrgMember(path[3]));
     }
 
     // Configurações do Site
@@ -89,7 +85,7 @@ service cloud.firestore {
     // Eventos
     match /events/{eventId} {
       allow read: if true;
-      allow create: if isSignedIn();
+      allow create: if hasOrgRole(request.resource.data.organizationId, ['owner', 'admin', 'editor']);
       allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
       allow delete: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
     }
@@ -97,7 +93,7 @@ service cloud.firestore {
     // Anúncios (Ads)
     match /ads/{adId} {
       allow read: if true;
-      allow create: if isSignedIn();
+      allow create: if hasOrgRole(request.resource.data.organizationId, ['owner', 'admin']);
       allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
       allow delete: if isAdmin();
     }

@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -33,6 +32,7 @@ import {
   Building2
 } from "lucide-react"
 import Link from "next/link"
+import { cn } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 
 interface Batch {
@@ -202,7 +202,7 @@ export default function NovoEventoPage() {
         })),
         image: uploadedImageUrl || "",
         organizationId: currentOrg.id,
-        organizerId: user.uid, // ID do autor da criação
+        organizerId: user.uid, 
         organizer: {
           name: currentOrg.name,
           avatar: currentOrg.avatar || "",
