@@ -25,7 +25,8 @@ import {
   AlertTriangle,
   CreditCard,
   ShieldCheck,
-  ShieldAlert
+  ShieldAlert,
+  Layers
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -83,7 +84,6 @@ export default function EventoDetalhesPage() {
       const now = new Date()
       const batches = event.batches || []
       
-      // Contagem de vendas por individual (typeId) e por pool (poolId)
       const salesPerType = (allRegistrations || []).reduce((acc: any, reg: any) => {
         if (['Pago', 'Disponível'].includes(reg.paymentStatus)) {
           const tKey = `${reg.batchId}_${reg.ticketTypeId}`
@@ -97,8 +97,8 @@ export default function EventoDetalhesPage() {
         return acc
       }, { types: {}, pools: {} })
 
-      let currentSaleStatus: 'open' | 'pending' | 'ended' | 'soldout' = 'ended'
       let foundActiveBatch = null
+      let status: 'open' | 'pending' | 'ended' | 'soldout' = 'ended'
       let hasUpcoming = false
 
       for (const batch of batches) {
@@ -108,7 +108,7 @@ export default function EventoDetalhesPage() {
         const isNotEnded = !end || now <= end
 
         if (!isStarted) {
-          if (!foundActiveBatch) hasUpcoming = true
+          hasUpcoming = true
           continue
         }
 
@@ -121,17 +121,17 @@ export default function EventoDetalhesPage() {
 
           if (typesWithStock.length > 0) {
             foundActiveBatch = { ...batch, ticketTypes: typesWithStock }
-            currentSaleStatus = 'open'
+            status = 'open'
             break
           } else {
-            currentSaleStatus = 'soldout'
+            status = 'soldout'
             continue
           }
         }
       }
 
       setActiveBatch(foundActiveBatch)
-      setSaleStatus(currentSaleStatus || (hasUpcoming ? 'pending' : 'ended'))
+      setSaleStatus(status === 'ended' && hasUpcoming ? 'pending' : status)
     }
 
     checkAvailability()
@@ -180,7 +180,7 @@ export default function EventoDetalhesPage() {
           eventDate: new Date(regData.eventDate).toLocaleString('pt-BR'), eventCity: regData.eventCity,
           voucherUrl: `https://viby.club/dashboard/ingressos/${newDocRef.id}/voucher`, eventUrl: `https://viby.club/${usernameFromUrl}/${eventId}`
         });
-        setIsCheckoutOpen(false); toast({ title: "Confirmado!" });
+        setIsCheckoutOpen(false); toast({ title: "Reserva confirmada!" });
       }
     } catch (e: any) { toast({ variant: "destructive", title: "Erro", description: e.message }) }
     finally { setRegistering(false) }
@@ -248,8 +248,8 @@ export default function EventoDetalhesPage() {
                                   >
                                      <div className="space-y-1">
                                         <p className="font-bold text-sm uppercase">{type.name}</p>
-                                        <div className="flex gap-2">
-                                          {type.poolName && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase border-secondary/20 text-secondary">{type.poolName}</Badge>}
+                                        <div className="flex flex-wrap gap-2">
+                                          {type.poolName && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase border-secondary/20 text-secondary gap-1"><Layers className="w-2 h-2" /> {type.poolName}</Badge>}
                                           {type.remaining <= 10 && <span className="text-[8px] font-black text-red-500 uppercase">Restam {type.remaining}</span>}
                                           {type.requiresProof && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase border-orange-200 text-orange-600">Doc. Obrigatório</Badge>}
                                         </div>
