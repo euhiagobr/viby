@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -77,6 +76,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     
     const unsubscribe = onSnapshot(membersQuery, async (snapshot) => {
       try {
+        const now = new Date();
         const orgsPromises = snapshot.docs.map(async (memberDoc) => {
           const mData = memberDoc.data();
           const orgId = memberDoc.ref.parent.parent?.id;
@@ -92,6 +92,9 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         const pendingPromises = snapshot.docs.map(async (memberDoc) => {
           const mData = memberDoc.data();
           if (mData.status === 'pending') {
+            // Filtrar expirados
+            if (mData.expiresAt && new Date(mData.expiresAt) < now) return null;
+
             const orgId = memberDoc.ref.parent.parent?.id;
             if (!orgId) return null;
             const orgSnap = await getDoc(doc(db, 'organizations', orgId));

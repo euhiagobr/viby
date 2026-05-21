@@ -1,9 +1,8 @@
-
 'use client';
 
 import * as React from 'react';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from '@/firebase';
 import { 
   collection, 
   query, 
@@ -22,7 +21,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   Users, 
   Plus, 
-  ShieldCheck, 
   Loader2, 
   Trash2, 
   Fingerprint,
@@ -52,6 +50,7 @@ import { toast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from "@/lib/utils";
 import { encryptDeterministic } from '@/lib/crypto-utils';
+import { sendTeamInvitationEmail, sendTeamInvitationNoticeEmail } from '@/app/actions/email';
 
 const ROLES = [
   { value: 'owner', label: 'Proprietário', desc: 'Acesso total e gestão financeira.' },
@@ -64,6 +63,8 @@ const ROLES = [
 export default function OrganizationMembersPage() {
   const { currentOrg, userRole } = useCurrentOrganization();
   const db = useFirestore();
+  const auth = useAuth();
+  const { user: currentUser } = useUser(auth);
 
   const membersQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null;
@@ -104,7 +105,7 @@ export default function OrganizationMembersPage() {
 
   const handleInviteMember = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!db || !currentOrg) return;
+    if (!db || !currentOrg || !currentUser) return;
 
     setInviteLoading(true);
     const formData = new FormData(e.currentTarget);
@@ -124,17 +125,49 @@ export default function OrganizationMembersPage() {
         throw new Error("Usuário não encontrado com este CPF.");
       }
 
+      const targetUser = snap.docs[0].data();
       const targetUid = snap.docs[0].id;
+
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24);
+
       const memberRef = doc(db, 'organizations', currentOrg.id, 'members', targetUid);
       
-      await setDoc(memberRef, {
+      const inviteData = {
         userId: targetUid,
         role,
         status: 'pending',
-        createdAt: serverTimestamp()
-      });
+        createdAt: serverTimestamp(),
+        expiresAt: expiresAt.toISOString(),
+        inviterUid: currentUser.uid,
+        inviterName: currentUser.displayName || "Administrador",
+        inviterEmail: currentUser.email || "",
+        inviteeName: targetUser.name || "Colaborador",
+        inviteeEmail: targetUser.email || ""
+      };
 
-      toast({ title: "Convite enviado!", description: "O colaborador precisa aceitar o convite no painel dele." });
+      await setDoc(memberRef, inviteData);
+
+      // Dispara E-mails
+      if (inviteData.inviteeEmail) {
+        await sendTeamInvitationEmail({
+          to: inviteData.inviteeEmail,
+          orgName: currentOrg.name,
+          role: ROLES.find(r => r.value === role)?.label || role,
+          inviterName: inviteData.inviterName
+        });
+      }
+
+      if (inviteData.inviterEmail) {
+        await sendTeamInvitationNoticeEmail({
+          to: inviteData.inviterEmail,
+          inviteeName: inviteData.inviteeName,
+          orgName: currentOrg.name,
+          role: ROLES.find(r => r.value === role)?.label || role
+        });
+      }
+
+      toast({ title: "Convite enviado!", description: "O colaborador recebeu um e-mail e tem 24h para aceitar." });
       setIsInviteOpen(false);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao convidar", description: error.message });
@@ -267,8 +300,13 @@ export default function OrganizationMembersPage() {
                    </TableCell>
                    <TableCell>
                       {member.status === 'pending' ? (
-                        <div className="flex items-center gap-1.5 text-orange-500 font-black text-[10px] uppercase">
-                          <Clock className="w-3 h-3" /> Pendente
+                        <div className="flex flex-col">
+                           <div className="flex items-center gap-1.5 text-orange-500 font-black text-[10px] uppercase">
+                             <Clock className="w-3 h-3" /> Pendente
+                           </div>
+                           {member.expiresAt && (
+                             <span className="text-[8px] text-muted-foreground uppercase font-bold">Expira em 24h</span>
+                           )}
                         </div>
                       ) : (
                         <div className="flex items-center gap-1.5 text-green-600 font-black text-[10px] uppercase">

@@ -246,3 +246,107 @@ export async function sendWelcomeEmail(data: WelcomeEmailData) {
     return { success: false };
   }
 }
+
+/**
+ * Envia o convite de equipe para o novo colaborador.
+ */
+export async function sendTeamInvitationEmail(data: { to: string, orgName: string, role: string, inviterName: string }) {
+  try {
+    const { smtpUser, smtpPass } = await getEmailConfig();
+    if (!smtpUser || !smtpPass) return { success: false };
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com', port: 465, secure: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    const html = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 20px; overflow: hidden;">
+        <div style="background: #000; color: white; padding: 40px; text-align: center;">
+          <h1 style="margin:0; font-style: italic;">VIBY.CLUB</h1>
+        </div>
+        <div style="padding: 40px;">
+          <h2>Convite de Colaboração</h2>
+          <p>Olá! <strong>${data.inviterName}</strong> convidou você para fazer parte da equipe de <strong>${data.orgName}</strong> como <strong>${data.role}</strong>.</p>
+          <p>Você tem <strong>24 horas</strong> para aceitar este convite antes que ele expire.</p>
+          <div style="text-align: center; margin: 40px 0;">
+            <a href="https://viby.club/dashboard/solicitacoes" style="background: #0095f6; color: white; padding: 15px 30px; text-decoration: none; border-radius: 10px; font-weight: bold;">Ver Solicitação</a>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Viby.Club" <${smtpUser}>`,
+      to: data.to,
+      subject: `Convite: Faça parte da equipe de ${data.orgName} 🤝`,
+      html
+    });
+    return { success: true };
+  } catch (e) { return { success: false }; }
+}
+
+/**
+ * Notifica o administrador que o convite foi enviado.
+ */
+export async function sendTeamInvitationNoticeEmail(data: { to: string, inviteeName: string, orgName: string, role: string }) {
+  try {
+    const { smtpUser, smtpPass } = await getEmailConfig();
+    if (!smtpUser || !smtpPass) return { success: false };
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com', port: 465, secure: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    const html = `
+      <div style="font-family: sans-serif; padding: 30px;">
+        <h3>Convite Enviado com Sucesso!</h3>
+        <p>O convite para <strong>${data.inviteeName}</strong> participar de <strong>${data.orgName}</strong> como <strong>${data.role}</strong> foi enviado.</p>
+        <p>Aguarde o aceite do colaborador em até 24 horas.</p>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Viby.Club" <${smtpUser}>`,
+      to: data.to,
+      subject: `Convite enviado para ${data.inviteeName}`,
+      html
+    });
+    return { success: true };
+  } catch (e) { return { success: false }; }
+}
+
+/**
+ * Notifica sobre o resultado do convite (Aceito ou Recusado).
+ */
+export async function sendTeamInvitationStatusEmail(data: { to: string, userName: string, orgName: string, status: 'accepted' | 'declined' }) {
+  try {
+    const { smtpUser, smtpPass } = await getEmailConfig();
+    if (!smtpUser || !smtpPass) return { success: false };
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com', port: 465, secure: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    const isAccepted = data.status === 'accepted';
+    const statusText = isAccepted ? 'ACEITOU' : 'RECUSOU';
+
+    const html = `
+      <div style="font-family: sans-serif; padding: 30px;">
+        <h3>Atualização de Convite</h3>
+        <p>O usuário <strong>${data.userName}</strong> ${statusText} seu convite para a equipe de <strong>${data.orgName}</strong>.</p>
+        ${isAccepted ? '<p>O novo colaborador já possui acesso às ferramentas de gestão.</p>' : ''}
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Viby.Club" <${smtpUser}>`,
+      to: data.to,
+      subject: `Resultado do Convite: ${data.orgName}`,
+      html
+    });
+    return { success: true };
+  } catch (e) { return { success: false }; }
+}
