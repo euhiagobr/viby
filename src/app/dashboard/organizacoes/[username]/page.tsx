@@ -98,14 +98,6 @@ export default function OrganizationDashboardPage() {
     };
   }, [followers]);
 
-  // Métricas Simuladas de Acesso (Serão substituídas por analytics real no futuro)
-  const accessMetrics = React.useMemo(() => {
-    // Simulamos baseado no volume de seguidores para dar realismo ao protótipo
-    const views = (followerStats.total * 12) + 145;
-    const reach = (followerStats.total * 5) + 82;
-    return { views, reach };
-  }, [followerStats]);
-
   if (orgLoading) {
     return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
   }
@@ -142,20 +134,21 @@ export default function OrganizationDashboardPage() {
           </CardContent>
         </Card>
 
+        {/* MÉTRICAS REAIS DE ACESSO */}
         <Card className="border-none shadow-sm bg-white overflow-hidden relative">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
-              Acessos (30 dias)
+              Acessos (Acumulado)
               <Eye className="w-4 h-4 text-secondary" />
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
             <div className="flex items-baseline gap-2">
-               <span className="text-2xl font-black">{accessMetrics.views.toLocaleString()}</span>
-               <span className="text-[9px] font-bold text-muted-foreground uppercase">Views</span>
+               <span className="text-2xl font-black">{(currentOrg.totalViews || 0).toLocaleString()}</span>
+               <span className="text-[9px] font-bold text-muted-foreground uppercase">Visualizações</span>
             </div>
             <div className="flex items-baseline gap-2">
-               <span className="text-sm font-black text-secondary">{accessMetrics.reach.toLocaleString()}</span>
+               <span className="text-sm font-black text-secondary">{(currentOrg.totalReach || 0).toLocaleString()}</span>
                <span className="text-[9px] font-bold text-muted-foreground uppercase">Alcance Único</span>
             </div>
           </CardContent>

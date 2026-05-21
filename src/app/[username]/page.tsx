@@ -14,7 +14,9 @@ import {
   setDoc, 
   deleteDoc, 
   serverTimestamp,
-  collectionGroup
+  collectionGroup,
+  increment,
+  updateDoc
 } from "firebase/firestore"
 import { 
   Loader2, 
@@ -166,6 +168,8 @@ function UniversalProfileContent() {
   const [partneredEvents, setPartneredEvents] = React.useState<any[]>([])
   const [eventsLoading, setEventsLoading] = React.useState(false)
 
+  const trackedRef = React.useRef(false);
+
   // Resolvedor de username
   React.useEffect(() => {
     if (!db || !username) return
@@ -207,6 +211,49 @@ function UniversalProfileContent() {
     resolveUsername()
   }, [db, username])
 
+  // Lógica de Analytics (Rastreamento Real)
+  React.useEffect(() => {
+    if (!db || !data?.id || type !== 'organization' || trackedRef.current) return;
+
+    const trackVisit = async () => {
+      trackedRef.current = true;
+      const orgRef = doc(db, 'organizations', data.id);
+      const today = new Date();
+      const monthKey = `${today.getFullYear()}_${String(today.getMonth() + 1).padStart(2, '0')}`;
+
+      try {
+        // Incrementa visualização (total e mensal)
+        await updateDoc(orgRef, {
+          totalViews: increment(1),
+          metrics_views_current: increment(1)
+        });
+
+        // Alcance Único (Baseado em usuários logados para precisão do protótipo)
+        if (user) {
+          const visitorKey = `${user.uid}_${monthKey}`;
+          const visitorRef = doc(db, 'organizations', data.id, 'visitors', visitorKey);
+          const visitorSnap = await getDoc(visitorRef);
+
+          if (!visitorSnap.exists()) {
+            await setDoc(visitorRef, { 
+              userId: user.uid, 
+              timestamp: serverTimestamp(),
+              month: monthKey 
+            });
+            await updateDoc(orgRef, {
+              totalReach: increment(1),
+              metrics_reach_current: increment(1)
+            });
+          }
+        }
+      } catch (e) {
+        // Falha silenciosa em caso de erro de cota ou rede
+      }
+    };
+
+    trackVisit();
+  }, [db, data?.id, type, user]);
+
   // Busca eventos separados (Produzidos vs Parcerias)
   React.useEffect(() => {
     if (!db || !data?.id || type !== 'organization') return
@@ -239,8 +286,6 @@ function UniversalProfileContent() {
             setPartneredEvents([])
           }
         } catch (cgError: any) {
-          // Falha graciosamente se houver erro de permissão ou índice ausente (não trava a UI)
-          console.warn("Informação: Buscando parcerias em modo reduzido (verifique índices no Firebase Console).");
           setPartneredEvents([]);
         }
       } catch (e) {

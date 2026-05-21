@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.11.2
+    // REGRAS VIBY - Versão: 2.12.0
     // Database Exclusivo: eventosviby
     
     function isSignedIn() {
@@ -33,7 +33,7 @@ service cloud.firestore {
          !('status' in get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data));
     }
 
-    // Regras Críticas para buscas via collectionGroup
+    // Regras para buscas via collectionGroup
     match /{path=**}/members/{memberId} {
       allow read: if isSignedIn() && (request.auth.uid == memberId || resource.data.userId == request.auth.uid || isOrgMember(path[path.size() - 3]));
       allow create: if isSignedIn();
@@ -70,8 +70,17 @@ service cloud.firestore {
     match /organizations/{orgId} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow update: if hasOrgRole(orgId, ['owner', 'admin']);
+      // Permitir que visitantes incrementem visualizações e alcance
+      allow update: if hasOrgRole(orgId, ['owner', 'admin']) || isAdmin() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalViews', 'metrics_views_current', 'totalReach', 'metrics_reach_current'])
+      );
       allow delete: if hasOrgRole(orgId, ['owner']) || isAdmin();
+
+      // Subcoleções de rastreamento
+      match /visitors/{visitorId} {
+        allow read: if isOrgMember(orgId) || isAdmin();
+        allow create, update: if isSignedIn();
+      }
     }
 
     // Eventos
@@ -81,14 +90,13 @@ service cloud.firestore {
       allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
       allow delete: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
       
-      // Parceiros do Evento (Sendo redundante para garantir acesso direto)
       match /partners/{partnerId} {
         allow read: if true;
         allow write: if hasOrgRole(get(/databases/eventosviby/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']);
       }
     }
     
-    // Anúncios (Ads)
+    // Outras coleções
     match /ads/{adId} {
       allow read: if true;
       allow create: if isSignedIn(); 
@@ -96,7 +104,6 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Registros de Interesse / Ingressos
     match /registrations/{regId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
@@ -109,25 +116,21 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Logs de E-mail
     match /sent_emails/{emailId} {
       allow read: if isSignedIn();
       allow create: if true; 
     }
 
-    // Cupons de Desconto
     match /coupons/{couponId} {
       allow read: if true;
       allow create, update, delete: if hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']);
     }
 
-    // Categorias
     match /categories/{catId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Suporte
     match /support_tickets/{ticketId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn();
@@ -135,21 +138,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Denúncias e Reports
     match /reports/{reportId} {
       allow read: if isAdmin();
       allow create: if isSignedIn();
       allow delete: if isAdmin();
     }
 
-    // Relacionamentos de Seguimento
     match /follows/{followId} {
       allow read: if true;
       allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
       allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
     }
 
-    // Bloqueio padrão para segurança
     match /{allPaths=**} {
       allow read: if isAdmin();
       allow write: if isAdmin();
