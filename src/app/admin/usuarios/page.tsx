@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp, useDoc } from "@/firebase"
 import { 
   collection, 
   query, 
@@ -111,6 +111,9 @@ export default function AdminUsuariosPage() {
 
   const orgsQuery = useMemoFirebase(() => db ? query(collection(db, "organizations"), orderBy("createdAt", "desc")) : null, [db])
   const { data: orgs, loading: loadingOrgs } = useCollection<any>(orgsQuery)
+
+  const plansRef = React.useMemo(() => db ? doc(db, 'settings', 'plans') : null, [db])
+  const { data: plansSettings } = useDoc<any>(plansRef)
 
   // Consulta de Eventos para contagem
   const eventsQuery = useMemoFirebase(() => db ? collection(db, "events") : null, [db])
@@ -242,6 +245,26 @@ export default function AdminUsuariosPage() {
         [field]: value
       }
     }))
+  }
+
+  const handlePlanChange = (newPlan: string) => {
+    if (!editingUser || !plansSettings) return;
+    
+    const planKey = newPlan.toLowerCase();
+    const defaults = plansSettings[planKey] || {};
+
+    setEditingUser((prev: any) => ({
+      ...prev,
+      plan: newPlan,
+      planOverride: {
+        maxOrganizations: defaults.maxOrganizations ?? 1,
+        maxActiveEvents: defaults.maxActiveEvents ?? 1,
+        maxTicketsPerEvent: defaults.maxTicketsPerEvent ?? 30,
+        feePercent: defaults.feePercent ?? 16,
+        minFeeAmount: defaults.minFeeAmount ?? 9.99,
+        hasReports: defaults.hasReports ?? false
+      }
+    }));
   }
 
   const safeNumberValue = (val: any) => {
@@ -425,7 +448,7 @@ export default function AdminUsuariosPage() {
                              </h3>
                              <div className="space-y-2">
                                 <Label>Alterar Plano Ativo</Label>
-                                <Select value={editingUser?.plan || "START"} onValueChange={v => setEditingUser({...editingUser, plan: v})}>
+                                <Select value={editingUser?.plan || "START"} onValueChange={handlePlanChange}>
                                    <SelectTrigger className="rounded-xl h-12 bg-muted/30 border-none font-black uppercase italic"><SelectValue /></SelectTrigger>
                                    <SelectContent className="rounded-xl">
                                       <SelectItem value="START" className="font-bold uppercase">Viby Start</SelectItem>
@@ -440,7 +463,7 @@ export default function AdminUsuariosPage() {
                              <h3 className="text-xs font-black uppercase tracking-widest text-secondary flex items-center gap-2">
                                 <Settings className="w-4 h-4" /> Personalizar Limites
                              </h3>
-                             <p className="text-[10px] font-medium text-muted-foreground uppercase leading-relaxed">Estes valores sobrescrevem o plano padrão para este usuário específico.</p>
+                             <p className="text-[10px] font-medium text-muted-foreground uppercase leading-relaxed">Estes valores foram preenchidos conforme o plano escolhido, mas podem ser ajustados individualmente.</p>
                           </div>
                        </div>
 
@@ -451,8 +474,7 @@ export default function AdminUsuariosPage() {
                                 <Input 
                                   type="number" 
                                   value={safeNumberValue(editingUser?.planOverride?.maxOrganizations)} 
-                                  onChange={e => handleOverrideField('maxOrganizations', e.target.value === "" ? null : parseInt(e.target.value))} 
-                                  placeholder="Seguir plano" 
+                                  onChange={e => handleOverrideField('maxOrganizations', e.target.value === "" ? 0 : parseInt(e.target.value))} 
                                   className="rounded-xl" 
                                 />
                              </div>
@@ -461,8 +483,7 @@ export default function AdminUsuariosPage() {
                                 <Input 
                                   type="number" 
                                   value={safeNumberValue(editingUser?.planOverride?.maxActiveEvents)} 
-                                  onChange={e => handleOverrideField('maxActiveEvents', e.target.value === "" ? null : parseInt(e.target.value))} 
-                                  placeholder="Seguir plano" 
+                                  onChange={e => handleOverrideField('maxActiveEvents', e.target.value === "" ? 0 : parseInt(e.target.value))} 
                                   className="rounded-xl" 
                                 />
                              </div>
@@ -471,8 +492,8 @@ export default function AdminUsuariosPage() {
                                 <Input 
                                   type="number" 
                                   value={safeNumberValue(editingUser?.planOverride?.maxTicketsPerEvent)} 
-                                  onChange={e => handleOverrideField('maxTicketsPerEvent', e.target.value === "" ? null : parseInt(e.target.value))} 
-                                  placeholder="Seguir plano (0=Ilimitado)" 
+                                  onChange={e => handleOverrideField('maxTicketsPerEvent', e.target.value === "" ? 0 : parseInt(e.target.value))} 
+                                  placeholder="0 = Ilimitado"
                                   className="rounded-xl" 
                                 />
                              </div>
@@ -486,8 +507,7 @@ export default function AdminUsuariosPage() {
                                       type="number" 
                                       step="0.1" 
                                       value={safeNumberValue(editingUser?.planOverride?.feePercent)} 
-                                      onChange={e => handleOverrideField('feePercent', e.target.value === "" ? null : parseFloat(e.target.value))} 
-                                      placeholder="Ex: 12" 
+                                      onChange={e => handleOverrideField('feePercent', e.target.value === "" ? 0 : parseFloat(e.target.value))} 
                                       className="rounded-xl" 
                                    />
                                 </div>
@@ -497,8 +517,7 @@ export default function AdminUsuariosPage() {
                                       type="number" 
                                       step="0.01" 
                                       value={safeNumberValue(editingUser?.planOverride?.minFeeAmount)} 
-                                      onChange={e => handleOverrideField('minFeeAmount', e.target.value === "" ? null : parseFloat(e.target.value))} 
-                                      placeholder="Ex: 5.00" 
+                                      onChange={e => handleOverrideField('minFeeAmount', e.target.value === "" ? 0 : parseFloat(e.target.value))} 
                                       className="rounded-xl" 
                                    />
                                 </div>
