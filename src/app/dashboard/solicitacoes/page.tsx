@@ -66,7 +66,7 @@ export default function SolicitacoesPage() {
       toast({ title: "Convite aceito!", description: `Agora você faz parte da equipe de ${invite.orgName}.` });
     } catch (e: any) {
       console.error("Erro ao aceitar convite:", e);
-      toast({ variant: "destructive", title: "Erro ao aceitar", description: "Verifique suas permissões ou tente novamente." });
+      toast({ variant: "destructive", title: "Erro ao aceitar", description: "Ocorreu um problema de permissão ou conexão." });
     } finally {
       setActionLoadingId(null);
     }
@@ -92,7 +92,7 @@ export default function SolicitacoesPage() {
       toast({ title: "Convite recusado" });
     } catch (e: any) {
       console.error("Erro ao recusar convite:", e);
-      toast({ variant: "destructive", title: "Erro ao recusar" });
+      toast({ variant: "destructive", title: "Erro ao recusar", description: "Verifique sua conexão e tente novamente." });
     } finally {
       setActionLoadingId(null);
     }

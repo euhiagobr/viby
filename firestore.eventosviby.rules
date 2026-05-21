@@ -2,8 +2,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.3.0
+    // REGRAS VIBY - Versão: 2.4.0
     // Database Exclusivo: eventosviby
+    // ESTA REGRA É CRÍTICA: O BANCO (default) NÃO PODE SER UTILIZADO.
     
     function isSignedIn() {
       return request.auth != null;
@@ -23,15 +24,16 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function getMemberRole(orgId) {
-      return get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role;
-    }
-
     function hasOrgRole(orgId, roles) {
       return isSignedIn() && 
         exists(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
         get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.status == 'accepted' &&
         get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
+    }
+
+    // Regra para facilitar a busca de convites via collectionGroup (OrganizationContext)
+    match /{path=**}/members/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
     }
 
     // Configurações do Site
@@ -73,7 +75,7 @@ service cloud.firestore {
         allow delete: if request.auth.uid == userId || hasOrgRole(orgId, ['owner', 'admin']);
         
         // O próprio usuário pode aceitar seu convite (mudar status de pending para accepted)
-        allow update: if (request.auth.uid == userId && resource.data.status == 'pending' && request.resource.data.status == 'accepted') || 
+        allow update: if (request.auth.uid == userId && (resource.data.status == 'pending' || resource.data.status == null)) || 
                       hasOrgRole(orgId, ['owner', 'admin']);
       }
     }
