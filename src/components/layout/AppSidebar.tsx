@@ -15,7 +15,8 @@ import {
   Settings,
   Users,
   Building2,
-  UserCheck
+  UserCheck,
+  CalendarDays
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -77,8 +78,14 @@ export function AppSidebar() {
     { 
       title: "Eventos", 
       url: `/dashboard/organizacoes/${currentOrg.username}/events`, 
+      icon: CalendarDays, 
+      visible: true 
+    },
+    { 
+      title: "Anúncios", 
+      url: `/dashboard/anuncios`, 
       icon: Megaphone, 
-      visible: true // Todos veem a lista (para checkin ou consulta)
+      visible: ['owner', 'admin', 'editor'].includes(userRole || '') 
     },
     { 
       title: "Equipe", 
