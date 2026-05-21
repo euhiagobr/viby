@@ -21,6 +21,10 @@ interface EmailData {
   voucherUrl: string;
   eventUrl: string;
   eventImage?: string;
+  ticketPrice: number;
+  feePrice: number;
+  totalPrice: number;
+  isFree: boolean;
 }
 
 interface WelcomeEmailData {
@@ -103,6 +107,8 @@ export async function sendTicketEmail(data: EmailData) {
       color: { dark: '#000000', light: '#ffffff' },
     });
 
+    const formatBRL = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -114,12 +120,16 @@ export async function sendTicketEmail(data: EmailData) {
           .header { background: #000; color: white; padding: 40px 20px; text-align: center; }
           .content { padding: 40px; }
           .event-card { background: #f1f5f9; border-radius: 24px; padding: 25px; margin: 20px 0; border: 1px dashed #cbd5e1; }
+          .finance-box { border-top: 1px solid #e2e8f0; margin-top: 20px; padding-top: 20px; }
+          .finance-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; color: #64748b; }
+          .finance-total { display: flex; justify-content: space-between; font-size: 16px; font-weight: 800; margin-top: 10px; color: #0f172a; }
           .qr-container { text-align: center; margin: 30px 0; padding: 20px; background: #fff; border-radius: 24px; border: 1px solid #f1f5f9; }
           .qr-image { width: 200px; height: 200px; }
           .ticket-code { font-family: monospace; font-size: 20px; font-weight: bold; color: #2563eb; letter-spacing: 2px; margin-top: 10px; }
           .button { display: inline-block; padding: 18px 36px; background: #2563eb; color: white !important; text-decoration: none; border-radius: 16px; font-weight: bold; margin-top: 10px; font-size: 16px; }
           .footer { padding: 30px; text-align: center; font-size: 12px; color: #94a3b8; background: #f8fafc; }
           .label { font-size: 10px; text-transform: uppercase; font-weight: 900; color: #64748b; letter-spacing: 1px; margin-bottom: 4px; }
+          .badge-free { background: #dcfce7; color: #166534; padding: 4px 12px; border-radius: 100px; font-size: 10px; font-weight: 900; text-transform: uppercase; }
         </style>
       </head>
       <body>
@@ -135,7 +145,7 @@ export async function sendTicketEmail(data: EmailData) {
             <div class="event-card">
               <div class="label">Evento</div>
               <p style="margin:0 0 20px 0; font-size: 20px; font-weight: 800; color: #0f172a;">${data.eventTitle}</p>
-              <div style="display: flex; gap: 20px;">
+              <div style="display: flex; gap: 20px; margin-bottom: 20px;">
                 <div style="flex: 1;">
                   <div class="label">Data</div>
                   <p style="margin:0; font-weight: bold; font-size: 14px;">📅 ${data.eventDate}</p>
@@ -144,6 +154,17 @@ export async function sendTicketEmail(data: EmailData) {
                   <div class="label">Local</div>
                   <p style="margin:0; font-weight: bold; font-size: 14px;">📍 ${data.eventCity}</p>
                 </div>
+              </div>
+
+              <div class="finance-box">
+                <div class="label">Resumo do Ingresso</div>
+                ${data.isFree ? `
+                  <div style="margin-top: 10px;"><span class="badge-free">Ingresso Gratuito</span></div>
+                ` : `
+                  <div class="finance-row"><span>Valor do Ingresso</span><span>${formatBRL(data.ticketPrice)}</span></div>
+                  <div class="finance-row"><span>Taxa de Serviço</span><span>${formatBRL(data.feePrice)}</span></div>
+                  <div class="finance-total"><span>Total</span><span>${formatBRL(data.totalPrice)}</span></div>
+                `}
               </div>
             </div>
 

@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -91,7 +90,7 @@ export default function CheckoutSucessoPage() {
 
                 const eventDate = regData.eventDate?.toDate ? regData.eventDate.toDate().toLocaleString('pt-BR') : new Date(regData.eventDate).toLocaleString('pt-BR');
                 
-                // Dispara e-mail APENAS UMA VEZ
+                // Dispara e-mail APENAS UMA VEZ com detalhes financeiros reais
                 await sendTicketEmail({
                   to: regData.userEmail,
                   userName: regData.attendeeName || regData.userName,
@@ -100,7 +99,11 @@ export default function CheckoutSucessoPage() {
                   eventDate: eventDate,
                   eventCity: regData.eventCity || "Local Confirmado",
                   voucherUrl: `https://viby.club/dashboard/ingressos/${regId}/voucher`,
-                  eventUrl: `https://viby.club/${regData.organizerUsername || 'evento'}/${regData.eventId}`
+                  eventUrl: `https://viby.club/${regData.organizerUsername || 'evento'}/${regData.eventId}`,
+                  ticketPrice: regData.ticketBasePrice || 0,
+                  feePrice: regData.administrativeFeeAmount || 0,
+                  totalPrice: regData.price || 0,
+                  isFree: (regData.ticketBasePrice || 0) === 0
                 });
               }
             }
