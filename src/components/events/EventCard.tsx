@@ -122,9 +122,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       
       update[`stats_gender_${genderKey}`] = increment(1);
       update[`stats_age_${ageGroup}`] = increment(1);
-    } else {
-      update[`stats_gender_desconhecido`] = increment(1);
-      update[`stats_age_desconhecido`] = increment(1);
     }
     return update;
   }
@@ -141,22 +138,23 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           const costPerImpression = cpmValue / 1000
 
           const adRef = doc(db, "ads", event.adId)
-          const demoUpdate = getDemographicsUpdate();
-
           const updateData: any = { 
             reach: increment(1),
             remainingBudget: increment(-costPerImpression),
-            updatedAt: serverTimestamp(),
-            ...demoUpdate
+            updatedAt: serverTimestamp()
           };
 
-          // Alcance Único
+          // Alcance Único e Demografia
           if (user) {
             const viewerRef = doc(db, "ads", event.adId, "viewers", user.uid);
             const viewerSnap = await getDoc(viewerRef);
             if (!viewerSnap.exists()) {
               await setDoc(viewerRef, { timestamp: serverTimestamp() });
               updateData.uniqueReach = increment(1);
+              
+              // Incrementa demografia APENAS para novos usuários únicos
+              const demoUpdate = getDemographicsUpdate();
+              Object.assign(updateData, demoUpdate);
             }
           }
 
@@ -238,6 +236,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         clicks: increment(1),
         remainingBudget: increment(-cpcValue),
         updatedAt: serverTimestamp(),
+        // Cliques incrementam demografia de clique para análise de interesse repetido
         ...Object.keys(demoUpdate).reduce((acc: any, key) => {
           acc[key.replace('stats_', 'click_stats_')] = increment(1);
           return acc;

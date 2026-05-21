@@ -100,23 +100,27 @@ export function AdCard({ ad }: AdCardProps) {
           const cost = (adsSettings.cpmValue || 0) / 1000
           
           const adRef = doc(db, "ads", ad.id)
-          const demoUpdate = getDemographicsUpdate()
-
           const updateData: any = { 
             reach: increment(1),
             remainingBudget: increment(-cost),
-            updatedAt: serverTimestamp(),
-            ...demoUpdate
+            updatedAt: serverTimestamp()
           };
 
-          // Alcance Único
+          // Alcance Único e Demografia (Somente no primeiro acesso do usuário)
           if (user) {
             const viewerRef = doc(db, "ads", ad.id, "viewers", user.uid);
             const viewerSnap = await getDoc(viewerRef);
             if (!viewerSnap.exists()) {
               await setDoc(viewerRef, { timestamp: serverTimestamp() });
               updateData.uniqueReach = increment(1);
+              
+              // Incrementa demografia APENAS para novos usuários únicos
+              const demoUpdate = getDemographicsUpdate();
+              Object.assign(updateData, demoUpdate);
             }
+          } else {
+            // Para anônimos, apenas incrementamos as visualizações totais (reach)
+            // Não incrementamos demografia para evitar distorções de repetição
           }
 
           updateDoc(adRef, updateData).then(() => {
@@ -146,6 +150,7 @@ export function AdCard({ ad }: AdCardProps) {
         clicks: increment(1),
         remainingBudget: increment(-cost),
         updatedAt: serverTimestamp(),
+        // Para cliques, incrementamos sempre, pois representam interesse ativo repetido
         ...Object.keys(demoUpdate).reduce((acc: any, key) => {
           acc[key.replace('stats_', 'click_stats_')] = increment(1);
           return acc;

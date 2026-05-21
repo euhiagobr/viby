@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from "@/firebase"
-import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, increment, writeBatch } from "firebase/firestore"
+import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, increment, writeBatch, getDoc, setDoc } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -466,34 +466,35 @@ export default function OrganizationAdsPage() {
               </div>
            </div>
 
+           {/* TOTAL PARA PORCENTAGEM: Usamos o uniqueReach pois as métricas demográficas descrevem PESSOAS únicas */}
            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-6">
               <div className="space-y-6">
                  <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Users className="w-4 h-4" /> Perfil de Gênero</h4>
                  <div className="space-y-4">
-                    <DemographicBar label="Masculino" value={selectedAdForMetrics?.stats_gender_masculino || 0} total={selectedAdForMetrics?.reach || 1} color="bg-blue-500" />
-                    <DemographicBar label="Feminino" value={selectedAdForMetrics?.stats_gender_feminino || 0} total={selectedAdForMetrics?.reach || 1} color="bg-pink-500" />
-                    <DemographicBar label="Homem Trans" value={selectedAdForMetrics?.stats_gender_homem_trans || 0} total={selectedAdForMetrics?.reach || 1} color="bg-indigo-400" />
-                    <DemographicBar label="Mulher Trans" value={selectedAdForMetrics?.stats_gender_mulher_trans || 0} total={selectedAdForMetrics?.reach || 1} color="bg-rose-400" />
-                    <DemographicBar label="Agênero" value={selectedAdForMetrics?.stats_gender_agenero || 0} total={selectedAdForMetrics?.reach || 1} color="bg-gray-400" />
-                    <DemographicBar label="Outro" value={selectedAdForMetrics?.stats_gender_outro || 0} total={selectedAdForMetrics?.reach || 1} color="bg-purple-400" />
+                    <DemographicBar label="Masculino" value={selectedAdForMetrics?.stats_gender_masculino || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-blue-500" />
+                    <DemographicBar label="Feminino" value={selectedAdForMetrics?.stats_gender_feminino || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-pink-500" />
+                    <DemographicBar label="Homem Trans" value={selectedAdForMetrics?.stats_gender_homem_trans || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-indigo-400" />
+                    <DemographicBar label="Mulher Trans" value={selectedAdForMetrics?.stats_gender_mulher_trans || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-rose-400" />
+                    <DemographicBar label="Agênero" value={selectedAdForMetrics?.stats_gender_agenero || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-gray-400" />
+                    <DemographicBar label="Outro" value={selectedAdForMetrics?.stats_gender_outro || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-purple-400" />
                  </div>
               </div>
               <div className="space-y-6">
                  <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Clock className="w-4 h-4" /> Distribuição de Idade</h4>
                  <div className="space-y-4">
-                    <DemographicBar label="0 - 18 anos" value={selectedAdForMetrics?.stats_age_0_18 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-teal-400" />
-                    <DemographicBar label="19 - 24" value={selectedAdForMetrics?.stats_age_19_24 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-emerald-400" />
-                    <DemographicBar label="25 - 30" value={selectedAdForMetrics?.stats_age_25_30 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-sky-400" />
-                    <DemographicBar label="31 - 34" value={selectedAdForMetrics?.stats_age_31_34 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-blue-400" />
-                    <DemographicBar label="35 - 40" value={selectedAdForMetrics?.stats_age_35_40 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-indigo-400" />
-                    <DemographicBar label="41 - 44" value={selectedAdForMetrics?.stats_age_41_44 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-violet-400" />
-                    <DemographicBar label="45 - 50" value={selectedAdForMetrics?.stats_age_45_50 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-purple-400" />
-                    <DemographicBar label="50 - 75" value={selectedAdForMetrics?.stats_age_51_75 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-pink-400" />
-                    <DemographicBar label="+75 anos" value={selectedAdForMetrics?.stats_age_75plus || 0} total={selectedAdForMetrics?.reach || 1} color="bg-slate-400" />
+                    <DemographicBar label="0 - 18 anos" value={selectedAdForMetrics?.stats_age_0_18 || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-teal-400" />
+                    <DemographicBar label="19 - 24" value={selectedAdForMetrics?.stats_age_19_24 || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-emerald-400" />
+                    <DemographicBar label="25 - 30" value={selectedAdForMetrics?.stats_age_25_30 || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-sky-400" />
+                    <DemographicBar label="31 - 34" value={selectedAdForMetrics?.stats_age_31_34 || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-blue-400" />
+                    <DemographicBar label="35 - 40" value={selectedAdForMetrics?.stats_age_35_40 || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-indigo-400" />
+                    <DemographicBar label="41 - 44" value={selectedAdForMetrics?.stats_age_41_44 || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-violet-400" />
+                    <DemographicBar label="45 - 50" value={selectedAdForMetrics?.stats_age_45_50 || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-purple-400" />
+                    <DemographicBar label="50 - 75" value={selectedAdForMetrics?.stats_age_51_75 || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-pink-400" />
+                    <DemographicBar label="+75 anos" value={selectedAdForMetrics?.stats_age_75plus || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-slate-400" />
                  </div>
               </div>
            </div>
-           <div className="p-4 bg-muted/30 rounded-2xl flex gap-3"><Info className="w-5 h-5 text-secondary shrink-0" /><p className="text-[9px] text-muted-foreground font-bold uppercase leading-tight">Métricas baseadas em usuários logados. O Alcance Único identifica indivíduos únicos, enquanto as Visualizações contam cada exibição do card.</p></div>
+           <div className="p-4 bg-muted/30 rounded-2xl flex gap-3"><Info className="w-5 h-5 text-secondary shrink-0" /><p className="text-[9px] text-muted-foreground font-bold uppercase leading-tight">Métricas baseadas em usuários logados. O Alcance Único identifica indivíduos únicos, enquanto as Visualizações contam cada exibição do card. Porcentagens calculadas sobre o Alcance Único Identificado.</p></div>
         </DialogContent>
       </Dialog>
 
@@ -508,7 +509,8 @@ export default function OrganizationAdsPage() {
 }
 
 function DemographicBar({ label, value, total, color }: { label: string, value: number, total: number, color: string }) {
-  const percentage = Math.round((value / (total || 1)) * 100)
+  // Garantimos que total seja ao menos a soma dos valores para evitar divisões estranhas se Alcance Único for 0
+  const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
     <div className="space-y-1.5">
       <div className="flex justify-between items-center text-[9px] font-black uppercase">
