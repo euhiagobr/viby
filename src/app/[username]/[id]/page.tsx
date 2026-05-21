@@ -92,12 +92,10 @@ export default function EventoDetalhesPage() {
   const currentUserRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: currentUserProfile } = useDoc<any>(currentUserRef)
 
-  // Consulta de disponibilidade - Restrita a membros ou admin para evitar erro de permissão para público geral
-  // Para público geral, o estoque é informativo baseado no cache inicial se as regras bloquearem listagem
   const availabilityQuery = useMemoFirebase(() => {
-    if (!db || !eventId || !user) return null
+    if (!db || !eventId) return null
     return query(collection(db, "registrations"), where("eventId", "==", eventId))
-  }, [db, eventId, user])
+  }, [db, eventId])
   const { data: allRegistrations } = useCollection<any>(availabilityQuery)
 
   const [registering, setRegistering] = React.useState(false)
@@ -105,9 +103,7 @@ export default function EventoDetalhesPage() {
   const [selectedTicketType, setSelectedTicketType] = React.useState<any>(null)
   const [saleStatus, setSaleStatus] = React.useState<'open' | 'pending' | 'ended' | 'soldout'>('pending')
   
-  const [couponCode, setCouponCode] = React.useState("")
   const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null)
-  const [isVerifyingCoupon, setIsVerifyingCoupon] = React.useState(false)
   const [isCheckoutOpen, setIsCheckoutOpen] = React.useState(false)
 
   React.useEffect(() => {
@@ -128,29 +124,41 @@ export default function EventoDetalhesPage() {
       let foundActiveBatch = null
       let hasUpcoming = false
 
-      batches.forEach((batch: any) => {
+      // Lógica de transição automática entre lotes
+      // Percorre os lotes ordenados
+      for (const batch of batches) {
         const start = batch.startDate ? new Date(batch.startDate) : null
         const end = batch.endDate ? new Date(batch.endDate) : null
+        
         const isStarted = !start || now >= start
         const isNotEnded = !end || now <= end
 
-        if (!isStarted && !foundActiveBatch) hasUpcoming = true
-        
-        if (isStarted && isNotEnded && !foundActiveBatch) {
+        // Se o lote ainda não começou
+        if (!isStarted) {
+          if (!foundActiveBatch) hasUpcoming = true
+          continue
+        }
+
+        // Se o lote já começou e não terminou por data
+        if (isStarted && isNotEnded) {
           const typesWithStock = batch.ticketTypes.map((t: any) => {
             const sold = salesPerType[`${batch.id}_${t.id}`] || 0
             const remaining = Math.max(0, (t.quantity || 0) - sold)
             return { ...t, remaining }
           }).filter((t: any) => t.remaining > 0)
 
+          // Se este lote tem estoque, ele é o ativo
           if (typesWithStock.length > 0) {
             foundActiveBatch = { ...batch, ticketTypes: typesWithStock }
             currentSaleStatus = 'open'
+            break // Para no primeiro lote válido (mais antigo não esgotado)
           } else {
+            // Se o lote esgotou, continuamos para o próximo automaticamente
             currentSaleStatus = 'soldout'
+            continue
           }
         }
-      })
+      }
 
       setActiveBatch(foundActiveBatch)
       setSaleStatus(currentSaleStatus || (hasUpcoming ? 'pending' : 'ended'))
@@ -284,12 +292,13 @@ export default function EventoDetalhesPage() {
                                     onClick={() => setSelectedTicketType(type)}
                                     className={cn(
                                       "p-4 rounded-2xl border-2 transition-all cursor-pointer flex justify-between items-center",
-                                      selectedTicketType?.id === type.id ? "border-secondary bg-secondary/5" : "border-muted hover:border-secondary/20"
+                                      selectedTicketType?.id === type.id ? "border-secondary bg-secondary/5 shadow-inner" : "border-muted hover:border-secondary/20"
                                     )}
                                   >
                                      <div className="space-y-1">
                                         <p className="font-bold text-sm uppercase">{type.name}</p>
                                         <div className="flex gap-2">
+                                          {type.remaining <= 10 && <span className="text-[8px] font-black text-red-500 uppercase">Restam {type.remaining}</span>}
                                           {type.requiresProof && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase border-orange-200 text-orange-600">Doc. Obrigatório</Badge>}
                                           {type.isLegalHalf && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase border-blue-200 text-blue-600">Meia-Entrada</Badge>}
                                         </div>
@@ -302,7 +311,7 @@ export default function EventoDetalhesPage() {
                           <Button 
                             disabled={!selectedTicketType} 
                             onClick={() => setIsCheckoutOpen(true)}
-                            className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg"
+                            className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform"
                           >
                              Garantir Ingresso
                           </Button>

@@ -28,12 +28,10 @@ import {
   Save,
   Clock,
   Building2,
-  Compass,
-  RefreshCw,
-  Ticket,
   Info,
   AlertTriangle,
-  CheckCircle2
+  CheckCircle2,
+  Ticket
 } from "lucide-react"
 import Link from "next/link"
 import { Separator } from "@/components/ui/separator"
@@ -59,6 +57,17 @@ interface Batch {
   endDate: string
   ticketTypes: TicketType[]
 }
+
+const DEFAULT_TICKET_TYPES = [
+  { name: "Inteira", isLegalHalf: false, requiresProof: false },
+  { name: "Meia Estudante", isLegalHalf: true, requiresProof: true },
+  { name: "Meia PCD", isLegalHalf: true, requiresProof: true },
+  { name: "Meia Idoso", isLegalHalf: true, requiresProof: true },
+  { name: "Meia ID Jovem", isLegalHalf: true, requiresProof: true },
+  { name: "Ingresso Social", isLegalHalf: false, requiresProof: true },
+  { name: "Cortesia", isLegalHalf: false, requiresProof: false },
+  { name: "Promocional", isLegalHalf: false, requiresProof: false },
+]
 
 export default function EditarEventoPage() {
   const params = useParams()
@@ -189,7 +198,7 @@ export default function EditarEventoPage() {
     } catch (e) {} finally { setIsGeocoding(false); }
   }
 
-  const addBatch = () => setBatches([...batches, { id: crypto.randomUUID(), name: `Lote ${batches.length + 1}`, description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 0, quantity: 0, requiresProof: false, isLegalHalf: false, description: "" }] }])
+  const addBatch = () => setBatches([...batches, { id: crypto.randomUUID(), name: `Lote ${batches.length + 1}`, description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 50, requiresProof: false, isLegalHalf: false, description: "" }] }])
   const removeBatch = (i: number) => setBatches(batches.filter((_, idx) => idx !== i))
   const updateBatchField = (i: number, f: keyof Batch, v: any) => { const n = [...batches]; n[i] = { ...n[i], [f]: v }; setBatches(n); }
   
@@ -222,7 +231,11 @@ export default function EditarEventoPage() {
         tags: tags.split(",").map(t => t.trim()).filter(t => t !== ""),
         ticketMode: ticketMode,
         isFree: ticketMode === 'free',
-        batches: batches.map(b => ({ ...b, totalCapacity: b.ticketTypes.reduce((acc, t) => acc + (parseInt(t.quantity as any) || 0), 0), ticketTypes: b.ticketTypes.map(t => ({ ...t, price: parseFloat(t.price as any) || 0, quantity: parseInt(t.quantity as any) || 0 })) })),
+        batches: batches.map(b => ({ 
+          ...b, 
+          totalCapacity: b.ticketTypes.reduce((acc, t) => acc + (parseInt(t.quantity as any) || 0), 0), 
+          ticketTypes: b.ticketTypes.map(t => ({ ...t, price: parseFloat(t.price as any) || 0, quantity: parseInt(t.quantity as any) || 0 })) 
+        })),
         cep, address, latitude: parseFloat(coords.lat) || 0, longitude: parseFloat(coords.lng) || 0,
         image: uploadedImageUrl || event.image || "", city: address.city,
         updatedAt: serverTimestamp()
@@ -242,7 +255,6 @@ export default function EditarEventoPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-         {/* Capa */}
          <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
             <CardHeader><CardTitle className="text-lg">Capa do Evento</CardTitle></CardHeader>
             <CardContent>
@@ -250,10 +262,10 @@ export default function EditarEventoPage() {
                   {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" /> : null}
                   <input id="img-up" type="file" className="hidden" onChange={handleImageChange} />
                </div>
+               {uploadProgress !== null && <Progress value={uploadProgress} className="h-1 mt-4" />}
             </CardContent>
          </Card>
 
-         {/* Geral */}
          <Card className="border-none shadow-sm rounded-[2rem]">
             <CardHeader><CardTitle className="text-lg">Dados Gerais</CardTitle></CardHeader>
             <CardContent className="space-y-6">
@@ -269,13 +281,13 @@ export default function EditarEventoPage() {
                </div>
                <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2"><Label>Início</Label><Input name="startDate" type="datetime-local" defaultValue={event.date} className="rounded-xl" /></div>
-                  <div className="space-y-2"><Label>Fim</Label><Input name="endDate" type="datetime-local" defaultValue={event.endDate} className="rounded-xl" /></div>
+                  <div className="space-y-2"><Label>Término</Label><Input name="endDate" type="datetime-local" defaultValue={event.endDate} className="rounded-xl" /></div>
                </div>
-               <div className="space-y-2"><Label>Descrição</Label><Textarea name="description" defaultValue={event.description} className="min-h-[100px] rounded-xl" /></div>
+               <div className="space-y-2"><Label>Descrição Curta</Label><Input name="shortDescription" defaultValue={event.shortDescription} className="rounded-xl" /></div>
+               <div className="space-y-2"><Label>Descrição Completa</Label><Textarea name="description" defaultValue={event.description} className="min-h-[100px] rounded-xl" /></div>
             </CardContent>
          </Card>
 
-         {/* Localização */}
          <Card className="border-none shadow-sm rounded-[2rem]">
             <CardHeader><CardTitle className="text-lg">Localização</CardTitle></CardHeader>
             <CardContent className="space-y-6">
@@ -292,7 +304,6 @@ export default function EditarEventoPage() {
             </CardContent>
          </Card>
 
-         {/* Ingressos */}
          <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
             <CardHeader className="bg-muted/30 border-b">
                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -305,7 +316,14 @@ export default function EditarEventoPage() {
                       className="text-[10px] font-black uppercase px-4" 
                       onClick={() => {
                         setTicketMode('free');
-                        setBatches([{ id: crypto.randomUUID(), name: "Lote Gratuito", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Entrada Franca", price: 0, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]);
+                        setBatches([{ 
+                          id: crypto.randomUUID(), 
+                          name: "Grátis", 
+                          description: "", 
+                          startDate: "", 
+                          endDate: "", 
+                          ticketTypes: [{ id: crypto.randomUUID(), name: "Entrada Franca", price: 0, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] 
+                        }]);
                       }}
                     >Grátis</Button>
                     <Button 
@@ -315,7 +333,14 @@ export default function EditarEventoPage() {
                       className="text-[10px] font-black uppercase px-4" 
                       onClick={() => {
                         setTicketMode('paid_single');
-                        setBatches([{ id: crypto.randomUUID(), name: "Ingresso Único", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]);
+                        setBatches([{ 
+                          id: crypto.randomUUID(), 
+                          name: "Ingresso Único", 
+                          description: "", 
+                          startDate: "", 
+                          endDate: "", 
+                          ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] 
+                        }]);
                       }}
                     >Único Pago</Button>
                     <Button 
@@ -331,19 +356,26 @@ export default function EditarEventoPage() {
             <CardContent className="p-6 space-y-8">
                {batches.map((batch, bi) => {
                  const stats = calculateHalfPriceStats(batch);
+                 const isFreeMode = ticketMode === 'free';
+                 
                  return (
                    <div key={batch.id} className="p-6 rounded-[1.5rem] border-2 bg-muted/10 space-y-6">
                       <div className="flex justify-between items-center">
                         <div className="space-y-1">
-                           <h3 className="font-black italic uppercase text-secondary tracking-tighter text-xl">{batch.name}</h3>
+                           <h3 className="font-black italic uppercase text-secondary tracking-tighter text-xl">{isFreeMode ? "Grátis" : batch.name}</h3>
                         </div>
                         {ticketMode === 'batches' && batches.length > 1 && <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)}><Trash2 className="w-4 h-4" /></Button>}
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote</Label>
-                            <Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" />
+                            <Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote / Ingresso</Label>
+                            <Input 
+                              value={isFreeMode ? "Grátis" : batch.name} 
+                              onChange={e => updateBatchField(bi, 'name', e.target.value)} 
+                              className="rounded-xl h-11" 
+                              disabled={isFreeMode}
+                            />
                          </div>
                          <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2"><Label className="text-[10px] uppercase font-black opacity-40">Início Vendas</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
@@ -352,45 +384,68 @@ export default function EditarEventoPage() {
                       </div>
 
                       <div className="space-y-4">
-                         <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Tipos de Ingresso</h4>
+                         <div className="flex items-center justify-between border-b pb-2 mb-4">
+                            <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Tipos de Ingresso</h4>
+                            {!isFreeMode && (
+                              <div className="flex gap-2">
+                                <Select onValueChange={(v) => {
+                                  const preset = DEFAULT_TICKET_TYPES.find(p => p.name === v);
+                                  if (preset) {
+                                    const newTypes = [...batch.ticketTypes, { id: crypto.randomUUID(), name: preset.name, price: 0, quantity: 0, requiresProof: preset.requiresProof, isLegalHalf: preset.isLegalHalf, description: "" }];
+                                    updateBatchField(bi, 'ticketTypes', newTypes);
+                                  }
+                                }}>
+                                    <SelectTrigger className="h-8 rounded-lg text-[10px] font-black uppercase border-dashed w-40"><SelectValue placeholder="Presets de Tipos" /></SelectTrigger>
+                                    <SelectContent className="rounded-xl">
+                                      {DEFAULT_TICKET_TYPES.map(p => <SelectItem key={p.name} value={p.name} className="text-xs font-bold">{p.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-dashed" onClick={() => addTicketType(bi)}>Adicionar Personalizado</Button>
+                              </div>
+                            )}
+                         </div>
                          <div className="space-y-3">
                             {batch.ticketTypes.map((t, ti) => (
                               <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm space-y-4 group">
-                                 <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-                                    <div className="flex-1 space-y-2">
-                                       <Label className="text-[10px] font-black uppercase opacity-60">Nome do Tipo</Label>
-                                       <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10" />
+                                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                                    <div className="md:col-span-4 space-y-2">
+                                       <Label className="text-[10px] font-black uppercase opacity-40">Nome do Tipo</Label>
+                                       <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" />
                                     </div>
-                                    <div className="w-full md:w-32 space-y-2">
-                                       <Label className="text-[10px] font-black uppercase opacity-60">Valor (R$)</Label>
+                                    <div className="md:col-span-2 space-y-2">
+                                       <Label className="text-[10px] font-black uppercase opacity-40">Qtd</Label>
+                                       <Input type="number" value={t.quantity} onChange={e => updateTicketTypeField(bi, ti, 'quantity', e.target.value)} className="rounded-xl h-10 font-black" />
+                                    </div>
+                                    <div className="md:col-span-2 space-y-2">
+                                       <Label className="text-[10px] font-black uppercase opacity-40">Valor (R$)</Label>
                                        <Input 
                                           type="number" 
                                           step="0.01" 
                                           value={t.price} 
                                           onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} 
-                                          className="w-full rounded-xl h-10 font-bold" 
-                                          disabled={ticketMode === 'free'} 
+                                          className="w-full rounded-xl h-10 font-black text-secondary" 
+                                          disabled={isFreeMode} 
                                        />
                                     </div>
-                                    <div className="w-full md:w-24 space-y-2">
-                                       <Label className="text-[10px] font-black uppercase opacity-60">Quantidade</Label>
-                                       <Input 
-                                          type="number" 
-                                          value={t.quantity} 
-                                          onChange={e => updateTicketTypeField(bi, ti, 'quantity', e.target.value)} 
-                                          className="w-full rounded-xl h-10" 
-                                       />
+                                    <div className="md:col-span-3 flex items-center justify-around pb-2">
+                                      <div className="flex flex-col items-center gap-1">
+                                        <Switch checked={t.isLegalHalf} onCheckedChange={v => updateTicketTypeField(bi, ti, 'isLegalHalf', v)} disabled={isFreeMode} />
+                                        <span className="text-[8px] font-black uppercase">Meia-Entrada</span>
+                                      </div>
+                                      <div className="flex flex-col items-center gap-1">
+                                        <Switch checked={t.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} />
+                                        <span className="text-[8px] font-black uppercase">Doc. Obrigatório</span>
+                                      </div>
                                     </div>
-                                    <div className="flex items-center gap-4 md:pt-6">
-                                      <div className="flex items-center gap-1"><Switch checked={t.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} /><span className="text-[9px] font-black uppercase">Doc. Obrigatório</span></div>
-                                      <div className="flex items-center gap-1"><Switch checked={t.isLegalHalf} onCheckedChange={v => updateTicketTypeField(bi, ti, 'isLegalHalf', v)} /><span className="text-[9px] font-black uppercase">Meia</span></div>
-                                      <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeTicketType(bi, ti)}><Trash2 className="w-4 h-4" /></Button>
+                                    <div className="md:col-span-1 flex justify-end pb-1">
+                                      {!isFreeMode && batch.ticketTypes.length > 1 && (
+                                        <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full hover:bg-destructive/10" onClick={() => removeTicketType(bi, ti)}><Trash2 className="w-4 h-4" /></Button>
+                                      )}
                                     </div>
                                  </div>
                               </div>
                             ))}
                          </div>
-                         <Button type="button" variant="outline" className="w-full border-dashed rounded-xl h-10 font-bold uppercase text-[10px]" onClick={() => addTicketType(bi)}>Adicionar Tipo de Ingresso</Button>
                       </div>
 
                       <div className={cn("p-5 bg-white rounded-3xl border shadow-inner space-y-4", stats.percentage < 40 ? "border-orange-200" : "border-green-200")}>
@@ -398,13 +453,13 @@ export default function EditarEventoPage() {
                             <div className="space-y-1">
                                <div className="flex items-center gap-2">
                                   <Info className="w-4 h-4 text-secondary" />
-                                  <h5 className="text-[10px] font-black uppercase tracking-widest text-primary">Resumo do Lote</h5>
+                                  <h5 className="text-[10px] font-black uppercase tracking-widest text-primary">Conformidade Legal</h5>
                                </div>
-                               <p className="text-[9px] text-muted-foreground font-medium leading-tight">Meia-entrada legal recomendada: 40% (Lei nº 12.933/2013).</p>
+                               <p className="text-[9px] text-muted-foreground font-medium leading-tight">Lei Federal nº 12.933/2013 recomenda reserva de 40% para Meia-Entrada.</p>
                             </div>
                             <div className="flex items-center gap-3">
                                <div className="text-right">
-                                  <p className="text-[9px] font-black uppercase opacity-40">Percentual Meia</p>
+                                  <p className="text-[9px] font-black uppercase opacity-40">Percentual</p>
                                   <p className={cn("text-xl font-black italic", stats.percentage < 40 ? "text-orange-500" : "text-green-600")}>{stats.percentage.toFixed(1)}%</p>
                                </div>
                                <div className={cn("h-10 w-10 rounded-full flex items-center justify-center shadow-lg", stats.percentage < 40 ? "bg-orange-500 text-white" : "bg-green-600 text-white")}>
@@ -416,7 +471,7 @@ export default function EditarEventoPage() {
                            <div className="p-3 rounded-xl bg-orange-50 border border-orange-100 flex gap-2 items-start">
                               <AlertTriangle className="w-3 h-3 text-orange-600 shrink-0 mt-0.5" />
                               <p className="text-[9px] text-orange-800 font-bold uppercase leading-relaxed">
-                                 O lote possui {stats.legalHalf} meias de um total de {stats.total} ingressos.
+                                 Este lote possui apenas {stats.legalHalf} ingressos de meia-entrada recomendada.
                               </p>
                            </div>
                          )}
@@ -424,11 +479,11 @@ export default function EditarEventoPage() {
                    </div>
                  );
                })}
-               {ticketMode === 'batches' && <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic tracking-widest gap-2" onClick={addBatch}><Plus className="w-5 h-5" /> Novo Lote de Vendas</Button>}
+               {ticketMode === 'batches' && <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic tracking-widest gap-2 hover:bg-secondary/5 transition-all" onClick={addBatch}><Plus className="w-5 h-5" /> Adicionar Novo Lote</Button>}
             </CardContent>
          </Card>
 
-         <Button type="submit" disabled={saving} className="w-full h-16 rounded-[2rem] bg-secondary text-white font-black text-xl shadow-xl shadow-secondary/20 uppercase italic">
+         <Button type="submit" disabled={saving} className="w-full h-16 rounded-[2rem] bg-secondary text-white font-black text-xl shadow-xl shadow-secondary/20 uppercase italic transition-all hover:scale-[1.02]">
             {saving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />}
             Salvar Alterações
          </Button>
