@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -14,7 +15,8 @@ import {
   Megaphone,
   Settings,
   Users,
-  Building2
+  Building2,
+  UserCheck
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -42,7 +44,7 @@ export function AppSidebar() {
   const router = useRouter()
   const auth = useAuth()
   const { user } = useUser(auth)
-  const { currentOrg, userRole } = useCurrentOrganization()
+  const { currentOrg, userRole, pendingInvitations } = useCurrentOrganization()
 
   const handleLogout = async () => {
     if (!auth) return
@@ -61,6 +63,7 @@ export function AppSidebar() {
     { title: "Explorar", url: "/dashboard", icon: Globe },
     { title: "Meus Ingressos", url: "/dashboard/ingressos", icon: Ticket },
     { title: "Minhas Organizações", url: "/dashboard/organizacoes", icon: Building2 },
+    { title: "Solicitações", url: "/dashboard/solicitacoes", icon: UserCheck, badge: pendingInvitations.length > 0 ? pendingInvitations.length : null },
     { title: "Seguindo", url: "/dashboard/seguindo", icon: Heart },
     { title: "Meu Perfil", url: "/dashboard/perfil", icon: User },
     { title: "Suporte", url: "/dashboard/suporte", icon: LifeBuoy },
@@ -120,11 +123,18 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={pathname === item.url}>
                     <Link href={item.url} className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-semibold text-sm",
+                      "flex items-center justify-between px-3 py-2.5 rounded-xl transition-all font-semibold text-sm",
                       pathname === item.url ? "bg-primary text-white" : "hover:bg-muted text-muted-foreground"
                     )}>
-                      <item.icon className="w-4 h-4" />
-                      <span>{item.title}</span>
+                      <div className="flex items-center gap-3">
+                        <item.icon className="w-4 h-4" />
+                        <span>{item.title}</span>
+                      </div>
+                      {item.badge && (
+                        <span className="bg-secondary text-white text-[9px] font-black h-4 w-4 rounded-full flex items-center justify-center">
+                          {item.badge}
+                        </span>
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -7,11 +8,11 @@ import {
   query, 
   where, 
   collectionGroup, 
-  getDocs, 
   doc, 
   getDoc,
   onSnapshot,
-  limit
+  limit,
+  getDocs
 } from 'firebase/firestore';
 import { useParams, usePathname } from 'next/navigation';
 
@@ -33,6 +34,7 @@ interface OrganizationContextType {
   currentOrg: Organization | null;
   setCurrentOrg: (org: Organization | null) => void;
   organizations: Organization[];
+  pendingInvitations: any[];
   loading: boolean;
   userRole: string | null;
   refreshOrg: () => Promise<void>;
@@ -42,6 +44,7 @@ const OrganizationContext = createContext<OrganizationContextType>({
   currentOrg: null,
   setCurrentOrg: () => {},
   organizations: [],
+  pendingInvitations: [],
   loading: true,
   userRole: null,
   refreshOrg: async () => {},
@@ -56,30 +59,52 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   
   const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
 
-  // Carrega todas as organizações onde o usuário é membro
+  // Carrega todas as organizações onde o usuário é membro ACEITO
   useEffect(() => {
     if (!db || !user) {
       setOrganizations([]);
+      setPendingInvitations([]);
       setLoading(false);
       return;
     }
 
+    // Busca todos os membros com o UID do usuário
     const membersQuery = query(collectionGroup(db, 'members'), where('userId', '==', user.uid));
     
     const unsubscribe = onSnapshot(membersQuery, async (snapshot) => {
       try {
         const orgsPromises = snapshot.docs.map(async (memberDoc) => {
+          const mData = memberDoc.data();
           const orgId = memberDoc.ref.parent.parent?.id;
           if (!orgId) return null;
-          const orgSnap = await getDoc(doc(db, 'organizations', orgId));
-          return orgSnap.exists() ? { id: orgSnap.id, ...orgSnap.data() } as Organization : null;
+
+          if (mData.status === 'accepted' || !mData.status) { // Fallback para owner original que pode não ter status
+            const orgSnap = await getDoc(doc(db, 'organizations', orgId));
+            return orgSnap.exists() ? { id: orgSnap.id, ...orgSnap.data(), _memberData: mData } as Organization : null;
+          }
+          return null;
+        });
+
+        const pendingPromises = snapshot.docs.map(async (memberDoc) => {
+          const mData = memberDoc.data();
+          if (mData.status === 'pending') {
+            const orgId = memberDoc.ref.parent.parent?.id;
+            if (!orgId) return null;
+            const orgSnap = await getDoc(doc(db, 'organizations', orgId));
+            return orgSnap.exists() ? { id: orgSnap.id, orgName: orgSnap.data().name, ...mData } : null;
+          }
+          return null;
         });
 
         const orgsData = (await Promise.all(orgsPromises)).filter((o): o is Organization => o !== null);
+        const pingsData = (await Promise.all(pendingPromises)).filter(p => p !== null);
+
         setOrganizations(orgsData);
+        setPendingInvitations(pingsData);
       } catch (e) {
         console.error("Erro ao carregar organizações:", e);
       } finally {
@@ -101,25 +126,21 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       if (found) {
         if (currentOrg?.id !== found.id) {
           setCurrentOrg(found);
-          const memberRef = doc(db, 'organizations', found.id, 'members', user.uid);
-          getDoc(memberRef).then(snap => {
-            setUserRole(snap.exists() ? snap.data().role : null);
-          });
+          setUserRole(found._memberData?.role || null);
         }
       } else {
-        // Se não achou na lista pré-carregada, busca por username no banco
+        // Se não achou na lista pré-carregada, busca por username no banco para validar acesso
         const q = query(collection(db, 'organizations'), where('username', '==', usernameFromUrl), limit(1));
         getDocs(q).then(async (snap) => {
           if (!snap.empty) {
             const orgDoc = snap.docs[0];
-            const orgData = { id: orgDoc.id, ...orgDoc.data() } as Organization;
-            
             const memberRef = doc(db, 'organizations', orgDoc.id, 'members', user.uid);
             const memberSnap = await getDoc(memberRef);
+            const mData = memberSnap.data();
             
-            if (memberSnap.exists()) {
-              setCurrentOrg(orgData);
-              setUserRole(memberSnap.data().role);
+            if (memberSnap.exists() && (mData?.status === 'accepted' || !mData?.status)) {
+              setCurrentOrg({ id: orgDoc.id, ...orgDoc.data() } as Organization);
+              setUserRole(mData?.role || null);
             } else {
               setCurrentOrg(null);
               setUserRole(null);
@@ -128,14 +149,12 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         });
       }
     } else if (!pathname?.includes('/dashboard/organizacoes/')) {
+      // Salva preferência da última org ativa no painel
       const savedOrgId = localStorage.getItem('viby_current_org');
       const found = organizations.find(o => o.id === savedOrgId) || organizations[0];
       if (found && currentOrg?.id !== found.id) {
         setCurrentOrg(found);
-        const memberRef = doc(db, 'organizations', found.id, 'members', user.uid);
-        getDoc(memberRef).then(snap => {
-          setUserRole(snap.exists() ? snap.data().role : null);
-        });
+        setUserRole(found._memberData?.role || null);
       }
     }
   }, [params?.username, organizations, db, user, loading, pathname]);
@@ -162,6 +181,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       currentOrg, 
       setCurrentOrg: handleSetCurrentOrg, 
       organizations, 
+      pendingInvitations,
       loading,
       userRole,
       refreshOrg

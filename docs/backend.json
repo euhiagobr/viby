@@ -69,9 +69,10 @@
       "properties": {
         "userId": { "type": "string" },
         "role": { "type": "string", "enum": ["owner", "admin", "editor", "finance", "checkin"] },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["userId", "role"]
+      "required": ["userId", "role", "status"]
     },
     "Event": {
       "title": "Evento",

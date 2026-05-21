@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -25,7 +26,8 @@ import {
   Loader2, 
   Trash2, 
   Fingerprint,
-  UserPlus
+  UserPlus,
+  Clock
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -127,10 +129,11 @@ export default function OrganizationMembersPage() {
       await setDoc(memberRef, {
         userId: targetUid,
         role,
+        status: 'pending',
         createdAt: serverTimestamp()
       });
 
-      toast({ title: "Membro adicionado!", description: "O colaborador já tem acesso à gestão." });
+      toast({ title: "Convite enviado!", description: "O colaborador precisa aceitar o convite no painel dele." });
       setIsInviteOpen(false);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao convidar", description: error.message });
@@ -141,11 +144,11 @@ export default function OrganizationMembersPage() {
 
   const handleRemoveMember = async (userId: string) => {
     if (!db || !currentOrg) return;
-    if (!confirm("Tem certeza que deseja remover este membro?")) return;
+    if (!confirm("Tem certeza que deseja remover este membro ou cancelar o convite?")) return;
 
     try {
       await deleteDoc(doc(db, 'organizations', currentOrg.id, 'members', userId));
-      toast({ title: "Membro removido" });
+      toast({ title: "Membro/Convite removido" });
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao remover" });
     }
@@ -217,7 +220,7 @@ export default function OrganizationMembersPage() {
                 <DialogFooter>
                    <Button type="submit" disabled={inviteLoading} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
                       {inviteLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <UserPlus className="w-5 h-5 mr-2" />}
-                      Confirmar Acesso
+                      Enviar Convite
                    </Button>
                 </DialogFooter>
               </form>
@@ -232,7 +235,7 @@ export default function OrganizationMembersPage() {
               <TableRow>
                  <TableHead className="font-black uppercase text-[10px] tracking-widest">Colaborador</TableHead>
                  <TableHead className="font-black uppercase text-[10px] tracking-widest">Cargo</TableHead>
-                 <TableHead className="font-black uppercase text-[10px] tracking-widest">Acesso desde</TableHead>
+                 <TableHead className="font-black uppercase text-[10px] tracking-widest">Status</TableHead>
                  <TableHead className="text-right font-black uppercase text-[10px] tracking-widest">Ações</TableHead>
               </TableRow>
            </TableHeader>
@@ -262,7 +265,15 @@ export default function OrganizationMembersPage() {
                       </Badge>
                    </TableCell>
                    <TableCell>
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase">{member.createdAt?.seconds ? new Date(member.createdAt.seconds * 1000).toLocaleDateString('pt-BR') : '---'}</span>
+                      {member.status === 'pending' ? (
+                        <div className="flex items-center gap-1.5 text-orange-500 font-black text-[10px] uppercase">
+                          <Clock className="w-3 h-3" /> Pendente
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-green-600 font-black text-[10px] uppercase">
+                          <Check className="w-3 h-3" /> Ativo
+                        </div>
+                      )}
                    </TableCell>
                    <TableCell className="text-right">
                       {isOwnerOrAdmin && member.role !== 'owner' && (
