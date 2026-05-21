@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -17,6 +16,7 @@ import { Globe, Loader2, Check, X, ArrowLeft, Fingerprint } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import { encryptDeterministic } from "@/lib/crypto-utils"
+import { cn } from "@/lib/utils"
 
 export default function CadastroPage() {
   const [name, setName] = useState("")
@@ -210,7 +210,7 @@ export default function CadastroPage() {
             <form onSubmit={handleRegister} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome Completo</Label>
-                <Input id="name" placeholder="Seu nome" value={name} onChange={(e) => setName(e.target.value)} required className="rounded-xl h-11" />
+                <input id="name" placeholder="Seu nome" value={name} onChange={(e) => setName(e.target.value)} required className="flex h-11 w-full rounded-xl border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm" />
               </div>
               
               <div className="space-y-2">
