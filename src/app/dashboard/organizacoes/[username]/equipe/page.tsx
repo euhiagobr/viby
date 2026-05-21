@@ -23,10 +23,10 @@ import {
   Plus, 
   Loader2, 
   Trash2, 
-  Fingerprint,
   UserPlus,
   Clock,
-  Check
+  Check,
+  AtSign
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -49,7 +49,6 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from "@/lib/utils";
-import { encryptDeterministic } from '@/lib/crypto-utils';
 import { sendTeamInvitationEmail, sendTeamInvitationNoticeEmail } from '@/app/actions/email';
 
 const ROLES = [
@@ -94,39 +93,41 @@ export default function OrganizationMembersPage() {
     fetchProfiles();
   }, [rawMembers, db]);
 
-  const formatCPF = (v: string) => {
-    v = v.replace(/\D/g, "");
-    if (v.length > 11) v = v.slice(0, 11);
-    if (v.length > 9) return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-    if (v.length > 6) return v.replace(/(\d{3})(\d{3})(\d{1,3})/, "$1.$2.$3");
-    if (v.length > 3) return v.replace(/(\d{3})(\d{1,3})/, "$1.$2");
-    return v;
-  }
-
   const handleInviteMember = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!db || !currentOrg || !currentUser) return;
 
     setInviteLoading(true);
     const formData = new FormData(e.currentTarget);
-    const cpfInput = (formData.get('cpf') as string).replace(/\D/g, "");
+    const usernameInput = (formData.get('username') as string).toLowerCase().replace('@', '').trim();
     const role = formData.get('role') as string;
 
     try {
-      if (cpfInput.length !== 11) {
-        throw new Error("CPF inválido.");
+      if (!usernameInput) {
+        throw new Error("Informe o nome de usuário.");
       }
 
-      const encryptedCpf = encryptDeterministic(cpfInput);
-      const q = query(collection(db, 'users'), where('cpf', '==', encryptedCpf));
-      const snap = await getDocs(q);
+      // Busca o UID na coleção central de usernames
+      const usernameRef = doc(db, 'usernames', usernameInput);
+      const usernameSnap = await getDoc(usernameRef);
 
-      if (snap.empty) {
-        throw new Error("Usuário não encontrado com este CPF.");
+      if (!usernameSnap.exists()) {
+        throw new Error("Usuário não encontrado.");
       }
 
-      const targetUser = snap.docs[0].data();
-      const targetUid = snap.docs[0].id;
+      const uData = usernameSnap.data();
+      if (uData.type !== 'user') {
+        throw new Error("Apenas perfis pessoais podem ser convidados para a equipe.");
+      }
+
+      const targetUid = uData.uid;
+
+      // Busca os dados do perfil para os e-mails
+      const targetUserSnap = await getDoc(doc(db, 'users', targetUid));
+      if (!targetUserSnap.exists()) {
+        throw new Error("Dados do usuário não localizados.");
+      }
+      const targetUser = targetUserSnap.data();
 
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + 24);
@@ -142,8 +143,9 @@ export default function OrganizationMembersPage() {
         inviterUid: currentUser.uid,
         inviterName: currentUser.displayName || "Administrador",
         inviterEmail: currentUser.email || "",
-        inviteeName: targetUser.name || "Colaborador",
-        inviteeEmail: targetUser.email || ""
+        inviteeName: targetUser.name || targetUser.displayName || "Colaborador",
+        inviteeEmail: targetUser.email || "",
+        orgName: currentOrg.name
       };
 
       await setDoc(memberRef, inviteData);
@@ -213,19 +215,18 @@ export default function OrganizationMembersPage() {
               <form onSubmit={handleInviteMember} className="space-y-6">
                 <DialogHeader>
                   <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Adicionar Colaborador</DialogTitle>
-                  <DialogDescription>O usuário deve estar cadastrado na Viby. Buscamos pelo CPF por segurança.</DialogDescription>
+                  <DialogDescription>Digite o nome de usuário (@username) de quem deseja convidar.</DialogDescription>
                 </DialogHeader>
                 
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
-                      <Fingerprint className="w-3.5 h-3.5 text-secondary" />
-                      CPF do Usuário
+                      <AtSign className="w-3.5 h-3.5 text-secondary" />
+                      Nome de Usuário
                     </Label>
                     <Input 
-                      name="cpf" 
-                      placeholder="000.000.000-00" 
-                      onChange={(e) => e.target.value = formatCPF(e.target.value)}
+                      name="username" 
+                      placeholder="ex: joaosilva123" 
                       required 
                       className="rounded-xl h-11" 
                     />
