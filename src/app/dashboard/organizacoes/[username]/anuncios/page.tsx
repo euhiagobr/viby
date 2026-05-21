@@ -197,6 +197,7 @@ export default function OrganizationAdsPage() {
 
     setIsSubmitting(true)
     const event = myEvents?.find(ev => ev.id === selectedEventId)
+    // Eventos e Páginas são auto-aprovados para o protótipo, mas Banners e Links requerem aprovação
     const status = (adType === 'evento' || adType === 'pagina') ? 'Ativo' : 'Pendente'
     const adData = {
       eventId: adType === 'evento' ? selectedEventId : null,
@@ -225,9 +226,23 @@ export default function OrganizationAdsPage() {
 
   const handleToggleStatus = async (adId: string, currentStatus: string) => {
     if (!db) return
+    
+    // Bloqueio de segurança: o usuário não pode ativar campanhas pendentes
+    if (currentStatus !== 'Ativo' && currentStatus !== 'Pausado') {
+      toast({ 
+        variant: "destructive", 
+        title: "Ação não permitida", 
+        description: "Campanhas pendentes só podem ser ativadas após aprovação administrativa." 
+      });
+      return;
+    }
+
     const newStatus = currentStatus === 'Ativo' ? 'Pausado' : 'Ativo'
     setActionLoadingId(adId)
-    try { await updateDoc(doc(db, "ads", adId), { status: newStatus, updatedAt: serverTimestamp() }); toast({ title: `Campanha ${newStatus.toLowerCase()}!` }) }
+    try { 
+      await updateDoc(doc(db, "ads", adId), { status: newStatus, updatedAt: serverTimestamp() }); 
+      toast({ title: `Campanha ${newStatus.toLowerCase()}!` }) 
+    }
     catch (e) { toast({ variant: "destructive", title: "Erro ao atualizar" }) }
     finally { setActionLoadingId(null) }
   }
@@ -361,7 +376,6 @@ export default function OrganizationAdsPage() {
           {ads.length > 0 ? (
             <div className="w-full overflow-x-auto">
               <div className="min-w-[1000px]">
-                {/* COLUNAS DE CABEÇALHO */}
                 <div className="bg-muted/30 px-8 py-4 grid grid-cols-12 gap-4 border-b">
                    <div className="col-span-3 text-[10px] font-black uppercase tracking-widest opacity-40">Campanha / Vigência</div>
                    <div className="col-span-1 text-[10px] font-black uppercase tracking-widest opacity-40 text-center">Visu.</div>
@@ -375,11 +389,11 @@ export default function OrganizationAdsPage() {
                 <div className="divide-y">
                    {ads.map((ad: any) => {
                      const isFinished = ad.status === 'Finalizado' || ad.status === 'Cancelado';
+                     const canToggle = ad.status === 'Ativo' || ad.status === 'Pausado';
                      const ctr = ad.reach > 0 ? (ad.clicks / ad.reach) * 100 : 0;
                      
                      return (
                        <div key={ad.id} className={cn("px-8 py-6 grid grid-cols-12 gap-4 items-center transition-colors hover:bg-muted/5", isFinished && "opacity-60")}>
-                         {/* INFO BÁSICA */}
                          <div className="col-span-3 flex gap-3">
                            <div className="p-2.5 rounded-xl bg-secondary/10 h-fit">
                              {ad.type === 'evento' ? <Calendar className="w-4 h-4 text-secondary" /> : ad.type === 'pagina' ? <Layout className="w-4 h-4 text-secondary" /> : <Megaphone className="w-4 h-4 text-secondary" />}
@@ -396,7 +410,6 @@ export default function OrganizationAdsPage() {
                            </div>
                          </div>
 
-                         {/* MÉTRICAS ALINHADAS */}
                          <div className="col-span-1 text-center">
                             <span className="font-black text-sm">{ad.reach?.toLocaleString() || 0}</span>
                          </div>
@@ -410,20 +423,28 @@ export default function OrganizationAdsPage() {
                             <span className="font-black text-xs bg-muted px-2 py-0.5 rounded-full">{ctr.toFixed(2)}%</span>
                          </div>
 
-                         {/* FINANCEIRO */}
                          <div className="col-span-2 text-right space-y-0.5">
                             <p className="font-black text-xs">{formatCurrency(ad.initialBudget || ad.budget || 0)}</p>
                             <p className="text-[8px] font-bold text-secondary uppercase">Saldo: {formatCurrency(isFinished ? ad.refundedAmount || 0 : ad.remainingBudget || 0)}</p>
                          </div>
 
-                         {/* AÇÕES */}
                          <div className="col-span-3 flex items-center justify-end gap-2">
                             <Button variant="outline" size="sm" className="h-8 rounded-lg border-secondary/20 text-secondary gap-1.5 font-bold text-[9px] uppercase" onClick={() => setSelectedAdForMetrics(ad)}>
                                <TrendingUp className="w-3.5 h-3.5" /> Métricas
                             </Button>
                             {!isFinished && (
                               <div className="flex items-center gap-1">
-                                 <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-secondary/20 text-secondary" onClick={() => handleToggleStatus(ad.id, ad.status)} disabled={actionLoadingId === ad.id}>
+                                 <Button 
+                                   variant="outline" 
+                                   size="icon" 
+                                   className={cn(
+                                     "h-8 w-8 rounded-lg border-secondary/20 text-secondary transition-opacity",
+                                     !canToggle && "opacity-30 cursor-not-allowed"
+                                   )} 
+                                   onClick={() => canToggle && handleToggleStatus(ad.id, ad.status)} 
+                                   disabled={actionLoadingId === ad.id || !canToggle}
+                                   title={ad.status === 'Pendente' ? "Aguardando aprovação administrativa" : (ad.status === 'Ativo' ? "Pausar" : "Retomar")}
+                                 >
                                     {ad.status === 'Ativo' ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                                  </Button>
                                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => setAdToCancel(ad)} disabled={actionLoadingId === ad.id}>
@@ -466,7 +487,6 @@ export default function OrganizationAdsPage() {
               </div>
            </div>
 
-           {/* TOTAL PARA PORCENTAGEM: Usamos o uniqueReach pois as métricas demográficas descrevem PESSOAS únicas */}
            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-6">
               <div className="space-y-6">
                  <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Users className="w-4 h-4" /> Perfil de Gênero</h4>
@@ -509,7 +529,6 @@ export default function OrganizationAdsPage() {
 }
 
 function DemographicBar({ label, value, total, color }: { label: string, value: number, total: number, color: string }) {
-  // Garantimos que total seja ao menos a soma dos valores para evitar divisões estranhas se Alcance Único for 0
   const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
     <div className="space-y-1.5">
