@@ -106,7 +106,7 @@ export default function EditarEventoPage() {
   const [ticketMode, setTicketMode] = useState<'free' | 'paid_single' | 'batches'>('free')
   const [batches, setBatches] = useState<Batch[]>([])
 
-  const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "" })
+  const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
   
   const [isDistributeOpen, setIsDistributeOpen] = useState(false)
   const [distributeBatchIdx, setDistributeBatchIdx] = useState<number | null>(null)
@@ -119,7 +119,7 @@ export default function EditarEventoPage() {
       setSelectedCategory(event.categoryId || event.category || "")
       setTicketMode(event.ticketMode || (event.isFree ? 'free' : 'batches'))
       setBatches(event.batches || [])
-      setAddress(event.address || { street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "" })
+      setAddress(event.address || { street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
       setImagePreview(event.image || null)
       setUploadedImageUrl(event.image || null)
     }
@@ -139,6 +139,24 @@ export default function EditarEventoPage() {
         setUploadedImageUrl(downloadURL); setUploadProgress(null)
       })
     } catch (err) { setUploadProgress(null) }
+  }
+
+  const handleCepBlur = async () => {
+    const cleanCep = address.cep.replace(/\D/g, "")
+    if (cleanCep.length !== 8) return
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
+      const data = await response.json()
+      if (!data.erro) {
+        setAddress(prev => ({
+          ...prev,
+          street: data.logradouro || "",
+          neighborhood: data.bairro || "",
+          city: data.localidade || "",
+          state: data.uf || ""
+        }))
+      }
+    } catch (e) {}
   }
 
   const handleDistribute = () => {
@@ -166,7 +184,7 @@ export default function EditarEventoPage() {
   const updateBatchField = (i: number, f: keyof Batch, v: any) => { const n = [...batches]; n[i] = { ...n[i], [f]: v }; setBatches(n); }
   const addTicketType = (bi: number) => { const n = [...batches]; n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 50, requiresProof: false, isLegalHalf: false, description: "" }); setBatches(n); }
   const removeTicketType = (bi: number, ti: number) => { const n = [...batches]; if(n[bi].ticketTypes.length > 1) { n[bi].ticketTypes.splice(ti, 1); setBatches(n); } }
-  const updateTicketTypeField = (bi: number, ti: number, f: keyof TicketType, v: any) => { const n = [...batches]; n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; setBatches(n); }
+  const updateTicketTypeField = (bi: number, ti: number, f: keyof TicketType, v: any) => { n = [...batches]; n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; setBatches(n); }
 
   const calculateHalfPriceStats = (batch: Batch) => {
     const poolQuantities: Record<string, number> = {}
@@ -252,6 +270,49 @@ export default function EditarEventoPage() {
                <div className="space-y-2"><Label>Descrição</Label><Textarea name="description" defaultValue={event.description} className="min-h-[100px] rounded-xl" /></div>
             </CardContent>
          </Card>
+
+         <Card className="border-none shadow-sm rounded-[2rem]">
+          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle></CardHeader>
+          <CardContent className="space-y-6">
+             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">CEP</Label>
+                  <Input 
+                    value={address.cep || ""} 
+                    onChange={e => setAddress(prev => ({ ...prev, cep: e.target.value.replace(/\D/g, "").substring(0, 8) }))}
+                    onBlur={handleCepBlur}
+                    placeholder="00000-000" 
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="md:col-span-3 space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Logradouro</Label>
+                  <Input value={address.street || ""} onChange={e => setAddress(prev => ({ ...prev, street: e.target.value }))} className="rounded-xl" />
+                </div>
+             </div>
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Número</Label>
+                  <Input value={address.number || ""} onChange={e => setAddress(prev => ({ ...prev, number: e.target.value }))} className="rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label>
+                  <Input value={address.complement || ""} onChange={e => setAddress(prev => ({ ...prev, complement: e.target.value }))} className="rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label>
+                  <Input value={address.neighborhood || ""} onChange={e => setAddress(prev => ({ ...prev, neighborhood: e.target.value }))} className="rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label>
+                  <div className="flex gap-2">
+                    <Input value={address.city || ""} readOnly className="rounded-xl bg-muted/30" />
+                    <Input value={address.state || ""} readOnly className="rounded-xl bg-muted/30 w-16" />
+                  </div>
+                </div>
+             </div>
+          </CardContent>
+        </Card>
 
          <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
             <CardHeader className="bg-muted/30 border-b">
