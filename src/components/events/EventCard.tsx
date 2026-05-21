@@ -97,11 +97,18 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           const adRef = doc(db, "ads", event.adId)
           const demoUpdate = getDemographicsUpdate();
 
+          // Registrar visualização e descontar do saldo bloqueado da organização
           updateDoc(adRef, { 
             reach: increment(1),
-            budget: increment(-costPerImpression),
+            remainingBudget: increment(-costPerImpression),
             updatedAt: serverTimestamp(),
             ...demoUpdate
+          }).then(() => {
+            if (event.organizationId) {
+              updateDoc(doc(db, "organizations", event.organizationId), {
+                blockedBalance: increment(-costPerImpression)
+              });
+            }
           }).catch((err) => {
             console.error("Erro ao registrar impressão:", err)
           })
@@ -117,7 +124,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     }
 
     return () => observer.disconnect()
-  }, [isSponsored, event.adId, db, adsSettings, userProfile])
+  }, [isSponsored, event.adId, db, adsSettings, userProfile, event.organizationId])
 
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
@@ -187,12 +194,18 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
       updateDoc(adRef, { 
         clicks: increment(1),
-        budget: increment(-cpcValue),
+        remainingBudget: increment(-cpcValue),
         updatedAt: serverTimestamp(),
         ...Object.keys(demoUpdate).reduce((acc: any, key) => {
           acc[key.replace('stats_', 'click_stats_')] = increment(1);
           return acc;
         }, {})
+      }).then(() => {
+        if (event.organizationId) {
+          updateDoc(doc(db, "organizations", event.organizationId), {
+            blockedBalance: increment(-cpcValue)
+          });
+        }
       }).catch((err) => {
         console.error("Erro ao registrar clique:", err)
       });
