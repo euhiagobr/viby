@@ -87,7 +87,7 @@ export function AdCard({ ad }: AdCardProps) {
       })
     }
 
-    if (ad.type === 'site' && ad.externalUrl) {
+    if ((ad.type === 'site' || ad.type === 'banner') && ad.externalUrl) {
       window.open(ad.externalUrl, '_blank')
     } else if (ad.type === 'pagina' && organization) {
       router.push(`/${organization.username}`)
@@ -167,10 +167,10 @@ export function AdCard({ ad }: AdCardProps) {
 
         <div className="relative aspect-video w-full bg-muted">
            <Image src={ad.adImage || "https://picsum.photos/seed/ad/800/400"} alt="Anúncio" fill className="object-cover group-hover:scale-105 transition-transform duration-700" unoptimized />
-           {ad.type === 'site' && (
+           {(ad.type === 'site' || ad.type === 'banner') && (
              <div className="absolute bottom-3 left-3">
                 <Badge className="bg-white/90 text-primary border-none shadow-sm text-[9px] font-black uppercase flex items-center gap-1.5">
-                   <Globe className="w-3 h-3 text-secondary" /> Link Externo
+                   <Globe className="w-3 h-3 text-secondary" /> {ad.type === 'site' ? 'Link Externo' : 'Campanha de Mídia'}
                 </Badge>
              </div>
            )}

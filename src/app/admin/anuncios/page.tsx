@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -73,7 +74,7 @@ export default function AdminAnunciosPage() {
   const handleUpdateStatus = async (adId: string, status: string) => {
     if (!db) return
     try {
-      await updateDoc(doc(db, "ads", adId), { status })
+      await updateDoc(doc(db, "ads", adId), { status, updatedAt: new Date() })
       toast({ title: "Status atualizado!", description: `Anúncio agora está ${status}.` })
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao atualizar" })
@@ -150,7 +151,7 @@ export default function AdminAnunciosPage() {
             <CheckCircle2 className="w-4 h-4 text-green-500" /> Ativos ({activeAds.length})
           </TabsTrigger>
           <TabsTrigger value="all" className="rounded-lg px-6 font-bold gap-2">
-            <TrendingUp className="w-4 h-4" /> Outros ({otherAds.length})
+            <TrendingUp className="w-4 h-4" /> Finalizados/Outros ({otherAds.length})
           </TabsTrigger>
         </TabsList>
 
@@ -203,9 +204,9 @@ function AdTable({ ads, onUpdate, onDelete }: { ads: any[], onUpdate: (id: strin
       <Table>
         <TableHeader className="bg-muted/30">
           <TableRow>
-            <TableHead className="font-bold">Evento / Tipo</TableHead>
+            <TableHead className="font-bold">Campanha / Tipo</TableHead>
             <TableHead className="font-bold">Investimento</TableHead>
-            <TableHead className="font-bold">Período</TableHead>
+            <TableHead className="font-bold">Vigência (Início - Fim)</TableHead>
             <TableHead className="font-bold text-center">Status</TableHead>
             <TableHead className="text-right font-bold">Ações</TableHead>
           </TableRow>
@@ -227,23 +228,23 @@ function AdTable({ ads, onUpdate, onDelete }: { ads: any[], onUpdate: (id: strin
               </TableCell>
               <TableCell>
                 <div className="flex flex-col gap-1 text-[11px] font-medium text-muted-foreground">
-                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(ad.startDate).toLocaleDateString('pt-BR')} até {new Date(ad.endDate).toLocaleDateString('pt-BR')}</span>
-                  <span className="text-[9px] font-black uppercase text-secondary">{ad.durationDays} dias de veiculação</span>
+                  <span className="flex items-center gap-1.5"><Clock className="w-3 h-3 text-secondary" /> {new Date(ad.startDate?.toDate ? ad.startDate.toDate() : ad.startDate).toLocaleString('pt-BR')}</span>
+                  <span className="flex items-center gap-1.5 text-destructive"><Clock className="w-3 h-3" /> {new Date(ad.endDate?.toDate ? ad.endDate.toDate() : ad.endDate).toLocaleString('pt-BR')}</span>
                 </div>
               </TableCell>
               <TableCell className="text-center">
                 <Badge className={cn(
                   "text-[9px] font-black uppercase",
                   ad.status === 'Ativo' ? "bg-green-500" :
-                  ad.status === 'Pendente Pagamento' ? "bg-orange-500" :
-                  ad.status === 'Pendente' ? "bg-blue-500" : "bg-muted"
+                  ad.status === 'Pendente' ? "bg-blue-500" : 
+                  ad.status === 'Finalizado' ? "bg-gray-400" : "bg-muted"
                 )}>
                   {ad.status}
                 </Badge>
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-1">
-                  {ad.status !== 'Ativo' && (
+                  {ad.status === 'Pendente' && (
                     <Button 
                       variant="ghost" 
                       size="icon" 

@@ -116,13 +116,75 @@ export default function OrganizationAdsPage() {
   const [actionLoadingId, setActionLoadingId] = React.useState<string | null>(null)
   const [selectedAdForMetrics, setSelectedAdForMetrics] = React.useState<any>(null)
   const [adToCancel, setAdToCancel] = React.useState<any>(null)
-  const [isWaitingPayment, setIsWaitingPayment] = React.useState(false)
 
-  // Estados para Upload de Imagem do Anúncio
   const [adImageUrl, setAdImageUrl] = React.useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
+
+  // Lógica de Finalização Automática e Estorno de Campanhas Expiradas
+  React.useEffect(() => {
+    if (!db || !rawAds || !currentOrg || isSubmitting) return;
+
+    const finalizeExpiredAds = async () => {
+      const now = new Date();
+      const expired = rawAds.filter((ad: any) => {
+        if (ad.status !== 'Ativo') return false;
+        const end = ad.endDate?.toDate ? ad.endDate.toDate() : new Date(ad.endDate);
+        return end < now;
+      });
+
+      if (expired.length === 0) return;
+
+      const batch = writeBatch(db);
+      let totalRefund = 0;
+
+      for (const ad of expired) {
+        const refund = Math.max(0, ad.remainingBudget || 0);
+        totalRefund += refund;
+
+        const adRef = doc(db, "ads", ad.id);
+        batch.update(adRef, {
+          status: "Finalizado",
+          remainingBudget: 0,
+          updatedAt: serverTimestamp()
+        });
+
+        // Registrar estorno no histórico
+        const txRef = doc(collection(db, 'organizations', currentOrg.id, 'transactions'));
+        batch.set(txRef, {
+          type: 'ad_refund',
+          description: `Expirado: ${ad.eventTitle}`,
+          amount: refund,
+          status: 'completed',
+          createdAt: serverTimestamp(),
+          userId: user?.uid
+        });
+      }
+
+      if (totalRefund > 0 || expired.length > 0) {
+        const orgRef = doc(db, "organizations", currentOrg.id);
+        batch.update(orgRef, {
+          adBalance: increment(totalRefund),
+          blockedBalance: increment(-totalRefund),
+          updatedAt: serverTimestamp()
+        });
+
+        try {
+          await batch.commit();
+          await refreshOrg();
+          toast({ 
+            title: "Campanhas encerradas", 
+            description: `Finalizamos ${expired.length} anúncios que atingiram o prazo. O saldo não utilizado foi devolvido.` 
+          });
+        } catch (e) {
+          console.error("Erro ao finalizar ads expirados:", e);
+        }
+      }
+    };
+
+    finalizeExpiredAds();
+  }, [rawAds, db, currentOrg?.id, user?.uid, refreshOrg, isSubmitting]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -196,7 +258,7 @@ export default function OrganizationAdsPage() {
     const adData = {
       eventId: adType === 'evento' ? selectedEventId : null,
       eventTitle: adType === 'evento' ? (event?.title || "Evento") : (adType === 'pagina' ? `Promover: ${currentOrg.name}` : (formData.get("title") as string)),
-      externalUrl: adType === 'site' ? (formData.get("url") as string) : null,
+      externalUrl: (adType === 'site' || adType === 'banner') ? (formData.get("url") as string) : null,
       adImage: adImageUrl || (adType === 'pagina' ? currentOrg.avatar : null),
       organizationId: currentOrg.id,
       organizerId: user.uid,
@@ -317,7 +379,7 @@ export default function OrganizationAdsPage() {
     if (!dateVal) return "---";
     try {
       const d = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
-      return d.toLocaleString('pt-BR');
+      return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     } catch (e) { return "---"; }
   }
 
@@ -332,35 +394,6 @@ export default function OrganizationAdsPage() {
   }, [ads])
 
   if (orgLoading || adsLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
-
-  if (isWaitingPayment) {
-    return (
-      <div className="min-h-[80vh] flex flex-col items-center justify-center p-4">
-        <Card className="max-w-md w-full border-none shadow-2xl rounded-[3rem] overflow-hidden bg-white">
-           <div className="bg-primary p-12 flex flex-col items-center text-white gap-6">
-              <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center relative">
-                 <RefreshCw className="w-10 h-10 animate-spin text-secondary" />
-                 <CreditCard className="w-5 h-5 absolute text-white" />
-              </div>
-              <h2 className="text-2xl font-black uppercase italic tracking-tighter text-center">Aguardando Pagamento</h2>
-           </div>
-           <CardContent className="p-10 text-center space-y-6">
-              <p className="text-sm font-medium text-muted-foreground uppercase leading-relaxed">
-                 Assim que concluir o pagamento da recarga, seu saldo será atualizado automaticamente no painel.
-              </p>
-              <div className="flex flex-col gap-3">
-                 <Button variant="outline" className="h-12 rounded-xl font-bold gap-2" onClick={() => window.location.reload()}>
-                    <RefreshCw className="w-4 h-4" /> Verificar Status
-                 </Button>
-                 <Button variant="ghost" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setIsWaitingPayment(false)}>
-                    Voltar ao Painel
-                 </Button>
-              </div>
-           </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -435,12 +468,10 @@ export default function OrganizationAdsPage() {
                         <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Título da Campanha</Label>
                         <Input name="title" required className="rounded-xl h-11" placeholder="Ex: Nova Coleção Primavera" />
                       </div>
-                      {adType === 'site' && (
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Link de Destino</Label>
-                          <Input name="url" type="url" required className="rounded-xl h-11" placeholder="https://seu-site.com" />
-                        </div>
-                      )}
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Link de Destino (Opcional)</Label>
+                        <Input name="url" type="url" className="rounded-xl h-11" placeholder="https://seu-site.com" />
+                      </div>
                       
                       <div className="space-y-3">
                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Imagem do Anúncio (Obrigatório)</Label>
@@ -480,10 +511,6 @@ export default function OrganizationAdsPage() {
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-secondary">R$</span>
                       <Input name="budget" type="number" step="0.01" placeholder="50,00" required className="rounded-2xl h-14 pl-12 text-xl font-black border-secondary/20" />
                     </div>
-                    <div className="flex items-center gap-2 p-3 bg-secondary/5 rounded-xl">
-                       <Info className="w-4 h-4 text-secondary" />
-                       <p className="text-[8px] font-bold text-secondary uppercase">Seu saldo será reservado no lançamento.</p>
-                    </div>
                   </div>
               </form>
 
@@ -507,7 +534,7 @@ export default function OrganizationAdsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="border-none shadow-sm bg-primary text-white overflow-hidden relative group">
-          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Acessos Totais</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Engajamento Total</CardTitle></CardHeader>
           <CardContent><div className="text-3xl font-black">{(stats.reach + stats.clicks).toLocaleString()}</div></CardContent>
           <Eye className="absolute -bottom-2 -right-2 w-20 h-20 opacity-5 rotate-12" />
         </Card>
@@ -560,7 +587,7 @@ export default function OrganizationAdsPage() {
                            <span className="flex items-center gap-1.5 text-secondary"><Target className="w-3.5 h-3.5" /> Objetivo: {ad.type}</span>
                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                              <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Início: {formatAdDate(ad.startDate)}</span>
-                             <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-destructive" /> Término: {formatAdDate(ad.endDate)}</span>
+                             <span className="flex items-center gap-1.5 text-destructive"><Clock className="w-3.5 h-3.5" /> Término: {formatAdDate(ad.endDate)}</span>
                            </div>
                         </div>
                       </div>
@@ -570,7 +597,7 @@ export default function OrganizationAdsPage() {
                        <div className="space-y-1"><p className="text-[10px] font-black opacity-40 uppercase tracking-widest">Alcance</p><p className="font-black text-lg">{ad.reach?.toLocaleString()}</p></div>
                        <div className="space-y-1"><p className="text-[10px] font-black opacity-40 uppercase tracking-widest">Cliques</p><p className="font-black text-lg">{ad.clicks?.toLocaleString()}</p></div>
                        <div className="space-y-1">
-                          <p className="text-[10px] font-black text-secondary uppercase tracking-widest">Restante</p>
+                          <p className="text-[10px] font-black text-secondary uppercase tracking-widest">Saldo Restante</p>
                           <p className="font-black text-secondary text-lg">{formatCurrency(ad.remainingBudget || 0)}</p>
                        </div>
                     </div>
