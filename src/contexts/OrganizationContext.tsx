@@ -71,54 +71,59 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       return;
     }
 
+    setLoading(true);
+
     // Busca todos os membros com o UID do usuário em qualquer organização
     const membersQuery = query(collectionGroup(db, 'members'), where('userId', '==', user.uid));
     
-    const unsubscribe = onSnapshot(membersQuery, async (snapshot) => {
-      try {
-        const now = new Date();
-        
-        // Filtra organizações onde o acesso foi aceito
-        const orgsPromises = snapshot.docs.map(async (memberDoc) => {
-          const mData = memberDoc.data();
-          const orgId = memberDoc.ref.parent.parent?.id;
-          if (!orgId) return null;
-
-          // Só entra na lista de gestão se o status for explicitamente 'accepted'
-          // Notas: Antigamente aceitava status ausente, agora é obrigatório
-          if (mData.status === 'accepted') {
-            const orgSnap = await getDoc(doc(db, 'organizations', orgId));
-            return orgSnap.exists() ? { id: orgSnap.id, ...orgSnap.data(), _memberData: mData } as Organization : null;
-          }
-          return null;
-        });
-
-        // Filtra convites pendentes
-        const pendingPromises = snapshot.docs.map(async (memberDoc) => {
-          const mData = memberDoc.data();
-          if (mData.status === 'pending') {
-            // Ignorar se já expirou (24h)
-            if (inviteIsExpired(mData.expiresAt)) return null;
-
+    const unsubscribe = onSnapshot(membersQuery, 
+      async (snapshot) => {
+        try {
+          // Filtra organizações onde o acesso foi aceito ou é legado (sem status definido)
+          const orgsPromises = snapshot.docs.map(async (memberDoc) => {
+            const mData = memberDoc.data();
             const orgId = memberDoc.ref.parent.parent?.id;
             if (!orgId) return null;
-            const orgSnap = await getDoc(doc(db, 'organizations', orgId));
-            return orgSnap.exists() ? { id: orgSnap.id, orgName: orgSnap.data().name, ...mData } : null;
-          }
-          return null;
-        });
 
-        const orgsData = (await Promise.all(orgsPromises)).filter((o): o is Organization => o !== null);
-        const pingsData = (await Promise.all(pendingPromises)).filter(p => p !== null);
+            // Aceita 'accepted' ou ausência de status (para compatibilidade com registros antigos)
+            if (mData.status === 'accepted' || !mData.status) {
+              const orgSnap = await getDoc(doc(db, 'organizations', orgId));
+              return orgSnap.exists() ? { id: orgSnap.id, ...orgSnap.data(), _memberData: mData } as Organization : null;
+            }
+            return null;
+          });
 
-        setOrganizations(orgsData);
-        setPendingInvitations(pingsData);
-      } catch (e) {
-        console.error("Erro ao carregar organizações no provider:", e);
-      } finally {
+          // Filtra convites pendentes
+          const pendingPromises = snapshot.docs.map(async (memberDoc) => {
+            const mData = memberDoc.data();
+            if (mData.status === 'pending') {
+              // Ignorar se já expirou (24h)
+              if (inviteIsExpired(mData.expiresAt)) return null;
+
+              const orgId = memberDoc.ref.parent.parent?.id;
+              if (!orgId) return null;
+              const orgSnap = await getDoc(doc(db, 'organizations', orgId));
+              return orgSnap.exists() ? { id: orgSnap.id, orgName: orgSnap.data().name, ...mData } : null;
+            }
+            return null;
+          });
+
+          const orgsData = (await Promise.all(orgsPromises)).filter((o): o is Organization => o !== null);
+          const pingsData = (await Promise.all(pendingPromises)).filter(p => p !== null);
+
+          setOrganizations(orgsData);
+          setPendingInvitations(pingsData);
+        } catch (e) {
+          console.error("Erro ao processar dados de membros:", e);
+        } finally {
+          setLoading(false);
+        }
+      },
+      (error) => {
+        console.error("Erro no listener de organizações:", error);
         setLoading(false);
       }
-    });
+    );
 
     return () => unsubscribe();
   }, [db, user]);
@@ -143,7 +148,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           setUserRole(found._memberData?.role || null);
         }
       } else {
-        // Se não achou na lista pré-carregada (pode ser o owner recém criado ou cache), busca no banco
+        // Busca direta apenas se não estiver na lista (garantindo carregamento de orgs recém criadas)
         const q = query(collection(db, 'organizations'), where('username', '==', usernameFromUrl), limit(1));
         getDocs(q).then(async (snap) => {
           if (!snap.empty) {
@@ -152,24 +157,19 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             const memberSnap = await getDoc(memberRef);
             const mData = memberSnap.data();
             
-            if (memberSnap.exists() && mData?.status === 'accepted') {
+            if (memberSnap.exists() && (mData?.status === 'accepted' || !mData?.status)) {
               setCurrentOrg({ id: orgDoc.id, ...orgDoc.data() } as Organization);
-              setUserRole(mData?.role || null);
-            } else {
-              // Se o usuário não tem acesso aceito, não define como org atual
-              if (currentOrg) setCurrentOrg(null);
-              if (userRole) setUserRole(null);
+              setUserRole(mData?.role || 'owner');
             }
           }
         });
       }
     } else if (!pathname?.includes('/dashboard/organizacoes/')) {
-      // Se não está em rota de org específica, tenta recuperar última ativa do localStorage
-      const savedOrgId = localStorage.getItem('viby_current_org');
+      const savedOrgId = typeof window !== 'undefined' ? localStorage.getItem('viby_current_org') : null;
       const found = organizations.find(o => o.id === savedOrgId) || organizations[0];
       if (found && currentOrg?.id !== found.id) {
         setCurrentOrg(found);
-        setUserRole(found._memberData?.role || null);
+        setUserRole(found._memberData?.role || 'owner');
       }
     }
   }, [params?.username, organizations, db, user, loading, pathname]);

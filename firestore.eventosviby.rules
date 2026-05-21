@@ -1,10 +1,8 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.4.0
+    // REGRAS VIBY - Versão: 2.5.0
     // Database Exclusivo: eventosviby
-    // ESTA REGRA É CRÍTICA: O BANCO (default) NÃO PODE SER UTILIZADO.
     
     function isSignedIn() {
       return request.auth != null;
@@ -27,13 +25,14 @@ service cloud.firestore {
     function hasOrgRole(orgId, roles) {
       return isSignedIn() && 
         exists(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
-        get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.status == 'accepted' &&
+        (get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.status == 'accepted' || 
+         get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.status == null) &&
         get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
     }
 
-    // Regra para facilitar a busca de convites via collectionGroup (OrganizationContext)
-    match /{path=**}/members/{userId} {
-      allow read: if isSignedIn() && request.auth.uid == userId;
+    // Regra Crítica para buscas via collectionGroup (Dashboard e Convites)
+    match /{path=**}/members/{memberId} {
+      allow read: if isSignedIn() && (request.auth.uid == memberId || resource.data.userId == request.auth.uid);
     }
 
     // Configurações do Site
