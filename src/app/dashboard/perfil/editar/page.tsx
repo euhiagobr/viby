@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -25,47 +24,27 @@ import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
 import { Switch } from "@/components/ui/switch"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { 
   Loader2, 
   ArrowLeft, 
   Save, 
   Upload, 
   Info, 
-  Link as LinkIcon, 
   Instagram, 
   Phone, 
-  Mail, 
   EyeOff, 
-  Building2, 
   User as UserIcon, 
-  Calendar,
   Check,
   X,
   Fingerprint,
-  Lock
+  Lock,
+  Globe
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { encryptDeterministic, decryptData } from "@/lib/crypto-utils"
-
-const BUSINESS_CATEGORIES = {
-  "Organizadores": ["Produtora de eventos", "Agência de marketing", "Agência de eventos", "Cerimonialista", "Organizador independente", "Assessoria de eventos"],
-  "Casas e locais": ["Casa noturna", "Bar", "Pub", "Restaurante", "Café", "Lounge", "Hotel", "Resort", "Centro de eventos", "Arena", "Teatro", "Auditório", "Espaço cultural", "Galeria", "Parque", "Estádio", "Rooftop", "Coworking", "Centro de convenções"],
-  "Música e entretenimento": ["Banda", "Cantor(a)", "DJ", "Grupo musical", "Artista", "Performer", "Drag queen", "Humorista", "Influenciador(a)", "Apresentador(a)"],
-  "Eventos corporativos": ["Empresa privada", "Startup", "Consultoria", "RH/Treinamentos"],
-  "Gastronomia": ["Buffet", "Food truck", "Confeitaria", "Hamburgueria", "Pizzaria", "Choperia", "Vinícola", "Cafeteria"],
-  "Casamentos e festas": ["Decoradora", "Floricultura", "Fotografia", "Filmagem", "Sonorização", "Iluminação", "Locação de móveis", "Bartender", "Segurança", "Recreação infantil"],
-  "Cultura e educação": ["Escola", "Universidade", "Curso", "ONG cultural", "Biblioteca", "Museu", "Coletivo artístico"],
-  "Saúde e bem-estar": ["Academia", "Estúdio de yoga", "Clínica", "Espaço terapêutico", "Personal trainer"],
-  "Turismo": ["Agência de turismo", "Guia turístico", "Operadora turística", "Passeios e experiências"],
-  "Esportes": ["Clube esportivo", "Assessoria esportiva", "Equipe esportiva", "Academia funcional"],
-  "Comunidade e causas": ["ONG", "Coletivo", "Associação", "Fundação", "Projeto social", "Movimento social"],
-  "Governo e setor público": ["Prefeitura", "Secretaria", "Câmara municipal", "Governo estadual", "Governo federal", "Universidade pública"],
-  "Religioso": ["Igreja", "Centro espírita", "Templo", "Comunidade religiosa"]
-}
 
 export default function EditarPerfilPage() {
   const router = useRouter()
@@ -74,7 +53,6 @@ export default function EditarPerfilPage() {
   const db = useFirestore()
   const app = useFirebaseApp()
 
-  // GARANTIA: Utiliza exclusivamente o bucket 'viby'
   const storage = React.useMemo(() => {
     if (!app) return null;
     return getStorage(app, 'viby');
@@ -98,11 +76,7 @@ export default function EditarPerfilPage() {
     whatsapp: "",
     email: "",
     cpf: "",
-    showEmail: true,
-    accountType: "Usuário",
-    businessCategory: "",
-    legalName: "",
-    cnpj: ""
+    showEmail: true
   })
   const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
@@ -126,11 +100,7 @@ export default function EditarPerfilPage() {
         whatsapp: profile.whatsapp || "",
         email: profile.email || "",
         cpf: profile.cpf ? decryptData(profile.cpf) : "",
-        showEmail: profile.showEmail !== undefined ? profile.showEmail : true,
-        accountType: profile.accountType || "Usuário",
-        businessCategory: profile.businessCategory || "",
-        legalName: profile.legalName || "",
-        cnpj: profile.cnpj || ""
+        showEmail: profile.showEmail !== undefined ? profile.showEmail : true
       })
     }
   }, [profile])
@@ -172,16 +142,6 @@ export default function EditarPerfilPage() {
     return () => clearTimeout(timer)
   }, [formData.username, profile, db])
 
-  const formatCNPJ = (v: string) => {
-    v = v.replace(/\D/g, "");
-    if (v.length > 14) v = v.slice(0, 14);
-    if (v.length > 12) return v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
-    if (v.length > 8) return v.replace(/(\d{2})(\d{3})(\d{3})(\d{1,4})/, "$1.$2.$3/$4");
-    if (v.length > 5) return v.replace(/(\d{2})(\d{3})(\d{1,3})/, "$1.$2.$3");
-    if (v.length > 2) return v.replace(/(\d{2})(\d{1,3})/, "$1.$2");
-    return v;
-  }
-
   const formatCPF = (v: string) => {
     v = v.replace(/\D/g, "");
     if (v.length > 11) v = v.slice(0, 11);
@@ -192,7 +152,6 @@ export default function EditarPerfilPage() {
   }
 
   const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, cpf: formatCPF(e.target.value) }));
-  const handleCNPJChange = (e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, cnpj: formatCNPJ(e.target.value) }));
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -233,23 +192,18 @@ export default function EditarPerfilPage() {
       const batch = writeBatch(db)
       if (usernameChanged) {
         if (oldUsername) batch.delete(doc(db, "usernames", oldUsername));
-        batch.set(doc(db, "usernames", newUsername), { uid: user.uid });
+        batch.set(doc(db, "usernames", newUsername), { uid: user.uid, type: 'user' });
       }
 
       const encryptedCpf = formData.cpf ? encryptDeterministic(formData.cpf) : "";
       const userRef = doc(db, "users", user.uid)
-      batch.update(userRef, { ...formData, cpf: encryptedCpf, username: newUsername, updatedAt: serverTimestamp() })
+      batch.update(userRef, { 
+        ...formData, 
+        cpf: encryptedCpf, 
+        username: newUsername, 
+        updatedAt: serverTimestamp() 
+      })
       await batch.commit()
-
-      const eventsQuery = query(collection(db, "events"), where("organizerId", "==", user.uid))
-      const eventsSnap = await getDocs(eventsQuery)
-      if (!eventsSnap.empty) {
-        const eventBatch = writeBatch(db)
-        eventsSnap.forEach((eventDoc) => {
-          eventBatch.update(eventDoc.ref, { organizer: { name: formData.name, avatar: formData.avatar || "", isVerified: !!profile.isVerified, username: newUsername } })
-        })
-        await eventBatch.commit()
-      }
 
       toast({ title: "Perfil atualizado!" })
       router.push("/dashboard/perfil")
@@ -266,54 +220,15 @@ export default function EditarPerfilPage() {
     <div className="max-w-3xl mx-auto space-y-8 pb-20">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild><Link href="/dashboard/perfil"><ArrowLeft className="w-5 h-5" /></Link></Button>
-        <h1 className="text-3xl font-bold tracking-tight">Editar Perfil</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-primary">Editar Perfil Pessoal</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card className="border-none shadow-sm">
-          <CardHeader><CardTitle>Tipo de Conta</CardTitle></CardHeader>
-          <CardContent>
-            <RadioGroup value={formData.accountType} onValueChange={(val) => setFormData(prev => ({...prev, accountType: val}))} className="grid grid-cols-2 gap-4">
-              <div className="flex items-center space-x-2 border rounded-xl p-4 cursor-pointer hover:bg-muted/50 transition-colors">
-                <RadioGroupItem value="Usuário" id="user-type" />
-                <Label htmlFor="user-type" className="flex items-center gap-2 cursor-pointer font-bold"><UserIcon className="w-4 h-4 text-secondary" /> Usuário</Label>
-              </div>
-              <div className="flex items-center space-x-2 border rounded-xl p-4 cursor-pointer hover:bg-muted/50 transition-colors">
-                <RadioGroupItem value="Empresa" id="company-type" />
-                <Label htmlFor="company-type" className="flex items-center gap-2 cursor-pointer font-bold"><Building2 className="w-4 h-4 text-secondary" /> Empresa</Label>
-              </div>
-            </RadioGroup>
-          </CardContent>
-        </Card>
-
-        {formData.accountType === 'Empresa' && (
-          <Card className="border-none shadow-sm border-t-4 border-secondary animate-in fade-in slide-in-from-top-4 duration-300">
-            <CardHeader><CardTitle>Informações Jurídicas</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2"><Label htmlFor="legalName">Razão Social</Label><Input id="legalName" value={formData.legalName} onChange={(e) => setFormData(prev => ({...prev, legalName: e.target.value}))} required /></div>
-                <div className="space-y-2"><Label htmlFor="cnpj">CNPJ</Label><Input id="cnpj" value={formData.cnpj} onChange={handleCNPJChange} placeholder="00.000.000/0000-00" required /></div>
-              </div>
-              <div className="space-y-2">
-                <Label>Categoria da Empresa</Label>
-                <Select value={formData.businessCategory} onValueChange={(val) => setFormData(prev => ({...prev, businessCategory: val}))}>
-                  <SelectTrigger><SelectValue placeholder="Selecione uma subcategoria" /></SelectTrigger>
-                  <SelectContent className="max-h-80">
-                    {Object.entries(BUSINESS_CATEGORIES).map(([category, items]) => (
-                      <SelectGroup key={category}>
-                        <SelectLabel className="bg-muted/50 py-2">{category}</SelectLabel>
-                        {items.map(item => (<SelectItem key={`${category}-${item}`} value={item}>{item}</SelectItem>))}
-                      </SelectGroup>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <Card className="border-none shadow-sm">
-          <CardHeader><CardTitle>Identidade & Dados Pessoais</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Identidade & Dados Pessoais</CardTitle>
+            <CardDescription>Informações básicas para sua conta pessoal no Viby.</CardDescription>
+          </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex flex-col items-center gap-6 py-4">
               <div className="relative group">
@@ -328,7 +243,7 @@ export default function EditarPerfilPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2"><Label htmlFor="name">Nome / Fantasia</Label><Input id="name" value={formData.name} onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))} required /></div>
+              <div className="space-y-2"><Label htmlFor="name">Nome Completo</Label><Input id="name" value={formData.name} onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))} required /></div>
               <div className="space-y-2">
                 <Label htmlFor="username">Nome de Usuário (@)</Label>
                 <div className="relative">
@@ -352,8 +267,7 @@ export default function EditarPerfilPage() {
                     <SelectItem value="homem trans">Homem Trans</SelectItem>
                     <SelectItem value="mulher trans">Mulher Trans</SelectItem>
                     <SelectItem value="agênero">Agênero</SelectItem>
-                    <SelectItem value="prefiro não dizer">Prefiro não dizer</SelectItem>
-                    <SelectItem value="empresa">Empresa</SelectItem>
+                    <SelectItem value="outro">Outro / Prefiro não dizer</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -362,6 +276,7 @@ export default function EditarPerfilPage() {
             <div className="space-y-2">
               <Label htmlFor="cpf" className="flex items-center gap-2"><Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF {isCpfLocked && <Lock className="w-3 h-3 text-muted-foreground ml-auto" />}</Label>
               <Input id="cpf" value={formData.cpf} onChange={handleCPFChange} placeholder="000.000.000-00" disabled={isCpfLocked} className={cn(isCpfLocked && "bg-muted/50 cursor-not-allowed")} />
+              <p className="text-[10px] text-muted-foreground">O CPF é obrigatório para emissão de ingressos nominais.</p>
             </div>
 
             <div className="space-y-2">
@@ -372,34 +287,29 @@ export default function EditarPerfilPage() {
         </Card>
 
         <Card className="border-none shadow-sm">
-          <CardHeader><CardTitle>Localização</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-2"><Label htmlFor="city">Cidade</Label><Input id="city" value={formData.city} onChange={(e) => setFormData(prev => ({...prev, city: e.target.value}))} required /></div>
-            <div className="space-y-2"><Label htmlFor="state">Estado</Label><Input id="state" value={formData.state} onChange={(e) => setFormData(prev => ({...prev, state: e.target.value}))} placeholder="Ex: SP" required /></div>
-            <div className="space-y-2"><Label htmlFor="country">País</Label><Input id="country" value={formData.country} onChange={(e) => setFormData(prev => ({...prev, country: e.target.value}))} required /></div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm">
-          <CardHeader><CardTitle>Links & Contato</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Localização & Contato</CardTitle></CardHeader>
           <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2"><Label htmlFor="city">Cidade</Label><Input id="city" value={formData.city} onChange={(e) => setFormData(prev => ({...prev, city: e.target.value}))} required /></div>
+              <div className="space-y-2"><Label htmlFor="state">Estado (UF)</Label><Input id="state" value={formData.state} onChange={(e) => setFormData(prev => ({...prev, state: e.target.value}))} placeholder="Ex: SP" maxLength={2} required /></div>
+              <div className="space-y-2"><Label htmlFor="country">País</Label><Input id="country" value={formData.country} onChange={(e) => setFormData(prev => ({...prev, country: e.target.value}))} required /></div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2"><Label htmlFor="website">Site Oficial</Label><Input id="website" value={formData.website} onChange={(e) => setFormData(prev => ({...prev, website: e.target.value}))} placeholder="https://..." /></div>
               <div className="space-y-2"><Label htmlFor="instagram">Instagram</Label><Input id="instagram" value={formData.instagram} onChange={(e) => setFormData(prev => ({...prev, instagram: e.target.value}))} placeholder="@exemplo" /></div>
               <div className="space-y-2"><Label htmlFor="whatsapp">WhatsApp</Label><Input id="whatsapp" value={formData.whatsapp} onChange={(e) => setFormData(prev => ({...prev, whatsapp: e.target.value}))} placeholder="(00) 00000-0000" /></div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between"><Label htmlFor="email">E-mail de Contato</Label><Switch id="showEmail" checked={formData.showEmail} onCheckedChange={(checked) => setFormData(prev => ({...prev, showEmail: checked}))} /></div>
-                <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData(prev => ({...prev, email: e.target.value}))} placeholder="contato@exemplo.com" />
-              </div>
+            </div>
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center justify-between"><Label htmlFor="showEmail">Exibir e-mail publicamente</Label><Switch id="showEmail" checked={formData.showEmail} onCheckedChange={(checked) => setFormData(prev => ({...prev, showEmail: checked}))} /></div>
+              <Input id="email" type="email" value={formData.email} disabled className="bg-muted/50 border-none rounded-xl" />
             </div>
           </CardContent>
         </Card>
 
         <div className="flex justify-end gap-3">
           <Button type="button" variant="ghost" onClick={() => router.back()}>Cancelar</Button>
-          <Button type="submit" className="bg-secondary text-white hover:bg-secondary/90 px-8" disabled={saving || uploadProgress !== null}>
+          <Button type="submit" className="bg-secondary text-white hover:bg-secondary/90 px-10 h-12 rounded-xl font-bold" disabled={saving || uploadProgress !== null}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-            Salvar Perfil
+            Salvar Alterações
           </Button>
         </div>
       </form>

@@ -100,8 +100,7 @@ export default function CadastroPage() {
       return
     }
 
-    const isCompany = gender === 'empresa'
-    if (!birthDate || !gender || (!isCompany && !cpf)) {
+    if (!birthDate || !gender || !cpf) {
       toast({ variant: "destructive", title: "Campos obrigatórios", description: "Preencha todos os campos obrigatórios." })
       return
     }
@@ -115,7 +114,7 @@ export default function CadastroPage() {
 
       await updateProfile(user, { displayName: name })
 
-      const encryptedCpf = !isCompany ? encryptDeterministic(cpf) : "";
+      const encryptedCpf = encryptDeterministic(cpf);
 
       await runTransaction(db, async (transaction) => {
         const usernameRef = doc(db, "usernames", normalizedUsername)
@@ -126,8 +125,9 @@ export default function CadastroPage() {
           throw new Error("Nome de usuário acaba de ser ocupado.")
         }
 
-        transaction.set(usernameRef, { uid: user.uid })
+        transaction.set(usernameRef, { uid: user.uid, type: 'user' })
         transaction.set(userRef, {
+          uid: user.uid,
           name,
           username: normalizedUsername,
           email,
@@ -135,11 +135,9 @@ export default function CadastroPage() {
           gender,
           cpf: encryptedCpf,
           avatar: `https://picsum.photos/seed/${user.uid}/100/100`,
-          isVerified: false,
-          totalEvents: 0,
+          plan: "free",
           platform: "viby",
           role: "user",
-          accountType: isCompany ? "Empresa" : "Usuário",
           city: "",
           state: "",
           country: "Brasil",
@@ -186,8 +184,8 @@ export default function CadastroPage() {
       </nav>
 
       <div className="flex-1 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md border-none shadow-xl">
-          <CardHeader className="space-y-1 flex flex-col items-center">
+        <Card className="w-full max-w-md border-none shadow-xl rounded-[2rem] overflow-hidden">
+          <CardHeader className="space-y-1 flex flex-col items-center pt-8 pb-4">
             <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 overflow-hidden">
               {settings?.logoUrl ? (
                 <img src={settings.logoUrl} alt={siteName} className="max-w-full max-h-full object-contain p-2" />
@@ -195,25 +193,25 @@ export default function CadastroPage() {
                 <Globe className="text-white w-7 h-7" />
               )}
             </div>
-            <CardTitle className="text-2xl font-bold">Criar uma conta {siteName}</CardTitle>
-            <CardDescription>Acesso exclusivo para a plataforma de eventos.</CardDescription>
+            <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Criar Conta Viby</CardTitle>
+            <CardDescription className="font-medium">Cadastre seu perfil pessoal para acessar eventos.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 px-8">
             <form onSubmit={handleRegister} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Nome Completo</Label>
-                <Input id="name" placeholder="Seu nome" value={name} onChange={(e) => setName(e.target.value)} required />
+                <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome Completo</Label>
+                <Input id="name" placeholder="Seu nome" value={name} onChange={(e) => setName(e.target.value)} required className="rounded-xl h-11" />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="username">Nome de Usuário</Label>
+                <Label htmlFor="username" className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome de Usuário</Label>
                 <div className="relative">
                   <Input 
                     id="username" 
                     placeholder="ex: joaosilva123" 
                     value={username} 
                     onChange={(e) => setUsername(e.target.value)} 
-                    className={usernameStatus === 'valid' ? 'border-green-500 pr-10' : usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-destructive pr-10' : 'pr-10'}
+                    className={cn("rounded-xl h-11", usernameStatus === 'valid' ? 'border-green-500 pr-10' : usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-destructive pr-10' : 'pr-10')}
                     required 
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -226,14 +224,13 @@ export default function CadastroPage() {
                     ) : null}
                   </div>
                 </div>
-                <p className="text-[10px] text-muted-foreground">Mínimo 5 caracteres, apenas letras e números.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="gender">Eu sou...</Label>
+                  <Label htmlFor="gender" className="text-[10px] font-black uppercase tracking-widest opacity-60">Sexo / Gênero</Label>
                   <Select value={gender} onValueChange={setGender} required>
-                    <SelectTrigger id="gender">
+                    <SelectTrigger id="gender" className="rounded-xl h-11">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
@@ -241,54 +238,51 @@ export default function CadastroPage() {
                       <SelectItem value="feminino">Feminino</SelectItem>
                       <SelectItem value="homem trans">Homem Trans</SelectItem>
                       <SelectItem value="mulher trans">Mulher Trans</SelectItem>
-                      <SelectItem value="agênero">Agênero</SelectItem>
-                      <SelectItem value="prefiro não dizer">Prefiro não dizer</SelectItem>
-                      <SelectItem value="empresa">Uma Empresa / Produtor</SelectItem>
+                      <SelectItem value="outro">Outro / Não informar</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="birthDate">Nascimento</Label>
-                  <Input id="birthDate" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} required />
+                  <Label htmlFor="birthDate" className="text-[10px] font-black uppercase tracking-widest opacity-60">Nascimento</Label>
+                  <Input id="birthDate" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} required className="rounded-xl h-11" />
                 </div>
               </div>
 
-              {gender && gender !== 'empresa' && (
-                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <Label htmlFor="cpf" className="flex items-center gap-2">
-                    <Fingerprint className="w-4 h-4 text-secondary" />
-                    Seu CPF (Dado Sensível)
-                  </Label>
-                  <Input 
-                    id="cpf" 
-                    placeholder="000.000.000-00" 
-                    value={cpf} 
-                    onChange={(e) => setCpf(formatCPF(e.target.value))} 
-                    required 
-                  />
-                  <p className="text-[9px] text-muted-foreground italic">Seu CPF será criptografado e utilizado apenas para vinculação de ingressos.</p>
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="cpf" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                  <Fingerprint className="w-3.5 h-3.5 text-secondary" />
+                  Seu CPF
+                </Label>
+                <Input 
+                  id="cpf" 
+                  placeholder="000.000.000-00" 
+                  value={cpf} 
+                  onChange={(e) => setCpf(formatCPF(e.target.value))} 
+                  required 
+                  className="rounded-xl h-11"
+                />
+              </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
-                <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <Label htmlFor="email" className="text-[10px] font-black uppercase tracking-widest opacity-60">E-mail</Label>
+                <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="rounded-xl h-11" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
-                <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <Label htmlFor="password" className="text-[10px] font-black uppercase tracking-widest opacity-60">Senha</Label>
+                <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="rounded-xl h-11" />
               </div>
-              <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold h-12 rounded-xl" disabled={loading || usernameStatus !== 'valid'}>
+              
+              <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 font-black h-14 rounded-2xl shadow-xl shadow-secondary/20 uppercase italic mt-4" disabled={loading || usernameStatus !== 'valid'}>
                 {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 Finalizar Cadastro
               </Button>
             </form>
           </CardContent>
-          <CardFooter className="flex justify-center border-t border-border mt-4 pt-6">
-            <p className="text-sm text-muted-foreground">
-              Já tem uma conta {siteName}?{" "}
-              <Link href="/login" className="text-secondary font-bold hover:underline">
-                Entrar
+          <CardFooter className="flex justify-center border-t border-border mt-6 py-8 bg-muted/20">
+            <p className="text-xs font-bold text-muted-foreground">
+              Já tem uma conta?{" "}
+              <Link href="/login" className="text-secondary font-black hover:underline uppercase italic">
+                Entrar agora
               </Link>
             </p>
           </CardFooter>
