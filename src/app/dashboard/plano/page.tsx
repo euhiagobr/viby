@@ -76,7 +76,7 @@ export default function PlanoPage() {
         billingCycle,
         userId: user.uid,
         userEmail: user.email!,
-        totalAmount: amount * 100
+        totalAmount: Math.round(amount * 100)
       })
 
       if (url) {
@@ -90,20 +90,22 @@ export default function PlanoPage() {
   }
 
   if (profileLoading || plansLoading) {
-    return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+    return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
   }
 
   const currentPlan = profile?.plan?.toUpperCase() || "START"
   const override = profile?.planOverride
 
-  const pricing = {
-    PRO: billingCycle === 'monthly' ? 129.90 : 1198.80,
-    TOP: billingCycle === 'monthly' ? 229.90 : 2398.80,
-  }
-
   const getPlanLimit = (planKey: string, field: string) => {
     const baseVal = plansSettings?.[planKey.toLowerCase()]?.[field] ?? 0;
     return baseVal === 0 ? "Ilimitado" : baseVal;
+  }
+
+  const getPlanPrice = (planKey: string) => {
+    if (planKey === 'START') return 0;
+    const planData = plansSettings?.[planKey.toLowerCase()];
+    if (!planData) return 0;
+    return billingCycle === 'monthly' ? planData.monthlyPrice : planData.annualPrice;
   }
 
   return (
@@ -142,7 +144,7 @@ export default function PlanoPage() {
           const info = PLAN_INFO[planId as keyof typeof PLAN_INFO]
           const isCurrent = currentPlan === planId
           const planData = plansSettings?.[planId.toLowerCase()]
-          const amount = pricing[planId as keyof typeof pricing] || 0
+          const amount = getPlanPrice(planId)
 
           return (
             <Card key={planId} className={cn(
@@ -166,7 +168,7 @@ export default function PlanoPage() {
                            {billingCycle === 'monthly' ? `R$ ${amount.toFixed(2)}` : `12x R$ ${(amount / 12).toFixed(2)}`}
                            <span className="text-[10px] font-bold opacity-40 uppercase ml-1">/{billingCycle === 'monthly' ? 'mês' : 'ano'}</span>
                         </div>
-                        {billingCycle === 'annual' && <p className="text-[10px] font-bold opacity-40 uppercase">Cobrado anualmente</p>}
+                        {billingCycle === 'annual' && <p className="text-[10px] font-bold opacity-40 uppercase">Cobrado anualmente: R$ {amount.toFixed(2)}</p>}
                      </div>
                    )}
                 </div>
