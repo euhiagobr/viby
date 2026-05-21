@@ -197,12 +197,15 @@ export default function EditarPerfilPage() {
 
       const encryptedCpf = formData.cpf ? encryptDeterministic(formData.cpf) : "";
       const userRef = doc(db, "users", user.uid)
-      batch.update(userRef, { 
-        ...formData, 
-        cpf: encryptedCpf, 
-        username: newUsername, 
-        updatedAt: serverTimestamp() 
-      })
+      
+      const updateData = {
+        ...formData,
+        cpf: encryptedCpf,
+        username: newUsername,
+        updatedAt: serverTimestamp()
+      }
+
+      batch.update(userRef, updateData)
       await batch.commit()
 
       toast({ title: "Perfil atualizado!" })
@@ -260,7 +263,7 @@ export default function EditarPerfilPage() {
               <div className="space-y-2">
                 <Label htmlFor="gender">Sexo / Gênero</Label>
                 <Select value={formData.gender} onValueChange={(val) => setFormData(prev => ({...prev, gender: val}))} required>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectTrigger id="gender"><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="masculino">Masculino</SelectItem>
                     <SelectItem value="feminino">Feminino</SelectItem>

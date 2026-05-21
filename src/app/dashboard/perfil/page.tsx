@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, Mail, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Link as LinkIcon, Instagram, Phone, EyeOff, User as UserIcon } from "lucide-react"
+import { Loader2, Mail, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Link as LinkIcon, Instagram, Phone, EyeOff, User as UserIcon, Users as UsersIcon } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -79,9 +79,16 @@ export default function PerfilPage() {
                   <Hash className="w-3.5 h-3.5" />
                   {profile.username}
                 </p>
-                <Badge variant="secondary" className="mt-2 uppercase text-[10px] font-black tracking-widest">
-                   Plano {profile.plan || 'Free'}
-                </Badge>
+                <div className="flex flex-wrap justify-center gap-2 mt-2">
+                  <Badge variant="secondary" className="uppercase text-[10px] font-black tracking-widest">
+                     Plano {profile.plan || 'Free'}
+                  </Badge>
+                  {profile.gender && (
+                    <Badge variant="outline" className="uppercase text-[10px] font-bold">
+                       {profile.gender}
+                    </Badge>
+                  )}
+                </div>
               </div>
             </CardContent>
             <Separator />
