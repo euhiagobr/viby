@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -92,7 +93,6 @@ export default function FinanceiroPage() {
       const amount = parseFloat(verificationValue.replace(',', '.'))
       await updateDoc(doc(db, "organizations", currentOrg.id), {
         "payoutSettings.verificationAmountInput": amount,
-        "payoutSettings.status": "pending_admin", // Mantém em análise até o admin confirmar
         updatedAt: serverTimestamp()
       })
       await refreshOrg()
