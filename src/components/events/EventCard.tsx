@@ -18,7 +18,7 @@ function InstagramVerifiedBadge({ className }: { className?: string }) {
   return (
     <svg 
       viewBox="0 0 128 128" 
-      className={cn("w-3 h-3", className)} 
+      className={cn("w-3.5 h-3.5", className)} 
       xmlns="http://www.w3.org/2000/svg"
     >
       <path 
@@ -205,8 +205,8 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     router.push(profileLink)
   }
 
-  // Prioriza exibir o nome da categoria para melhor indexação visual
   const categoryDisplay = event.categoryName || "Geral";
+  const isVerified = event.organizer?.verified === true || event.organizer?.isVerified === true;
 
   return (
     <Card 
@@ -296,7 +296,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
             <span className="text-[10px] font-bold text-muted-foreground uppercase hover:text-secondary truncate max-w-[100px]">
               {event.organizer?.name || "Organizador"}
             </span>
-            {event.organizer?.isVerified && (
+            {isVerified && (
               <InstagramVerifiedBadge />
             )}
           </div>
