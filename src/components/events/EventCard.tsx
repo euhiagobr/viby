@@ -53,6 +53,44 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const adsSettingsRef = React.useMemo(() => db ? doc(db, 'settings', 'ads') : null, [db])
   const { data: adsSettings } = useDoc<any>(adsSettingsRef)
   
+  const [liveStatus, setLiveStatus] = React.useState<{ label: string; colorClass: string } | null>(null);
+
+  // Lógica de Status Dinâmico (Countdown e Real-time labels)
+  React.useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      const start = event.date?.toDate ? event.date.toDate() : new Date(event.date);
+      // Assume 4 horas de duração padrão se não houver endDate
+      const end = event.endDate?.toDate ? event.endDate.toDate() : (event.endDate ? new Date(event.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+
+      const diffStart = start.getTime() - now.getTime();
+      const diffEnd = end.getTime() - now.getTime();
+      const isToday = now.toDateString() === start.toDateString();
+
+      if (diffEnd <= 0) {
+        setLiveStatus({ label: "Evento encerrado", colorClass: "bg-gray-500/80" });
+      } else if (diffEnd <= 1 * 60 * 60 * 1000 && now >= start) {
+        setLiveStatus({ label: "Evento encerrando", colorClass: "bg-orange-600 animate-pulse" });
+      } else if (now >= start && now < end) {
+        setLiveStatus({ label: "Evento acontecendo", colorClass: "bg-green-600 animate-pulse shadow-lg shadow-green-500/20" });
+      } else if (diffStart <= 2 * 60 * 60 * 1000 && diffStart > 0) {
+        const totalMinutes = Math.floor(diffStart / (1000 * 60));
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        const countdown = hours > 0 ? `${hours}h${minutes.toString().padStart(2, '0')}` : `${minutes}min`;
+        setLiveStatus({ label: `Começa em ${countdown}`, colorClass: "bg-secondary" });
+      } else if (isToday) {
+        setLiveStatus({ label: "Acontece hoje", colorClass: "bg-secondary" });
+      } else {
+        setLiveStatus(null);
+      }
+    };
+
+    update();
+    const interval = setInterval(update, 60000); // Atualiza a cada minuto
+    return () => clearInterval(interval);
+  }, [event.date, event.endDate]);
+
   const getAgeGroup = (birthDate: string) => {
     if (!birthDate) return "desconhecido";
     try {
@@ -97,7 +135,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           const adRef = doc(db, "ads", event.adId)
           const demoUpdate = getDemographicsUpdate();
 
-          // Registrar visualização e descontar do saldo bloqueado da organização
           updateDoc(adRef, { 
             reach: increment(1),
             remainingBudget: increment(-costPerImpression),
@@ -247,14 +284,22 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           className="object-cover transition-transform group-hover:scale-105"
           data-ai-hint="event cover"
         />
-        <div className="absolute top-3 left-3 flex flex-col gap-2">
-          <Badge className="bg-secondary text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider">
+        
+        {/* BADGES SUPERIORES ESQUERDOS */}
+        <div className="absolute top-3 left-3 flex flex-col gap-2 z-10">
+          {liveStatus && (
+            <Badge className={cn("text-white border-none shadow-xl px-3 py-1 text-[10px] font-black uppercase tracking-wider", liveStatus.colorClass)}>
+              {liveStatus.label}
+            </Badge>
+          )}
+          <Badge className="bg-white/90 text-primary border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider">
             {categoryDisplay}
           </Badge>
           <Badge className={cn("text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider", event.isFree ? "bg-green-500" : "bg-primary")}>
             {getPriceDisplay()}
           </Badge>
         </div>
+
         {distance !== null && (
           <div className="absolute bottom-3 right-3">
             <Badge className="bg-white/95 text-secondary border-none shadow-xl backdrop-blur-md px-3 py-1.5 text-[11px] font-black uppercase flex items-center gap-1.5 ring-2 ring-secondary/10">
@@ -266,13 +311,13 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       </div>
       <CardHeader className="p-4 pb-2">
         <div className="flex justify-between items-start gap-2">
-          <h3 className="text-lg font-bold line-clamp-1 group-hover:text-secondary transition-colors">
+          <h3 className="text-lg font-bold line-clamp-1 group-hover:text-secondary transition-colors uppercase italic tracking-tight">
             {event.title}
           </h3>
         </div>
       </CardHeader>
       <CardContent className="p-4 pt-0 space-y-3">
-        <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2.5rem] font-medium">
+        <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2.5rem] font-medium leading-relaxed">
           {event.shortDescription || event.description}
         </p>
         <div className="space-y-2">
