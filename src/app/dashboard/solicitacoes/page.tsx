@@ -1,8 +1,9 @@
+
 'use client';
 
 import * as React from 'react';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useAuth, useUser } from '@/firebase';
 import { doc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,10 +32,12 @@ const roleLabels: Record<string, string> = {
 export default function SolicitacoesPage() {
   const { pendingInvitations, loading } = useCurrentOrganization();
   const db = useFirestore();
+  const auth = useAuth();
+  const { user } = useUser(auth);
   const [actionLoadingId, setActionLoadingId] = React.useState<string | null>(null);
 
   const handleAccept = async (invite: any) => {
-    if (!db) return;
+    if (!db || !user) return;
 
     // Verificar expiração
     if (invite.expiresAt && new Date() > new Date(invite.expiresAt)) {
@@ -44,7 +47,7 @@ export default function SolicitacoesPage() {
 
     setActionLoadingId(invite.id);
     try {
-      const memberRef = doc(db, 'organizations', invite.id, 'members', invite.userId);
+      const memberRef = doc(db, 'organizations', invite.id, 'members', user.uid);
       await updateDoc(memberRef, {
         status: 'accepted',
         acceptedAt: serverTimestamp()
@@ -61,18 +64,19 @@ export default function SolicitacoesPage() {
       }
 
       toast({ title: "Convite aceito!", description: `Agora você faz parte da equipe de ${invite.orgName}.` });
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao aceitar" });
+    } catch (e: any) {
+      console.error("Erro ao aceitar convite:", e);
+      toast({ variant: "destructive", title: "Erro ao aceitar", description: "Verifique suas permissões ou tente novamente." });
     } finally {
       setActionLoadingId(null);
     }
   };
 
   const handleDecline = async (invite: any) => {
-    if (!db) return;
+    if (!db || !user) return;
     setActionLoadingId(invite.id);
     try {
-      const memberRef = doc(db, 'organizations', invite.id, 'members', invite.userId);
+      const memberRef = doc(db, 'organizations', invite.id, 'members', user.uid);
       await deleteDoc(memberRef);
 
       // Envia e-mail de recusa para o inviter
@@ -86,7 +90,8 @@ export default function SolicitacoesPage() {
       }
 
       toast({ title: "Convite recusado" });
-    } catch (e) {
+    } catch (e: any) {
+      console.error("Erro ao recusar convite:", e);
       toast({ variant: "destructive", title: "Erro ao recusar" });
     } finally {
       setActionLoadingId(null);
@@ -142,8 +147,8 @@ export default function SolicitacoesPage() {
                   </CardHeader>
                   <CardContent className="p-6 space-y-6">
                      <p className="text-xs text-muted-foreground leading-relaxed font-medium">
-                        <strong>{invite.inviterName}</strong> convidou você para colaborar na gestão de <strong>${invite.orgName}</strong>. 
-                        Este convite é nominal e vinculado ao seu CPF.
+                        <strong>{invite.inviterName}</strong> convidou você para colaborar na gestão de <strong>{invite.orgName}</strong>. 
+                        Este convite é nominal e vinculado à sua conta.
                      </p>
 
                      <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-xl border border-orange-100">
@@ -185,7 +190,7 @@ export default function SolicitacoesPage() {
          <div className="space-y-1">
             <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Segurança de Dados</h4>
             <p className="text-xs text-muted-foreground leading-relaxed font-medium">
-               A Viby utiliza seu documento oficial (CPF) para garantir que convites de equipe sejam direcionados à pessoa correta. Convites não aceitos em 24h são automaticamente invalidados.
+               A Viby utiliza seu identificador exclusivo para garantir que convites de equipe sejam direcionados à pessoa correta. Convites não aceitos em 24h são automaticamente invalidados.
             </p>
          </div>
       </div>

@@ -2,7 +2,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.2.0
+    // REGRAS VIBY - Versão: 2.3.0
+    // Database Exclusivo: eventosviby
     
     function isSignedIn() {
       return request.auth != null;
@@ -65,8 +66,11 @@ service cloud.firestore {
         // Usuário pode ler seu próprio convite/membro ou se for admin da org
         allow read: if request.auth.uid == userId || hasOrgRole(orgId, ['owner', 'admin']);
         
-        // Donos e Admins podem convidar/remover
-        allow create, delete: if hasOrgRole(orgId, ['owner', 'admin']);
+        // Donos e Admins podem convidar
+        allow create: if hasOrgRole(orgId, ['owner', 'admin']);
+        
+        // O próprio usuário pode recusar (deletar) ou o admin pode remover
+        allow delete: if request.auth.uid == userId || hasOrgRole(orgId, ['owner', 'admin']);
         
         // O próprio usuário pode aceitar seu convite (mudar status de pending para accepted)
         allow update: if (request.auth.uid == userId && resource.data.status == 'pending' && request.resource.data.status == 'accepted') || 
@@ -77,7 +81,7 @@ service cloud.firestore {
     // Eventos
     match /events/{eventId} {
       allow read: if true;
-      allow create: if isSignedIn(); // Verificação de Empresa é feita no App, permitimos create aqui para evitar bloqueios em cascata
+      allow create: if isSignedIn();
       allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
       allow delete: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
     }
@@ -102,7 +106,7 @@ service cloud.firestore {
     // Logs de E-mail
     match /sent_emails/{emailId} {
       allow read: if isAdmin();
-      allow create: if true; // Permite que ações de servidor (Server Actions) registrem logs mesmo sem contexto de auth direto no SDK cliente
+      allow create: if true; 
     }
 
     // Cupons de Desconto
