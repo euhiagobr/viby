@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -128,11 +127,20 @@ export default function EventoDetalhesPage() {
   const currentUserRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: currentUserProfile } = useDoc<any>(currentUserRef)
 
-  const allRegistrationsQuery = useMemoFirebase(() => {
-    if (!db || !eventId) return null
+  // Consulta específica para o usuário logado para evitar erros de listagem geral
+  const userRegistrationQuery = useMemoFirebase(() => {
+    if (!db || !eventId || !user) return null
+    return query(collection(db, "registrations"), where("eventId", "==", eventId), where("userId", "==", user.uid))
+  }, [db, eventId, user])
+  const { data: userRegistrations } = useCollection<any>(userRegistrationQuery)
+
+  // Consulta para contagem de disponibilidade (Apenas se for membro da org ou admin para evitar erros)
+  // Para usuários comuns, a contagem de vendas deve idealmente vir de um campo no documento do evento
+  const adminRegistrationsQuery = useMemoFirebase(() => {
+    if (!db || !eventId || !user) return null
     return query(collection(db, "registrations"), where("eventId", "==", eventId))
-  }, [db, eventId])
-  const { data: allRegistrations } = useCollection<any>(allRegistrationsQuery)
+  }, [db, eventId, user])
+  const { data: allRegistrations } = useCollection<any>(adminRegistrationsQuery)
   
   const [hasAtLeastOneRegistration, setHasAtLeastOneRegistration] = React.useState(false)
   const [registering, setRegistering] = React.useState(false)
@@ -164,6 +172,8 @@ export default function EventoDetalhesPage() {
         return
       }
 
+      // Tentamos usar a contagem de vendas. Se allRegistrations for null (por erro de permissão),
+      // assumimos que não temos a contagem exata e mostramos como disponível se as datas baterem.
       const salesPerBatch = (allRegistrations || []).reduce((acc: Record<string, number>, reg: any) => {
         if (reg.paymentStatus === 'Pago' || reg.paymentStatus === 'Disponível') {
           const bName = reg.batchName || "Lote Único"
@@ -232,10 +242,10 @@ export default function EventoDetalhesPage() {
   }, [event, allRegistrations])
 
   React.useEffect(() => {
-    if (!user || !allRegistrations) return
-    const userReg = allRegistrations.find((r: any) => r.userId === user.uid && (r.paymentStatus === 'Pago' || r.paymentStatus === 'Disponível'))
+    if (!user || !userRegistrations) return
+    const userReg = userRegistrations.find((r: any) => r.paymentStatus === 'Pago' || r.paymentStatus === 'Disponível')
     setHasAtLeastOneRegistration(!!userReg)
-  }, [user, allRegistrations])
+  }, [user, userRegistrations])
 
   const formatDateTime = (dateValue: any) => {
     if (!dateValue) return { date: "A definir", time: "" };
@@ -318,7 +328,7 @@ export default function EventoDetalhesPage() {
     return base
   }
 
-  const breakdown = calculateFinancialBreakdown(getTicketBasePrice(), organizerProfile);
+  const breakdown = calculateFinancialBreakdown(getTicketBasePrice(), organizerProfile?.plan || 'free');
 
   const handleRegisterInterest = async () => {
     if (!auth || !user) {
@@ -350,6 +360,7 @@ export default function EventoDetalhesPage() {
         attendeeCPF: "",
         userGender: currentUserProfile?.gender || "Não informado",
         userBirthDate: currentUserProfile?.birthDate || "",
+        organizationId: event.organizationId,
         organizerId: event.organizerId,
         organizerUsername: usernameFromUrl,
         
@@ -407,13 +418,13 @@ export default function EventoDetalhesPage() {
         paymentStatus: "Disponível"
       })
       
-      const eventDate = regData.eventDate?.toDate ? regData.eventDate.toDate().toLocaleString('pt-BR') : new Date(regData.eventDate).toLocaleString('pt-BR');
+      const eventDateString = regData.eventDate?.toDate ? regData.eventDate.toDate().toLocaleString('pt-BR') : new Date(regData.eventDate).toLocaleString('pt-BR');
       await sendTicketEmail({
         to: regData.userEmail!,
         userName: regData.attendeeName || regData.userName,
         eventTitle: regData.eventTitle,
         ticketCode: regData.ticketCode,
-        eventDate: eventDate,
+        eventDate: eventDateString,
         eventCity: regData.eventCity || "Local Confirmado",
         voucherUrl: `https://viby.club/dashboard/ingressos/${newDocRef.id}/voucher`,
         eventUrl: `https://viby.club/${usernameFromUrl}/${eventId}`

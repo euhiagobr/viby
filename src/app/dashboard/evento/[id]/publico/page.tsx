@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -58,13 +57,15 @@ export default function EventoPublicoPage() {
   const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
 
+  // Consulta otimizada com organizationId para respeitar regras de segurança e permitir listagem
   const registrationsQuery = useMemoFirebase(() => {
-    if (!db || !eventId) return null
+    if (!db || !eventId || !event?.organizationId) return null
     return query(
       collection(db, "registrations"), 
-      where("eventId", "==", eventId)
+      where("eventId", "==", eventId),
+      where("organizationId", "==", event.organizationId)
     )
-  }, [db, eventId])
+  }, [db, eventId, event?.organizationId])
 
   const { data: registrations, loading: registrationsLoading } = useCollection<any>(registrationsQuery)
   const [search, setSearch] = React.useState("")
@@ -155,14 +156,15 @@ export default function EventoPublicoPage() {
   }, []);
 
   const validateTicket = async (code: string) => {
-    if (!db || !code || !eventId) return
+    if (!db || !code || !eventId || !event?.organizationId) return
 
     setIsValidating(true)
     try {
       const q = query(
         collection(db, "registrations"), 
         where("ticketCode", "==", code.trim().toUpperCase()),
-        where("eventId", "==", eventId)
+        where("eventId", "==", eventId),
+        where("organizationId", "==", event.organizationId)
       )
       const snap = await getDocs(q)
 
@@ -247,12 +249,13 @@ export default function EventoPublicoPage() {
     let count = 0
     try {
       for (const reg of registrations) {
-        if (!reg.organizerId || !reg.userGender || !reg.userBirthDate || !reg.userName) {
+        if (!reg.organizerId || !reg.userGender || !reg.userBirthDate || !reg.userName || !reg.organizationId) {
           const userRef = doc(db, "users", reg.userId)
           const userSnap = await getDoc(userRef)
           if (userSnap.exists()) {
             const userData = userSnap.data()
             batch.update(doc(db, "registrations", reg.id), {
+              organizationId: event.organizationId,
               organizerId: event.organizerId,
               userName: userData.name || reg.userName || "Usuário",
               userEmail: userData.email || reg.userEmail || "",
@@ -299,7 +302,7 @@ export default function EventoPublicoPage() {
             onClick={handleRepairData}
             disabled={isSyncing}
           >
-            {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5" />}
             Sincronizar
           </Button>
         </div>
