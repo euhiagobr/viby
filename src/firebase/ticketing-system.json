@@ -1,0 +1,37 @@
+
+{
+  "collection": "events",
+  "fields": {
+    "ticketMode": "free | paid_single | batches",
+    "batches": [
+      {
+        "id": "string",
+        "name": "string",
+        "description": "string",
+        "startDate": "iso-date-string",
+        "endDate": "iso-date-string",
+        "totalCapacity": "number",
+        "ticketTypes": [
+          {
+            "id": "string",
+            "name": "string",
+            "price": "number",
+            "quantity": "number",
+            "requiresProof": "boolean",
+            "isLegalHalf": "boolean",
+            "description": "string"
+          }
+        ]
+      }
+    ]
+  },
+  "collection_registrations": {
+    "fields": {
+      "ticketTypeId": "string",
+      "ticketTypeName": "string",
+      "batchId": "string",
+      "batchName": "string",
+      "isLegalHalf": "boolean"
+    }
+  }
+}

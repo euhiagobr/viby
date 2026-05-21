@@ -43,12 +43,10 @@ export default function CheckoutSucessoPage() {
           return;
         }
 
-        // Caso 1: Upgrade de Plano
         if (metadata.type === 'plan_upgrade') {
           setType('plan');
           const userRef = doc(db, "users", metadata.userId);
           const amountPaid = (session.amount_total || 0) / 100;
-
           await updateDoc(userRef, {
             plan: metadata.plan,
             billingCycle: metadata.cycle,
@@ -57,30 +55,26 @@ export default function CheckoutSucessoPage() {
             lastPlanPaymentAt: serverTimestamp(),
             lastPlanAmount: amountPaid
           });
-          toast({ title: "Upgrade Realizado!", description: `Bem-vindo ao plano ${metadata.plan}!` });
+          toast({ title: "Upgrade Realizado!" });
         } 
-        
-        // Caso 2: Pagamento de Anúncio
         else if (metadata.type === 'ad_payment') {
           setType('ad');
           setTargetId(metadata.adId);
           const adRef = doc(db, "ads", metadata.adId);
           await updateDoc(adRef, {
-            status: "Ativo", // Aprovação automática após pagamento concluído
+            status: "Ativo",
             paymentConfirmedAt: serverTimestamp(),
             stripeSessionId: sessionId,
             updatedAt: serverTimestamp()
           });
-          toast({ title: "Campanha Ativa!", description: "Seu anúncio já está rodando na plataforma." });
+          toast({ title: "Campanha Ativa!" });
         }
-
-        // Caso 3: Compra de Ingresso
         else if (metadata.registrationId) {
           setType('ticket');
           const regId = metadata.registrationId;
           setTargetId(regId);
-
           const regRef = doc(db, "registrations", regId);
+          
           await updateDoc(regRef, {
             paymentStatus: "Pago",
             stripeSessionId: sessionId,
@@ -89,17 +83,13 @@ export default function CheckoutSucessoPage() {
           });
 
           if (metadata.couponId) {
-            await updateDoc(doc(db, "coupons", metadata.couponId), {
-              currentUses: increment(1)
-            });
+            await updateDoc(doc(db, "coupons", metadata.couponId), { currentUses: increment(1) });
           }
 
-          // Disparar e-mail de confirmação
           const regSnap = await getDoc(regRef);
           if (regSnap.exists()) {
             const regData = regSnap.data();
             const eventDate = regData.eventDate?.toDate ? regData.eventDate.toDate().toLocaleString('pt-BR') : new Date(regData.eventDate).toLocaleString('pt-BR');
-            
             await sendTicketEmail({
               to: regData.userEmail,
               userName: regData.attendeeName || regData.userName,
@@ -111,12 +101,10 @@ export default function CheckoutSucessoPage() {
               eventUrl: `https://viby.club/${regData.organizerUsername || 'evento'}/${regData.eventId}`
             });
           }
-
-          toast({ title: "Pagamento Confirmado!", description: "Seu ingresso foi liberado e enviado por e-mail." });
+          toast({ title: "Pagamento Confirmado!" });
         }
       } catch (error) {
-        console.error("Erro ao processar sucesso:", error);
-        toast({ variant: "destructive", title: "Erro ao sincronizar", description: "Houve um erro ao atualizar os dados." });
+        console.error(error);
       } finally {
         setLoading(false);
       }
@@ -125,94 +113,24 @@ export default function CheckoutSucessoPage() {
     processSuccess();
   }, [sessionId, db, user, router]);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-        <p className="text-xs font-bold text-muted-foreground animate-pulse uppercase tracking-widest">Confirmando transação...</p>
-      </div>
-    )
-  }
+  if (loading) return <div className="flex flex-col items-center justify-center min-h-screen gap-4"><Loader2 className="w-12 h-12 animate-spin text-secondary" /><p className="text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Confirmando transação...</p></div>
 
   return (
     <div className="flex flex-col min-h-screen bg-muted/30">
       <div className="flex flex-col items-center justify-center flex-1 p-4">
         <Card className="max-w-md w-full border-none shadow-2xl rounded-[3rem] overflow-hidden bg-white">
           <div className="flex flex-col items-center gap-4 p-12 text-white bg-green-500">
-            <div className="flex items-center justify-center w-20 h-20 bg-white/20 rounded-full backdrop-blur-md">
-              <CheckCircle2 className="w-10 h-10" />
-            </div>
+            <div className="flex items-center justify-center w-20 h-20 bg-white/20 rounded-full backdrop-blur-md"><CheckCircle2 className="w-10 h-10" /></div>
             <h1 className="text-3xl font-black italic uppercase tracking-tighter">Tudo Certo!</h1>
-            <p className="font-medium text-center text-green-50 opacity-80">
-              {type === 'plan' ? 'Seu plano foi atualizado com sucesso.' : 
-               type === 'ad' ? 'Seu pagamento foi confirmado e o anúncio já está no ar!' :
-               'Sua reserva foi reconhecida e seu ingresso enviado por e-mail.'}
-            </p>
+            <p className="font-medium text-center text-green-50 opacity-80">Sua reserva foi reconhecida e seu ingresso enviado por e-mail.</p>
           </div>
           <CardContent className="p-10 space-y-8 text-center">
-            {type === 'ticket' && (
-              <>
-                <div className="space-y-2">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Seu QR Code de acesso já está disponível em</p>
-                  <div className="flex items-center justify-center gap-2 text-xl font-bold text-primary">
-                    <Ticket className="w-6 h-6 text-secondary" />
-                    Meus Ingressos
-                  </div>
-                </div>
-                <div className="flex flex-col gap-3">
-                  <Button asChild className="h-14 bg-secondary text-white font-black rounded-2xl shadow-xl shadow-secondary/20 uppercase italic">
-                    <Link href={`/dashboard/ingressos/${targetId}/voucher`}>
-                      Ver meu Voucher
-                      <ArrowRight className="ml-2 w-5 h-5" />
-                    </Link>
-                  </Button>
-                </div>
-              </>
-            )}
-
-            {type === 'ad' && (
-              <>
-                <div className="space-y-2">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Sua campanha já está gerando impactos</p>
-                  <div className="flex items-center justify-center gap-2 text-xl font-bold text-primary">
-                    <Megaphone className="w-6 h-6 text-secondary" />
-                    Central de Anúncios
-                  </div>
-                </div>
-                <div className="flex flex-col gap-3">
-                  <Button asChild className="h-14 bg-secondary text-white font-black rounded-2xl shadow-xl shadow-secondary/20 uppercase italic">
-                    <Link href="/dashboard/anuncios">
-                      Ver Desempenho
-                      <ArrowRight className="ml-2 w-5 h-5" />
-                    </Link>
-                  </Button>
-                </div>
-              </>
-            )}
-
-            {type === 'plan' && (
-              <>
-                <div className="space-y-2">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Novas ferramentas liberadas em</p>
-                  <div className="flex items-center justify-center gap-2 text-xl font-bold text-primary">
-                    <ShieldCheck className="w-6 h-6 text-secondary" />
-                    Minha Conta PRO
-                  </div>
-                </div>
-                <div className="flex flex-col gap-3">
-                  <Button asChild className="h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic">
-                    <Link href="/dashboard/projetos">
-                      Ir para Meus Eventos
-                      <ArrowRight className="ml-2 w-5 h-5" />
-                    </Link>
-                  </Button>
-                </div>
-              </>
-            )}
-
-            <Button variant="ghost" asChild className="font-bold text-muted-foreground hover:bg-muted/50">
-              <Link href="/dashboard">Voltar para a Home</Link>
-            </Button>
+            <div className="flex flex-col gap-3">
+              <Button asChild className="h-14 bg-secondary text-white font-black rounded-2xl shadow-xl shadow-secondary/20 uppercase italic">
+                <Link href={`/dashboard/ingressos/${targetId}/voucher`}>Ver meu Voucher <ArrowRight className="ml-2 w-5 h-5" /></Link>
+              </Button>
+            </div>
+            <Button variant="ghost" asChild className="font-bold text-muted-foreground"><Link href="/dashboard">Voltar para a Home</Link></Button>
           </CardContent>
         </Card>
       </div>

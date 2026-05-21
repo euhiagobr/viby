@@ -1,3 +1,4 @@
+
 'use server';
 
 import { headers } from 'next/headers';
@@ -76,7 +77,7 @@ export async function createCheckoutSession(data: {
             currency: 'brl',
             product_data: {
               name: data.eventTitle || 'Ingresso Viby',
-              description: `Reserva de ingresso para ${data.eventTitle}`,
+              description: `Reserva de ingresso: ${data.metadata.ticketTypeName || 'Acesso Geral'}`,
               images: (data.eventImage && data.eventImage.startsWith('http')) ? [data.eventImage] : [],
             },
             unit_amount: Math.max(1, Math.round(data.totalAmount)),
@@ -109,7 +110,6 @@ export async function createPlanCheckoutSession(data: {
   try {
     const h = await headers();
     const origin = h.get('origin') || 'https://viby.club';
-
     const stripe = await getStripeInstance();
 
     const session = await stripe.checkout.sessions.create({
@@ -156,7 +156,6 @@ export async function createAdCheckoutSession(data: {
   try {
     const h = await headers();
     const origin = h.get('origin') || 'https://viby.club';
-
     const stripe = await getStripeInstance();
 
     const session = await stripe.checkout.sessions.create({

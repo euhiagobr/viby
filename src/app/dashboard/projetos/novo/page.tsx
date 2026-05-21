@@ -4,8 +4,8 @@
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useFirestore, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { collection, addDoc, serverTimestamp, doc } from "firebase/firestore"
+import { useFirestore, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
+import { collection, addDoc, serverTimestamp } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -27,23 +27,48 @@ import {
   Trash2, 
   Loader2, 
   ImageIcon,
-  ShieldAlert,
   Clock,
   Compass,
   Building2,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle,
+  Info,
+  CheckCircle2,
+  Ticket
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 
-interface Batch {
+interface TicketType {
+  id: string
   name: string
-  price: string
+  price: number
+  quantity: number
+  requiresProof: boolean
+  isLegalHalf: boolean
+  description: string
+}
+
+interface Batch {
+  id: string
+  name: string
+  description: string
   startDate: string
   endDate: string
-  available: string
+  ticketTypes: TicketType[]
 }
+
+const DEFAULT_TICKET_TYPES = [
+  { name: "Inteira", isLegalHalf: false, requiresProof: false },
+  { name: "Meia Estudante", isLegalHalf: true, requiresProof: true },
+  { name: "Meia PCD", isLegalHalf: true, requiresProof: true },
+  { name: "Meia Idoso", isLegalHalf: true, requiresProof: true },
+  { name: "Meia ID Jovem", isLegalHalf: true, requiresProof: true },
+  { name: "Ingresso Social", isLegalHalf: false, requiresProof: true },
+  { name: "Cortesia", isLegalHalf: false, requiresProof: false },
+  { name: "Promocional", isLegalHalf: false, requiresProof: false },
+]
 
 export default function NovoEventoPage() {
   const router = useRouter()
@@ -73,7 +98,21 @@ export default function NovoEventoPage() {
   
   const [selectedCategory, setSelectedCategory] = useState("")
   const [tags, setTags] = useState("")
-  const [isFree, setIsFree] = useState(false)
+  
+  // Novo sistema de ingressos
+  const [ticketMode, setTicketMode] = useState<'free' | 'paid_single' | 'batches'>('free')
+  const [batches, setBatches] = useState<Batch[]>([
+    { 
+      id: crypto.randomUUID(),
+      name: "Ingresso Único", 
+      description: "", 
+      startDate: "", 
+      endDate: "", 
+      ticketTypes: [
+        { id: crypto.randomUUID(), name: "Acesso Geral", price: 0, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }
+      ] 
+    }
+  ])
 
   const [cep, setCep] = useState("")
   const [address, setAddress] = useState({
@@ -135,23 +174,17 @@ export default function NovoEventoPage() {
 
   const geocodeAddress = async () => {
     if (!address.street || !address.city || !address.number) return;
-    
     setIsGeocoding(true);
     const query = `${address.street}, ${address.number}, ${address.neighborhood}, ${address.city}, ${address.state}, Brasil`;
-    
     try {
       const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
       const data = await response.json();
-      
       if (data && data[0]) {
-        setCoords({
-          lat: data[0].lat,
-          lng: data[0].lon
-        });
-        toast({ title: "Localização sincronizada!", description: "Coordenadas detectadas automaticamente." });
+        setCoords({ lat: data[0].lat, lng: data[0].lon });
+        toast({ title: "Localização sincronizada!" });
       }
     } catch (e) {
-      console.error("Erro na geolocalização:", e);
+      console.error(e);
     } finally {
       setIsGeocoding(false);
     }
@@ -171,27 +204,74 @@ export default function NovoEventoPage() {
           city: data.localidade || "",
           state: data.uf || ""
         }))
-        if (address.number) geocodeAddress();
       }
     } catch (e) {}
   }
 
-  const [batches, setBatches] = useState<Batch[]>([
-    { name: "Lote Único", price: "0.00", startDate: "", endDate: "", available: "100" }
-  ])
+  // Métodos do novo sistema de ingressos
+  const addBatch = () => {
+    setBatches([...batches, { 
+      id: crypto.randomUUID(),
+      name: `Lote ${batches.length + 1}`, 
+      description: "", 
+      startDate: "", 
+      endDate: "", 
+      ticketTypes: [
+        { id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 50, requiresProof: false, isLegalHalf: false, description: "" }
+      ] 
+    }])
+  }
 
-  const addBatch = () => setBatches([...batches, { name: "", price: "", startDate: "", endDate: "", available: "" }])
-  const removeBatch = (index: number) => setBatches(batches.filter((_, i) => i !== index))
-  const updateBatch = (index: number, field: keyof Batch, value: string) => {
+  const removeBatch = (index: number) => {
+    if (batches.length > 1) {
+      setBatches(batches.filter((_, i) => i !== index))
+    }
+  }
+
+  const addTicketType = (batchIndex: number) => {
     const newBatches = [...batches]
-    newBatches[index][field] = value
+    newBatches[batchIndex].ticketTypes.push({
+      id: crypto.randomUUID(),
+      name: "Novo Tipo",
+      price: 0,
+      quantity: 0,
+      requiresProof: false,
+      isLegalHalf: false,
+      description: ""
+    })
     setBatches(newBatches)
+  }
+
+  const removeTicketType = (batchIndex: number, typeIndex: number) => {
+    const newBatches = [...batches]
+    if (newBatches[batchIndex].ticketTypes.length > 1) {
+      newBatches[batchIndex].ticketTypes.splice(typeIndex, 1)
+      setBatches(newBatches)
+    }
+  }
+
+  const updateBatchField = (index: number, field: keyof Batch, value: any) => {
+    const newBatches = [...batches]
+    newBatches[index] = { ...newBatches[index], [field]: value }
+    setBatches(newBatches)
+  }
+
+  const updateTicketTypeField = (batchIndex: number, typeIndex: number, field: keyof TicketType, value: any) => {
+    const newBatches = [...batches]
+    newBatches[batchIndex].ticketTypes[typeIndex] = { ...newBatches[batchIndex].ticketTypes[typeIndex], [field]: value }
+    setBatches(newBatches)
+  }
+
+  const calculateHalfPriceStats = (batch: Batch) => {
+    const total = batch.ticketTypes.reduce((acc, t) => acc + (parseInt(t.quantity as any) || 0), 0)
+    const legalHalf = batch.ticketTypes.filter(t => t.isLegalHalf).reduce((acc, t) => acc + (parseInt(t.quantity as any) || 0), 0)
+    const percentage = total > 0 ? (legalHalf / total) * 100 : 0
+    return { total, legalHalf, percentage }
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!db || !user || !currentOrg || !isAtLeastEditor) return
-
     if (!selectedCategory) {
       toast({ variant: "destructive", title: "Erro", description: "Selecione uma categoria." })
       return
@@ -200,7 +280,6 @@ export default function NovoEventoPage() {
     setLoading(true)
     const formData = new FormData(e.currentTarget)
     const currentCategory = categories?.find(c => c.id === selectedCategory);
-    const categoryName = currentCategory?.name || "Outros";
     
     try {
       const eventData = {
@@ -210,24 +289,23 @@ export default function NovoEventoPage() {
         date: formData.get("startDate") as string, 
         endDate: formData.get("endDate") as string,
         categoryId: selectedCategory,
-        categoryName: categoryName,
+        categoryName: currentCategory?.name || "Outros",
         tags: tags.split(",").map(t => t.trim()).filter(t => t !== ""),
-        isFree: isFree,
-        cep: cep,
-        address: address,
+        ticketMode: ticketMode,
+        isFree: ticketMode === 'free',
+        batches: batches.map(b => ({
+          ...b,
+          totalCapacity: b.ticketTypes.reduce((acc, t) => acc + (parseInt(t.quantity as any) || 0), 0),
+          ticketTypes: b.ticketTypes.map(t => ({
+            ...t,
+            price: parseFloat(t.price as any) || 0,
+            quantity: parseInt(t.quantity as any) || 0
+          }))
+        })),
+        cep,
+        address,
         latitude: parseFloat(coords.lat) || 0,
         longitude: parseFloat(coords.lng) || 0,
-        batches: isFree ? [{ 
-          name: "Gratuito", 
-          price: 0, 
-          available: parseInt(formData.get("freeCapacity") as string) || 0,
-          startDate: formData.get("freeSalesStart") as string,
-          endDate: formData.get("freeSalesEnd") as string
-        }] : batches.map(b => ({
-          ...b,
-          price: parseFloat(b.price) || 0,
-          available: parseInt(b.available) || 0
-        })),
         image: uploadedImageUrl || "",
         organizationId: currentOrg.id,
         organizerId: user.uid, 
@@ -238,7 +316,6 @@ export default function NovoEventoPage() {
           username: currentOrg.username
         },
         status: "Ativo",
-        type: "Público",
         city: address.city,
         createdAt: serverTimestamp()
       }
@@ -254,23 +331,16 @@ export default function NovoEventoPage() {
   }
 
   if (orgLoading) {
-    return (
-      <div className="flex justify-center items-center h-[60vh]">
-        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-      </div>
-    )
+    return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
   }
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/projetos"><ArrowLeft className="w-5 h-5" /></Link>
-        </Button>
+        <Button variant="ghost" size="icon" asChild><Link href="/dashboard/projetos"><ArrowLeft className="w-5 h-5" /></Link></Button>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Novo Evento</h1>
+          <h1 className="text-3xl font-black tracking-tight text-primary uppercase italic">Novo Evento</h1>
           <div className="flex items-center gap-2 mt-1">
-             <span className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Publicando como:</span>
              <Badge variant="secondary" className="gap-1.5 font-black uppercase text-[10px] italic">
                 <Building2 className="w-3 h-3" />
                 {currentOrg?.name}
@@ -280,188 +350,224 @@ export default function NovoEventoPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        <Card className="overflow-hidden border-none shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <ImageIcon className="w-5 h-5 text-secondary" />
-              Capa do Evento
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        {/* Capa */}
+        <Card className="overflow-hidden border-none shadow-sm rounded-[2rem]">
+          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5 text-secondary" /> Capa do Evento</CardTitle></CardHeader>
+          <CardContent className="px-6 pb-6">
             <div 
-              className="relative aspect-video rounded-xl bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden cursor-pointer"
+              className="relative aspect-video rounded-[1.5rem] bg-muted border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden cursor-pointer"
               onClick={() => document.getElementById('image-upload')?.click()}
             >
-              {imagePreview ? (
-                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-              ) : (
-                <>
-                  <Upload className="w-10 h-10 text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">Clique para carregar capa (16:9)</p>
-                </>
-              )}
+              {imagePreview ? <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" /> : <><Upload className="w-10 h-10 text-muted-foreground mb-2" /><p className="text-sm font-bold opacity-40">Carregar Imagem (16:9)</p></>}
               <input id="image-upload" type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
             </div>
-            {uploadProgress !== null && (
-              <div className="space-y-2">
-                <Progress value={uploadProgress} className="h-2" />
-                <p className="text-[10px] text-center font-bold text-muted-foreground uppercase">Enviando: {Math.round(uploadProgress)}%</p>
-              </div>
-            )}
+            {uploadProgress !== null && <Progress value={uploadProgress} className="h-1 mt-4" />}
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-secondary" />
-              Informações Gerais
-            </CardTitle>
-          </CardHeader>
+        {/* Info Geral */}
+        <Card className="border-none shadow-sm rounded-[2rem]">
+          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Calendar className="w-5 h-5 text-secondary" /> Informações do Evento</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="title">Nome do Evento</Label>
-                <Input id="title" name="title" placeholder="Ex: Festival de Verão Viby" required />
-              </div>
+              <div className="space-y-2"><Label>Nome do Evento</Label><Input name="title" required className="rounded-xl" /></div>
               <div className="space-y-2">
                 <Label>Categoria</Label>
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger><SelectValue placeholder="Selecione uma categoria" /></SelectTrigger>
-                  <SelectContent>
-                    {sortedCategories.map((cat: any) => (
-                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                    ))}
+                  <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {sortedCategories.map((cat: any) => (<SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2"><Label htmlFor="startDate">Data e Hora de Início</Label><Input id="startDate" name="startDate" type="datetime-local" required /></div>
-              <div className="space-y-2"><Label htmlFor="endDate">Data e Hora de Fim</Label><Input id="endDate" name="endDate" type="datetime-local" required /></div>
+              <div className="space-y-2"><Label>Data e Hora Início</Label><Input name="startDate" type="datetime-local" required className="rounded-xl" /></div>
+              <div className="space-y-2"><Label>Data e Hora Fim</Label><Input name="endDate" type="datetime-local" required className="rounded-xl" /></div>
             </div>
-            <div className="space-y-2"><Label htmlFor="tags">Tags (separadas por vírgula)</Label><Input id="tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="musica, festival..." /></div>
-            <div className="space-y-2"><Label htmlFor="shortDescription">Breve Descrição</Label><Input id="shortDescription" name="shortDescription" placeholder="Frase chamativa..." required /></div>
-            <div className="space-y-2"><Label htmlFor="description">Descrição Completa</Label><Textarea id="description" name="description" placeholder="Detalhes do evento..." className="min-h-[120px]" required /></div>
+            <div className="space-y-2"><Label>Descrição Curta (Slogan)</Label><Input name="shortDescription" required className="rounded-xl" /></div>
+            <div className="space-y-2"><Label>Descrição Detalhada</Label><Textarea name="description" className="min-h-[120px] rounded-xl" required /></div>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm">
-          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização & Geolocalização</CardTitle></CardHeader>
+        {/* Localização */}
+        <Card className="border-none shadow-sm rounded-[2rem]">
+          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="cep">CEP</Label>
-                <Input id="cep" value={cep} onChange={(e) => setCep(e.target.value)} onBlur={handleCepBlur} placeholder="00000-000" required />
-              </div>
-              <div className="md:col-span-3 space-y-2">
-                <Label htmlFor="street">Logradouro</Label>
-                <Input id="street" value={address.street} onChange={(e) => setAddress({...address, street: e.target.value})} onBlur={geocodeAddress} placeholder="Rua..." required />
-              </div>
+              <div className="space-y-2"><Label>CEP</Label><Input value={cep} onChange={e => setCep(e.target.value)} onBlur={handleCepBlur} className="rounded-xl" /></div>
+              <div className="md:col-span-3 space-y-2"><Label>Endereço</Label><Input value={address.street} onChange={e => setAddress({...address, street: e.target.value})} onBlur={geocodeAddress} className="rounded-xl" /></div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="space-y-2"><Label htmlFor="number">Número</Label><Input id="number" value={address.number} onChange={(e) => setAddress({...address, number: e.target.value})} onBlur={geocodeAddress} placeholder="Ex: 123" required /></div>
-              <div className="space-y-2"><Label htmlFor="neighborhood">Bairro</Label><Input id="neighborhood" value={address.neighborhood} onChange={(e) => setAddress({...address, neighborhood: e.target.value})} onBlur={geocodeAddress} required /></div>
-              <div className="space-y-2"><Label htmlFor="city">Cidade</Label><Input id="city" value={address.city} onChange={(e) => setAddress({...address, city: e.target.value})} required /></div>
-              <div className="space-y-2"><Label htmlFor="state">Estado</Label><Input id="state" value={address.state} onChange={(e) => setAddress({...address, state: e.target.value})} placeholder="Ex: SP" required /></div>
-            </div>
-            
-            <Separator />
-            <div className="space-y-4">
-               <div className="flex items-center justify-between">
-                 <div className="flex items-center gap-2">
-                   <Compass className="w-4 h-4 text-secondary" />
-                   <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Coordenadas de Descoberta</h4>
-                 </div>
-                 {isGeocoding && <div className="flex items-center gap-2 text-[10px] font-bold text-secondary animate-pulse uppercase"><RefreshCw className="w-3 h-3 animate-spin" /> Buscando...</div>}
-               </div>
-               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                 O Viby detecta automaticamente a Latitude e Longitude com base no endereço preenchido acima. 
-                 Isso é vital para que o público encontre seu evento pelo filtro de distância.
-               </p>
-               <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase opacity-60">Latitude</Label>
-                    <Input value={coords.lat} onChange={(e) => setCoords({...coords, lat: e.target.value})} placeholder="Detectado automaticamente" readOnly className="bg-muted/30" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase opacity-60">Longitude</Label>
-                    <Input value={coords.lng} onChange={(e) => setCoords({...coords, lng: e.target.value})} placeholder="Detectado automaticamente" readOnly className="bg-muted/30" />
-                  </div>
-               </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="space-y-2"><Label>Número</Label><Input value={address.number} onChange={e => setAddress({...address, number: e.target.value})} onBlur={geocodeAddress} className="rounded-xl" /></div>
+              <div className="space-y-2"><Label>Bairro</Label><Input value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} className="rounded-xl" /></div>
+              <div className="space-y-2"><Label>Cidade</Label><Input value={address.city} readOnly className="bg-muted/30 rounded-xl" /></div>
+              <div className="space-y-2"><Label>UF</Label><Input value={address.state} readOnly className="bg-muted/30 rounded-xl" /></div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-6 border-b">
-            <CardTitle className="text-lg flex items-center gap-2">Configuração de Ingressos</CardTitle>
-            <div className="flex items-center gap-2"><Label htmlFor="free-event">Grátis</Label><Switch id="free-event" checked={isFree} onCheckedChange={setIsFree} /></div>
+        {/* Sistema de Ingressos */}
+        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
+          <CardHeader className="bg-muted/30 border-b">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Configuração de Ingressos</CardTitle>
+              <div className="bg-white p-1 rounded-xl border flex gap-1">
+                <Button 
+                  type="button" 
+                  variant={ticketMode === 'free' ? 'secondary' : 'ghost'} 
+                  size="sm" 
+                  className="rounded-lg text-[10px] font-black uppercase px-4"
+                  onClick={() => { setTicketMode('free'); setBatches([{ id: crypto.randomUUID(), name: "Lote Gratuito", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Entrada Franca", price: 0, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]) }}
+                >Grátis</Button>
+                <Button 
+                  type="button" 
+                  variant={ticketMode === 'paid_single' ? 'secondary' : 'ghost'} 
+                  size="sm" 
+                  className="rounded-lg text-[10px] font-black uppercase px-4"
+                  onClick={() => { setTicketMode('paid_single'); setBatches([{ id: crypto.randomUUID(), name: "Ingresso Único", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]) }}
+                >Único Pago</Button>
+                <Button 
+                  type="button" 
+                  variant={ticketMode === 'batches' ? 'secondary' : 'ghost'} 
+                  size="sm" 
+                  className="rounded-lg text-[10px] font-black uppercase px-4"
+                  onClick={() => setTicketMode('batches')}
+                >Lotes</Button>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="p-6">
-            {isFree ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <Label>Quantidade Disponível</Label>
-                  <Input name="freeCapacity" type="number" placeholder="Ex: 100" required />
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-secondary" /> Início das Vendas</Label>
-                  <Input name="freeSalesStart" type="datetime-local" required />
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-secondary" /> Fim das Vendas</Label>
-                  <Input name="freeSalesEnd" type="datetime-local" required />
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {batches.map((batch, index) => (
-                  <div key={index} className="p-6 rounded-[1.5rem] border bg-muted/20 space-y-6 relative group/batch">
+          <CardContent className="p-6 space-y-8">
+             {batches.map((batch, bIdx) => {
+               const stats = calculateHalfPriceStats(batch)
+               return (
+                 <div key={batch.id} className="p-6 rounded-[1.5rem] border-2 bg-muted/10 space-y-6 relative animate-in fade-in zoom-in-95">
                     <div className="flex justify-between items-center">
-                      <h4 className="font-black text-xs uppercase tracking-widest text-secondary">Lote #{index + 1}</h4>
-                      {batches.length > 1 && (
-                        <Button type="button" variant="ghost" size="icon" onClick={() => removeBatch(index)} className="text-destructive rounded-full">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
+                       <div className="space-y-1">
+                          <h3 className="font-black italic uppercase text-secondary tracking-tighter text-xl">{batch.name}</h3>
+                          {ticketMode === 'batches' && <p className="text-[10px] font-bold text-muted-foreground uppercase">Configure o período de vendas deste lote.</p>}
+                       </div>
+                       {ticketMode === 'batches' && batches.length > 1 && (
+                         <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bIdx)}><Trash2 className="w-4 h-4" /></Button>
+                       )}
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-bold">Nome do Lote</Label>
-                        <Input value={batch.name} onChange={(e) => updateBatch(index, "name", e.target.value)} placeholder="Ex: Lote 1" required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-bold">Preço Unitário (R$)</Label>
-                        <Input value={batch.price} onChange={(e) => updateBatch(index, "price", e.target.value)} type="number" step="0.01" placeholder="0.00" required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-bold">Quantidade</Label>
-                        <Input value={batch.available} onChange={(e) => updateBatch(index, "available", e.target.value)} type="number" placeholder="0" required />
-                      </div>
-                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-bold flex items-center gap-1.5"><Clock className="w-3 h-3" /> Início das Vendas</Label>
-                        <Input value={batch.startDate} onChange={(e) => updateBatch(index, "startDate", e.target.value)} type="datetime-local" required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-bold flex items-center gap-1.5"><Clock className="w-3 h-3" /> Fim das Vendas</Label>
-                        <Input value={batch.endDate} onChange={(e) => updateBatch(index, "endDate", e.target.value)} type="datetime-local" required />
-                      </div>
+                       <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote</Label><Input value={batch.name} onChange={e => updateBatchField(bIdx, 'name', e.target.value)} className="rounded-xl" /></div>
+                       <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início Vendas</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bIdx, 'startDate', e.target.value)} className="rounded-xl text-xs" /></div>
+                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fim Vendas</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bIdx, 'endDate', e.target.value)} className="rounded-xl text-xs" /></div>
+                       </div>
                     </div>
-                  </div>
-                ))}
-                <Button type="button" variant="outline" className="w-full border-dashed h-12 rounded-xl font-bold gap-2" onClick={addBatch}>
-                  <Plus className="w-4 h-4" /> Adicionar Outro Lote
-                </Button>
-              </div>
-            )}
+
+                    <div className="space-y-4">
+                       <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Tipos de Ingresso</h4>
+                          <div className="flex gap-2">
+                             <Select onValueChange={(v) => {
+                               const preset = DEFAULT_TICKET_TYPES.find(p => p.name === v);
+                               if (preset) {
+                                 const newTypes = [...batch.ticketTypes, { id: crypto.randomUUID(), name: preset.name, price: 0, quantity: 0, requiresProof: preset.requiresProof, isLegalHalf: preset.isLegalHalf, description: "" }];
+                                 updateBatchField(bIdx, 'ticketTypes', newTypes);
+                               }
+                             }}>
+                                <SelectTrigger className="h-8 rounded-lg text-[10px] font-black uppercase border-dashed"><SelectValue placeholder="Presets de Tipos" /></SelectTrigger>
+                                <SelectContent className="rounded-xl">
+                                   {DEFAULT_TICKET_TYPES.map(p => <SelectItem key={p.name} value={p.name} className="text-xs font-bold">{p.name}</SelectItem>)}
+                                </SelectContent>
+                             </Select>
+                             <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-dashed" onClick={() => addTicketType(bIdx)}>Personalizado</Button>
+                          </div>
+                       </div>
+
+                       <div className="space-y-3">
+                          {batch.ticketTypes.map((type, tIdx) => (
+                            <div key={type.id} className="p-4 bg-white rounded-2xl border shadow-sm space-y-4 group">
+                               <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+                                  <div className="flex-1 space-y-2">
+                                     <Label className="text-[10px] font-black uppercase opacity-60">Nome</Label>
+                                     <Input value={type.name} onChange={e => updateTicketTypeField(bIdx, tIdx, 'name', e.target.value)} className="rounded-xl h-10" />
+                                  </div>
+                                  <div className="w-full md:w-32 space-y-2">
+                                     <Label className="text-[10px] font-black uppercase opacity-60">Preço (R$)</Label>
+                                     <Input 
+                                      type="number" 
+                                      step="0.01" 
+                                      disabled={ticketMode === 'free'}
+                                      value={type.price} 
+                                      onChange={e => updateTicketTypeField(bIdx, tIdx, 'price', e.target.value)} 
+                                      className="rounded-xl h-10 font-bold" 
+                                     />
+                                  </div>
+                                  <div className="w-full md:w-24 space-y-2">
+                                     <Label className="text-[10px] font-black uppercase opacity-60">Qtd</Label>
+                                     <Input type="number" value={type.quantity} onChange={e => updateTicketTypeField(bIdx, tIdx, 'quantity', e.target.value)} className="rounded-xl h-10" />
+                                  </div>
+                                  <div className="flex items-center gap-6 md:pt-6">
+                                     <div className="flex items-center gap-2">
+                                        <Switch checked={type.requiresProof} onCheckedChange={v => updateTicketTypeField(bIdx, tIdx, 'requiresProof', v)} />
+                                        <Label className="text-[9px] font-black uppercase leading-none">Exige Prova</Label>
+                                     </div>
+                                     <div className="flex items-center gap-2">
+                                        <Switch checked={type.isLegalHalf} onCheckedChange={v => updateTicketTypeField(bIdx, tIdx, 'isLegalHalf', v)} />
+                                        <Label className="text-[9px] font-black uppercase leading-none">Meia Legal</Label>
+                                     </div>
+                                     <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-full" onClick={() => removeTicketType(bIdx, tIdx)}><Trash2 className="w-4 h-4" /></Button>
+                                  </div>
+                               </div>
+                            </div>
+                          ))}
+                       </div>
+                    </div>
+
+                    {/* Meia Entrada Info */}
+                    <div className="p-5 bg-white rounded-3xl border shadow-inner space-y-4">
+                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div className="space-y-1">
+                             <div className="flex items-center gap-2">
+                                <Info className="w-4 h-4 text-secondary" />
+                                <h5 className="text-[10px] font-black uppercase tracking-widest text-primary">Cálculo de Meia-Entrada Legal</h5>
+                             </div>
+                             <p className="text-[9px] text-muted-foreground font-medium leading-tight">Lei Federal nº 12.933/2013 recomenda reserva de 40% para Estudante, PCD, Idoso e ID Jovem.</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                             <div className="text-right">
+                                <p className="text-[9px] font-black uppercase opacity-40">Percentual do Lote</p>
+                                <p className={cn("text-xl font-black italic", stats.percentage < 40 ? "text-orange-500" : "text-green-600")}>{stats.percentage.toFixed(1)}%</p>
+                             </div>
+                             <div className={cn("h-10 w-10 rounded-full flex items-center justify-center shadow-lg", stats.percentage < 40 ? "bg-orange-500 text-white" : "bg-green-600 text-white")}>
+                                {stats.percentage < 40 ? <AlertTriangle className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
+                             </div>
+                          </div>
+                       </div>
+                       {stats.percentage < 40 && (
+                         <div className="p-3 rounded-xl bg-orange-50 border border-orange-100 flex gap-2 items-start">
+                            <AlertTriangle className="w-3 h-3 text-orange-600 shrink-0 mt-0.5" />
+                            <p className="text-[9px] text-orange-800 font-bold uppercase leading-relaxed">
+                               Aviso: A quantidade de meias legais ({stats.legalHalf}) está abaixo de 40% da capacidade total ({stats.total}). Considere revisar antes de publicar.
+                            </p>
+                         </div>
+                       )}
+                    </div>
+                 </div>
+               )
+             })}
+             
+             {ticketMode === 'batches' && (
+               <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic tracking-widest gap-2" onClick={addBatch}>
+                  <Plus className="w-5 h-5" /> Adicionar Outro Lote
+               </Button>
+             )}
           </CardContent>
         </Card>
 
-        <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 h-14 text-lg font-bold rounded-[1.5rem] shadow-lg shadow-secondary/20 uppercase italic" disabled={loading}>
-          {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Publicar Evento"}
+        <Button 
+          type="submit" 
+          className="w-full bg-secondary text-white hover:bg-secondary/90 h-16 rounded-[2rem] font-black text-xl shadow-xl shadow-secondary/20 uppercase italic transition-all hover:scale-[1.02]" 
+          disabled={loading}
+        >
+          {loading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Plus className="w-6 h-6 mr-2" />}
+          Publicar Evento
         </Button>
       </form>
     </div>
