@@ -238,6 +238,18 @@ function UniversalProfileContent() {
   const displayName = isOrg ? data.name : data.name || data.displayName
   const avatar = data.avatar || `https://picsum.photos/seed/${data.id}/200/200`
 
+  // Helper para formatar ano de criação com segurança contra NaN
+  const getCreationYear = (ts: any) => {
+    if (!ts) return '---'
+    try {
+      const date = ts.toDate ? ts.toDate() : new Date(ts)
+      if (isNaN(date.getTime())) return '---'
+      return date.getFullYear()
+    } catch (e) {
+      return '---'
+    }
+  }
+
   return (
     <div className="flex-1">
        {/* Banner Superior (Apenas Org) */}
@@ -382,13 +394,15 @@ function UniversalProfileContent() {
                       <h3 className="font-bold text-lg">Informações Detalhadas</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                          <div className="space-y-4">
-                            <div className="space-y-1">
-                               <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Tipo</p>
-                               <p className="font-bold">{isOrg ? (data.type || "Não informado") : "Perfil de Usuário"}</p>
-                            </div>
+                            {isOrg && (
+                              <div className="space-y-1">
+                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Tipo</p>
+                                 <p className="font-bold">{data.type || "Não informado"}</p>
+                              </div>
+                            )}
                             <div className="space-y-1">
                                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Desde</p>
-                               <p className="font-bold">{data.createdAt ? new Date(data.createdAt.seconds * 1000).getFullYear() : '---'}</p>
+                               <p className="font-bold">{getCreationYear(data.createdAt)}</p>
                             </div>
                          </div>
                          <div className="space-y-4">
