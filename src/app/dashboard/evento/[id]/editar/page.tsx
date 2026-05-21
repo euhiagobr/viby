@@ -60,17 +60,6 @@ interface Batch {
   ticketTypes: TicketType[]
 }
 
-const DEFAULT_TICKET_TYPES = [
-  { name: "Inteira", isLegalHalf: false, requiresProof: false },
-  { name: "Meia Estudante", isLegalHalf: true, requiresProof: true },
-  { name: "Meia PCD", isLegalHalf: true, requiresProof: true },
-  { name: "Meia Idoso", isLegalHalf: true, requiresProof: true },
-  { name: "Meia ID Jovem", isLegalHalf: true, requiresProof: true },
-  { name: "Ingresso Social", isLegalHalf: false, requiresProof: true },
-  { name: "Cortesia", isLegalHalf: false, requiresProof: false },
-  { name: "Promocional", isLegalHalf: false, requiresProof: false },
-]
-
 export default function EditarEventoPage() {
   const params = useParams()
   const router = useRouter()
@@ -169,8 +158,8 @@ export default function EditarEventoPage() {
       const storageRef = ref(storage, `events/${user.uid}/${fileName}`)
       const uploadTask = uploadBytesResumable(storageRef, file)
       uploadTask.on('state_changed', (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), () => setUploadProgress(null), async () => {
-        const url = await getDownloadURL(uploadTask.snapshot.ref);
-        setUploadedImageUrl(url);
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+        setUploadedImageUrl(downloadURL);
         setUploadProgress(null);
         toast({ title: "Imagem carregada!" });
       })
@@ -306,12 +295,36 @@ export default function EditarEventoPage() {
          {/* Ingressos */}
          <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
             <CardHeader className="bg-muted/30 border-b">
-               <div className="flex justify-between items-center">
-                  <CardTitle className="text-lg">Ingressos</CardTitle>
+               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <CardTitle className="text-lg">Configuração de Ingressos</CardTitle>
                   <div className="bg-white p-1 rounded-xl border flex gap-1">
-                    {['free', 'paid_single', 'batches'].map(m => (
-                      <Button key={m} type="button" variant={ticketMode === m ? 'secondary' : 'ghost'} size="sm" className="text-[9px] font-black uppercase px-4" onClick={() => setTicketMode(m as any)}>{m === 'free' ? 'Grátis' : m === 'paid_single' ? 'Único' : 'Lotes'}</Button>
-                    ))}
+                    <Button 
+                      type="button" 
+                      variant={ticketMode === 'free' ? 'secondary' : 'ghost'} 
+                      size="sm" 
+                      className="text-[10px] font-black uppercase px-4" 
+                      onClick={() => {
+                        setTicketMode('free');
+                        setBatches([{ id: crypto.randomUUID(), name: "Lote Gratuito", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Entrada Franca", price: 0, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]);
+                      }}
+                    >Grátis</Button>
+                    <Button 
+                      type="button" 
+                      variant={ticketMode === 'paid_single' ? 'secondary' : 'ghost'} 
+                      size="sm" 
+                      className="text-[10px] font-black uppercase px-4" 
+                      onClick={() => {
+                        setTicketMode('paid_single');
+                        setBatches([{ id: crypto.randomUUID(), name: "Ingresso Único", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]);
+                      }}
+                    >Único Pago</Button>
+                    <Button 
+                      type="button" 
+                      variant={ticketMode === 'batches' ? 'secondary' : 'ghost'} 
+                      size="sm" 
+                      className="text-[10px] font-black uppercase px-4" 
+                      onClick={() => setTicketMode('batches')}
+                    >Lotes</Button>
                   </div>
                </div>
             </CardHeader>
@@ -321,40 +334,97 @@ export default function EditarEventoPage() {
                  return (
                    <div key={batch.id} className="p-6 rounded-[1.5rem] border-2 bg-muted/10 space-y-6">
                       <div className="flex justify-between items-center">
-                        <Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="w-64 font-black uppercase text-secondary h-10 border-none bg-transparent focus-visible:ring-0" />
-                        {ticketMode === 'batches' && <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeBatch(bi)}><Trash2 className="w-4 h-4" /></Button>}
+                        <div className="space-y-1">
+                           <h3 className="font-black italic uppercase text-secondary tracking-tighter text-xl">{batch.name}</h3>
+                        </div>
+                        {ticketMode === 'batches' && batches.length > 1 && <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)}><Trash2 className="w-4 h-4" /></Button>}
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                         <div className="space-y-2"><Label className="text-[10px] uppercase font-black opacity-40">Vendas Início</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl" /></div>
-                         <div className="space-y-2"><Label className="text-[10px] uppercase font-black opacity-40">Vendas Fim</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl" /></div>
-                      </div>
-                      <div className="space-y-4">
-                         {batch.ticketTypes.map((t, ti) => (
-                           <div key={t.id} className="p-4 bg-white rounded-2xl border flex flex-col md:flex-row gap-4 items-center">
-                              <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="flex-1 rounded-xl h-10" />
-                              <div className="flex gap-2">
-                                <Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} className="w-24 rounded-xl font-bold" disabled={ticketMode === 'free'} />
-                                <Input type="number" value={t.quantity} onChange={e => updateTicketTypeField(bi, ti, 'quantity', e.target.value)} className="w-20 rounded-xl" />
-                              </div>
-                              <div className="flex gap-4">
-                                <div className="flex items-center gap-1"><Switch checked={t.isLegalHalf} onCheckedChange={v => updateTicketTypeField(bi, ti, 'isLegalHalf', v)} /><span className="text-[9px] font-black uppercase">Meia</span></div>
-                                <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTicketType(bi, ti)}><Trash2 className="w-4 h-4" /></Button>
-                              </div>
-                           </div>
-                         ))}
-                         <Button type="button" variant="outline" className="w-full border-dashed rounded-xl h-10 font-bold uppercase text-[10px]" onClick={() => addTicketType(bi)}>Adicionar Tipo</Button>
-                      </div>
-                      <div className={cn("p-4 rounded-2xl border flex justify-between items-center", stats.percentage < 40 ? "bg-orange-50 border-orange-100" : "bg-green-50 border-green-100")}>
-                         <div className="space-y-1">
-                            <p className="text-[9px] font-black uppercase opacity-60">Reserva Meia Legal</p>
-                            <p className="text-xs font-bold">{stats.legalHalf} de {stats.total} ingressos ({stats.percentage.toFixed(1)}%)</p>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote</Label>
+                            <Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" />
                          </div>
-                         {stats.percentage < 40 && <Badge className="bg-orange-500 font-black uppercase text-[8px]">Alerta Lei 12.933</Badge>}
+                         <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2"><Label className="text-[10px] uppercase font-black opacity-40">Início Vendas</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                            <div className="space-y-2"><Label className="text-[10px] uppercase font-black opacity-40">Fim Vendas</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                         </div>
+                      </div>
+
+                      <div className="space-y-4">
+                         <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Tipos de Ingresso</h4>
+                         <div className="space-y-3">
+                            {batch.ticketTypes.map((t, ti) => (
+                              <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm space-y-4 group">
+                                 <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+                                    <div className="flex-1 space-y-2">
+                                       <Label className="text-[10px] font-black uppercase opacity-60">Nome do Tipo</Label>
+                                       <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10" />
+                                    </div>
+                                    <div className="w-full md:w-32 space-y-2">
+                                       <Label className="text-[10px] font-black uppercase opacity-60">Valor (R$)</Label>
+                                       <Input 
+                                          type="number" 
+                                          step="0.01" 
+                                          value={t.price} 
+                                          onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} 
+                                          className="w-full rounded-xl h-10 font-bold" 
+                                          disabled={ticketMode === 'free'} 
+                                       />
+                                    </div>
+                                    <div className="w-full md:w-24 space-y-2">
+                                       <Label className="text-[10px] font-black uppercase opacity-60">Quantidade</Label>
+                                       <Input 
+                                          type="number" 
+                                          value={t.quantity} 
+                                          onChange={e => updateTicketTypeField(bi, ti, 'quantity', e.target.value)} 
+                                          className="w-full rounded-xl h-10" 
+                                       />
+                                    </div>
+                                    <div className="flex items-center gap-4 md:pt-6">
+                                      <div className="flex items-center gap-1"><Switch checked={t.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} /><span className="text-[9px] font-black uppercase">Prova</span></div>
+                                      <div className="flex items-center gap-1"><Switch checked={t.isLegalHalf} onCheckedChange={v => updateTicketTypeField(bi, ti, 'isLegalHalf', v)} /><span className="text-[9px] font-black uppercase">Meia</span></div>
+                                      <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeTicketType(bi, ti)}><Trash2 className="w-4 h-4" /></Button>
+                                    </div>
+                                 </div>
+                              </div>
+                            ))}
+                         </div>
+                         <Button type="button" variant="outline" className="w-full border-dashed rounded-xl h-10 font-bold uppercase text-[10px]" onClick={() => addTicketType(bi)}>Adicionar Tipo de Ingresso</Button>
+                      </div>
+
+                      <div className={cn("p-5 bg-white rounded-3xl border shadow-inner space-y-4", stats.percentage < 40 ? "border-orange-200" : "border-green-200")}>
+                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="space-y-1">
+                               <div className="flex items-center gap-2">
+                                  <Info className="w-4 h-4 text-secondary" />
+                                  <h5 className="text-[10px] font-black uppercase tracking-widest text-primary">Resumo do Lote</h5>
+                               </div>
+                               <p className="text-[9px] text-muted-foreground font-medium leading-tight">Meia-entrada legal recomendada: 40% (Lei nº 12.933/2013).</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                               <div className="text-right">
+                                  <p className="text-[9px] font-black uppercase opacity-40">Percentual Meia</p>
+                                  <p className={cn("text-xl font-black italic", stats.percentage < 40 ? "text-orange-500" : "text-green-600")}>{stats.percentage.toFixed(1)}%</p>
+                               </div>
+                               <div className={cn("h-10 w-10 rounded-full flex items-center justify-center shadow-lg", stats.percentage < 40 ? "bg-orange-500 text-white" : "bg-green-600 text-white")}>
+                                  {stats.percentage < 40 ? <AlertTriangle className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
+                               </div>
+                            </div>
+                         </div>
+                         {stats.percentage < 40 && (
+                           <div className="p-3 rounded-xl bg-orange-50 border border-orange-100 flex gap-2 items-start">
+                              <AlertTriangle className="w-3 h-3 text-orange-600 shrink-0 mt-0.5" />
+                              <p className="text-[9px] text-orange-800 font-bold uppercase leading-relaxed">
+                                 O lote possui {stats.legalHalf} meias de um total de {stats.total} ingressos.
+                              </p>
+                           </div>
+                         )}
                       </div>
                    </div>
                  );
                })}
-               {ticketMode === 'batches' && <Button type="button" variant="outline" className="w-full h-12 rounded-xl border-dashed font-black uppercase" onClick={addBatch}>Novo Lote</Button>}
+               {ticketMode === 'batches' && <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic tracking-widest gap-2" onClick={addBatch}><Plus className="w-5 h-5" /> Novo Lote de Vendas</Button>}
             </CardContent>
          </Card>
 

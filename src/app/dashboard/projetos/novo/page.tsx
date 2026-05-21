@@ -94,22 +94,21 @@ export default function NovoEventoPage() {
   const [loading, setLoading] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [uploadProgress, setUploadProgress] = setUploadProgress(null)
   
   const [selectedCategory, setSelectedCategory] = useState("")
   const [tags, setTags] = useState("")
   
-  // Novo sistema de ingressos
   const [ticketMode, setTicketMode] = useState<'free' | 'paid_single' | 'batches'>('free')
   const [batches, setBatches] = useState<Batch[]>([
     { 
       id: crypto.randomUUID(),
-      name: "Ingresso Único", 
+      name: "Lote Gratuito", 
       description: "", 
       startDate: "", 
       endDate: "", 
       ticketTypes: [
-        { id: crypto.randomUUID(), name: "Acesso Geral", price: 0, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }
+        { id: crypto.randomUUID(), name: "Entrada Franca", price: 0, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }
       ] 
     }
   ])
@@ -175,9 +174,9 @@ export default function NovoEventoPage() {
   const geocodeAddress = async () => {
     if (!address.street || !address.city || !address.number) return;
     setIsGeocoding(true);
-    const query = `${address.street}, ${address.number}, ${address.neighborhood}, ${address.city}, ${address.state}, Brasil`;
+    const queryStr = `${address.street}, ${address.number}, ${address.neighborhood}, ${address.city}, ${address.state}, Brasil`;
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryStr)}&limit=1`);
       const data = await response.json();
       if (data && data[0]) {
         setCoords({ lat: data[0].lat, lng: data[0].lon });
@@ -208,7 +207,6 @@ export default function NovoEventoPage() {
     } catch (e) {}
   }
 
-  // Métodos do novo sistema de ingressos
   const addBatch = () => {
     setBatches([...batches, { 
       id: crypto.randomUUID(),
@@ -350,7 +348,6 @@ export default function NovoEventoPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Capa */}
         <Card className="overflow-hidden border-none shadow-sm rounded-[2rem]">
           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5 text-secondary" /> Capa do Evento</CardTitle></CardHeader>
           <CardContent className="px-6 pb-6">
@@ -365,7 +362,6 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
-        {/* Info Geral */}
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Calendar className="w-5 h-5 text-secondary" /> Informações do Evento</CardTitle></CardHeader>
           <CardContent className="space-y-6">
@@ -390,7 +386,6 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
-        {/* Localização */}
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle></CardHeader>
           <CardContent className="space-y-6">
@@ -407,7 +402,6 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
-        {/* Sistema de Ingressos */}
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -453,10 +447,19 @@ export default function NovoEventoPage() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                       <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote</Label><Input value={batch.name} onChange={e => updateBatchField(bIdx, 'name', e.target.value)} className="rounded-xl" /></div>
+                       <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote</Label>
+                          <Input value={batch.name} onChange={e => updateBatchField(bIdx, 'name', e.target.value)} className="rounded-xl h-11" />
+                       </div>
                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início Vendas</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bIdx, 'startDate', e.target.value)} className="rounded-xl text-xs" /></div>
-                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fim Vendas</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bIdx, 'endDate', e.target.value)} className="rounded-xl text-xs" /></div>
+                          <div className="space-y-2">
+                             <Label className="text-[10px] font-black uppercase opacity-60">Início Vendas</Label>
+                             <Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bIdx, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" />
+                          </div>
+                          <div className="space-y-2">
+                             <Label className="text-[10px] font-black uppercase opacity-60">Fim Vendas</Label>
+                             <Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bIdx, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" />
+                          </div>
                        </div>
                     </div>
 
@@ -485,11 +488,11 @@ export default function NovoEventoPage() {
                             <div key={type.id} className="p-4 bg-white rounded-2xl border shadow-sm space-y-4 group">
                                <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
                                   <div className="flex-1 space-y-2">
-                                     <Label className="text-[10px] font-black uppercase opacity-60">Nome</Label>
+                                     <Label className="text-[10px] font-black uppercase opacity-60">Nome do Tipo</Label>
                                      <Input value={type.name} onChange={e => updateTicketTypeField(bIdx, tIdx, 'name', e.target.value)} className="rounded-xl h-10" />
                                   </div>
                                   <div className="w-full md:w-32 space-y-2">
-                                     <Label className="text-[10px] font-black uppercase opacity-60">Preço (R$)</Label>
+                                     <Label className="text-[10px] font-black uppercase opacity-60">Valor (R$)</Label>
                                      <Input 
                                       type="number" 
                                       step="0.01" 
@@ -500,7 +503,7 @@ export default function NovoEventoPage() {
                                      />
                                   </div>
                                   <div className="w-full md:w-24 space-y-2">
-                                     <Label className="text-[10px] font-black uppercase opacity-60">Qtd</Label>
+                                     <Label className="text-[10px] font-black uppercase opacity-60">Quantidade</Label>
                                      <Input type="number" value={type.quantity} onChange={e => updateTicketTypeField(bIdx, tIdx, 'quantity', e.target.value)} className="rounded-xl h-10" />
                                   </div>
                                   <div className="flex items-center gap-6 md:pt-6">
@@ -520,7 +523,6 @@ export default function NovoEventoPage() {
                        </div>
                     </div>
 
-                    {/* Meia Entrada Info */}
                     <div className="p-5 bg-white rounded-3xl border shadow-inner space-y-4">
                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                           <div className="space-y-1">
