@@ -4,7 +4,7 @@
 import * as React from "react"
 import { useParams, useRouter, usePathname } from "next/navigation"
 import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
-import { doc, getDoc, collection, query, where, orderBy, limit } from "firebase/firestore"
+import { doc, getDoc, collection, query, where, orderBy, limit, getDocs } from "firebase/firestore"
 import { 
   Loader2, 
   AlertTriangle, 
@@ -71,7 +71,7 @@ function ProfileHeader() {
       <SidebarTrigger />
       
       <div className="flex items-center gap-4">
-        {user && (
+        {user && organizations.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="gap-2 rounded-xl h-10 border-dashed border-secondary/40 hover:border-secondary transition-all">
@@ -144,32 +144,54 @@ function UniversalProfileContent() {
   const [data, setData] = React.useState<any>(null)
   const [type, setType] = React.useState<'user' | 'organization' | null>(null)
 
-  // Busca o perfil baseado no username
+  // Resolvedor robusto de username com fallback
   React.useEffect(() => {
     if (!db || !username) return
 
     const resolveUsername = async () => {
       setLoading(true)
+      setData(null)
+      setType(null)
+
       try {
         const usernameRef = doc(db, "usernames", username)
         const usernameSnap = await getDoc(usernameRef)
 
-        if (!usernameSnap.exists()) {
-          setLoading(false)
-          return
+        let targetUid = null
+        let resolvedType: 'user' | 'organization' | null = null
+
+        if (usernameSnap.exists()) {
+          const uData = usernameSnap.data()
+          targetUid = uData.uid
+          resolvedType = uData.type || 'user'
+        } else {
+          // Fallback: busca direta nas coleções caso usernames esteja desatualizado
+          const usersQuery = query(collection(db, "users"), where("username", "==", username), limit(1))
+          const usersSnap = await getDocs(usersQuery)
+          if (!usersSnap.empty) {
+            targetUid = usersSnap.docs[0].id
+            resolvedType = 'user'
+          } else {
+            const orgsQuery = query(collection(db, "organizations"), where("username", "==", username), limit(1))
+            const orgsSnap = await getDocs(orgsQuery)
+            if (!orgsSnap.empty) {
+              targetUid = orgsSnap.docs[0].id
+              resolvedType = 'organization'
+            }
+          }
         }
 
-        const { uid, type: resolvedType } = usernameSnap.data()
-        setType(resolvedType)
-
-        const targetColl = resolvedType === 'user' ? 'users' : 'organizations'
-        const dataSnap = await getDoc(doc(db, targetColl, uid))
-        
-        if (dataSnap.exists()) {
-          setData({ id: dataSnap.id, ...dataSnap.data() })
+        if (targetUid && resolvedType) {
+          setType(resolvedType)
+          const targetColl = resolvedType === 'user' ? 'users' : 'organizations'
+          const dataSnap = await getDoc(doc(db, targetColl, targetUid))
+          
+          if (dataSnap.exists()) {
+            setData({ id: dataSnap.id, ...dataSnap.data() })
+          }
         }
       } catch (err) {
-        console.error(err)
+        console.error("Erro ao resolver perfil:", err)
       } finally {
         setLoading(false)
       }
@@ -184,7 +206,7 @@ function UniversalProfileContent() {
     return query(
       collection(db, "events"), 
       where("organizationId", "==", data.id),
-      where("status", "==", "published"),
+      where("status", "==", "Ativo"),
       orderBy("startDate", "asc")
     )
   }, [db, data?.id, type])
@@ -213,7 +235,7 @@ function UniversalProfileContent() {
   }
 
   const isOrg = type === 'organization'
-  const displayName = isOrg ? data.name : data.displayName || data.name
+  const displayName = isOrg ? data.name : data.name || data.displayName
   const avatar = data.avatar || `https://picsum.photos/seed/${data.id}/200/200`
 
   return (
@@ -248,7 +270,7 @@ function UniversalProfileContent() {
                    <div className="flex flex-col md:flex-row md:items-center gap-4">
                       <div className="flex items-center justify-center md:justify-start gap-2">
                         <h1 className="text-2xl font-bold tracking-tight">{displayName}</h1>
-                        {data.verified && <InstagramVerifiedBadge />}
+                        {data.isVerified && <InstagramVerifiedBadge />}
                       </div>
                       <div className="flex items-center justify-center gap-2">
                         <Button className="bg-secondary text-white hover:bg-secondary/90 font-bold rounded-lg h-9 px-6 text-sm">
@@ -263,7 +285,7 @@ function UniversalProfileContent() {
                    <div className="flex justify-center md:justify-start gap-8">
                       <div className="flex flex-col md:flex-row items-center gap-1">
                          <span className="font-bold text-lg">{isOrg ? events?.length || 0 : 0}</span>
-                         <span className="text-sm text-muted-foreground">{isOrg ? 'Eventos' : 'Postagens'}</span>
+                         <span className="text-sm text-muted-foreground">{isOrg ? 'Eventos' : 'Publicações'}</span>
                       </div>
                       <div className="flex flex-col md:flex-row items-center gap-1">
                          <span className="font-bold text-lg">0</span>
@@ -279,6 +301,9 @@ function UniversalProfileContent() {
                       <p className="text-sm font-bold text-secondary">@{data.username}</p>
                       {isOrg && data.type && (
                         <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">{data.type}</p>
+                      )}
+                      {!isOrg && (
+                        <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Participante</p>
                       )}
                       <p className="text-sm font-medium leading-relaxed max-w-lg mx-auto md:mx-0">
                          {data.bio || "Nenhuma biografia disponível."}
@@ -297,7 +322,7 @@ function UniversalProfileContent() {
                               @{data.instagram}
                            </a>
                          )}
-                         {isOrg && data.city && (
+                         {data.city && (
                            <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
                               <MapPin className="w-3.5 h-3.5" />
                               {data.city}, {data.state}
@@ -359,7 +384,7 @@ function UniversalProfileContent() {
                          <div className="space-y-4">
                             <div className="space-y-1">
                                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Tipo</p>
-                               <p className="font-bold">{data.type || "Não informado"}</p>
+                               <p className="font-bold">{isOrg ? (data.type || "Não informado") : "Perfil de Usuário"}</p>
                             </div>
                             <div className="space-y-1">
                                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Desde</p>

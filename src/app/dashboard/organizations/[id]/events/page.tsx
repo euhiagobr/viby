@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -29,6 +30,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 export default function OrganizationEventsPage() {
   const { currentOrg, userRole } = useCurrentOrganization();
@@ -96,17 +98,17 @@ export default function OrganizationEventsPage() {
           {filteredEvents.map((event) => (
             <Card key={event.id} className="overflow-hidden border-none shadow-sm hover:shadow-md transition-all rounded-[1.5rem] bg-white group">
               <div className="relative h-40 bg-muted">
-                {event.banner ? (
-                  <img src={event.banner} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                {event.image ? (
+                  <img src={event.image} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 ) : (
                   <div className="flex items-center justify-center h-full opacity-20"><Megaphone className="w-12 h-12" /></div>
                 )}
                 <div className="absolute top-3 right-3">
                    <Badge className={cn(
                      "uppercase text-[9px] font-black px-2.5 h-6",
-                     event.status === 'published' ? 'bg-green-500' : 'bg-muted text-muted-foreground'
+                     event.status === 'Ativo' ? 'bg-green-500' : 'bg-muted text-muted-foreground'
                    )}>
-                     {event.status === 'published' ? 'Publicado' : 'Rascunho'}
+                     {event.status === 'Ativo' ? 'Publicado' : 'Rascunho'}
                    </Badge>
                 </div>
               </div>
@@ -141,11 +143,11 @@ export default function OrganizationEventsPage() {
                 <div className="space-y-1.5 pt-2 border-t border-dashed">
                    <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase">
                       <Calendar className="w-3 h-3 text-secondary" />
-                      {new Date(event.startDate).toLocaleDateString('pt-BR')}
+                      {new Date(event.startDate || event.date).toLocaleDateString('pt-BR')}
                    </div>
                    <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase">
                       <MapPin className="w-3 h-3 text-secondary" />
-                      {event.location}
+                      {event.location || event.city}
                    </div>
                 </div>
               </CardContent>
