@@ -36,7 +36,8 @@ import {
   Globe,
   ImageIcon,
   Camera,
-  Layout
+  Layout,
+  RefreshCw
 } from "lucide-react"
 import {
   Dialog,
@@ -115,6 +116,7 @@ export default function OrganizationAdsPage() {
   const [actionLoadingId, setActionLoadingId] = React.useState<string | null>(null)
   const [selectedAdForMetrics, setSelectedAdForMetrics] = React.useState<any>(null)
   const [adToCancel, setAdToCancel] = React.useState<any>(null)
+  const [isWaitingPayment, setIsWaitingPayment] = React.useState(false)
 
   // Estados para Upload de Imagem do Anúncio
   const [adImageUrl, setAdImageUrl] = React.useState<string | null>(null)
@@ -154,7 +156,6 @@ export default function OrganizationAdsPage() {
     const startDateStr = formData.get("startDate") as string
     const endDateStr = formData.get("endDate") as string
 
-    // Converter strings de data local para objetos Date (UTC no Firestore)
     const start = new Date(startDateStr)
     const end = new Date(endDateStr)
     
@@ -190,8 +191,6 @@ export default function OrganizationAdsPage() {
 
     setIsSubmitting(true)
     const event = myEvents?.find(ev => ev.id === selectedEventId)
-    
-    // Status baseado no tipo de anúncio (Eventos e Página são automáticos)
     const status = (adType === 'evento' || adType === 'pagina') ? 'Ativo' : 'Pendente'
 
     const adData = {
@@ -208,8 +207,8 @@ export default function OrganizationAdsPage() {
       remainingBudget: totalBudget,
       budget: totalBudget, 
       durationDays: days,
-      startDate: start, // Enviando objeto Date
-      endDate: end, // Enviando objeto Date
+      startDate: start,
+      endDate: end,
       reach: 0,
       clicks: 0,
       createdAt: serverTimestamp()
@@ -217,7 +216,6 @@ export default function OrganizationAdsPage() {
 
     try {
       const batch = writeBatch(db)
-      
       const adRef = doc(collection(db, "ads"))
       batch.set(adRef, adData)
 
@@ -335,6 +333,35 @@ export default function OrganizationAdsPage() {
 
   if (orgLoading || adsLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
 
+  if (isWaitingPayment) {
+    return (
+      <div className="min-h-[80vh] flex flex-col items-center justify-center p-4">
+        <Card className="max-w-md w-full border-none shadow-2xl rounded-[3rem] overflow-hidden bg-white">
+           <div className="bg-primary p-12 flex flex-col items-center text-white gap-6">
+              <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center relative">
+                 <RefreshCw className="w-10 h-10 animate-spin text-secondary" />
+                 <CreditCard className="w-5 h-5 absolute text-white" />
+              </div>
+              <h2 className="text-2xl font-black uppercase italic tracking-tighter text-center">Aguardando Pagamento</h2>
+           </div>
+           <CardContent className="p-10 text-center space-y-6">
+              <p className="text-sm font-medium text-muted-foreground uppercase leading-relaxed">
+                 Assim que concluir o pagamento da recarga, seu saldo será atualizado automaticamente no painel.
+              </p>
+              <div className="flex flex-col gap-3">
+                 <Button variant="outline" className="h-12 rounded-xl font-bold gap-2" onClick={() => window.location.reload()}>
+                    <RefreshCw className="w-4 h-4" /> Verificar Status
+                 </Button>
+                 <Button variant="ghost" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground" onClick={() => setIsWaitingPayment(false)}>
+                    Voltar ao Painel
+                 </Button>
+              </div>
+           </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -383,7 +410,6 @@ export default function OrganizationAdsPage() {
                      </div>
                   </div>
 
-                  {/* Campos Dinâmicos */}
                   {adType === 'evento' ? (
                     <div className="space-y-2">
                       <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Selecione o Evento</Label>
@@ -416,7 +442,6 @@ export default function OrganizationAdsPage() {
                         </div>
                       )}
                       
-                      {/* Upload de Imagem Criativa */}
                       <div className="space-y-3">
                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Imagem do Anúncio (Obrigatório)</Label>
                          <div 
@@ -480,7 +505,6 @@ export default function OrganizationAdsPage() {
         </div>
       </div>
 
-      {/* Cards de Resumo */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="border-none shadow-sm bg-primary text-white overflow-hidden relative group">
           <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Acessos Totais</CardTitle></CardHeader>
@@ -501,7 +525,6 @@ export default function OrganizationAdsPage() {
         </Card>
       </div>
 
-      {/* Lista de Campanhas */}
       <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
         <CardHeader className="border-b pb-6 p-8">
            <CardTitle className="text-xl flex items-center gap-2"><BarChart3 className="w-5 h-5 text-secondary" /> Histórico de Impulsionamento</CardTitle>
@@ -533,9 +556,12 @@ export default function OrganizationAdsPage() {
                             "bg-muted"
                           )}>{ad.status}</Badge>
                         </div>
-                        <div className="text-[10px] font-black text-muted-foreground uppercase flex flex-wrap items-center gap-x-4 gap-y-1">
-                           <span className="flex items-center gap-1.5"><Target className="w-3 h-3" /> {ad.type}</span>
-                           <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> {formatAdDate(ad.startDate)}</span>
+                        <div className="text-[10px] font-black text-muted-foreground uppercase flex flex-col gap-1.5 mt-2">
+                           <span className="flex items-center gap-1.5 text-secondary"><Target className="w-3.5 h-3.5" /> Objetivo: {ad.type}</span>
+                           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                             <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Início: {formatAdDate(ad.startDate)}</span>
+                             <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-destructive" /> Término: {formatAdDate(ad.endDate)}</span>
+                           </div>
                         </div>
                       </div>
                     </div>
@@ -587,7 +613,6 @@ export default function OrganizationAdsPage() {
         </CardContent>
       </Card>
 
-      {/* MODAL DE MÉTRICAS */}
       <Dialog open={!!selectedAdForMetrics} onOpenChange={(o) => !o && setSelectedAdForMetrics(null)}>
         <DialogContent className="max-w-2xl rounded-[2.5rem]">
            <DialogHeader>
