@@ -9,6 +9,7 @@ import {
   where, 
   doc, 
   setDoc, 
+  updateDoc,
   deleteDoc, 
   getDocs, 
   getDoc,
@@ -26,7 +27,9 @@ import {
   UserPlus,
   Clock,
   Check,
-  AtSign
+  AtSign,
+  ShieldCheck,
+  AlertTriangle
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,6 +49,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from "@/lib/utils";
@@ -74,6 +87,10 @@ export default function OrganizationMembersPage() {
   const [membersWithProfiles, setMembersWithProfiles] = React.useState<any[]>([]);
   const [isInviteOpen, setIsInviteOpen] = React.useState(false);
   const [inviteLoading, setInviteLoading] = React.useState(false);
+  
+  // Estado para troca de cargo
+  const [pendingRoleChange, setPendingRoleChange] = React.useState<{ userId: string, userName: string, newRole: string } | null>(null);
+  const [roleActionLoading, setRoleActionLoading] = React.useState(false);
 
   React.useEffect(() => {
     if (!rawMembers || !db) return;
@@ -107,7 +124,6 @@ export default function OrganizationMembersPage() {
         throw new Error("Informe o nome de usuário.");
       }
 
-      // Busca o UID na coleção central de usernames
       const usernameRef = doc(db, 'usernames', usernameInput);
       const usernameSnap = await getDoc(usernameRef);
 
@@ -122,14 +138,12 @@ export default function OrganizationMembersPage() {
 
       const targetUid = uData.uid;
 
-      // Verifica se já é membro
       const memberRef = doc(db, 'organizations', currentOrg.id, 'members', targetUid);
       const existingSnap = await getDoc(memberRef);
       if (existingSnap.exists() && existingSnap.data().status === 'accepted') {
         throw new Error("Este usuário já faz parte da equipe.");
       }
 
-      // Busca os dados do perfil para os e-mails
       const targetUserSnap = await getDoc(doc(db, 'users', targetUid));
       if (!targetUserSnap.exists()) {
         throw new Error("Dados do usuário não localizados.");
@@ -155,7 +169,6 @@ export default function OrganizationMembersPage() {
 
       await setDoc(memberRef, inviteData);
 
-      // Dispara E-mails
       if (inviteData.inviteeEmail) {
         await sendTeamInvitationEmail({
           to: inviteData.inviteeEmail,
@@ -180,6 +193,29 @@ export default function OrganizationMembersPage() {
       toast({ variant: "destructive", title: "Erro ao convidar", description: error.message });
     } finally {
       setInviteLoading(false);
+    }
+  };
+
+  const handleConfirmRoleChange = async () => {
+    if (!db || !currentOrg || !pendingRoleChange) return;
+
+    setRoleActionLoading(true);
+    try {
+      const memberRef = doc(db, 'organizations', currentOrg.id, 'members', pendingRoleChange.userId);
+      await updateDoc(memberRef, {
+        role: pendingRoleChange.newRole,
+        updatedAt: serverTimestamp()
+      });
+
+      toast({ 
+        title: "Cargo atualizado!", 
+        description: `${pendingRoleChange.userName} agora é ${ROLES.find(r => r.value === pendingRoleChange.newRole)?.label}.` 
+      });
+      setPendingRoleChange(null);
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao alterar cargo" });
+    } finally {
+      setRoleActionLoading(false);
     }
   };
 
@@ -287,7 +323,7 @@ export default function OrganizationMembersPage() {
                    <TableCell>
                       <div className="flex items-center gap-3">
                          <Avatar className="h-10 w-10 border border-muted">
-                            <AvatarImage src={member.profile?.avatar} />
+                            <AvatarImage src={member.profile?.avatar} className="object-cover" />
                             <AvatarFallback className="font-bold bg-secondary text-white">{member.profile?.name?.charAt(0) || member.profile?.displayName?.charAt(0) || 'U'}</AvatarFallback>
                          </Avatar>
                          <div className="flex flex-col">
@@ -297,12 +333,34 @@ export default function OrganizationMembersPage() {
                       </div>
                    </TableCell>
                    <TableCell>
-                      <Badge variant="outline" className={cn(
-                        "uppercase text-[9px] font-black px-2",
-                        member.role === 'owner' ? 'bg-primary text-white border-none' : 'border-secondary text-secondary'
-                      )}>
-                        {ROLES.find(r => r.value === member.role)?.label || member.role}
-                      </Badge>
+                      {isOwnerOrAdmin && member.role !== 'owner' && member.userId !== currentUser?.uid ? (
+                        <Select 
+                          value={member.role} 
+                          onValueChange={(val) => setPendingRoleChange({ 
+                            userId: member.userId, 
+                            userName: member.profile?.name || member.profile?.displayName || "Colaborador", 
+                            newRole: val 
+                          })}
+                        >
+                          <SelectTrigger className="h-8 rounded-lg text-[9px] font-black uppercase w-[150px] border-secondary/20 text-secondary bg-secondary/5">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            {ROLES.filter(r => r.value !== 'owner').map(role => (
+                              <SelectItem key={role.value} value={role.value} className="text-[10px] font-bold uppercase">
+                                {role.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge variant="outline" className={cn(
+                          "uppercase text-[9px] font-black px-2 h-6",
+                          member.role === 'owner' ? 'bg-primary text-white border-none' : 'border-secondary text-secondary'
+                        )}>
+                          {ROLES.find(r => r.value === member.role)?.label || member.role}
+                        </Badge>
+                      )}
                    </TableCell>
                    <TableCell>
                       {member.status === 'pending' ? (
@@ -314,7 +372,7 @@ export default function OrganizationMembersPage() {
                              <span className="text-[8px] text-muted-foreground uppercase font-bold">Expira em 24h</span>
                            )}
                         </div>
-                      ) : member.status === 'accepted' ? (
+                      ) : (member.status === 'accepted' || !member.status) ? (
                         <div className="flex items-center gap-1.5 text-green-600 font-black text-[10px] uppercase">
                           <Check className="w-3 h-3" /> Ativo
                         </div>
@@ -323,7 +381,7 @@ export default function OrganizationMembersPage() {
                       )}
                    </TableCell>
                    <TableCell className="text-right">
-                      {isOwnerOrAdmin && member.role !== 'owner' && (
+                      {isOwnerOrAdmin && member.role !== 'owner' && member.userId !== currentUser?.uid && (
                         <Button 
                           variant="ghost" 
                           size="icon" 
@@ -339,6 +397,46 @@ export default function OrganizationMembersPage() {
            </TableBody>
         </Table>
       </Card>
+
+      {/* ALERT DIALOG PARA CONFIRMAÇÃO DE TROCA DE CARGO */}
+      <AlertDialog open={!!pendingRoleChange} onOpenChange={(open) => !open && setPendingRoleChange(null)}>
+        <AlertDialogContent className="rounded-[2rem]">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+               <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
+                  <ShieldCheck className="w-6 h-6" />
+               </div>
+               <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Alterar Cargo?</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="font-medium text-foreground/80 leading-relaxed">
+              Você está alterando o cargo de <strong>{pendingRoleChange?.userName}</strong> para <strong>{ROLES.find(r => r.value === pendingRoleChange?.newRole)?.label}</strong>. 
+              Isso mudará as permissões de acesso deste colaborador imediatamente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3 mt-4">
+            <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px] tracking-widest border-none bg-muted hover:bg-muted/80">Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmRoleChange}
+              disabled={roleActionLoading}
+              className="bg-secondary text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-secondary/20 h-11 px-8"
+            >
+              {roleActionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+              Confirmar Alteração
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
+         <AlertTriangle className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
+         <div className="space-y-1">
+            <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Nota de Segurança</h4>
+            <p className="text-xs text-muted-foreground leading-relaxed font-medium italic">
+               A alteração de cargo concede ou restringe o acesso a dados financeiros e de edição. Certifique-se de que o colaborador é de sua total confiança antes de torná-lo um <strong>Administrador</strong>.
+            </p>
+         </div>
+      </div>
     </div>
   );
 }
+
