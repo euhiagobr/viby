@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -23,6 +22,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Separator } from "@/components/ui/separator"
 import { EventCard } from "@/components/events/EventCard"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -96,8 +96,8 @@ export default function UniversalProfilePage() {
     return query(
       collection(db, "events"), 
       where("organizationId", "==", data.id),
-      where("status", "==", "Ativo"),
-      orderBy("date", "asc")
+      where("status", "==", "published"),
+      orderBy("startDate", "asc")
     )
   }, [db, data?.id, type])
 
