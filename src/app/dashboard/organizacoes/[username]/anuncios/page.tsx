@@ -28,7 +28,8 @@ import {
   MoreHorizontal,
   Coins,
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  Clock
 } from "lucide-react"
 import {
   Dialog,
@@ -70,7 +71,6 @@ export default function OrganizationAdsPage() {
 
   const adsQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null
-    // Filtramos os anúncios que pertencem a esta ORGANIZAÇÃO específica
     return query(collection(db, "ads"), where("organizationId", "==", currentOrg.id))
   }, [db, currentOrg?.id])
 
@@ -127,7 +127,7 @@ export default function OrganizationAdsPage() {
       eventId: selectedEventId,
       eventTitle: event?.title || "Evento",
       organizationId: currentOrg.id,
-      organizerId: user.uid, // Mantemos por compatibilidade legada
+      organizerId: user.uid,
       type: adType,
       status: "Pendente Pagamento",
       dailyBudget: dailyBudget,
@@ -389,7 +389,6 @@ export default function OrganizationAdsPage() {
         </CardContent>
       </Card>
 
-      {/* DIALOG MÉTRICAS */}
       <Dialog open={!!selectedAdForMetrics} onOpenChange={(o) => !o && setSelectedAdForMetrics(null)}>
         <DialogContent className="max-w-2xl rounded-[2.5rem]">
            <DialogHeader>
