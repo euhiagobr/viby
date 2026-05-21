@@ -25,7 +25,8 @@ import {
   ShoppingCart,
   Plus,
   Minus,
-  Map as MapIcon
+  Map as MapIcon,
+  Navigation
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -209,11 +210,27 @@ export default function EventoDetalhesPage() {
                  </CardContent>
               </Card>
 
-              <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
+              <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
                  <CardHeader className="bg-muted/30 pb-4">
-                    <CardTitle className="flex items-center gap-2 text-xl font-bold">
-                      <MapIcon className="w-5 h-5 text-secondary" /> Localização
-                    </CardTitle>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <CardTitle className="flex items-center gap-2 text-xl font-bold">
+                        <MapIcon className="w-5 h-5 text-secondary" /> Localização
+                      </CardTitle>
+                      <div className="flex gap-2">
+                         <Button variant="outline" size="sm" className="rounded-xl font-bold gap-2 h-10 border-secondary text-secondary hover:bg-secondary/5" asChild>
+                           <a href={`https://www.google.com/maps/search/?api=1&query=${mapQuery}`} target="_blank" rel="noopener noreferrer">
+                             <MapIcon className="w-4 h-4" />
+                             Google Maps
+                           </a>
+                         </Button>
+                         <Button variant="outline" size="sm" className="rounded-xl font-bold gap-2 h-10 border-[#33ccff] text-[#33ccff] hover:bg-[#33ccff]/5" asChild>
+                           <a href={`https://waze.com/ul?q=${mapQuery}&navigate=yes`} target="_blank" rel="noopener noreferrer">
+                             <Navigation className="w-4 h-4 fill-current" />
+                             Waze
+                           </a>
+                         </Button>
+                      </div>
+                    </div>
                  </CardHeader>
                  <CardContent className="pt-6 space-y-6">
                     <div className="flex items-start gap-3">
@@ -226,7 +243,7 @@ export default function EventoDetalhesPage() {
                        </div>
                     </div>
 
-                    <div className="h-[300px] w-full rounded-2xl overflow-hidden border bg-muted">
+                    <div className="h-[300px] w-full rounded-2xl overflow-hidden border bg-muted shadow-inner">
                        <iframe 
                          width="100%" 
                          height="100%" 
