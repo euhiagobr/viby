@@ -124,7 +124,6 @@ export default function OrganizationAdsPage() {
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
 
-  // Lógica de Finalização Automática e Estorno de Campanhas Expiradas
   React.useEffect(() => {
     if (!db || !rawAds || !currentOrg || isSubmitting) return;
 
@@ -144,18 +143,8 @@ export default function OrganizationAdsPage() {
       for (const ad of expired) {
         const refund = Math.max(0, ad.remainingBudget || 0);
         totalRefund += refund;
-
-        const adRef = doc(db, "ads", ad.id);
-        batch.update(adRef, {
-          status: "Finalizado",
-          remainingBudget: 0,
-          refundedAmount: refund,
-          updatedAt: serverTimestamp()
-        });
-
-        // Registrar estorno no histórico
-        const txRef = doc(collection(db, 'organizations', currentOrg.id, 'transactions'));
-        batch.set(txRef, {
+        batch.update(doc(db, "ads", ad.id), { status: "Finalizado", remainingBudget: 0, refundedAmount: refund, updatedAt: serverTimestamp() });
+        batch.set(doc(collection(db, 'organizations', currentOrg.id, 'transactions')), {
           type: 'ad_refund',
           description: `Expirado: ${ad.eventTitle}`,
           amount: refund,
@@ -166,217 +155,98 @@ export default function OrganizationAdsPage() {
       }
 
       if (totalRefund > 0 || expired.length > 0) {
-        const orgRef = doc(db, "organizations", currentOrg.id);
-        batch.update(orgRef, {
-          adBalance: increment(totalRefund),
-          blockedBalance: increment(-totalRefund),
-          updatedAt: serverTimestamp()
-        });
-
+        batch.update(doc(db, "organizations", currentOrg.id), { adBalance: increment(totalRefund), blockedBalance: increment(-totalRefund), updatedAt: serverTimestamp() });
         try {
           await batch.commit();
           await refreshOrg();
-          toast({ 
-            title: "Campanhas encerradas", 
-            description: `Finalizamos ${expired.length} anúncios que atingiram o prazo. O saldo não utilizado foi devolvido.` 
-          });
-        } catch (e) {
-          console.error("Erro ao finalizar ads expirados:", e);
-        }
+          toast({ title: "Campanhas encerradas", description: `Finalizamos ${expired.length} anúncios que atingiram o prazo. O saldo foi devolvido.` });
+        } catch (e) {}
       }
     };
-
     finalizeExpiredAds();
   }, [rawAds, db, currentOrg?.id, user?.uid, refreshOrg, isSubmitting]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !storage || !currentOrg) return;
-
     setUploadProgress(0);
     try {
       const fileName = `ads/${currentOrg.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
       const storageRef = ref(storage, fileName);
       const uploadTask = uploadBytesResumable(storageRef, file);
-
-      uploadTask.on('state_changed', 
-        (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-        () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          setAdImageUrl(downloadURL);
-          setUploadProgress(null);
-          toast({ title: "Imagem do anúncio carregada!" });
-        }
-      );
+      uploadTask.on('state_changed', (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), () => setUploadProgress(null), async () => {
+        const url = await getDownloadURL(uploadTask.snapshot.ref);
+        setAdImageUrl(url); setUploadProgress(null); toast({ title: "Imagem carregada!" });
+      });
     } catch (err) { setUploadProgress(null); }
   };
 
   const handleCreateAd = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!db || !user || !currentOrg) return
-
     const formData = new FormData(e.currentTarget)
     const dailyBudget = parseFloat(formData.get("budget") as string) || 0
-    const startDateStr = formData.get("startDate") as string
-    const endDateStr = formData.get("endDate") as string
-
-    const start = new Date(startDateStr)
-    const end = new Date(endDateStr)
-    
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      toast({ variant: "destructive", title: "Data inválida", description: "Verifique os horários selecionados." });
-      return;
-    }
-
-    if (end <= start) {
-      toast({ variant: "destructive", title: "Horário inválido", description: "O término deve ser após o início." });
-      return;
-    }
-
-    const diffTime = Math.abs(end.getTime() - start.getTime())
-    const days = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)))
-    
+    const start = new Date(formData.get("startDate") as string)
+    const end = new Date(formData.get("endDate") as string)
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) { toast({ variant: "destructive", title: "Datas inválidas" }); return; }
+    const days = Math.max(1, Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
     const totalBudget = dailyBudget * days
-    const currentBalance = currentOrg.adBalance || 0
-
-    if (totalBudget > currentBalance) {
-      toast({ 
-        variant: "destructive", 
-        title: "Saldo Insuficiente", 
-        description: `Esta campanha custará ${formatCurrency(totalBudget)}, mas seu saldo é ${formatCurrency(currentBalance)}.` 
-      })
-      return
-    }
-
-    if ((adType === 'banner' || adType === 'site') && !adImageUrl) {
-      toast({ variant: "destructive", title: "Imagem necessária", description: "Carregue um criativo para este tipo de anúncio." });
-      return;
-    }
+    if (totalBudget > (currentOrg.adBalance || 0)) { toast({ variant: "destructive", title: "Saldo Insuficiente" }); return; }
+    if ((adType === 'banner' || adType === 'site') && !adImageUrl) { toast({ variant: "destructive", title: "Imagem necessária" }); return; }
 
     setIsSubmitting(true)
     const event = myEvents?.find(ev => ev.id === selectedEventId)
     const status = (adType === 'evento' || adType === 'pagina') ? 'Ativo' : 'Pendente'
-
     const adData = {
       eventId: adType === 'evento' ? selectedEventId : null,
       eventTitle: adType === 'evento' ? (event?.title || "Evento") : (adType === 'pagina' ? `Promover: ${currentOrg.name}` : (formData.get("title") as string)),
       externalUrl: (adType === 'site' || adType === 'banner') ? (formData.get("url") as string) : null,
       adImage: adImageUrl || (adType === 'pagina' ? currentOrg.avatar : null),
-      organizationId: currentOrg.id,
-      organizerId: user.uid,
-      type: adType,
-      status: status,
-      dailyBudget: dailyBudget,
-      initialBudget: totalBudget,
-      remainingBudget: totalBudget,
-      budget: totalBudget, 
-      durationDays: days,
-      startDate: start,
-      endDate: end,
-      reach: 0,
-      clicks: 0,
-      createdAt: serverTimestamp()
+      organizationId: currentOrg.id, organizerId: user.uid,
+      type: adType, status: status, dailyBudget, initialBudget: totalBudget, remainingBudget: totalBudget, budget: totalBudget, 
+      durationDays: days, startDate: start, endDate: end, reach: 0, clicks: 0, createdAt: serverTimestamp()
     }
 
     try {
       const batch = writeBatch(db)
       const adRef = doc(collection(db, "ads"))
       batch.set(adRef, adData)
-
-      const orgRef = doc(db, "organizations", currentOrg.id)
-      batch.update(orgRef, {
-        adBalance: increment(-totalBudget),
-        blockedBalance: increment(totalBudget),
-        updatedAt: serverTimestamp()
+      batch.update(doc(db, "organizations", currentOrg.id), { adBalance: increment(-totalBudget), blockedBalance: increment(totalBudget), updatedAt: serverTimestamp() })
+      batch.set(doc(collection(db, 'organizations', currentOrg.id, 'transactions')), {
+        type: 'ad_reservation', description: `Reserva: ${adData.eventTitle}`, amount: totalBudget, status: 'completed', createdAt: serverTimestamp(), userId: user.uid
       })
-
-      const txRef = doc(collection(db, 'organizations', currentOrg.id, 'transactions'))
-      batch.set(txRef, {
-        type: 'ad_reservation',
-        description: `Reserva: ${adData.eventTitle}`,
-        amount: totalBudget,
-        status: 'completed',
-        createdAt: serverTimestamp(),
-        userId: user.uid
-      })
-
-      await batch.commit()
-      await refreshOrg()
-      
-      toast({ 
-        title: status === 'Ativo' ? "Campanha Ativa!" : "Enviado para Aprovação",
-        description: status === 'Ativo' ? "Seu anúncio já está sendo impulsionado." : "Campanhas de banners e sites são revisadas em até 24h."
-      })
-      setIsCreateDialogOpen(false)
-      setSelectedEventId("")
-      setAdImageUrl(null)
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro ao criar", description: error.message })
-    } finally {
-      setIsSubmitting(false)
-    }
+      await batch.commit(); await refreshOrg();
+      toast({ title: status === 'Ativo' ? "Campanha Ativa!" : "Enviado para Aprovação" })
+      setIsCreateDialogOpen(false); setSelectedEventId(""); setAdImageUrl(null);
+    } catch (error: any) { toast({ variant: "destructive", title: "Erro ao criar" }) }
+    finally { setIsSubmitting(false) }
   }
 
   const handleToggleStatus = async (adId: string, currentStatus: string) => {
     if (!db) return
     const newStatus = currentStatus === 'Ativo' ? 'Pausado' : 'Ativo'
     setActionLoadingId(adId)
-    try {
-      await updateDoc(doc(db, "ads", adId), { status: newStatus, updatedAt: serverTimestamp() })
-      toast({ title: `Campanha ${newStatus.toLowerCase()}!` })
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao atualizar" })
-    } finally {
-      setActionLoadingId(null)
-    }
+    try { await updateDoc(doc(db, "ads", adId), { status: newStatus, updatedAt: serverTimestamp() }); toast({ title: `Campanha ${newStatus.toLowerCase()}!` }) }
+    catch (e) { toast({ variant: "destructive", title: "Erro ao atualizar" }) }
+    finally { setActionLoadingId(null) }
   }
 
   const handleCancelAd = async () => {
     if (!db || !adToCancel || !currentOrg) return
-    
     setActionLoadingId(adToCancel.id)
     try {
       const batch = writeBatch(db)
-      const adRef = doc(db, "ads", adToCancel.id)
-      const orgRef = doc(db, "organizations", currentOrg.id)
-      
       const refundAmount = adToCancel.remainingBudget || 0
-
-      batch.update(adRef, { 
-        status: "Cancelado", 
-        remainingBudget: 0,
-        refundedAmount: refundAmount,
-        updatedAt: serverTimestamp() 
-      })
-
+      batch.update(doc(db, "ads", adToCancel.id), { status: "Cancelado", remainingBudget: 0, refundedAmount: refundAmount, updatedAt: serverTimestamp() })
       if (refundAmount > 0) {
-        batch.update(orgRef, {
-          adBalance: increment(refundAmount),
-          blockedBalance: increment(-refundAmount),
-          updatedAt: serverTimestamp()
-        })
-
-        const txRef = doc(collection(db, 'organizations', currentOrg.id, 'transactions'))
-        batch.set(txRef, {
-          type: 'ad_refund',
-          description: `Estorno: ${adToCancel.eventTitle}`,
-          amount: refundAmount,
-          status: 'completed',
-          createdAt: serverTimestamp(),
-          userId: user?.uid
+        batch.update(doc(db, "organizations", currentOrg.id), { adBalance: increment(refundAmount), blockedBalance: increment(-refundAmount), updatedAt: serverTimestamp() })
+        batch.set(doc(collection(db, 'organizations', currentOrg.id, 'transactions')), {
+          type: 'ad_refund', description: `Estorno: ${adToCancel.eventTitle}`, amount: refundAmount, status: 'completed', createdAt: serverTimestamp(), userId: user?.uid
         })
       }
-
-      await batch.commit()
-      await refreshOrg()
-      toast({ title: "Campanha cancelada", description: "O saldo remanescente foi devolvido à sua conta." })
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao cancelar" })
-    } finally {
-      setActionLoadingId(null)
-      setAdToCancel(null)
-    }
+      await batch.commit(); await refreshOrg(); toast({ title: "Campanha cancelada" })
+    } catch (e) { toast({ variant: "destructive", title: "Erro ao cancelar" }) }
+    finally { setActionLoadingId(null); setAdToCancel(null) }
   }
 
   const formatAdDate = (dateVal: any) => {
@@ -390,10 +260,8 @@ export default function OrganizationAdsPage() {
   const stats = React.useMemo(() => {
     if (!ads) return { reach: 0, clicks: 0, active: 0 }
     return ads.reduce((acc, ad) => {
-      acc.reach += (ad.reach || 0)
-      acc.clicks += (ad.clicks || 0)
-      if (ad.status === 'Ativo') acc.active++
-      return acc
+      acc.reach += (ad.reach || 0); acc.clicks += (ad.clicks || 0);
+      if (ad.status === 'Ativo') acc.active++; return acc
     }, { reach: 0, clicks: 0, active: 0 })
   }, [ads])
 
@@ -404,309 +272,130 @@ export default function OrganizationAdsPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
-            <Megaphone className="w-8 h-8 text-secondary" />
-            Conta de Anúncios
+            <Megaphone className="w-8 h-8 text-secondary" /> Conta de Anúncios
           </h1>
           <p className="text-muted-foreground font-medium">Gestão de tráfego para <strong>{currentOrg?.name}</strong>.</p>
         </div>
-
         <div className="flex items-center gap-3">
-          <Button variant="outline" asChild className="rounded-full h-11 px-6 font-bold gap-2 text-xs uppercase border-secondary/20 text-secondary hover:bg-secondary/5">
-             <Link href={`/dashboard/organizacoes/${currentOrg?.username}/anuncios/valores`}>
-                <Coins className="w-4 h-4" /> Valores
-             </Link>
+          <Button variant="outline" asChild className="rounded-full h-11 px-6 font-bold gap-2 text-xs uppercase border-secondary/20 text-secondary">
+             <Link href={`/dashboard/organizacoes/${currentOrg?.username}/anuncios/valores`}><Coins className="w-4 h-4" /> Valores</Link>
           </Button>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-secondary text-white font-black rounded-full px-8 h-11 shadow-lg hover:scale-105 transition-transform gap-2 uppercase italic">
-                <Plus className="w-5 h-5" /> Nova Campanha
-              </Button>
-            </DialogTrigger>
+            <DialogTrigger asChild><Button className="bg-secondary text-white font-black rounded-full px-8 h-11 shadow-lg gap-2 uppercase italic"><Plus className="w-5 h-5" /> Nova Campanha</Button></DialogTrigger>
             <DialogContent className="max-w-md h-[90vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
-              <DialogHeader className="p-8 border-b bg-muted/30">
-                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Lançar Campanha</DialogTitle>
-                <DialogDescription className="font-medium">Defina o que você quer promover agora.</DialogDescription>
-              </DialogHeader>
-
+              <DialogHeader className="p-8 border-b bg-muted/30"><DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Lançar Campanha</DialogTitle></DialogHeader>
               <form onSubmit={handleCreateAd} className="flex-1 overflow-y-auto p-8 space-y-8">
                   <div className="space-y-3">
-                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Objetivo da Divulgação</Label>
+                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Objetivo</Label>
                      <div className="grid grid-cols-2 gap-2">
-                        <Button type="button" variant={adType === 'evento' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1 rounded-xl" onClick={() => setAdType('evento')}>
-                           <Calendar className="w-4 h-4" /> Evento
-                        </Button>
-                        <Button type="button" variant={adType === 'pagina' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1 rounded-xl" onClick={() => setAdType('pagina')}>
-                           <Layout className="w-4 h-4" /> Perfil da Marca
-                        </Button>
-                        <Button type="button" variant={adType === 'banner' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1 rounded-xl" onClick={() => setAdType('banner')}>
-                           <ImageIcon className="w-4 h-4" /> Banner (Mídia)
-                        </Button>
-                        <Button type="button" variant={adType === 'site' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1 rounded-xl" onClick={() => setAdType('site')}>
-                           <Globe className="w-4 h-4" /> Link Externo
-                        </Button>
+                        <Button type="button" variant={adType === 'evento' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1" onClick={() => setAdType('evento')}><Calendar className="w-4 h-4" /> Evento</Button>
+                        <Button type="button" variant={adType === 'pagina' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1" onClick={() => setAdType('pagina')}><Layout className="w-4 h-4" /> Perfil</Button>
+                        <Button type="button" variant={adType === 'banner' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1" onClick={() => setAdType('banner')}><ImageIcon className="w-4 h-4" /> Banner</Button>
+                        <Button type="button" variant={adType === 'site' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1" onClick={() => setAdType('site')}><Globe className="w-4 h-4" /> Link</Button>
                      </div>
                   </div>
-
                   {adType === 'evento' ? (
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Selecione o Evento</Label>
-                      <Select value={selectedEventId} onValueChange={setSelectedEventId} required>
-                        <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Escolha um evento ativo" /></SelectTrigger>
-                        <SelectContent className="rounded-xl">
-                          {myEvents?.map((event: any) => (
-                            <SelectItem key={event.id} value={event.id}>{event.title}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Evento</Label>
+                    <Select value={selectedEventId} onValueChange={setSelectedEventId} required><SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Escolha um evento" /></SelectTrigger><SelectContent className="rounded-xl">{myEvents?.map((ev: any) => (<SelectItem key={ev.id} value={ev.id}>{ev.title}</SelectItem>))}</SelectContent></Select></div>
                   ) : adType === 'pagina' ? (
-                    <div className="p-4 bg-muted/50 rounded-2xl border border-dashed flex items-center gap-3">
-                       <CheckCircle2 className="w-5 h-5 text-green-500" />
-                       <p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">
-                         Promoveremos o perfil público <strong>@{currentOrg.username}</strong> no feed principal e em áreas de sugestão.
-                       </p>
-                    </div>
+                    <div className="p-4 bg-muted/50 rounded-2xl border border-dashed flex items-center gap-3"><CheckCircle2 className="w-5 h-5 text-green-500" /><p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">Promoveremos @{currentOrg.username} no feed.</p></div>
                   ) : (
-                    <>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Título da Campanha</Label>
-                        <Input name="title" required className="rounded-xl h-11" placeholder="Ex: Nova Coleção Primavera" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Link de Destino (Opcional)</Label>
-                        <Input name="url" type="url" className="rounded-xl h-11" placeholder="https://seu-site.com" />
-                      </div>
-                      
-                      <div className="space-y-3">
-                         <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Imagem do Anúncio (Obrigatório)</Label>
-                         <div 
-                           className="relative aspect-video bg-muted rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden cursor-pointer group"
-                           onClick={() => document.getElementById('ad-image-up')?.click()}
-                         >
-                            {adImageUrl ? (
-                              <img src={adImageUrl} className="w-full h-full object-cover" alt="Preview" />
-                            ) : (
-                              <div className="text-center opacity-40">
-                                <Camera className="w-8 h-8 mx-auto mb-2" />
-                                <p className="text-[8px] font-black uppercase">Clique para carregar mídia</p>
-                              </div>
-                            )}
-                            <input id="ad-image-up" type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
-                         </div>
-                         {uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}
-                      </div>
-                    </>
+                    <><div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Título</Label><Input name="title" required className="rounded-xl h-11" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Link</Label><Input name="url" type="url" className="rounded-xl h-11" /></div>
+                    <div className="space-y-3"><Label className="text-[10px] font-black uppercase opacity-60">Imagem</Label><div className="relative aspect-video bg-muted rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden cursor-pointer" onClick={() => document.getElementById('ad-image-up')?.click()}>
+                    {adImageUrl ? <img src={adImageUrl} className="w-full h-full object-cover" /> : <div className="text-center opacity-40"><Camera className="w-8 h-8 mx-auto mb-2" /><p className="text-[8px] font-black uppercase">Carregar mídia</p></div>}
+                    <input id="ad-image-up" type="file" className="hidden" accept="image/*" onChange={handleImageUpload} /></div>{uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}</div></>
                   )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Início da Veiculação</Label>
-                      <Input name="startDate" type="datetime-local" required className="rounded-xl h-11 text-xs" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Término da Veiculação</Label>
-                      <Input name="endDate" type="datetime-local" required className="rounded-xl h-11 text-xs" />
-                    </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input name="startDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Término</Label><Input name="endDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Orçamento Diário (R$)</Label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-secondary">R$</span>
-                      <Input name="budget" type="number" step="0.01" placeholder="50,00" required className="rounded-2xl h-14 pl-12 text-xl font-black border-secondary/20" />
-                    </div>
-                  </div>
+                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Orçamento Diário (R$)</Label><div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-secondary">R$</span><Input name="budget" type="number" step="0.01" placeholder="50,00" required className="rounded-2xl h-14 pl-12 text-xl font-black border-secondary/20" /></div></div>
               </form>
-
-              <div className="p-8 border-t bg-muted/30">
-                 <Button 
-                   onClick={(e:any) => {
-                     const form = (e.target as any).closest('div').previousSibling;
-                     form.requestSubmit();
-                   }}
-                   type="submit" 
-                   disabled={isSubmitting || uploadProgress !== null} 
-                   className="w-full bg-secondary text-white font-black h-16 rounded-[2rem] shadow-xl uppercase italic text-lg"
-                 >
-                    {isSubmitting ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><Target className="w-6 h-6 mr-2" /> Iniciar Impulsionamento</>}
-                 </Button>
-              </div>
+              <div className="p-8 border-t bg-muted/30"><Button onClick={(e:any) => e.target.closest('div').previousSibling.requestSubmit()} type="submit" disabled={isSubmitting || uploadProgress !== null} className="w-full bg-secondary text-white font-black h-16 rounded-[2rem] shadow-xl uppercase italic text-lg">{isSubmitting ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><Target className="w-6 h-6 mr-2" /> Iniciar Impulsionamento</>}</Button></div>
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="border-none shadow-sm bg-primary text-white overflow-hidden relative group">
-          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Engajamento Total</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-black">{(stats.reach + stats.clicks).toLocaleString()}</div></CardContent>
-          <Eye className="absolute -bottom-2 -right-2 w-20 h-20 opacity-5 rotate-12" />
-        </Card>
-        <Card className="border-none shadow-sm bg-white">
-          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Saldo Ad Account</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-black text-foreground">{formatCurrency(currentOrg?.adBalance || 0)}</div></CardContent>
-        </Card>
-        <Card className="border-none shadow-sm bg-white border-l-4 border-secondary">
-          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Orçamento Bloqueado</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-black text-secondary">{formatCurrency(currentOrg?.blockedBalance || 0)}</div></CardContent>
-        </Card>
-        <Card className="border-none shadow-sm bg-white">
-          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Ativos Hoje</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-black text-primary">{stats.active}</div></CardContent>
-        </Card>
+        <Card className="border-none shadow-sm bg-primary text-white overflow-hidden relative group"><CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Engajamento Total</CardTitle></CardHeader><CardContent><div className="text-3xl font-black">{(stats.reach + stats.clicks).toLocaleString()}</div></CardContent><Eye className="absolute -bottom-2 -right-2 w-20 h-20 opacity-5 rotate-12" /></Card>
+        <Card className="border-none shadow-sm bg-white"><CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Saldo Disponível</CardTitle></CardHeader><CardContent><div className="text-3xl font-black text-foreground">{formatCurrency(currentOrg?.adBalance || 0)}</div></CardContent></Card>
+        <Card className="border-none shadow-sm bg-white border-l-4 border-secondary"><CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Bloqueado (Ativos)</CardTitle></CardHeader><CardContent><div className="text-3xl font-black text-secondary">{formatCurrency(currentOrg?.blockedBalance || 0)}</div></CardContent></Card>
+        <Card className="border-none shadow-sm bg-white"><CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Ativos Hoje</CardTitle></CardHeader><CardContent><div className="text-3xl font-black text-primary">{stats.active}</div></CardContent></Card>
       </div>
 
       <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
-        <CardHeader className="border-b pb-6 p-8">
-           <CardTitle className="text-xl flex items-center gap-2"><BarChart3 className="w-5 h-5 text-secondary" /> Histórico de Impulsionamento</CardTitle>
-           <CardDescription>Acompanhe a entrega e o consumo das suas campanhas.</CardDescription>
-        </CardHeader>
+        <CardHeader className="border-b pb-6 p-8"><CardTitle className="text-xl flex items-center gap-2"><BarChart3 className="w-5 h-5 text-secondary" /> Histórico de Impulsionamento</CardTitle></CardHeader>
         <CardContent className="p-0">
           {ads.length > 0 ? (
-            <div className="divide-y">
-              {ads.map((ad: any) => {
-                const isFinished = ad.status === 'Finalizado' || ad.status === 'Cancelado';
-                const usedAmount = (ad.initialBudget || ad.budget || 0) - (ad.remainingBudget || 0);
-                const refunded = ad.refundedAmount || 0;
-
-                return (
-                  <div key={ad.id} className={cn(
-                    "p-8 flex flex-col gap-8 transition-colors lg:flex-row lg:items-center lg:justify-between hover:bg-muted/10",
-                    isFinished && "opacity-50"
-                  )}>
-                    <div className="flex gap-4 min-w-[300px]">
-                      <div className="p-4 rounded-2xl bg-secondary/10 h-fit border border-secondary/10">
-                         {ad.type === 'evento' ? <Calendar className="w-6 h-6 text-secondary" /> : 
-                          ad.type === 'pagina' ? <Layout className="w-6 h-6 text-secondary" /> :
-                          <Megaphone className="w-6 h-6 text-secondary" />}
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-base uppercase truncate max-w-[200px]">{ad.eventTitle}</h4>
-                          <Badge className={cn(
-                            "text-[8px] font-black uppercase h-4", 
-                            ad.status === 'Ativo' ? "bg-green-500" : 
-                            ad.status === 'Pendente' ? "bg-orange-500" :
-                            "bg-muted"
-                          )}>{ad.status}</Badge>
-                        </div>
-                        <div className="text-[10px] font-black text-muted-foreground uppercase flex flex-col gap-1.5 mt-2">
-                           <span className="flex items-center gap-1.5 text-secondary"><Target className="w-3.5 h-3.5" /> Objetivo: {ad.type}</span>
-                           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                             <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Início: {formatAdDate(ad.startDate)}</span>
-                             <span className="flex items-center gap-1.5 text-destructive"><Clock className="w-3.5 h-3.5" /> Término: {formatAdDate(ad.endDate)}</span>
-                           </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 flex-1 text-center bg-muted/20 p-4 rounded-2xl lg:bg-transparent lg:p-0">
-                       <div className="space-y-1">
-                          <p className="text-[9px] font-black opacity-40 uppercase tracking-widest">Investimento Inicial</p>
-                          <p className="font-black text-sm">{formatCurrency(ad.initialBudget || ad.budget || 0)}</p>
-                       </div>
-                       <div className="space-y-1">
-                          <p className="text-[9px] font-black text-primary uppercase tracking-widest">Saldo Utilizado</p>
-                          <p className="font-black text-primary text-sm">{formatCurrency(usedAmount)}</p>
-                       </div>
-                       <div className="space-y-1">
-                          {isFinished ? (
-                             <>
-                                <p className="text-[9px] font-black text-green-600 uppercase tracking-widest">Valor Estornado</p>
-                                <p className="font-black text-green-600 text-sm">{formatCurrency(refunded)}</p>
-                             </>
-                          ) : (
-                             <>
-                                <p className="text-[9px] font-black text-secondary uppercase tracking-widest">Saldo Restante</p>
-                                <p className="font-black text-secondary text-sm">{formatCurrency(ad.remainingBudget || 0)}</p>
-                             </>
-                          )}
-                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                       <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl border-secondary/20 text-secondary" onClick={() => setSelectedAdForMetrics(ad)}><TrendingUp className="w-5 h-5" /></Button>
-                       
-                       {!isFinished && (
-                         <>
-                           <Button 
-                             variant="outline" 
-                             className="h-10 px-4 rounded-xl uppercase font-black text-[10px] gap-2 border-secondary/20 text-secondary"
-                             onClick={() => handleToggleStatus(ad.id, ad.status)}
-                             disabled={actionLoadingId === ad.id}
-                           >
-                              {ad.status === 'Ativo' ? <><Pause className="w-4 h-4" /> Pausar</> : <><Play className="w-4 h-4" /> Ativar</>}
-                           </Button>
-                           <Button 
-                             variant="ghost" 
-                             size="icon" 
-                             className="h-10 w-10 rounded-xl text-destructive hover:bg-destructive/10"
-                             onClick={() => setAdToCancel(ad)}
-                             disabled={actionLoadingId === ad.id}
-                           >
-                              <XCircle className="w-5 h-5" />
-                           </Button>
-                         </>
-                       )}
-                    </div>
+            <div className="divide-y">{ads.map((ad: any) => {
+              const isFinished = ad.status === 'Finalizado' || ad.status === 'Cancelado';
+              const usedAmount = (ad.initialBudget || ad.budget || 0) - (ad.remainingBudget || 0);
+              return (
+                <div key={ad.id} className={cn("p-8 flex flex-col gap-8 transition-colors lg:flex-row lg:items-center lg:justify-between hover:bg-muted/10", isFinished && "opacity-50")}>
+                  <div className="flex gap-4 min-w-[300px]"><div className="p-4 rounded-2xl bg-secondary/10 h-fit border border-secondary/10">{ad.type === 'evento' ? <Calendar className="w-6 h-6 text-secondary" /> : ad.type === 'pagina' ? <Layout className="w-6 h-6 text-secondary" /> : <Megaphone className="w-6 h-6 text-secondary" />}</div>
+                  <div className="space-y-1"><div className="flex items-center gap-2"><h4 className="font-bold text-base uppercase truncate max-w-[200px]">{ad.eventTitle}</h4><Badge className={cn("text-[8px] font-black uppercase h-4", ad.status === 'Ativo' ? "bg-green-500" : ad.status === 'Pendente' ? "bg-orange-500" : "bg-muted")}>{ad.status}</Badge></div>
+                  <div className="text-[10px] font-black text-muted-foreground uppercase flex flex-col gap-1.5 mt-2"><span className="flex items-center gap-1.5 text-secondary"><Target className="w-3.5 h-3.5" /> Objetivo: {ad.type}</span><div className="flex flex-wrap items-center gap-x-4 gap-y-1"><span>Início: {formatAdDate(ad.startDate)}</span><span className="text-destructive">Fim: {formatAdDate(ad.endDate)}</span></div></div></div></div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 flex-1 text-center bg-muted/20 p-4 rounded-2xl lg:bg-transparent lg:p-0">
+                     <div className="space-y-1"><p className="text-[9px] font-black opacity-40 uppercase">Investimento</p><p className="font-black text-sm">{formatCurrency(ad.initialBudget || ad.budget || 0)}</p></div>
+                     <div className="space-y-1"><p className="text-[9px] font-black text-primary uppercase">Utilizado</p><p className="font-black text-primary text-sm">{formatCurrency(usedAmount)}</p></div>
+                     <div className="space-y-1"><p className={cn("text-[9px] font-black uppercase", isFinished ? "text-green-600" : "text-secondary")}>{isFinished ? "Estornado" : "Restante"}</p><p className={cn("font-black text-sm", isFinished ? "text-green-600" : "text-secondary")}>{formatCurrency(isFinished ? ad.refundedAmount || 0 : ad.remainingBudget || 0)}</p></div>
                   </div>
-                );
-              })}
-            </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl border-secondary/20 text-secondary" onClick={() => setSelectedAdForMetrics(ad)}><TrendingUp className="w-5 h-5" /></Button>
+                    {!isFinished && (
+                      <><Button variant="outline" className="h-10 px-4 rounded-xl uppercase font-black text-[10px] gap-2 border-secondary/20 text-secondary" onClick={() => handleToggleStatus(ad.id, ad.status)} disabled={actionLoadingId === ad.id}>{ad.status === 'Ativo' ? <><Pause className="w-4 h-4" /> Pausar</> : <><Play className="w-4 h-4" /> Ativar</>}</Button>
+                      <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl text-destructive hover:bg-destructive/10" onClick={() => setAdToCancel(ad)} disabled={actionLoadingId === ad.id}><XCircle className="w-5 h-5" /></Button></>
+                    )}
+                  </div>
+                </div>
+              );
+            })}</div>
           ) : (
-            <div className="py-24 text-center">
-               <Megaphone className="w-16 h-16 text-muted-foreground opacity-10 mx-auto mb-4" />
-               <p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-xs">Aguardando sua primeira campanha.</p>
-            </div>
+            <div className="py-24 text-center"><Megaphone className="w-16 h-16 text-muted-foreground opacity-10 mx-auto mb-4" /><p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-xs">Nenhuma campanha registrada.</p></div>
           )}
         </CardContent>
       </Card>
 
       <Dialog open={!!selectedAdForMetrics} onOpenChange={(o) => !o && setSelectedAdForMetrics(null)}>
         <DialogContent className="max-w-2xl rounded-[2.5rem]">
-           <DialogHeader>
-              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Métricas de Performance</DialogTitle>
-              <DialogDescription className="font-bold text-secondary uppercase">{selectedAdForMetrics?.eventTitle}</DialogDescription>
-           </DialogHeader>
-           
+           <DialogHeader><DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Métricas de Performance</DialogTitle><DialogDescription className="font-bold text-secondary uppercase">{selectedAdForMetrics?.eventTitle}</DialogDescription></DialogHeader>
            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-6">
               <div className="space-y-6">
                  <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Users className="w-4 h-4" /> Distribuição por Sexo</h4>
                  <div className="space-y-4">
                     <DemographicBar label="Masculino" value={selectedAdForMetrics?.stats_gender_masculino || 0} total={selectedAdForMetrics?.reach || 1} color="bg-blue-500" />
                     <DemographicBar label="Feminino" value={selectedAdForMetrics?.stats_gender_feminino || 0} total={selectedAdForMetrics?.reach || 1} color="bg-pink-500" />
-                    <DemographicBar label="Outros" value={selectedAdForMetrics?.stats_gender_outros || 0} total={selectedAdForMetrics?.reach || 1} color="bg-purple-500" />
+                    <DemographicBar label="Homem Trans" value={selectedAdForMetrics?.stats_gender_homem_trans || 0} total={selectedAdForMetrics?.reach || 1} color="bg-indigo-400" />
+                    <DemographicBar label="Mulher Trans" value={selectedAdForMetrics?.stats_gender_mulher_trans || 0} total={selectedAdForMetrics?.reach || 1} color="bg-rose-400" />
+                    <DemographicBar label="Agênero" value={selectedAdForMetrics?.stats_gender_agenero || 0} total={selectedAdForMetrics?.reach || 1} color="bg-gray-400" />
+                    <DemographicBar label="Outro" value={selectedAdForMetrics?.stats_gender_outro || 0} total={selectedAdForMetrics?.reach || 1} color="bg-purple-400" />
                  </div>
               </div>
               <div className="space-y-6">
                  <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Clock className="w-4 h-4" /> Faixa Etária</h4>
                  <div className="space-y-4">
-                    <DemographicBar label="18 - 24" value={selectedAdForMetrics?.stats_age_18_24 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-secondary" />
-                    <DemographicBar label="25 - 34" value={selectedAdForMetrics?.stats_age_25_34 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-primary" />
-                    <DemographicBar label="35+" value={((selectedAdForMetrics?.stats_age_35_44 || 0) + (selectedAdForMetrics?.stats_age_45plus || 0))} total={selectedAdForMetrics?.reach || 1} color="bg-muted-foreground" />
+                    <DemographicBar label="0 - 18 anos" value={selectedAdForMetrics?.stats_age_0_18 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-teal-400" />
+                    <DemographicBar label="19 - 24" value={selectedAdForMetrics?.stats_age_19_24 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-emerald-400" />
+                    <DemographicBar label="25 - 30" value={selectedAdForMetrics?.stats_age_25_30 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-sky-400" />
+                    <DemographicBar label="31 - 34" value={selectedAdForMetrics?.stats_age_31_34 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-blue-400" />
+                    <DemographicBar label="35 - 40" value={selectedAdForMetrics?.stats_age_35_40 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-indigo-400" />
+                    <DemographicBar label="41 - 44" value={selectedAdForMetrics?.stats_age_41_44 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-violet-400" />
+                    <DemographicBar label="45 - 50" value={selectedAdForMetrics?.stats_age_45_50 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-purple-400" />
+                    <DemographicBar label="50 - 75" value={selectedAdForMetrics?.stats_age_51_75 || 0} total={selectedAdForMetrics?.reach || 1} color="bg-pink-400" />
+                    <DemographicBar label="+75 anos" value={selectedAdForMetrics?.stats_age_75plus || 0} total={selectedAdForMetrics?.reach || 1} color="bg-slate-400" />
                  </div>
               </div>
            </div>
-           
-           <div className="p-4 bg-muted/30 rounded-2xl flex gap-3">
-              <Info className="w-5 h-5 text-secondary shrink-0" />
-              <p className="text-[9px] text-muted-foreground font-bold uppercase leading-relaxed">Dados consolidados baseados no comportamento de usuários autenticados na plataforma Viby.</p>
-           </div>
+           <div className="p-4 bg-muted/30 rounded-2xl flex gap-3"><Info className="w-5 h-5 text-secondary shrink-0" /><p className="text-[9px] text-muted-foreground font-bold uppercase">Dados baseados em usuários autenticados.</p></div>
         </DialogContent>
       </Dialog>
 
       <AlertDialog open={!!adToCancel} onOpenChange={(o) => !o && setAdToCancel(null)}>
         <AlertDialogContent className="rounded-[2.5rem]">
-          <AlertDialogHeader>
-             <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Confirmar Cancelamento?</AlertDialogTitle>
-             <AlertDialogDescription className="font-medium">
-                Esta ação encerrará a campanha e devolverá <strong>{formatCurrency(adToCancel?.remainingBudget || 0)}</strong> ao saldo disponível da sua marca imediatamente.
-             </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-             <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Não</AlertDialogCancel>
-             <AlertDialogAction onClick={handleCancelAd} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] px-8">Encerrar e Estornar</AlertDialogAction>
-          </AlertDialogFooter>
+          <AlertDialogHeader><AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Confirmar Cancelamento?</AlertDialogTitle><AlertDialogDescription>Esta ação encerrará a campanha e devolverá <strong>{formatCurrency(adToCancel?.remainingBudget || 0)}</strong> ao saldo da marca.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Não</AlertDialogCancel><AlertDialogAction onClick={handleCancelAd} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] px-8">Encerrar e Estornar</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
@@ -721,9 +410,7 @@ function DemographicBar({ label, value, total, color }: { label: string, value: 
         <span className="text-muted-foreground">{label}</span>
         <span className="text-primary">{percentage}% ({value})</span>
       </div>
-      <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-        <div className={cn("h-full transition-all duration-1000", color)} style={{ width: `${percentage}%` }} />
-      </div>
+      <div className="h-1 w-full bg-muted rounded-full overflow-hidden"><div className={cn("h-full transition-all duration-1000", color)} style={{ width: `${percentage}%` }} /></div>
     </div>
   )
 }

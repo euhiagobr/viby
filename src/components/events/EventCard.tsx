@@ -55,16 +55,14 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   
   const [liveStatus, setLiveStatus] = React.useState<{ label: string; colorClass: string } | null>(null);
 
-  // Lógica de Status Dinâmico (Countdown e Real-time labels)
   React.useEffect(() => {
     const update = () => {
       const now = new Date();
       const start = event.date?.toDate ? event.date.toDate() : new Date(event.date);
-      // Assume 4 horas de duração padrão se não houver endDate
       const end = event.endDate?.toDate ? event.endDate.toDate() : (event.endDate ? new Date(event.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
 
-      const diffStart = start.getTime() - now.getTime();
       const diffEnd = end.getTime() - now.getTime();
+      const diffStart = start.getTime() - now.getTime();
       const isToday = now.toDateString() === start.toDateString();
 
       if (diffEnd <= 0) {
@@ -87,7 +85,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     };
 
     update();
-    const interval = setInterval(update, 60000); // Atualiza a cada minuto
+    const interval = setInterval(update, 60000);
     return () => clearInterval(interval);
   }, [event.date, event.endDate]);
 
@@ -96,21 +94,31 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     try {
       const birth = new Date(birthDate);
       const age = new Date().getFullYear() - birth.getFullYear();
-      if (age < 18) return "sub18";
-      if (age <= 24) return "18_24";
-      if (age <= 34) return "25_34";
-      if (age <= 44) return "35_44";
-      return "45plus";
+      if (age <= 18) return "0_18";
+      if (age <= 24) return "19_24";
+      if (age <= 30) return "25_30";
+      if (age <= 34) return "31_34";
+      if (age <= 40) return "35_40";
+      if (age <= 44) return "41_44";
+      if (age <= 50) return "45_50";
+      if (age <= 75) return "51_75";
+      return "75plus";
     } catch (e) { return "desconhecido"; }
   }
 
   const getDemographicsUpdate = () => {
     const update: any = {}
     if (userProfile) {
-      const gender = (userProfile.gender || "desconhecido").toLowerCase();
+      const rawGender = (userProfile.gender || "desconhecido").toLowerCase().trim();
       const ageGroup = getAgeGroup(userProfile.birthDate);
       
-      const genderKey = gender === 'masculino' ? 'masculino' : gender === 'feminino' ? 'feminino' : 'outros';
+      let genderKey = 'desconhecido';
+      if (rawGender === 'masculino') genderKey = 'masculino';
+      else if (rawGender === 'feminino') genderKey = 'feminino';
+      else if (rawGender === 'homem trans') genderKey = 'homem_trans';
+      else if (rawGender === 'mulher trans') genderKey = 'mulher_trans';
+      else if (rawGender === 'agênero') genderKey = 'agenero';
+      else if (rawGender === 'outro') genderKey = 'outro';
       
       update[`stats_gender_${genderKey}`] = increment(1);
       update[`stats_age_${ageGroup}`] = increment(1);
@@ -156,10 +164,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       { threshold: 0.5 }
     )
 
-    if (cardRef.current) {
-      observer.observe(cardRef.current)
-    }
-
+    if (cardRef.current) observer.observe(cardRef.current)
     return () => observer.disconnect()
   }, [isSponsored, event.adId, db, adsSettings, userProfile, event.organizationId])
 
@@ -167,36 +172,24 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     if (!dateValue) return "A definir";
     try {
       let d: Date;
-      if (dateValue?.toDate) {
-        d = dateValue.toDate();
-      } else if (dateValue instanceof Date) {
-        d = dateValue;
-      } else {
-        d = new Date(dateValue);
-      }
+      if (dateValue?.toDate) d = dateValue.toDate();
+      else if (dateValue instanceof Date) d = dateValue;
+      else d = new Date(dateValue);
       if (isNaN(d.getTime())) return "A definir";
       return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-    } catch (e) {
-      return "A definir";
-    }
+    } catch (e) { return "A definir"; }
   };
 
   const formatTime = (dateValue: any) => {
     if (!dateValue) return "";
     try {
       let d: Date;
-      if (dateValue?.toDate) {
-        d = dateValue.toDate();
-      } else if (dateValue instanceof Date) {
-        d = dateValue;
-      } else {
-        d = new Date(dateValue);
-      }
+      if (dateValue?.toDate) d = dateValue.toDate();
+      else if (dateValue instanceof Date) d = dateValue;
+      else d = new Date(dateValue);
       if (isNaN(d.getTime())) return "";
       return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    } catch (e) {
-      return "";
-    }
+    } catch (e) { return ""; }
   };
 
   const formattedDate = formatDate(event.date);
@@ -243,8 +236,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
             blockedBalance: increment(-cpcValue)
           });
         }
-      }).catch((err) => {
-        console.error("Erro ao registrar clique:", err)
       });
     }
     router.push(eventLink)
@@ -282,10 +273,9 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           alt={event.title}
           fill
           className="object-cover transition-transform group-hover:scale-105"
-          data-ai-hint="event cover"
+          unoptimized
         />
         
-        {/* BADGES SUPERIORES ESQUERDOS */}
         <div className="absolute top-3 left-3 flex flex-col gap-2 z-10">
           {liveStatus && (
             <Badge className={cn("text-white border-none shadow-xl px-3 py-1 text-[10px] font-black uppercase tracking-wider", liveStatus.colorClass)}>
@@ -354,9 +344,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
             <span className="text-[10px] font-bold text-muted-foreground uppercase hover:text-secondary truncate max-w-[100px]">
               {event.organizer?.name || "Organizador"}
             </span>
-            {isVerified && (
-              <InstagramVerifiedBadge />
-            )}
+            {isVerified && <InstagramVerifiedBadge />}
           </div>
         </div>
         

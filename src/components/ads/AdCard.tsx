@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useDoc, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
 import { doc, updateDoc, increment, serverTimestamp, collection, query, where } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 
@@ -30,11 +30,16 @@ interface AdCardProps {
 export function AdCard({ ad }: AdCardProps) {
   const router = useRouter()
   const db = useFirestore()
+  const auth = useAuth()
+  const { user } = useUser(auth)
   const cardRef = React.useRef<HTMLDivElement>(null)
   const hasTrackedImpression = React.useRef(false)
 
   const orgRef = React.useMemo(() => (db && ad.organizationId) ? doc(db, "organizations", ad.organizationId) : null, [db, ad.organizationId])
   const { data: organization } = useDoc<any>(orgRef)
+
+  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
+  const { data: userProfile } = useDoc<any>(userDocRef)
 
   const followersQuery = useMemoFirebase(() => {
     if (!db || !ad.organizationId) return null
@@ -45,6 +50,46 @@ export function AdCard({ ad }: AdCardProps) {
   const adsSettingsRef = React.useMemo(() => db ? doc(db, 'settings', 'ads') : null, [db])
   const { data: adsSettings } = useDoc<any>(adsSettingsRef)
 
+  const getAgeGroup = (birthDate: string) => {
+    if (!birthDate) return "desconhecido";
+    try {
+      const birth = new Date(birthDate);
+      const age = new Date().getFullYear() - birth.getFullYear();
+      if (age <= 18) return "0_18";
+      if (age <= 24) return "19_24";
+      if (age <= 30) return "25_30";
+      if (age <= 34) return "31_34";
+      if (age <= 40) return "35_40";
+      if (age <= 44) return "41_44";
+      if (age <= 50) return "45_50";
+      if (age <= 75) return "51_75";
+      return "75plus";
+    } catch (e) { return "desconhecido"; }
+  }
+
+  const getDemographicsUpdate = () => {
+    const update: any = {}
+    if (userProfile) {
+      const rawGender = (userProfile.gender || "desconhecido").toLowerCase().trim();
+      const ageGroup = getAgeGroup(userProfile.birthDate);
+      
+      let genderKey = 'desconhecido';
+      if (rawGender === 'masculino') genderKey = 'masculino';
+      else if (rawGender === 'feminino') genderKey = 'feminino';
+      else if (rawGender === 'homem trans') genderKey = 'homem_trans';
+      else if (rawGender === 'mulher trans') genderKey = 'mulher_trans';
+      else if (rawGender === 'agênero') genderKey = 'agenero';
+      else if (rawGender === 'outro') genderKey = 'outro';
+      
+      update[`stats_gender_${genderKey}`] = increment(1);
+      update[`stats_age_${ageGroup}`] = increment(1);
+    } else {
+      update[`stats_gender_desconhecido`] = increment(1);
+      update[`stats_age_desconhecido`] = increment(1);
+    }
+    return update;
+  }
+
   React.useEffect(() => {
     if (!db || !adsSettings || hasTrackedImpression.current) return
 
@@ -54,15 +99,21 @@ export function AdCard({ ad }: AdCardProps) {
           hasTrackedImpression.current = true
           const cost = (adsSettings.cpmValue || 0) / 1000
           
-          updateDoc(doc(db, "ads", ad.id), { 
+          const adRef = doc(db, "ads", ad.id)
+          const demoUpdate = getDemographicsUpdate()
+
+          updateDoc(adRef, { 
             reach: increment(1),
             remainingBudget: increment(-cost),
-            updatedAt: serverTimestamp()
+            updatedAt: serverTimestamp(),
+            ...demoUpdate
           }).then(() => {
-            updateDoc(doc(db, "organizations", ad.organizationId), {
-              blockedBalance: increment(-cost)
-            });
-          })
+            if (ad.organizationId) {
+              updateDoc(doc(db, "organizations", ad.organizationId), {
+                blockedBalance: increment(-cost)
+              });
+            }
+          });
           observer.disconnect()
         }
       },
@@ -71,20 +122,29 @@ export function AdCard({ ad }: AdCardProps) {
 
     if (cardRef.current) observer.observe(cardRef.current)
     return () => observer.disconnect()
-  }, [ad.id, ad.organizationId, db, adsSettings])
+  }, [ad.id, ad.organizationId, db, adsSettings, userProfile])
 
   const handleClick = () => {
     if (db && adsSettings) {
       const cost = adsSettings.cpcValue || 0
-      updateDoc(doc(db, "ads", ad.id), { 
+      const adRef = doc(db, "ads", ad.id)
+      const demoUpdate = getDemographicsUpdate()
+
+      updateDoc(adRef, { 
         clicks: increment(1),
         remainingBudget: increment(-cost),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        ...Object.keys(demoUpdate).reduce((acc: any, key) => {
+          acc[key.replace('stats_', 'click_stats_')] = increment(1);
+          return acc;
+        }, {})
       }).then(() => {
-        updateDoc(doc(db, "organizations", ad.organizationId), {
-          blockedBalance: increment(-cost)
-        });
-      })
+        if (ad.organizationId) {
+          updateDoc(doc(db, "organizations", ad.organizationId), {
+            blockedBalance: increment(-cost)
+          });
+        }
+      });
     }
 
     if ((ad.type === 'site' || ad.type === 'banner') && ad.externalUrl) {
@@ -96,9 +156,7 @@ export function AdCard({ ad }: AdCardProps) {
     }
   }
 
-  if (ad.type === 'evento' && !ad._isAdObject) {
-    return <EventCard event={ad} isSponsored />
-  }
+  if (ad.type === 'evento' && !ad._isAdObject) return <EventCard event={ad} isSponsored />
 
   if (ad.type === 'pagina') {
     const dispName = organization?.name || ad.eventTitle || "Organização"
@@ -113,12 +171,10 @@ export function AdCard({ ad }: AdCardProps) {
             <Megaphone className="w-3 h-3 text-secondary" /> Patrocinado
           </Badge>
         </div>
-
         <div className="relative h-32 w-full bg-muted">
           <Image src={dispBanner} alt="Capa" fill className="object-cover" unoptimized />
           <div className="absolute inset-0 bg-black/20" />
         </div>
-
         <CardContent className="px-6 pb-6 relative pt-12 text-center">
           <div className="absolute -top-12 left-1/2 -translate-x-1/2">
              <div className="p-1 bg-background rounded-full shadow-xl ring-4 ring-background">
@@ -128,7 +184,6 @@ export function AdCard({ ad }: AdCardProps) {
                 </Avatar>
              </div>
           </div>
-          
           <div className="space-y-1">
              <div className="flex items-center justify-center gap-1.5">
                 <h3 className="text-lg font-black uppercase italic tracking-tighter">{dispName}</h3>
@@ -136,7 +191,6 @@ export function AdCard({ ad }: AdCardProps) {
              </div>
              <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">@{dispUsername}</p>
           </div>
-
           <div className="flex items-center justify-center gap-6 mt-6 py-4 border-y border-dashed border-border/60">
              <div className="text-center">
                 <p className="text-xs font-black">{followers?.length || 0}</p>
@@ -148,7 +202,6 @@ export function AdCard({ ad }: AdCardProps) {
                 <p className="text-[8px] font-bold text-muted-foreground uppercase">Segmento</p>
              </div>
           </div>
-
           <Button className="w-full mt-6 bg-primary text-white font-black h-11 rounded-xl uppercase italic text-xs gap-2 group-hover:bg-secondary transition-colors">
              Acessar Página <ArrowRight className="w-4 h-4" />
           </Button>
@@ -164,7 +217,6 @@ export function AdCard({ ad }: AdCardProps) {
             <Megaphone className="w-3 h-3 text-secondary" /> Patrocinado
           </Badge>
         </div>
-
         <div className="relative aspect-video w-full bg-muted">
            <Image src={ad.adImage || "https://picsum.photos/seed/ad/800/400"} alt="Anúncio" fill className="object-cover group-hover:scale-105 transition-transform duration-700" unoptimized />
            {(ad.type === 'site' || ad.type === 'banner') && (
@@ -175,13 +227,11 @@ export function AdCard({ ad }: AdCardProps) {
              </div>
            )}
         </div>
-
         <CardContent className="p-6 space-y-4">
            <div className="space-y-1">
               <h3 className="font-black text-lg uppercase italic tracking-tighter leading-tight">{ad.eventTitle}</h3>
               {ad.externalUrl && <p className="text-[10px] text-muted-foreground font-medium truncate">{ad.externalUrl.replace(/^https?:\/\//, '')}</p>}
            </div>
-           
            <Button variant="outline" className="w-full h-10 rounded-xl font-bold uppercase text-[10px] tracking-widest gap-2 border-secondary/20 text-secondary hover:bg-secondary/5">
               {ad.type === 'site' ? "Ver no Site" : "Saiba Mais"} <ExternalLink className="w-3 h-3" />
            </Button>
