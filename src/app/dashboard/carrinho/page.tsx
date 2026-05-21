@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -35,6 +34,7 @@ import { toast } from "@/hooks/use-toast"
 import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, limit } from "firebase/firestore"
 import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 import { sendCartPendingEmail } from "@/app/actions/email"
+import { cn } from "@/lib/utils"
 
 export default function CarrinhoPage() {
   const { items, removeItem, updateQuantity, clearCart } = useCart()
