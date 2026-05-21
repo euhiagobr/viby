@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -38,7 +37,8 @@ import {
   Ticket,
   BarChart3,
   Percent,
-  ChevronRight
+  ChevronRight,
+  Info
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
