@@ -382,7 +382,7 @@ export default function EditarEventoPage() {
                                        />
                                     </div>
                                     <div className="flex items-center gap-4 md:pt-6">
-                                      <div className="flex items-center gap-1"><Switch checked={t.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} /><span className="text-[9px] font-black uppercase">Prova</span></div>
+                                      <div className="flex items-center gap-1"><Switch checked={t.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} /><span className="text-[9px] font-black uppercase">Doc. Obrigatório</span></div>
                                       <div className="flex items-center gap-1"><Switch checked={t.isLegalHalf} onCheckedChange={v => updateTicketTypeField(bi, ti, 'isLegalHalf', v)} /><span className="text-[9px] font-black uppercase">Meia</span></div>
                                       <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeTicketType(bi, ti)}><Trash2 className="w-4 h-4" /></Button>
                                     </div>

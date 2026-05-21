@@ -4,7 +4,7 @@
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useFirestore, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
+import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, addDoc, serverTimestamp } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -94,7 +94,7 @@ export default function NovoEventoPage() {
   const [loading, setLoading] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
-  const [uploadProgress, setUploadProgress] = setUploadProgress(null)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   
   const [selectedCategory, setSelectedCategory] = useState("")
   const [tags, setTags] = useState("")
@@ -509,11 +509,11 @@ export default function NovoEventoPage() {
                                   <div className="flex items-center gap-6 md:pt-6">
                                      <div className="flex items-center gap-2">
                                         <Switch checked={type.requiresProof} onCheckedChange={v => updateTicketTypeField(bIdx, tIdx, 'requiresProof', v)} />
-                                        <Label className="text-[9px] font-black uppercase leading-none">Exige Prova</Label>
+                                        <Label className="text-[9px] font-black uppercase leading-none">Doc. Obrigatório</Label>
                                      </div>
                                      <div className="flex items-center gap-2">
                                         <Switch checked={type.isLegalHalf} onCheckedChange={v => updateTicketTypeField(bIdx, tIdx, 'isLegalHalf', v)} />
-                                        <Label className="text-[9px] font-black uppercase leading-none">Meia Legal</Label>
+                                        <Label className="text-[9px] font-black uppercase leading-none">Meia-Entrada</Label>
                                      </div>
                                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-full" onClick={() => removeTicketType(bIdx, tIdx)}><Trash2 className="w-4 h-4" /></Button>
                                   </div>
