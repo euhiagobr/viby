@@ -1,7 +1,7 @@
-
 /**
  * @fileOverview Utilitários financeiros atualizados para o modelo de Planos Dinâmicos.
  * Regra: A taxa é o maior valor entre o percentual do plano e o valor mínimo do plano.
+ * No novo modelo (Adição), o comprador paga (Ingresso + Taxa) e o produtor recebe (Ingresso).
  */
 
 export function formatCurrency(value: number): string {
@@ -30,26 +30,26 @@ export function calculateFinancialBreakdown(basePrice: number, planData?: any) {
     };
   }
 
-  // Se não houver planData, usamos valores do plano Start (16% ou R$ 9,99)
+  // Se não houver planData, usamos valores seguros do plano Start (16% ou R$ 9,99)
+  // REGRA: Taxa é o MAIOR valor entre o percentual e o mínimo
   const feePercent = (planData?.feePercent ?? 16) / 100;
   const minFeeAmount = planData?.minFeeAmount ?? 9.99;
   
-  // REGRA SOLICITADA: Taxa é o MAIOR valor entre o percentual e o mínimo
   const calculatedPercentFee = Number((price * feePercent).toFixed(2));
   const serviceFee = Math.max(calculatedPercentFee, minFeeAmount);
   
-  // Preço final que o cliente paga no checkout (Ingresso + Taxa)
+  // No modelo de ADIÇÃO:
+  // Preço que o cliente paga = Preço do Produtor + Taxa da Plataforma
   const customerFinalPrice = Number((price + serviceFee).toFixed(2));
 
-  // No novo modelo, o produtor recebe o valor integral do ingresso (basePrice)
-  // e a plataforma fica com a taxa de serviço paga pelo comprador.
+  // O produtor recebe o valor que ele definiu (Face Value)
   const producerNetAmount = price;
 
   return {
-    ticketBasePrice: price,
-    customerFinalPrice,
-    administrativeFeeAmount: serviceFee, // Taxa de conveniência/plataforma
-    producerNetAmount,
+    ticketBasePrice: price, // O valor "limpo" do ingresso
+    customerFinalPrice, // O valor total com taxa
+    administrativeFeeAmount: serviceFee, // A parte da Viby
+    producerNetAmount, // O que vai para o bolso do produtor
     feePercentApplied: feePercent,
     minFeeApplied: minFeeAmount
   };

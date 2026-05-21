@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -173,7 +172,7 @@ export default function CarrinhoPage() {
 
   const handleCheckout = async () => {
     if (!user) return router.push("/login")
-    if (!db || items.length === 0 || processing) return
+    if (!db || items.length === 0 || processing || loadingBreakdowns) return
 
     setProcessing(true)
     try {
@@ -209,7 +208,7 @@ export default function CarrinhoPage() {
             discountApplied: currentItemDiscount,
             price: breakdown.customerFinalPrice,
             administrativeFeeAmount: breakdown.administrativeFeeAmount,
-            producerFeeAmount: 0, // No novo modelo a taxa é somada, não descontada
+            producerFeeAmount: 0,
             producerNetAmount: breakdown.producerNetAmount,
             batchId: item.batchId,
             batchName: item.batchName,

@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser } from "@/firebase"
-import { doc, addDoc, collection, serverTimestamp, query, where, getDocs } from "firebase/firestore"
+import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, getDoc } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,6 +26,7 @@ import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import Link from "next/link"
+import { calculateFinancialBreakdown } from "@/lib/financial-utils"
 
 export default function EventoDetalhesPage() {
   const params = useParams()
@@ -38,16 +39,17 @@ export default function EventoDetalhesPage() {
   const eventRef = React.useMemo(() => db ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
   
-  // Agora buscamos os dados da ORGANIZAÇÃO diretamente, não do perfil pessoal do usuário
   const organizationRef = React.useMemo(() => 
     (db && event?.organizationId) ? doc(db, "organizations", event.organizationId) : null, 
     [db, event?.organizationId]
   )
   const { data: organizationProfile } = useDoc<any>(organizationRef)
 
-  // Perfil do usuário logado para capturar dados cadastrais no registro
   const currentUserRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: currentUserProfile } = useDoc<any>(currentUserRef)
+
+  const plansRef = React.useMemo(() => db ? doc(db, 'settings', 'plans') : null, [db])
+  const { data: plansSettings } = useDoc<any>(plansRef)
   
   const [isRegistered, setIsRegistered] = React.useState(false)
   const [registering, setRegistering] = React.useState(false)
@@ -101,48 +103,58 @@ export default function EventoDetalhesPage() {
       return
     }
 
-    if (!db || !eventId || !event) return
+    if (!db || !eventId || !event || !plansSettings) return
 
     setRegistering(true)
     
-    const price = event.isFree ? 0 : (event.batches?.[0]?.price || 0);
-    const batchName = event.isFree ? "Gratuito" : (event.batches?.[0]?.name || "Lote Único");
+    try {
+      const organizerRef = doc(db, "users", event.organizerId);
+      const organizerSnap = await getDoc(organizerRef);
+      const organizerData = organizerSnap.data();
+      const planKey = (organizerData?.plan || "START").toLowerCase();
+      const planData = organizerData?.planOverride || plansSettings[planKey] || {};
 
-    const regData = {
-      eventId,
-      eventTitle: event.title,
-      eventImage: event.image || "",
-      eventDate: event.date,
-      eventCity: event.city || "",
-      userId: user.uid,
-      userName: currentUserProfile?.name || user.displayName || user.email || "Usuário",
-      userEmail: user.email,
-      userGender: currentUserProfile?.gender || "Não informado",
-      userBirthDate: currentUserProfile?.birthDate || "",
-      organizationId: event.organizationId,
-      organizerId: event.organizerId,
-      timestamp: serverTimestamp(),
-      price: price,
-      batchName: batchName,
-      checkedIn: false,
-      paymentStatus: event.isFree ? "Disponível" : "Pendente",
-      ticketCode: generateTicketCode()
+      const basePrice = event.isFree ? 0 : (event.batches?.[0]?.price || 0);
+      const batchName = event.isFree ? "Gratuito" : (event.batches?.[0]?.name || "Lote Único");
+      
+      const breakdown = calculateFinancialBreakdown(basePrice, planData);
+
+      const regData = {
+        eventId,
+        eventTitle: event.title,
+        eventImage: event.image || "",
+        eventDate: event.date,
+        eventCity: event.city || "",
+        userId: user.uid,
+        userName: currentUserProfile?.name || user.displayName || user.email || "Usuário",
+        userEmail: user.email,
+        userGender: currentUserProfile?.gender || "Não informado",
+        userBirthDate: currentUserProfile?.birthDate || "",
+        organizationId: event.organizationId,
+        organizerId: event.organizerId,
+        timestamp: serverTimestamp(),
+        ticketBasePrice: basePrice,
+        price: breakdown.customerFinalPrice,
+        administrativeFeeAmount: breakdown.administrativeFeeAmount,
+        producerNetAmount: breakdown.producerNetAmount,
+        batchName: batchName,
+        checkedIn: false,
+        paymentStatus: event.isFree ? "Disponível" : "Pendente",
+        ticketCode: generateTicketCode()
+      }
+
+      await addDoc(collection(db, "registrations"), regData)
+      setIsRegistered(true)
+      toast({ title: "Inscrito com sucesso!", description: "Seu ingresso já está disponível em Meus Ingressos." })
+    } catch (error: any) {
+      const permissionError = new FirestorePermissionError({
+        path: "registrations",
+        operation: "create"
+      })
+      errorEmitter.emit("permission-error", permissionError)
+    } finally {
+      setRegistering(false)
     }
-
-    addDoc(collection(db, "registrations"), regData)
-      .then(() => {
-        setIsRegistered(true)
-        toast({ title: "Inscrito com sucesso!", description: "Seu ingresso já está disponível em Meus Ingressos." })
-      })
-      .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
-          path: "registrations",
-          operation: "create",
-          requestResourceData: regData
-        })
-        errorEmitter.emit("permission-error", permissionError)
-      })
-      .finally(() => setRegistering(false))
   }
 
   if (eventLoading) {
@@ -165,7 +177,6 @@ export default function EventoDetalhesPage() {
   const start = formatDateTime(event.date);
   const end = formatDateTime(event.endDate);
 
-  // PRIORIZA DADOS DA ORGANIZAÇÃO
   const orgName = organizationProfile?.name || event.organizer?.name || "Organizador";
   const orgAvatar = organizationProfile?.avatar || event.organizer?.avatar;
   const orgIsVerified = organizationProfile?.verified ?? event.organizer?.isVerified;
