@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
 import { 
   ShoppingCart, 
   Trash2, 
@@ -21,14 +22,17 @@ import {
   Info,
   Loader2,
   RefreshCw,
-  ShieldCheck
+  ShieldCheck,
+  TicketPercent,
+  CheckCircle2,
+  X
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { formatCurrency, calculateFinancialBreakdown } from "@/lib/financial-utils"
 import { createCheckoutSession } from "@/app/actions/stripe"
 import { toast } from "@/hooks/use-toast"
-import { doc, addDoc, collection, serverTimestamp } from "firebase/firestore"
+import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, limit } from "firebase/firestore"
 import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 import { sendCartPendingEmail } from "@/app/actions/email"
 
@@ -44,16 +48,105 @@ export default function CarrinhoPage() {
 
   const [processing, setProcessing] = React.useState(false)
   const [isWaitingPayment, setIsWaitingPayment] = React.useState(false)
+  
+  // States para Cupons
+  const [couponCode, setCouponCode] = React.useState("")
+  const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null)
+  const [isApplyingCoupon, setIsApplyingCoupon] = React.useState(false)
 
   const cartTotals = React.useMemo(() => {
-    return items.reduce((acc, item) => {
+    let subtotal = 0;
+    let fees = 0;
+    let discount = 0;
+
+    // Calcular subtotal e taxas originais
+    items.forEach(item => {
       const breakdown = calculateFinancialBreakdown(item.price);
-      acc.subtotal += item.price * item.quantity;
-      acc.fees += breakdown.administrativeFeeAmount * item.quantity;
-      acc.total += breakdown.customerFinalPrice * item.quantity;
-      return acc;
-    }, { subtotal: 0, fees: 0, total: 0 });
-  }, [items]);
+      subtotal += item.price * item.quantity;
+      fees += breakdown.administrativeFeeAmount * item.quantity;
+    });
+
+    // Calcular desconto se houver cupom
+    if (appliedCoupon && items.length > 0) {
+      // Filtrar apenas itens do evento do cupom
+      const validItems = items.filter(i => i.eventId === appliedCoupon.eventId);
+      
+      if (validItems.length > 0) {
+        const eventSubtotal = validItems.reduce((acc, i) => acc + (i.price * i.quantity), 0);
+        
+        if (appliedCoupon.discountType === 'percentage') {
+          discount = eventSubtotal * (appliedCoupon.discountValue / 100);
+        } else if (appliedCoupon.discountType === 'fixed') {
+          discount = Math.min(appliedCoupon.discountValue, eventSubtotal);
+        } else if (appliedCoupon.discountType === 'free_ticket') {
+          // Desconta o valor de 1 unidade do ingresso mais barato deste evento
+          const prices = validItems.map(i => i.price);
+          discount = Math.min(...prices);
+        }
+      }
+    }
+
+    const finalTotal = Math.max(0, subtotal - discount + fees);
+
+    return { subtotal, fees, discount, total: finalTotal };
+  }, [items, appliedCoupon]);
+
+  const handleApplyCoupon = async () => {
+    if (!db || !couponCode.trim()) return;
+
+    setIsApplyingCoupon(true);
+    try {
+      const q = query(
+        collection(db, "coupons"), 
+        where("code", "==", couponCode.trim().toUpperCase()),
+        where("status", "==", "Ativo"),
+        limit(1)
+      );
+      
+      const snap = await getDocs(q);
+      
+      if (snap.empty) {
+        toast({ variant: "destructive", title: "Cupom inválido", description: "O código informado não existe ou está expirado." });
+        setAppliedCoupon(null);
+        return;
+      }
+
+      const couponData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+      
+      // Validar data
+      const now = new Date();
+      if (couponData.validUntil && new Date(couponData.validUntil) < now) {
+        toast({ variant: "destructive", title: "Cupom expirado", description: "Este código não é mais válido." });
+        return;
+      }
+
+      // Validar limite de uso
+      if (couponData.maxUses > 0 && couponData.currentUses >= couponData.maxUses) {
+        toast({ variant: "destructive", title: "Cupom esgotado", description: "Este cupom atingiu o limite máximo de utilizações." });
+        return;
+      }
+
+      // Verificar se o evento do cupom está no carrinho
+      const hasEventInCart = items.some(item => item.eventId === couponData.eventId);
+      if (!hasEventInCart) {
+        toast({ variant: "destructive", title: "Evento não correspondente", description: "Este cupom é válido apenas para ingressos de um evento específico que não está no seu carrinho." });
+        return;
+      }
+
+      setAppliedCoupon(couponData);
+      toast({ title: "Cupom aplicado!", description: "O desconto foi calculado no seu resumo." });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao validar cupom" });
+    } finally {
+      setIsApplyingCoupon(false);
+    }
+  }
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode("");
+    toast({ title: "Cupom removido" });
+  }
 
   const handleCheckout = async () => {
     if (!user) return router.push("/login")
@@ -64,11 +157,17 @@ export default function CarrinhoPage() {
       const registrationIds = [];
       const lineItems = [];
 
-      // CRIA DOCUMENTOS INDIVIDUAIS PARA CADA UNIDADE DE INGRESSO
+      // Proporção do desconto para cada ingresso se o cupom for global do evento
+      const discountPerUnit = appliedCoupon ? (cartTotals.discount / items.reduce((acc, i) => acc + (i.eventId === appliedCoupon.eventId ? i.quantity : 0), 0)) : 0;
+
       for (const item of items) {
-        const breakdown = calculateFinancialBreakdown(item.price);
+        const isEligibleForDiscount = appliedCoupon && item.eventId === appliedCoupon.eventId;
+        const currentItemDiscount = isEligibleForDiscount ? discountPerUnit : 0;
         
-        // Loop pela quantidade do item para gerar vouchers únicos
+        // Calculamos a quebra financeira baseada no preço COM o desconto aplicado ao produtor
+        const discountedPrice = Math.max(0, item.price - currentItemDiscount);
+        const breakdown = calculateFinancialBreakdown(discountedPrice);
+        
         for (let i = 0; i < item.quantity; i++) {
           const ticketCode = await generateUniqueTicketCode(db);
           
@@ -86,6 +185,7 @@ export default function CarrinhoPage() {
             organizerId: item.organizerId,
             organizerUsername: item.organizerUsername,
             ticketBasePrice: item.price,
+            discountApplied: currentItemDiscount,
             price: breakdown.customerFinalPrice,
             administrativeFeeAmount: breakdown.administrativeFeeAmount,
             producerFeeAmount: breakdown.producerFeeAmount,
@@ -96,7 +196,8 @@ export default function CarrinhoPage() {
             ticketTypeName: item.ticketTypeName,
             poolId: item.poolId || null,
             poolName: item.poolName || null,
-            quantity: 1, // Cada registro agora representa exatamente 1 unidade
+            couponId: isEligibleForDiscount ? appliedCoupon.id : null,
+            quantity: 1,
             checkedIn: false,
             paymentStatus: "Pendente",
             ticketCode,
@@ -109,7 +210,6 @@ export default function CarrinhoPage() {
           registrationIds.push(docRef.id);
         }
 
-        // Para o Stripe, mantemos o agrupamento visual por tipo de ingresso
         lineItems.push({
           price_data: {
             currency: 'brl',
@@ -124,7 +224,6 @@ export default function CarrinhoPage() {
         });
       }
 
-      // Envia e-mail de resumo antes de abrir o Stripe
       await sendCartPendingEmail({
         to: user.email!,
         userName: user.displayName || "Usuário",
@@ -144,7 +243,8 @@ export default function CarrinhoPage() {
         metadata: { 
           type: "cart_checkout",
           registrationIds: registrationIds.join(","),
-          userId: user.uid 
+          userId: user.uid,
+          couponId: appliedCoupon?.id || null
         }
       });
 
@@ -277,7 +377,49 @@ export default function CarrinhoPage() {
            })}
         </div>
 
-        <div className="lg:col-span-4">
+        <div className="lg:col-span-4 space-y-6">
+           {/* SEÇÃO DE CUPOM */}
+           <Card className="border-none shadow-sm rounded-[2rem] bg-white">
+              <CardHeader className="pb-4">
+                 <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                    <TicketPercent className="w-4 h-4 text-secondary" /> Possui Cupom?
+                 </CardTitle>
+              </CardHeader>
+              <CardContent>
+                 {appliedCoupon ? (
+                    <div className="flex items-center justify-between p-3 bg-green-50 rounded-xl border border-green-200">
+                       <div className="flex items-center gap-3">
+                          <CheckCircle2 className="w-5 h-5 text-green-600" />
+                          <div>
+                             <p className="text-xs font-black uppercase text-green-800">{appliedCoupon.code}</p>
+                             <p className="text-[10px] font-bold text-green-600 uppercase">Cupom Ativado</p>
+                          </div>
+                       </div>
+                       <Button variant="ghost" size="icon" className="h-8 w-8 text-green-800 hover:bg-green-100" onClick={handleRemoveCoupon}>
+                          <X className="w-4 h-4" />
+                       </Button>
+                    </div>
+                 ) : (
+                    <div className="flex gap-2">
+                       <Input 
+                         placeholder="CÓDIGO" 
+                         value={couponCode} 
+                         onChange={e => setCouponCode(e.target.value.toUpperCase())}
+                         className="rounded-xl font-bold uppercase"
+                       />
+                       <Button 
+                         variant="secondary" 
+                         onClick={handleApplyCoupon} 
+                         disabled={isApplyingCoupon || !couponCode}
+                         className="rounded-xl font-bold"
+                       >
+                          {isApplyingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : "Aplicar"}
+                       </Button>
+                    </div>
+                 )}
+              </CardContent>
+           </Card>
+
            <Card className="border-none shadow-xl rounded-[2.5rem] bg-white border-t-8 border-secondary sticky top-24">
               <CardHeader>
                  <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Resumo da Compra</CardTitle>
@@ -285,6 +427,12 @@ export default function CarrinhoPage() {
               <CardContent className="space-y-6">
                  <div className="space-y-4">
                     <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Subtotal (Ingressos)</span><span>{formatCurrency(cartTotals.subtotal)}</span></div>
+                    {cartTotals.discount > 0 && (
+                      <div className="flex justify-between text-xs font-black uppercase text-green-600">
+                        <span>Desconto Aplicado</span>
+                        <span>-{formatCurrency(cartTotals.discount)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Taxas de Serviço</span><span>{formatCurrency(cartTotals.fees)}</span></div>
                     <Separator className="bg-border/60" />
                     <div className="flex justify-between items-center">
