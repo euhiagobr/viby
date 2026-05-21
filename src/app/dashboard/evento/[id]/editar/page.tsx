@@ -32,7 +32,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Ticket,
-  Sparkles
+  Sparkles,
+  Layers
 } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
@@ -144,17 +145,20 @@ export default function EditarEventoPage() {
     if (distributeBatchIdx === null || !totalToDistribute) return
     const total = parseInt(totalToDistribute)
     if (isNaN(total)) return
+
     const meiaPoolId = crypto.randomUUID()
     const meiaQuantity = Math.floor(total * 0.4)
     const inteiraQuantity = total - meiaQuantity
+
     const newTypes: TicketType[] = [
       { id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: inteiraQuantity, requiresProof: false, isLegalHalf: false, description: "" },
       { id: crypto.randomUUID(), name: "Meia Estudante", price: 50, quantity: meiaQuantity, poolId: meiaPoolId, poolName: "Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
       { id: crypto.randomUUID(), name: "Meia PCD", price: 50, quantity: meiaQuantity, poolId: meiaPoolId, poolName: "Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
       { id: crypto.randomUUID(), name: "Meia Idoso", price: 50, quantity: meiaQuantity, poolId: meiaPoolId, poolName: "Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" }
     ]
+
     const n = [...batches]; n[distributeBatchIdx].ticketTypes = newTypes; setBatches(n); setIsDistributeOpen(false); setTotalToDistribute("");
-    toast({ title: "Distribuído!" })
+    toast({ title: "Distribuído!", description: "Meia-entrada configurada como estoque compartilhado (40%)." })
   }
 
   const addBatch = () => setBatches([...batches, { id: crypto.randomUUID(), name: `Lote ${batches.length + 1}`, description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 50, requiresProof: false, isLegalHalf: false, description: "" }] }])
@@ -269,21 +273,21 @@ export default function EditarEventoPage() {
                       <div className="flex justify-between items-center">
                         <h3 className="font-black italic uppercase text-secondary text-xl">{isFreeMode ? "Grátis" : batch.name}</h3>
                         <div className="flex gap-2">
-                           {!isFreeMode && <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setDistributeBatchIdx(bi); setIsDistributeOpen(true); }}><Sparkles className="w-3 h-3" /> Distribuir</Button>}
+                           {!isFreeMode && <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setDistributeBatchIdx(bi); setIsDistributeOpen(true); }}><Sparkles className="w-3 h-3" /> Distribuir por Tipo</Button>}
                            {ticketMode === 'batches' && batches.length > 1 && <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)}><Trash2 className="w-4 h-4" /></Button>}
                         </div>
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                         <div className="space-y-2"><Label className="text-[10px] uppercase opacity-60">Nome do Lote</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" disabled={isFreeMode} /></div>
+                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" disabled={isFreeMode} /></div>
                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2"><Label className="text-[10px] uppercase opacity-40">Início das Vendas</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
-                            <div className="space-y-2"><Label className="text-[10px] uppercase font-black opacity-40">Fim das Vendas</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                            <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Início das Vendas</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                            <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Fim das Vendas</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
                          </div>
                       </div>
 
                       <div className="space-y-4">
-                         <div className="flex items-center justify-between border-b pb-2"><h4 className="text-xs font-black uppercase text-muted-foreground">Tipos de Ingresso</h4>{!isFreeMode && <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase" onClick={() => addTicketType(bi)}>Adicionar Tipo</Button>}</div>
+                         <div className="flex items-center justify-between border-b pb-2"><h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Tipos de Ingresso</h4>{!isFreeMode && <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase" onClick={() => addTicketType(bi)}>Adicionar Tipo</Button>}</div>
                          <div className="space-y-3">
                             {batch.ticketTypes.map((t, ti) => (
                               <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm space-y-4">
@@ -292,7 +296,7 @@ export default function EditarEventoPage() {
                                        <Label className="text-[10px] font-black uppercase opacity-40">Nome</Label>
                                        <div className="flex flex-col gap-1">
                                           <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" disabled={isFreeMode} />
-                                          {t.poolName && <span className="text-[8px] font-black text-secondary uppercase">Pool: {t.poolName}</span>}
+                                          {t.poolName && <span className="text-[8px] font-black text-secondary uppercase flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> Pool: {t.poolName}</span>}
                                        </div>
                                     </div>
                                     <div className="md:col-span-3 space-y-2">
@@ -320,7 +324,10 @@ export default function EditarEventoPage() {
                                     </div>
                                     <div className="md:col-span-2 space-y-2">
                                        <Label className="text-[10px] font-black uppercase opacity-40">Qtd {t.poolId && "(Pool)"}</Label>
-                                       <Input type="number" value={t.quantity} onChange={e => { const val = e.target.value; if(t.poolId) { const n = [...batches]; n[bi].ticketTypes.forEach((item, idx) => { if(item.poolId === t.poolId) n[bi].ticketTypes[idx].quantity = parseInt(val as any) || 0 }); setBatches(n); } else { updateTicketTypeField(bi, ti, 'quantity', val); } }} className="rounded-xl h-10 font-black" />
+                                       <div className="flex flex-col gap-1">
+                                          <Input type="number" value={t.quantity} onChange={e => { const val = e.target.value; if(t.poolId) { const n = [...batches]; n[bi].ticketTypes.forEach((item, idx) => { if(item.poolId === t.poolId) n[bi].ticketTypes[idx].quantity = parseInt(val as any) || 0 }); setBatches(n); } else { updateTicketTypeField(bi, ti, 'quantity', val); } }} className="rounded-xl h-10 font-black" />
+                                          {t.poolId && <span className="text-[7px] font-bold text-muted-foreground uppercase text-center">Compartilhado</span>}
+                                       </div>
                                     </div>
                                     <div className="md:col-span-2 space-y-2">
                                        <Label className="text-[10px] font-black uppercase opacity-40">Valor (R$)</Label>
@@ -349,7 +356,10 @@ export default function EditarEventoPage() {
                                <div className="flex items-center gap-2"><Info className="w-4 h-4 text-secondary" /><h5 className="text-[10px] font-black uppercase tracking-widest text-primary">Conformidade Legal</h5></div>
                                <p className="text-[9px] text-muted-foreground font-medium">Recomenda-se 40% para Meia-Entrada Legal.</p>
                             </div>
-                            <p className={cn("text-xl font-black italic", stats.percentage < 40 ? "text-orange-500" : "text-green-600")}>{stats.percentage.toFixed(1)}%</p>
+                            <div className="text-right">
+                               <p className="text-[9px] font-black uppercase opacity-40">Percentual</p>
+                               <p className={cn("text-xl font-black italic", stats.percentage < 40 ? "text-orange-500" : "text-green-600")}>{stats.percentage.toFixed(1)}%</p>
+                            </div>
                          </div>
                       </div>
                    </div>
@@ -369,10 +379,18 @@ export default function EditarEventoPage() {
         <DialogContent className="rounded-[2.5rem] max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Distribuir Ingressos</DialogTitle>
-            <DialogDescription>Quantidade total (60% Inteira / 40% Meia Compartilhada).</DialogDescription>
+            <DialogDescription>Defina a quantidade total deste lote. Dividiremos em Inteira (60%) e Meias Compartilhadas (40%).</DialogDescription>
           </DialogHeader>
-          <div className="py-6"><Input type="number" placeholder="Total, ex: 200" value={totalToDistribute} onChange={e => setTotalToDistribute(e.target.value)} className="h-14 text-2xl font-black rounded-xl text-center" /></div>
-          <DialogFooter><Button onClick={handleDistribute} className="w-full bg-secondary text-white font-black h-12 rounded-xl">Confirmar</Button></DialogFooter>
+          <div className="py-6 space-y-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Quantidade Total do Lote</Label>
+              <Input type="number" placeholder="Ex: 200" value={totalToDistribute} onChange={e => setTotalToDistribute(e.target.value)} className="h-14 text-2xl font-black rounded-xl text-center" />
+            </div>
+            <p className="text-[10px] text-muted-foreground text-center font-medium italic">
+              Ao distribuir 200 ingressos: 120 serão Inteiras e 80 serão divididos entre as Meias (Estudante, PCD, Idoso).
+            </p>
+          </div>
+          <DialogFooter><Button onClick={handleDistribute} className="w-full bg-secondary text-white font-black h-12 rounded-xl shadow-lg uppercase italic">Confirmar Distribuição</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

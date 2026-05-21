@@ -33,7 +33,8 @@ import {
   Info,
   CheckCircle2,
   Ticket,
-  Sparkles
+  Sparkles,
+  Layers
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -324,7 +325,7 @@ export default function NovoEventoPage() {
                                      <Label className="text-[10px] font-black uppercase opacity-40">Nome</Label>
                                      <div className="flex flex-col gap-1">
                                         <Input value={type.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" disabled={isFreeMode} />
-                                        {type.poolName && <span className="text-[8px] font-black text-secondary uppercase px-1">Pool: {type.poolName}</span>}
+                                        {type.poolName && <span className="text-[8px] font-black text-secondary uppercase flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> Pool: {type.poolName}</span>}
                                      </div>
                                   </div>
                                   <div className="md:col-span-3 space-y-2">
@@ -352,16 +353,19 @@ export default function NovoEventoPage() {
                                   </div>
                                   <div className="md:col-span-2 space-y-2">
                                      <Label className="text-[10px] font-black uppercase opacity-40">Qtd {type.poolId && "(Pool)"}</Label>
-                                     <Input type="number" value={type.quantity} onChange={e => {
-                                        const val = e.target.value;
-                                        if (type.poolId) {
-                                          const n = [...batches];
-                                          n[bi].ticketTypes.forEach((t, idx) => { if(t.poolId === type.poolId) n[bi].ticketTypes[idx].quantity = parseInt(val as any) || 0 });
-                                          setBatches(n);
-                                        } else {
-                                          updateTicketTypeField(bi, ti, 'quantity', val);
-                                        }
-                                     }} className="rounded-xl h-10 font-black" />
+                                     <div className="flex flex-col gap-1">
+                                        <Input type="number" value={type.quantity} onChange={e => {
+                                           const val = e.target.value;
+                                           if (type.poolId) {
+                                             const n = [...batches];
+                                             n[bi].ticketTypes.forEach((t, idx) => { if(t.poolId === type.poolId) n[bi].ticketTypes[idx].quantity = parseInt(val as any) || 0 });
+                                             setBatches(n);
+                                           } else {
+                                             updateTicketTypeField(bi, ti, 'quantity', val);
+                                           }
+                                        }} className="rounded-xl h-10 font-black" />
+                                        {type.poolId && <span className="text-[7px] font-bold text-muted-foreground uppercase text-center">Estoque Compartilhado</span>}
+                                     </div>
                                   </div>
                                   <div className="md:col-span-2 space-y-2">
                                      <Label className="text-[10px] font-black uppercase opacity-40">Valor (R$)</Label>
@@ -413,13 +417,16 @@ export default function NovoEventoPage() {
         <DialogContent className="rounded-[2.5rem] max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Distribuir Ingressos</DialogTitle>
-            <DialogDescription>Defina a quantidade total deste lote e dividiremos automaticamente (60% Inteira / 40% Meia Compartilhada).</DialogDescription>
+            <DialogDescription>Defina a quantidade total deste lote. Dividiremos em Inteira (60%) e Meias Compartilhadas (40%).</DialogDescription>
           </DialogHeader>
           <div className="py-6 space-y-4">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Quantidade Total</Label>
+              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Quantidade Total do Lote</Label>
               <Input type="number" placeholder="Ex: 200" value={totalToDistribute} onChange={e => setTotalToDistribute(e.target.value)} className="h-14 text-2xl font-black rounded-xl text-center" />
             </div>
+            <p className="text-[10px] text-muted-foreground text-center font-medium italic">
+              Ao distribuir 200 ingressos: 120 serão Inteiras e 80 serão divididos entre as Meias (Estudante, PCD, Idoso).
+            </p>
           </div>
           <DialogFooter>
             <Button onClick={handleDistribute} className="w-full bg-secondary text-white font-black h-12 rounded-xl shadow-lg uppercase italic">Confirmar Distribuição</Button>

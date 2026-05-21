@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -34,7 +35,8 @@ import {
   User,
   DollarSign,
   TrendingUp,
-  Percent
+  Percent,
+  Layers
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -57,7 +59,6 @@ export default function EventoPublicoPage() {
   const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
 
-  // Consulta otimizada com organizationId para respeitar regras de segurança e permitir listagem
   const registrationsQuery = useMemoFirebase(() => {
     if (!db || !eventId || !event?.organizationId) return null
     return query(
@@ -355,12 +356,12 @@ export default function EventoPublicoPage() {
               <TableHeader className="bg-muted/30">
                 <TableRow>
                   <TableHead className="w-[80px] text-center font-bold">Portaria</TableHead>
-                  <TableHead className="w-[200px] font-bold">Nome / E-mail</TableHead>
-                  <TableHead className="font-bold">Idade</TableHead>
-                  <TableHead className="font-bold">Sexo</TableHead>
+                  <TableHead className="w-[200px] font-bold">Participante</TableHead>
+                  <TableHead className="font-bold">Dados</TableHead>
+                  <TableHead className="font-bold">Tipo / Ingresso</TableHead>
                   <TableHead className="font-bold">Entrada</TableHead>
                   <TableHead className="font-bold">Líquido</TableHead>
-                  <TableHead className="font-bold">Voucher</TableHead>
+                  <TableHead className="font-bold">Código</TableHead>
                   <TableHead className="text-right font-bold">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -373,8 +374,18 @@ export default function EventoPublicoPage() {
                       </Button>
                     </TableCell>
                     <TableCell><div className="flex flex-col"><span className="font-bold text-sm text-foreground">{reg.userName || "Pendente"}</span><span className="text-[10px] text-muted-foreground">{reg.userEmail}</span></div></TableCell>
-                    <TableCell><span className="text-xs font-bold text-muted-foreground">{calculateAge(reg.userBirthDate)}</span></TableCell>
-                    <TableCell><Badge variant="outline" className="text-[10px] font-bold">{reg.userGender || "N/A"}</Badge></TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-0.5">
+                         <span className="text-xs font-bold text-muted-foreground">{calculateAge(reg.userBirthDate)}</span>
+                         <Badge variant="outline" className="text-[8px] font-black w-fit h-4 uppercase">{reg.userGender || "N/A"}</Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                       <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-bold">{reg.ticketTypeName || "Acesso"}</span>
+                          {reg.poolName && <span className="text-[8px] font-black text-secondary uppercase flex items-center gap-1"><Layers className="w-2 h-2" /> Pool: {reg.poolName}</span>}
+                       </div>
+                    </TableCell>
                     <TableCell>
                       {reg.checkedIn ? (
                         <div className="flex items-center gap-1.5 text-[10px] font-bold text-green-600 uppercase">
