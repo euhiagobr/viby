@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -49,7 +50,8 @@ import {
   Instagram,
   Settings,
   Mail,
-  Phone
+  Phone,
+  Calendar
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -107,6 +109,21 @@ export default function AdminUsuariosPage() {
 
   const orgsQuery = useMemoFirebase(() => db ? query(collection(db, "organizations"), orderBy("createdAt", "desc")) : null, [db])
   const { data: orgs, loading: loadingOrgs } = useCollection<any>(orgsQuery)
+
+  // Consulta de Eventos para contagem
+  const eventsQuery = useMemoFirebase(() => db ? collection(db, "events") : null, [db])
+  const { data: allEvents } = useCollection<any>(eventsQuery)
+
+  const orgEventCounts = React.useMemo(() => {
+    if (!allEvents) return {}
+    const counts: Record<string, number> = {}
+    allEvents.forEach((e: any) => {
+      if (e.organizationId && e.status !== 'Excluído') {
+        counts[e.organizationId] = (counts[e.organizationId] || 0) + 1
+      }
+    })
+    return counts
+  }, [allEvents])
 
   const filteredUsers = React.useMemo(() => {
     if (!users) return []
@@ -300,7 +317,12 @@ export default function AdminUsuariosPage() {
                        </div>
                      </TableCell>
                      <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase border-secondary text-secondary">{org.type || 'Página'}</Badge></TableCell>
-                     <TableCell className="text-center font-bold text-xs">---</TableCell>
+                     <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1.5 font-black text-sm">
+                           <Calendar className="w-3.5 h-3.5 text-secondary" />
+                           {orgEventCounts[org.id] || 0}
+                        </div>
+                     </TableCell>
                      <TableCell className="text-center">{org.verified && <InstagramVerifiedBadge className="mx-auto" />}</TableCell>
                      <TableCell className="text-right">
                        <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" onClick={() => { setEditingOrg(org); setIsEditOrgOpen(true); }}><Edit className="w-4 h-4" /></Button>
