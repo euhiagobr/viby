@@ -1,0 +1,69 @@
+
+{
+  "collections": {
+    "users": {
+      "id": "string (Auth UID)",
+      "fields": {
+        "name": "string",
+        "username": "string (unique)",
+        "email": "string",
+        "avatar": "string (url)",
+        "birthDate": "string (iso)",
+        "gender": "string",
+        "cpf": "string (encrypted)",
+        "city": "string",
+        "state": "string",
+        "country": "string",
+        "role": "admin | user",
+        "status": "Ativo | Bloqueado",
+        "createdAt": "timestamp"
+      }
+    },
+    "organizations": {
+      "id": "string (auto)",
+      "fields": {
+        "name": "string",
+        "username": "string (unique)",
+        "avatar": "string (url)",
+        "bio": "string",
+        "type": "string (enum)",
+        "plan": "START | PRO | TOP",
+        "isVerified": "boolean",
+        "legalName": "string",
+        "cnpj": "string",
+        "bankDetails": "map",
+        "stripeId": "string",
+        "verificationStatus": "string",
+        "createdAt": "timestamp"
+      }
+    },
+    "organization_members": {
+      "id": "string (auto)",
+      "fields": {
+        "organizationId": "string (ref:organizations)",
+        "userId": "string (ref:users)",
+        "role": "owner | admin | editor",
+        "joinedAt": "timestamp"
+      }
+    },
+    "events": {
+      "id": "string (auto)",
+      "fields": {
+        "organizationId": "string (ref:organizations)",
+        "title": "string",
+        "date": "timestamp",
+        "status": "string",
+        "image": "string",
+        "categoryId": "string"
+      }
+    },
+    "follows": {
+      "id": "string (auto)",
+      "fields": {
+        "userId": "string (ref:users)",
+        "organizationId": "string (ref:organizations)",
+        "timestamp": "timestamp"
+      }
+    }
+  }
+}

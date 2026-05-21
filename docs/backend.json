@@ -1,39 +1,40 @@
 
 {
   "entities": {
-    "Organizer": {
-      "title": "Organizador",
-      "description": "Informações do promotor do evento",
+    "User": {
+      "title": "Usuário",
+      "description": "Perfil individual do usuário unificado",
       "type": "object",
       "properties": {
         "name": { "type": "string" },
-        "username": { "type": "string", "description": "Nome de usuário único, min 5 chars, alfanumérico" },
+        "username": { "type": "string" },
         "avatar": { "type": "string" },
         "email": { "type": "string" },
-        "cpf": { "type": "string", "description": "CPF criptografado do usuário" },
+        "cpf": { "type": "string" },
         "birthDate": { "type": "string", "format": "date" },
-        "gender": { "type": "string", "enum": ["masculino", "feminino", "homem trans", "mulher trans", "agênero", "prefiro não dizer", "empresa"] },
-        "showEmail": { "type": "boolean", "description": "Define se o e-mail é visível publicamente" },
-        "bio": { "type": "string", "description": "Máximo 150 caracteres, sem links" },
+        "gender": { "type": "string" },
         "city": { "type": "string" },
         "state": { "type": "string" },
         "country": { "type": "string" },
-        "website": { "type": "string" },
-        "instagram": { "type": "string" },
-        "whatsapp": { "type": "string" },
-        "followersCount": { "type": "number" },
-        "rating": { "type": "number" },
-        "isVerified": { "type": "boolean" },
-        "totalEvents": { "type": "number" },
-        "platform": { "type": "string", "enum": ["viby"] },
         "role": { "type": "string", "enum": ["user", "admin"] },
-        "accountType": { "type": "string", "enum": ["Usuário", "Empresa"] },
-        "plan": { "type": "string", "enum": ["START", "PRO", "TOP"], "description": "Plano de assinatura do produtor" },
-        "customPlanPrice": { "type": "number", "description": "Override individual do valor do plano" },
-        "customPlanPercent": { "type": "number", "description": "Override individual da taxa percentual" },
-        "customPlanMin": { "type": "number", "description": "Override individual do valor mínimo da taxa" },
-        "businessCategory": { "type": "string" },
-        "legalName": { "type": "string", "description": "Razão Social" },
+        "platform": { "type": "string", "enum": ["viby"] },
+        "status": { "type": "string", "enum": ["Ativo", "Bloqueado"] }
+      },
+      "required": ["name", "email", "username", "platform"]
+    },
+    "Organization": {
+      "title": "Organização",
+      "description": "Entidade administradora de eventos (Empresa, ONG, Artista, etc)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "username": { "type": "string" },
+        "avatar": { "type": "string" },
+        "bio": { "type": "string" },
+        "type": { "type": "string", "enum": ["empresa", "ong", "artista", "coletivo", "produtora", "casa_noturna", "orgao_publico", "outro"] },
+        "isVerified": { "type": "boolean" },
+        "plan": { "type": "string", "enum": ["START", "PRO", "TOP"] },
+        "legalName": { "type": "string" },
         "cnpj": { "type": "string" },
         "bankDetails": {
           "type": "object",
@@ -41,40 +42,29 @@
             "bank": { "type": "string" },
             "branch": { "type": "string" },
             "account": { "type": "string" },
-            "accountName": { "type": "string" },
-            "cnpj": { "type": "string" },
             "pixKey": { "type": "string" }
           }
         },
-        "verificationStatus": { "type": "string", "enum": ["none", "pending_admin", "waiting_user", "verified"] },
-        "verificationAmountSent": { "type": "number" },
-        "verificationAmountInput": { "type": "number" }
+        "stripeId": { "type": "string" },
+        "verificationStatus": { "type": "string", "enum": ["none", "pending", "verified"] }
       },
-      "required": ["name", "email", "username", "platform", "city", "state", "country", "accountType", "birthDate", "gender"]
+      "required": ["name", "username", "type", "plan"]
     },
-    "Username": {
-      "title": "Unicidade de Usuário",
-      "description": "Mapeamento para garantir nomes de usuário únicos",
+    "OrganizationMember": {
+      "title": "Membro da Organização",
+      "description": "Vínculo de permissão entre Usuário e Organização",
       "type": "object",
       "properties": {
-        "uid": { "type": "string" }
+        "organizationId": { "type": "string" },
+        "userId": { "type": "string" },
+        "role": { "type": "string", "enum": ["owner", "admin", "editor"] },
+        "joinedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid"]
-    },
-    "Follow": {
-      "title": "Seguidor",
-      "description": "Relacionamento de seguimento entre usuários",
-      "type": "object",
-      "properties": {
-        "followerId": { "type": "string" },
-        "followingId": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" }
-      },
-      "required": ["followerId", "followingId"]
+      "required": ["organizationId", "userId", "role"]
     },
     "Event": {
       "title": "Evento",
-      "description": "Informações do evento para divulgação",
+      "description": "Informações do evento vinculado a uma organização",
       "type": "object",
       "properties": {
         "title": { "type": "string" },
@@ -82,178 +72,58 @@
         "date": { "type": "string", "format": "date-time" },
         "location": { "type": "string" },
         "city": { "type": "string" },
-        "latitude": { "type": "number" },
-        "longitude": { "type": "number" },
-        "type": { "type": "string", "enum": ["Público", "Privado", "Governo"] },
-        "status": { "type": "string", "enum": ["A fazer", "Em progresso", "Concluído", "Excluído", "Bloqueado"] },
+        "organizationId": { "type": "string" },
+        "status": { "type": "string" },
         "image": { "type": "string" },
-        "organizerId": { "type": "string" },
-        "categoryId": { "type": "string" },
-        "tags": { "type": "array", "items": { "type": "string" } },
         "isFree": { "type": "boolean" },
-        "organizer": { "$ref": "#/backend/entities/Organizer" }
+        "organization": { "$ref": "#/backend/entities/Organization" }
       },
-      "required": ["title", "date", "location", "organizerId"]
+      "required": ["title", "date", "organizationId"]
     },
     "Registration": {
-      "title": "Participação",
-      "description": "Registro de interesse de um usuário em um evento",
+      "title": "Inscrição/Ingresso",
+      "description": "Voucher de participação de um usuário em um evento",
       "type": "object",
       "properties": {
         "eventId": { "type": "string" },
         "userId": { "type": "string" },
-        "userName": { "type": "string" },
-        "userEmail": { "type": "string" },
-        "attendeeName": { "type": "string", "description": "Nome do participante final no ingresso" },
-        "attendeeCPF": { "type": "string", "description": "CPF do participante final no ingresso" },
-        "userGender": { "type": "string" },
-        "userBirthDate": { "type": "string", "format": "date" },
-        "organizerId": { "type": "string" },
-        "organizerUsername": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" },
-        "price": { "type": "number", "description": "Preço final pago pelo comprador" },
-        "ticketBasePrice": { "type": "number", "description": "Valor nominal do ingresso definido pelo produtor" },
-        "administrativeFeeAmount": { "type": "number" },
-        "producerFeeAmount": { "type": "number" },
-        "producerNetAmount": { "type": "number" },
-        "financialBreakdown": { "type": "object" },
-        "batchName": { "type": "string" },
-        "checkedIn": { "type": "boolean" },
-        "paymentStatus": { "type": "string", "enum": ["Disponível", "Pendente", "Pago", "Expirado"] },
-        "ticketCode": { "type": "string", "description": "Código de 16 caracteres formatado XXXX-XXXX-XXXX-XXXX" },
-        "couponCode": { "type": "string" }
+        "organizationId": { "type": "string" },
+        "attendeeName": { "type": "string" },
+        "attendeeCPF": { "type": "string" },
+        "ticketCode": { "type": "string" },
+        "paymentStatus": { "type": "string" },
+        "price": { "type": "number" }
       },
-      "required": ["eventId", "userId", "organizerId"]
-    },
-    "Coupon": {
-      "title": "Cupom de Desconto",
-      "description": "Cupons de desconto para ingressos de eventos",
-      "type": "object",
-      "properties": {
-        "code": { "type": "string" },
-        "discountType": { "type": "string", "enum": ["percentage", "fixed", "free_ticket"] },
-        "discountValue": { "type": "number" },
-        "maxUses": { "type": "number" },
-        "currentUses": { "type": "number" },
-        "eventId": { "type": "string" },
-        "organizerId": { "type": "string" },
-        "validFrom": { "type": "string", "format": "date-time" },
-        "validUntil": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["Ativo", "Inativo"] }
-      },
-      "required": ["code", "discountType", "discountValue", "eventId", "organizerId"]
-    },
-    "Ad": {
-      "title": "Anúncio",
-      "description": "Campanha de impulsionamento de evento",
-      "type": "object",
-      "properties": {
-        "eventId": { "type": "string" },
-        "eventTitle": { "type": "string" },
-        "organizerId": { "type": "string" },
-        "type": { "type": "string", "enum": ["highlight", "banner", "feed"] },
-        "status": { "type": "string", "enum": ["Ativo", "Pausado", "Pendente", "Finalizado", "Pendente Pagamento"] },
-        "reach": { "type": "number" },
-        "clicks": { "type": "number" },
-        "dailyBudget": { "type": "number" },
-        "budget": { "type": "number" },
-        "durationDays": { "type": "number" },
-        "startDate": { "type": "string", "format": "date-time" },
-        "endDate": { "type": "string", "format": "date-time" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["eventId", "organizerId", "type", "status"]
-    },
-    "Category": {
-      "title": "Categoria",
-      "description": "Categorias de classificação para eventos",
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "slug": { "type": "string" },
-        "icon": { "type": "string" }
-      },
-      "required": ["name", "slug"]
-    },
-    "SupportTicket": {
-      "title": "Ticket de Suporte",
-      "description": "Pedido de ajuda ou suporte do usuário",
-      "type": "object",
-      "properties": {
-        "protocol": { "type": "string" },
-        "userId": { "type": "string" },
-        "userName": { "type": "string" },
-        "userEmail": { "type": "string" },
-        "subject": { "type": "string" },
-        "description": { "type": "string" },
-        "status": { "type": "string", "enum": ["Não lida", "Em tratamento", "Respondida", "Encerrada"] },
-        "attachments": { "type": "array", "items": { "type": "string" } },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["protocol", "userId", "subject", "description", "status"]
-    },
-    "Report": {
-      "title": "Denúncia",
-      "description": "Relato de irregularidade em um evento ou perfil",
-      "type": "object",
-      "properties": {
-        "type": { "type": "string", "enum": ["event", "profile"] },
-        "targetId": { "type": "string" },
-        "targetName": { "type": "string" },
-        "reporterId": { "type": "string" },
-        "reporterName": { "type": "string" },
-        "reason": { "type": "string" },
-        "description": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["Pendente", "Analisada", "Arquivada"] }
-      },
-      "required": ["type", "targetId", "reporterId", "reason"]
+      "required": ["eventId", "userId", "organizationId"]
     }
   },
   "auth": {
     "providers": ["password"]
   },
   "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Coleção de perfis de usuários"
+    },
+    "/organizations/{orgId}": {
+      "schema": "Organization",
+      "description": "Coleção de organizações/produtores"
+    },
+    "/organization_members/{memberId}": {
+      "schema": "OrganizationMember",
+      "description": "Mapeamento de permissões"
+    },
     "/events/{eventId}": {
       "schema": "Event",
-      "description": "Coleção global de eventos Viby"
-    },
-    "/users/{userId}": {
-      "schema": "Organizer",
-      "description": "Perfis dos organizadores Viby"
-    },
-    "/usernames/{username}": {
-      "schema": "Username",
-      "description": "Índice de nomes de usuário para garantir unicidade"
-    },
-    "/follows/{followId}": {
-      "schema": "Follow",
-      "description": "Relacionamentos de seguimento entre usuários"
+      "description": "Eventos vinculados a organizações"
     },
     "/registrations/{regId}": {
       "schema": "Registration",
-      "description": "Interesses registrados nos eventos Viby"
+      "description": "Ingressos emitidos"
     },
-    "/coupons/{couponId}": {
-      "schema": "Coupon",
-      "description": "Cupons de desconto gerenciados pelos organizadores"
-    },
-    "/ads/{adId}": {
-      "schema": "Ad",
-      "description": "Campanhas publicitárias criadas pelas empresas"
-    },
-    "/categories/{catId}": {
-      "schema": "Category",
-      "description": "Categorias de eventos gerenciadas por admins"
-    },
-    "/support_tickets/{ticketId}": {
-      "schema": "SupportTicket",
-      "description": "Tickets de suporte abertos pelos usuários"
-    },
-    "/reports/{reportId}": {
-      "schema": "Report",
-      "description": "Denúncias de eventos ou perfis feitas pelos usuários"
+    "/follows/{followId}": {
+      "schema": "Follow",
+      "description": "Usuários seguindo organizações"
     }
   }
 }

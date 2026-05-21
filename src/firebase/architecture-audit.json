@@ -1,0 +1,58 @@
+
+{
+  "audit_version": "1.0.0",
+  "current_architecture": {
+    "auth": "Firebase Auth (Email/Password)",
+    "database_mode": "Isolated (eventosviby)",
+    "user_model": "Hybrid (User with accountType field)",
+    "risks": [
+      "Rigid accountType (Usuário vs Empresa) in /users collection",
+      "Event ownership tied to User UID instead of Entity",
+      "Financial data (bankDetails, plan) directly inside User document",
+      "Follow system between UIDs instead of User -> Organization",
+      "Hardcoded checks for 'Empresa' accountType in creation flows"
+    ],
+    "dependencies": {
+      "pages": [
+        "src/app/[username]/page.tsx (Public Profile)",
+        "src/app/dashboard/perfil/editar/page.tsx (Hybrid form)",
+        "src/app/dashboard/projetos/novo/page.tsx (Empresa check)"
+      ],
+      "actions": [
+        "src/app/actions/stripe.ts (Expects user plan in user document)",
+        "src/app/actions/email.ts (Voucher URLs with usernames)"
+      ],
+      "logic": [
+        "src/lib/financial-utils.ts (Calculates based on user.plan)"
+      ]
+    }
+  },
+  "new_architecture_proposal": {
+    "collections": {
+      "users": {
+        "purpose": "Personal identity only",
+        "fields_to_remove": ["accountType", "legalName", "cnpj", "bankDetails", "plan", "businessCategory", "isVerified"],
+        "fields_to_keep": ["name", "username", "email", "avatar", "birthDate", "gender", "cpf", "city", "state", "country"]
+      },
+      "organizations": {
+        "purpose": "Business entity",
+        "fields": ["name", "username", "avatar", "bio", "type", "isVerified", "plan", "legalName", "cnpj", "bankDetails", "stripeId"]
+      },
+      "organization_members": {
+        "purpose": "RBAC mapping",
+        "fields": ["organizationId", "userId", "role", "joinedAt"]
+      },
+      "events": {
+        "changes": "Replace organizerId (User) with organizationId"
+      },
+      "follows": {
+        "changes": "followerId (User) -> followingId (Organization)"
+      }
+    },
+    "permissions": {
+      "owner": "Full control, billing access",
+      "admin": "Event management, member management",
+      "editor": "Event creation and check-in only"
+    }
+  }
+}

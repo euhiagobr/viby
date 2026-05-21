@@ -1,0 +1,31 @@
+
+{
+  "phase_1_preparation": [
+    "Create 'organizations' and 'organization_members' collections",
+    "Update Security Rules to support Organization-based access",
+    "Add 'organizationId' field to 'events' and 'registrations' (keep 'organizerId' for fallback)"
+  ],
+  "phase_2_data_migration": [
+    "Run script to convert every user with accountType=='Empresa' into an Organization",
+    "Create OrganizationMember entry for each migrated user as 'owner'",
+    "Transfer 'plan' and 'bankDetails' from User to Organization",
+    "Update all existing Events: set organizationId = old user organizerId"
+  ],
+  "phase_3_frontend_refactor": [
+    "Update Dashboard sidebar to allow switching organizations",
+    "Refactor Event Creation flow to select an Organization",
+    "Update Public Profile to handle Organization usernames (/org_username)",
+    "Refactor Checkout to pay to the Organization's Stripe Connect ID"
+  ],
+  "compatibility_layer": {
+    "usernames": "Maintain unique index for both Users and Organizations to prevent URL collisions",
+    "fallback": "Keep user.accountType legacy field during transition to avoid breaking existing sessions",
+    "urls": "Redirect /[username] based on metadata: check if username is User or Organization"
+  },
+  "checklist_tecnico": [
+    "Validar unicidade global de usernames entre users e orgs",
+    "Implementar hook useOrganization() para contexto do dashboard",
+    "Refatorar financial-utils para ler config da Org",
+    "Atualizar regras de Firestore para checar /organization_members/{userId}"
+  ]
+}
