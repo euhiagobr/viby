@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -39,11 +40,23 @@
         "bio": { "type": "string" },
         "avatar": { "type": "string" },
         "banner": { "type": "string" },
-        "type": { "type": "string", "enum": ["empresa", "ong", "artista", "coletivo", "produtora", "casa_noturna", "orgao_publico", "outro"] },
+        "type": { "type": "string" },
         "verified": { "type": "boolean" },
         "stripeAccountId": { "type": "string" },
         "payoutSettings": { "type": "object" },
         "createdBy": { "type": "string" },
+        "phone": { "type": "string" },
+        "contactEmail": { "type": "string" },
+        "website": { "type": "string" },
+        "instagram": { "type": "string" },
+        "cnpj": { "type": "string" },
+        "legalName": { "type": "string" },
+        "cep": { "type": "string" },
+        "street": { "type": "string" },
+        "number": { "type": "string" },
+        "neighborhood": { "type": "string" },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
