@@ -7,10 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, Mail, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Link as LinkIcon, Instagram, Phone, EyeOff, User as UserIcon, Users as UsersIcon } from "lucide-react"
+import { Loader2, Mail, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Link as LinkIcon, Instagram, Phone, EyeOff, User as UserIcon, Users as UsersIcon, Fingerprint } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { decryptData } from "@/lib/crypto-utils"
 
 export default function PerfilPage() {
   const auth = useAuth()
@@ -38,6 +39,14 @@ export default function PerfilPage() {
   }
 
   const locationStr = [profile.city, profile.state, profile.country].filter(Boolean).join(", ");
+
+  const maskCPF = (encryptedCpf: string) => {
+    if (!encryptedCpf) return "Não informado";
+    const raw = decryptData(encryptedCpf);
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length !== 11) return "***.***.***-**";
+    return `***.${digits.substring(3, 6)}.***-**`;
+  };
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
@@ -101,6 +110,10 @@ export default function PerfilPage() {
                     {profile.showEmail === false && <EyeOff className="w-3 h-3" />}
                   </div>
                 )}
+                <div className="flex items-center gap-3 text-sm">
+                  <Fingerprint className="w-4 h-4 text-muted-foreground" />
+                  <span className="font-medium">{maskCPF(profile.cpf)}</span>
+                </div>
                 {locationStr && (
                   <div className="flex items-center gap-3 text-sm">
                     <MapPin className="w-4 h-4 text-muted-foreground" />

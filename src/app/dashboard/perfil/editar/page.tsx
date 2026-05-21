@@ -151,6 +151,12 @@ export default function EditarPerfilPage() {
     return v;
   }
 
+  const maskCPFDisplay = (cpf: string) => {
+    const digits = cpf.replace(/\D/g, "");
+    if (digits.length !== 11) return "***.***.***-**";
+    return `***.${digits.substring(3, 6)}.***-**`;
+  };
+
   const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, cpf: formatCPF(e.target.value) }));
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -278,7 +284,14 @@ export default function EditarPerfilPage() {
 
             <div className="space-y-2">
               <Label htmlFor="cpf" className="flex items-center gap-2"><Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF {isCpfLocked && <Lock className="w-3 h-3 text-muted-foreground ml-auto" />}</Label>
-              <Input id="cpf" value={formData.cpf} onChange={handleCPFChange} placeholder="000.000.000-00" disabled={isCpfLocked} className={cn(isCpfLocked && "bg-muted/50 cursor-not-allowed")} />
+              <Input 
+                id="cpf" 
+                value={isCpfLocked ? maskCPFDisplay(formData.cpf) : formData.cpf} 
+                onChange={handleCPFChange} 
+                placeholder="000.000.000-00" 
+                disabled={isCpfLocked} 
+                className={cn(isCpfLocked && "bg-muted/50 cursor-not-allowed")} 
+              />
               <p className="text-[10px] text-muted-foreground">O CPF é obrigatório para emissão de ingressos nominais.</p>
             </div>
 
