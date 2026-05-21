@@ -16,20 +16,17 @@ import {
   Target, 
   Loader2, 
   Calendar,
-  AlertCircle,
   BarChart3,
-  Search,
-  Filter,
   CreditCard,
   Info,
   Pause,
   Play,
   Users,
-  MoreHorizontal,
   Coins,
   ShieldCheck,
   AlertTriangle,
-  Clock
+  Clock,
+  ArrowRight
 } from "lucide-react"
 import {
   Dialog,
@@ -47,12 +44,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useRouter, useParams } from "next/navigation"
@@ -194,17 +185,6 @@ export default function OrganizationAdsPage() {
     }, { reach: 0, clicks: 0, active: 0 })
   }, [ads])
 
-  const calculateRemainingDaily = (ad: any) => {
-    if (!ad.budget || ad.budget <= 0) return 0;
-    const now = new Date();
-    const end = new Date(ad.endDate);
-    end.setHours(23, 59, 59, 999);
-    if (now > end) return 0;
-    const diffTime = end.getTime() - now.getTime();
-    const daysRemaining = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-    return ad.budget / daysRemaining;
-  }
-
   if (orgLoading || adsLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
 
   if (!isAtLeastEditor) {
@@ -224,101 +204,107 @@ export default function OrganizationAdsPage() {
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
             <Megaphone className="w-8 h-8 text-secondary" />
-            Anúncios: {currentOrg?.name}
+            Conta de Anúncios
           </h1>
-          <p className="text-muted-foreground font-medium">Impulsione seus eventos e alcance o público ideal da plataforma.</p>
+          <p className="text-muted-foreground font-medium">Gestão de tráfego exclusiva para <strong>{currentOrg?.name}</strong>.</p>
         </div>
 
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-secondary text-white font-black rounded-full px-8 h-12 shadow-lg hover:scale-105 transition-transform gap-2 uppercase italic">
-              <Plus className="w-5 h-5" />
-              Nova Campanha
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md rounded-[2rem]">
-            <form onSubmit={handleCreateAd} className="space-y-6">
-              <DialogHeader>
-                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Criar Anúncio</DialogTitle>
-                <DialogDescription>Seu anúncio será exibido para todos os usuários do Viby Club.</DialogDescription>
-              </DialogHeader>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" asChild className="rounded-full h-11 px-6 font-bold gap-2 text-xs uppercase border-secondary/20 text-secondary hover:bg-secondary/5">
+             <Link href={`/dashboard/organizacoes/${currentOrg?.username}/anuncios/valores`}>
+                <Coins className="w-4 h-4" /> Tabela de Valores
+             </Link>
+          </Button>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-secondary text-white font-black rounded-full px-8 h-11 shadow-lg hover:scale-105 transition-transform gap-2 uppercase italic">
+                <Plus className="w-5 h-5" /> Nova Campanha
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md rounded-[2rem]">
+              <form onSubmit={handleCreateAd} className="space-y-6">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Criar Anúncio</DialogTitle>
+                  <DialogDescription>Seu anúncio será exibido para todos os usuários do Viby Club.</DialogDescription>
+                </DialogHeader>
 
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Evento a Impulsionar</Label>
-                  <Select value={selectedEventId} onValueChange={setSelectedEventId} required>
-                    <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione um evento ativo" /></SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      {myEvents?.map((event: any) => (
-                        <SelectItem key={event.id} value={event.id}>{event.title}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                   <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Tipo de Campanha</Label>
-                   <Select value={adType} onValueChange={setAdType}>
-                      <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Evento a Impulsionar</Label>
+                    <Select value={selectedEventId} onValueChange={setSelectedEventId} required>
+                      <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione um evento ativo" /></SelectTrigger>
                       <SelectContent className="rounded-xl">
-                         <SelectItem value="feed">Destaque no Feed</SelectItem>
-                         <SelectItem value="top">Destaque de Topo</SelectItem>
+                        {myEvents?.map((event: any) => (
+                          <SelectItem key={event.id} value={event.id}>{event.title}</SelectItem>
+                        ))}
                       </SelectContent>
-                   </Select>
-                </div>
+                    </Select>
+                  </div>
 
-                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Início</Label>
-                    <Input name="startDate" type="date" required className="rounded-xl" />
+                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Tipo de Campanha</Label>
+                     <Select value={adType} onValueChange={setAdType}>
+                        <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                           <SelectItem value="feed">Destaque no Feed</SelectItem>
+                           <SelectItem value="top">Destaque de Topo</SelectItem>
+                        </SelectContent>
+                     </Select>
                   </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Início</Label>
+                      <Input name="startDate" type="date" required className="rounded-xl" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Fim</Label>
+                      <Input name="endDate" type="date" required className="rounded-xl" />
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Fim</Label>
-                    <Input name="endDate" type="date" required className="rounded-xl" />
+                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Orçamento Diário (R$)</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-secondary">R$</span>
+                      <Input name="budget" type="number" step="0.01" placeholder="50.00" required className="rounded-xl h-12 pl-10 text-lg font-black" />
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Orçamento Diário (R$)</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-secondary">R$</span>
-                    <Input name="budget" type="number" step="0.01" placeholder="50.00" required className="rounded-xl h-12 pl-10 text-lg font-black" />
-                  </div>
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button type="submit" disabled={isSubmitting || !selectedEventId} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <><CreditCard className="w-5 h-5 mr-2" /> Pagar e Ativar</>}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <DialogFooter>
+                  <Button type="submit" disabled={isSubmitting || !selectedEventId} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                    {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <><CreditCard className="w-5 h-5 mr-2" /> Pagar e Ativar</>}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="border-none shadow-sm bg-primary text-white overflow-hidden relative group">
-          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Alcance Total</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Alcance Total da Conta</CardTitle></CardHeader>
           <CardContent>
-            <div className="text-3xl font-black">{stats.reach.toLocaleString()} <span className="text-[10px] opacity-40 uppercase">Vozes Impactadas</span></div>
+            <div className="text-3xl font-black">{stats.reach.toLocaleString()} <span className="text-[10px] opacity-40 uppercase">Impactos</span></div>
           </CardContent>
           <Eye className="absolute -bottom-2 -right-2 w-20 h-20 opacity-5 rotate-12" />
         </Card>
         <Card className="border-none shadow-sm bg-white">
-          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Cliques em Ingressos</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Cliques Acumulados</CardTitle></CardHeader>
           <CardContent><div className="text-3xl font-black text-foreground">{stats.clicks.toLocaleString()}</div></CardContent>
         </Card>
         <Card className="border-none shadow-sm bg-secondary/10 border-2 border-dashed border-secondary/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase text-secondary tracking-widest flex justify-between">
-              Saldo p/ Anúncios
+              Saldo da Marca
               <Coins className="w-4 h-4" />
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black text-primary">{formatCurrency(currentOrg?.adBalance || 0)}</div>
-            <Link href={`/dashboard/organizacoes/${currentOrg.username}/finance`} className="text-[9px] font-black uppercase text-secondary hover:underline mt-1 block">Recarregar Saldo</Link>
+            <Link href={`/dashboard/organizacoes/${currentOrg.username}/finance`} className="text-[9px] font-black uppercase text-secondary hover:underline mt-1 block flex items-center gap-1">Adicionar Saldo <ArrowRight className="w-2.5 h-2.5" /></Link>
           </CardContent>
         </Card>
       </div>
@@ -336,49 +322,44 @@ export default function OrganizationAdsPage() {
           {adsError && <div className="p-10 text-center text-destructive">Erro ao carregar dados.</div>}
           {ads.length > 0 ? (
             <div className="divide-y">
-              {ads.map((ad: any) => {
-                const remainingDaily = calculateRemainingDaily(ad);
-                const displayDaily = Math.min(remainingDaily, ad.dailyBudget || Infinity);
-                
-                return (
-                  <div key={ad.id} className="p-6 flex flex-col gap-6 transition-colors lg:flex-row lg:items-center lg:justify-between hover:bg-muted/10">
-                    <div className="flex gap-4 min-w-[250px]">
-                      <div className="p-3 rounded-2xl bg-secondary/10 h-fit"><Megaphone className="w-5 h-5 text-secondary" /></div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-sm uppercase">{ad.eventTitle}</h4>
-                          <Badge className={cn("text-[8px] font-black uppercase h-4", ad.status === 'Ativo' ? "bg-green-500" : "bg-orange-500")}>{ad.status}</Badge>
-                        </div>
-                        <div className="text-[9px] font-black text-muted-foreground uppercase flex items-center gap-3">
-                           <span><Target className="w-2.5 h-2.5 inline mr-1" /> {ad.type}</span>
-                           <span><Calendar className="w-2.5 h-2.5 inline mr-1" /> {new Date(ad.startDate).toLocaleDateString('pt-BR')} - {new Date(ad.endDate).toLocaleDateString('pt-BR')}</span>
-                        </div>
+              {ads.map((ad: any) => (
+                <div key={ad.id} className="p-6 flex flex-col gap-6 transition-colors lg:flex-row lg:items-center lg:justify-between hover:bg-muted/10">
+                  <div className="flex gap-4 min-w-[250px]">
+                    <div className="p-3 rounded-2xl bg-secondary/10 h-fit"><Megaphone className="w-5 h-5 text-secondary" /></div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-sm uppercase">{ad.eventTitle}</h4>
+                        <Badge className={cn("text-[8px] font-black uppercase h-4", ad.status === 'Ativo' ? "bg-green-500" : "bg-orange-500")}>{ad.status}</Badge>
+                      </div>
+                      <div className="text-[9px] font-black text-muted-foreground uppercase flex items-center gap-3">
+                         <span><Target className="w-2.5 h-2.5 inline mr-1" /> {ad.type}</span>
+                         <span><Calendar className="w-2.5 h-2.5 inline mr-1" /> {new Date(ad.startDate).toLocaleDateString('pt-BR')} - {new Date(ad.endDate).toLocaleDateString('pt-BR')}</span>
                       </div>
                     </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-6 flex-1 text-center">
-                       <div><p className="text-[10px] font-black opacity-40 uppercase">Impactos</p><p className="font-black">{ad.reach?.toLocaleString()}</p></div>
-                       <div><p className="text-[10px] font-black opacity-40 uppercase">Cliques</p><p className="font-black">{ad.clicks?.toLocaleString()}</p></div>
-                       <div><p className="text-[10px] font-black text-secondary uppercase">Budget Hoje</p><p className="font-black text-secondary">{formatCurrency(displayDaily)}</p></div>
-                    </div>
-
-                    <div className="flex gap-2">
-                       <Button variant="outline" size="sm" className="h-9 rounded-xl border-secondary/20 text-secondary" onClick={() => setSelectedAdForMetrics(ad)}><Eye className="w-4 h-4" /></Button>
-                       {(ad.status === 'Ativo' || ad.status === 'Pausado') && (
-                         <Button 
-                           variant="outline" 
-                           size="sm" 
-                           className="h-9 rounded-xl uppercase font-bold text-[10px] gap-2"
-                           onClick={() => handleToggleStatus(ad.id, ad.status)}
-                           disabled={actionLoadingId === ad.id}
-                         >
-                            {ad.status === 'Ativo' ? <><Pause className="w-3 h-3" /> Pausar</> : <><Play className="w-3 h-3" /> Reativar</>}
-                         </Button>
-                       )}
-                    </div>
                   </div>
-                )
-              })}
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-6 flex-1 text-center">
+                     <div><p className="text-[10px] font-black opacity-40 uppercase">Impactos</p><p className="font-black">{ad.reach?.toLocaleString()}</p></div>
+                     <div><p className="text-[10px] font-black opacity-40 uppercase">Cliques</p><p className="font-black">{ad.clicks?.toLocaleString()}</p></div>
+                     <div><p className="text-[10px] font-black text-secondary uppercase">Orçamento Total</p><p className="font-black text-secondary">{formatCurrency(ad.budget || 0)}</p></div>
+                  </div>
+
+                  <div className="flex gap-2">
+                     <Button variant="outline" size="sm" className="h-9 rounded-xl border-secondary/20 text-secondary" onClick={() => setSelectedAdForMetrics(ad)}><Eye className="w-4 h-4" /></Button>
+                     {(ad.status === 'Ativo' || ad.status === 'Pausado') && (
+                       <Button 
+                         variant="outline" 
+                         size="sm" 
+                         className="h-9 rounded-xl uppercase font-bold text-[10px] gap-2"
+                         onClick={() => handleToggleStatus(ad.id, ad.status)}
+                         disabled={actionLoadingId === ad.id}
+                       >
+                          {ad.status === 'Ativo' ? <><Pause className="w-3 h-3" /> Pausar</> : <><Play className="w-3 h-3" /> Reativar</>}
+                       </Button>
+                     )}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="py-24 text-center">

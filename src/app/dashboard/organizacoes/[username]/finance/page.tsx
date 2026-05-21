@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -23,7 +22,8 @@ import {
   ArrowRightLeft,
   Plus,
   ArrowRight,
-  ShieldAlert
+  ShieldAlert,
+  ArrowDownRight
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from '@/lib/utils';
@@ -53,9 +53,6 @@ export default function OrganizationFinancePage() {
   const [transferValue, setTransferValue] = React.useState("");
   const [isTransferring, setIsTransferring] = React.useState(false);
 
-  // Consultar vendas confirmadas para a organização (opcional, se não estiver vindo via OrganizationContext)
-  // Para este protótipo, vamos usar os campos walletBalance e adBalance do documento da organização
-  
   const isFinanceManager = ['owner', 'admin', 'finance'].includes(userRole || '');
   const isOwnerOrAdmin = ['owner', 'admin'].includes(userRole || '');
 
@@ -118,7 +115,7 @@ export default function OrganizationFinancePage() {
         updatedAt: serverTimestamp()
       });
 
-      toast({ title: "Transferência realizada!", description: `R$ ${amount.toFixed(2)} movidos para o saldo de anúncios.` });
+      toast({ title: "Transferência realizada!", description: `R$ ${amount.toFixed(2)} movidos para a Conta de Anúncios.` });
       setIsTransferOpen(false);
       setTransferValue("");
       await refreshOrg();
@@ -132,7 +129,6 @@ export default function OrganizationFinancePage() {
   const adBalance = currentOrg?.adBalance || 0;
   const walletBalance = currentOrg?.walletBalance || 0;
 
-  // Cálculos de taxas para o modal de recarga
   const base = parseFloat(topUpAmount) || 0;
   const tax = base * 0.16;
   const fee = base * 0.05;
@@ -146,15 +142,14 @@ export default function OrganizationFinancePage() {
           <Wallet className="w-8 h-8 text-secondary" />
           Financeiro da Marca
         </h1>
-        <p className="text-muted-foreground font-medium">Gestão de saldos, recargas de anúncios e repasses.</p>
+        <p className="text-muted-foreground font-medium">Gestão de saldos, recargas de anúncios e repasses exclusivos.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* CARD SALDO ANÚNCIOS */}
         <Card className="border-none shadow-sm bg-primary text-white overflow-hidden relative group">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest flex justify-between">
-               Saldo para Anúncios
+               Conta de Anúncios (Saldo)
                <Coins className="w-4 h-4 text-secondary" />
             </CardTitle>
           </CardHeader>
@@ -171,7 +166,7 @@ export default function OrganizationFinancePage() {
                  <DialogContent className="rounded-[2rem] max-w-sm">
                     <DialogHeader>
                       <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Recarregar Saldo</DialogTitle>
-                      <DialogDescription>Adicione crédito exclusivo para suas campanhas de anúncios.</DialogDescription>
+                      <DialogDescription>O crédito será adicionado exclusivamente à conta de anúncios de {currentOrg.name}.</DialogDescription>
                     </DialogHeader>
                     
                     <div className="space-y-6 py-4">
@@ -215,11 +210,10 @@ export default function OrganizationFinancePage() {
           <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-secondary/20 rounded-full blur-3xl" />
         </Card>
 
-        {/* CARD CARTEIRA VENDAS */}
         <Card className="border-none shadow-sm bg-white overflow-hidden relative">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
-               Saldo de Vendas (Líquido)
+               Carteira de Vendas (Líquido)
                <TrendingUp className="w-4 h-4 text-green-500" />
             </CardTitle>
           </CardHeader>
@@ -230,13 +224,13 @@ export default function OrganizationFinancePage() {
                <Dialog open={isTransferModalOpen} onOpenChange={setIsTransferOpen}>
                  <DialogTrigger asChild>
                    <Button variant="outline" className="flex-1 h-10 rounded-xl font-bold uppercase text-[10px] border-secondary text-secondary hover:bg-secondary/5">
-                      <ArrowRightLeft className="w-3.5 h-3.5 mr-2" /> Transferir p/ Ads
+                      <ArrowRightLeft className="w-3.5 h-3.5 mr-2" /> Mover para Ads
                    </Button>
                  </DialogTrigger>
                  <DialogContent className="rounded-[2.5rem] max-w-sm">
                     <DialogHeader>
                        <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Investir em Ads</DialogTitle>
-                       <DialogDescription>Mova o valor líquido das suas vendas para o saldo de impulsionamento.</DialogDescription>
+                       <DialogDescription>Mova o valor líquido das suas vendas para a Conta de Anúncios da marca.</DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-6 py-4">
@@ -280,7 +274,6 @@ export default function OrganizationFinancePage() {
           </CardContent>
         </Card>
 
-        {/* CARD CONFIGURAÇÃO BANCÁRIA */}
         <Card className="border-none shadow-sm bg-white border-l-4 border-secondary">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
@@ -296,11 +289,11 @@ export default function OrganizationFinancePage() {
                      currentOrg.payoutSettings?.status === 'verified' ? "bg-green-500" : "bg-orange-500 animate-pulse"
                    )} />
                    <span className="text-[10px] font-black uppercase">
-                     {currentOrg.payoutSettings?.status === 'verified' ? 'Conta Verificada' : 'Ação Necessária'}
+                     {currentOrg.payoutSettings?.status === 'verified' ? 'Conta Verificada' : 'Conta de Recebimento'}
                    </span>
                 </div>
                 <Button variant="outline" className="w-full h-10 rounded-xl uppercase italic text-[10px] font-bold border-muted" asChild>
-                   <Link href="/dashboard/financeiro">Gerenciar Conta</Link>
+                   <Link href="/dashboard/financeiro">Verificar Conta PJ</Link>
                 </Button>
              </div>
           </CardContent>
@@ -313,11 +306,11 @@ export default function OrganizationFinancePage() {
                <CardTitle className="text-lg font-bold flex items-center gap-2">
                   <History className="w-5 h-5 text-secondary" /> Histórico de Transações
                </CardTitle>
-               <CardDescription>Movimentações financeiras da marca.</CardDescription>
+               <CardDescription>Movimentações financeiras da marca <strong>{currentOrg.name}</strong>.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
                <div className="py-20 text-center text-muted-foreground italic text-sm">
-                  Nenhuma transação registrada no período.
+                  Nenhuma transação registrada para esta conta.
                </div>
             </CardContent>
          </Card>
@@ -330,10 +323,10 @@ export default function OrganizationFinancePage() {
             </CardHeader>
             <CardContent className="space-y-6">
                <p className="text-xs text-muted-foreground leading-relaxed font-medium">
-                  Sua organização conta com proteção avançada contra chargebacks e fraudes. 
+                  Esta conta de anúncios conta com proteção avançada. Saldos adicionados via cartão de crédito possuem retenção de segurança em caso de disputa.
                </p>
                <ul className="space-y-2">
-                  {['Monitoramento 24h', 'Score de risco por transação', 'Retenção de segurança de 30 dias'].map(item => (
+                  {['Gestão Individual por Marca', 'Sem Compartilhamento de Saldo', 'Faturamento Consolidado'].map(item => (
                     <li key={item} className="flex items-center gap-2 text-[10px] font-black uppercase text-muted-foreground">
                        <ShieldCheck className="w-3 h-3 text-green-500" /> {item}
                     </li>
@@ -346,9 +339,9 @@ export default function OrganizationFinancePage() {
       <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
          <Info className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
          <div className="space-y-1">
-            <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Nota sobre Taxas e Impostos</h4>
+            <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Isolamento de Contas</h4>
             <p className="text-xs text-muted-foreground leading-relaxed font-medium">
-               Recargas de saldo para anúncios via cartão de crédito incluem impostos obrigatórios (16%) e taxas de processamento financeiro (5% + fixa). Transferências internas da carteira de vendas para o saldo de anúncios são <strong>isentas</strong> de taxas adicionais.
+               Para sua segurança e conformidade fiscal, cada organização no Viby opera com sua própria <strong>Conta de Anúncios</strong>. Não é possível vincular ou transferir saldos entre diferentes marcas ou para perfis pessoais.
             </p>
          </div>
       </div>
