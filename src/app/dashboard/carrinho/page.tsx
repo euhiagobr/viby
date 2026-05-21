@@ -32,7 +32,7 @@ import Link from "next/link"
 import { formatCurrency, calculateFinancialBreakdown } from "@/lib/financial-utils"
 import { createCheckoutSession } from "@/app/actions/stripe"
 import { toast } from "@/hooks/use-toast"
-import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, limit } from "firebase/firestore"
+import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, limit, getDoc } from "firebase/firestore"
 import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 import { sendCartPendingEmail } from "@/app/actions/email"
 import { cn } from "@/lib/utils"
@@ -53,16 +53,13 @@ export default function CarrinhoPage() {
   const [processing, setProcessing] = React.useState(false)
   const [isWaitingPayment, setIsWaitingPayment] = React.useState(false)
   
-  // States para Cupons
   const [couponCode, setCouponCode] = React.useState("")
   const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null)
   const [isApplyingCoupon, setIsApplyingCoupon] = React.useState(false)
 
-  // O cálculo de totais precisa ser individualizado por organizador para aplicar taxas de planos diferentes
   const [breakdowns, setBreakdowns] = React.useState<Record<string, any>>({})
   const [loadingBreakdowns, setLoadingBreakdowns] = React.useState(true)
 
-  // Carrega os dados de planos dos organizadores para o cálculo correto das taxas
   React.useEffect(() => {
     if (!db || items.length === 0 || !plansSettings) {
       setLoadingBreakdowns(false)
@@ -129,7 +126,6 @@ export default function CarrinhoPage() {
       const unitDiscount = isEligible ? discountPerUnit : 0;
       const discountedUnitPrice = Math.max(0, item.price - unitDiscount);
       
-      // Usa o plano específico do organizador se disponível
       const orgPlan = breakdowns[item.organizerId];
       const res = calculateFinancialBreakdown(discountedUnitPrice, orgPlan);
       fees += res.administrativeFeeAmount * item.quantity;
@@ -191,7 +187,6 @@ export default function CarrinhoPage() {
         const currentItemDiscount = isEligibleForDiscount ? discountPerUnit : 0;
         const discountedPrice = Math.max(0, item.price - currentItemDiscount);
         
-        // Busca o plano do organizador para gravar os valores corretos
         const orgPlan = breakdowns[item.organizerId];
         const breakdown = calculateFinancialBreakdown(discountedPrice, orgPlan);
         
@@ -214,7 +209,7 @@ export default function CarrinhoPage() {
             discountApplied: currentItemDiscount,
             price: breakdown.customerFinalPrice,
             administrativeFeeAmount: breakdown.administrativeFeeAmount,
-            producerFeeAmount: breakdown.producerFeeAmount,
+            producerFeeAmount: 0, // No novo modelo a taxa é somada, não descontada
             producerNetAmount: breakdown.producerNetAmount,
             batchId: item.batchId,
             batchName: item.batchName,

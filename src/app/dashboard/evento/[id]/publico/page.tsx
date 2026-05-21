@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -88,8 +89,8 @@ export default function EventoPublicoPage() {
     const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
     
     const financial = (registrations || []).reduce((acc: any, reg: any) => {
-      acc.gross += (reg.ticketBasePrice || 0);
-      acc.net += (reg.producerNetAmount || 0);
+      acc.gross += (reg.price || 0); // Valor total pago pelo cliente
+      acc.net += (reg.producerNetAmount || 0); // O que o produtor de fato recebe
       return acc;
     }, { gross: 0, net: 0 });
 
@@ -343,7 +344,7 @@ export default function EventoPublicoPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black text-primary">{formatCurrency(stats.net)}</div>
-            <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">Bruto: {formatCurrency(stats.gross)}</p>
+            <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">Soma dos ingressos (face)</p>
           </CardContent>
         </Card>
         <Card className="border-none shadow-sm bg-card bg-orange-50/50">
@@ -377,7 +378,7 @@ export default function EventoPublicoPage() {
                   <TableHead className="font-bold">Dados</TableHead>
                   <TableHead className="font-bold">Tipo / Ingresso</TableHead>
                   <TableHead className="font-bold">Entrada</TableHead>
-                  <TableHead className="font-bold">Líquido</TableHead>
+                  <TableHead className="font-bold text-right">Líquido</TableHead>
                   <TableHead className="font-bold">Código</TableHead>
                   <TableHead className="text-right font-bold">Ações</TableHead>
                 </TableRow>
@@ -413,24 +414,24 @@ export default function EventoPublicoPage() {
                         <span className="text-[10px] font-bold text-muted-foreground/40 uppercase">---</span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-right">
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div className="flex flex-col cursor-help">
                               <span className="text-xs font-black text-primary">{formatCurrency(reg.producerNetAmount || 0)}</span>
-                              <span className="text-[9px] font-bold text-muted-foreground uppercase">Bruto: {formatCurrency(reg.ticketBasePrice || 0)}</span>
+                              <Badge variant="ghost" className="text-[7px] p-0 font-bold uppercase opacity-50">Transparente</Badge>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent className="p-3 space-y-2">
-                             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b pb-1">Breakdown Financeiro</p>
+                             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b pb-1">Breakdown do Pedido</p>
                              <div className="space-y-1">
-                                <div className="flex justify-between gap-8 text-[10px] font-bold"><span>Valor Base:</span> <span>{formatCurrency(reg.ticketBasePrice)}</span></div>
-                                <div className="flex justify-between gap-8 text-[10px] font-bold text-red-500"><span>Taxa Plano:</span> <span>-{formatCurrency(reg.producerFeeAmount)}</span></div>
+                                <div className="flex justify-between gap-8 text-[10px] font-bold"><span>Valor Base (Ingresso):</span> <span>{formatCurrency(reg.ticketBasePrice)}</span></div>
+                                <div className="flex justify-between gap-8 text-[10px] font-bold text-secondary"><span>Taxa Viby (Comprador):</span> <span>+{formatCurrency(reg.administrativeFeeAmount)}</span></div>
                                 <Separator />
-                                <div className="flex justify-between gap-8 text-[10px] font-black text-green-600"><span>Líquido Produtor:</span> <span>{formatCurrency(reg.producerNetAmount)}</span></div>
+                                <div className="flex justify-between gap-8 text-[10px] font-black text-primary"><span>Total Pago:</span> <span>{formatCurrency(reg.price)}</span></div>
                              </div>
-                             <p className="text-[8px] text-muted-foreground italic mt-2">* Taxa administrativa do comprador ({formatCurrency(reg.administrativeFeeAmount)}) excluída desta visão.</p>
+                             <p className="text-[8px] text-muted-foreground italic mt-2">* No seu modelo atual, a taxa é somada ao valor do ingresso e paga pelo comprador.</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -505,7 +506,7 @@ export default function EventoPublicoPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center"><DollarSign className="w-5 h-5 text-secondary" /></div>
-                      <div><p className="text-[10px] font-black uppercase text-muted-foreground">Valor (Líquido Produtor)</p><p className="font-black">{formatCurrency(scanResult.producerNetAmount || 0)}</p></div>
+                      <div><p className="text-[10px] font-black uppercase text-muted-foreground">Repasse Líquido</p><p className="font-black">{formatCurrency(scanResult.producerNetAmount || 0)}</p></div>
                     </div>
                   </div>
                 </div>

@@ -106,9 +106,9 @@ export default function AdminExtratoPage() {
         title: reg.eventTitle || 'Venda de Ingresso',
         description: `Participante: ${reg.userName}`,
         date: reg.timestamp,
-        gross: reg.price || 0,
-        fee: (reg.administrativeFeeAmount || 0) + (reg.producerFeeAmount || 0),
-        net: reg.producerNetAmount || 0, // Repasse ao produtor
+        gross: reg.price || 0, // Total pago pelo cliente
+        fee: reg.administrativeFeeAmount || 0, // Taxa que fica com a Viby
+        net: reg.producerNetAmount || 0, // Valor que o produtor recebe
         status: 'Concluído'
       }))
 
@@ -281,9 +281,9 @@ export default function AdminExtratoPage() {
                 <TableHead className="font-bold">Data / Hora</TableHead>
                 <TableHead className="font-bold">Tipo</TableHead>
                 <TableHead className="font-bold">Descrição / Origem</TableHead>
-                <TableHead className="font-bold text-right">Bruto (Entrada)</TableHead>
-                <TableHead className="font-bold text-right">Taxas (Plataforma)</TableHead>
-                <TableHead className="font-bold text-right">Líquido (Repasse)</TableHead>
+                <TableHead className="font-bold text-right">Pago (Cliente)</TableHead>
+                <TableHead className="font-bold text-right">Taxas (Viby)</TableHead>
+                <TableHead className="font-bold text-right">Repasse (Produtor)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -321,7 +321,7 @@ export default function AdminExtratoPage() {
                     <TableCell className="text-right">
                        <span className={cn(
                          "font-black text-sm",
-                         (t.type === 'plan' || t.type === 'ad') ? "text-muted-foreground/30 italic" : "text-orange-500"
+                         (t.type === 'plan' || t.type === 'ad') ? "text-muted-foreground/30 italic" : "text-primary"
                        )}>
                          {t.net > 0 ? formatCurrency(t.net) : '---'}
                        </span>
@@ -339,57 +339,6 @@ export default function AdminExtratoPage() {
           </Table>
         </CardContent>
       </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-         <Card className="border-none shadow-sm rounded-[2rem] bg-muted/20">
-            <CardHeader>
-               <CardTitle className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                 <Building2 className="w-4 h-4" /> Resumo de Retenção
-               </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-               <div className="flex justify-between items-center text-sm">
-                  <span className="font-medium text-muted-foreground">Volume de Vendas Ingressos (Base)</span>
-                  <span className="font-black">{formatCurrency(financialData.stats.gross)}</span>
-               </div>
-               <div className="flex justify-between items-center text-sm">
-                  <span className="font-medium text-muted-foreground">Lucro sobre Ingressos (Taxas)</span>
-                  <span className="font-black text-secondary">{formatCurrency(financialData.stats.fees)}</span>
-               </div>
-               <div className="h-px bg-border/50" />
-               <div className="flex justify-between items-center">
-                  <span className="text-xs font-black uppercase tracking-tighter">Margem de Retenção Média</span>
-                  <Badge className="bg-secondary font-black">
-                    {financialData.stats.gross > 0 
-                      ? ((financialData.stats.fees / financialData.stats.gross) * 100).toFixed(1) 
-                      : '0.0'}%
-                  </Badge>
-               </div>
-            </CardContent>
-         </Card>
-
-         <Card className="border-none shadow-sm rounded-[2rem] bg-secondary/5">
-            <CardHeader>
-               <CardTitle className="text-sm font-black uppercase tracking-widest text-secondary flex items-center gap-2">
-                 <TrendingUp className="w-4 h-4" /> Saúde de Assinaturas & Ads
-               </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-               <div className="flex justify-between items-center text-sm">
-                  <span className="font-medium text-muted-foreground">Receita Direta (MRR + Ads)</span>
-                  <span className="font-black">{formatCurrency(financialData.stats.plans + financialData.stats.ads)}</span>
-               </div>
-               <div className="flex justify-between items-center text-sm">
-                  <span className="font-medium text-muted-foreground">Volume Anúncios Vendidos</span>
-                  <span className="font-black">{ads?.length || 0} campanhas</span>
-               </div>
-               <div className="h-px bg-border/50" />
-               <p className="text-[10px] text-muted-foreground italic leading-tight">
-                 * Assinaturas e Campanhas de Ads são reconhecidas 100% como lucro líquido da Viby, sem repasses externos.
-               </p>
-            </CardContent>
-         </Card>
-      </div>
     </div>
   )
 }

@@ -1,19 +1,8 @@
 
 /**
  * @fileOverview Utilitários financeiros atualizados para o modelo de Planos Dinâmicos.
+ * Regra: A taxa é o maior valor entre o percentual do plano e o valor mínimo do plano.
  */
-
-export interface PlanConfig {
-  percent: number;
-  min: number;
-  maxOrganizations: number;
-  maxActiveEvents: number;
-  maxTicketsPerEvent: number;
-  isVerified: boolean;
-  hasReports: boolean;
-}
-
-export const ADMINISTRATIVE_FEE_PERCENT = 0.15;
 
 export function formatCurrency(value: number): string {
   if (isNaN(value) || value === null || value === undefined) return 'R$ 0,00';
@@ -24,46 +13,44 @@ export function formatCurrency(value: number): string {
 }
 
 /**
- * Calcula a quebra financeira com base no plano atual do usuário.
- * @param basePrice Valor de face do ingresso
- * @param planData Dados do plano (sobrescritos ou padrão) obtidos do Firestore
+ * Calcula a quebra financeira com base no plano atual do organizador.
+ * @param basePrice Valor de face do ingresso (definido pelo produtor)
+ * @param planData Dados do plano obtidos do Firestore (padrão ou override)
  */
 export function calculateFinancialBreakdown(basePrice: number, planData?: any) {
   const price = parseFloat(basePrice as any) || 0;
+  
   if (price <= 0) {
     return { 
-      customerFinalPrice: 0, 
-      producerNetAmount: 0, 
-      administrativeFeeAmount: 0,
-      producerFeeAmount: 0,
       ticketBasePrice: 0,
-      producerFeePercent: 0
+      customerFinalPrice: 0, 
+      administrativeFeeAmount: 0,
+      producerNetAmount: 0,
+      feePercentApplied: 0
     };
   }
 
-  // Se não houver planData, usamos valores conservadores do plano Start
+  // Se não houver planData, usamos valores do plano Start (16% ou R$ 9,99)
   const feePercent = (planData?.feePercent ?? 16) / 100;
   const minFeeAmount = planData?.minFeeAmount ?? 9.99;
   
-  // 1. Taxa administrativa cobrada do COMPRADOR (15% sobre o valor do ingresso)
-  const administrativeFeeAmount = Number((price * ADMINISTRATIVE_FEE_PERCENT).toFixed(2));
+  // REGRA SOLICITADA: Taxa é o MAIOR valor entre o percentual e o mínimo
+  const calculatedPercentFee = Number((price * feePercent).toFixed(2));
+  const serviceFee = Math.max(calculatedPercentFee, minFeeAmount);
   
-  // 2. Preço final que o cliente paga no checkout
-  const customerFinalPrice = Number((price + administrativeFeeAmount).toFixed(2));
+  // Preço final que o cliente paga no checkout (Ingresso + Taxa)
+  const customerFinalPrice = Number((price + serviceFee).toFixed(2));
 
-  // 3. Taxa do plano cobrada do PRODUTOR (Descontada do valor base do ingresso)
-  const producerFeeCalculated = Number((price * feePercent).toFixed(2));
-  const producerFeeAmount = Math.max(producerFeeCalculated, minFeeAmount);
-
-  // 4. Valor líquido que o produtor recebe por ingresso
-  const producerNetAmount = Math.max(0, Number((price - producerFeeAmount).toFixed(2)));
+  // No novo modelo, o produtor recebe o valor integral do ingresso (basePrice)
+  // e a plataforma fica com a taxa de serviço paga pelo comprador.
+  const producerNetAmount = price;
 
   return {
     ticketBasePrice: price,
     customerFinalPrice,
-    administrativeFeeAmount,
-    producerFeeAmount,
+    administrativeFeeAmount: serviceFee, // Taxa de conveniência/plataforma
     producerNetAmount,
-    producerFeePercent: feePercent
+    feePercentApplied: feePercent,
+    minFeeApplied: minFeeAmount
   };
 }
