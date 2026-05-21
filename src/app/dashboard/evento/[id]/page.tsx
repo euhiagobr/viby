@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -39,11 +38,12 @@ export default function EventoDetalhesPage() {
   const eventRef = React.useMemo(() => db ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
   
-  const organizerRef = React.useMemo(() => 
-    (db && event?.organizerId) ? doc(db, "users", event.organizerId) : null, 
-    [db, event?.organizerId]
+  // Agora buscamos os dados da ORGANIZAÇÃO diretamente, não do perfil pessoal do usuário
+  const organizationRef = React.useMemo(() => 
+    (db && event?.organizationId) ? doc(db, "organizations", event.organizationId) : null, 
+    [db, event?.organizationId]
   )
-  const { data: organizerProfile } = useDoc<any>(organizerRef)
+  const { data: organizationProfile } = useDoc<any>(organizationRef)
 
   // Perfil do usuário logado para capturar dados cadastrais no registro
   const currentUserRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
@@ -119,6 +119,7 @@ export default function EventoDetalhesPage() {
       userEmail: user.email,
       userGender: currentUserProfile?.gender || "Não informado",
       userBirthDate: currentUserProfile?.birthDate || "",
+      organizationId: event.organizationId,
       organizerId: event.organizerId,
       timestamp: serverTimestamp(),
       price: price,
@@ -164,10 +165,11 @@ export default function EventoDetalhesPage() {
   const start = formatDateTime(event.date);
   const end = formatDateTime(event.endDate);
 
-  const orgName = organizerProfile?.name || event.organizer?.name || "Organizador";
-  const orgAvatar = organizerProfile?.avatar || event.organizer?.avatar;
-  const orgIsVerified = organizerProfile?.isVerified ?? event.organizer?.isVerified;
-  const orgUsername = organizerProfile?.username;
+  // PRIORIZA DADOS DA ORGANIZAÇÃO
+  const orgName = organizationProfile?.name || event.organizer?.name || "Organizador";
+  const orgAvatar = organizationProfile?.avatar || event.organizer?.avatar;
+  const orgIsVerified = organizationProfile?.verified ?? event.organizer?.isVerified;
+  const orgUsername = organizationProfile?.username || event.organizer?.username;
 
   return (
     <div className="space-y-8 pb-20 max-w-6xl mx-auto">
@@ -204,7 +206,7 @@ export default function EventoDetalhesPage() {
           <div className="flex flex-col gap-4 max-w-4xl">
             <div className="flex flex-wrap gap-2">
               <Badge className="bg-secondary text-white border-none text-xs px-4 py-1 rounded-full uppercase font-black tracking-widest">
-                {event.type}
+                {event.categoryName || "Evento"}
               </Badge>
               {event.isFree && (
                 <Badge className="bg-green-500 text-white border-none text-xs px-4 py-1 rounded-full uppercase font-black tracking-widest">

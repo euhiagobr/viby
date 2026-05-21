@@ -118,27 +118,31 @@ export default function EventoDetalhesPage() {
   const eventRef = React.useMemo(() => db ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
   
-  const organizerRef = React.useMemo(() => 
+  // Agora buscamos os dados da ORGANIZAÇÃO diretamente, não do perfil pessoal do usuário
+  const organizationRef = React.useMemo(() => 
+    (db && event?.organizationId) ? doc(db, "organizations", event.organizationId) : null, 
+    [db, event?.organizationId]
+  )
+  const { data: organizationProfile } = useDoc<any>(organizationRef)
+
+  // Perfil pessoal do dono para fins de cálculo de plano/taxas (owner)
+  const ownerRef = React.useMemo(() => 
     (db && event?.organizerId) ? doc(db, "users", event.organizerId) : null, 
     [db, event?.organizerId]
   )
-  const { data: organizerProfile } = useDoc<any>(organizerRef)
+  const { data: ownerProfile } = useDoc<any>(ownerRef)
 
   const currentUserRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: currentUserProfile } = useDoc<any>(currentUserRef)
 
-  // Consulta específica para o usuário logado para evitar erros de listagem geral
   const userRegistrationQuery = useMemoFirebase(() => {
     if (!db || !eventId || !user) return null
     return query(collection(db, "registrations"), where("eventId", "==", eventId), where("userId", "==", user.uid))
   }, [db, eventId, user])
   const { data: userRegistrations } = useCollection<any>(userRegistrationQuery)
 
-  // ESTA CONSULTA ERA A CAUSA DO ERRO DE PERMISSÃO: Visitantes não podem listar registros alheios.
-  // Somente habilitamos se o usuário estiver logado e for o organizador ou admin (simplificado aqui para evitar o erro)
   const adminRegistrationsQuery = useMemoFirebase(() => {
     if (!db || !eventId || !user || !event) return null
-    // Apenas tenta buscar se o usuário atual for o criador do evento ou admin
     const isOrganizer = user.uid === event.organizerId;
     if (!isOrganizer) return null;
 
@@ -176,8 +180,6 @@ export default function EventoDetalhesPage() {
         return
       }
 
-      // Tentamos usar a contagem de vendas. Se allRegistrations for null (por erro de permissão),
-      // assumimos que não temos a contagem exata e mostramos como disponível se as datas baterem.
       const salesPerBatch = (allRegistrations || []).reduce((acc: Record<string, number>, reg: any) => {
         if (reg.paymentStatus === 'Pago' || reg.paymentStatus === 'Disponível') {
           const bName = reg.batchName || "Lote Único"
@@ -332,10 +334,9 @@ export default function EventoDetalhesPage() {
     return base
   }
 
-  // Corrigido para garantir que breakdown nunca contenha NaN
   const breakdown = React.useMemo(() => {
-    return calculateFinancialBreakdown(getTicketBasePrice(), organizerProfile?.plan || 'free');
-  }, [activeBatch, appliedCoupon, organizerProfile?.plan]);
+    return calculateFinancialBreakdown(getTicketBasePrice(), ownerProfile?.plan || 'free');
+  }, [activeBatch, appliedCoupon, ownerProfile?.plan]);
 
   const handleRegisterInterest = async () => {
     if (!auth || !user) {
@@ -514,10 +515,11 @@ export default function EventoDetalhesPage() {
   const start = formatDateTime(event.date);
   const end = formatDateTime(event.endDate);
 
-  const orgName = organizerProfile?.name || event.organizer?.name || "Organizador";
-  const orgAvatar = organizerProfile?.avatar || event.organizer?.avatar;
-  const orgIsVerified = organizerProfile?.isVerified ?? event.organizer?.isVerified;
-  const orgUsername = organizerProfile?.username || usernameFromUrl;
+  // PRIORIZA DADOS DA ORGANIZAÇÃO
+  const orgName = organizationProfile?.name || event.organizer?.name || "Organizador";
+  const orgAvatar = organizationProfile?.avatar || event.organizer?.avatar;
+  const orgIsVerified = organizationProfile?.verified ?? event.organizer?.isVerified;
+  const orgUsername = organizationProfile?.username || usernameFromUrl;
 
   const getButtonText = () => {
     if (saleStatus === 'pending') return "Vendas em Breve"
@@ -630,7 +632,7 @@ export default function EventoDetalhesPage() {
             <div className="flex flex-col gap-4 max-w-4xl">
               <div className="flex flex-wrap gap-2">
                 <Badge className="bg-secondary text-white border-none text-xs px-4 py-1 rounded-full uppercase font-black tracking-widest">
-                  {event.type}
+                  {event.categoryName || "Evento"}
                 </Badge>
                 {event.isFree && (
                   <Badge className="bg-green-500 text-white border-none text-xs px-4 py-1 rounded-full uppercase font-black tracking-widest">
