@@ -252,7 +252,15 @@ export async function getStripeSession(sessionId: string) {
   try {
     const stripe = await getStripeInstance();
     const session = await stripe.checkout.sessions.retrieve(sessionId);
-    return session;
+    
+    // Retorna apenas um objeto simples com os campos necessários
+    // O objeto retornado pelo retrieve contém métodos que impedem a passagem RSC -> Client
+    return {
+      id: session.id,
+      payment_status: session.payment_status,
+      amount_total: session.amount_total,
+      metadata: session.metadata ? { ...session.metadata } : null
+    };
   } catch (error) {
     console.error('Erro ao recuperar sessão Stripe:', error);
     return null;
