@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.6.0
+    // REGRAS VIBY - Versão: 2.7.0
     // Database Exclusivo: eventosviby
     
     function isSignedIn() {
@@ -28,6 +28,13 @@ service cloud.firestore {
         (get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.status == 'accepted' || 
          get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.status == null) &&
         get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
+    }
+
+    function isOrgMember(orgId) {
+      return isSignedIn() && 
+        exists(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
+        (get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.status == 'accepted' || 
+         get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.status == null);
     }
 
     // Regra Crítica para buscas via collectionGroup (Dashboard e Convites)
@@ -64,8 +71,8 @@ service cloud.firestore {
       allow delete: if hasOrgRole(orgId, ['owner']) || isAdmin();
 
       match /members/{userId} {
-        // Usuário pode ler seu próprio convite/membro ou se for admin da org
-        allow read: if request.auth.uid == userId || hasOrgRole(orgId, ['owner', 'admin']);
+        // Qualquer membro da org pode ver a lista de equipe
+        allow read: if isOrgMember(orgId) || request.auth.uid == userId;
         
         // Donos e Admins podem convidar
         allow create: if hasOrgRole(orgId, ['owner', 'admin']);
@@ -73,7 +80,7 @@ service cloud.firestore {
         // O próprio usuário pode recusar (deletar) ou o admin pode remover
         allow delete: if request.auth.uid == userId || hasOrgRole(orgId, ['owner', 'admin']);
         
-        // O próprio usuário pode aceitar seu convite (mudar status de pending para accepted)
+        // O próprio usuário pode aceitar seu convite
         allow update: if (request.auth.uid == userId && (resource.data.status == 'pending' || resource.data.status == null)) || 
                       hasOrgRole(orgId, ['owner', 'admin']);
       }
@@ -91,8 +98,7 @@ service cloud.firestore {
     match /ads/{adId} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin() || 
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reach', 'clicks', 'budget', 'updatedAt', 'stats_gender_masculino', 'stats_gender_feminino', 'stats_gender_outros', 'stats_gender_desconhecido', 'stats_age_sub18', 'stats_age_18_24', 'stats_age_25_34', 'stats_age_35_44', 'stats_age_45plus', 'stats_age_desconhecido', 'click_stats_gender_masculino', 'click_stats_gender_feminino', 'click_stats_gender_outros', 'click_stats_gender_desconhecido', 'click_stats_age_sub18', 'click_stats_age_18_24', 'click_stats_age_25_34', 'click_stats_age_35_44', 'click_stats_age_45plus', 'click_stats_age_desconhecido']));
+      allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
       allow delete: if isAdmin();
     }
 
@@ -104,7 +110,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Logs de E-mail (Ajustado para permitir leitura por qualquer usuário logado para auditoria admin simplificada)
+    // Logs de E-mail
     match /sent_emails/{emailId} {
       allow read: if isSignedIn();
       allow create: if true; 
@@ -113,7 +119,7 @@ service cloud.firestore {
     // Cupons de Desconto
     match /coupons/{couponId} {
       allow read: if true;
-      allow create, update, delete: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || (request.resource.data.eventId != null && hasOrgRole(get(/databases/eventosviby/documents/events/$(request.resource.data.eventId)).data.organizationId, ['owner', 'admin']));
+      allow create, update, delete: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']);
     }
 
     // Categorias

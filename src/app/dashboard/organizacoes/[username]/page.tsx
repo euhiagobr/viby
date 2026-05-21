@@ -15,7 +15,8 @@ import {
   ArrowRight,
   Loader2,
   ShieldCheck,
-  LayoutGrid
+  LayoutGrid,
+  Lock
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/financial-utils';
@@ -31,6 +32,8 @@ const roleTranslations: Record<string, string> = {
 export default function OrganizationDashboardPage() {
   const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization();
   const db = useFirestore();
+
+  const isFinanceManager = ['owner', 'admin', 'finance'].includes(userRole || '');
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null;
@@ -136,7 +139,14 @@ export default function OrganizationDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-green-600">{formatCurrency(0)}</div>
+            {isFinanceManager ? (
+              <div className="text-2xl font-black text-green-600">{formatCurrency(0)}</div>
+            ) : (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Lock className="w-4 h-4" />
+                <span className="text-xs font-bold uppercase tracking-tight">Acesso Restrito</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 

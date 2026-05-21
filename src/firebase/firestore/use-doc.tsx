@@ -19,6 +19,7 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
   useEffect(() => {
     if (!docRef) {
       setLoading(false);
+      setData(null);
       return;
     }
 
@@ -28,6 +29,7 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
       (snapshot: DocumentSnapshot<T>) => {
         setData(snapshot.exists() ? { ...snapshot.data(), id: snapshot.id } : null);
         setLoading(false);
+        setError(null);
       },
       async (serverError: FirestoreError) => {
         if (serverError.code === 'permission-denied') {
@@ -42,7 +44,9 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+    };
   }, [docRef]);
 
   return { data, loading, error };
