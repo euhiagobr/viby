@@ -197,7 +197,6 @@ export default function OrganizationAdsPage() {
 
     setIsSubmitting(true)
     const event = myEvents?.find(ev => ev.id === selectedEventId)
-    // Eventos e Páginas são auto-aprovados para o protótipo, mas Banners e Links requerem aprovação
     const status = (adType === 'evento' || adType === 'pagina') ? 'Ativo' : 'Pendente'
     const adData = {
       eventId: adType === 'evento' ? selectedEventId : null,
@@ -226,17 +225,10 @@ export default function OrganizationAdsPage() {
 
   const handleToggleStatus = async (adId: string, currentStatus: string) => {
     if (!db) return
-    
-    // Bloqueio de segurança: o usuário não pode ativar campanhas pendentes
     if (currentStatus !== 'Ativo' && currentStatus !== 'Pausado') {
-      toast({ 
-        variant: "destructive", 
-        title: "Ação não permitida", 
-        description: "Campanhas pendentes só podem ser ativadas após aprovação administrativa." 
-      });
+      toast({ variant: "destructive", title: "Ação não permitida", description: "Campanhas pendentes só podem ser ativadas após aprovação administrativa." });
       return;
     }
-
     const newStatus = currentStatus === 'Ativo' ? 'Pausado' : 'Ativo'
     setActionLoadingId(adId)
     try { 
@@ -282,12 +274,9 @@ export default function OrganizationAdsPage() {
       if (ad.status === 'Ativo') acc.active++; 
       return acc
     }, { reach: 0, uniqueReach: 0, clicks: 0, active: 0 })
-    
     const ctr = res.reach > 0 ? (res.clicks / res.reach) * 100 : 0
     return { ...res, avgCtr: ctr }
   }, [ads])
-
-  if (orgLoading || adsLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -320,7 +309,7 @@ export default function OrganizationAdsPage() {
                     <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Evento</Label>
                     <Select value={selectedEventId} onValueChange={setSelectedEventId} required><SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Escolha um evento" /></SelectTrigger><SelectContent className="rounded-xl">{myEvents?.map((ev: any) => (<SelectItem key={ev.id} value={ev.id}>{ev.title}</SelectItem>))}</SelectContent></Select></div>
                   ) : adType === 'pagina' ? (
-                    <div className="p-4 bg-muted/50 rounded-2xl border border-dashed flex items-center gap-3"><CheckCircle2 className="w-5 h-5 text-green-500" /><p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">Promoveremos @{currentOrg.username} no feed.</p></div>
+                    <div className="p-4 bg-muted/50 rounded-2xl border border-dashed flex items-center gap-3"><CheckCircle2 className="w-5 h-5 text-green-500" /><p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">Promoveremos @{currentOrg?.username} no feed.</p></div>
                   ) : (
                     <><div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Título</Label><Input name="title" required className="rounded-xl h-11" /></div>
                     <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Link</Label><Input name="url" type="url" className="rounded-xl h-11" /></div>
@@ -385,13 +374,11 @@ export default function OrganizationAdsPage() {
                    <div className="col-span-2 text-[10px] font-black uppercase tracking-widest opacity-40 text-right">Investimento</div>
                    <div className="col-span-3 text-[10px] font-black uppercase tracking-widest opacity-40 text-right">Ações</div>
                 </div>
-
                 <div className="divide-y">
                    {ads.map((ad: any) => {
                      const isFinished = ad.status === 'Finalizado' || ad.status === 'Cancelado';
                      const canToggle = ad.status === 'Ativo' || ad.status === 'Pausado';
                      const ctr = ad.reach > 0 ? (ad.clicks / ad.reach) * 100 : 0;
-                     
                      return (
                        <div key={ad.id} className={cn("px-8 py-6 grid grid-cols-12 gap-4 items-center transition-colors hover:bg-muted/5", isFinished && "opacity-60")}>
                          <div className="col-span-3 flex gap-3">
@@ -409,42 +396,21 @@ export default function OrganizationAdsPage() {
                              </div>
                            </div>
                          </div>
-
-                         <div className="col-span-1 text-center">
-                            <span className="font-black text-sm">{ad.reach?.toLocaleString() || 0}</span>
-                         </div>
-                         <div className="col-span-1 text-center">
-                            <span className="font-black text-sm text-secondary">{ad.uniqueReach?.toLocaleString() || 0}</span>
-                         </div>
-                         <div className="col-span-1 text-center">
-                            <span className="font-black text-sm text-primary">{ad.clicks?.toLocaleString() || 0}</span>
-                         </div>
-                         <div className="col-span-1 text-center">
-                            <span className="font-black text-xs bg-muted px-2 py-0.5 rounded-full">{ctr.toFixed(2)}%</span>
-                         </div>
-
+                         <div className="col-span-1 text-center"><span className="font-black text-sm">{ad.reach?.toLocaleString() || 0}</span></div>
+                         <div className="col-span-1 text-center"><span className="font-black text-sm text-secondary">{ad.uniqueReach?.toLocaleString() || 0}</span></div>
+                         <div className="col-span-1 text-center"><span className="font-black text-sm text-primary">{ad.clicks?.toLocaleString() || 0}</span></div>
+                         <div className="col-span-1 text-center"><span className="font-black text-xs bg-muted px-2 py-0.5 rounded-full">{ctr.toFixed(2)}%</span></div>
                          <div className="col-span-2 text-right space-y-0.5">
                             <p className="font-black text-xs">{formatCurrency(ad.initialBudget || ad.budget || 0)}</p>
                             <p className="text-[8px] font-bold text-secondary uppercase">Saldo: {formatCurrency(isFinished ? ad.refundedAmount || 0 : ad.remainingBudget || 0)}</p>
                          </div>
-
                          <div className="col-span-3 flex items-center justify-end gap-2">
                             <Button variant="outline" size="sm" className="h-8 rounded-lg border-secondary/20 text-secondary gap-1.5 font-bold text-[9px] uppercase" onClick={() => setSelectedAdForMetrics(ad)}>
                                <TrendingUp className="w-3.5 h-3.5" /> Métricas
                             </Button>
                             {!isFinished && (
                               <div className="flex items-center gap-1">
-                                 <Button 
-                                   variant="outline" 
-                                   size="icon" 
-                                   className={cn(
-                                     "h-8 w-8 rounded-lg border-secondary/20 text-secondary transition-opacity",
-                                     !canToggle && "opacity-30 cursor-not-allowed"
-                                   )} 
-                                   onClick={() => canToggle && handleToggleStatus(ad.id, ad.status)} 
-                                   disabled={actionLoadingId === ad.id || !canToggle}
-                                   title={ad.status === 'Pendente' ? "Aguardando aprovação administrativa" : (ad.status === 'Ativo' ? "Pausar" : "Retomar")}
-                                 >
+                                 <Button variant="outline" size="icon" className={cn("h-8 w-8 rounded-lg border-secondary/20 text-secondary transition-opacity", !canToggle && "opacity-30 cursor-not-allowed")} onClick={() => canToggle && handleToggleStatus(ad.id, ad.status)} disabled={actionLoadingId === ad.id || !canToggle}>
                                     {ad.status === 'Ativo' ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                                  </Button>
                                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => setAdToCancel(ad)} disabled={actionLoadingId === ad.id}>
@@ -471,7 +437,6 @@ export default function OrganizationAdsPage() {
               <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Métricas de Performance</DialogTitle>
               <DialogDescription className="font-bold text-secondary uppercase">{selectedAdForMetrics?.eventTitle}</DialogDescription>
            </DialogHeader>
-           
            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div className="p-4 bg-muted/30 rounded-2xl text-center">
                  <p className="text-[9px] font-black uppercase opacity-40">Visu. Totais</p>
@@ -486,7 +451,6 @@ export default function OrganizationAdsPage() {
                  <p className="text-xl font-black text-primary">{selectedAdForMetrics?.clicks?.toLocaleString()}</p>
               </div>
            </div>
-
            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-6">
               <div className="space-y-6">
                  <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Users className="w-4 h-4" /> Perfil de Gênero</h4>

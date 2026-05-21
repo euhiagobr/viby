@@ -127,7 +127,8 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }
   
   React.useEffect(() => {
-    if (!isSponsored || !event.adId || !db || !adsSettings || hasTrackedImpression.current) return
+    // Se o usuário está logado, esperamos o perfil carregar para ter dados demográficos precisos
+    if (!isSponsored || !event.adId || !db || !adsSettings || hasTrackedImpression.current || (user && !userProfile)) return
 
     const observer = new IntersectionObserver(
       async (entries) => {
@@ -152,7 +153,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
               await setDoc(viewerRef, { timestamp: serverTimestamp() });
               updateData.uniqueReach = increment(1);
               
-              // Incrementa demografia APENAS para novos usuários únicos
               const demoUpdate = getDemographicsUpdate();
               Object.assign(updateData, demoUpdate);
             }
@@ -236,7 +236,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         clicks: increment(1),
         remainingBudget: increment(-cpcValue),
         updatedAt: serverTimestamp(),
-        // Cliques incrementam demografia de clique para análise de interesse repetido
         ...Object.keys(demoUpdate).reduce((acc: any, key) => {
           acc[key.replace('stats_', 'click_stats_')] = increment(1);
           return acc;

@@ -90,7 +90,8 @@ export function AdCard({ ad }: AdCardProps) {
   }
 
   React.useEffect(() => {
-    if (!db || !adsSettings || hasTrackedImpression.current || !adId) return
+    // Se o usuário está logado, esperamos o perfil carregar para ter dados demográficos precisos
+    if (!db || !adsSettings || hasTrackedImpression.current || !adId || (user && !userProfile)) return
 
     const observer = new IntersectionObserver(
       async (entries) => {
