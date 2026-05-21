@@ -118,14 +118,12 @@ export default function EventoDetalhesPage() {
   const eventRef = React.useMemo(() => db ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
   
-  // Agora buscamos os dados da ORGANIZAÇÃO diretamente, não do perfil pessoal do usuário
   const organizationRef = React.useMemo(() => 
     (db && event?.organizationId) ? doc(db, "organizations", event.organizationId) : null, 
     [db, event?.organizationId]
   )
   const { data: organizationProfile } = useDoc<any>(organizationRef)
 
-  // Perfil pessoal do dono para fins de cálculo de plano/taxas (owner)
   const ownerRef = React.useMemo(() => 
     (db && event?.organizerId) ? doc(db, "users", event.organizerId) : null, 
     [db, event?.organizerId]
@@ -135,20 +133,18 @@ export default function EventoDetalhesPage() {
   const currentUserRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: currentUserProfile } = useDoc<any>(currentUserRef)
 
+  // Consulta de disponibilidade: aberta a todos para calcular estoque real
+  const availabilityQuery = useMemoFirebase(() => {
+    if (!db || !eventId) return null
+    return query(collection(db, "registrations"), where("eventId", "==", eventId))
+  }, [db, eventId])
+  const { data: allRegistrations } = useCollection<any>(availabilityQuery)
+
   const userRegistrationQuery = useMemoFirebase(() => {
     if (!db || !eventId || !user) return null
     return query(collection(db, "registrations"), where("eventId", "==", eventId), where("userId", "==", user.uid))
   }, [db, eventId, user])
   const { data: userRegistrations } = useCollection<any>(userRegistrationQuery)
-
-  const adminRegistrationsQuery = useMemoFirebase(() => {
-    if (!db || !eventId || !user || !event) return null
-    const isOrganizer = user.uid === event.organizerId;
-    if (!isOrganizer) return null;
-
-    return query(collection(db, "registrations"), where("eventId", "==", eventId))
-  }, [db, eventId, user, event])
-  const { data: allRegistrations } = useCollection<any>(adminRegistrationsQuery)
   
   const [hasAtLeastOneRegistration, setHasAtLeastOneRegistration] = React.useState(false)
   const [registering, setRegistering] = React.useState(false)
@@ -172,7 +168,7 @@ export default function EventoDetalhesPage() {
     if (!event) return
 
     const checkAvailability = () => {
-      const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }))
+      const now = new Date()
       const batches = event.batches || []
       
       if (batches.length === 0) {
@@ -188,10 +184,11 @@ export default function EventoDetalhesPage() {
         return acc
       }, {})
 
-      let foundBatch = null
-      let allSoldOut = true
-      let allEnded = true
-      let anyUpcoming = false
+      let currentSaleStatus: 'open' | 'pending' | 'ended' | 'soldout' = 'ended'
+      let foundActiveBatch = null
+      let hasUpcoming = false
+      let hasSoldOut = false
+      let hasEnded = false
 
       const updatedBatches = batches.map((batch: any) => {
         const start = batch.startDate ? new Date(batch.startDate) : null
@@ -208,42 +205,40 @@ export default function EventoDetalhesPage() {
 
         if (!isStarted) {
           status = 'upcoming'
-          anyUpcoming = true
+          hasUpcoming = true
         } else if (!isNotEnded) {
           status = 'ended'
+          hasEnded = true
         } else if (!hasStock) {
           status = 'soldout'
+          hasSoldOut = true
         } else {
           status = 'open'
-          if (!foundBatch) {
-             foundBatch = { ...batch, remaining: remainingStock }
-             setSaleStatus('open')
+          if (!foundActiveBatch) {
+            foundActiveBatch = { ...batch, remaining: Math.max(0, remainingStock) }
+            currentSaleStatus = 'open'
           }
         }
 
-        if (hasStock && status !== 'ended') allSoldOut = false
-        if (isNotEnded) allEnded = false
-
-        return { ...batch, remaining: remainingStock, status, sales: currentSales }
+        return { ...batch, remaining: Math.max(0, remainingStock), status, sales: currentSales }
       })
 
       setBatchesStatus(updatedBatches)
+      setActiveBatch(foundActiveBatch)
 
-      if (foundBatch) {
-        setActiveBatch(foundBatch)
-      } else if (allSoldOut) {
-        setSaleStatus('soldout')
-      } else if (allEnded) {
-        setSaleStatus('ended')
-      } else if (anyUpcoming) {
+      if (currentSaleStatus === 'open') {
+        setSaleStatus('open')
+      } else if (hasUpcoming) {
         setSaleStatus('pending')
+      } else if (hasSoldOut) {
+        setSaleStatus('soldout')
       } else {
         setSaleStatus('ended')
       }
     }
 
     checkAvailability()
-    const timer = setInterval(checkAvailability, 30000)
+    const timer = setInterval(checkAvailability, 15000)
     return () => clearInterval(timer)
   }, [event, allRegistrations])
 
@@ -291,7 +286,7 @@ export default function EventoDetalhesPage() {
         setAppliedCoupon(null)
       } else {
         const coupon = { ...snap.docs[0].data(), id: snap.docs[0].id }
-        const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }))
+        const now = new Date()
         
         const validFrom = coupon.validFrom ? new Date(coupon.validFrom) : null
         const validUntil = coupon.validUntil ? new Date(coupon.validUntil) : null
@@ -515,7 +510,6 @@ export default function EventoDetalhesPage() {
   const start = formatDateTime(event.date);
   const end = formatDateTime(event.endDate);
 
-  // PRIORIZA DADOS DA ORGANIZAÇÃO
   const orgName = organizationProfile?.name || event.organizer?.name || "Organizador";
   const orgAvatar = organizationProfile?.avatar || event.organizer?.avatar;
   const orgIsVerified = organizationProfile?.verified ?? event.organizer?.isVerified;
@@ -718,12 +712,6 @@ export default function EventoDetalhesPage() {
                      src={embedUrl}
                      className="grayscale opacity-80 contrast-125"
                    ></iframe>
-                   <div className="absolute top-4 left-4">
-                      <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2">
-                         <MapPin className="w-4 h-4 text-secondary" />
-                         <span className="text-[10px] font-black uppercase tracking-tight">Local Confirmado</span>
-                      </div>
-                   </div>
                 </div>
               </CardContent>
             </Card>
@@ -738,7 +726,7 @@ export default function EventoDetalhesPage() {
                  <DialogContent className="rounded-[2rem]">
                    <DialogHeader>
                      <DialogTitle className="text-xl font-black italic uppercase tracking-tighter">Denunciar este evento?</DialogTitle>
-                     <DialogDescription>Ajude-nos a manter o {siteName} seguro. Selecione o motivo e descreva o problema.</DialogDescription>
+                     <DialogDescription>Ajude-nos a manter o {siteName} seguro.</DialogDescription>
                    </DialogHeader>
                    <div className="space-y-4 py-4">
                      <div className="space-y-2">

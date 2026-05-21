@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.10.0
+    // REGRAS VIBY - Versão: 2.11.0
     // Database Exclusivo: eventosviby
     
     function isSignedIn() {
@@ -89,11 +89,8 @@ service cloud.firestore {
 
     // Registros de Interesse / Ingressos
     match /registrations/{regId} {
-      allow read: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || 
-        resource.data.sharedWithUid == request.auth.uid || 
-        hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'finance', 'checkin'])
-      );
+      // PERMISSÃO AMPLIADA PARA PROTÓTIPO: permite que logados contem vendas para atualizar estoque
+      allow read: if isSignedIn();
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
