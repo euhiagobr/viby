@@ -1,9 +1,8 @@
-
 "use client"
 
 import * as React from "react"
-import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
-import { collection, query, where, doc, updateDoc, getDocs, writeBatch } from "firebase/firestore"
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
+import { collection, query, where, doc, writeBatch, getDocs } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { 
@@ -20,12 +19,10 @@ import {
   Users,
   Trash2,
   TicketPercent,
-  Search,
   Megaphone
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   DropdownMenu,
@@ -58,15 +55,21 @@ export default function MeusEventosPage() {
     return query(collection(db, "events"), where("organizationId", "==", currentOrg.id))
   }, [db, currentOrg?.id])
 
-  const { data: events, loading: eventsLoading } = useCollection<any>(myEventsQuery)
+  const { data: rawEvents, loading: eventsLoading } = useCollection<any>(myEventsQuery)
+
+  const events = React.useMemo(() => {
+    if (!rawEvents) return [];
+    return [...rawEvents]
+      .filter((e: any) => e.status !== 'Excluído')
+      .sort((a, b) => {
+        const tA = a.createdAt?.seconds || 0;
+        const tB = b.createdAt?.seconds || 0;
+        return tB - tA;
+      });
+  }, [rawEvents]);
 
   const [eventToDelete, setEventToDelete] = React.useState<{id: string, title: string} | null>(null)
   const [isDeleting, setIsDeleting] = React.useState(false)
-
-  const activeEvents = React.useMemo(() => {
-    if (!events) return []
-    return events.filter((e: any) => e.status !== 'Excluído')
-  }, [events])
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
 
@@ -190,7 +193,7 @@ export default function MeusEventosPage() {
         <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {activeEvents?.map((event: any) => {
+          {events?.map((event: any) => {
             const time = formatTime(event.date);
             const username = currentOrg.username;
             const eventLink = `/${username}/${event.id}`;

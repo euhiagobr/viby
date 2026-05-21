@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, limit, orderBy } from 'firebase/firestore';
+import { collection, query, where, limit } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -41,13 +41,23 @@ export default function OrganizationDashboardPage() {
     if (!db || !currentOrg) return null;
     return query(
       collection(db, 'events'), 
-      where('organizationId', '==', currentOrg.id),
-      where('status', '!=', 'Excluído'),
-      limit(5)
+      where('organizationId', '==', currentOrg.id)
     );
   }, [db, currentOrg?.id]);
 
-  const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery);
+  const { data: rawEvents, loading: eventsLoading } = useCollection<any>(eventsQuery);
+
+  const events = React.useMemo(() => {
+    if (!rawEvents) return [];
+    return [...rawEvents]
+      .filter(e => e.status !== 'Excluído')
+      .sort((a, b) => {
+        const tA = a.createdAt?.seconds || 0;
+        const tB = b.createdAt?.seconds || 0;
+        return tB - tA;
+      })
+      .slice(0, 5);
+  }, [rawEvents]);
 
   const membersQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null;

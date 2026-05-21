@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -36,20 +36,32 @@ export default function OrganizationEventsPage() {
   const db = useFirestore();
   const [search, setSearch] = React.useState("");
 
+  // Removido orderBy para evitar necessidade de índices compostos em ambiente de protótipo
   const eventsQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null;
     return query(
       collection(db, 'events'), 
-      where('organizationId', '==', currentOrg.id),
-      orderBy('createdAt', 'desc')
+      where('organizationId', '==', currentOrg.id)
     );
   }, [db, currentOrg?.id]);
 
-  const { data: events, loading } = useCollection<any>(eventsQuery);
+  const { data: rawEvents, loading } = useCollection<any>(eventsQuery);
+
+  const events = React.useMemo(() => {
+    if (!rawEvents) return [];
+    // Ordenação manual em memória (descendente por createdAt)
+    return [...rawEvents].sort((a, b) => {
+      const tA = a.createdAt?.seconds || 0;
+      const tB = b.createdAt?.seconds || 0;
+      return tB - tA;
+    });
+  }, [rawEvents]);
 
   const filteredEvents = React.useMemo(() => {
-    if (!events) return [];
-    return events.filter(e => e.title?.toLowerCase().includes(search.toLowerCase()));
+    return events.filter(e => 
+      e.status !== 'Excluído' && 
+      e.title?.toLowerCase().includes(search.toLowerCase())
+    );
   }, [events, search]);
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
@@ -104,8 +116,8 @@ export default function OrganizationEventsPage() {
                 )}
                 <div className="absolute top-3 right-3">
                    <Badge className={cn(
-                     "uppercase text-[9px] font-black px-2.5 h-6",
-                     event.status === 'Ativo' ? 'bg-green-500' : 'bg-muted text-muted-foreground'
+                     "uppercase text-[9px] font-black px-2.5 h-6 shadow-sm",
+                     event.status === 'Ativo' ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground'
                    )}>
                      {event.status === 'Ativo' ? 'Publicado' : 'Rascunho'}
                    </Badge>
@@ -123,7 +135,7 @@ export default function OrganizationEventsPage() {
                       <DropdownMenuContent align="end" className="rounded-xl w-48">
                          <DropdownMenuItem asChild>
                             <Link href={`/${currentOrg?.username}/${event.id}`} target="_blank" className="flex items-center gap-2 cursor-pointer py-2">
-                               <Eye className="w-4 h-4" /> Ver Anúncio
+                               <Eye className="w-4 h-4" /> Ver Público
                             </Link>
                          </DropdownMenuItem>
                          <DropdownMenuItem asChild>
