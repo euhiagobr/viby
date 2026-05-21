@@ -206,10 +206,10 @@ export default function CarrinhoPage() {
             organizerUsername: item.organizerUsername,
             ticketBasePrice: item.price,
             discountApplied: currentItemDiscount,
-            price: breakdown.customerFinalPrice,
-            administrativeFeeAmount: breakdown.administrativeFeeAmount,
-            producerFeeAmount: 0,
-            producerNetAmount: breakdown.producerNetAmount,
+            price: breakdown.customerFinalPrice, // O que o cliente pagou (com 15%)
+            administrativeFeeAmount: breakdown.administrativeFeeAmount, // Receita Viby Parte 1 (15%)
+            producerFeeAmount: breakdown.producerFeeAmount, // Receita Viby Parte 2 (Custo do Plano)
+            producerNetAmount: breakdown.producerNetAmount, // Valor real que o produtor recebe
             batchId: item.batchId,
             batchName: item.batchName,
             ticketTypeId: item.ticketTypeId,
@@ -330,7 +330,7 @@ export default function CarrinhoPage() {
                            <div><Badge variant="outline" className="text-[9px] font-black uppercase border-secondary text-secondary">{item.ticketTypeName}</Badge></div>
                            <div className="flex items-center gap-6">
                               <div className="flex items-center gap-3"><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => updateQuantity(item.id, item.quantity - 1)}><Minus className="w-3 h-3" /></Button><span className="font-black text-sm">{item.quantity}</span><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => updateQuantity(item.id, item.quantity + 1)}><Plus className="w-3 h-3" /></Button></div>
-                              <div className="text-right"><p className="text-lg font-black text-primary">{formatCurrency(res.customerFinalPrice * item.quantity)}</p><p className="text-[8px] font-bold text-muted-foreground uppercase">Taxa: {formatCurrency(res.administrativeFeeAmount * item.quantity)} incl.</p></div>
+                              <div className="text-right"><p className="text-lg font-black text-primary">{formatCurrency(res.customerFinalPrice * item.quantity)}</p><p className="text-[8px] font-bold text-muted-foreground uppercase">Taxa Adm: {formatCurrency(res.administrativeFeeAmount * item.quantity)} incl.</p></div>
                            </div>
                         </div>
                      </CardContent>
@@ -356,9 +356,9 @@ export default function CarrinhoPage() {
               <CardHeader><CardTitle className="text-xl font-black italic uppercase tracking-tighter">Resumo da Compra</CardTitle></CardHeader>
               <CardContent className="space-y-6">
                  <div className="space-y-4">
-                    <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Subtotal</span><span>{formatCurrency(cartTotals.subtotal)}</span></div>
+                    <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Subtotal (Ingressos)</span><span>{formatCurrency(cartTotals.subtotal)}</span></div>
                     {cartTotals.discount > 0 && <div className="flex justify-between text-xs font-black uppercase text-green-600"><span>Desconto</span><span>-{formatCurrency(cartTotals.discount)}</span></div>}
-                    <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Taxas</span><span>{formatCurrency(cartTotals.fees)}</span></div>
+                    <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Taxa Adm. (15%)</span><span>{formatCurrency(cartTotals.fees)}</span></div>
                     <Separator className="bg-border/60" />
                     <div className="flex justify-between items-center"><span className="text-lg font-black uppercase italic">Total</span><span className="text-2xl font-black text-primary">{formatCurrency(cartTotals.total)}</span></div>
                  </div>

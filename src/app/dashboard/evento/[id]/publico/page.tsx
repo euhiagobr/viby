@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -89,8 +88,8 @@ export default function EventoPublicoPage() {
     const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
     
     const financial = (registrations || []).reduce((acc: any, reg: any) => {
-      acc.gross += (reg.price || 0); // Valor total pago pelo cliente
-      acc.net += (reg.producerNetAmount || 0); // O que o produtor de fato recebe
+      acc.gross += (reg.price || 0); // O que o cliente pagou (Ticket + 15%)
+      acc.net += (reg.producerNetAmount || 0); // O que o produtor recebe (Ticket - Plano)
       return acc;
     }, { gross: 0, net: 0 });
 
@@ -339,17 +338,17 @@ export default function EventoPublicoPage() {
         <Card className="border-none shadow-sm bg-card bg-secondary/10">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase text-secondary tracking-widest flex items-center gap-1.5">
-              <TrendingUp className="w-3 h-3" /> Receita Líquida
+              <TrendingUp className="w-3 h-3" /> Receita Líquida Real
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black text-primary">{formatCurrency(stats.net)}</div>
-            <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">Soma dos ingressos (face)</p>
+            <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">Líquido já descontado o seu plano</p>
           </CardContent>
         </Card>
         <Card className="border-none shadow-sm bg-card bg-orange-50/50">
-          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-orange-600 tracking-widest flex items-center gap-1.5"><AlertTriangle className="w-3 h-3" /> Info Taxas</CardTitle></CardHeader>
-          <CardContent><p className="text-[10px] text-orange-800 leading-tight">Os valores exibidos aqui já consideram os descontos automáticos das taxas do seu plano.</p></CardContent>
+          <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-orange-600 tracking-widest flex items-center gap-1.5"><AlertTriangle className="w-3 h-3" /> Transparência</CardTitle></CardHeader>
+          <CardContent><p className="text-[10px] text-orange-800 leading-tight">O valor pago pelo cliente (Bruto) inclui a taxa Viby de 15%. Seu repasse (Líquido) deduz o custo do seu plano.</p></CardContent>
         </Card>
       </div>
 
@@ -378,7 +377,7 @@ export default function EventoPublicoPage() {
                   <TableHead className="font-bold">Dados</TableHead>
                   <TableHead className="font-bold">Tipo / Ingresso</TableHead>
                   <TableHead className="font-bold">Entrada</TableHead>
-                  <TableHead className="font-bold text-right">Líquido</TableHead>
+                  <TableHead className="font-bold text-right">Seu Líquido</TableHead>
                   <TableHead className="font-bold">Código</TableHead>
                   <TableHead className="text-right font-bold">Ações</TableHead>
                 </TableRow>
@@ -420,18 +419,21 @@ export default function EventoPublicoPage() {
                           <TooltipTrigger asChild>
                             <div className="flex flex-col cursor-help">
                               <span className="text-xs font-black text-primary">{formatCurrency(reg.producerNetAmount || 0)}</span>
-                              <Badge variant="ghost" className="text-[7px] p-0 font-bold uppercase opacity-50">Transparente</Badge>
+                              <Badge variant="ghost" className="text-[7px] p-0 font-bold uppercase opacity-50">Ver Breakdown</Badge>
                             </div>
                           </TooltipTrigger>
-                          <TooltipContent className="p-3 space-y-2">
-                             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b pb-1">Breakdown do Pedido</p>
-                             <div className="space-y-1">
-                                <div className="flex justify-between gap-8 text-[10px] font-bold"><span>Valor Base (Ingresso):</span> <span>{formatCurrency(reg.ticketBasePrice)}</span></div>
-                                <div className="flex justify-between gap-8 text-[10px] font-bold text-secondary"><span>Taxa Viby (Comprador):</span> <span>+{formatCurrency(reg.administrativeFeeAmount)}</span></div>
-                                <Separator />
-                                <div className="flex justify-between gap-8 text-[10px] font-black text-primary"><span>Total Pago:</span> <span>{formatCurrency(reg.price)}</span></div>
+                          <TooltipContent className="p-4 space-y-3 w-64">
+                             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b pb-1">Análise da Venda</p>
+                             <div className="space-y-1.5">
+                                <div className="flex justify-between gap-4 text-[10px] font-bold"><span>Valor do Ingresso:</span> <span>{formatCurrency(reg.ticketBasePrice)}</span></div>
+                                <div className="flex justify-between gap-4 text-[10px] font-bold text-red-500"><span>Custo do seu Plano:</span> <span>- {formatCurrency(reg.producerFeeAmount || 0)}</span></div>
+                                <div className="flex justify-between gap-4 text-[10px] font-black text-green-600 pt-1 border-t"><span>Seu Líquido:</span> <span>{formatCurrency(reg.producerNetAmount)}</span></div>
                              </div>
-                             <p className="text-[8px] text-muted-foreground italic mt-2">* No seu modelo atual, a taxa é somada ao valor do ingresso e paga pelo comprador.</p>
+                             <Separator className="my-2" />
+                             <div className="space-y-1.5">
+                                <div className="flex justify-between gap-4 text-[10px] font-medium opacity-60"><span>Taxa Comprador (15%):</span> <span>+ {formatCurrency(reg.administrativeFeeAmount)}</span></div>
+                                <div className="flex justify-between gap-4 text-[11px] font-black text-primary"><span>Total Pago (Stripe):</span> <span>{formatCurrency(reg.price)}</span></div>
+                             </div>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
