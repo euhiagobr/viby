@@ -33,6 +33,8 @@ import {
   RefreshCw
 } from "lucide-react"
 import Link from "next/link"
+import { Separator } from "@/components/ui/separator"
+import { Badge } from "@/components/ui/badge"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 
 interface Batch {

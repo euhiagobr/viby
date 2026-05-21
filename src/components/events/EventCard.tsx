@@ -205,7 +205,8 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     router.push(profileLink)
   }
 
-  const categoryDisplay = event.categoryName || event.type || "Evento";
+  // Prioriza exibir o nome da categoria para melhor indexação visual
+  const categoryDisplay = event.categoryName || "Geral";
 
   return (
     <Card 

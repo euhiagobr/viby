@@ -140,7 +140,6 @@ export default function NovoEventoPage() {
     const query = `${address.street}, ${address.number}, ${address.neighborhood}, ${address.city}, ${address.state}, Brasil`;
     
     try {
-      // Usando Nominatim (OpenStreetMap) para geocodificação gratuita em protótipos
       const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
       const data = await response.json();
       
@@ -172,7 +171,6 @@ export default function NovoEventoPage() {
           city: data.localidade || "",
           state: data.uf || ""
         }))
-        // Tenta geocodificar se já tiver número
         if (address.number) geocodeAddress();
       }
     } catch (e) {}

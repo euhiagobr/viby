@@ -73,10 +73,6 @@ export default function VoucherPage() {
     )
   }
 
-  // Verificação de POSSE ATIVA
-  // Um usuário tem a posse ativa se:
-  // 1. É o destinatário compartilhado E aceitou o ingresso
-  // 2. É o comprador original E não transferiu para ninguém (ou o convite foi cancelado/recusado)
   const isAcceptedHolder = registration.sharedWithUid === user?.uid && registration.transferStatus === 'accepted';
   const isOriginalActiveOwner = registration.userId === user?.uid && !registration.sharedWithUid;
   const isCurrentActivePossessor = isAcceptedHolder || isOriginalActiveOwner;
@@ -142,18 +138,30 @@ export default function VoucherPage() {
             <div className="absolute top-0 -right-4 w-8 h-8 bg-[#f8fafc] rounded-full -translate-y-1/2" />
             
             <div className="grid grid-cols-2 gap-8">
-              <div className="space-y-1">
-                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Data</p>
-                <div className="flex items-center gap-2 font-bold text-sm text-primary">
-                  <Calendar className="w-3.5 h-3.5 text-secondary" />
-                  {formatDate(registration.eventDate)}
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Início</p>
+                  <div className="flex items-center gap-2 font-bold text-xs text-primary">
+                    <Calendar className="w-3 h-3 text-secondary" />
+                    {formatDate(registration.eventDate)}
+                  </div>
+                  <div className="flex items-center gap-2 font-bold text-xs text-primary pl-5">
+                    <Clock className="w-3 h-3 text-secondary" />
+                    {formatTime(registration.eventDate)}
+                  </div>
                 </div>
               </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Horário</p>
-                <div className="flex items-center gap-2 font-bold text-sm text-primary">
-                  <Clock className="w-3.5 h-3.5 text-secondary" />
-                  {formatTime(registration.eventDate)}
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Término</p>
+                  <div className="flex items-center gap-2 font-bold text-xs text-primary">
+                    <Calendar className="w-3 h-3 text-secondary" />
+                    {formatDate(registration.eventEndDate || registration.eventDate)}
+                  </div>
+                  <div className="flex items-center gap-2 font-bold text-xs text-primary pl-5">
+                    <Clock className="w-3 h-3 text-secondary" />
+                    {formatTime(registration.eventEndDate || registration.eventDate)}
+                  </div>
                 </div>
               </div>
             </div>
