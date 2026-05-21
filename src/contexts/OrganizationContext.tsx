@@ -1,8 +1,17 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useAuth, useUser, useFirestore, useCollection } from '@/firebase';
-import { collection, query, where, collectionGroup, getDocs, doc, getDoc } from 'firebase/firestore';
+import { useAuth, useUser, useFirestore } from '@/firebase';
+import { 
+  collection, 
+  query, 
+  where, 
+  collectionGroup, 
+  getDocs, 
+  doc, 
+  getDoc,
+  onSnapshot
+} from 'firebase/firestore';
 
 interface Organization {
   id: string;
@@ -10,6 +19,7 @@ interface Organization {
   username: string;
   avatar?: string;
   plan?: string;
+  verified?: boolean;
 }
 
 interface OrganizationContextType {
@@ -46,59 +56,53 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       return;
     }
 
-    const fetchUserOrgs = async () => {
+    // Listener para as organizações das quais o usuário é membro
+    const membersQuery = query(collectionGroup(db, 'members'), where('userId', '==', user.uid));
+    
+    const unsubscribe = onSnapshot(membersQuery, async (snapshot) => {
       setLoading(true);
       try {
-        // Busca onde o usuário é membro em qualquer organização
-        // Usando collectionGroup para encontrar todas as associações de membros
-        const membersQuery = query(collectionGroup(db, 'members'), where('userId', '==', user.uid));
-        const membersSnap = await getDocs(membersQuery);
-        
-        const orgsData: Organization[] = [];
-        
-        for (const memberDoc of membersSnap.docs) {
+        const orgsPromises = snapshot.docs.map(async (memberDoc) => {
           const orgId = memberDoc.ref.parent.parent?.id;
-          if (orgId) {
-            const orgSnap = await getDoc(doc(db, 'organizations', orgId));
-            if (orgSnap.exists()) {
-              orgsData.push({ id: orgSnap.id, ...orgSnap.data() } as Organization);
-            }
-          }
-        }
+          if (!orgId) return null;
+          const orgSnap = await getDoc(doc(db, 'organizations', orgId));
+          return orgSnap.exists() ? { id: orgSnap.id, ...orgSnap.data() } as Organization : null;
+        });
 
+        const orgsData = (await Promise.all(orgsPromises)).filter((o): o is Organization => o !== null);
         setOrganizations(orgsData);
-        
-        // Mantém a última selecionada ou a primeira da lista
+
+        // Recuperar org ativa do localStorage ou selecionar a primeira
         const savedOrgId = localStorage.getItem('viby_current_org');
         const found = orgsData.find(o => o.id === savedOrgId) || orgsData[0];
         
         if (found) {
           setCurrentOrg(found);
-          // Busca o cargo do usuário nesta org
+          // Buscar a role do usuário nesta org ativa
           const memberRef = doc(db, 'organizations', found.id, 'members', user.uid);
           const memberSnap = await getDoc(memberRef);
           setUserRole(memberSnap.exists() ? memberSnap.data().role : null);
+        } else {
+          setCurrentOrg(null);
+          setUserRole(null);
         }
       } catch (e) {
         console.error("Erro ao carregar organizações:", e);
       } finally {
         setLoading(false);
       }
-    };
+    });
 
-    fetchUserOrgs();
+    return () => unsubscribe();
   }, [db, user]);
 
-  const handleSetCurrentOrg = (org: Organization | null) => {
+  const handleSetCurrentOrg = async (org: Organization | null) => {
     setCurrentOrg(org);
-    if (org) {
+    if (org && db && user) {
       localStorage.setItem('viby_current_org', org.id);
-      // Atualiza role
-      if (db && user) {
-        getDoc(doc(db, 'organizations', org.id, 'members', user.uid)).then(snap => {
-          setUserRole(snap.exists() ? snap.data().role : null);
-        });
-      }
+      const memberRef = doc(db, 'organizations', org.id, 'members', user.uid);
+      const memberSnap = await getDoc(memberRef);
+      setUserRole(memberSnap.exists() ? memberSnap.data().role : null);
     } else {
       localStorage.removeItem('viby_current_org');
       setUserRole(null);
