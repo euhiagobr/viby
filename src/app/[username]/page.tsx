@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useParams, useRouter, usePathname } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
 import { 
   doc, 
@@ -9,12 +9,13 @@ import {
   collection, 
   query, 
   where, 
-  orderBy, 
   limit, 
   getDocs, 
   setDoc, 
   deleteDoc, 
-  serverTimestamp 
+  serverTimestamp,
+  collectionGroup,
+  or
 } from "firebase/firestore"
 import { 
   Loader2, 
@@ -31,7 +32,8 @@ import {
   Building2,
   Bell,
   Plus,
-  Check
+  Check,
+  CheckCircle2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -132,7 +134,7 @@ function ProfileHeader() {
           <>
             <Button variant="ghost" size="icon" className="relative h-9 w-9">
               <Bell className="h-5 w-5" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full border-2 border-background" />
+              {/* Notificação para convites pendentes poderia entrar aqui */}
             </Button>
             <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold border border-border shadow-sm overflow-hidden">
               {user.photoURL ? (
@@ -160,6 +162,8 @@ function UniversalProfileContent() {
   const [data, setData] = React.useState<any>(null)
   const [type, setType] = React.useState<'user' | 'organization' | null>(null)
   const [followActionLoading, setFollowActionLoading] = React.useState(false)
+  const [mergedEvents, setMergedEvents] = React.useState<any[]>([])
+  const [eventsLoading, setEventsLoading] = React.useState(false)
 
   // Resolvedor robusto de username com fallback
   React.useEffect(() => {
@@ -182,7 +186,6 @@ function UniversalProfileContent() {
           targetUid = uData.uid
           resolvedType = uData.type || 'user'
         } else {
-          // Fallback: busca direta nas coleções caso usernames esteja desatualizado
           const usersQuery = query(collection(db, "users"), where("username", "==", username), limit(1))
           const usersSnap = await getDocs(usersQuery)
           if (!usersSnap.empty) {
@@ -217,26 +220,55 @@ function UniversalProfileContent() {
     resolveUsername()
   }, [db, username])
 
-  // Busca eventos se for uma organização
-  const eventsQuery = useMemoFirebase(() => {
-    if (!db || !data?.id || type !== 'organization') return null
-    return query(
-      collection(db, "events"), 
-      where("organizationId", "==", data.id),
-      where("status", "==", "Ativo")
-    )
+  // Busca eventos híbridos (Produzidos + Co-produzidos)
+  React.useEffect(() => {
+    if (!db || !data?.id || type !== 'organization') return
+
+    const fetchAllEvents = async () => {
+      setEventsLoading(true)
+      try {
+        // 1. Eventos produzidos pela marca
+        const qOwned = query(collection(db, "events"), where("organizationId", "==", data.id), where("status", "==", "Ativo"))
+        const snapOwned = await getDocs(qOwned)
+        const owned = snapOwned.docs.map(d => ({ id: d.id, ...d.data(), _source: 'owned' }))
+
+        // 2. Eventos co-produzidos (aceitos)
+        const qPartnered = query(collectionGroup(db, 'partners'), where('orgId', '==', data.id), where('status', '==', 'accepted'))
+        const snapPartnered = await getDocs(qPartnered)
+        const partneredEventIds = snapPartnered.docs.map(d => d.ref.parent.parent?.id).filter(Boolean) as string[]
+
+        let partnered: any[] = []
+        if (partneredEventIds.length > 0) {
+           const chunks = []
+           for (let i = 0; i < partneredEventIds.length; i += 10) {
+             chunks.push(partneredEventIds.slice(i, i + 10))
+           }
+
+           const partneredPromises = chunks.map(chunk => 
+             getDocs(query(collection(db, 'events'), where('__name__', 'in', chunk), where('status', '==', 'Ativo')))
+           )
+           const partneredSnaps = await Promise.all(partneredPromises)
+           partnered = partneredSnaps.flatMap(s => s.docs.map(d => ({ id: d.id, ...d.data(), _source: 'partnered' })))
+        }
+
+        const all = [...owned, ...partnered].sort((a, b) => {
+          const tA = a.createdAt?.seconds || 0
+          const tB = b.createdAt?.seconds || 0
+          return tB - tA
+        })
+
+        // Remove duplicatas se houver
+        const unique = Array.from(new Map(all.map(e => [e.id, e])).values())
+        setMergedEvents(unique)
+      } catch (e) {
+        console.error("Erro ao carregar eventos do perfil:", e)
+      } finally {
+        setEventsLoading(false)
+      }
+    }
+
+    fetchAllEvents()
   }, [db, data?.id, type])
-
-  const { data: rawEvents, loading: eventsLoading } = useCollection<any>(eventsQuery)
-
-  const events = React.useMemo(() => {
-    if (!rawEvents) return [];
-    return [...rawEvents].sort((a, b) => {
-      const tA = a.createdAt?.seconds || 0;
-      const tB = b.createdAt?.seconds || 0;
-      return tB - tA;
-    });
-  }, [rawEvents]);
 
   // Lógica de Seguidores
   const followRelationQuery = useMemoFirebase(() => {
@@ -252,7 +284,6 @@ function UniversalProfileContent() {
   const { data: followRel } = useCollection<any>(followRelationQuery)
   const isFollowing = followRel && followRel.length > 0
 
-  // Contagem de seguidores e seguindo
   const followersCountQuery = useMemoFirebase(() => {
     if (!db || !data?.id) return null
     return query(collection(db, "follows"), where("followingId", "==", data.id))
@@ -322,21 +353,17 @@ function UniversalProfileContent() {
   const avatar = data.avatar || `https://picsum.photos/seed/${data.id}/200/200`
   const isVerified = data.verified === true || data.isVerified === true
 
-  // Helper para formatar ano de criação com segurança contra NaN
   const getCreationYear = (ts: any) => {
     if (!ts) return '---'
     try {
       const date = ts.toDate ? ts.toDate() : new Date(ts)
       if (isNaN(date.getTime())) return '---'
       return date.getFullYear()
-    } catch (e) {
-      return '---'
-    }
+    } catch (e) { return '---' }
   }
 
   return (
     <div className="flex-1">
-       {/* Banner Superior (Apenas Org) */}
        {isOrg && data.banner && (
          <div className="h-48 md:h-64 w-full relative overflow-hidden">
             <img src={data.banner} className="w-full h-full object-cover" alt="Banner" />
@@ -349,7 +376,6 @@ function UniversalProfileContent() {
          isOrg && data.banner ? "-mt-16 relative z-10" : "pt-12 md:pt-20"
        )}>
           <div className="max-w-4xl mx-auto">
-             {/* Header Estilo Instagram */}
              <div className="flex flex-col md:flex-row gap-8 items-center md:items-start mb-12">
                 <div className="shrink-0">
                    <div className="p-1 rounded-full bg-gradient-to-tr from-secondary to-primary shadow-xl">
@@ -395,7 +421,7 @@ function UniversalProfileContent() {
 
                    <div className="flex justify-center md:justify-start gap-8">
                       <div className="flex flex-col md:flex-row items-center gap-1">
-                         <span className="font-bold text-lg">{isOrg ? events?.length || 0 : 0}</span>
+                         <span className="font-bold text-lg">{isOrg ? mergedEvents?.length || 0 : 0}</span>
                          <span className="text-sm text-muted-foreground">{isOrg ? 'Eventos' : 'Publicações'}</span>
                       </div>
                       <div className="flex flex-col md:flex-row items-center gap-1">
@@ -443,7 +469,6 @@ function UniversalProfileContent() {
 
              <Separator className="mb-0" />
 
-             {/* Grade de Conteúdo Estilo Instagram */}
              <Tabs defaultValue="events" className="w-full">
                 <div className="flex justify-center border-t border-transparent">
                   <TabsList className="bg-transparent h-auto p-0 gap-12">
@@ -469,9 +494,9 @@ function UniversalProfileContent() {
                      <div className="py-20 flex justify-center">
                         <Loader2 className="w-8 h-8 animate-spin text-secondary" />
                      </div>
-                   ) : events && events.length > 0 ? (
+                   ) : mergedEvents.length > 0 ? (
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {events.map((event: any) => (
+                        {mergedEvents.map((event: any) => (
                            <EventCard key={event.id} event={event} />
                         ))}
                      </div>

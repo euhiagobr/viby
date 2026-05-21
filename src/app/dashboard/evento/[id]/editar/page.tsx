@@ -1,11 +1,10 @@
-
 "use client"
 
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useFirestore, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { updateDoc, doc, collection, serverTimestamp } from "firebase/firestore"
+import { updateDoc, doc, collection, serverTimestamp, getDoc, setDoc, deleteDoc, query, where, getDocs } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,10 +32,14 @@ import {
   CheckCircle2,
   Ticket,
   Sparkles,
-  Layers
+  Layers,
+  Users,
+  AtSign,
+  X
 } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { cn } from "@/lib/utils"
 import {
@@ -47,6 +50,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { sendPartnerInvitationEmail } from "@/app/actions/email"
 
 interface TicketType {
   id: string
@@ -108,11 +112,28 @@ export default function EditarEventoPage() {
 
   const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
   
+  // Co-organizadores
+  const [coOrganizers, setCoOrganizers] = useState<any[]>([])
+  const [searchUsername, setSearchUsername] = useState("")
+  const [isSearching, setIsSearching] = useState(false)
+
   const [isDistributeOpen, setIsDistributeOpen] = useState(false)
   const [distributeBatchIdx, setDistributeBatchIdx] = useState<number | null>(null)
   const [totalToDistribute, setTotalToDistribute] = useState("")
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
+
+  // Carregar parceiros existentes
+  useEffect(() => {
+    if (!db || !eventId) return
+    const fetchPartners = async () => {
+      const q = collection(db, 'events', eventId, 'partners')
+      const snap = await getDocs(q)
+      const partnersList = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      setCoOrganizers(partnersList)
+    }
+    fetchPartners()
+  }, [db, eventId])
 
   useEffect(() => {
     if (event) {
@@ -159,6 +180,53 @@ export default function EditarEventoPage() {
     } catch (e) {}
   }
 
+  const handleSearchOrg = async () => {
+    if (!db || !searchUsername || !currentOrg) return
+    const usernameInput = searchUsername.toLowerCase().replace('@', '').trim()
+    
+    if (usernameInput === currentOrg.username) {
+      toast({ variant: "destructive", title: "Operação inválida", description: "Você já é o organizador principal." })
+      return
+    }
+
+    setIsSearching(true)
+    try {
+      const usernameRef = doc(db, 'usernames', usernameInput)
+      const usernameSnap = await getDoc(usernameRef)
+
+      if (!usernameSnap.exists() || usernameSnap.data().type !== 'organization') {
+        throw new Error("Organização não encontrada.")
+      }
+
+      const orgId = usernameSnap.data().uid
+      if (coOrganizers.find(o => o.id === orgId)) {
+        throw new Error("Esta organização já foi adicionada.")
+      }
+
+      const orgSnap = await getDoc(doc(db, 'organizations', orgId))
+      if (orgSnap.exists()) {
+        const orgData = orgSnap.data()
+        setCoOrganizers(prev => [...prev, { id: orgSnap.id, ...orgData, _isNew: true }])
+        setSearchUsername("")
+      }
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Busca falhou", description: error.message })
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const handleRemoveOrganizer = async (orgId: string) => {
+    const org = coOrganizers.find(o => o.id === orgId)
+    if (!org) return
+
+    if (!org._isNew && db && eventId) {
+      if (!confirm("Remover esta parceria permanentemente?")) return
+      await deleteDoc(doc(db, 'events', eventId, 'partners', orgId))
+    }
+    setCoOrganizers(coOrganizers.filter(o => o.id !== orgId))
+  }
+
   const handleDistribute = () => {
     if (distributeBatchIdx === null || !totalToDistribute) return
     const total = parseInt(totalToDistribute)
@@ -184,7 +252,7 @@ export default function EditarEventoPage() {
   const updateBatchField = (i: number, f: keyof Batch, v: any) => { const n = [...batches]; n[i] = { ...n[i], [f]: v }; setBatches(n); }
   const addTicketType = (bi: number) => { const n = [...batches]; n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 50, requiresProof: false, isLegalHalf: false, description: "" }); setBatches(n); }
   const removeTicketType = (bi: number, ti: number) => { const n = [...batches]; if(n[bi].ticketTypes.length > 1) { n[bi].ticketTypes.splice(ti, 1); setBatches(n); } }
-  const updateTicketTypeField = (bi: number, ti: number, f: keyof TicketType, v: any) => { n = [...batches]; n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; setBatches(n); }
+  const updateTicketTypeField = (bi: number, ti: number, f: keyof TicketType, v: any) => { const n = [...batches]; n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; setBatches(n); }
 
   const calculateHalfPriceStats = (batch: Batch) => {
     const poolQuantities: Record<string, number> = {}
@@ -215,16 +283,50 @@ export default function EditarEventoPage() {
     const formData = new FormData(e.currentTarget)
     try {
       const cat = categories?.find(c => c.id === selectedCategory)
-      await updateDoc(eventRef, {
+      const eventData = {
         title: formData.get("title") as string,
         description: formData.get("description") as string,
         date: formData.get("startDate") as string, 
         endDate: formData.get("endDate") as string,
-        categoryId: selectedCategory, categoryName: cat?.name || "Outros",
+        categoryId: selectedCategory, 
+        categoryName: cat?.name || "Outros",
         ticketMode, isFree: ticketMode === 'free',
         batches: batches.map(b => ({ ...b, ticketTypes: b.ticketTypes.map(t => ({ ...t, price: parseFloat(t.price as any) || 0, quantity: parseInt(t.quantity as any) || 0 })) })),
         address, image: uploadedImageUrl || event.image || "", city: address.city, updatedAt: serverTimestamp()
-      })
+      }
+      
+      await updateDoc(eventRef, eventData)
+
+      // Criar novas parcerias
+      const newPartners = coOrganizers.filter(o => o._isNew)
+      for (const org of newPartners) {
+        const expiresAt = new Date()
+        expiresAt.setHours(expiresAt.getHours() + 24)
+
+        const partnerRef = doc(db, 'events', eventId, 'partners', org.id)
+        await setDoc(partnerRef, {
+          orgId: org.id,
+          orgName: org.name,
+          orgUsername: org.username,
+          orgAvatar: org.avatar || "",
+          orgType: org.type || "Marca",
+          orgVerified: org.verified || false,
+          status: 'pending',
+          createdAt: serverTimestamp(),
+          expiresAt: expiresAt.toISOString(),
+          eventTitle: eventData.title,
+          inviterOrgName: currentOrg?.name || "Organização"
+        })
+
+        if (org.contactEmail) {
+          await sendPartnerInvitationEmail({
+            to: org.contactEmail,
+            inviterOrgName: currentOrg?.name || "Organização",
+            eventTitle: eventData.title
+          })
+        }
+      }
+
       toast({ title: "Salvo!" }); router.push("/dashboard/projetos")
     } catch (err: any) { toast({ variant: "destructive", title: "Erro ao salvar" }) }
     finally { setSaving(false) }
@@ -311,6 +413,70 @@ export default function EditarEventoPage() {
                   </div>
                 </div>
              </div>
+          </CardContent>
+        </Card>
+
+        {/* CO-ORGANIZADORES */}
+        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
+          <CardHeader className="bg-muted/30 border-b">
+            <CardTitle className="text-lg flex items-center gap-2"><Users className="w-5 h-5 text-secondary" /> Outros Organizadores (Parcerias)</CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 space-y-6">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Buscar marca pelo @username..." 
+                  value={searchUsername}
+                  onChange={(e) => setSearchUsername(e.target.value)}
+                  className="pl-9 h-12 rounded-xl"
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleSearchOrg())}
+                />
+              </div>
+              <Button 
+                type="button" 
+                onClick={handleSearchOrg} 
+                disabled={isSearching || !searchUsername}
+                className="h-12 rounded-xl bg-secondary text-white font-bold px-6"
+              >
+                {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Adicionar
+              </Button>
+            </div>
+
+            {coOrganizers.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {coOrganizers.map((org) => (
+                  <div key={org.id} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-border shadow-sm group">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10 border">
+                        <AvatarImage src={org.avatar || org.orgAvatar} className="object-cover" />
+                        <AvatarFallback className="font-bold">{(org.name || org.orgName)?.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-1.5">
+                           <span className="font-bold text-sm">{org.name || org.orgName}</span>
+                           {(org.verified || org.orgVerified) && <CheckCircle2 className="w-3.5 h-3.5 text-secondary fill-secondary text-white" />}
+                        </div>
+                        <div className="flex items-center gap-2">
+                           <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{org.type || org.orgType || "Marca"}</span>
+                           {org.status === 'pending' && <Badge variant="outline" className="text-[7px] h-3 uppercase">Pendente</Badge>}
+                        </div>
+                      </div>
+                    </div>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-destructive rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => handleRemoveOrganizer(org.id)}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 

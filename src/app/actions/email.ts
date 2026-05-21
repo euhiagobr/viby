@@ -558,6 +558,59 @@ export async function sendTeamInvitationStatusEmail(data: { to: string, userName
 }
 
 /**
+ * Envia convite de parceria para outra organização.
+ */
+export async function sendPartnerInvitationEmail(data: { to: string, inviterOrgName: string, eventTitle: string }) {
+  try {
+    const { smtpUser, smtpPass } = await getEmailConfig();
+
+    const html = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 20px; overflow: hidden;">
+        <div style="background: #000; color: white; padding: 40px; text-align: center;">
+          <h1 style="margin:0; font-style: italic;">VIBY.CLUB</h1>
+        </div>
+        <div style="padding: 40px;">
+          <h2>Convite de Parceria em Evento</h2>
+          <p>Olá! A organização <strong>${data.inviterOrgName}</strong> convidou sua marca para figurar como co-produtora do evento <strong>${data.eventTitle}</strong>.</p>
+          <p>Ao aceitar, o evento aparecerá no seu perfil público e na sua lista de eventos, aumentando o alcance da sua marca.</p>
+          <p>Você tem <strong>24 horas</strong> para aceitar este convite.</p>
+          <div style="text-align: center; margin: 40px 0;">
+            <a href="https://viby.club/dashboard/solicitacoes" style="background: #0095f6; color: white; padding: 15px 30px; text-decoration: none; border-radius: 10px; font-weight: bold;">Ver Solicitação</a>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const subject = `🤝 Convite de Parceria: ${data.eventTitle}`;
+
+    await logEmail({
+      sender: data.inviterOrgName,
+      recipientName: "Responsável da Organização",
+      recipientEmail: data.to,
+      subject: subject,
+      content: html,
+      type: "partner_invitation"
+    });
+
+    if (!smtpUser || !smtpPass) return { success: false };
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com', port: 465, secure: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    await transporter.sendMail({
+      from: `"Viby.Club" <${smtpUser}>`,
+      to: data.to,
+      subject: subject,
+      html
+    });
+
+    return { success: true };
+  } catch (e) { return { success: false }; }
+}
+
+/**
  * Reenvia um e-mail a partir dos dados do log de auditoria.
  * Aceita o log completo para evitar leitura no Firestore no servidor (onde estaria desautenticado).
  */

@@ -35,6 +35,7 @@ interface OrganizationContextType {
   setCurrentOrg: (org: Organization | null) => void;
   organizations: Organization[];
   pendingInvitations: any[];
+  pendingPartnerships: any[];
   loading: boolean;
   userRole: string | null;
   refreshOrg: () => Promise<void>;
@@ -45,6 +46,7 @@ const OrganizationContext = createContext<OrganizationContextType>({
   setCurrentOrg: () => {},
   organizations: [],
   pendingInvitations: [],
+  pendingPartnerships: [],
   loading: true,
   userRole: null,
   refreshOrg: async () => {},
@@ -60,6 +62,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
+  const [pendingPartnerships, setPendingPartnerships] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
 
@@ -88,7 +91,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             const orgId = memberDoc.ref.parent.parent?.id;
             if (!orgId) return null;
 
-            // Membro aceito ou sem status (legacy)
             if (mData.status === 'accepted' || !mData.status) {
               const orgSnap = await getDoc(doc(db, 'organizations', orgId));
               if (orgSnap.exists()) {
@@ -116,7 +118,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             setOrganizations(orgsData);
             setPendingInvitations(pingsData);
             
-            // Sincroniza cargo da org selecionada se ela ainda estiver na lista
             if (currentOrg) {
               const updatedActive = orgsData.find(o => o.id === currentOrg.id);
               if (updatedActive) {
@@ -142,6 +143,28 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     };
   }, [db, user]);
 
+  // Sincroniza convites de PARCERIA (Co-organização)
+  useEffect(() => {
+    if (!db || organizations.length === 0) {
+      setPendingPartnerships([]);
+      return;
+    }
+
+    const orgIds = organizations.map(o => o.id);
+    const partnersQuery = query(collectionGroup(db, 'partners'), where('orgId', 'in', orgIds), where('status', '==', 'pending'));
+
+    const unsubscribe = onSnapshot(partnersQuery, (snapshot) => {
+      const pData = snapshot.docs.map(d => ({
+        id: d.id,
+        eventId: d.ref.parent.parent?.id,
+        ...d.data()
+      }));
+      setPendingPartnerships(pData);
+    });
+
+    return () => unsubscribe();
+  }, [db, organizations]);
+
   // Sincroniza org atual baseada na URL ou memória
   useEffect(() => {
     if (!db || !user || loading) return;
@@ -156,7 +179,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           setUserRole(found._memberData?.role || null);
         }
       } else {
-        // Busca direta caso não esteja no cache imediato (deep link)
         const q = query(collection(db, 'organizations'), where('username', '==', usernameFromUrl), limit(1));
         getDocs(q).then(async (snap) => {
           if (!snap.empty) {
@@ -207,6 +229,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       setCurrentOrg: handleSetCurrentOrg, 
       organizations, 
       pendingInvitations,
+      pendingPartnerships,
       loading,
       userRole,
       refreshOrg

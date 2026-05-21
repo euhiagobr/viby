@@ -1,10 +1,9 @@
-
 "use client"
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, collection, query, where } from "firebase/firestore"
+import { doc, collection, query, where, getDocs } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,12 +25,11 @@ import {
   Plus,
   Minus,
   Map as MapIcon,
-  Navigation
+  Navigation,
+  Users
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
-import { errorEmitter } from "@/firebase/error-emitter"
-import { FirestorePermissionError } from "@/firebase/errors"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/financial-utils"
@@ -57,6 +55,13 @@ export default function EventoDetalhesPage() {
 
   const mapsSettingsRef = React.useMemo(() => db ? doc(db, 'settings', 'maps') : null, [db])
   const { data: mapsSettings } = useDoc<any>(mapsSettingsRef)
+
+  // Outros Organizadores (Aceitos)
+  const partnersQuery = useMemoFirebase(() => {
+    if (!db || !eventId) return null
+    return query(collection(db, "events", eventId, "partners"), where("status", "==", "accepted"))
+  }, [db, eventId])
+  const { data: acceptedPartners } = useCollection<any>(partnersQuery)
 
   const availabilityQuery = useMemoFirebase(() => {
     if (!db || !eventId) return null
@@ -173,7 +178,6 @@ export default function EventoDetalhesPage() {
 
   const mapQuery = encodeURIComponent(fullAddress);
   
-  // Lógica do Mapa: Se tiver API Key usa o Embed oficial, senão usa o modo busca simplificado
   const mapsApiKey = mapsSettings?.apiKey;
   const mapUrl = mapsApiKey 
     ? `https://www.google.com/maps/embed/v1/place?key=${mapsApiKey}&q=${mapQuery}`
@@ -329,8 +333,9 @@ export default function EventoDetalhesPage() {
                  </CardContent>
               </Card>
 
+              {/* ORGANIZADOR PRINCIPAL */}
               <Card className="border-none shadow-sm bg-white rounded-[2rem]">
-                 <CardHeader className="pb-2"><CardTitle className="text-xs uppercase font-black text-muted-foreground tracking-widest">Organizador</CardTitle></CardHeader>
+                 <CardHeader className="pb-2"><CardTitle className="text-xs uppercase font-black text-muted-foreground tracking-widest">Realização</CardTitle></CardHeader>
                  <CardContent className="space-y-6">
                     <div className="flex items-center gap-4">
                        <Avatar className="h-14 w-14 border-2 border-secondary/20 p-0.5">
@@ -342,14 +347,45 @@ export default function EventoDetalhesPage() {
                              <h4 className="font-bold text-base leading-none">{orgName}</h4>
                              {isVerified && <ShieldCheck className="w-4 h-4 text-secondary" />}
                           </div>
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase">Promotor de Eventos</p>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase">{organizationProfile?.type || "Organizador"}</p>
                        </div>
+                       <Button variant="ghost" size="icon" className="ml-auto rounded-full" asChild>
+                          <Link href={`/${usernameFromUrl}`}><ExternalLink className="w-4 h-4 text-muted-foreground" /></Link>
+                       </Button>
                     </div>
-                    <Button variant="outline" className="w-full rounded-xl text-xs font-bold gap-2 h-11" asChild>
-                       <Link href={`/${usernameFromUrl}`}>Ver Perfil Completo <ExternalLink className="w-3.5 h-3.5" /></Link>
-                    </Button>
                  </CardContent>
               </Card>
+
+              {/* OUTROS ORGANIZADORES (PARCEIROS ACEITOS) */}
+              {acceptedPartners && acceptedPartners.length > 0 && (
+                <Card className="border-none shadow-sm bg-white rounded-[2rem]">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xs uppercase font-black text-muted-foreground tracking-widest flex items-center gap-2">
+                      <Users className="w-4 h-4 text-secondary" /> Outros Organizadores
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {acceptedPartners.map((partner: any) => (
+                      <div key={partner.id} className="flex items-center gap-3 p-3 bg-muted/20 rounded-2xl border border-transparent hover:border-secondary/20 transition-all group">
+                         <Avatar className="h-10 w-10 border border-muted">
+                            <AvatarImage src={partner.orgAvatar} className="object-cover" />
+                            <AvatarFallback className="font-bold">{partner.orgName.charAt(0)}</AvatarFallback>
+                         </Avatar>
+                         <div className="space-y-0.5 flex-1">
+                            <div className="flex items-center gap-1.5">
+                               <span className="font-bold text-sm leading-none">{partner.orgName}</span>
+                               {partner.orgVerified && <ShieldCheck className="w-3 h-3 text-secondary" />}
+                            </div>
+                            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-tighter">{partner.orgType}</p>
+                         </div>
+                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full opacity-40 group-hover:opacity-100" asChild>
+                            <Link href={`/${partner.orgUsername}`}><ExternalLink className="w-3.5 h-3.5" /></Link>
+                         </Button>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
            </div>
         </div>
       </div>
