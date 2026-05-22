@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -21,7 +20,9 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   FilterX,
-  FileSpreadsheet
+  FileSpreadsheet,
+  XCircle,
+  Ticket
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -41,6 +42,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/financial-utils"
