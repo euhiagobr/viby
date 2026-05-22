@@ -11,7 +11,7 @@ import {
   updateDoc, 
   serverTimestamp, 
   increment, 
-  addDoc, 
+  setDoc,
   orderBy, 
   limit
 } from 'firebase/firestore';
@@ -39,7 +39,7 @@ import {
   Zap,
   Lock
 } from 'lucide-react';
-import { formatCurrency, calculateFinancialBreakdown } from '@/lib/financial-utils';
+import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -56,6 +56,8 @@ import { toast } from '@/hooks/use-toast';
 import { createAdBalanceTopUpSession } from '@/app/actions/stripe';
 import Link from 'next/link';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function OrganizationFinancePage() {
   const { currentOrg, userRole, refreshOrg, loading: orgLoading } = useCurrentOrganization();
@@ -135,68 +137,93 @@ export default function OrganizationFinancePage() {
       toast({ variant: "destructive", title: "Valor mínimo", description: "O valor mínimo para recarga é R$ 10,00." });
       return;
     }
+
     setIsTopUpLoading(true);
-    try {
-      // 21% de encargos totais (Stripe + Impostos)
-      const totalToCharge = amount * 1.21;
-      
-      const txRef = await addDoc(collection(db, 'organizations', currentOrg.id, 'transactions'), {
-        type: 'topup', 
-        description: 'Recarga de Saldo Ads (Aguardando)', 
-        amount: amount, 
-        totalCharged: totalToCharge,
-        status: 'pending', 
-        createdAt: serverTimestamp(), 
-        updatedAt: serverTimestamp(), 
-        userId: user.uid, 
-        userName: user.displayName || "Usuário"
-      });
+    const totalToCharge = amount * 1.21;
+    
+    const transactionsRef = collection(db, 'organizations', currentOrg.id, 'transactions');
+    const txDocRef = doc(transactionsRef);
+    const txId = txDocRef.id;
 
-      const { url } = await createAdBalanceTopUpSession({ 
-        orgId: currentOrg.id, 
-        orgName: currentOrg.name, 
-        userEmail: user.email!, 
-        baseAmount: amount, 
-        transactionId: txRef.id 
-      });
+    const txData = {
+      type: 'topup', 
+      description: 'Recarga de Saldo Ads (Aguardando)', 
+      amount: amount, 
+      totalCharged: totalToCharge,
+      status: 'pending', 
+      createdAt: serverTimestamp(), 
+      updatedAt: serverTimestamp(), 
+      userId: user.uid, 
+      userName: user.displayName || "Usuário"
+    };
 
-      if (url) { 
-        window.open(url, '_blank'); 
-        setIsWaitingPayment(true); 
-      }
-    } catch (e) { 
-      toast({ variant: "destructive", title: "Erro na recarga" }); 
-    } finally { 
-      setIsTopUpLoading(false); 
-    }
+    setDoc(txDocRef, txData)
+      .then(async () => {
+        try {
+          const result = await createAdBalanceTopUpSession({ 
+            orgId: currentOrg.id, 
+            orgName: currentOrg.name, 
+            userEmail: user.email!, 
+            baseAmount: amount, 
+            transactionId: txId 
+          });
+
+          if (result && result.url) { 
+            window.location.href = result.url;
+            setIsWaitingPayment(true); 
+          } else {
+            throw new Error("Não foi possível gerar a URL de pagamento.");
+          }
+        } catch (stripeError: any) {
+          toast({ variant: "destructive", title: "Erro no Checkout", description: stripeError.message });
+          setIsTopUpLoading(false);
+        }
+      })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: txDocRef.path,
+          operation: 'create',
+          requestResourceData: txData
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        setIsTopUpLoading(false);
+      });
   };
 
   const handleRequestAdvance = async () => {
     if (!db || !selectedSaleForAdvance || !currentOrg) return;
     
     setIsAdvancing(true);
-    try {
-      const advanceFee = selectedSaleForAdvance.producerNetAmount * 0.019;
-      const newNetValue = selectedSaleForAdvance.producerNetAmount - advanceFee;
+    const advanceFee = selectedSaleForAdvance.producerNetAmount * 0.019;
+    const newNetValue = selectedSaleForAdvance.producerNetAmount - advanceFee;
 
-      const saleRef = doc(db, "registrations", selectedSaleForAdvance.id);
-      await updateDoc(saleRef, {
-        advanceRequested: true,
-        advanceRequestedAt: new Date().toISOString(),
-        originalProducerNet: selectedSaleForAdvance.producerNetAmount,
-        advanceFee: advanceFee,
-        producerNetAmount: newNetValue,
-        updatedAt: serverTimestamp()
+    const saleRef = doc(db, "registrations", selectedSaleForAdvance.id);
+    const updateData = {
+      advanceRequested: true,
+      advanceRequestedAt: new Date().toISOString(),
+      originalProducerNet: selectedSaleForAdvance.producerNetAmount,
+      advanceFee: advanceFee,
+      producerNetAmount: newNetValue,
+      updatedAt: serverTimestamp()
+    };
+
+    updateDoc(saleRef, updateData)
+      .then(() => {
+        toast({ title: "Antecipação solicitada!", description: `O valor de ${formatCurrency(newNetValue)} estará disponível em 24h.` });
+        setIsAdvanceModalOpen(false);
+        setSelectedSaleForAdvance(null);
+      })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: saleRef.path,
+          operation: 'update',
+          requestResourceData: updateData
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
+        setIsAdvancing(false);
       });
-
-      toast({ title: "Antecipação solicitada!", description: `O valor de ${formatCurrency(newNetValue)} estará disponível em 24h.` });
-      setIsAdvanceModalOpen(false);
-      setSelectedSaleForAdvance(null);
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao processar antecipação" });
-    } finally {
-      setIsAdvancing(false);
-    }
   }
 
   if (orgLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>

@@ -21,7 +21,7 @@ async function getStripeKeys() {
 
 async function getStripeInstance() {
   const { secretKey } = await getStripeKeys();
-  if (!secretKey) throw new Error('Stripe não configurado.');
+  if (!secretKey) throw new Error('Stripe não configurado no Painel Admin.');
   return new Stripe(secretKey, { typescript: true });
 }
 
@@ -47,7 +47,7 @@ export async function createCheckoutSession(data: any) {
     });
     return { url: session.url };
   } catch (error: any) {
-    throw new Error(error.message);
+    throw new Error(error.message || 'Erro ao gerar sessão de pagamento.');
   }
 }
 
@@ -74,11 +74,12 @@ export async function createAdBalanceTopUpSession(data: any) {
     });
     return { url: session.url };
   } catch (error: any) {
-    throw new Error('Erro ao processar recarga.');
+    console.error("Stripe TopUp Error:", error);
+    throw new Error(error.message || 'Erro ao processar recarga no Stripe.');
   }
 }
 
-export async function createPlanCheckoutSession(data: any) {
+export async function createPlanUpgradeSession(data: any) {
   try {
     const origin = (await headers()).get('origin') || 'https://viby.club';
     const stripe = await getStripeInstance();
@@ -100,11 +101,11 @@ export async function createPlanCheckoutSession(data: any) {
     });
     return { url: session.url };
   } catch (error: any) {
-    throw new Error('Erro ao gerar checkout do plano');
+    throw new Error(error.message || 'Erro ao gerar checkout do plano');
   }
 }
 
-export async function createAdCheckoutSession(data: any) {
+export async function createAdPaymentSession(data: any) {
   try {
     const origin = (await headers()).get('origin') || 'https://viby.club';
     const stripe = await getStripeInstance();
@@ -126,7 +127,7 @@ export async function createAdCheckoutSession(data: any) {
     });
     return { url: session.url };
   } catch (error: any) {
-    throw new Error('Erro ao gerar checkout do anúncio');
+    throw new Error(error.message || 'Erro ao gerar checkout do anúncio');
   }
 }
 
