@@ -74,6 +74,7 @@ import { useRouter, useParams } from "next/navigation"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/financial-utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
+import { Separator } from "@/components/ui/separator"
 
 export default function OrganizationAdsPage() {
   const db = useFirestore()
@@ -164,7 +165,7 @@ export default function OrganizationAdsPage() {
 
       for (const ad of expired) {
         const remainingRaw = Math.max(0, ad.remainingBudget || 0);
-        const refundWithTax = remainingRaw * 1.11; // Devolve o saldo bruto + o imposto proporcional não usado
+        const refundWithTax = remainingRaw * 1.11; 
         totalRefund += refundWithTax;
         
         batch.update(doc(db, "ads", ad.id), { 
@@ -208,7 +209,7 @@ export default function OrganizationAdsPage() {
       const fileName = `ads/${currentOrg.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
       const storageRef = ref(storage, fileName);
       const uploadTask = uploadBytesResumable(storageRef, file);
-      uploadTask.on('state_changed', (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), () => setUploadProgress(null), async () => {
+      uploadTask.on('state_changed', (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); }, async () => {
         const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
         setAdImageUrl(downloadURL); setUploadProgress(null); toast({ title: "Imagem carregada!" });
       });
@@ -317,7 +318,7 @@ export default function OrganizationAdsPage() {
     try {
       const batch = writeBatch(db)
       const remainingRaw = adToCancel.remainingBudget || 0
-      const refundWithTax = remainingRaw * 1.11 // Devolve o valor bruto + imposto não usado
+      const refundWithTax = remainingRaw * 1.11
       
       batch.update(doc(db, "ads", adToCancel.id), { 
         status: "Cancelado", 
@@ -355,7 +356,7 @@ export default function OrganizationAdsPage() {
     } catch (e) { return "---"; }
   }
 
-  const stats = React.useMemo(() => {
+  const metricsStats = React.useMemo(() => {
     if (!ads) return { reach: 0, uniqueReach: 0, clicks: 0, active: 0, avgCtr: 0 }
     const res = ads.reduce((acc, ad) => {
       acc.reach += (ad.reach || 0); 
@@ -379,43 +380,43 @@ export default function OrganizationAdsPage() {
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" asChild className="rounded-full h-11 px-6 font-bold gap-2 text-xs uppercase border-secondary/20 text-secondary">
-             <Link href={`/dashboard/organizacoes/${currentOrg?.username}/anuncios/valores`}><Coins className="w-4 h-4" /> Valores</Link>
+             <Link href={`/dashboard/organizacoes/${currentOrg?.username}/anuncios/valores`}><Coins className="w-4 h-4" /> Tabela de Valores</Link>
           </Button>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild><Button className="bg-secondary text-white font-black rounded-full px-8 h-11 shadow-lg gap-2 uppercase italic"><Plus className="w-5 h-5" /> Nova Campanha</Button></DialogTrigger>
+            <DialogTrigger asChild><Button className="bg-secondary text-white font-black rounded-full px-8 h-11 shadow-lg gap-2 uppercase italic hover:scale-105 transition-transform"><Plus className="w-5 h-5" /> Nova Campanha</Button></DialogTrigger>
             <DialogContent className="max-w-md h-[90vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
-              <DialogHeader className="p-8 border-b bg-muted/30"><DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Lançar Campanha</DialogTitle></DialogHeader>
+              <DialogHeader className="p-8 border-b bg-muted/30"><DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Lançar Campanha</DialogTitle></DialogHeader>
               <form onSubmit={handleCreateAd} className="flex-1 overflow-y-auto p-8 space-y-8">
                   <div className="space-y-3">
-                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Objetivo</Label>
+                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Objetivo do Anúncio</Label>
                      <div className="grid grid-cols-2 gap-2">
-                        <Button type="button" variant={adType === 'evento' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1" onClick={() => setAdType('evento')}><Calendar className="w-4 h-4" /> Evento</Button>
-                        <Button type="button" variant={adType === 'pagina' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1" onClick={() => setAdType('pagina')}><Layout className="w-4 h-4" /> Perfil</Button>
-                        <Button type="button" variant={adType === 'banner' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1" onClick={() => setAdType('banner')}><ImageIcon className="w-4 h-4" /> Banner</Button>
-                        <Button type="button" variant={adType === 'site' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1" onClick={() => setAdType('site')}><Globe className="w-4 h-4" /> Link</Button>
+                        <Button type="button" variant={adType === 'evento' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1 rounded-xl" onClick={() => setAdType('evento')}><Calendar className="w-4 h-4" /> Evento</Button>
+                        <Button type="button" variant={adType === 'pagina' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1 rounded-xl" onClick={() => setAdType('pagina')}><Layout className="w-4 h-4" /> Perfil Marca</Button>
+                        <Button type="button" variant={adType === 'banner' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1 rounded-xl" onClick={() => setAdType('banner')}><ImageIcon className="w-4 h-4" /> Banner</Button>
+                        <Button type="button" variant={adType === 'site' ? 'secondary' : 'outline'} className="h-16 flex-col text-[8px] font-black uppercase gap-1 rounded-xl" onClick={() => setAdType('site')}><Globe className="w-4 h-4" /> Link Externo</Button>
                      </div>
                   </div>
                   {adType === 'evento' ? (
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Evento</Label>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Escolher Evento Ativo</Label>
                     <Select value={selectedEventId} onValueChange={setSelectedEventId} required><SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Escolha um evento" /></SelectTrigger><SelectContent className="rounded-xl">{myEvents?.map((ev: any) => (<SelectItem key={ev.id} value={ev.id}>{ev.title}</SelectItem>))}</SelectContent></Select></div>
                   ) : adType === 'pagina' ? (
-                    <div className="p-4 bg-muted/50 rounded-2xl border border-dashed flex items-center gap-3"><CheckCircle2 className="w-5 h-5 text-green-500" /><p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">Promoveremos @{currentOrg?.username} no feed.</p></div>
+                    <div className="p-4 bg-muted/50 rounded-2xl border border-dashed flex items-center gap-3"><CheckCircle2 className="w-5 h-5 text-green-500" /><p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">Promoveremos sua página @{currentOrg?.username} no feed público.</p></div>
                   ) : (
-                    <><div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Título</Label><Input name="title" required className="rounded-xl h-11" /></div>
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Link</Label><Input name="url" type="url" className="rounded-xl h-11" /></div>
-                    <div className="space-y-3"><Label className="text-[10px] font-black uppercase opacity-60">Imagem</Label><div className="relative aspect-video bg-muted rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden cursor-pointer" onClick={() => document.getElementById('ad-image-up')?.click()}>
+                    <><div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Título da Campanha</Label><Input name="title" required className="rounded-xl h-11" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Link de Destino</Label><Input name="url" type="url" placeholder="https://..." className="rounded-xl h-11" /></div>
+                    <div className="space-y-3"><Label className="text-[10px] font-black uppercase opacity-60">Imagem Criativa</Label><div className="relative aspect-video bg-muted rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden cursor-pointer" onClick={() => document.getElementById('ad-image-up')?.click()}>
                     {adImageUrl ? <img src={adImageUrl} className="w-full h-full object-cover" /> : <div className="text-center opacity-40"><Camera className="w-8 h-8 mx-auto mb-2" /><p className="text-[8px] font-black uppercase">Carregar mídia</p></div>}
                     <input id="ad-image-up" type="file" className="hidden" accept="image/*" onChange={handleImageUpload} /></div>{uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}</div></>
                   )}
                   
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input name="startDate" type="datetime-local" value={startDateInput} onChange={e => setStartDateInput(e.target.value)} required className="rounded-xl h-11 text-xs" /></div>
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Término</Label><Input name="endDate" type="datetime-local" value={endDateInput} onChange={e => setEndDateInput(e.target.value)} required className="rounded-xl h-11 text-xs" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Data de Início</Label><Input name="startDate" type="datetime-local" value={startDateInput} onChange={e => setStartDateInput(e.target.value)} required className="rounded-xl h-11 text-xs" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Data de Término</Label><Input name="endDate" type="datetime-local" value={endDateInput} onChange={e => setEndDateInput(e.target.value)} required className="rounded-xl h-11 text-xs" /></div>
                   </div>
                   
                   <div className="space-y-4">
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Orçamento Diário (R$)</Label>
+                       <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Orçamento Diário Pretendido</Label>
                        <div className="relative">
                           <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-secondary">R$</span>
                           <Input 
@@ -432,18 +433,26 @@ export default function OrganizationAdsPage() {
                     </div>
 
                     {adPlanSummary.totalDays > 0 && (
-                      <div className="p-4 bg-muted/30 rounded-2xl border border-dashed border-border space-y-2">
-                         <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Duração:</span> <span>{adPlanSummary.totalDays} dias</span></div>
-                         <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Orçamento Bruto:</span> <span>{formatCurrency(adPlanSummary.rawBudget)}</span></div>
-                         <div className="flex justify-between text-[10px] font-bold uppercase text-secondary"><span>Imposto (11%):</span> <span>+{formatCurrency(adPlanSummary.tax)}</span></div>
-                         <Separator />
-                         <div className="flex justify-between items-center"><span className="text-xs font-black uppercase italic">Total a Reservar:</span> <span className="text-lg font-black text-primary">{formatCurrency(adPlanSummary.totalReserved)}</span></div>
-                         <p className="text-[8px] text-muted-foreground font-medium text-center uppercase mt-2">Valores não utilizados (incluindo o imposto proporcional) serão estornados ao fim da campanha.</p>
+                      <div className="p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 space-y-4 animate-in slide-in-from-top-2 duration-300">
+                         <div className="space-y-2">
+                            <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Período de Veiculação:</span> <span className="text-primary">{adPlanSummary.totalDays} dias</span></div>
+                            <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Investimento Bruto:</span> <span className="text-primary">{formatCurrency(adPlanSummary.rawBudget)}</span></div>
+                            <div className="flex justify-between text-[10px] font-black uppercase text-secondary"><span>Impostos & Taxas (11%):</span> <span>+ {formatCurrency(adPlanSummary.tax)}</span></div>
+                         </div>
+                         <Separator className="bg-secondary/10" />
+                         <div className="flex justify-between items-center">
+                            <span className="text-xs font-black uppercase italic text-primary">Total a Bloquear do Saldo:</span> 
+                            <span className="text-2xl font-black text-secondary">{formatCurrency(adPlanSummary.totalReserved)}</span>
+                         </div>
+                         <div className="flex gap-2 p-3 bg-white rounded-xl shadow-sm items-start">
+                            <Info className="w-3.5 h-3.5 text-secondary shrink-0 mt-0.5" />
+                            <p className="text-[8px] text-muted-foreground font-medium uppercase leading-tight">O valor não consumido ao final da campanha (incluindo o imposto proporcional) será devolvido automaticamente ao seu saldo livre.</p>
+                         </div>
                       </div>
                     )}
                   </div>
               </form>
-              <div className="p-8 border-t bg-muted/30"><Button onClick={(e:any) => e.target.closest('div').previousSibling.requestSubmit()} type="submit" disabled={isSubmitting || uploadProgress !== null} className="w-full bg-secondary text-white font-black h-16 rounded-[2rem] shadow-xl uppercase italic text-lg">{isSubmitting ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><Target className="w-6 h-6 mr-2" /> Iniciar Impulsionamento</>}</Button></div>
+              <div className="p-8 border-t bg-muted/30"><Button onClick={(e:any) => e.target.closest('div').previousSibling.requestSubmit()} type="submit" disabled={isSubmitting || uploadProgress !== null || adPlanSummary.totalReserved > (currentOrg?.adBalance || 0)} className="w-full bg-secondary text-white font-black h-16 rounded-[2rem] shadow-xl uppercase italic text-lg">{isSubmitting ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><Target className="w-6 h-6 mr-2" /> Lançar Campanha</>}</Button></div>
             </DialogContent>
           </Dialog>
         </div>
@@ -452,22 +461,22 @@ export default function OrganizationAdsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
         <Card className="border-none shadow-sm bg-primary text-white overflow-hidden relative group">
           <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Visualizações</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-black">{(stats.reach).toLocaleString()}</div></CardContent>
+          <CardContent><div className="text-3xl font-black">{(metricsStats.reach).toLocaleString()}</div></CardContent>
           <Eye className="absolute -bottom-2 -right-2 w-20 h-20 opacity-5 rotate-12" />
         </Card>
         <Card className="border-none shadow-sm bg-white border-l-4 border-secondary">
           <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Alcance Único</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-black text-secondary">{(stats.uniqueReach).toLocaleString()}</div></CardContent>
+          <CardContent><div className="text-3xl font-black text-secondary">{(metricsStats.uniqueReach).toLocaleString()}</div></CardContent>
           <Users className="absolute -bottom-2 -right-2 w-16 h-16 opacity-5 rotate-12" />
         </Card>
         <Card className="border-none shadow-sm bg-white border-l-4 border-primary">
           <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Cliques</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-black text-primary">{(stats.clicks).toLocaleString()}</div></CardContent>
+          <CardContent><div className="text-3xl font-black text-primary">{(metricsStats.clicks).toLocaleString()}</div></CardContent>
           <MousePointer2 className="absolute -bottom-2 -right-2 w-16 h-16 opacity-5 rotate-12" />
         </Card>
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">CTR Médio</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-black">{stats.avgCtr.toFixed(2)}%</div></CardContent>
+          <CardContent><div className="text-3xl font-black">{metricsStats.avgCtr.toFixed(2)}%</div></CardContent>
           <TrendingUp className="absolute -bottom-2 -right-2 w-16 h-16 opacity-5 rotate-12" />
         </Card>
         <Card className="border-none shadow-sm bg-secondary text-white">
@@ -479,7 +488,9 @@ export default function OrganizationAdsPage() {
 
       <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
         <CardHeader className="border-b pb-6 p-8">
-           <CardTitle className="text-xl flex items-center gap-2"><BarChart3 className="w-5 h-5 text-secondary" /> Histórico de Impulsionamento</CardTitle>
+           <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+             <BarChart3 className="w-5 h-5 text-secondary" /> Histórico de Campanhas
+           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {ads.length > 0 ? (
@@ -522,7 +533,7 @@ export default function OrganizationAdsPage() {
                          <div className="col-span-1 text-center"><span className="font-black text-xs bg-muted px-2 py-0.5 rounded-full">{ctr.toFixed(2)}%</span></div>
                          <div className="col-span-2 text-right space-y-0.5">
                             <p className="font-black text-xs">{formatCurrency(ad.initialBudget || ad.budget || 0)}</p>
-                            <p className="text-[8px] font-bold text-secondary uppercase">Saldo (+Imp): {formatCurrency(isFinished ? ad.refundedAmount || 0 : (ad.remainingBudget * 1.11) || 0)}</p>
+                            <p className="text-[8px] font-bold text-secondary uppercase">Restante (+Tax): {formatCurrency(isFinished ? ad.refundedAmount || 0 : (ad.remainingBudget * 1.11) || 0)}</p>
                          </div>
                          <div className="col-span-3 flex items-center justify-end gap-2">
                             <Button variant="outline" size="sm" className="h-8 rounded-lg border-secondary/20 text-secondary gap-1.5 font-bold text-[9px] uppercase" onClick={() => setSelectedAdForMetrics(ad)}>
@@ -551,15 +562,16 @@ export default function OrganizationAdsPage() {
         </CardContent>
       </Card>
 
+      {/* MODAL DE MÉTRICAS DETALHADAS */}
       <Dialog open={!!selectedAdForMetrics} onOpenChange={(o) => !o && setSelectedAdForMetrics(null)}>
         <DialogContent className="max-w-2xl rounded-[2.5rem]">
            <DialogHeader>
-              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Métricas de Performance</DialogTitle>
+              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Análise de Performance</DialogTitle>
               <DialogDescription className="font-bold text-secondary uppercase">{selectedAdForMetrics?.eventTitle}</DialogDescription>
            </DialogHeader>
            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div className="p-4 bg-muted/30 rounded-2xl text-center">
-                 <p className="text-[9px] font-black uppercase opacity-40">Visu. Totais</p>
+                 <p className="text-[9px] font-black uppercase opacity-40">Visualizações</p>
                  <p className="text-xl font-black">{selectedAdForMetrics?.reach?.toLocaleString()}</p>
               </div>
               <div className="p-4 bg-secondary/10 rounded-2xl text-center">
@@ -567,7 +579,7 @@ export default function OrganizationAdsPage() {
                  <p className="text-xl font-black text-secondary">{selectedAdForMetrics?.uniqueReach?.toLocaleString() || 0}</p>
               </div>
               <div className="p-4 bg-primary/10 rounded-2xl text-center">
-                 <p className="text-[9px] font-black uppercase text-primary">Cliques Reais</p>
+                 <p className="text-[9px] font-black uppercase text-primary">Cliques Totais</p>
                  <p className="text-xl font-black text-primary">{selectedAdForMetrics?.clicks?.toLocaleString()}</p>
               </div>
            </div>
@@ -584,7 +596,7 @@ export default function OrganizationAdsPage() {
                  </div>
               </div>
               <div className="space-y-6">
-                 <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Clock className="w-4 h-4" /> Distribuição de Idade</h4>
+                 <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Clock className="w-4 h-4" /> Faixa Etária</h4>
                  <div className="space-y-4">
                     <DemographicBar label="0 - 18 anos" value={selectedAdForMetrics?.stats_age_0_18 || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-teal-400" />
                     <DemographicBar label="19 - 24" value={selectedAdForMetrics?.stats_age_19_24 || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-emerald-400" />
@@ -598,7 +610,7 @@ export default function OrganizationAdsPage() {
                  </div>
               </div>
            </div>
-           <div className="p-4 bg-muted/30 rounded-2xl flex gap-3"><Info className="w-5 h-5 text-secondary shrink-0" /><p className="text-[9px] text-muted-foreground font-bold uppercase leading-tight">Métricas baseadas em usuários logados. O Alcance Único identifica indivíduos únicos, enquanto as Visualizações contam cada exibição do card. Porcentagens calculadas sobre o Alcance Único Identificado.</p></div>
+           <div className="p-4 bg-muted/30 rounded-2xl flex gap-3"><Info className="w-5 h-5 text-secondary shrink-0" /><p className="text-[9px] text-muted-foreground font-bold uppercase leading-tight">Métricas exclusivas baseadas no comportamento real dos usuários logados na VIBY. O Alcance Único identifica indivíduos individuais.</p></div>
         </DialogContent>
       </Dialog>
 
@@ -606,9 +618,9 @@ export default function OrganizationAdsPage() {
         <AlertDialogContent className="rounded-[2.5rem]">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Confirmar Cancelamento?</AlertDialogTitle>
-            <AlertDialogDescription>Esta ação encerrará a campanha e devolverá <strong>{formatCurrency((adToCancel?.remainingBudget || 0) * 1.11)}</strong> ao saldo da marca (Saldo Bruto + Imposto Proporcional).</AlertDialogDescription>
+            <AlertDialogDescription>Esta ação encerrará a campanha e devolverá <strong>{formatCurrency((adToCancel?.remainingBudget || 0) * 1.11)}</strong> ao seu saldo livre (Crédito Bruto + Imposto Proporcional).</AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Não</AlertDialogCancel><AlertDialogAction onClick={handleCancelAd} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] px-8">Encerrar e Estornar</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogFooter><AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Não</AlertDialogCancel><AlertDialogAction onClick={handleCancelAd} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] px-8">Confirmar e Estornar</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
