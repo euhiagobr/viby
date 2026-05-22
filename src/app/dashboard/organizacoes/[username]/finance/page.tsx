@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -45,7 +44,8 @@ import {
   Search,
   Filter,
   Undo2,
-  SendHorizontal
+  SendHorizontal,
+  AlertCircle
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
