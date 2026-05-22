@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, limit, doc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore"
+import { collection, query, orderBy, limit, doc, setDoc, deleteDoc, serverTimestamp, getDocs, where } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -30,7 +30,9 @@ import {
   Trash2,
   Save,
   BarChart3,
-  RefreshCcw
+  RefreshCcw,
+  History,
+  DatabaseZap
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -47,10 +49,12 @@ import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 import { DEFAULT_LEVELS, DEFAULT_RULES, type LevelConfig, type XPRule } from "@/lib/gamification"
 import { Label } from "@/components/ui/label"
+import { processGamificationEvent } from "@/lib/gamification-service"
 
 export default function AdminPresencaPage() {
   const db = useFirestore()
   const [search, setSearch] = React.useState("")
+  const [isSyncingHistory, setIsSyncingHistory] = React.useState(false)
 
   // Consultas de Gamificação
   const levelsQuery = useMemoFirebase(() => db ? query(collection(db, "levels"), orderBy("level", "asc")) : null, [db])
@@ -102,6 +106,89 @@ export default function AdminPresencaPage() {
     }
   }
 
+  // Lógica de Sincronização de Dados Históricos
+  const handleSyncHistoricalData = async () => {
+    if (!db) return;
+    setIsSyncingHistory(true);
+    try {
+      const usersSnap = await getDocs(collection(db, "users"));
+      let processedCount = 0;
+      
+      for (const userDoc of usersSnap.docs) {
+        const uid = userDoc.id;
+        
+        // 1. Processar Cadastro
+        const qSignup = query(collection(db, "xp_logs"), where("userId", "==", uid), where("reason", "==", "on_signup"), limit(1));
+        const signupLogs = await getDocs(qSignup);
+        if (signupLogs.empty) {
+          await processGamificationEvent(db, uid, 'on_signup');
+          processedCount++;
+        }
+
+        // 2. Processar Ingressos e Check-ins
+        const qRegs = query(collection(db, "registrations"), where("userId", "==", uid), where("paymentStatus", "in", ["Pago", "Disponível"]));
+        const regsSnap = await getDocs(qRegs);
+        for (const regDoc of regsSnap.docs) {
+          const regData = regDoc.data();
+          
+          // Compra
+          const qPurch = query(collection(db, "xp_logs"), where("userId", "==", uid), where("reason", "==", "on_ticket_purchase"), where("context.registrationId", "==", regDoc.id), limit(1));
+          const purchLogs = await getDocs(qPurch);
+          if (purchLogs.empty) {
+            await processGamificationEvent(db, uid, 'on_ticket_purchase', { 
+              registrationId: regDoc.id,
+              eventId: regData.eventId,
+              eventTitle: regData.eventTitle,
+              categoryName: regData.categoryName,
+              city: regData.eventCity,
+              orgName: regData.organizer?.name
+            });
+            processedCount++;
+          }
+
+          // Check-in
+          if (regData.checkedIn) {
+            const qCheckin = query(collection(db, "xp_logs"), where("userId", "==", uid), where("reason", "==", "on_checkin"), where("context.registrationId", "==", regDoc.id), limit(1));
+            const checkinLogs = await getDocs(qCheckin);
+            if (checkinLogs.empty) {
+              await processGamificationEvent(db, uid, 'on_checkin', { 
+                registrationId: regDoc.id,
+                eventId: regData.eventId,
+                eventTitle: regData.eventTitle,
+                categoryName: regData.categoryName,
+                neighborhood: regData.eventNeighborhood,
+                city: regData.eventCity,
+                orgName: regData.organizer?.name
+              });
+              processedCount++;
+            }
+          }
+        }
+
+        // 3. Processar Seguidores
+        const qFollows = query(collection(db, "follows"), where("followerId", "==", uid));
+        const followsSnap = await getDocs(qFollows);
+        for (const followDoc of followsSnap.docs) {
+          const fData = followDoc.data();
+          const reason = fData.targetType === 'organization' ? 'on_follow_org' : 'on_follow_user';
+          const qFollowLog = query(collection(db, "xp_logs"), where("userId", "==", uid), where("reason", "==", reason), where("context.targetId", "==", fData.followingId), limit(1));
+          const followLogs = await getDocs(qFollowLog);
+          if (followLogs.empty) {
+            await processGamificationEvent(db, uid, reason, { targetId: fData.followingId });
+            processedCount++;
+          }
+        }
+      }
+      
+      toast({ title: "Sincronização concluída!", description: `${processedCount} novas entradas de XP foram geradas a partir do histórico.` });
+    } catch (e) {
+      console.error(e);
+      toast({ variant: "destructive", title: "Erro na sincronização" });
+    } finally {
+      setIsSyncingHistory(false);
+    }
+  }
+
   const formatTimestamp = (ts: any) => {
     if (!ts) return "---";
     const d = ts.toDate ? ts.toDate() : new Date(ts);
@@ -119,7 +206,20 @@ export default function AdminPresencaPage() {
           <p className="text-muted-foreground font-medium">Gestão da identidade cultural e engajamento dos usuários.</p>
         </div>
         <div className="flex gap-2">
-           <Button variant="outline" onClick={handleSeedGamification} className="rounded-xl h-11 font-bold text-xs uppercase gap-2 border-secondary text-secondary hover:bg-secondary/5">
+           <Button 
+             variant="outline" 
+             onClick={handleSyncHistoricalData} 
+             disabled={isSyncingHistory}
+             className="rounded-xl h-11 font-bold text-xs uppercase gap-2 border-secondary text-secondary hover:bg-secondary/5"
+           >
+              {isSyncingHistory ? <Loader2 className="w-4 h-4 animate-spin" /> : <DatabaseZap className="w-4 h-4" />}
+              Sincronizar Histórico
+           </Button>
+           <Button 
+             variant="outline" 
+             onClick={handleSeedGamification} 
+             className="rounded-xl h-11 font-bold text-xs uppercase gap-2 border-muted text-muted-foreground hover:bg-muted/5"
+           >
               <RefreshCcw className="w-4 h-4" /> Resetar Padrões
            </Button>
         </div>
