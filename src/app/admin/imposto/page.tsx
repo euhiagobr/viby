@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, where, updateDoc, doc, serverTimestamp } from "firebase/firestore"
+import { collection, query, orderBy, where, updateDoc, doc, serverTimestamp, getDocs, writeBatch, getDoc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -29,7 +29,9 @@ import {
   Clock,
   ArrowRight,
   Scale,
-  Inbox
+  Inbox,
+  RefreshCw,
+  AlertTriangle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -52,7 +54,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { formatCurrency } from "@/lib/financial-utils"
+import { formatCurrency, calculateDetailedVibyBreakdown } from "@/lib/financial-utils"
 import * as XLSX from 'xlsx'
 import { useSearchParams, useRouter } from "next/navigation"
 
@@ -66,6 +68,7 @@ export default function AdminImpostoPage() {
   const [activeTab, setActiveTab] = React.useState(searchParams.get('tab') || "ads")
   const [expandedEvents, setExpandedEvents] = React.useState<Set<string>>(new Set())
   const [isUpdating, setIsUpdating] = React.useState<string | null>(null)
+  const [isSyncing, setIsSyncing] = React.useState(false)
 
   const adsQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -92,6 +95,79 @@ export default function AdminImpostoPage() {
     const timer = setTimeout(updateFilters, 500)
     return () => clearTimeout(timer)
   }, [searchName, selectedMonth, activeTab, updateFilters])
+
+  // Lógica de Sincronização de Vendas Antigas
+  const handleSyncLegacySales = async () => {
+    if (!db) return
+    setIsSyncing(true)
+    try {
+      const [regsSnap, feesSnap, stripeSnap] = await Promise.all([
+        getDocs(query(collection(db, "registrations"), where("paymentStatus", "in", ["Pago", "Disponível"]))),
+        getDoc(doc(db, "settings", "fees")),
+        getDoc(doc(db, "settings", "stripe"))
+      ])
+
+      const fees = feesSnap.data()
+      const stripe = stripeSnap.data()
+      const batch = writeBatch(db)
+      let count = 0
+
+      for (const regDoc of regsSnap.docs) {
+        const reg = regDoc.data()
+        const taxQ = query(collection(db, "tax_tickets"), where("registrationId", "==", regDoc.id))
+        const taxSnap = await getDocs(taxQ)
+
+        if (taxSnap.empty) {
+          const breakdown = calculateDetailedVibyBreakdown(reg.ticketBasePrice || 0, 1, fees, stripe)
+          const monthKey = reg.timestamp ? 
+            (reg.timestamp.toDate ? reg.timestamp.toDate() : new Date(reg.timestamp)).toISOString().slice(0, 7) : 
+            new Date().toISOString().slice(0, 7)
+
+          const taxRef = doc(collection(db, "tax_tickets"))
+          batch.set(taxRef, {
+            registrationId: regDoc.id,
+            eventId: reg.eventId,
+            eventTitle: reg.eventTitle || "Evento",
+            organizationId: reg.organizationId,
+            orgName: reg.organizer?.name || "Organização",
+            orgCnpj: reg.organizer?.cnpj || "---",
+            buyerName: reg.userName || "Comprador",
+            buyerEmail: reg.userEmail || "",
+            ticketTypeName: reg.ticketTypeName || "Geral",
+            batchName: reg.batchName || "Único",
+            quantity: 1,
+            unitPrice: breakdown.unitPrice,
+            totalFacePrice: breakdown.totalFace,
+            buyerFeeAmount: breakdown.buyerFeeTotal,
+            organizerFeeAmount: breakdown.organizerFeeTotal,
+            stripeFeePercentAmount: breakdown.stripeFeePercentAmount,
+            stripeFeeFixedAmount: breakdown.stripeFeeFixedAmount,
+            stripeFeeAmount: breakdown.stripeFeeTotal,
+            vibyGrossProfit: breakdown.vibyGross,
+            taxPercentUsed: 11,
+            taxAmount: breakdown.imposto,
+            vibyNetProfit: breakdown.vibyNet,
+            payoutToProducer: breakdown.payoutToProducer,
+            monthKey,
+            nfStatus: 'pendente',
+            timestamp: reg.timestamp || serverTimestamp()
+          })
+          count++
+        }
+      }
+
+      if (count > 0) {
+        await batch.commit()
+        toast({ title: "Sincronização Concluída!", description: `${count} vendas foram processadas fisicamente.` })
+      } else {
+        toast({ title: "Tudo em dia!", description: "Não há vendas pendentes de processamento fiscal." })
+      }
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro na sincronização" })
+    } finally {
+      setIsSyncing(false)
+    }
+  }
 
   const filteredAds = React.useMemo(() => {
     if (!ads) return []
@@ -124,17 +200,13 @@ export default function AdminImpostoPage() {
     return filteredTickets.reduce((acc, t) => {
       acc.totalSold += (t.totalFacePrice || 0)
       acc.payouts += (t.payoutToProducer || 0)
-      acc.orgFees += (t.organizerFeeAmount || 0)
-      acc.buyerFees += (t.buyerFeeAmount || 0)
-      acc.stripePercent += (t.stripeFeePercentAmount || 0)
-      acc.stripeFixed += (t.stripeFeeFixedAmount || 0)
-      acc.stripeTotal += (t.stripeFeeAmount || 0)
-      acc.imposto += (t.taxAmount || 0)
       acc.vibyGross += (t.vibyGrossProfit || 0)
+      acc.imposto += (t.taxAmount || 0)
       acc.vibyNet += (t.vibyNetProfit || 0)
+      acc.stripeTotal += (t.stripeFeeAmount || 0)
       acc.qty += (t.quantity || 1)
       return acc
-    }, { totalSold: 0, payouts: 0, orgFees: 0, buyerFees: 0, stripePercent: 0, stripeFixed: 0, stripeTotal: 0, imposto: 0, vibyGross: 0, vibyNet: 0, qty: 0 })
+    }, { totalSold: 0, payouts: 0, vibyGross: 0, imposto: 0, vibyNet: 0, stripeTotal: 0, qty: 0 })
   }, [filteredTickets])
 
   const groupedTickets = React.useMemo(() => {
@@ -192,8 +264,6 @@ export default function AdminImpostoPage() {
         'Total Face': item.totalFacePrice,
         'Taxa Comprador': item.buyerFeeAmount,
         'Taxa Organizador': item.organizerFeeAmount,
-        'Stripe %': item.stripeFeePercentAmount,
-        'Stripe Fixo': item.stripeFeeFixedAmount,
         'Stripe Total': item.stripeFeeAmount,
         'Lucro Bruto Viby': item.vibyGrossProfit,
         'Imposto (11%)': item.taxAmount,
@@ -251,22 +321,34 @@ export default function AdminImpostoPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
-          <Receipt className="w-8 h-8 text-secondary" />
-          Gestão Fiscal e Notas
-        </h1>
-        <p className="text-muted-foreground font-medium">Controle de faturamento, impostos e lucro real operacional.</p>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
+            <Receipt className="w-8 h-8 text-secondary" />
+            Gestão Fiscal e Notas
+          </h1>
+          <p className="text-muted-foreground font-medium">Controle de faturamento, impostos e lucro real operacional.</p>
+        </div>
+        <div className="flex gap-2">
+           <Button 
+             variant="outline" 
+             className="rounded-full h-11 px-6 font-black uppercase text-[10px] gap-2 border-secondary text-secondary hover:bg-secondary/5"
+             onClick={handleSyncLegacySales}
+             disabled={isSyncing}
+           >
+             {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+             Sincronizar Vendas Legadas
+           </Button>
+        </div>
       </div>
 
       {activeTab === 'tickets' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
            <StatCard title="Total Vendido (Face)" value={formatCurrency(ticketStats.totalSold)} icon={TrendingUp} color="blue" />
            <StatCard title="Repasse Produtores" value={formatCurrency(ticketStats.payouts)} icon={ArrowDownRight} color="orange" />
-           <StatCard title="Total Taxas (Viby)" value={formatCurrency(ticketStats.buyerFees + ticketStats.orgFees)} icon={Coins} color="secondary" subtitle="Comprador + Organizador" />
            <StatCard title="Custos Stripe" value={formatCurrency(ticketStats.stripeTotal)} icon={CreditCard} color="red" subtitle="% + Fixo" />
-           <StatCard title="Imposto (11%)" value={formatCurrency(ticketStats.imposto)} icon={Receipt} color="orange" subtitle="Sobre Lucro Bruto" />
            <StatCard title="Lucro Bruto Viby" value={formatCurrency(ticketStats.vibyGross)} icon={ArrowUpRight} color="secondary" subtitle="Taxas - Stripe" />
+           <StatCard title="Imposto (11%)" value={formatCurrency(ticketStats.imposto)} icon={Receipt} color="orange" subtitle="Sobre Lucro Bruto" />
            <StatCard title="Lucro Líquido Viby" value={formatCurrency(ticketStats.vibyNet)} icon={CheckCircle2} color="green" subtitle="Pós Imposto" />
            <StatCard title="Tickets Vendidos" value={ticketStats.qty} icon={Ticket} color="secondary" />
         </div>
@@ -413,7 +495,7 @@ export default function AdminImpostoPage() {
                                       <TableHead className="text-[8px] font-black uppercase py-3">Tipo / Lote</TableHead>
                                       <TableHead className="text-[8px] font-black uppercase">Comprador</TableHead>
                                       <TableHead className="text-[8px] font-black uppercase text-center">Qtd</TableHead>
-                                      <TableHead className="text-[8px] font-black uppercase text-right">Valor Total</TableHead>
+                                      <TableHead className="text-[8px] font-black uppercase text-right">Face Total</TableHead>
                                       <TableHead className="text-[8px] font-black uppercase text-right">T. Comprador</TableHead>
                                       <TableHead className="text-[8px] font-black uppercase text-right">Com. Produtor</TableHead>
                                       <TableHead className="text-[8px] font-black uppercase text-right">Stripe Total</TableHead>
@@ -454,6 +536,7 @@ export default function AdminImpostoPage() {
                     <div className="py-24 text-center">
                        <Inbox className="w-12 h-12 text-muted-foreground opacity-10 mx-auto mb-4" />
                        <p className="text-muted-foreground font-bold italic">Nenhuma venda encontrada para os filtros aplicados.</p>
+                       <p className="text-[10px] text-muted-foreground uppercase font-black mt-2">Dica: Utilize o botão de sincronização acima para carregar vendas legadas.</p>
                     </div>
                    )}
                 </div>
