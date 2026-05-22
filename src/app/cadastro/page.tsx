@@ -191,6 +191,9 @@ export default function CadastroPage() {
         createdAt: serverTimestamp()
       };
 
+      // UID da página oficial para seguimento automático
+      const officialOrgId = "d3c9fdc1-7fcc-4a70-ab99-79729fad2bf9";
+
       await runTransaction(db, async (transaction) => {
         const usernameRef = doc(db, "usernames", normalizedUsername)
         const userRef = doc(db, "users", user.uid)
@@ -203,7 +206,6 @@ export default function CadastroPage() {
         transaction.set(usernameRef, { uid: user.uid, type: 'user' })
         transaction.set(userRef, userData)
 
-        const officialOrgId = "92aee5c9-6741-432e-9511-f5a1afbaa8db"
         const followRef = doc(db, "follows", `${user.uid}_${officialOrgId}`)
         transaction.set(followRef, {
           followerId: user.uid,
@@ -213,8 +215,14 @@ export default function CadastroPage() {
         })
       });
 
-      // Gatilho de Gamificação: Boas-vindas (Passando userData para evitar read redundante)
+      // Gatilho de Gamificação: Boas-vindas
       await processGamificationEvent(db, user.uid, 'on_signup', {}, user.uid, userData);
+      
+      // Gatilho de Gamificação: Seguir conta oficial
+      await processGamificationEvent(db, user.uid, 'on_follow_org', { 
+        targetId: officialOrgId, 
+        orgName: siteName 
+      }, `${user.uid}_${officialOrgId}`);
 
       sendWelcomeEmail({
         to: email,

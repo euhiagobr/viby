@@ -499,7 +499,9 @@ function UniversalProfileContent() {
     }
     if (!db || !data || followActionLoading) return
 
-    const officialOrgId = "92aee5c9-6741-432e-9511-f5a1afbaa8db"
+    // UID da página oficial - Impedir de deixar de seguir
+    const officialOrgId = "d3c9fdc1-7fcc-4a70-ab99-79729fad2bf9";
+
     if (isFollowing && data.id === officialOrgId) {
       toast({ variant: "destructive", title: "Ação bloqueada", description: "Você não pode deixar de seguir a conta oficial da Viby." })
       return
