@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -19,7 +20,9 @@ import {
   RefreshCw,
   Fingerprint,
   ShieldCheck,
-  Save
+  Save,
+  Wallet,
+  Clock
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -35,28 +38,58 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { formatCurrency } from "@/lib/financial-utils"
 
 export default function AdminFinanceiroPage() {
   const db = useFirestore()
   const [search, setSearch] = React.useState("")
 
-  // Consulta todas as organizações para monitorar status bancário
   const orgsQuery = useMemoFirebase(() => {
     if (!db) return null
     return query(collection(db, "organizations"))
   }, [db])
 
-  const { data: orgs, loading } = useCollection<any>(orgsQuery)
+  const regsQuery = useMemoFirebase(() => {
+    if (!db) return null
+    return query(collection(db, "registrations"), where("paymentStatus", "in", ["Pago", "Disponível"]))
+  }, [db])
+
+  const { data: orgs, loading: loadingOrgs } = useCollection<any>(orgsQuery)
+  const { data: regs, loading: loadingRegs } = useCollection<any>(regsQuery)
 
   const filteredOrgs = React.useMemo(() => {
     if (!orgs) return []
-    return orgs.filter(o => 
+    
+    // Mapear saldos por organização
+    const orgBalances = (regs || []).reduce((acc: any, reg: any) => {
+      const orgId = reg.organizationId;
+      if (!acc[orgId]) acc[orgId] = { available: 0, locked: 0 };
+      
+      const now = new Date();
+      const saleDate = reg.timestamp?.toDate ? reg.timestamp.toDate() : new Date(reg.timestamp);
+      const releaseDate = reg.advanceRequestedAt 
+        ? new Date(new Date(reg.advanceRequestedAt).getTime() + 24 * 60 * 60 * 1000)
+        : new Date(saleDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      if (now >= releaseDate) {
+        acc[orgId].available += (reg.producerNetAmount || 0);
+      } else {
+        acc[orgId].locked += (reg.producerNetAmount || 0);
+      }
+      return acc;
+    }, {});
+
+    return orgs.map(o => ({
+      ...o,
+      availableBalance: orgBalances[o.id]?.available || 0,
+      lockedBalance: orgBalances[o.id]?.locked || 0
+    })).filter(o => 
       (o.name?.toLowerCase() || "").includes(search.toLowerCase()) ||
       (o.legalName?.toLowerCase() || "").includes(search.toLowerCase()) ||
       (o.cnpj?.toLowerCase() || "").includes(search.toLowerCase()) ||
       (o.username?.toLowerCase() || "").includes(search.toLowerCase())
     )
-  }, [orgs, search])
+  }, [orgs, regs, search])
 
   const [isDepositModalOpen, setIsDepositModalOpen] = React.useState(false)
   const [selectedOrg, setSelectedOrg] = React.useState<any>(null)
@@ -130,9 +163,40 @@ export default function AdminFinanceiroPage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
           <Landmark className="w-8 h-8 text-secondary" />
-          Gestão Financeira (Marcas)
+          Valores a Pagar (Repasses)
         </h1>
-        <p className="text-muted-foreground font-medium">Monitore e valide as contas bancárias PJ das organizações para repasses.</p>
+        <p className="text-muted-foreground font-medium">Monitore os saldos e valide as contas bancárias PJ das organizações para repasses.</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="border-none shadow-sm bg-primary text-white border-l-4 border-secondary">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest flex justify-between">
+              Total Disponível para Saque
+              <Wallet className="w-4 h-4" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-black">
+              {formatCurrency(filteredOrgs.reduce((acc, o) => acc + o.availableBalance, 0))}
+            </div>
+            <p className="text-[9px] mt-1 font-bold opacity-40 uppercase">Montante total aguardando solicitação dos produtores</p>
+          </CardContent>
+        </Card>
+        <Card className="border-none shadow-sm bg-white border-l-4 border-orange-500">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
+              Total Bloqueado (Em Custódia)
+              <Clock className="w-4 h-4" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-black text-orange-600">
+              {formatCurrency(filteredOrgs.reduce((acc, o) => acc + o.lockedBalance, 0))}
+            </div>
+            <p className="text-[9px] mt-1 font-bold text-muted-foreground uppercase">Valores em período de D+30</p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
@@ -141,14 +205,14 @@ export default function AdminFinanceiroPage() {
             <div>
               <CardTitle className="text-xl flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-secondary" />
-                Verificação de Contas PJ
+                Custódia por Organização
               </CardTitle>
-              <CardDescription className="font-medium">Total de {filteredOrgs.length} organizações monitoradas.</CardDescription>
+              <CardDescription className="font-medium">Visualize quem tem valores a receber da plataforma.</CardDescription>
             </div>
             <div className="relative w-full md:w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="Buscar por Razão, CNPJ ou Marca..." 
+                placeholder="Buscar por Marca ou CNPJ..." 
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl h-11"
@@ -157,15 +221,16 @@ export default function AdminFinanceiroPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {loading ? (
+          {loadingOrgs || loadingRegs ? (
             <div className="py-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
           ) : filteredOrgs.length > 0 ? (
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow>
                   <TableHead className="font-black uppercase text-[10px] tracking-widest p-6">Marca / Razão Social</TableHead>
-                  <TableHead className="font-black uppercase text-[10px] tracking-widest">Dados Bancários</TableHead>
-                  <TableHead className="font-black uppercase text-[10px] tracking-widest text-center">Micro-depósito</TableHead>
+                  <TableHead className="font-black uppercase text-[10px] tracking-widest text-right">Saldo Disponível</TableHead>
+                  <TableHead className="font-black uppercase text-[10px] tracking-widest text-right">Bloqueado</TableHead>
+                  <TableHead className="font-black uppercase text-[10px] tracking-widest text-center">Banco PJ</TableHead>
                   <TableHead className="font-black uppercase text-[10px] tracking-widest text-center">Status</TableHead>
                   <TableHead className="text-right font-black uppercase text-[10px] tracking-widest p-6">Ações</TableHead>
                 </TableRow>
@@ -178,43 +243,28 @@ export default function AdminFinanceiroPage() {
                       <TableCell className="p-6">
                         <div className="flex flex-col gap-1">
                           <span className="font-black text-sm uppercase italic text-primary">{org.name}</span>
-                          <span className="text-[10px] font-bold text-muted-foreground uppercase">{org.legalName || "Não informada"}</span>
-                          <div className="flex items-center gap-2 mt-1">
-                             <Badge variant="outline" className="text-[8px] font-black uppercase border-secondary/20 text-secondary">@{org.username}</Badge>
-                             <span className="text-[9px] font-mono text-muted-foreground">{org.cnpj || "Sem CNPJ"}</span>
-                          </div>
+                          <span className="text-[9px] font-mono text-muted-foreground uppercase">{org.cnpj || "Sem CNPJ"}</span>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-right">
+                         <span className={cn("font-black text-sm", org.availableBalance > 0 ? "text-green-600" : "text-muted-foreground/30")}>
+                           {formatCurrency(org.availableBalance)}
+                         </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                         <span className="font-bold text-xs text-orange-600">
+                           {org.lockedBalance > 0 ? formatCurrency(org.lockedBalance) : "---"}
+                         </span>
+                      </TableCell>
+                      <TableCell className="text-center">
                         {ps?.bank ? (
-                          <div className="flex flex-col text-[11px] font-medium text-muted-foreground gap-0.5">
-                            <span className="font-black text-primary uppercase text-[10px]">{ps.bank}</span>
+                          <div className="flex flex-col text-[10px] font-medium text-muted-foreground">
+                            <span className="font-black text-primary uppercase text-[9px]">{ps.bank}</span>
                             <span>Ag: {ps.branch} | Cta: {ps.account}</span>
-                            <span className="truncate max-w-[150px] font-mono text-[9px]">PIX: {ps.pixKey}</span>
                           </div>
                         ) : (
                           <span className="text-[10px] font-bold text-muted-foreground/30 uppercase italic">Não configurado</span>
                         )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex flex-col items-center gap-1.5">
-                           <div className="flex items-center gap-3 bg-muted/30 px-3 py-1.5 rounded-xl border border-dashed">
-                             <div className="flex flex-col items-center">
-                               <span className="text-[8px] font-black uppercase text-muted-foreground">Enviado</span>
-                               <span className="font-black text-xs text-primary">{ps?.verificationAmountSent ? `R$ ${ps.verificationAmountSent.toFixed(2)}` : '---'}</span>
-                             </div>
-                             <div className="w-px h-6 bg-border" />
-                             <div className="flex flex-col items-center">
-                               <span className="text-[8px] font-black uppercase text-muted-foreground">Input</span>
-                               <span className={cn(
-                                 "font-black text-xs",
-                                 ps?.verificationAmountInput ? "text-secondary" : "text-muted-foreground/30"
-                               )}>
-                                 {ps?.verificationAmountInput ? `R$ ${ps.verificationAmountInput.toFixed(2)}` : '---'}
-                               </span>
-                             </div>
-                           </div>
-                        </div>
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge className={cn(
@@ -254,11 +304,6 @@ export default function AdminFinanceiroPage() {
                               Validar Manualmente
                             </Button>
                           )}
-                          {ps?.status === 'verified' && (
-                            <div className="p-2 bg-green-50 rounded-full">
-                               <CheckCircle2 className="w-5 h-5 text-green-500" />
-                            </div>
-                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -296,19 +341,13 @@ export default function AdminFinanceiroPage() {
                  />
               </div>
             </div>
-            <div className="p-5 bg-orange-50 rounded-2xl border border-orange-100 flex gap-4">
-              <AlertTriangle className="w-6 h-6 text-orange-500 shrink-0" />
-              <p className="text-[10px] text-orange-800 font-bold uppercase leading-relaxed">
-                Este valor servirá como "chave de segurança" para a marca validar a conta. Sinalize apenas após realizar o PIX/TED de fato.
-              </p>
-            </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsDepositModalOpen(false)} className="rounded-xl font-bold uppercase text-[10px]">Cancelar</Button>
             <Button 
               onClick={handleSignalDeposit} 
               disabled={isSubmitting || !depositAmount} 
-              className="bg-secondary text-white rounded-xl font-black uppercase text-[10px] h-12 px-8 shadow-xl shadow-secondary/20"
+              className="bg-secondary text-white rounded-xl font-black uppercase text-[10px] h-12 px-8 shadow-xl"
             >
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
               Confirmar Sinalização

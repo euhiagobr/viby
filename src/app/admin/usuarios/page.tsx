@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -11,7 +12,8 @@ import {
   deleteDoc, 
   getDoc, 
   writeBatch,
-  serverTimestamp 
+  serverTimestamp,
+  deleteField
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { 
@@ -54,7 +56,10 @@ import {
   Coins,
   Ticket,
   CalendarDays,
-  BadgeCheck
+  BadgeCheck,
+  EyeOff,
+  Clock,
+  RefreshCcw
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -67,8 +72,6 @@ import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "@/hooks/use-toast"
-import { errorEmitter } from "@/firebase/error-emitter"
-import { FirestorePermissionError } from "@/firebase/errors"
 import { cn } from "@/lib/utils"
 
 const ORG_TYPES = [
@@ -90,11 +93,9 @@ export default function AdminUsuariosPage() {
   const [search, setSearch] = React.useState("")
   const [activeTab, setActiveTab] = React.useState("usuarios")
   
-  // States para Usuários
   const [editingUser, setEditingUser] = React.useState<any>(null)
   const [isEditUserOpen, setIsEditUserOpen] = React.useState(false)
 
-  // States para Páginas (Organizações)
   const [editingOrg, setEditingOrg] = React.useState<any>(null)
   const [isEditOrgOpen, setIsEditOrgOpen] = React.useState(false)
   
@@ -103,7 +104,6 @@ export default function AdminUsuariosPage() {
   const [checkingUsername, setCheckingUsername] = React.useState(false)
   const [usernameStatus, setUsernameStatus] = React.useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
 
-  // Consultas
   const usersQuery = useMemoFirebase(() => db ? query(collection(db, "users"), orderBy("createdAt", "desc")) : null, [db])
   const { data: users, loading: loadingUsers } = useCollection<any>(usersQuery)
 
@@ -113,7 +113,6 @@ export default function AdminUsuariosPage() {
   const plansRef = React.useMemo(() => db ? doc(db, 'settings', 'plans') : null, [db])
   const { data: plansSettings } = useDoc<any>(plansRef)
 
-  // Consulta de Eventos para contagem
   const eventsQuery = useMemoFirebase(() => db ? collection(db, "events") : null, [db])
   const { data: allEvents } = useCollection<any>(eventsQuery)
 
@@ -145,7 +144,6 @@ export default function AdminUsuariosPage() {
     )
   }, [orgs, search])
 
-  // Lógica de Username Único
   React.useEffect(() => {
     if (!db) return
     const target = activeTab === 'usuarios' ? editingUser : editingOrg
@@ -247,10 +245,8 @@ export default function AdminUsuariosPage() {
 
   const handlePlanChange = (newPlan: string) => {
     if (!editingUser || !plansSettings) return;
-    
     const planKey = newPlan.toLowerCase();
     const defaults = plansSettings[planKey] || {};
-
     setEditingUser((prev: any) => ({
       ...prev,
       plan: newPlan,
@@ -265,10 +261,38 @@ export default function AdminUsuariosPage() {
     }));
   }
 
+  const handleReactivateOrg = async (id: string) => {
+    if (!db) return;
+    try {
+      await updateDoc(doc(db, 'organizations', id), {
+        status: 'Ativo',
+        deletionScheduledAt: deleteField(),
+        updatedAt: serverTimestamp()
+      });
+      toast({ title: "Marca reativada!" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao reativar" });
+    }
+  };
+
   const safeNumberValue = (val: any) => {
     if (val === undefined || val === null || Number.isNaN(val)) return ""
     return val.toString()
   }
+
+  const getOrgStatusBadge = (status: string, deletionDate?: string) => {
+    if (status === 'Exclusão Programada') {
+      const remaining = deletionDate ? Math.ceil((new Date(deletionDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
+      return (
+        <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 text-[9px] font-black uppercase flex items-center gap-1">
+          <Clock className="w-2.5 h-2.5" /> Exclui em {remaining}d
+        </Badge>
+      );
+    }
+    if (status === 'Desativado') return <Badge variant="secondary" className="text-[9px] font-black uppercase opacity-60">Oculta</Badge>;
+    if (status === 'Bloqueado') return <Badge variant="destructive" className="text-[9px] font-black uppercase">Bloqueada</Badge>;
+    return <Badge className="bg-green-500 text-white text-[9px] font-black uppercase h-5">Ativa</Badge>;
+  };
 
   return (
     <div className="space-y-8">
@@ -337,7 +361,7 @@ export default function AdminUsuariosPage() {
                <TableHeader className="bg-muted/30">
                  <TableRow>
                    <TableHead className="font-bold">Página / Marca</TableHead>
-                   <TableHead className="font-bold">Tipo</TableHead>
+                   <TableHead className="font-bold">Status Visibilidade</TableHead>
                    <TableHead className="font-bold text-center">Eventos</TableHead>
                    <TableHead className="text-center font-bold">Verificado</TableHead>
                    <TableHead className="text-right font-bold">Ações</TableHead>
@@ -354,7 +378,7 @@ export default function AdminUsuariosPage() {
                          <div className="flex flex-col"><span className="font-bold text-sm">{org.name}</span><span className="text-[10px] text-secondary font-bold">@{org.username}</span></div>
                        </div>
                      </TableCell>
-                     <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase border-secondary text-secondary">{org.type || 'Página'}</Badge></TableCell>
+                     <TableCell>{getOrgStatusBadge(org.status || 'Ativo', org.deletionScheduledAt)}</TableCell>
                      <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-1.5 font-black text-sm">
                            <Calendar className="w-3.5 h-3.5 text-secondary" />
@@ -363,8 +387,15 @@ export default function AdminUsuariosPage() {
                      </TableCell>
                      <TableCell className="text-center">{org.verified && <VerifiedBadge className="mx-auto" />}</TableCell>
                      <TableCell className="text-right">
-                       <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" onClick={() => { setEditingOrg(org); setIsEditOrgOpen(true); }}><Edit className="w-4 h-4" /></Button>
-                       <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={async () => { if(confirm('Excluir página permanentemente?')){ await deleteDoc(doc(db!, "organizations", org.id)); if(org.username) await deleteDoc(doc(db!, "usernames", org.username.toLowerCase())); toast({title:"Página Removida"}); } }}><Trash2 className="w-4 h-4" /></Button>
+                       <div className="flex items-center justify-end gap-1">
+                          {(org.status === 'Desativado' || org.status === 'Exclusão Programada') && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600" onClick={() => handleReactivateOrg(org.id)} title="Reativar Manualmente">
+                               <RefreshCcw className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" onClick={() => { setEditingOrg(org); setIsEditOrgOpen(true); }}><Edit className="w-4 h-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={async () => { if(confirm('Excluir página permanentemente?')){ await deleteDoc(doc(db!, "organizations", org.id)); if(org.username) await deleteDoc(doc(db!, "usernames", org.username.toLowerCase())); toast({title:"Página Removida"}); } }}><Trash2 className="w-4 h-4" /></Button>
+                       </div>
                      </TableCell>
                    </TableRow>
                  ))}
@@ -374,7 +405,7 @@ export default function AdminUsuariosPage() {
         </Tabs>
       </Card>
 
-      {/* DIALOG EDITAR USUÁRIO PESSOAL - COM GESTÃO DE PLANO */}
+      {/* DIALOG EDITAR USUÁRIO PESSOAL */}
       <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
         <DialogContent className="max-w-4xl h-[90vh] p-0 overflow-hidden rounded-[2.5rem]">
            <DialogHeader className="p-8 border-b bg-muted/30">
@@ -428,14 +459,6 @@ export default function AdminUsuariosPage() {
                              </Select>
                           </div>
                        </div>
-
-                       <div className="flex items-center justify-between p-5 bg-muted/20 rounded-2xl border border-border">
-                          <div className="space-y-0.5">
-                             <Label className="font-bold">Selo de Verificado</Label>
-                             <p className="text-[10px] uppercase font-black opacity-40">Atribuir autoridade manual ao perfil</p>
-                          </div>
-                          <Switch checked={editingUser?.isVerified || false} onCheckedChange={v => setEditingUser({...editingUser, isVerified: v})} />
-                       </div>
                     </TabsContent>
 
                     <TabsContent value="plano" className="p-8 space-y-10">
@@ -456,13 +479,6 @@ export default function AdminUsuariosPage() {
                                 </Select>
                              </div>
                           </div>
-
-                          <div className="space-y-6">
-                             <h3 className="text-xs font-black uppercase tracking-widest text-secondary flex items-center gap-2">
-                                <Settings className="w-4 h-4" /> Personalizar Limites
-                             </h3>
-                             <p className="text-[10px] font-medium text-muted-foreground uppercase leading-relaxed">Estes valores foram preenchidos conforme o plano escolhido, mas podem ser ajustados individualmente.</p>
-                          </div>
                        </div>
 
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-muted/10 p-8 rounded-[2rem] border-2 border-dashed">
@@ -482,16 +498,6 @@ export default function AdminUsuariosPage() {
                                   type="number" 
                                   value={safeNumberValue(editingUser?.planOverride?.maxActiveEvents)} 
                                   onChange={e => handleOverrideField('maxActiveEvents', e.target.value === "" ? 0 : parseInt(e.target.value))} 
-                                  className="rounded-xl" 
-                                />
-                             </div>
-                             <div className="space-y-3">
-                                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Ticket className="w-3.5 h-3.5" /> Máx. Ingressos/Evento</Label>
-                                <Input 
-                                  type="number" 
-                                  value={safeNumberValue(editingUser?.planOverride?.maxTicketsPerEvent)} 
-                                  onChange={e => handleOverrideField('maxTicketsPerEvent', e.target.value === "" ? 0 : parseInt(e.target.value))} 
-                                  placeholder="0 = Ilimitado"
                                   className="rounded-xl" 
                                 />
                              </div>
@@ -520,11 +526,6 @@ export default function AdminUsuariosPage() {
                                    />
                                 </div>
                              </div>
-
-                             <div className="flex items-center justify-between p-4 bg-white rounded-2xl border">
-                                <Label className="font-bold text-xs">Liberar Relatórios VIP</Label>
-                                <Switch checked={editingUser?.planOverride?.hasReports || false} onCheckedChange={v => handleOverrideField('hasReports', v)} />
-                             </div>
                           </div>
                        </div>
                     </TabsContent>
@@ -535,168 +536,7 @@ export default function AdminUsuariosPage() {
                  <Button type="button" variant="ghost" onClick={() => setIsEditUserOpen(false)} className="rounded-xl font-bold uppercase text-[10px]">Cancelar</Button>
                  <Button type="submit" disabled={isSaving || (usernameStatus === 'taken')} className="bg-primary text-white font-black h-14 rounded-2xl px-12 shadow-xl uppercase italic">
                     {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-                    Salvar Alterações do Usuário
-                 </Button>
-              </DialogFooter>
-           </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* DIALOG EDITAR PÁGINA (ORGANIZAÇÃO) */}
-      <Dialog open={isEditOrgOpen} onOpenChange={setIsEditOrgOpen}>
-        <DialogContent className="max-w-4xl h-[90vh] p-0 overflow-hidden rounded-[2.5rem]">
-           <DialogHeader className="p-8 border-b bg-muted/30">
-              <div className="flex items-center gap-3">
-                 <div className="p-2 bg-secondary/10 rounded-lg"><Building2 className="w-6 h-6 text-secondary" /></div>
-                 <div>
-                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Editar Página: {editingOrg?.name}</DialogTitle>
-                    <DialogDescription className="font-medium">Gestão administrativa total da marca e identidade visual.</DialogDescription>
-                 </div>
-              </div>
-           </DialogHeader>
-
-           <form onSubmit={handleUpdateOrg} className="flex-1 flex flex-col min-h-0">
-              <ScrollArea className="flex-1 p-8">
-                 <div className="space-y-10">
-                    {/* Banner e Avatar */}
-                    <div className="space-y-4">
-                       <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Capa e Logotipo</Label>
-                       <div className="relative">
-                          <div 
-                            className="h-48 bg-muted rounded-3xl border-2 border-dashed border-border group cursor-pointer overflow-hidden relative"
-                            onClick={() => document.getElementById('admin-org-banner')?.click()}
-                          >
-                             {editingOrg?.banner ? <img src={editingOrg.banner} className="w-full h-full object-cover" alt="Banner" /> : null}
-                             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <Camera className="text-white w-10 h-10" />
-                             </div>
-                             <input id="admin-org-banner" type="file" className="hidden" onChange={e => e.target.files?.[0] && handleImageUpload(e.target.files[0], 'banner', editingOrg.id, 'organizations')} />
-                          </div>
-                          <div className="absolute -bottom-10 left-8">
-                             <div className="relative group">
-                                <Avatar className="h-32 w-32 border-4 border-white shadow-2xl">
-                                   <AvatarImage src={editingOrg?.avatar} className="object-cover" />
-                                   <AvatarFallback className="text-4xl font-bold bg-muted">O</AvatarFallback>
-                                </Avatar>
-                                <label htmlFor="admin-org-avatar" className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                                   <Camera className="w-8 h-8" />
-                                </label>
-                                <input id="admin-org-avatar" type="file" className="hidden" onChange={e => e.target.files?.[0] && handleImageUpload(e.target.files[0], 'avatar', editingOrg.id, 'organizations')} />
-                             </div>
-                          </div>
-                       </div>
-                       <div className="h-10" />
-                       {uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                       <div className="space-y-6">
-                          <h3 className="text-xs font-black uppercase tracking-widest text-secondary flex items-center gap-2">
-                             <Info className="w-3.5 h-3.5" /> Informações da Marca
-                          </h3>
-                          <div className="space-y-4">
-                             <div className="space-y-2">
-                                <Label>Nome de Exibição</Label>
-                                <Input value={editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, name: e.target.value})} className="rounded-xl h-11" required />
-                             </div>
-                             <div className="space-y-2">
-                                <Label>Username exclusivo (@)</Label>
-                                <div className="relative">
-                                   <Input 
-                                      value={editingOrg?.username || ""} 
-                                      onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} 
-                                      className={cn("rounded-xl h-11 pr-10", usernameStatus === 'taken' && "border-destructive")} 
-                                   />
-                                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                      {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin opacity-40" /> : 
-                                       usernameStatus === 'taken' ? <X className="w-4 h-4 text-destructive" /> : 
-                                       usernameStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : null}
-                                   </div>
-                                </div>
-                             </div>
-                             <div className="space-y-2">
-                                <Label>Tipo / Segmento</Label>
-                                <Select value={editingOrg?.type || ""} onValueChange={v => setEditingOrg({...editingOrg, type: v})}>
-                                   <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                                   <SelectContent>
-                                      {ORG_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                                   </SelectContent>
-                                </Select>
-                             </div>
-                          </div>
-                       </div>
-
-                       <div className="space-y-6">
-                          <h3 className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                             <Globe className="w-3.5 h-3.5" /> Presença e Status
-                          </h3>
-                          <div className="space-y-4">
-                             <div className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border border-border">
-                                <div className="space-y-0.5">
-                                   <Label className="font-bold">Selo Verificado</Label>
-                                   <p className="text-[10px] text-muted-foreground uppercase font-bold">Atribuir autoridade visual</p>
-                                </div>
-                                <Switch checked={editingOrg?.verified || false} onCheckedChange={v => setEditingOrg({...editingOrg, verified: v})} />
-                             </div>
-                             <div className="space-y-2">
-                                <Label>Biografia da Marca</Label>
-                                <Textarea value={editingOrg?.bio || ""} onChange={e => setEditingOrg({...editingOrg, bio: e.target.value})} className="min-h-[100px] rounded-xl resize-none" />
-                             </div>
-                          </div>
-                       </div>
-                    </div>
-
-                    <Separator className="bg-border/60" />
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                       <div className="space-y-6">
-                          <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                             <Fingerprint className="w-3.5 h-3.5" /> Dados Legais
-                          </h3>
-                          <div className="space-y-4">
-                             <div className="space-y-2">
-                                <Label>Razão Social</Label>
-                                <Input value={editingOrg?.legalName || ""} onChange={e => setEditingOrg({...editingOrg, legalName: e.target.value})} className="rounded-xl h-11" />
-                             </div>
-                             <div className="space-y-2">
-                                <Label>CNPJ</Label>
-                                <Input value={editingOrg?.cnpj || ""} onChange={e => setEditingOrg({...editingOrg, cnpj: e.target.value})} className="rounded-xl h-11" />
-                             </div>
-                          </div>
-                       </div>
-
-                       <div className="space-y-6">
-                          <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                             <MapPin className="w-3.5 h-3.5" /> Localização Sede
-                          </h3>
-                          <div className="grid grid-cols-2 gap-4">
-                             <div className="space-y-2"><Label>CEP</Label><Input value={editingOrg?.cep || ""} onChange={e => setEditingOrg({...editingOrg, cep: e.target.value})} className="rounded-xl" /></div>
-                             <div className="space-y-2"><Label>Cidade</Label><Input value={editingOrg?.city || ""} onChange={e => setEditingOrg({...editingOrg, city: e.target.value})} className="rounded-xl" /></div>
-                          </div>
-                       </div>
-                    </div>
-
-                    <Separator className="bg-border/60" />
-
-                    <div className="space-y-6">
-                       <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                          <Settings className="w-3.5 h-3.5" /> Canais de Contato
-                       </h3>
-                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                          <div className="space-y-2"><Label className="text-[10px] uppercase font-bold"><Instagram className="w-3 h-3 inline mr-1" /> Instagram</Label><Input value={editingOrg?.instagram || ""} onChange={e => setEditingOrg({...editingOrg, instagram: e.target.value})} className="rounded-xl text-xs h-10" /></div>
-                          <div className="space-y-2"><Label className="text-[10px] uppercase font-bold"><Phone className="w-3 h-3 inline mr-1" /> WhatsApp</Label><Input value={editingOrg?.phone || ""} onChange={e => setEditingOrg({...editingOrg, phone: e.target.value})} className="rounded-xl text-xs h-10" /></div>
-                          <div className="space-y-2"><Label className="text-[10px] uppercase font-bold"><Mail className="w-3 h-3 inline mr-1" /> E-mail</Label><Input value={editingOrg?.contactEmail || ""} onChange={e => setEditingOrg({...editingOrg, contactEmail: e.target.value})} className="rounded-xl text-xs h-10" /></div>
-                          <div className="space-y-2"><Label className="text-[10px] uppercase font-bold"><Globe className="w-3 h-3 inline mr-1" /> Site</Label><Input value={editingOrg?.website || ""} onChange={e => setEditingOrg({...editingOrg, website: e.target.value})} className="rounded-xl text-xs h-10" /></div>
-                       </div>
-                    </div>
-                 </div>
-              </ScrollArea>
-
-              <DialogFooter className="p-8 bg-muted/30 border-t gap-3">
-                 <Button type="button" variant="ghost" onClick={() => setIsEditOrgOpen(false)} className="rounded-xl font-bold uppercase text-[10px]">Cancelar</Button>
-                 <Button type="submit" disabled={isSaving || (usernameStatus === 'taken')} className="bg-primary text-white font-black h-14 rounded-2xl px-12 shadow-xl shadow-secondary/20 uppercase italic transition-all hover:scale-105">
-                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-                    Salvar Alterações da Página
+                    Salvar Alterações
                  </Button>
               </DialogFooter>
            </form>

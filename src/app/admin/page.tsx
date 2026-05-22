@@ -1,56 +1,81 @@
+
 "use client"
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection } from "firebase/firestore"
+import { collection, query, where } from "firebase/firestore"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Tag, Users, Loader2, LayoutDashboard, BarChart3, AlertTriangle } from "lucide-react"
+import { 
+  Tag, 
+  Users, 
+  Loader2, 
+  LayoutDashboard, 
+  BarChart3, 
+  AlertTriangle, 
+  EyeOff, 
+  Wallet,
+  Building2
+} from "lucide-react"
+import { formatCurrency } from "@/lib/financial-utils"
 
 export default function AdminDashboardPage() {
   const db = useFirestore()
   
-  // Consultas reais para o dashboard
   const eventsQuery = useMemoFirebase(() => db ? collection(db, "events") : null, [db])
   const usersQuery = useMemoFirebase(() => db ? collection(db, "users") : null, [db])
-  const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
+  const orgsQuery = useMemoFirebase(() => db ? collection(db, "organizations") : null, [db])
   const reportsQuery = useMemoFirebase(() => db ? collection(db, "reports") : null, [db])
+  const regsQuery = useMemoFirebase(() => db ? collection(db, "registrations") : null, [db])
 
   const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
   const { data: users, loading: usersLoading } = useCollection<any>(usersQuery)
-  const { data: categories, loading: categoriesLoading } = useCollection<any>(categoriesQuery)
+  const { data: orgs, loading: orgsLoading } = useCollection<any>(orgsQuery)
   const { data: reports, loading: reportsLoading } = useCollection<any>(reportsQuery)
+  const { data: regs } = useCollection<any>(regsQuery)
 
-  const stats = [
-    { 
-      title: "Eventos Totais", 
-      value: eventsLoading ? "..." : events?.length || "0", 
-      icon: LayoutDashboard, 
-      color: "text-blue-500", 
-      bg: "bg-blue-50" 
-    },
-    { 
-      title: "Usuários Ativos", 
-      value: usersLoading ? "..." : users?.length || "0", 
-      icon: Users, 
-      color: "text-purple-500", 
-      bg: "bg-purple-50" 
-    },
-    { 
-      title: "Categorias", 
-      value: categoriesLoading ? "..." : categories?.length || "0", 
-      icon: Tag, 
-      color: "text-orange-500", 
-      bg: "bg-orange-50" 
-    },
-    { 
-      title: "Denúncias", 
-      value: reportsLoading ? "..." : reports?.length || "0", 
-      icon: AlertTriangle, 
-      color: "text-red-500", 
-      bg: "bg-red-50" 
-    },
-  ]
+  const stats = React.useMemo(() => {
+    const hiddenOrgs = orgs?.filter((o: any) => o.status === 'Desativado' || o.status === 'Exclusão Programada').length || 0;
+    
+    // Cálculo simplificado de repasse global
+    const totalToPay = regs?.reduce((acc: any, r: any) => {
+      if (['Pago', 'Disponível'].includes(r.paymentStatus)) {
+        return acc + (r.producerNetAmount || 0);
+      }
+      return acc;
+    }, 0) || 0;
+
+    return [
+      { 
+        title: "Eventos Totais", 
+        value: eventsLoading ? "..." : events?.length || "0", 
+        icon: LayoutDashboard, 
+        color: "text-blue-500", 
+        bg: "bg-blue-50" 
+      },
+      { 
+        title: "Páginas Ocultas", 
+        value: orgsLoading ? "..." : hiddenOrgs, 
+        icon: EyeOff, 
+        color: "text-orange-500", 
+        bg: "bg-orange-50" 
+      },
+      { 
+        title: "Total a Repassar", 
+        value: formatCurrency(totalToPay), 
+        icon: Wallet, 
+        color: "text-green-500", 
+        bg: "bg-green-50" 
+      },
+      { 
+        title: "Denúncias", 
+        value: reportsLoading ? "..." : reports?.length || "0", 
+        icon: AlertTriangle, 
+        color: "text-red-500", 
+        bg: "bg-red-50" 
+      },
+    ]
+  }, [events, users, orgs, reports, regs, eventsLoading, orgsLoading, reportsLoading]);
 
   return (
     <div className="space-y-10">
@@ -69,7 +94,7 @@ export default function AdminDashboardPage() {
                    </div>
                    <div className="text-right">
                       <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{stat.title}</p>
-                      <p className="text-2xl font-black">{stat.value}</p>
+                      <p className="text-xl font-black">{stat.value}</p>
                    </div>
                 </div>
              </CardContent>
