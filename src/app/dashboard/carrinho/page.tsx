@@ -46,8 +46,8 @@ export default function CarrinhoPage() {
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
 
-  const plansRef = React.useMemo(() => db ? doc(db, 'settings', 'plans') : null, [db])
-  const { data: plansSettings } = useDoc<any>(plansRef)
+  const feesRef = React.useMemo(() => db ? doc(db, 'settings', 'fees') : null, [db])
+  const { data: globalFees, loading: feesLoading } = useDoc<any>(feesRef)
 
   const [processing, setProcessing] = React.useState(false)
   const [isWaitingPayment, setIsWaitingPayment] = React.useState(false)
@@ -55,43 +55,6 @@ export default function CarrinhoPage() {
   const [couponCode, setCouponCode] = React.useState("")
   const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null)
   const [isApplyingCoupon, setIsApplyingCoupon] = React.useState(false)
-
-  const [breakdowns, setBreakdowns] = React.useState<Record<string, any>>({})
-  const [loadingBreakdowns, setLoadingBreakdowns] = React.useState(true)
-
-  React.useEffect(() => {
-    if (!db || items.length === 0 || !plansSettings) {
-      setLoadingBreakdowns(false)
-      return
-    }
-
-    const fetchOrganizerPlans = async () => {
-      setLoadingBreakdowns(true)
-      const uniqueOrganizerIds = Array.from(new Set(items.map(i => i.organizerId)))
-      const newBreakdowns: Record<string, any> = {}
-
-      try {
-        for (const orgId of uniqueOrganizerIds) {
-          const orgUserRef = doc(db, "users", orgId)
-          const orgUserSnap = await getDoc(orgUserRef)
-          
-          if (orgUserSnap.exists()) {
-            const orgData = orgUserSnap.data()
-            const planKey = (orgData.plan || "START").toLowerCase()
-            const planData = orgData.planOverride || plansSettings[planKey] || {}
-            newBreakdowns[orgId] = planData
-          }
-        }
-        setBreakdowns(newBreakdowns)
-      } catch (e) {
-        console.error("Erro ao carregar planos dos organizadores", e)
-      } finally {
-        setLoadingBreakdowns(false)
-      }
-    }
-
-    fetchOrganizerPlans()
-  }, [db, items, plansSettings])
 
   const cartTotals = React.useMemo(() => {
     let subtotal = 0;
@@ -125,14 +88,13 @@ export default function CarrinhoPage() {
       const unitDiscount = isEligible ? discountPerUnit : 0;
       const discountedUnitPrice = Math.max(0, item.price - unitDiscount);
       
-      const orgPlan = breakdowns[item.organizerId];
-      const res = calculateFinancialBreakdown(discountedUnitPrice, orgPlan);
+      const res = calculateFinancialBreakdown(discountedUnitPrice, globalFees);
       fees += res.administrativeFeeAmount * item.quantity;
     });
 
     const finalTotal = Math.max(0, (subtotal - discount) + fees);
     return { subtotal, fees, discount, total: finalTotal };
-  }, [items, appliedCoupon, breakdowns]);
+  }, [items, appliedCoupon, globalFees]);
 
   const handleApplyCoupon = async () => {
     if (!db || !couponCode.trim()) return;
@@ -172,7 +134,7 @@ export default function CarrinhoPage() {
 
   const handleCheckout = async () => {
     if (!user) return router.push("/login")
-    if (!db || items.length === 0 || processing || loadingBreakdowns) return
+    if (!db || items.length === 0 || processing || feesLoading) return
 
     setProcessing(true)
     try {
@@ -186,8 +148,7 @@ export default function CarrinhoPage() {
         const currentItemDiscount = isEligibleForDiscount ? discountPerUnit : 0;
         const discountedPrice = Math.max(0, item.price - currentItemDiscount);
         
-        const orgPlan = breakdowns[item.organizerId];
-        const breakdown = calculateFinancialBreakdown(discountedPrice, orgPlan);
+        const breakdown = calculateFinancialBreakdown(discountedPrice, globalFees);
         
         for (let i = 0; i < item.quantity; i++) {
           const ticketCode = await generateUniqueTicketCode(db);
@@ -206,10 +167,10 @@ export default function CarrinhoPage() {
             organizerUsername: item.organizerUsername,
             ticketBasePrice: item.price,
             discountApplied: currentItemDiscount,
-            price: breakdown.customerFinalPrice, // O que o cliente pagou (com 15%)
-            administrativeFeeAmount: breakdown.administrativeFeeAmount, // Receita Viby Parte 1 (15%)
-            producerFeeAmount: breakdown.producerFeeAmount, // Receita Viby Parte 2 (Custo do Plano)
-            producerNetAmount: breakdown.producerNetAmount, // Valor real que o produtor recebe
+            price: breakdown.customerFinalPrice,
+            administrativeFeeAmount: breakdown.administrativeFeeAmount,
+            producerFeeAmount: breakdown.producerFeeAmount,
+            producerNetAmount: breakdown.producerNetAmount,
             batchId: item.batchId,
             batchName: item.batchName,
             ticketTypeId: item.ticketTypeId,
@@ -313,10 +274,9 @@ export default function CarrinhoPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-4">
-           {loadingBreakdowns ? <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div> : 
+           {feesLoading ? <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div> : 
             items.map((item) => {
-             const orgPlan = breakdowns[item.organizerId];
-             const res = calculateFinancialBreakdown(item.price, orgPlan);
+             const res = calculateFinancialBreakdown(item.price, globalFees);
              return (
                <Card key={item.id} className="border-none shadow-sm rounded-2xl overflow-hidden group">
                   <div className="flex flex-col sm:flex-row">
@@ -358,11 +318,11 @@ export default function CarrinhoPage() {
                  <div className="space-y-4">
                     <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Subtotal (Ingressos)</span><span>{formatCurrency(cartTotals.subtotal)}</span></div>
                     {cartTotals.discount > 0 && <div className="flex justify-between text-xs font-black uppercase text-green-600"><span>Desconto</span><span>-{formatCurrency(cartTotals.discount)}</span></div>}
-                    <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Taxa Adm. (15%)</span><span>{formatCurrency(cartTotals.fees)}</span></div>
+                    <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Taxas</span><span>{formatCurrency(cartTotals.fees)}</span></div>
                     <Separator className="bg-border/60" />
                     <div className="flex justify-between items-center"><span className="text-lg font-black uppercase italic">Total</span><span className="text-2xl font-black text-primary">{formatCurrency(cartTotals.total)}</span></div>
                  </div>
-                 <Button onClick={handleCheckout} disabled={processing || loadingBreakdowns} className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform gap-3">{processing ? <Loader2 className="w-6 h-6 animate-spin" /> : (cartTotals.total > 0 ? <><CreditCard className="w-6 h-6" /> Pagar via Stripe</> : "Confirmar Reserva")}</Button>
+                 <Button onClick={handleCheckout} disabled={processing || feesLoading} className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform gap-3">{processing ? <Loader2 className="w-6 h-6 animate-spin" /> : (cartTotals.total > 0 ? <><CreditCard className="w-6 h-6" /> Pagar via Stripe</> : "Confirmar Reserva")}</Button>
                  <Button variant="ghost" asChild className="w-full font-bold text-muted-foreground uppercase text-xs tracking-widest"><Link href="/dashboard">Continuar Comprando</Link></Button>
               </CardContent>
            </Card>

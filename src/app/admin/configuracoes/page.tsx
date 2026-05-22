@@ -31,7 +31,9 @@ import {
   X,
   Map as MapIcon,
   Percent,
-  Receipt
+  Receipt,
+  Building2,
+  User
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -52,7 +54,7 @@ export default function AdminConfiguracoesPage() {
   const { data: settings, loading: loadingSettings } = useDoc<any>(settingsRef);
   const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
   const { data: emailSettings, loading: loadingEmail } = useDoc<any>(emailRef);
-  const { data: adsSettings, loading: loadingAds } = useDoc<any>(adsRef);
+  const { data: adsSettings, loading: loadingAds } = useDoc<any>(adsSettings);
   const { data: mapsSettings, loading: loadingMaps } = useDoc<any>(mapsRef);
   const { data: blockedData, loading: loadingBlocked } = useDoc<any>(blockedRef);
   const { data: feesSettings, loading: loadingFees } = useDoc<any>(feesRef);
@@ -75,6 +77,8 @@ export default function AdminConfiguracoesPage() {
   const [googleMapsApiKey, setGoogleMapsApiKey] = React.useState('');
 
   const [buyerFeePercent, setBuyerFeePercent] = React.useState('15');
+  const [organizerFeePercent, setOrganizerFeePercent] = React.useState('10');
+  const [organizerMinFee, setOrganizerMinFee] = React.useState('9.99');
   const [processingFeePercent, setProcessingFeePercent] = React.useState('4.99');
   const [processingFeeFixed, setProcessingFeeFixed] = React.useState('0.30');
 
@@ -125,6 +129,8 @@ export default function AdminConfiguracoesPage() {
   React.useEffect(() => {
     if (feesSettings) {
       setBuyerFeePercent(feesSettings.buyerFeePercent?.toString() || '15');
+      setOrganizerFeePercent(feesSettings.organizerFeePercent?.toString() || '10');
+      setOrganizerMinFee(feesSettings.organizerMinFee?.toString() || '9.99');
       setProcessingFeePercent(feesSettings.processingFeePercent?.toString() || '4.99');
       setProcessingFeeFixed(feesSettings.processingFeeFixed?.toString() || '0.30');
     }
@@ -217,6 +223,8 @@ export default function AdminConfiguracoesPage() {
     setSaving(true);
     const feesData = { 
       buyerFeePercent: parseFloat(buyerFeePercent) || 0, 
+      organizerFeePercent: parseFloat(organizerFeePercent) || 0,
+      organizerMinFee: parseFloat(organizerMinFee) || 0,
       processingFeePercent: parseFloat(processingFeePercent) || 0,
       processingFeeFixed: parseFloat(processingFeeFixed) || 0,
       updatedAt: serverTimestamp() 
@@ -360,34 +368,68 @@ export default function AdminConfiguracoesPage() {
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-secondary/10 rounded-lg"><Receipt className="w-5 h-5 text-secondary" /></div>
                   <div>
-                    <CardTitle className="text-xl">Taxas Globais de Serviço</CardTitle>
+                    <CardTitle className="text-xl">Taxas da Plataforma</CardTitle>
                     <CardDescription>Defina as taxas aplicadas em cada transação de ingressos.</CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2"><Percent className="w-3.5 h-3.5 text-muted-foreground" /> Taxa Administrativa (Comprador %)</Label>
-                  <div className="relative">
-                    <Input type="number" step="0.1" value={buyerFeePercent} onChange={(e) => setBuyerFeePercent(e.target.value)} placeholder="15" className="rounded-xl pr-9 h-12 font-bold" />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground italic">Taxa somada ao valor do ingresso e paga pelo cliente final.</p>
+              <CardContent className="space-y-8">
+                {/* TAXA DO COMPRADOR */}
+                <div className="space-y-4">
+                   <div className="flex items-center gap-2 text-primary font-black uppercase text-[10px] tracking-widest"><User className="w-4 h-4" /> Taxas do Comprador</div>
+                   <div className="space-y-2">
+                     <Label className="flex items-center gap-2"><Percent className="w-3.5 h-3.5 text-muted-foreground" /> Taxa Administrativa (%)</Label>
+                     <div className="relative">
+                       <Input type="number" step="0.1" value={buyerFeePercent} onChange={(e) => setBuyerFeePercent(e.target.value)} placeholder="15" className="rounded-xl pr-9 h-12 font-bold" />
+                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
+                     </div>
+                     <p className="text-[10px] text-muted-foreground italic">Taxa somada ao valor do ingresso e paga pelo cliente final.</p>
+                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2"><CreditCard className="w-3.5 h-3.5 text-muted-foreground" /> Processamento Stripe (%)</Label>
-                    <div className="relative">
-                      <Input type="number" step="0.01" value={processingFeePercent} onChange={(e) => setProcessingFeePercent(e.target.value)} placeholder="4.99" className="rounded-xl pr-9 h-12 font-bold" />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
+                <Separator />
+
+                {/* TAXA DO ORGANIZADOR */}
+                <div className="space-y-4">
+                   <div className="flex items-center gap-2 text-secondary font-black uppercase text-[10px] tracking-widest"><Building2 className="w-4 h-4" /> Taxas do Organizador</div>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2"><Percent className="w-3.5 h-3.5 text-muted-foreground" /> Porcentagem (%)</Label>
+                        <div className="relative">
+                          <Input type="number" step="0.1" value={organizerFeePercent} onChange={(e) => setOrganizerFeePercent(e.target.value)} placeholder="10" className="rounded-xl pr-9 h-12 font-bold" />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2"><Coins className="w-3.5 h-3.5 text-muted-foreground" /> Valor Mínimo (R$)</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">R$</span>
+                          <Input type="number" step="0.01" value={organizerMinFee} onChange={(e) => setOrganizerMinFee(e.target.value)} placeholder="9.99" className="rounded-xl pl-9 h-12 font-bold" />
+                        </div>
+                      </div>
+                   </div>
+                   <p className="text-[10px] text-muted-foreground italic">Custo descontado do produtor. Será aplicado o maior valor entre os dois acima.</p>
+                </div>
+
+                <Separator />
+
+                {/* TAXAS DE PROCESSAMENTO */}
+                <div className="space-y-4">
+                   <div className="flex items-center gap-2 text-muted-foreground font-black uppercase text-[10px] tracking-widest"><CreditCard className="w-4 h-4" /> Processamento (Checkout)</div>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2"><Percent className="w-3.5 h-3.5 text-muted-foreground" /> Percentual (%)</Label>
+                      <div className="relative">
+                        <Input type="number" step="0.01" value={processingFeePercent} onChange={(e) => setProcessingFeePercent(e.target.value)} placeholder="4.99" className="rounded-xl pr-9 h-12 font-bold" />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2"><Coins className="w-3.5 h-3.5 text-muted-foreground" /> Processamento Fixo (R$)</Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">R$</span>
-                      <Input type="number" step="0.01" value={processingFeeFixed} onChange={(e) => setProcessingFeeFixed(e.target.value)} placeholder="0.30" className="rounded-xl pl-9 h-12 font-bold" />
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2"><Coins className="w-3.5 h-3.5 text-muted-foreground" /> Fixo por venda (R$)</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">R$</span>
+                        <Input type="number" step="0.01" value={processingFeeFixed} onChange={(e) => setProcessingFeeFixed(e.target.value)} placeholder="0.30" className="rounded-xl pl-9 h-12 font-bold" />
+                      </div>
                     </div>
                   </div>
                 </div>

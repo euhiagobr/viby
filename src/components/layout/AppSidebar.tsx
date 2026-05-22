@@ -16,8 +16,7 @@ import {
   Users,
   Building2,
   UserCheck,
-  CalendarDays,
-  Trophy
+  CalendarDays
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -70,7 +69,6 @@ export function AppSidebar() {
     { title: "Explorar", url: "/dashboard", icon: Globe },
     { title: "Meus Ingressos", url: "/dashboard/ingressos", icon: Ticket },
     { title: "Minhas Organizações", url: "/dashboard/organizacoes", icon: Building2 },
-    ...(organizations.length > 0 ? [{ title: "Planos", url: "/dashboard/plano", icon: Trophy }] : []),
     { title: "Solicitações", url: "/dashboard/solicitacoes", icon: UserCheck, badge: pendingInvitations.length > 0 ? pendingInvitations.length : null },
     { title: "Seguindo", url: "/dashboard/seguindo", icon: Heart },
     { title: "Meu Perfil", url: "/dashboard/perfil", icon: User },
