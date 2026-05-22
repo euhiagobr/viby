@@ -1,9 +1,10 @@
+
 "use client"
 
 import * as React from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useFirestore, useAuth, useUser } from "@/firebase"
-import { doc, updateDoc, serverTimestamp, getDoc, increment } from "firebase/firestore"
+import { doc, updateDoc, serverTimestamp, getDoc, increment, addDoc, collection } from "firebase/firestore"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, CheckCircle2, ArrowRight } from "lucide-react"
@@ -44,40 +45,15 @@ export default function CheckoutSucessoPage() {
           return;
         }
 
-        if (metadata.type === 'plan_upgrade') {
-          const userRef = doc(db, "users", metadata.userId);
-          const amountPaid = (session.amount_total || 0) / 100;
-          await updateDoc(userRef, {
-            plan: metadata.plan,
-            billingCycle: metadata.cycle,
-            isVerified: true, 
-            updatedAt: serverTimestamp(),
-            lastPlanPaymentAt: serverTimestamp(),
-            lastPlanAmount: amountPaid
-          });
-          toast({ title: "Upgrade Realizado!" });
-        } 
-        else if (metadata.type === 'ad_payment') {
-          const adRef = doc(db, "ads", metadata.adId);
-          await updateDoc(adRef, {
-            status: "Ativo",
-            paymentConfirmedAt: serverTimestamp(),
-            stripeSessionId: sessionId,
-            updatedAt: serverTimestamp()
-          });
-          toast({ title: "Campanha Ativa!" });
-        }
-        else if (metadata.type === 'ad_balance_topup') {
+        if (metadata.type === 'ad_balance_topup') {
           const orgRef = doc(db, "organizations", metadata.orgId);
           const amountToCredit = parseFloat(metadata.baseAmount);
           
-          // Atualiza saldo da organização
           await updateDoc(orgRef, {
             adBalance: increment(amountToCredit),
             updatedAt: serverTimestamp()
           });
 
-          // Atualiza a transação para concluída se houver um ID
           if (metadata.transactionId) {
             const txRef = doc(db, 'organizations', metadata.orgId, 'transactions', metadata.transactionId);
             await updateDoc(txRef, {
@@ -106,6 +82,27 @@ export default function CheckoutSucessoPage() {
                   stripeSessionId: sessionId,
                   updatedAt: serverTimestamp(),
                   confirmedAt: serverTimestamp()
+                });
+
+                // Criar registro consolidado de imposto sobre taxas Viby
+                const monthKey = new Date().toISOString().slice(0, 7);
+                const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toLocaleDateString('pt-BR');
+                
+                await addDoc(collection(db, "tax_tickets"), {
+                   eventId: regData.eventId,
+                   eventTitle: regData.eventTitle,
+                   organizationId: regData.organizationId,
+                   orgName: regData.organizer?.name || "Organização",
+                   orgCnpj: regData.organizer?.cnpj || "---",
+                   ticketsSold: 1,
+                   vibyGrossValue: regData.administrativeFeeAmount + (regData.producerFeeAmount || 0),
+                   taxPercent: 11,
+                   taxValue: (regData.administrativeFeeAmount + (regData.producerFeeAmount || 0)) * 0.11,
+                   vibyNetValue: (regData.administrativeFeeAmount + (regData.producerFeeAmount || 0)) * 0.89,
+                   nfDeadlineDate: lastDay,
+                   nfStatus: 'pendente',
+                   monthKey,
+                   timestamp: serverTimestamp()
                 });
 
                 const eventDate = regData.eventDate?.toDate ? regData.eventDate.toDate().toLocaleString('pt-BR') : new Date(regData.eventDate).toLocaleString('pt-BR');

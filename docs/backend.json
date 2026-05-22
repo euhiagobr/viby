@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "User": {
@@ -28,84 +27,45 @@
       },
       "required": ["uid", "username", "email", "plan"]
     },
-    "PasswordReset": {
-      "title": "Redefinição de Senha",
-      "description": "Tokens temporários para troca de senha via código",
+    "TaxAd": {
+      "title": "Imposto sobre Anúncio",
+      "description": "Registro consolidado de imposto para campanhas publicitárias",
       "type": "object",
       "properties": {
-        "email": { "type": "string" },
-        "code": { "type": "string" },
-        "expiresAt": { "type": "string", "format": "date-time" },
-        "used": { "type": "boolean" }
-      }
-    },
-    "Organization": {
-      "title": "Organização",
-      "description": "Entidade promotora de eventos (Produtora, ONG, etc)",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "username": { "type": "string" },
-        "name": { "type": "string" },
-        "slug": { "type": "string" },
-        "bio": { "type": "string" },
-        "avatar": { "type": "string" },
-        "banner": { "type": "string" },
-        "type": { "type": "string" },
-        "verified": { "type": "boolean" },
-        "stripeAccountId": { "type": "string" },
-        "payoutSettings": { "type": "object" },
-        "adBalance": { "type": "number", "description": "Saldo disponível para campanhas de anúncios" },
-        "walletBalance": { "type": "number", "description": "Saldo líquido acumulado de vendas" },
-        "createdBy": { "type": "string" },
-        "phone": { "type": "string" },
-        "contactEmail": { "type": "string" },
-        "website": { "type": "string" },
-        "instagram": { "type": "string" },
-        "cnpj": { "type": "string" },
-        "legalName": { "type": "string" },
-        "cep": { "type": "string" },
-        "street": { "type": "string" },
-        "number": { "type": "string" },
-        "neighborhood": { "type": "string" },
-        "city": { "type": "string" },
-        "state": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["name", "username", "slug", "type", "createdBy"]
-    },
-    "OrganizationMember": {
-      "title": "Membro da Organização",
-      "description": "Permissão de acesso do usuário à organização",
-      "type": "object",
-      "properties": {
-        "userId": { "type": "string" },
-        "role": { "type": "string", "enum": ["owner", "admin", "editor", "finance", "checkin"] },
-        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["userId", "role", "status"]
-    },
-    "Event": {
-      "title": "Evento",
-      "description": "Evento vinculado a uma organização",
-      "type": "object",
-      "properties": {
-        "organizationId": { "type": "string" },
-        "title": { "type": "string" },
-        "slug": { "type": "string" },
-        "description": { "type": "string" },
-        "banner": { "type": "string" },
-        "location": { "type": "string" },
+        "adId": { "type": "string" },
+        "advertiserCnpj": { "type": "string" },
+        "advertiserName": { "type": "string" },
+        "adTitle": { "type": "string" },
         "startDate": { "type": "string", "format": "date-time" },
         "endDate": { "type": "string", "format": "date-time" },
-        "visibility": { "type": "string", "enum": ["public", "private", "unlisted"] },
-        "status": { "type": "string", "enum": ["draft", "published", "cancelled", "finished"] },
-        "createdBy": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["organizationId", "title", "slug", "startDate", "status"]
+        "status": { "type": "string", "enum": ["ativo", "finalizado", "cancelado"] },
+        "grossValue": { "type": "number" },
+        "taxPercent": { "type": "number" },
+        "taxValue": { "type": "number" },
+        "netValue": { "type": "number" },
+        "nfDeadlineDate": { "type": "string", "format": "date" },
+        "nfStatus": { "type": "string", "enum": ["pendente", "emitida"] },
+        "monthKey": { "type": "string", "description": "YYYY-MM" }
+      }
+    },
+    "TaxTicket": {
+      "title": "Imposto sobre Ingressos",
+      "description": "Registro consolidado de imposto sobre taxas e comissões da Viby",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "orgName": { "type": "string" },
+        "orgCnpj": { "type": "string" },
+        "ticketsSold": { "type": "number" },
+        "vibyGrossValue": { "type": "number" },
+        "taxPercent": { "type": "number" },
+        "taxValue": { "type": "number" },
+        "vibyNetValue": { "type": "number" },
+        "nfDeadlineDate": { "type": "string", "format": "date" },
+        "nfStatus": { "type": "string", "enum": ["pendente", "emitida"] },
+        "monthKey": { "type": "string", "description": "YYYY-MM" }
+      }
     }
   },
   "auth": {
@@ -116,21 +76,21 @@
       "schema": "User",
       "description": "Identidade pessoal e configurações"
     },
-    "/password_resets/{resetId}": {
-      "schema": "PasswordReset",
-      "description": "Controle de tokens de recuperação"
+    "/tax_ads/{taxId}": {
+      "schema": "TaxAd",
+      "description": "Registros de impostos de anúncios"
     },
-    "/organizations/{orgId}": {
-      "schema": "Organization",
-      "description": "Entidades promotoras"
+    "/tax_tickets/{taxId}": {
+      "schema": "TaxTicket",
+      "description": "Registros de impostos de ingressos"
     },
-    "/organizations/{orgId}/members/{userId}": {
-      "schema": "OrganizationMember",
-      "description": "RBAC da organização"
+    "/tax_audit/{auditId}": {
+      "schema": "object",
+      "description": "Histórico de auditoria de impostos"
     },
-    "/events/{eventId}": {
-      "schema": "Event",
-      "description": "Eventos de organizações"
+    "/tax_exports/{exportId}": {
+      "schema": "object",
+      "description": "Histórico de exportações de dados fiscais"
     }
   }
 }

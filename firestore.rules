@@ -9,6 +9,12 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     function getRole(orgId) {
       return get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role;
     }
@@ -20,7 +26,7 @@ service cloud.firestore {
     // Usuários
     match /users/{userId} {
       allow read: if true;
-      allow write: if isUser(userId);
+      allow write: if isUser(userId) || isAdmin();
     }
 
     // Namespace de Usernames
@@ -34,22 +40,36 @@ service cloud.firestore {
     match /organizations/{orgId} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow update: if hasRole(orgId, ['owner', 'admin']);
-      allow delete: if hasRole(orgId, ['owner']);
+      allow update: if hasRole(orgId, ['owner', 'admin']) || isAdmin();
+      allow delete: if hasRole(orgId, ['owner']) || isAdmin();
 
       // Membros (RBAC)
       match /members/{userId} {
-        allow read: if hasRole(orgId, ['owner', 'admin', 'editor', 'finance', 'checkin']);
-        allow write: if hasRole(orgId, ['owner', 'admin']);
+        allow read: if hasRole(orgId, ['owner', 'admin', 'editor', 'finance', 'checkin']) || isAdmin();
+        allow write: if hasRole(orgId, ['owner', 'admin']) || isAdmin();
       }
     }
 
     // Eventos
     match /events/{eventId} {
-      allow read: if resource.data.visibility == 'public' || hasRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin']);
+      allow read: if resource.data.visibility == 'public' || hasRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin']) || isAdmin();
       allow create: if isSignedIn() && hasRole(request.resource.data.organizationId, ['owner', 'admin', 'editor']);
-      allow update: if hasRole(resource.data.organizationId, ['owner', 'admin', 'editor']);
-      allow delete: if hasRole(resource.data.organizationId, ['owner', 'admin']);
+      allow update: if hasRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
+      allow delete: if hasRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
+    }
+
+    // Fiscal e Impostos (Admin Only)
+    match /tax_ads/{taxId} {
+      allow read, write: if isAdmin();
+    }
+    match /tax_tickets/{taxId} {
+      allow read, write: if isAdmin();
+    }
+    match /tax_audit/{auditId} {
+      allow read, write: if isAdmin();
+    }
+    match /tax_exports/{exportId} {
+      allow read, write: if isAdmin();
     }
 
     // Seguidores

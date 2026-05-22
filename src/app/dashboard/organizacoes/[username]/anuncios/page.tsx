@@ -175,6 +175,28 @@ export default function OrganizationAdsPage() {
           updatedAt: serverTimestamp() 
         });
         
+        // Logar imposto proporcional para fechamento fiscal
+        const taxEntryId = doc(collection(db, "tax_ads")).id;
+        const monthKey = new Date(ad.endDate).toISOString().slice(0, 7);
+        const lastDay = new Date(new Date(ad.endDate).getFullYear(), new Date(ad.endDate).getMonth() + 1, 0).toLocaleDateString('pt-BR');
+
+        batch.set(doc(db, "tax_ads", taxEntryId), {
+           adId: ad.id,
+           advertiserCnpj: currentOrg.cnpj || "---",
+           advertiserName: currentOrg.name,
+           adTitle: ad.eventTitle,
+           startDate: ad.startDate,
+           endDate: ad.endDate,
+           status: 'finalizado',
+           grossValue: ad.initialBudget - ad.remainingBudget,
+           taxPercent: 11,
+           taxValue: (ad.initialBudget - ad.remainingBudget) * 0.11,
+           netValue: (ad.initialBudget - ad.remainingBudget) * 0.89,
+           nfDeadlineDate: lastDay,
+           nfStatus: 'pendente',
+           monthKey
+        });
+
         batch.set(doc(collection(db, 'organizations', currentOrg.id, 'transactions')), {
           type: 'ad_refund',
           description: `Expirado: ${ad.eventTitle}`,
@@ -278,6 +300,28 @@ export default function OrganizationAdsPage() {
         createdAt: serverTimestamp(), 
         userId: user.uid
       })
+
+      // Criar registro fiscal inicial (Pendente)
+      const taxRef = doc(collection(db, "tax_ads"));
+      const monthKey = new Date(startDateInput).toISOString().slice(0, 7);
+      const lastDay = new Date(new Date(startDateInput).getFullYear(), new Date(startDateInput).getMonth() + 1, 0).toLocaleDateString('pt-BR');
+      
+      batch.set(taxRef, {
+         adId: adRef.id,
+         advertiserCnpj: currentOrg.cnpj || "---",
+         advertiserName: currentOrg.name,
+         adTitle: adData.eventTitle,
+         startDate: startDateInput,
+         endDate: endDateInput,
+         status: status.toLowerCase(),
+         grossValue: adData.initialBudget,
+         taxPercent: 11,
+         taxValue: adData.initialBudget * 0.11,
+         netValue: adData.initialBudget * 0.89,
+         nfDeadlineDate: lastDay,
+         nfStatus: 'pendente',
+         monthKey
+      });
       
       await batch.commit(); 
       await refreshOrg();
@@ -341,6 +385,20 @@ export default function OrganizationAdsPage() {
           createdAt: serverTimestamp(), 
           userId: user?.uid
         })
+      }
+
+      // Atualizar registro fiscal para 'cancelado' e recalcular bruto/imposto consumido
+      const taxQ = query(collection(db, "tax_ads"), where("adId", "==", adToCancel.id));
+      const taxSnap = await getDocs(taxQ);
+      if (!taxSnap.empty) {
+        const consumedGross = adToCancel.initialBudget - remainingRaw;
+        batch.update(taxSnap.docs[0].ref, {
+           status: 'cancelado',
+           grossValue: consumedGross,
+           taxValue: consumedGross * 0.11,
+           netValue: consumedGross * 0.89,
+           updatedAt: serverTimestamp()
+        });
       }
       
       await batch.commit(); await refreshOrg(); toast({ title: "Campanha cancelada" })
@@ -452,7 +510,21 @@ export default function OrganizationAdsPage() {
                     )}
                   </div>
               </form>
-              <div className="p-8 border-t bg-muted/30"><Button onClick={(e:any) => e.target.closest('div').previousSibling.requestSubmit()} type="submit" disabled={isSubmitting || uploadProgress !== null || adPlanSummary.totalReserved > (currentOrg?.adBalance || 0)} className="w-full bg-secondary text-white font-black h-16 rounded-[2rem] shadow-xl uppercase italic text-lg">{isSubmitting ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><Target className="w-6 h-6 mr-2" /> Lançar Campanha</>}</Button></div>
+              <div className="p-8 border-t bg-muted/30">
+                <Button 
+                  onClick={(e:any) => {
+                    const form = e.target.closest('div').previousSibling;
+                    if (form instanceof HTMLFormElement || (form && 'requestSubmit' in form)) {
+                       (form as any).requestSubmit();
+                    }
+                  }} 
+                  type="button" 
+                  disabled={isSubmitting || uploadProgress !== null || adPlanSummary.totalReserved > (currentOrg?.adBalance || 0)} 
+                  className="w-full bg-secondary text-white font-black h-16 rounded-[2rem] shadow-xl uppercase italic text-lg"
+                >
+                  {isSubmitting ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><Target className="w-6 h-6 mr-2" /> Lançar Campanha</>}
+                </Button>
+              </div>
             </DialogContent>
           </Dialog>
         </div>
