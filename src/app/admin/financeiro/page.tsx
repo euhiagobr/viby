@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, where, doc, updateDoc, serverTimestamp, orderBy, getDoc } from "firebase/firestore"
+import { collection, query, where, doc, updateDoc, serverTimestamp, orderBy, getDocs, getDoc, limit } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -11,18 +11,20 @@ import {
   Loader2, 
   Search, 
   CheckCircle2, 
-  XCircle, 
   AlertTriangle,
   Building2,
   DollarSign,
-  User,
-  ExternalLink,
-  RefreshCw,
-  Fingerprint,
+  History,
   ShieldCheck,
   Save,
   Wallet,
-  Clock
+  Clock,
+  ArrowRight,
+  Zap,
+  Ticket,
+  ChevronRight,
+  ArrowUpRight,
+  Inbox
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -39,10 +41,13 @@ import { cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { formatCurrency } from "@/lib/financial-utils"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
 
 export default function AdminFinanceiroPage() {
   const db = useFirestore()
   const [search, setSearch] = React.useState("")
+  const [selectedOrgForFinance, setSelectedOrgForFinance] = React.useState<any>(null)
 
   const orgsQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -66,9 +71,12 @@ export default function AdminFinanceiroPage() {
       
       const now = new Date();
       const saleDate = reg.timestamp?.toDate ? reg.timestamp.toDate() : new Date(reg.timestamp);
+      
+      // Regra de liberação: 30 dias após venda ou 24h após solicitação de antecipação
+      const standardReleaseDate = new Date(saleDate.getTime() + 30 * 24 * 60 * 60 * 1000);
       const releaseDate = reg.advanceRequestedAt 
         ? new Date(new Date(reg.advanceRequestedAt).getTime() + 24 * 60 * 60 * 1000)
-        : new Date(saleDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+        : standardReleaseDate;
 
       if (now >= releaseDate) {
         acc[orgId].available += (reg.producerNetAmount || 0);
@@ -206,7 +214,7 @@ export default function AdminFinanceiroPage() {
                 <ShieldCheck className="w-5 h-5 text-secondary" />
                 Custódia por Organização
               </CardTitle>
-              <CardDescription className="font-medium">Visualize quem tem valores a receber da plataforma.</CardDescription>
+              <CardDescription className="font-medium">Clique em uma organização para ver o detalhamento de vendas.</CardDescription>
             </div>
             <div className="relative w-full md:w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -238,7 +246,11 @@ export default function AdminFinanceiroPage() {
                 {filteredOrgs.map((org) => {
                   const ps = org.payoutSettings;
                   return (
-                    <TableRow key={org.id} className="hover:bg-muted/10 transition-colors">
+                    <TableRow 
+                      key={org.id} 
+                      className="hover:bg-muted/10 transition-colors cursor-pointer"
+                      onClick={() => setSelectedOrgForFinance(org)}
+                    >
                       <TableCell className="p-6">
                         <div className="flex flex-col gap-1">
                           <span className="font-black text-sm uppercase italic text-primary">{org.name}</span>
@@ -280,7 +292,7 @@ export default function AdminFinanceiroPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="p-6 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
                           {ps?.status === 'pending_admin' && (
                             <Button 
                               variant="outline" 
@@ -288,9 +300,7 @@ export default function AdminFinanceiroPage() {
                               className="h-8 text-[9px] font-black uppercase gap-1.5 border-secondary text-secondary hover:bg-secondary/5"
                               onClick={() => { setSelectedOrg(org); setIsDepositModalOpen(true); }}
                             >
-                              <div className="flex items-center gap-1">
                                 <DollarSign className="w-3 h-3" /> Sinalizar Depósito
-                              </div>
                             </Button>
                           )}
                           {ps?.status === 'waiting_user' && ps?.verificationAmountInput && (
@@ -302,9 +312,12 @@ export default function AdminFinanceiroPage() {
                               disabled={isSubmitting}
                             >
                               {isSubmitting ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                              Validar Manualmente
+                              Validar
                             </Button>
                           )}
+                          <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 text-muted-foreground/40">
+                             <ChevronRight className="w-4 h-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -320,6 +333,33 @@ export default function AdminFinanceiroPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* MODAL DETALHAMENTO FINANCEIRO DA ORG */}
+      <Dialog open={!!selectedOrgForFinance} onOpenChange={(o) => !o && setSelectedOrgForFinance(null)}>
+         <DialogContent className="max-w-5xl h-[85vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
+            <DialogHeader className="p-8 border-b bg-muted/30">
+               <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-4">
+                     <div className="p-3 bg-secondary/10 rounded-2xl text-secondary">
+                        <Wallet className="w-6 h-6" />
+                     </div>
+                     <div>
+                        <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Finanças: {selectedOrgForFinance?.name}</DialogTitle>
+                        <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">@{selectedOrgForFinance?.username} • CNPJ: {selectedOrgForFinance?.cnpj}</DialogDescription>
+                     </div>
+                  </div>
+                  <div className="text-right">
+                     <p className="text-[9px] font-black uppercase opacity-40">Saldo Total em Custódia</p>
+                     <p className="text-2xl font-black text-primary">{formatCurrency((selectedOrgForFinance?.availableBalance || 0) + (selectedOrgForFinance?.lockedBalance || 0))}</p>
+                  </div>
+               </div>
+            </DialogHeader>
+            
+            <div className="flex-1 overflow-hidden flex flex-col">
+               {selectedOrgForFinance && <OrgFinanceDetail orgId={selectedOrgForFinance.id} />}
+            </div>
+         </DialogContent>
+      </Dialog>
 
       <Dialog open={isDepositModalOpen} onOpenChange={setIsDepositModalOpen}>
         <DialogContent className="rounded-[2.5rem] max-w-sm">
@@ -357,5 +397,168 @@ export default function AdminFinanceiroPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+/**
+ * Componente interno para gerenciar a listagem detalhada de uma organização
+ */
+function OrgFinanceDetail({ orgId }: { orgId: string }) {
+  const db = useFirestore()
+  const [isUpdating, setIsUpdating] = React.useState<string | null>(null)
+
+  const regsQuery = useMemoFirebase(() => {
+    if (!db) return null
+    return query(
+      collection(db, "registrations"), 
+      where("organizationId", "==", orgId),
+      where("paymentStatus", "in", ["Pago", "Disponível"])
+    )
+  }, [db, orgId])
+
+  const { data: sales, loading } = useCollection<any>(regsQuery)
+
+  const sortedSales = React.useMemo(() => {
+    if (!sales) return []
+    return [...sales].sort((a, b) => {
+      const tA = a.timestamp?.seconds || 0
+      const tB = b.timestamp?.seconds || 0
+      return tB - tA
+    })
+  }, [sales])
+
+  const handleReleaseImmediately = async (sale: any) => {
+    if (!db) return
+    setIsUpdating(sale.id)
+    try {
+      // Forçar liberação imediata definindo a data de antecipação como ontem
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 2);
+
+      await updateDoc(doc(db, "registrations", sale.id), {
+        advanceRequestedAt: yesterday.toISOString(),
+        isManuallyReleased: true,
+        manuallyReleasedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      })
+      toast({ title: "Saldo Liberado!", description: "O valor agora consta como Disponível no painel da marca." })
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao liberar" })
+    } finally {
+      setIsUpdating(null)
+    }
+  }
+
+  const getSaleStatus = (sale: any) => {
+    const now = new Date()
+    const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp)
+    const standardReleaseDate = new Date(saleDate.getTime() + 30 * 24 * 60 * 60 * 1000)
+    const releaseDate = sale.advanceRequestedAt 
+      ? new Date(new Date(sale.advanceRequestedAt).getTime() + 24 * 60 * 60 * 1000)
+      : standardReleaseDate
+
+    const isAvailable = now >= releaseDate
+    return { isAvailable, releaseDate }
+  }
+
+  if (loading) return <div className="flex-1 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+
+  return (
+    <ScrollArea className="flex-1">
+      <div className="p-8">
+         {sortedSales.length === 0 ? (
+           <div className="py-24 text-center">
+              <Inbox className="w-12 h-12 text-muted-foreground opacity-10 mx-auto mb-4" />
+              <p className="text-muted-foreground font-bold italic">Nenhuma venda registrada para esta organização.</p>
+           </div>
+         ) : (
+           <Table>
+             <TableHeader className="bg-muted/30">
+               <TableRow>
+                 <TableHead className="font-black uppercase text-[9px] tracking-widest py-4">Data de Venda</TableHead>
+                 <TableHead className="font-black uppercase text-[9px] tracking-widest">Tipo de Ingresso</TableHead>
+                 <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Saldo Bloqueado</TableHead>
+                 <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Saldo Disponível</TableHead>
+                 <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Liberação</TableHead>
+                 <TableHead className="text-right font-black uppercase text-[9px] tracking-widest">Ação</TableHead>
+               </TableRow>
+             </TableHeader>
+             <TableBody>
+               {sortedSales.map((sale) => {
+                 const { isAvailable, releaseDate } = getSaleStatus(sale)
+                 const val = sale.producerNetAmount || 0
+                 const isAnticipated = sale.advanceRequested === true;
+
+                 return (
+                   <TableRow key={sale.id} className={cn("hover:bg-muted/10 transition-colors", isAvailable && "bg-green-50/20")}>
+                     <TableCell className="py-4">
+                        <div className="flex flex-col">
+                           <span className="text-[10px] font-bold">{sale.timestamp?.toDate ? sale.timestamp.toDate().toLocaleDateString('pt-BR') : new Date(sale.timestamp).toLocaleDateString('pt-BR')}</span>
+                           <span className="text-[8px] font-medium text-muted-foreground uppercase">{sale.timestamp?.toDate ? sale.timestamp.toDate().toLocaleTimeString('pt-BR') : ""}</span>
+                        </div>
+                     </TableCell>
+                     <TableCell>
+                        <div className="flex flex-col">
+                           <span className="text-[10px] font-black uppercase italic text-primary truncate max-w-[150px]">{sale.eventTitle}</span>
+                           <span className="text-[8px] font-bold text-secondary uppercase">{sale.ticketTypeName || "Geral"}</span>
+                        </div>
+                     </TableCell>
+                     <TableCell className="text-right">
+                        <span className={cn("text-[11px] font-bold", !isAvailable ? "text-orange-600" : "text-muted-foreground/20")}>
+                          {!isAvailable ? formatCurrency(val) : "---"}
+                        </span>
+                     </TableCell>
+                     <TableCell className="text-right">
+                        <span className={cn("text-[11px] font-black", isAvailable ? "text-green-600" : "text-muted-foreground/20")}>
+                          {isAvailable ? formatCurrency(val) : "---"}
+                        </span>
+                     </TableCell>
+                     <TableCell className="text-center">
+                        <div className="flex flex-col items-center">
+                           <span className={cn("text-[9px] font-black uppercase", isAvailable ? "text-green-600" : "text-muted-foreground")}>
+                             {releaseDate.toLocaleDateString('pt-BR')}
+                           </span>
+                           {isAnticipated && !sale.isManuallyReleased && (
+                             <Badge variant="outline" className="text-[6px] h-3 uppercase border-orange-200 text-orange-600 mt-1">Antecipação User</Badge>
+                           )}
+                           {sale.isManuallyReleased && (
+                             <Badge variant="outline" className="text-[6px] h-3 uppercase border-blue-200 text-blue-600 mt-1">Manual Admin</Badge>
+                           )}
+                        </div>
+                     </TableCell>
+                     <TableCell className="text-right">
+                        {!isAvailable && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-7 text-[8px] font-black uppercase gap-1.5 border-secondary text-secondary hover:bg-secondary hover:text-white"
+                            onClick={() => handleReleaseImmediately(sale)}
+                            disabled={isUpdating === sale.id}
+                          >
+                             {isUpdating === sale.id ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Zap className="w-2.5 h-2.5 fill-current" />}
+                             Liberar Agora
+                          </Button>
+                        )}
+                     </TableCell>
+                   </TableRow>
+                 )
+               })}
+             </TableBody>
+           </Table>
+         )}
+
+         {sortedSales.length > 0 && (
+           <div className="mt-8 p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
+              <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                 <h4 className="font-black uppercase text-[9px] tracking-widest text-secondary">Aviso de Antecipação</h4>
+                 <p className="text-[10px] text-muted-foreground leading-relaxed font-medium">
+                    A liberação imediata por este painel ignora a taxa de antecipação do usuário e torna o valor disponível instantaneamente na carteira da organização. Use em casos de suporte direto ou acordos específicos.
+                 </p>
+              </div>
+           </div>
+         )}
+      </div>
+    </ScrollArea>
   )
 }
