@@ -56,7 +56,8 @@ import {
   BarChart3,
   Map as MapIcon,
   ChevronRight,
-  Target
+  Target,
+  Navigation
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -202,20 +203,23 @@ function UniversalProfileContent() {
   const culturalStatsRef = React.useMemo(() => (db && data?.id && type === 'user') ? doc(db, "cultural_stats", data.id) : null, [db, data?.id, type])
   const { data: culturalStats } = useDoc<any>(culturalStatsRef)
 
-  const userBadgesQuery = useMemoFirebase(() => (db && data?.id && type === 'user') ? query(collection(db, "user_badges"), where("userId", "==", data.id)) : null, [db, data?.id, type])
-  const { data: userBadges } = useCollection<any>(userBadgesQuery)
-
-  // Ranking em Tempo Real
-  const rankingQuery = useMemoFirebase(() => (db && type === 'user' && gamification?.totalXp !== undefined) 
-    ? query(collection(db, "user_gamification"), where("totalXp", ">", gamification.totalXp)) 
-    : null, [db, type, gamification?.totalXp]);
+  // Ranking Estável em Tempo Real
+  const xpValue = gamification?.totalXp !== undefined ? gamification.totalXp : -1;
+  const rankingQuery = useMemoFirebase(() => (db && type === 'user' && xpValue >= 0) 
+    ? query(collection(db, "user_gamification"), where("totalXp", ">", xpValue)) 
+    : null, [db, type, xpValue]);
+  
   const { data: competitors } = useCollection<any>(rankingQuery);
-  const userRank = (competitors?.length || 0) + 1;
+  
+  const userRank = React.useMemo(() => {
+    if (xpValue === -1) return "---";
+    return (competitors?.length || 0) + 1;
+  }, [competitors, xpValue]);
 
   const totalUsersQuery = useMemoFirebase(() => db ? query(collection(db, "user_gamification")) : null, [db]);
   const { data: allGamifiedUsers } = useCollection<any>(totalUsersQuery);
   const totalGamified = allGamifiedUsers?.length || 1;
-  const topPercent = Math.round((userRank / totalGamified) * 100);
+  const topPercent = typeof userRank === 'number' ? Math.round((userRank / totalGamified) * 100) : 0;
 
   const levelInfo = React.useMemo(() => {
     if (!gamification) return null;
@@ -242,8 +246,7 @@ function UniversalProfileContent() {
     });
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  const handleFileUpload = async (file: File) => {
     if (!file || !storage || !user) return
 
     setUploadProgress(0)
@@ -346,9 +349,6 @@ function UniversalProfileContent() {
     const trackVisit = async () => {
       trackedRef.current = true;
       const orgRef = doc(db, 'organizations', data.id);
-      const today = new Date();
-      const monthKey = `${today.getFullYear()}_${String(today.getMonth() + 1).padStart(2, '0')}`;
-
       try {
         await updateDoc(orgRef, {
           totalViews: increment(1),
@@ -356,6 +356,8 @@ function UniversalProfileContent() {
         });
 
         if (user) {
+          const today = new Date();
+          const monthKey = `${today.getFullYear()}_${String(today.getMonth() + 1).padStart(2, '0')}`;
           const visitorKey = `${user.uid}_${monthKey}`;
           const visitorRef = doc(db, 'organizations', data.id, 'visitors', visitorKey);
           const visitorSnap = await getDoc(visitorRef);
@@ -372,15 +374,13 @@ function UniversalProfileContent() {
             });
           }
         }
-      } catch (e) {
-        // Falha silenciosa
-      }
+      } catch (e) {}
     };
 
     trackVisit();
   }, [db, data?.id, type, user, data?.status]);
 
-  // Busca eventos separados (Produzidos vs Parcerias)
+  // Busca eventos separados
   React.useEffect(() => {
     if (!db || !data?.id || type !== 'organization' || data.status === 'Bloqueado' || data.status === 'Desativado' || data.status === 'Exclusão Programada') return
 
@@ -409,7 +409,7 @@ function UniversalProfileContent() {
           } else {
             setPartneredEvents([])
           }
-        } catch (cgError: any) {
+        } catch (cgError) {
           setPartneredEvents([]);
         }
       } catch (e) {
@@ -457,14 +457,9 @@ function UniversalProfileContent() {
       return
     }
 
-    // TRAVA PARA CONTA OFICIAL
     const officialOrgId = "92aee5c9-6741-432e-9511-f5a1afbaa8db"
     if (isFollowing && data.id === officialOrgId) {
-      toast({ 
-        variant: "destructive", 
-        title: "Ação bloqueada", 
-        description: "Você não pode deixar de seguir a conta oficial da Viby." 
-      })
+      toast({ variant: "destructive", title: "Ação bloqueada", description: "Você não pode deixar de seguir a conta oficial da Viby." })
       return
     }
 
@@ -484,7 +479,6 @@ function UniversalProfileContent() {
           timestamp: serverTimestamp()
         });
 
-        // Gatilho Gamificação: Seguir (Travado pela relação única follower_target)
         await processGamificationEvent(db, user.uid, type === 'organization' ? 'on_follow_org' : 'on_follow_user', {
           targetId: data.id,
           targetName: displayName
@@ -619,18 +613,14 @@ function UniversalProfileContent() {
                                     <Flag className="w-5 h-5 text-destructive" />
                                     Denunciar Perfil
                                   </DialogTitle>
-                                  <DialogDescription>
-                                    Relate irregularidades, fraudes ou comportamentos que violem nossas diretrizes.
-                                  </DialogDescription>
+                                  <DialogDescription>Relate irregularidades ou comportamentos indevidos.</DialogDescription>
                                 </DialogHeader>
                                 
                                 <div className="space-y-4">
                                    <div className="space-y-2">
-                                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Motivo Principal</Label>
+                                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Motivo</Label>
                                       <Select value={reportReason} onValueChange={setReportReason} required>
-                                         <SelectTrigger className="rounded-xl h-11">
-                                            <SelectValue placeholder="Selecione o motivo" />
-                                         </SelectTrigger>
+                                         <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione o motivo" /></SelectTrigger>
                                          <SelectContent className="rounded-xl">
                                             <SelectItem value="Fraude ou Golpe">Fraude ou Golpe</SelectItem>
                                             <SelectItem value="Evento Falso">Evento Falso</SelectItem>
@@ -640,46 +630,14 @@ function UniversalProfileContent() {
                                          </SelectContent>
                                       </Select>
                                    </div>
-
                                    <div className="space-y-2">
-                                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Descrição dos Fatos</Label>
-                                      <Textarea 
-                                        placeholder="Conte detalhadamente o que aconteceu..." 
-                                        value={reportDescription}
-                                        onChange={(e) => setReportDescription(e.target.value)}
-                                        required
-                                        className="rounded-xl min-h-[120px] border-dashed border-destructive/20 focus-visible:ring-destructive"
-                                      />
-                                   </div>
-
-                                   <div className="space-y-3">
-                                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
-                                        <Paperclip className="w-3.5 h-3.5" /> Anexar Provas (Prints, PDF)
-                                      </Label>
-                                      <div className="flex flex-wrap gap-2">
-                                        {reportAttachments.map((url, i) => (
-                                          <div key={i} className="relative w-16 h-16 rounded-lg bg-muted border border-border overflow-hidden">
-                                            <img src={url} className="w-full h-full object-cover" alt="Anexo" />
-                                            <button 
-                                              type="button" 
-                                              onClick={() => setReportAttachments(prev => prev.filter((_, idx) => idx !== i))}
-                                              className="absolute top-0 right-0 bg-black/50 text-white p-0.5 rounded-bl-lg"
-                                            >
-                                              <X className="w-3 h-3" />
-                                            </button>
-                                          </div>
-                                        ))}
-                                        <label className="w-16 h-16 rounded-lg border-2 border-dashed border-border flex items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors">
-                                          <Camera className="w-5 h-5 text-muted-foreground/40" />
-                                          <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} />
-                                        </label>
-                                      </div>
-                                      {uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}
+                                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Descrição</Label>
+                                      <Textarea placeholder="Detalhes do ocorrido..." value={reportDescription} onChange={(e) => setReportDescription(e.target.value)} required className="rounded-xl min-h-[120px]" />
                                    </div>
                                 </div>
 
                                 <DialogFooter>
-                                   <Button type="submit" disabled={isSubmittingReport || uploadProgress !== null} className="w-full bg-destructive text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                                   <Button type="submit" disabled={isSubmittingReport} className="w-full bg-destructive text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
                                       {isSubmittingReport ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Send className="w-5 h-5 mr-2" />}
                                       Enviar Denúncia
                                    </Button>
@@ -728,15 +686,7 @@ function UniversalProfileContent() {
                       </p>
                       <div className="flex flex-wrap justify-center md:justify-start gap-4 pt-2">
                          {data.website && <a href={data.website} target="_blank" className="text-[11px] font-black uppercase text-blue-600 flex items-center gap-1.5"><Globe className="w-3.5 h-3.5" /> {data.website.replace(/^https?:\/\//, '')}</a>}
-                         {data.instagram && (
-                           <a 
-                             href={`https://instagram.com/${data.instagram.replace(/^@/, '')}`} 
-                             target="_blank" 
-                             className="text-[11px] font-black uppercase flex items-center gap-1.5"
-                           >
-                             <Instagram className="w-3.5 h-3.5 text-pink-500" /> @{data.instagram.replace(/^@/, '')}
-                           </a>
-                         )}
+                         {data.instagram && <a href={`https://instagram.com/${data.instagram.replace(/^@/, '')}`} target="_blank" className="text-[11px] font-black uppercase flex items-center gap-1.5"><Instagram className="w-3.5 h-3.5 text-pink-500" /> @{data.instagram.replace(/^@/, '')}</a>}
                          {data.city && <div className="text-[11px] font-black uppercase text-muted-foreground flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-secondary" /> {data.city}, {data.state}</div>}
                       </div>
                    </div>
@@ -747,90 +697,36 @@ function UniversalProfileContent() {
                <Tabs defaultValue="events" className="w-full">
                   <div className="flex justify-center border-b mb-8 bg-white/40 backdrop-blur-md rounded-2xl p-1">
                     <TabsList className="bg-transparent h-auto p-0 gap-8">
-                      <TabsTrigger 
-                        value="events" 
-                        className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-4 py-4 font-black uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
-                      >
-                        <Grid className="w-3.5 h-3.5" /> Eventos
-                      </TabsTrigger>
-                      <TabsTrigger 
-                        value="partnerships" 
-                        className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-4 py-4 font-black uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
-                      >
-                        <Handshake className="w-3.5 h-3.5" /> Parcerias
-                      </TabsTrigger>
-                      <TabsTrigger 
-                        value="about" 
-                        className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-4 py-4 font-black uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
-                      >
-                        <Info className="w-3.5 h-3.5" /> Sobre
-                      </TabsTrigger>
+                      <TabsTrigger value="events" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-4 py-4 font-black uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"><Grid className="w-3.5 h-3.5" /> Eventos</TabsTrigger>
+                      <TabsTrigger value="partnerships" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-4 py-4 font-black uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"><Handshake className="w-3.5 h-3.5" /> Parcerias</TabsTrigger>
+                      <TabsTrigger value="about" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-4 py-4 font-black uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"><Info className="w-3.5 h-3.5" /> Sobre</TabsTrigger>
                     </TabsList>
                   </div>
 
                   <TabsContent value="events" className="animate-in fade-in duration-500">
-                     {eventsLoading ? (
-                       <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
-                     ) : ownedEvents.length > 0 ? (
-                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                          {ownedEvents.map(e => <EventCard key={e.id} event={e} />)}
-                       </div>
-                     ) : <NoContentPlaceholder message="Nenhum evento produzido no momento." />}
+                     {eventsLoading ? <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div> : ownedEvents.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{ownedEvents.map(e => <EventCard key={e.id} event={e} />)}</div> : <NoContentPlaceholder message="Nenhum evento produzido no momento." />}
                   </TabsContent>
-
                   <TabsContent value="partnerships" className="animate-in fade-in duration-500">
-                     {eventsLoading ? (
-                       <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
-                     ) : partneredEvents.length > 0 ? (
-                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                          {partneredEvents.map(e => <EventCard key={e.id} event={e} />)}
-                       </div>
-                     ) : <NoContentPlaceholder message="Nenhuma parceria ativa no momento." />}
+                     {eventsLoading ? <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div> : partneredEvents.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{partneredEvents.map(e => <EventCard key={e.id} event={e} />)}</div> : <NoContentPlaceholder message="Nenhuma parceria ativa no momento." />}
                   </TabsContent>
-
                   <TabsContent value="about" className="animate-in fade-in duration-500">
                      <div className="max-w-2xl mx-auto space-y-10">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-8 rounded-[2.5rem] shadow-sm border">
                            <div className="space-y-6">
-                              <div className="space-y-1">
-                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Razão Social</p>
-                                 <p className="font-bold text-sm">{data.legalName || "Não informada"}</p>
-                              </div>
-                              {data.showAddress !== false && data.street && (
-                                <div className="space-y-1">
-                                   <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Endereço</p>
-                                   <p className="font-bold text-sm">{data.street}, {data.number}</p>
-                                </div>
-                              )}
-                              <div className="space-y-1">
-                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Localidade</p>
-                                 <p className="font-bold text-sm">
-                                   {data.showNeighborhood !== false && data.neighborhood ? `${data.neighborhood}, ` : ""}
-                                   {data.city}, {data.state}
-                                 </p>
-                              </div>
+                              <div className="space-y-1"><p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Razão Social</p><p className="font-bold text-sm">{data.legalName || "Não informada"}</p></div>
+                              <div className="space-y-1"><p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Localidade</p><p className="font-bold text-sm">{data.city}, {data.state}</p></div>
                            </div>
                            <div className="space-y-6">
-                              <div className="space-y-1">
-                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Segmento</p>
-                                 <Badge variant="outline" className="bg-secondary/10 text-secondary border-none uppercase text-[10px] font-black">{data.type || "Marca"}</Badge>
-                              </div>
-                              <div className="space-y-1">
-                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Documento (CNPJ)</p>
-                                 <p className="font-mono text-sm font-bold">{data.cnpj || "---"}</p>
-                              </div>
+                              <div className="space-y-1"><p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Segmento</p><Badge variant="outline" className="bg-secondary/10 text-secondary border-none uppercase text-[10px] font-black">{data.type || "Marca"}</Badge></div>
                            </div>
                         </div>
-                        
-                        <div className="bg-muted/30 p-8 rounded-[2.5rem] border border-dashed border-border/60">
-                           <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-4 opacity-40">Sobre a {displayName}</p>
-                           <p className="text-sm leading-relaxed whitespace-pre-line text-foreground/80 font-medium italic">{data.bio || "Nenhuma descrição adicional informada."}</p>
-                        </div>
+                        <div className="bg-muted/30 p-8 rounded-[2.5rem] border border-dashed border-border/60"><p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-4 opacity-40">Sobre a {displayName}</p><p className="text-sm leading-relaxed whitespace-pre-line text-foreground/80 font-medium italic">{data.bio || "Nenhuma descrição adicional informada."}</p></div>
                      </div>
                   </TabsContent>
                </Tabs>
              ) : (
                <div className="space-y-12">
+                  {/* GRADE DE ESTATÍSTICAS CULTURAIS REFORÇADA */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                      <Card className="border-none shadow-sm rounded-[2rem] bg-white p-6 flex flex-col items-center text-center gap-3">
                         <div className="p-3 bg-secondary/10 rounded-2xl text-secondary"><Sparkles className="w-6 h-6" /></div>
@@ -849,35 +745,33 @@ function UniversalProfileContent() {
                      <Card className="border-none shadow-sm rounded-[2rem] bg-white p-6 flex flex-col items-center text-center gap-3">
                         <div className="p-3 bg-green-50 rounded-2xl text-green-600"><Target className="w-6 h-6" /></div>
                         <div>
-                           <p className="text-[9px] font-black uppercase text-muted-foreground opacity-40">Diversidade Cultural</p>
+                           <p className="text-[9px] font-black uppercase text-muted-foreground opacity-40">Cultura Eclética</p>
                            <p className="text-lg font-black uppercase italic tracking-tighter text-primary">{culturalStats?.categoriesExplored?.length || 0} Estilos</p>
                         </div>
                      </Card>
-                  </div>
 
-                  <div className="space-y-6">
-                     <div className="flex items-center justify-between px-2">
-                        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                           <Award className="w-4 h-4 text-secondary" /> Conquistas & Medalhas
-                        </h2>
-                        {userBadges?.length > 0 && <span className="text-[10px] font-black text-secondary uppercase">{userBadges.length} desbloqueadas</span>}
-                     </div>
-                     {userBadges && userBadges.length > 0 ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
-                           {userBadges.map((ub: any) => (
-                             <div key={ub.id} className="flex flex-col items-center gap-2 p-4 bg-white/40 rounded-3xl border border-white/60 shadow-sm group hover:scale-105 transition-transform">
-                                <div className="w-12 h-12 bg-secondary/10 rounded-full flex items-center justify-center text-secondary group-hover:bg-secondary group-hover:text-white transition-colors">
-                                   <Award className="w-6 h-6" />
-                                </div>
-                                <span className="text-[9px] font-black text-center uppercase leading-tight line-clamp-2">{ub.name}</span>
-                             </div>
-                           ))}
+                     {/* NOVOS CARDS DE CIDADES E BAIRROS */}
+                     <Card className="border-none shadow-sm rounded-[2rem] bg-white p-6 flex flex-col items-center text-center gap-3">
+                        <div className="p-3 bg-orange-50 rounded-2xl text-orange-600"><Globe className="w-6 h-6" /></div>
+                        <div>
+                           <p className="text-[9px] font-black uppercase text-muted-foreground opacity-40">Cidade Favorita</p>
+                           <p className="text-lg font-black uppercase italic tracking-tighter text-primary">{culturalStats?.topCity || "Nômade..."}</p>
                         </div>
-                     ) : (
-                        <div className="py-12 text-center bg-white/20 rounded-[3rem] border-2 border-dashed border-border/40">
-                           <p className="text-muted-foreground font-black uppercase tracking-widest text-[9px]">Ainda não possui medalhas públicas.</p>
+                     </Card>
+                     <Card className="border-none shadow-sm rounded-[2rem] bg-white p-6 flex flex-col items-center text-center gap-3">
+                        <div className="p-3 bg-blue-50 rounded-2xl text-blue-600"><Navigation className="w-6 h-6" /></div>
+                        <div>
+                           <p className="text-[9px] font-black uppercase text-muted-foreground opacity-40">Cidades Desbravadas</p>
+                           <p className="text-lg font-black uppercase italic tracking-tighter text-primary">{culturalStats?.citiesExplored?.length || 0} Localidades</p>
                         </div>
-                     )}
+                     </Card>
+                     <Card className="border-none shadow-sm rounded-[2rem] bg-white p-6 flex flex-col items-center text-center gap-3">
+                        <div className="p-3 bg-purple-50 rounded-2xl text-purple-600"><MapPin className="w-6 h-6" /></div>
+                        <div>
+                           <p className="text-[9px] font-black uppercase text-muted-foreground opacity-40">Bairros Dominados</p>
+                           <p className="text-lg font-black uppercase italic tracking-tighter text-primary">{culturalStats?.neighborhoodsExplored?.length || 0} Regiões</p>
+                        </div>
+                     </Card>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -908,11 +802,11 @@ function UniversalProfileContent() {
                         </h2>
                         <Card className="border-none shadow-sm rounded-[2.5rem] bg-primary text-white p-8 relative overflow-hidden">
                            <div className="relative z-10 space-y-4">
-                              <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Posição na Cidade</p>
+                              <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Posição Global</p>
                               <div className="flex items-baseline gap-2">
                                  <span className="text-5xl font-black italic tracking-tighter">#{userRank}</span>
                                  <span className="text-[10px] font-black uppercase text-secondary">
-                                   {userRank === 1 ? 'Líder Absoluto' : `Top ${topPercent}%`} de {data.city || 'POA'}
+                                   {userRank === 1 ? 'Líder Absoluto' : `Top ${topPercent}%`} de {totalGamified} membros
                                  </span>
                               </div>
                               <p className="text-[9px] font-medium leading-relaxed opacity-60 uppercase">

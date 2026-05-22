@@ -55,6 +55,7 @@
         "totalCheckins": { "type": "number" },
         "categoriesExplored": { "type": "array", "items": { "type": "string" } },
         "neighborhoodsExplored": { "type": "array", "items": { "type": "string" } },
+        "citiesExplored": { "type": "array", "items": { "type": "string" } },
         "favoriteOrganizers": { "type": "array", "items": { "type": "string" } }
       }
     }

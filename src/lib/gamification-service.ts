@@ -1,3 +1,4 @@
+
 import { 
   doc, 
   getDoc, 
@@ -124,6 +125,7 @@ export async function processGamificationEvent(
     }
 
     if (context?.city) {
+      statsUpdate.citiesExplored = arrayUnion(context.city);
       statsUpdate.topCity = context.city;
     }
 
@@ -138,6 +140,7 @@ export async function processGamificationEvent(
         ...statsUpdate,
         categoriesExplored: context?.categoryName ? [context.categoryName] : [],
         neighborhoodsExplored: context?.neighborhood ? [context.neighborhood] : [],
+        citiesExplored: context?.city ? [context.city] : [],
         favoriteOrganizers: context?.orgName ? [context.orgName] : [],
         totalEvents: eventKey === 'on_ticket_purchase' ? 1 : 0,
         totalCheckins: eventKey === 'on_checkin' ? 1 : 0
