@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -70,6 +69,12 @@ export default function CheckoutSucessoPage() {
             ? metadata.registrationIds.split(",") 
             : [metadata.registrationId];
           
+          // Buscar taxas do stripe configuradas no admin para registro fiscal preciso
+          const stripeSettingsSnap = await getDoc(doc(db, 'settings', 'stripe'));
+          const stripeSettings = stripeSettingsSnap.data();
+          const sPercent = (stripeSettings?.feePercent ?? 3.99) / 100;
+          const sFixed = stripeSettings?.feeFixed ?? 0.39;
+
           for (const regId of regIds) {
             const regRef = doc(db, "registrations", regId);
             const regSnap = await getDoc(regRef);
@@ -91,8 +96,9 @@ export default function CheckoutSucessoPage() {
                 // Cálculo de taxas para o registro fiscal
                 const vibyGross = (regData.administrativeFeeAmount || 0) + (regData.producerFeeAmount || 0);
                 const taxVal = vibyGross * 0.11;
-                // Estimativa de taxa Stripe (3.99% + 0.39)
-                const stripeFeeEst = (regData.price * 0.0399) + 0.39;
+                
+                // Custo real do Stripe baseado na configuração do sistema
+                const stripeFeeEst = (regData.price * sPercent) + sFixed;
 
                 await addDoc(collection(db, "tax_tickets"), {
                    eventId: regData.eventId,

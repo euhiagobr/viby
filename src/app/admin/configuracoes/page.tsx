@@ -70,6 +70,8 @@ export default function AdminConfiguracoesPage() {
   const [siteName, setSiteName] = React.useState('');
   const [stripePublishableKey, setStripePublishableKey] = React.useState('');
   const [stripeSecretKey, setStripeSecretKey] = React.useState('');
+  const [stripeFeePercent, setStripeFeePercent] = React.useState('3.99');
+  const [stripeFeeFixed, setStripeFeeFixed] = React.useState('0.39');
   const [showSecret, setShowSecret] = React.useState(false);
   const [smtpUser, setSmtpUser] = React.useState('');
   const [smtpPass, setSmtpPass] = React.useState('');
@@ -97,6 +99,8 @@ export default function AdminConfiguracoesPage() {
     if (stripeKeys) {
       setStripePublishableKey(stripeKeys.publishableKey || '');
       setStripeSecretKey(stripeKeys.secretKey || '');
+      setStripeFeePercent(stripeKeys.feePercent?.toString() || '3.99');
+      setStripeFeeFixed(stripeKeys.feeFixed?.toString() || '0.39');
     }
   }, [stripeKeys]);
 
@@ -175,7 +179,13 @@ export default function AdminConfiguracoesPage() {
     e.preventDefault();
     if (!db) return;
     setSaving(true);
-    const stripeData = { publishableKey: stripePublishableKey.trim(), secretKey: stripeSecretKey.trim(), updatedAt: serverTimestamp() };
+    const stripeData = { 
+      publishableKey: stripePublishableKey.trim(), 
+      secretKey: stripeSecretKey.trim(),
+      feePercent: parseFloat(stripeFeePercent) || 0,
+      feeFixed: parseFloat(stripeFeeFixed) || 0,
+      updatedAt: serverTimestamp() 
+    };
     setDoc(doc(db, 'settings', 'stripe'), stripeData, { merge: true })
       .then(() => toast({ title: 'Chaves do Stripe salvas!' }))
       .catch(async (error) => { errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'settings/stripe', operation: 'write', requestResourceData: stripeData })); })
@@ -260,7 +270,7 @@ export default function AdminConfiguracoesPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight text-primary">Configurações do Sistema</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-primary">Configurações do System</h1>
         <p className="text-muted-foreground">Gerencie a identidade visual, integrações, taxas e segurança da plataforma.</p>
       </div>
 
@@ -439,6 +449,23 @@ export default function AdminConfiguracoesPage() {
                     <Button type="button" variant="ghost" size="icon" className="absolute right-2 top-1/2 -translate-y-1/2" onClick={() => setShowSecret(!showSecret)}>
                       {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-dashed">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2"><Percent className="w-3.5 h-3.5 text-muted-foreground" /> Taxa Stripe (%)</Label>
+                    <div className="relative">
+                      <Input type="number" step="0.01" value={stripeFeePercent} onChange={(e) => setStripeFeePercent(e.target.value)} className="rounded-xl h-12 pr-9" />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2"><Coins className="w-3.5 h-3.5 text-muted-foreground" /> Taxa Fixa Stripe (R$)</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">R$</span>
+                      <Input type="number" step="0.01" value={stripeFeeFixed} onChange={(e) => setStripeFeeFixed(e.target.value)} className="rounded-xl h-12 pl-9" />
+                    </div>
                   </div>
                 </div>
               </CardContent>
