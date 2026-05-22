@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -140,7 +141,7 @@ export default function RedefinirSenhaPage() {
                    </p>
                 </div>
                 <p className="text-xs text-muted-foreground font-medium">
-                  Isso geralmente ocorre quando o projeto de autenticação não possui as credenciais de administrador configuradas no servidor.
+                  Verifique se o projeto de autenticação possui as permissões necessárias e se o SMTP está configurado.
                 </p>
                 <Button variant="outline" onClick={() => setStep('request')} className="w-full h-12 rounded-xl font-bold uppercase text-[10px] tracking-widest">
                   Tentar Novamente

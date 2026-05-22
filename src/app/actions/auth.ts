@@ -1,3 +1,4 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -14,11 +15,12 @@ function getAdminAuth() {
   
   if (!adminApp) {
     try {
+      // Tenta inicializar com as credenciais padrões do ambiente
       admin.initializeApp({
         projectId: authConfig.projectId,
       });
     } catch (e) {
-      // Falha silenciosa se já existir
+      // Falha silenciosa se já existir ou se houver erro de permissão
     }
   }
   return admin.auth();
@@ -59,7 +61,13 @@ export async function requestPasswordReset(identifier: string) {
 
     // 2. Gerar link oficial de redefinição de senha
     // Nota: generatePasswordResetLink exige que o projeto 'authConfig.projectId' tenha uma Service Account ativa
-    const resetLink = await authAdmin.generatePasswordResetLink(email);
+    let resetLink;
+    try {
+      resetLink = await authAdmin.generatePasswordResetLink(email);
+    } catch (adminError: any) {
+      console.error("Erro do Admin SDK ao gerar link:", adminError);
+      throw new Error("O serviço de geração de links exige configuração de Service Account no projeto de Auth. Verifique o console do Firebase.");
+    }
 
     // 3. Disparar e-mail via SMTP customizado
     const emailResult = await sendPasswordResetLinkEmail({
@@ -76,14 +84,6 @@ export async function requestPasswordReset(identifier: string) {
     return { success: true, email };
   } catch (error: any) {
     console.error("Erro na redefinição de senha:", error);
-    
-    let userFriendlyError = error.message;
-    
-    // Tratamento de erro de credenciais específico
-    if (error.message?.includes("credential") || error.code?.includes("auth/operation-not-allowed") || error.message?.includes("access token")) {
-      userFriendlyError = "O serviço de geração de links exige configuração de Service Account no projeto de Auth. Por favor, verifique o console do Firebase.";
-    }
-
-    return { success: false, error: userFriendlyError };
+    return { success: false, error: error.message };
   }
 }
