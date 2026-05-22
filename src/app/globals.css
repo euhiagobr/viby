@@ -76,3 +76,14 @@
 .circular-timer-progress {
   transition: stroke-dashoffset 1s linear;
 }
+
+/* Força a remoção do indicador de desenvolvimento do Next.js/Turbopack */
+#nextjs-portal,
+#nextjs-dev-indicator,
+.__next-dev-indicator,
+[data-nextjs-toast-wrapper] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
