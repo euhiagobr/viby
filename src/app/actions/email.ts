@@ -45,7 +45,7 @@ interface CartPendingEmailData {
 interface PasswordResetEmailData {
   to: string;
   userName: string;
-  code: string;
+  resetLink: string;
   siteName: string;
 }
 
@@ -96,9 +96,9 @@ async function getEmailConfig() {
 }
 
 /**
- * Envia o e-mail de redefinição de senha com código.
+ * Envia o e-mail de redefinição de senha com LINK oficial.
  */
-export async function sendPasswordResetCodeEmail(data: PasswordResetEmailData) {
+export async function sendPasswordResetLinkEmail(data: PasswordResetEmailData) {
   try {
     const { smtpUser, smtpPass } = await getEmailConfig();
 
@@ -107,11 +107,13 @@ export async function sendPasswordResetCodeEmail(data: PasswordResetEmailData) {
         <h1 style="color: #2563eb; font-style: italic; text-transform: uppercase;">Viby.Club</h1>
         <h2 style="font-size: 24px; color: #0f172a;">Redefinição de Senha</h2>
         <p style="color: #475569; line-height: 1.6;">Olá, ${data.userName}. Recebemos uma solicitação para redefinir sua senha.</p>
-        <div style="background: #f1f5f9; border-radius: 24px; padding: 30px; text-align: center; margin: 30px 0;">
-          <p style="text-transform: uppercase; font-size: 10px; font-weight: 900; color: #64748b; letter-spacing: 1px; margin-bottom: 10px;">Seu código de acesso</p>
-          <div style="font-family: monospace; font-size: 32px; font-weight: bold; color: #2563eb; letter-spacing: 5px;">${data.code}</div>
+        <div style="text-align: center; margin: 40px 0;">
+          <a href="${data.resetLink}" style="display: inline-block; background: #2563eb; color: white !important; padding: 18px 36px; text-decoration: none; border-radius: 16px; font-weight: bold; font-size: 16px;">Redefinir Senha Agora</a>
         </div>
-        <p style="font-size: 12px; color: #94a3b8;">Este código expira em 15 minutos. Se você não solicitou a troca de senha, ignore este e-mail.</p>
+        <p style="font-size: 12px; color: #94a3b8; line-height: 1.6;">Se o botão acima não funcionar, copie e cole o link abaixo no seu navegador:</p>
+        <p style="font-size: 10px; color: #cbd5e1; word-break: break-all;">${data.resetLink}</p>
+        <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 30px 0;" />
+        <p style="font-size: 11px; color: #94a3b8;">Se você não solicitou a troca de senha, ignore este e-mail.</p>
       </div>
     `;
 
@@ -119,9 +121,9 @@ export async function sendPasswordResetCodeEmail(data: PasswordResetEmailData) {
       sender: "Viby Auth",
       recipientName: data.userName,
       recipientEmail: data.to,
-      subject: "Seu código de redefinição de senha",
+      subject: "Redefinição de Senha",
       content: htmlContent,
-      type: "password_reset"
+      type: "password_reset_link"
     });
 
     if (!smtpUser || !smtpPass) return { success: false };
@@ -134,12 +136,15 @@ export async function sendPasswordResetCodeEmail(data: PasswordResetEmailData) {
     await transporter.sendMail({
       from: `"Viby Auth" <${smtpUser}>`,
       to: data.to,
-      subject: "🔐 Código de Segurança: Redefinição de Senha",
+      subject: "🔐 Recuperação de Conta: Redefinir Senha",
       html: htmlContent
     });
 
     return { success: true };
-  } catch (e) { return { success: false }; }
+  } catch (e) { 
+    console.error("Erro no envio do e-mail de link:", e);
+    return { success: false }; 
+  }
 }
 
 /**
@@ -699,7 +704,9 @@ export async function resendLoggedEmail(logData: any) {
     if (!smtpUser || !smtpPass) return { success: false, error: 'SMTP não configurado.' };
 
     const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com', port: 465, secure: true,
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
       auth: { user: smtpUser, pass: smtpPass },
     });
 
