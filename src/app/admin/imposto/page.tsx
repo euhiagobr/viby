@@ -2,14 +2,13 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, where, updateDoc, doc, serverTimestamp, addDoc } from "firebase/firestore"
+import { collection, query, orderBy, where, updateDoc, doc, serverTimestamp, addDoc, writeBatch, getDocs } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
   Receipt, 
   Loader2, 
   Search, 
-  Filter, 
   Download, 
   FileText, 
   Calendar, 
@@ -59,6 +58,7 @@ export default function AdminImpostoPage() {
   const [searchCnpj, setSearchCnpj] = React.useState(searchParams.get('cnpj') || "")
   const [selectedMonth, setSelectedCategory] = React.useState(searchParams.get('month') || "all")
   const [activeTab, setActiveTab] = React.useState(searchParams.get('tab') || "ads")
+  const [isUpdating, setIsUpdating] = React.useState<string | null>(null)
 
   const adsQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -67,11 +67,38 @@ export default function AdminImpostoPage() {
 
   const ticketsQuery = useMemoFirebase(() => {
     if (!db) return null
-    return query(collection(db, "tax_tickets"), orderBy("nfDeadlineDate", "desc"))
+    return query(collection(db, "tax_tickets"), orderBy("monthKey", "desc"))
   }, [db])
 
   const { data: ads, loading: adsLoading } = useCollection<any>(adsQuery)
-  const { data: tickets, loading: ticketsLoading } = useCollection<any>(ticketsQuery)
+  const { data: rawTickets, loading: ticketsLoading } = useCollection<any>(ticketsQuery)
+
+  // Consolidação de Ingressos por Evento e Mês
+  const consolidatedTickets = React.useMemo(() => {
+    if (!rawTickets) return []
+    const groups: Record<string, any> = {}
+    
+    rawTickets.forEach(t => {
+      const key = `${t.organizationId}_${t.eventId}_${t.monthKey}`
+      if (!groups[key]) {
+        groups[key] = { 
+          ...t, 
+          ticketsSold: 0, 
+          vibyGrossValue: 0, 
+          taxValue: 0, 
+          vibyNetValue: 0,
+          rawIds: [] // Armazena IDs originais para atualização de status em massa
+        }
+      }
+      groups[key].ticketsSold += (t.ticketsSold || 0)
+      groups[key].vibyGrossValue += (t.vibyGrossValue || 0)
+      groups[key].taxValue += (t.taxValue || 0)
+      groups[key].vibyNetValue += (t.vibyNetValue || 0)
+      groups[key].rawIds.push(t.id)
+    })
+    
+    return Object.values(groups).sort((a: any, b: any) => b.monthKey.localeCompare(a.monthKey))
+  }, [rawTickets])
 
   const updateFilters = React.useCallback(() => {
     const params = new URLSearchParams()
@@ -98,7 +125,7 @@ export default function AdminImpostoPage() {
   }
 
   const filteredAds = React.useMemo(() => filterList(ads || []), [ads, searchName, searchCnpj, selectedMonth])
-  const filteredTickets = React.useMemo(() => filterList(tickets || []), [tickets, searchName, searchCnpj, selectedMonth])
+  const filteredTickets = React.useMemo(() => filterList(consolidatedTickets), [consolidatedTickets, searchName, searchCnpj, selectedMonth])
 
   const adStats = React.useMemo(() => {
     return filteredAds.reduce((acc, ad) => {
@@ -146,6 +173,7 @@ export default function AdminImpostoPage() {
         'Evento': item.eventTitle,
         'Empresa': item.orgName,
         'CNPJ': item.orgCnpj,
+        'Mês Referência': item.monthKey,
         'Ingressos Vendidos': item.ticketsSold,
         'Bruto Viby': item.vibyGrossValue,
         'Imposto (11%)': item.taxValue,
@@ -177,25 +205,37 @@ export default function AdminImpostoPage() {
     }
   }
 
-  const handleUpdateNF = async (type: 'ads' | 'tickets', id: string, status: string) => {
+  const handleUpdateNF = async (type: 'ads' | 'tickets', item: any, status: string) => {
     if (!db) return
-    const coll = type === 'ads' ? 'tax_ads' : 'tax_tickets'
+    setIsUpdating(item.id)
+    
     try {
-      await updateDoc(doc(db, coll, id), { 
-        nfStatus: status, 
-        nfUpdatedAt: serverTimestamp() 
-      })
+      const batch = writeBatch(db)
+      const collName = type === 'ads' ? 'tax_ads' : 'tax_tickets'
+
+      if (type === 'tickets' && item.rawIds) {
+        // Atualização em massa para registros consolidados
+        item.rawIds.forEach((id: string) => {
+          batch.update(doc(db, collName, id), { nfStatus: status, nfUpdatedAt: serverTimestamp() })
+        })
+      } else {
+        batch.update(doc(db, collName, item.id), { nfStatus: status, nfUpdatedAt: serverTimestamp() })
+      }
+
+      await batch.commit()
       toast({ title: "Status da NF atualizado!" })
       
       addDoc(collection(db, "tax_audit"), {
         type: 'nf_status_change',
-        entityId: id,
+        entityId: item.id,
         entityType: type,
         newStatus: status,
         timestamp: serverTimestamp()
       })
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao atualizar" })
+    } finally {
+      setIsUpdating(null)
     }
   }
 
@@ -341,9 +381,9 @@ export default function AdminImpostoPage() {
                            </Badge>
                         </TableCell>
                         <TableCell className="text-right px-8">
-                           <Select value={ad.nfStatus || 'pendente'} onValueChange={(val) => handleUpdateNF('ads', ad.id, val)}>
+                           <Select value={ad.nfStatus || 'pendente'} onValueChange={(val) => handleUpdateNF('ads', ad, val)} disabled={isUpdating === ad.id}>
                               <SelectTrigger className="h-8 rounded-lg text-[9px] font-black uppercase border-secondary/20">
-                                <SelectValue />
+                                {isUpdating === ad.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <SelectValue />}
                               </SelectTrigger>
                               <SelectContent className="rounded-xl">
                                 <SelectItem value="pendente">Pendente</SelectItem>
@@ -368,7 +408,7 @@ export default function AdminImpostoPage() {
                   <TableHeader className="bg-muted/20">
                     <TableRow>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest py-6 px-8">Empresa / Evento</TableHead>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Vendas</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Referência / Vendas</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Comissões Viby</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Data Limite NF</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Status NF</TableHead>
@@ -385,7 +425,12 @@ export default function AdminImpostoPage() {
                               <span className="text-[9px] font-mono opacity-40">{t.orgCnpj}</span>
                            </div>
                         </TableCell>
-                        <TableCell className="text-center font-black text-sm">{t.ticketsSold} <span className="text-[10px] font-bold text-muted-foreground ml-1">un.</span></TableCell>
+                        <TableCell className="text-center font-black text-sm">
+                           <div className="flex flex-col">
+                              <span className="text-secondary font-black">{t.monthKey}</span>
+                              <span className="text-[10px] font-bold text-muted-foreground">{t.ticketsSold} <span className="opacity-50">un.</span></span>
+                           </div>
+                        </TableCell>
                         <TableCell className="text-right">
                            <div className="flex flex-col">
                               <span className="font-black text-sm text-primary">{formatCurrency(t.vibyGrossValue)}</span>
@@ -405,9 +450,9 @@ export default function AdminImpostoPage() {
                            </Badge>
                         </TableCell>
                         <TableCell className="text-right px-8">
-                           <Select value={t.nfStatus || 'pendente'} onValueChange={(val) => handleUpdateNF('tickets', t.id, val)}>
+                           <Select value={t.nfStatus || 'pendente'} onValueChange={(val) => handleUpdateNF('tickets', t, val)} disabled={isUpdating === t.id}>
                               <SelectTrigger className="h-8 rounded-lg text-[9px] font-black uppercase border-secondary/20">
-                                <SelectValue />
+                                {isUpdating === t.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <SelectValue />}
                               </SelectTrigger>
                               <SelectContent className="rounded-xl">
                                 <SelectItem value="pendente">Pendente</SelectItem>
