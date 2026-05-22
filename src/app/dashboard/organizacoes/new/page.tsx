@@ -5,7 +5,7 @@ import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useFirebaseApp, useDoc } from "@/firebase"
-import { doc, getDoc, runTransaction, serverTimestamp, query, collection, where, getDocs } from "firebase/firestore"
+import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -27,6 +27,11 @@ import {
   Building2,
   Globe,
   Camera,
+  MapPin,
+  Phone,
+  Mail,
+  Instagram,
+  Fingerprint,
   Info
 } from "lucide-react"
 import Link from "next/link"
@@ -229,7 +234,10 @@ export default function NovaOrganizacaoPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!db || !user || usernameStatus !== 'valid') return
+    if (!db || !user || usernameStatus !== 'valid') {
+        toast({ variant: "destructive", title: "Username inválido", description: "Verifique a disponibilidade do nome de usuário." })
+        return
+    }
 
     setLoading(true)
     const orgId = crypto.randomUUID()
@@ -255,7 +263,8 @@ export default function NovaOrganizacaoPage() {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           verified: false,
-          payoutSettings: { status: 'none' }
+          payoutSettings: { status: 'none' },
+          status: 'Ativo'
         })
 
         transaction.set(memberRef, {
@@ -266,7 +275,7 @@ export default function NovaOrganizacaoPage() {
         })
       })
 
-      toast({ title: "Organização criada!" })
+      toast({ title: "Organização criada!", description: "Sua marca está pronta para brilhar!" })
       router.push(`/dashboard/organizacoes`)
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao criar", description: error.message })
@@ -373,6 +382,7 @@ export default function NovaOrganizacaoPage() {
                        usernameStatus === 'taken' || usernameStatus === 'invalid' ? <X className="w-4 h-4 text-destructive" /> : null}
                     </div>
                   </div>
+                  <p className="text-[9px] text-muted-foreground font-bold uppercase">Mínimo 5 caracteres. viby.club/{formData.username || '...'}</p>
                 </div>
              </div>
 
@@ -393,6 +403,185 @@ export default function NovaOrganizacaoPage() {
                     ))}
                   </SelectContent>
                 </Select>
+             </div>
+
+             <div className="space-y-2">
+                <Label htmlFor="bio" className="text-[10px] font-black uppercase tracking-widest opacity-60">Bio / Descrição</Label>
+                <Textarea 
+                  id="bio" 
+                  placeholder="Conte um pouco sobre o que vocês fazem..." 
+                  value={formData.bio}
+                  onChange={e => setFormData(prev => ({ ...prev, bio: e.target.value }))}
+                  className="min-h-[100px] resize-none rounded-xl border-dashed border-secondary/30"
+                />
+             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm rounded-[2rem]">
+          <CardHeader>
+             <CardTitle className="text-lg flex items-center gap-2"><Fingerprint className="w-5 h-5 text-secondary" /> Dados Jurídicos</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="legalName" className="text-[10px] font-black uppercase tracking-widest opacity-60">Razão Social</Label>
+                  <Input 
+                    id="legalName" 
+                    value={formData.legalName}
+                    onChange={e => setFormData(prev => ({ ...prev, legalName: e.target.value }))}
+                    placeholder="Nome oficial da empresa" 
+                    className="rounded-xl h-11"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cnpj" className="text-[10px] font-black uppercase tracking-widest opacity-60">CNPJ</Label>
+                  <Input 
+                    id="cnpj" 
+                    value={formData.cnpj}
+                    onChange={e => {
+                      const numbers = e.target.value.replace(/\D/g, "");
+                      let formatted = numbers;
+                      if (numbers.length > 2) formatted = numbers.substring(0, 2) + "." + numbers.substring(2);
+                      if (numbers.length > 5) formatted = formatted.substring(0, 6) + "." + numbers.substring(5);
+                      if (numbers.length > 8) formatted = formatted.substring(0, 10) + "/" + numbers.substring(8);
+                      if (numbers.length > 12) formatted = formatted.substring(0, 15) + "-" + numbers.substring(12);
+                      setFormData(prev => ({ ...prev, cnpj: formatted.substring(0, 18) }))
+                    }}
+                    placeholder="00.000.000/0000-00" 
+                    className="rounded-xl h-11"
+                    required
+                  />
+                </div>
+             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm rounded-[2rem]">
+          <CardHeader>
+             <CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Endereço Sede</CardTitle>
+             <CardDescription>O endereço é obrigatório para fins de conformidade e repasses.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="cep" className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
+                  <Input 
+                    id="cep" 
+                    value={formData.cep}
+                    onChange={e => setFormData(prev => ({ ...prev, cep: e.target.value.replace(/\D/g, "").substring(0, 8) }))}
+                    onBlur={handleCepBlur}
+                    placeholder="00000-000" 
+                    required
+                    className="rounded-xl h-11"
+                  />
+                </div>
+                <div className="md:col-span-3 space-y-2">
+                  <Label htmlFor="street" className="text-[10px] font-black uppercase tracking-widest opacity-60">Logradouro</Label>
+                  <Input id="street" value={formData.street} onChange={e => setFormData(prev => ({ ...prev, street: e.target.value }))} required className="rounded-xl h-11" />
+                </div>
+             </div>
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="number" className="text-[10px] font-black uppercase tracking-widest opacity-60">Número</Label>
+                  <Input id="number" value={formData.number} onChange={e => setFormData(prev => ({ ...prev, number: e.target.value }))} required className="rounded-xl h-11" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="complement" className="text-[10px] font-black uppercase tracking-widest opacity-60">Complemento</Label>
+                  <Input id="complement" value={formData.complement} onChange={e => setFormData(prev => ({ ...prev, complement: e.target.value }))} className="rounded-xl h-11" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="neighborhood" className="text-[10px] font-black uppercase tracking-widest opacity-60">Bairro</Label>
+                  <Input id="neighborhood" value={formData.neighborhood} onChange={e => setFormData(prev => ({ ...prev, neighborhood: e.target.value }))} required className="rounded-xl h-11" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest opacity-60">Cidade / UF</Label>
+                  <div className="flex gap-2">
+                    <Input id="city" value={formData.city} readOnly required className="rounded-xl h-11 bg-muted/30" />
+                    <Input id="state" value={formData.state} readOnly required className="rounded-xl h-11 bg-muted/30 w-16" />
+                  </div>
+                </div>
+             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm rounded-[2rem]">
+          <CardHeader>
+             <CardTitle className="text-lg flex items-center gap-2"><Globe className="w-5 h-5 text-secondary" /> Contato & Presença Digital</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp Comercial</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showPhone ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showPhone} onCheckedChange={checked => setFormData(prev => ({ ...prev, showPhone: checked }))} />
+                    </div>
+                  </div>
+                  <Input 
+                    id="phone" 
+                    value={formData.phone}
+                    onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="(00) 00000-0000" 
+                    className="rounded-xl h-11"
+                  />
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="contactEmail" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail para Contato</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showEmail ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showEmail} onCheckedChange={checked => setFormData(prev => ({ ...prev, showEmail: checked }))} />
+                    </div>
+                  </div>
+                  <Input 
+                    id="contactEmail" 
+                    type="email"
+                    value={formData.contactEmail}
+                    onChange={e => setFormData(prev => ({ ...prev, contactEmail: e.target.value }))}
+                    placeholder="contato@empresa.com" 
+                    className="rounded-xl h-11"
+                  />
+                </div>
+             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="website" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Site Oficial</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showWebsite ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showWebsite} onCheckedChange={checked => setFormData(prev => ({ ...prev, showWebsite: checked }))} />
+                    </div>
+                  </div>
+                  <Input 
+                    id="website" 
+                    value={formData.website}
+                    onChange={e => setFormData(prev => ({ ...prev, website: e.target.value }))}
+                    placeholder="https://www.empresa.com" 
+                    className="rounded-xl h-11"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="instagram" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram (@)</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showInstagram ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showInstagram} onCheckedChange={checked => setFormData(prev => ({ ...prev, showInstagram: checked }))} />
+                    </div>
+                  </div>
+                  <Input 
+                    id="instagram" 
+                    value={formData.instagram}
+                    onChange={e => setFormData(prev => ({ ...prev, instagram: e.target.value.replace("@", "") }))}
+                    placeholder="usuario_da_marca" 
+                    className="rounded-xl h-11"
+                  />
+                </div>
              </div>
           </CardContent>
         </Card>

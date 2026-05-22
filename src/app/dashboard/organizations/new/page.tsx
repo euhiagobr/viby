@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -172,19 +173,16 @@ export default function NovaOrganizacaoPage() {
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value;
-    
-    // Normalizar o nome para sugerir um username (remover acentos, espaços e caracteres especiais)
     const suggestedUsername = newName
       .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+      .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
-      .replace(/[^a-z0-9]/g, "") // Mantém apenas letras e números
-      .substring(0, 20); // Limita tamanho
+      .replace(/[^a-z0-9]/g, "")
+      .substring(0, 20);
 
     setFormData(prev => ({
       ...prev,
       name: newName,
-      // Só preenche o username automaticamente se ele estiver vazio ou se for igual à sugestão anterior
       username: (prev.username === "" || prev.username === prev.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 20)) 
         ? suggestedUsername 
         : prev.username
@@ -265,20 +263,22 @@ export default function NovaOrganizacaoPage() {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           verified: false,
-          payoutSettings: { status: 'none' }
+          payoutSettings: { status: 'none' },
+          status: 'Ativo'
         })
 
         transaction.set(memberRef, {
           userId: user.uid,
           role: 'owner',
+          status: 'accepted',
           createdAt: serverTimestamp()
         })
       })
 
-      toast({ title: "Organização criada!", description: "Sua marca está pronta para brilhar!" })
+      toast({ title: "Organization created!", description: "Your brand is ready to shine!" })
       router.push(`/dashboard/organizations`)
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro ao criar", description: error.message })
+      toast({ variant: "destructive", title: "Error creating organization", description: error.message })
     } finally {
       setLoading(false)
     }
@@ -293,23 +293,21 @@ export default function NovaOrganizacaoPage() {
           </Link>
         </Button>
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-primary uppercase italic">Nova Organização</h1>
-          <p className="text-muted-foreground font-medium">Configure a identidade comercial da sua produtora ou marca.</p>
+          <h1 className="text-3xl font-black tracking-tight text-primary uppercase italic">New Organization</h1>
+          <p className="text-muted-foreground font-medium">Set up the commercial identity of your producer or brand.</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Identidade Visual */}
         <Card className="border-none shadow-sm overflow-hidden rounded-[2rem]">
           <CardHeader className="bg-muted/30">
             <CardTitle className="text-lg flex items-center gap-2">
-               <Camera className="w-5 h-5 text-secondary" /> Identidade Visual
+               <Camera className="w-5 h-5 text-secondary" /> Visual Identity
             </CardTitle>
-            <CardDescription>Carregue as imagens que representarão sua marca na plataforma.</CardDescription>
+            <CardDescription>Upload images that will represent your brand on the platform.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="relative">
-              {/* Banner Upload */}
               <div 
                 className="relative h-48 bg-muted border-b border-border group cursor-pointer overflow-hidden"
                 onClick={() => document.getElementById('org-banner')?.click()}
@@ -319,7 +317,7 @@ export default function NovaOrganizacaoPage() {
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full text-muted-foreground opacity-40">
                     <Upload className="w-10 h-10 mb-2" />
-                    <p className="text-xs font-black uppercase tracking-widest">Carregar Foto de Capa</p>
+                    <p className="text-xs font-black uppercase tracking-widest">Upload Cover Photo</p>
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -329,7 +327,6 @@ export default function NovaOrganizacaoPage() {
                 <input id="org-banner" type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 'banner')} />
               </div>
 
-              {/* Avatar Upload */}
               <div className="absolute -bottom-10 left-8">
                 <div className="relative group">
                   <Avatar className="h-28 w-28 border-4 border-background shadow-xl">
@@ -350,18 +347,17 @@ export default function NovaOrganizacaoPage() {
           </CardContent>
         </Card>
 
-        {/* Dados Básicos */}
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
-             <CardTitle className="text-lg flex items-center gap-2"><Info className="w-5 h-5 text-secondary" /> Informações Básicas</CardTitle>
+             <CardTitle className="text-lg flex items-center gap-2"><Info className="w-5 h-5 text-secondary" /> Basic Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome</Label>
+                  <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60">Name</Label>
                   <Input 
                     id="name" 
-                    placeholder="Ex: Viby Entretenimento" 
+                    placeholder="Ex: Viby Entertainment" 
                     value={formData.name}
                     onChange={handleNameChange}
                     required 
@@ -370,11 +366,11 @@ export default function NovaOrganizacaoPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="username" className="text-[10px] font-black uppercase tracking-widest opacity-60">Username exclusivo (@)</Label>
+                  <Label htmlFor="username" className="text-[10px] font-black uppercase tracking-widest opacity-60">Exclusive Username (@)</Label>
                   <div className="relative">
                     <Input 
                       id="username" 
-                      placeholder="Somente letras e números" 
+                      placeholder="Letters and numbers only" 
                       value={formData.username}
                       onChange={e => setFormData(prev => ({ ...prev, username: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "") }))}
                       className={cn(
@@ -390,15 +386,15 @@ export default function NovaOrganizacaoPage() {
                        usernameStatus === 'taken' || usernameStatus === 'invalid' ? <X className="w-4 h-4 text-destructive" /> : null}
                     </div>
                   </div>
-                  <p className="text-[9px] text-muted-foreground font-bold uppercase">Mínimo 5 caracteres. viby.club/{formData.username || '...'}</p>
+                  <p className="text-[9px] text-muted-foreground font-bold uppercase">Min 5 characters. viby.club/{formData.username || '...'}</p>
                 </div>
              </div>
 
              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Tipo de Organização</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Organization Type</Label>
                 <Select value={formData.type} onValueChange={val => setFormData(prev => ({ ...prev, type: val }))} required>
                   <SelectTrigger className="rounded-xl h-11">
-                    <SelectValue placeholder="Selecione o segmento" />
+                    <SelectValue placeholder="Select segment" />
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px] rounded-xl shadow-2xl border-none">
                     {ORG_TYPES.map((group) => (
@@ -414,10 +410,10 @@ export default function NovaOrganizacaoPage() {
              </div>
 
              <div className="space-y-2">
-                <Label htmlFor="bio" className="text-[10px] font-black uppercase tracking-widest opacity-60">Bio / Descrição</Label>
+                <Label htmlFor="bio" className="text-[10px] font-black uppercase tracking-widest opacity-60">Bio / Description</Label>
                 <Textarea 
                   id="bio" 
-                  placeholder="Conte um pouco sobre o que vocês fazem..." 
+                  placeholder="Tell us a little about what you do..." 
                   value={formData.bio}
                   onChange={e => setFormData(prev => ({ ...prev, bio: e.target.value }))}
                   className="min-h-[100px] resize-none rounded-xl border-dashed border-secondary/30"
@@ -426,21 +422,21 @@ export default function NovaOrganizacaoPage() {
           </CardContent>
         </Card>
 
-        {/* Dados Jurídicos */}
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
-             <CardTitle className="text-lg flex items-center gap-2"><Fingerprint className="w-5 h-5 text-secondary" /> Dados Jurídicos</CardTitle>
+             <CardTitle className="text-lg flex items-center gap-2"><Fingerprint className="w-5 h-5 text-secondary" /> Legal Data</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="legalName" className="text-[10px] font-black uppercase tracking-widest opacity-60">Razão Social</Label>
+                  <Label htmlFor="legalName" className="text-[10px] font-black uppercase tracking-widest opacity-60">Legal Name</Label>
                   <Input 
                     id="legalName" 
                     value={formData.legalName}
                     onChange={e => setFormData(prev => ({ ...prev, legalName: e.target.value }))}
-                    placeholder="Nome oficial da empresa" 
+                    placeholder="Official company name" 
                     className="rounded-xl h-11"
+                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -459,16 +455,17 @@ export default function NovaOrganizacaoPage() {
                     }}
                     placeholder="00.000.000/0000-00" 
                     className="rounded-xl h-11"
+                    required
                   />
                 </div>
              </div>
           </CardContent>
         </Card>
 
-        {/* Localização */}
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
-             <CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Endereço Completo</CardTitle>
+             <CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Headquarters Address</CardTitle>
+             <CardDescription>Address is mandatory for compliance and payout purposes.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -480,50 +477,50 @@ export default function NovaOrganizacaoPage() {
                     onChange={e => setFormData(prev => ({ ...prev, cep: e.target.value.replace(/\D/g, "").substring(0, 8) }))}
                     onBlur={handleCepBlur}
                     placeholder="00000-000" 
+                    required
                     className="rounded-xl h-11"
                   />
                 </div>
                 <div className="md:col-span-3 space-y-2">
-                  <Label htmlFor="street" className="text-[10px] font-black uppercase tracking-widest opacity-60">Logradouro</Label>
-                  <Input id="street" value={formData.street} onChange={e => setFormData(prev => ({ ...prev, street: e.target.value }))} className="rounded-xl h-11" />
+                  <Label htmlFor="street" className="text-[10px] font-black uppercase tracking-widest opacity-60">Street</Label>
+                  <Input id="street" value={formData.street} onChange={e => setFormData(prev => ({ ...prev, street: e.target.value }))} required className="rounded-xl h-11" />
                 </div>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="number" className="text-[10px] font-black uppercase tracking-widest opacity-60">Número</Label>
-                  <Input id="number" value={formData.number} onChange={e => setFormData(prev => ({ ...prev, number: e.target.value }))} className="rounded-xl h-11" />
+                  <Label htmlFor="number" className="text-[10px] font-black uppercase tracking-widest opacity-60">Number</Label>
+                  <Input id="number" value={formData.number} onChange={e => setFormData(prev => ({ ...prev, number: e.target.value }))} required className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="complement" className="text-[10px] font-black uppercase tracking-widest opacity-60">Complemento</Label>
+                  <Label htmlFor="complement" className="text-[10px] font-black uppercase tracking-widest opacity-60">Complement</Label>
                   <Input id="complement" value={formData.complement} onChange={e => setFormData(prev => ({ ...prev, complement: e.target.value }))} className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="neighborhood" className="text-[10px] font-black uppercase tracking-widest opacity-60">Bairro</Label>
-                  <Input id="neighborhood" value={formData.neighborhood} onChange={e => setFormData(prev => ({ ...prev, neighborhood: e.target.value }))} className="rounded-xl h-11" />
+                  <Label htmlFor="neighborhood" className="text-[10px] font-black uppercase tracking-widest opacity-60">Neighborhood</Label>
+                  <Input id="neighborhood" value={formData.neighborhood} onChange={e => setFormData(prev => ({ ...prev, neighborhood: e.target.value }))} required className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest opacity-60">Cidade / UF</Label>
+                  <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest opacity-60">City / State</Label>
                   <div className="flex gap-2">
-                    <Input id="city" value={formData.city} readOnly className="rounded-xl h-11 bg-muted/30" />
-                    <Input id="state" value={formData.state} readOnly className="rounded-xl h-11 bg-muted/30 w-16" />
+                    <Input id="city" value={formData.city} readOnly required className="rounded-xl h-11 bg-muted/30" />
+                    <Input id="state" value={formData.state} readOnly required className="rounded-xl h-11 bg-muted/30 w-16" />
                   </div>
                 </div>
              </div>
           </CardContent>
         </Card>
 
-        {/* Contato e Social */}
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
-             <CardTitle className="text-lg flex items-center gap-2"><Globe className="w-5 h-5 text-secondary" /> Contato & Presença Digital</CardTitle>
+             <CardTitle className="text-lg flex items-center gap-2"><Globe className="w-5 h-5 text-secondary" /> Contact & Digital Presence</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> Telefone/WhatsApp</Label>
+                    <Label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp</Label>
                     <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showPhone ? 'Público' : 'Oculto'}</span>
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showPhone ? 'Public' : 'Hidden'}</span>
                       <Switch checked={formData.showPhone} onCheckedChange={checked => setFormData(prev => ({ ...prev, showPhone: checked }))} />
                     </div>
                   </div>
@@ -538,9 +535,9 @@ export default function NovaOrganizacaoPage() {
                 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="contactEmail" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail para Contato</Label>
+                    <Label htmlFor="contactEmail" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> Contact Email</Label>
                     <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showEmail ? 'Público' : 'Oculto'}</span>
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showEmail ? 'Public' : 'Hidden'}</span>
                       <Switch checked={formData.showEmail} onCheckedChange={checked => setFormData(prev => ({ ...prev, showEmail: checked }))} />
                     </div>
                   </div>
@@ -549,7 +546,7 @@ export default function NovaOrganizacaoPage() {
                     type="email"
                     value={formData.contactEmail}
                     onChange={e => setFormData(prev => ({ ...prev, contactEmail: e.target.value }))}
-                    placeholder="contato@empresa.com" 
+                    placeholder="contact@brand.com" 
                     className="rounded-xl h-11"
                   />
                 </div>
@@ -558,9 +555,9 @@ export default function NovaOrganizacaoPage() {
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="website" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Site Oficial</Label>
+                    <Label htmlFor="website" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Website</Label>
                     <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showWebsite ? 'Público' : 'Oculto'}</span>
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showWebsite ? 'Public' : 'Hidden'}</span>
                       <Switch checked={formData.showWebsite} onCheckedChange={checked => setFormData(prev => ({ ...prev, showWebsite: checked }))} />
                     </div>
                   </div>
@@ -568,16 +565,16 @@ export default function NovaOrganizacaoPage() {
                     id="website" 
                     value={formData.website}
                     onChange={e => setFormData(prev => ({ ...prev, website: e.target.value }))}
-                    placeholder="https://www.empresa.com" 
+                    placeholder="https://www.brand.com" 
                     className="rounded-xl h-11"
                   />
                 </div>
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="instagram" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram Oficial</Label>
+                    <Label htmlFor="instagram" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram (@)</Label>
                     <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showInstagram ? 'Público' : 'Oculto'}</span>
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showInstagram ? 'Public' : 'Hidden'}</span>
                       <Switch checked={formData.showInstagram} onCheckedChange={checked => setFormData(prev => ({ ...prev, showInstagram: checked }))} />
                     </div>
                   </div>
@@ -585,7 +582,7 @@ export default function NovaOrganizacaoPage() {
                     id="instagram" 
                     value={formData.instagram}
                     onChange={e => setFormData(prev => ({ ...prev, instagram: e.target.value.replace("@", "") }))}
-                    placeholder="@usuario" 
+                    placeholder="brand_user" 
                     className="rounded-xl h-11"
                   />
                 </div>
@@ -595,7 +592,7 @@ export default function NovaOrganizacaoPage() {
 
         <div className="flex justify-end gap-3 pt-4">
           <Button type="button" variant="ghost" asChild className="rounded-xl px-8 font-bold text-muted-foreground">
-            <Link href="/dashboard/organizations">Cancelar</Link>
+            <Link href="/dashboard/organizations">Cancel</Link>
           </Button>
           <Button 
             type="submit" 
@@ -603,7 +600,7 @@ export default function NovaOrganizacaoPage() {
             disabled={loading || usernameStatus !== 'valid'}
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Plus className="w-5 h-5 mr-2" />}
-            Criar Organização
+            Create Organization
           </Button>
         </div>
       </form>
