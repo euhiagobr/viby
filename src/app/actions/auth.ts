@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -8,13 +7,14 @@ import { firebaseConfig } from '@/firebase/config';
 import { sendPasswordResetLinkEmail } from './email';
 
 /**
- * Inicializa o Firebase Admin SDK se ainda não estiver inicializado.
+ * Inicializa o Firebase Admin SDK com suporte a ambiente de servidor Next.js.
  */
-function initAdmin() {
+function getAdminAuth() {
   if (admin.apps.length === 0) {
     admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
-      projectId: firebaseConfig.projectId
+      projectId: firebaseConfig.projectId,
+      // Em ambientes de produção (Firebase App Hosting/Functions), o Admin usa as credenciais do ambiente.
+      // No Studio, ele tentará usar a aplicação padrão.
     });
   }
   return admin.auth();
@@ -27,7 +27,7 @@ export async function requestPasswordReset(identifier: string) {
   try {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app, 'eventosviby');
-    const authAdmin = initAdmin();
+    const authAdmin = getAdminAuth();
 
     let email = identifier.trim().toLowerCase();
     let userName = "Usuário";
@@ -37,7 +37,9 @@ export async function requestPasswordReset(identifier: string) {
       const normalizedUsername = identifier.replace('@', '').toLowerCase().trim();
       const q = query(collection(db, "users"), where("username", "==", normalizedUsername));
       const snap = await getDocs(q);
+      
       if (snap.empty) throw new Error("Usuário não encontrado.");
+      
       const userData = snap.docs[0].data();
       email = userData.email;
       userName = userData.name || userData.displayName || "Usuário";
@@ -51,7 +53,8 @@ export async function requestPasswordReset(identifier: string) {
     }
 
     // 2. Gera o LINK oficial do Firebase
-    // Este link aponta para o domínio de autenticação do projeto e permite a troca real da senha.
+    // Este link aponta para o domínio de autenticação do projeto e permite a troca real da senha no banco do Google.
+    // Importante: O link expira por tempo e é de uso único.
     const resetLink = await authAdmin.generatePasswordResetLink(email);
 
     // 3. Envia o e-mail via nosso SMTP
