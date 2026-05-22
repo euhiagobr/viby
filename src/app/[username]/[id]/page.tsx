@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -26,7 +27,8 @@ import {
   Minus,
   Map as MapIcon,
   Navigation,
-  Users
+  Users,
+  EyeOff
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -71,11 +73,17 @@ export default function EventoDetalhesPage() {
 
   const [activeBatch, setActiveBatch] = React.useState<any>(null)
   const [selectedTicketType, setSelectedTicketType] = React.useState<any>(null)
-  const [saleStatus, setSaleStatus] = React.useState<'open' | 'pending' | 'ended' | 'soldout'>('pending')
+  const [saleStatus, setSaleStatus] = React.useState<'open' | 'pending' | 'ended' | 'soldout' | 'suspended'>('pending')
   const [quantity, setQuantity] = React.useState(1)
 
   React.useEffect(() => {
     if (!event) return
+
+    // Se a organização não estiver ativa, suspende as vendas
+    if (organizationProfile && organizationProfile.status !== 'Ativo') {
+      setSaleStatus('suspended')
+      return
+    }
 
     const checkAvailability = () => {
       const now = new Date()
@@ -132,7 +140,7 @@ export default function EventoDetalhesPage() {
     }
 
     checkAvailability()
-  }, [event, allRegistrations])
+  }, [event, allRegistrations, organizationProfile])
 
   const handleAddToCart = () => {
     if (!selectedTicketType || !event || !activeBatch) return
@@ -294,7 +302,7 @@ export default function EventoDetalhesPage() {
                                      <div className="space-y-1">
                                         <p className="font-bold text-sm uppercase">{type.name}</p>
                                         <div className="flex flex-wrap gap-2">
-                                          {type.poolName && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase border-secondary/20 text-secondary gap-1"><Layers className="w-2.5 h-2.5" /> {type.poolName}</Badge>}
+                                          {type.poolId && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase border-secondary/20 text-secondary gap-1"><Layers className="w-2.5 h-2.5" /> {type.poolName || 'Pool'}</Badge>}
                                           {type.remaining <= 10 && <span className="text-[8px] font-black text-red-500 uppercase">Restam {type.remaining}</span>}
                                           {type.requiresProof && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase border-orange-200 text-orange-600">Doc. Obrigatório</Badge>}
                                         </div>
@@ -326,8 +334,18 @@ export default function EventoDetalhesPage() {
                        </div>
                     ) : (
                       <div className="p-10 text-center space-y-2 bg-muted/20 rounded-2xl">
-                         <AlertTriangle className="w-8 h-8 text-orange-400 mx-auto mb-2" />
-                         <p className="font-black uppercase italic">{saleStatus === 'soldout' ? 'Esgotado' : saleStatus === 'pending' ? 'Vendas em Breve' : 'Vendas Encerradas'}</p>
+                         {saleStatus === 'suspended' ? (
+                           <>
+                              <EyeOff className="w-8 h-8 text-orange-400 mx-auto mb-2" />
+                              <p className="font-black uppercase italic">Vendas Suspensas</p>
+                              <p className="text-[10px] font-medium text-muted-foreground leading-relaxed uppercase">O organizador ocultou esta página temporariamente.</p>
+                           </>
+                         ) : (
+                           <>
+                              <AlertTriangle className="w-8 h-8 text-orange-400 mx-auto mb-2" />
+                              <p className="font-black uppercase italic">{saleStatus === 'soldout' ? 'Esgotado' : saleStatus === 'pending' ? 'Vendas em Breve' : 'Vendas Encerradas'}</p>
+                           </>
+                         )}
                       </div>
                     )}
                  </CardContent>

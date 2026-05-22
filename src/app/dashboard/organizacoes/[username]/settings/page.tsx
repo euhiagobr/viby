@@ -4,9 +4,9 @@
 import * as React from 'react';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
 import { useFirestore, useFirebaseApp, useAuth } from '@/firebase';
-import { doc, updateDoc, serverTimestamp, deleteField } from 'firebase/firestore';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { doc, updateDoc, serverTimestamp, deleteField, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -121,28 +121,6 @@ export default function OrganizationSettingsPage() {
     } catch (err) { setProgress(null); }
   };
 
-  const handleCepBlur = async () => {
-    if (!formData.cep) return;
-    const cleanCep = formData.cep.replace(/\D/g, "");
-    if (cleanCep.length !== 8) return;
-    
-    try {
-      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
-      const data = await response.json();
-      if (!data.erro) {
-        setFormData((prev: any) => ({
-          ...prev,
-          street: data.logradouro || prev.street,
-          neighborhood: data.bairro || prev.neighborhood,
-          city: data.localidade || prev.city,
-          state: data.uf || prev.state
-        }));
-      }
-    } catch (e) {
-      console.error("Erro ao buscar CEP", e);
-    }
-  };
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!db || !currentOrg) return;
@@ -174,7 +152,7 @@ export default function OrganizationSettingsPage() {
         updatedAt: serverTimestamp()
       });
       await refreshOrg();
-      toast({ title: "Página desativada", description: "Sua marca está oculta para o público." });
+      toast({ title: "Página desativada", description: "Sua marca e todos os seus eventos foram ocultados." });
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na desativação" });
     } finally {
@@ -187,11 +165,9 @@ export default function OrganizationSettingsPage() {
     
     setIsProcessingAction(true);
     try {
-      // 1. Reautenticar por segurança
       const credential = EmailAuthProvider.credential(auth.currentUser.email!, confirmPassword);
       await reauthenticateWithCredential(auth.currentUser, credential);
 
-      // 2. Agendar exclusão
       const deletionDate = new Date();
       deletionDate.setDate(deletionDate.getDate() + 30);
 
@@ -202,7 +178,7 @@ export default function OrganizationSettingsPage() {
       });
 
       await refreshOrg();
-      toast({ title: "Exclusão Agendada", description: "A marca será removida em 30 dias. A página já está oculta." });
+      toast({ title: "Exclusão Agendada", description: "A marca será removida em 30 dias. A página e eventos já estão ocultos." });
       setIsDeleteOpen(false);
       setConfirmPassword("");
     } catch (e: any) {
@@ -222,7 +198,7 @@ export default function OrganizationSettingsPage() {
         updatedAt: serverTimestamp()
       });
       await refreshOrg();
-      toast({ title: "Exclusão cancelada!", description: "Sua marca voltou ao ar normalmente." });
+      toast({ title: "Exclusão cancelada!", description: "Sua marca e eventos voltaram ao ar normalmente." });
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao cancelar" });
     } finally {
@@ -231,7 +207,6 @@ export default function OrganizationSettingsPage() {
   };
 
   const canEditSettings = ['owner', 'admin'].includes(userRole || '');
-  const isOwner = userRole === 'owner';
 
   if (!canEditSettings) {
     return (
@@ -266,7 +241,7 @@ export default function OrganizationSettingsPage() {
       </div>
 
       <form onSubmit={handleSave} className="space-y-8">
-        <Card className="border-none shadow-sm overflow-hidden rounded-[2.5rem]">
+        <Card className="border-none shadow-sm overflow-hidden rounded-[2rem]">
           <CardHeader className="bg-muted/30">
             <CardTitle className="text-lg flex items-center gap-2"><Camera className="w-5 h-5 text-secondary" /> Identidade Visual</CardTitle>
             <CardDescription>Fotos que representam a marca.</CardDescription>
@@ -456,6 +431,7 @@ export default function OrganizationSettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Contato & Social */}
         <Card className="border-none shadow-sm rounded-[2rem]">
            <CardHeader><CardTitle className="text-lg">Contato & Presença Digital</CardTitle></CardHeader>
            <CardContent className="space-y-6">
@@ -535,7 +511,7 @@ export default function OrganizationSettingsPage() {
                <div className="flex flex-col md:flex-row items-center justify-between gap-6 border-b pb-8">
                   <div className="space-y-1 flex-1">
                      <p className="font-bold text-sm">Desativar Página</p>
-                     <p className="text-[11px] text-muted-foreground">Oculta sua marca e eventos do feed público. Seus dados continuam salvos e você pode reativar a qualquer momento.</p>
+                     <p className="text-[11px] text-muted-foreground">Oculta sua marca e suspende todos os eventos e vendas. Seus dados continuam salvos e você pode reativar a qualquer momento.</p>
                   </div>
                   <Button 
                     variant={isDeactivated ? "secondary" : "outline"} 
@@ -551,7 +527,7 @@ export default function OrganizationSettingsPage() {
                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                   <div className="space-y-1 flex-1">
                      <p className="font-bold text-sm text-destructive">Excluir Organização</p>
-                     <p className="text-[11px] text-muted-foreground">Remove permanentemente todos os eventos, membros e dados financeiros da marca após 30 dias de inatividade.</p>
+                     <p className="text-[11px] text-muted-foreground">Remove permanentemente todos os eventos e dados da marca após 30 dias. Vendas e visualizações são interrompidas imediatamente.</p>
                   </div>
                   <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteOpen}>
                     <DialogTrigger asChild>
@@ -566,7 +542,7 @@ export default function OrganizationSettingsPage() {
                           </div>
                           <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Confirmar Exclusão</DialogTitle>
                           <DialogDescription className="text-center font-medium">
-                             A página ficará oculta por 30 dias. Para confirmar, insira sua senha de acesso.
+                             A página e eventos ficarão ocultos por 30 dias. Para confirmar, insira sua senha de acesso.
                           </DialogDescription>
                        </DialogHeader>
                        <div className="space-y-6 py-4">
@@ -581,7 +557,7 @@ export default function OrganizationSettingsPage() {
                              />
                           </div>
                           <div className="p-4 bg-muted/50 rounded-2xl border-2 border-dashed border-border text-[10px] text-muted-foreground font-medium uppercase leading-relaxed italic">
-                             Ao confirmar, sua marca sairá do ar hoje e será apagada em definitivo daqui a 30 dias.
+                             Ao confirmar, sua marca e bilheteria sairão do ar hoje e serão apagadas em definitivo daqui a 30 dias.
                           </div>
                        </div>
                        <DialogFooter>

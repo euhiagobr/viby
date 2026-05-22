@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
-import { collection, query, limit, orderBy, doc, where } from "firebase/firestore"
+import { collection, query, limit, orderBy, doc, where, getDocs } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { AdCard } from "@/components/ads/AdCard"
 import { Button } from "@/components/ui/button"
@@ -32,13 +33,14 @@ export default function LandingPage() {
   const [selectedCategory, setSelectedCategory] = React.useState("all")
   const [sortBy, setSortBy] = React.useState<'date' | 'distance'>('date')
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
+  const [inactiveOrgIds, setInactiveOrgIds] = React.useState<Set<string>>(new Set())
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
-    return query(collection(db, "events"), orderBy("createdAt", "desc"), limit(100))
+    return query(collection(db, "events"), limit(100))
   }, [db])
 
   const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
@@ -62,6 +64,18 @@ export default function LandingPage() {
     fetchLocation()
   }, [])
 
+  // Buscar organizações inativas para filtrar eventos em massa
+  React.useEffect(() => {
+    if (!db) return
+    const fetchInactiveOrgs = async () => {
+      const q = query(collection(db, "organizations"), where("status", "!=", "Ativo"))
+      const snap = await getDocs(q)
+      const ids = new Set(snap.docs.map(d => d.id))
+      setInactiveOrgIds(ids)
+    }
+    fetchInactiveOrgs()
+  }, [db])
+
   const uniqueCities = React.useMemo(() => {
     if (!events) return []
     const cities = events
@@ -78,6 +92,9 @@ export default function LandingPage() {
     let result = events.filter((e: any) => {
       const isNotDeleted = e.status !== 'Excluído';
       
+      // Filtra eventos de marcas inativas
+      if (inactiveOrgIds.has(e.organizationId)) return false;
+
       const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
       const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
       const isEnded = end < now;
@@ -111,7 +128,7 @@ export default function LandingPage() {
     }
 
     return result;
-  }, [events, searchName, selectedCity, selectedCategory, sortBy, userLocation])
+  }, [events, searchName, selectedCity, selectedCategory, sortBy, userLocation, inactiveOrgIds])
 
   const interleavedContent = React.useMemo(() => {
     const now = new Date()
@@ -124,6 +141,9 @@ export default function LandingPage() {
 
     const sponsoredPool = (activeAds || [])
       .map((ad: any) => {
+        // Filtra anúncios de marcas inativas
+        if (inactiveOrgIds.has(ad.organizationId)) return null;
+
         const start = parseAdDate(ad.startDate);
         const end = parseAdDate(ad.endDate);
         const isDateValid = (!start || now >= start) && (!end || now <= end)
@@ -175,7 +195,7 @@ export default function LandingPage() {
     }
 
     return result
-  }, [filteredEvents, activeAds, events])
+  }, [filteredEvents, activeAds, events, inactiveOrgIds])
 
   const siteName = settings?.siteName || "Viby"
 
@@ -336,7 +356,7 @@ export default function LandingPage() {
 
         {!eventsLoading && interleavedContent.length === 0 && (
           <div className="py-12 text-center text-muted-foreground">
-             Nenhum evento futuro disponível nesta região.
+             Nenhum evento disponível no momento para os critérios selecionados.
           </div>
         )}
       </section>
