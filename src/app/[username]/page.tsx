@@ -442,7 +442,7 @@ function UniversalProfileContent() {
   }, [db, data?.id])
   const { data: followersList } = useCollection<any>(followersCountQuery)
 
-  const isSelf = user && data && (data.id === user.uid || (type === 'organization' && data.createdBy === user.uid));
+  const isSelf = user && data && type === 'user' && data.id === user.uid;
 
   const handleFollowToggle = async () => {
     if (!user) {
@@ -453,7 +453,7 @@ function UniversalProfileContent() {
     if (!db || !data || followActionLoading) return
 
     if (isSelf) {
-      toast({ variant: "destructive", title: "Operação inválida", description: "Você não pode seguir sua própria conta." })
+      toast({ variant: "destructive", title: "Operação inválida", description: "Você não pode seguir seu próprio perfil pessoal." })
       return
     }
 
