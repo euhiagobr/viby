@@ -472,7 +472,7 @@ export default function AdminPresencaPage() {
                    <CardContent className="px-8 pb-8 pt-0">
                       <div className="p-4 bg-muted/30 rounded-2xl border border-dashed border-border/50">
                          <p className="text-[9px] font-black uppercase text-muted-foreground mb-1">XP Necessário</p>
-                         <p className="text-xl font-black text-primary">{(lvl.xpRequired).toLocaleString() XP}</p>
+                         <p className="text-xl font-black text-primary">{(lvl.xpRequired).toLocaleString()} XP</p>
                       </div>
                       <div className="flex gap-2 mt-4">
                          <Button variant="ghost" size="sm" className="flex-1 rounded-xl text-[10px] font-black uppercase text-muted-foreground hover:bg-muted/50" onClick={() => { setEditingLevel(lvl); setIsLevelDialogOpen(true); }}>Editar</Button>
@@ -552,7 +552,7 @@ export default function AdminPresencaPage() {
                 </Card>
               ))}
               {(!badges || badges.length === 0) && (
-                <div className="col-span-full py-20 text-center bg-white/20 rounded-[3rem] border-2 border-dashed border-border/40">
+                <div className="col-span-full py-24 text-center bg-white/20 rounded-[3rem] border-2 border-dashed border-border/40">
                    <Award className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-10" />
                    <p className="text-muted-foreground font-black uppercase tracking-widest text-[9px]">Ainda não possui medalhas públicas.</p>
                 </div>
