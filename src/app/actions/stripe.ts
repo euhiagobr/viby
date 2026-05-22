@@ -4,265 +4,138 @@ import { headers } from 'next/headers';
 import Stripe from 'stripe';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import { firebaseConfig } from '@/firebase/config';
+import { vibyConfig } from '@/firebase/config';
 
-/**
- * Helper para obter as chaves do Stripe diretamente do Firestore.
- */
 async function getStripeKeys() {
   try {
-    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    const db = getFirestore(app, 'eventosviby');
-    
+    const vibyApp = getApps().find(a => a.name === "vibyApp") || initializeApp(vibyConfig, "vibyApp");
+    const db = getFirestore(vibyApp, 'eventosviby');
     const stripeDoc = await getDoc(doc(db, 'settings', 'stripe'));
-    if (!stripeDoc.exists()) {
-      return { publishableKey: null, secretKey: null };
-    }
+    if (!stripeDoc.exists()) return { publishableKey: null, secretKey: null };
     const data = stripeDoc.data();
-    return {
-      publishableKey: data.publishableKey || null,
-      secretKey: data.secretKey || null,
-    };
+    return { publishableKey: data.publishableKey || null, secretKey: data.secretKey || null };
   } catch (e) {
-    console.error('Erro ao buscar chaves do Stripe no Firestore:', e);
     return { publishableKey: null, secretKey: null };
   }
 }
 
-/**
- * Inicializa uma instância do Stripe com a Secret Key do banco.
- */
 async function getStripeInstance() {
   const { secretKey } = await getStripeKeys();
-  if (!secretKey || typeof secretKey !== 'string') {
-    throw new Error('A chave secreta do Stripe não foi configurada ou é inválida.');
-  }
-  
-  return new Stripe(secretKey, {
-    typescript: true,
-  });
+  if (!secretKey) throw new Error('Stripe não configurado.');
+  return new Stripe(secretKey, { typescript: true });
 }
 
-export async function createCheckoutSession(data: {
-  eventId: string;
-  eventTitle: string;
-  eventImage: string;
-  userId: string;
-  userName: string;
-  userEmail: string;
-  totalAmount: number; // Em centavos
-  metadata: any;
-  lineItems?: any[];
-}) {
+export async function createCheckoutSession(data: any) {
   try {
-    const h = await headers();
-    const origin = h.get('origin') || 'https://viby.club';
-
+    const origin = (await headers()).get('origin') || 'https://viby.club';
     const stripe = await getStripeInstance();
-
-    const sanitizedMetadata: Record<string, string> = {};
-    if (data.metadata) {
-      Object.entries(data.metadata).forEach(([key, value]) => {
-        if (value !== null && value !== undefined) {
-          sanitizedMetadata[key] = typeof value === 'object' ? JSON.stringify(value) : String(value);
-        }
-      });
-    }
-
-    const items = data.lineItems || [
-      {
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: data.lineItems || [{
         price_data: {
           currency: 'brl',
-          product_data: {
-            name: data.eventTitle || 'Ingresso Viby',
-            description: `Reserva de ingresso`,
-            images: (data.eventImage && data.eventImage.startsWith('http')) ? [data.eventImage] : [],
-          },
-          unit_amount: Math.max(1, Math.round(data.totalAmount)),
+          product_data: { name: data.eventTitle || 'Ingresso Viby' },
+          unit_amount: Math.round(data.totalAmount),
         },
         quantity: 1,
-      },
-    ];
-
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: items,
+      }],
       mode: 'payment',
       customer_email: data.userEmail,
       success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/cancelado`,
-      metadata: sanitizedMetadata,
+      metadata: data.metadata,
     });
-
     return { url: session.url };
   } catch (error: any) {
-    console.error('Erro crítico na Server Action createCheckoutSession:', error);
-    throw new Error(error.message || 'Erro ao processar o checkout de pagamento');
+    throw new Error(error.message);
   }
 }
 
-/**
- * Cria sessão de checkout para recarga de saldo de anúncios da organização.
- * Aplica taxas: Valor Base + 16% (Imposto) + 5% (Transação)
- */
-export async function createAdBalanceTopUpSession(data: {
-  orgId: string;
-  orgName: string;
-  userEmail: string;
-  baseAmount: number; // Valor que vai virar saldo (em reais)
-  transactionId: string; // ID da transação criada no Firestore
-}) {
+export async function createAdBalanceTopUpSession(data: any) {
   try {
-    const h = await headers();
-    const origin = h.get('origin') || 'https://viby.club';
+    const origin = (await headers()).get('origin') || 'https://viby.club';
     const stripe = await getStripeInstance();
-
-    const taxAmount = data.baseAmount * 0.16;
-    const feeAmount = data.baseAmount * 0.05;
-    const totalToCharge = data.baseAmount + taxAmount + feeAmount;
-
+    const totalToCharge = data.baseAmount * 1.21;
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'brl',
-            product_data: {
-              name: `Recarga de Saldo - ${data.orgName}`,
-              description: `Crédito de R$ ${data.baseAmount.toFixed(2)} para anúncios na plataforma Viby.`,
-            },
-            unit_amount: Math.round(totalToCharge * 100),
-          },
-          quantity: 1,
+      line_items: [{
+        price_data: {
+          currency: 'brl',
+          product_data: { name: `Recarga Ads - ${data.orgName}` },
+          unit_amount: Math.round(totalToCharge * 100),
         },
-      ],
+        quantity: 1,
+      }],
       mode: 'payment',
       customer_email: data.userEmail,
       success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/cancelado`,
-      metadata: {
-        type: 'ad_balance_topup',
-        orgId: data.orgId,
-        baseAmount: data.baseAmount.toString(),
-        transactionId: data.transactionId
-      },
+      metadata: { type: 'ad_balance_topup', orgId: data.orgId, baseAmount: data.baseAmount.toString(), transactionId: data.transactionId },
     });
-
     return { url: session.url };
   } catch (error: any) {
-    console.error('Erro ao gerar checkout de recarga:', error);
-    throw new Error('Erro ao processar recarga de saldo.');
+    throw new Error('Erro ao processar recarga.');
   }
 }
 
-export async function createPlanCheckoutSession(data: {
-  planName: string;
-  planId: 'PRO' | 'TOP';
-  billingCycle: 'monthly' | 'annual';
-  userId: string;
-  userEmail: string;
-  totalAmount: number; // Em centavos
-}) {
+export async function createPlanCheckoutSession(data: any) {
   try {
-    const h = await headers();
-    const origin = h.get('origin') || 'https://viby.club';
+    const origin = (await headers()).get('origin') || 'https://viby.club';
     const stripe = await getStripeInstance();
-
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'brl',
-            product_data: {
-              name: `Viby ${data.planName}`,
-              description: `Upgrade de conta para o plano ${data.planName} (${data.billingCycle === 'monthly' ? 'Mensal' : 'Anual'})`,
-            },
-            unit_amount: Math.max(1, Math.round(data.totalAmount)),
-          },
-          quantity: 1,
+      line_items: [{
+        price_data: {
+          currency: 'brl',
+          product_data: { name: `Viby ${data.planName}` },
+          unit_amount: Math.round(data.totalAmount),
         },
-      ],
+        quantity: 1,
+      }],
       mode: 'payment',
       customer_email: data.userEmail,
       success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/cancelado`,
-      metadata: {
-        type: 'plan_upgrade',
-        userId: data.userId,
-        plan: data.planId,
-        cycle: data.billingCycle
-      },
+      metadata: { type: 'plan_upgrade', userId: data.userId, plan: data.planId, cycle: data.billingCycle },
     });
-
     return { url: session.url };
   } catch (error: any) {
-    console.error('Erro crítico na Server Action createPlanCheckoutSession:', error);
-    throw new Error(error.message || 'Erro ao gerar checkout do plano');
+    throw new Error('Erro ao gerar checkout do plano');
   }
 }
 
-export async function createAdCheckoutSession(data: {
-  adId: string;
-  eventTitle: string;
-  userId: string;
-  userEmail: string;
-  totalAmount: number; // Em centavos
-}) {
+export async function createAdCheckoutSession(data: any) {
   try {
-    const h = await headers();
-    const origin = h.get('origin') || 'https://viby.club';
+    const origin = (await headers()).get('origin') || 'https://viby.club';
     const stripe = await getStripeInstance();
-
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'brl',
-            product_data: {
-              name: `Impulsionamento: ${data.eventTitle}`,
-              description: `Campanha de anúncio no Viby Club`,
-            },
-            unit_amount: Math.max(1, Math.round(data.totalAmount)),
-          },
-          quantity: 1,
+      line_items: [{
+        price_data: {
+          currency: 'brl',
+          product_data: { name: `Impulsionamento: ${data.eventTitle}` },
+          unit_amount: Math.round(data.totalAmount),
         },
-      ],
+        quantity: 1,
+      }],
       mode: 'payment',
       customer_email: data.userEmail,
       success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/cancelado`,
-      metadata: {
-        type: 'ad_payment',
-        adId: data.adId,
-        userId: data.userId,
-      },
+      metadata: { type: 'ad_payment', adId: data.adId, userId: data.userId },
     });
-
     return { url: session.url };
   } catch (error: any) {
-    console.error('Erro crítico na Server Action createAdCheckoutSession:', error);
-    throw new Error(error.message || 'Erro ao gerar checkout do anúncio');
+    throw new Error('Erro ao gerar checkout do anúncio');
   }
 }
 
 export async function getStripeSession(sessionId: string) {
-  if (!sessionId || typeof sessionId !== 'string') return null;
   try {
     const stripe = await getStripeInstance();
     const session = await stripe.checkout.sessions.retrieve(sessionId);
-    
-    // Retorna apenas um objeto simples com os campos necessários
-    // O objeto retornado pelo retrieve contém métodos que impedem a passagem RSC -> Client
-    return {
-      id: session.id,
-      payment_status: session.payment_status,
-      amount_total: session.amount_total,
-      metadata: session.metadata ? { ...session.metadata } : null
-    };
+    return { id: session.id, payment_status: session.payment_status, amount_total: session.amount_total, metadata: session.metadata };
   } catch (error) {
-    console.error('Erro ao recuperar sessão Stripe:', error);
     return null;
   }
 }

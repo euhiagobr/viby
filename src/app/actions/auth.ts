@@ -3,17 +3,14 @@
 import * as admin from 'firebase-admin';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
-import { firebaseConfig } from '@/firebase/config';
+import { authConfig, vibyConfig } from '@/firebase/config';
 import { sendPasswordResetLinkEmail } from './email';
 
-/**
- * Inicializa o Firebase Admin SDK de forma resiliente usando o ID do novo projeto.
- */
 function getAdminAuth() {
   if (admin.apps.length === 0) {
     try {
       admin.initializeApp({
-        projectId: firebaseConfig.projectId,
+        projectId: authConfig.projectId,
       });
     } catch (e) {
       console.error("Erro ao inicializar Firebase Admin:", e);
@@ -22,19 +19,16 @@ function getAdminAuth() {
   return admin.auth();
 }
 
-/**
- * Solicita a redefinição de senha gerando um link oficial e enviando por e-mail próprio.
- */
 export async function requestPasswordReset(identifier: string) {
   try {
-    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    const db = getFirestore(app, 'eventosviby');
+    const authApp = getApps().find(a => a.name === "authApp") || initializeApp(authConfig, "authApp");
+    const vibyApp = getApps().find(a => a.name === "vibyApp") || initializeApp(vibyConfig, "vibyApp");
+    const db = getFirestore(vibyApp, 'eventosviby');
     const authAdmin = getAdminAuth();
 
     let email = identifier.trim().toLowerCase();
     let userName = "Usuário";
 
-    // 1. Resolve o identificador (se for username, pega o email)
     if (!identifier.includes("@")) {
       const normalizedUsername = identifier.replace('@', '').toLowerCase().trim();
       const q = query(collection(db, "users"), where("username", "==", normalizedUsername));
@@ -54,10 +48,8 @@ export async function requestPasswordReset(identifier: string) {
       }
     }
 
-    // 2. Gera o LINK oficial do Firebase
     const resetLink = await authAdmin.generatePasswordResetLink(email);
 
-    // 3. Envia o e-mail via SMTP configurado
     const emailResult = await sendPasswordResetLinkEmail({
       to: email,
       userName,

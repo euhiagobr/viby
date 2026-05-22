@@ -1,0 +1,27 @@
+{
+  "database": "eventosviby",
+  "project": "ong-desafios-3942a",
+  "collections": {
+    "users": {
+      "fields": ["uid", "name", "username", "email", "avatar", "bio", "cpf", "gender", "birthDate", "city", "state", "country", "plan", "createdAt"]
+    },
+    "organizations": {
+      "fields": ["id", "name", "username", "slug", "bio", "avatar", "banner", "type", "verified", "createdBy", "adBalance", "blockedBalance", "payoutSettings", "status", "createdAt"]
+    },
+    "events": {
+      "fields": ["organizationId", "organizerId", "title", "description", "date", "endDate", "categoryId", "categoryName", "image", "address", "ticketMode", "isFree", "batches", "status", "createdAt"]
+    },
+    "registrations": {
+      "fields": ["eventId", "userId", "organizationId", "organizerId", "ticketCode", "paymentStatus", "checkedIn", "price", "ticketBasePrice", "producerNetAmount", "timestamp"]
+    },
+    "usernames": {
+      "fields": ["uid", "type"]
+    },
+    "support_tickets": {
+      "fields": ["protocol", "userId", "subject", "status", "messages", "createdAt"]
+    },
+    "ads": {
+      "fields": ["organizationId", "eventId", "type", "status", "budget", "reach", "clicks", "startDate", "endDate"]
+    }
+  }
+}
