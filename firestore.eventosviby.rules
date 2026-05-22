@@ -1,8 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.16.0
-    // RBAC aprimorado e suporte a transações de anúncios
+    // REGRAS VIBY - Versão: 2.16.1
+    // Adicionado suporte a redefinição de senha via código
     
     function isSignedIn() {
       return request.auth != null;
@@ -62,6 +62,11 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isSignedIn();
       allow delete: if (isSignedIn() && get(/databases/eventosviby/documents/usernames/$(username)).data.uid == request.auth.uid) || isAdmin();
+    }
+
+    // Redefinição de Senha (Tokens temporários)
+    match /password_resets/{resetId} {
+      allow read, create, update: if true; // Acesso controlado pelas Server Actions no backend
     }
 
     // Organizações
