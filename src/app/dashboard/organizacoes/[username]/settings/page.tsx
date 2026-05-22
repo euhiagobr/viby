@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -231,7 +232,7 @@ export default function OrganizationSettingsPage() {
       <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
         <ShieldAlert className="w-16 h-16 text-muted-foreground opacity-20" />
         <h2 className="text-xl font-bold italic uppercase tracking-tighter">Acesso Restrito</h2>
-        <p className="text-muted-foreground font-medium max-w-sm">Você não tem permissão para editar as configurações desta marca.</p>
+        <p className="text-muted-foreground font-medium max-sm">Você não tem permissão para editar as configurações desta marca.</p>
         <Button asChild variant="outline" className="rounded-full mt-4"><Link href={`/dashboard/organizacoes/${currentOrg?.username}`}>Voltar ao Início</Link></Button>
       </div>
     );
@@ -324,15 +325,16 @@ export default function OrganizationSettingsPage() {
             <CardTitle className="text-lg flex items-center gap-2">
               <Fingerprint className="w-5 h-5 text-secondary" /> Dados Fiscais
             </CardTitle>
-            <CardDescription>O CNPJ é obrigatório para emissão de notas e recebimentos.</CardDescription>
+            <CardDescription>O CNPJ e Razão Social são obrigatórios para emissão de notas e recebimentos.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase opacity-60">Razão Social</Label>
+                <Label className="text-[10px] font-black uppercase opacity-60">Razão Social (Obrigatório)</Label>
                 <Input 
                   value={formData.legalName}
                   onChange={e => setFormData({...formData, legalName: e.target.value})}
+                  required
                   className="rounded-xl h-11"
                 />
               </div>
@@ -359,7 +361,7 @@ export default function OrganizationSettingsPage() {
             <CardTitle className="text-lg flex items-center gap-2">
               <MapPin className="w-5 h-5 text-secondary" /> Endereço e Localização
             </CardTitle>
-            <CardDescription>Defina onde sua marca está sediada e controle o que aparece no perfil.</CardDescription>
+            <CardDescription>Defina onde sua marca está sediada e controle o que aparece no perfil público.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -446,6 +448,7 @@ export default function OrganizationSettingsPage() {
                 </div>
               </div>
             </div>
+            <p className="text-[10px] text-muted-foreground font-medium italic">Se ocultar campos de endereço, apenas a Cidade, Estado e País aparecerão no seu perfil público.</p>
           </CardContent>
         </Card>
 

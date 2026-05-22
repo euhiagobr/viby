@@ -125,10 +125,14 @@ export default function NovaOrganizacaoPage() {
     neighborhood: "",
     city: "",
     state: "",
+    country: "Brasil",
     showPhone: true,
     showEmail: true,
     showWebsite: true,
-    showInstagram: true
+    showInstagram: true,
+    showAddress: true,
+    showNeighborhood: true,
+    showState: true
   })
 
   const storage = React.useMemo(() => {
@@ -350,7 +354,7 @@ export default function NovaOrganizacaoPage() {
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome</Label>
+                  <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome Comercial</Label>
                   <Input 
                     id="name" 
                     placeholder="Ex: Viby Entretenimento" 
@@ -421,11 +425,12 @@ export default function NovaOrganizacaoPage() {
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
              <CardTitle className="text-lg flex items-center gap-2"><Fingerprint className="w-5 h-5 text-secondary" /> Dados Jurídicos</CardTitle>
+             <CardDescription>O preenchimento do CNPJ e Razão Social é obrigatório para conformidade.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="legalName" className="text-[10px] font-black uppercase tracking-widest opacity-60">Razão Social</Label>
+                  <Label htmlFor="legalName" className="text-[10px] font-black uppercase tracking-widest opacity-60">Razão Social (Obrigatório)</Label>
                   <Input 
                     id="legalName" 
                     value={formData.legalName}
@@ -436,7 +441,7 @@ export default function NovaOrganizacaoPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="cnpj" className="text-[10px] font-black uppercase tracking-widest opacity-60">CNPJ</Label>
+                  <Label htmlFor="cnpj" className="text-[10px] font-black uppercase tracking-widest opacity-60">CNPJ (Obrigatório)</Label>
                   <Input 
                     id="cnpj" 
                     value={formData.cnpj}
@@ -461,7 +466,7 @@ export default function NovaOrganizacaoPage() {
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
              <CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Endereço Sede</CardTitle>
-             <CardDescription>O endereço é obrigatório para fins de conformidade e repasses.</CardDescription>
+             <CardDescription>O endereço é obrigatório. Use os controles para ocultar dados sensíveis no perfil público.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -478,7 +483,13 @@ export default function NovaOrganizacaoPage() {
                   />
                 </div>
                 <div className="md:col-span-3 space-y-2">
-                  <Label htmlFor="street" className="text-[10px] font-black uppercase tracking-widest opacity-60">Logradouro</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="street" className="text-[10px] font-black uppercase tracking-widest opacity-60">Logradouro</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showAddress ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showAddress} onCheckedChange={v => setFormData({...formData, showAddress: v})} />
+                    </div>
+                  </div>
                   <Input id="street" value={formData.street} onChange={e => setFormData(prev => ({ ...prev, street: e.target.value }))} required className="rounded-xl h-11" />
                 </div>
              </div>
@@ -492,17 +503,30 @@ export default function NovaOrganizacaoPage() {
                   <Input id="complement" value={formData.complement} onChange={e => setFormData(prev => ({ ...prev, complement: e.target.value }))} className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="neighborhood" className="text-[10px] font-black uppercase tracking-widest opacity-60">Bairro</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="neighborhood" className="text-[10px] font-black uppercase tracking-widest opacity-60">Bairro</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showNeighborhood ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showNeighborhood} onCheckedChange={v => setFormData({...formData, showNeighborhood: v})} />
+                    </div>
+                  </div>
                   <Input id="neighborhood" value={formData.neighborhood} onChange={e => setFormData(prev => ({ ...prev, neighborhood: e.target.value }))} required className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest opacity-60">Cidade / UF</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest opacity-60">Cidade / UF</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showState ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showState} onCheckedChange={v => setFormData({...formData, showState: v})} />
+                    </div>
+                  </div>
                   <div className="flex gap-2">
                     <Input id="city" value={formData.city} readOnly required className="rounded-xl h-11 bg-muted/30" />
                     <Input id="state" value={formData.state} readOnly required className="rounded-xl h-11 bg-muted/30 w-16" />
                   </div>
                 </div>
              </div>
+             <p className="text-[10px] text-muted-foreground font-medium italic">Se ocultar o endereço, apenas a Cidade, Estado e País aparecerão no seu perfil público.</p>
           </CardContent>
         </Card>
 

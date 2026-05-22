@@ -735,9 +735,18 @@ function UniversalProfileContent() {
                                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Razão Social</p>
                                  <p className="font-bold text-sm">{data.legalName || "Não informada"}</p>
                               </div>
+                              {data.showAddress !== false && data.street && (
+                                <div className="space-y-1">
+                                   <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Endereço</p>
+                                   <p className="font-bold text-sm">{data.street}, {data.number}</p>
+                                </div>
+                              )}
                               <div className="space-y-1">
-                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Documento (CNPJ)</p>
-                                 <p className="font-mono text-sm font-bold">{data.cnpj || "---"}</p>
+                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Localidade</p>
+                                 <p className="font-bold text-sm">
+                                   {data.showNeighborhood !== false && data.neighborhood ? `${data.neighborhood}, ` : ""}
+                                   {data.city}, {data.state}
+                                 </p>
                               </div>
                            </div>
                            <div className="space-y-6">
@@ -746,8 +755,8 @@ function UniversalProfileContent() {
                                  <Badge variant="outline" className="bg-secondary/10 text-secondary border-none uppercase text-[10px] font-black">{data.type || "Marca"}</Badge>
                               </div>
                               <div className="space-y-1">
-                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Localidade</p>
-                                 <p className="font-bold text-sm">{data.city ? `${data.city}, ${data.state}` : "Localização Global"}</p>
+                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Documento (CNPJ)</p>
+                                 <p className="font-mono text-sm font-bold">{data.cnpj || "---"}</p>
                               </div>
                            </div>
                         </div>

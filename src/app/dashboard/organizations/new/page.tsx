@@ -125,10 +125,14 @@ export default function NovaOrganizacaoPage() {
     neighborhood: "",
     city: "",
     state: "",
+    country: "Brasil",
     showPhone: true,
     showEmail: true,
     showWebsite: true,
-    showInstagram: true
+    showInstagram: true,
+    showAddress: true,
+    showNeighborhood: true,
+    showState: true
   })
 
   const storage = React.useMemo(() => {
@@ -429,7 +433,7 @@ export default function NovaOrganizacaoPage() {
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="legalName" className="text-[10px] font-black uppercase tracking-widest opacity-60">Legal Name</Label>
+                  <Label htmlFor="legalName" className="text-[10px] font-black uppercase tracking-widest opacity-60">Legal Name (Required)</Label>
                   <Input 
                     id="legalName" 
                     value={formData.legalName}
@@ -440,7 +444,7 @@ export default function NovaOrganizacaoPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="cnpj" className="text-[10px] font-black uppercase tracking-widest opacity-60">CNPJ</Label>
+                  <Label htmlFor="cnpj" className="text-[10px] font-black uppercase tracking-widest opacity-60">CNPJ (Required)</Label>
                   <Input 
                     id="cnpj" 
                     value={formData.cnpj}
@@ -465,7 +469,7 @@ export default function NovaOrganizacaoPage() {
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
              <CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Headquarters Address</CardTitle>
-             <CardDescription>Address is mandatory for compliance and payout purposes.</CardDescription>
+             <CardDescription>Address is mandatory. Use toggles to hide sensitive details from public profile.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -482,7 +486,13 @@ export default function NovaOrganizacaoPage() {
                   />
                 </div>
                 <div className="md:col-span-3 space-y-2">
-                  <Label htmlFor="street" className="text-[10px] font-black uppercase tracking-widest opacity-60">Street</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="street" className="text-[10px] font-black uppercase tracking-widest opacity-60">Street</Label>
+                    <div className="flex items-center gap-2">
+                       <span className="text-[8px] font-bold uppercase opacity-40">{formData.showAddress ? 'Public' : 'Hidden'}</span>
+                       <Switch checked={formData.showAddress} onCheckedChange={v => setFormData({...formData, showAddress: v})} />
+                    </div>
+                  </div>
                   <Input id="street" value={formData.street} onChange={e => setFormData(prev => ({ ...prev, street: e.target.value }))} required className="rounded-xl h-11" />
                 </div>
              </div>
@@ -496,11 +506,23 @@ export default function NovaOrganizacaoPage() {
                   <Input id="complement" value={formData.complement} onChange={e => setFormData(prev => ({ ...prev, complement: e.target.value }))} className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="neighborhood" className="text-[10px] font-black uppercase tracking-widest opacity-60">Neighborhood</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="neighborhood" className="text-[10px] font-black uppercase tracking-widest opacity-60">Neighborhood</Label>
+                    <div className="flex items-center gap-2">
+                       <span className="text-[8px] font-bold uppercase opacity-40">{formData.showNeighborhood ? 'Public' : 'Hidden'}</span>
+                       <Switch checked={formData.showNeighborhood} onCheckedChange={v => setFormData({...formData, showNeighborhood: v})} />
+                    </div>
+                  </div>
                   <Input id="neighborhood" value={formData.neighborhood} onChange={e => setFormData(prev => ({ ...prev, neighborhood: e.target.value }))} required className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest opacity-60">City / State</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest opacity-60">City / State</Label>
+                    <div className="flex items-center gap-2">
+                       <span className="text-[8px] font-bold uppercase opacity-40">{formData.showState ? 'Public' : 'Hidden'}</span>
+                       <Switch checked={formData.showState} onCheckedChange={v => setFormData({...formData, showState: v})} />
+                    </div>
+                  </div>
                   <div className="flex gap-2">
                     <Input id="city" value={formData.city} readOnly required className="rounded-xl h-11 bg-muted/30" />
                     <Input id="state" value={formData.state} readOnly required className="rounded-xl h-11 bg-muted/30 w-16" />
