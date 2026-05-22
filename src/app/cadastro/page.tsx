@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth, useFirestore, useDoc } from "@/firebase"
+import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
 import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,7 @@ import { sendWelcomeEmail } from "@/app/actions/email"
 import Image from "next/image"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import { processGamificationEvent } from "@/lib/gamification-service"
 
 const validateCPF = (cpf: string) => {
   const cleanCPF = cpf.replace(/\D/g, "");
@@ -211,16 +212,10 @@ export default function CadastroPage() {
           targetType: 'organization',
           timestamp: serverTimestamp()
         })
-      }).catch(async (serverError: any) => {
-        if (serverError.code === 'permission-denied') {
-          const permissionError = new FirestorePermissionError({
-            path: `users/${user.uid}`,
-            operation: 'write',
-            requestResourceData: userData
-          });
-          errorEmitter.emit('permission-error', permissionError);
-        }
       });
+
+      // Gatilho de Gamificação: Boas-vindas
+      await processGamificationEvent(db, user.uid, 'on_signup');
 
       sendWelcomeEmail({
         to: email,

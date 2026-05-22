@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -94,6 +93,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/hooks/use-toast"
 import { calculateLevel, DEFAULT_LEVELS } from "@/lib/gamification"
+import { processGamificationEvent } from "@/lib/gamification-service"
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (
@@ -468,7 +468,14 @@ function UniversalProfileContent() {
           followingId: data.id,
           targetType: type,
           timestamp: serverTimestamp()
-        })
+        });
+
+        // Gatilho Gamificação: Seguir
+        await processGamificationEvent(db, user.uid, type === 'organization' ? 'on_follow_org' : 'on_follow_user', {
+          targetId: data.id,
+          targetName: displayName
+        });
+
         toast({ title: `Seguindo ${displayName}!` })
       }
     } catch (e) {

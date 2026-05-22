@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -51,6 +50,7 @@ import { formatCurrency } from "@/lib/financial-utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import { processGamificationEvent } from "@/lib/gamification-service"
 
 export default function EventoPublicoPage() {
   const params = useParams()
@@ -91,8 +91,8 @@ export default function EventoPublicoPage() {
     const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
     
     const financial = (registrations || []).reduce((acc: any, reg: any) => {
-      acc.gross += (reg.price || 0); // O que o cliente pagou (Ticket + 15%)
-      acc.net += (reg.producerNetAmount || 0); // O que o produtor recebe (Ticket - Plano)
+      acc.gross += (reg.price || 0);
+      acc.net += (reg.producerNetAmount || 0);
       return acc;
     }, { gross: 0, net: 0 });
 
@@ -207,7 +207,17 @@ export default function EventoPublicoPage() {
     };
 
     updateDoc(doc(db, "registrations", scanResult.id), updateData)
-      .then(() => {
+      .then(async () => {
+        // Gatilho Gamificação: Check-in
+        await processGamificationEvent(db, scanResult.userId, 'on_checkin', {
+          eventId: eventId,
+          eventTitle: event.title,
+          categoryName: event.categoryName,
+          neighborhood: event.address?.neighborhood,
+          city: event.address?.city,
+          orgName: event.organizer?.name
+        });
+
         toast({ title: "Sucesso!", description: `Check-in de ${scanResult.userName} realizado.` })
         setScanMode('idle')
         setScanResult(null)
@@ -249,7 +259,7 @@ export default function EventoPublicoPage() {
     } catch (e) { return "---"; }
   }
 
-  const handleCheckIn = async (regId: string, currentStatus: boolean) => {
+  const handleCheckIn = async (reg: any, currentStatus: boolean) => {
     if (!db || !canAction) return
     
     const updateData = {
@@ -259,14 +269,25 @@ export default function EventoPublicoPage() {
       status: !currentStatus ? "Utilizado" : "Ativo"
     };
 
-    updateDoc(doc(db, "registrations", regId), updateData)
-      .then(() => {
+    updateDoc(doc(db, "registrations", reg.id), updateData)
+      .then(async () => {
+        if (!currentStatus) {
+          // Gatilho Gamificação: Check-in Manual
+          await processGamificationEvent(db, reg.userId, 'on_checkin', {
+            eventId: eventId,
+            eventTitle: event.title,
+            categoryName: event.categoryName,
+            neighborhood: event.address?.neighborhood,
+            city: event.address?.city,
+            orgName: event.organizer?.name
+          });
+        }
         toast({ title: !currentStatus ? "Check-in realizado!" : "Check-in removido." })
       })
       .catch(async (serverError) => {
         if (serverError.code === 'permission-denied') {
           const permissionError = new FirestorePermissionError({
-            path: `registrations/${regId}`,
+            path: `registrations/${reg.id}`,
             operation: "update",
             requestResourceData: updateData
           });
@@ -429,9 +450,9 @@ export default function EventoPublicoPage() {
               </TableHeader>
               <TableBody>
                 {filteredRegistrations.map((reg) => (
-                  <TableRow key={reg.id} className={cn("hover:bg-muted/20 transition-colors", reg.checkedIn && "bg-green-50/30")}>
+                  <TableRow key={reg.id} className={cn("hover:bg-muted/10 transition-colors", reg.checkedIn && "bg-green-50/30")}>
                     <TableCell className="text-center">
-                      <Button variant={reg.checkedIn ? "default" : "outline"} size="icon" onClick={() => handleCheckIn(reg.id, reg.checkedIn)} className={cn("h-9 w-9 rounded-full transition-all", reg.checkedIn ? "bg-green-500 hover:bg-green-600 text-white" : "border-muted-foreground/30")}>
+                      <Button variant={reg.checkedIn ? "default" : "outline"} size="icon" onClick={() => handleCheckIn(reg, reg.checkedIn)} className={cn("h-9 w-9 rounded-full transition-all", reg.checkedIn ? "bg-green-500 hover:bg-green-600 text-white" : "border-muted-foreground/30")}>
                         <CheckCircle2 className={cn("w-5 h-5", reg.checkedIn ? "text-white" : "text-muted-foreground/20")} />
                       </Button>
                     </TableCell>

@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -27,6 +26,7 @@ import { toast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { processGamificationEvent } from "@/lib/gamification-service"
 
 export default function AdminScannerPage() {
   const db = useFirestore()
@@ -129,6 +129,16 @@ export default function AdminScannerPage() {
         checkedInBy: currentUser.uid,
         status: "Utilizado"
       })
+
+      // Gatilho Gamificação: Check-in via Scanner Admin
+      await processGamificationEvent(db, ticketData.userId, 'on_checkin', {
+        eventId: ticketData.eventId,
+        eventTitle: ticketData.eventTitle,
+        categoryName: ticketData.categoryName,
+        neighborhood: ticketData.eventNeighborhood,
+        city: ticketData.eventCity,
+        orgName: ticketData.organizer?.name
+      });
 
       setTicketData({ ...ticketData, checkedIn: true })
       toast({ title: "Check-in realizado!", description: `Entrada autorizada para ${ticketData.userName}.` })

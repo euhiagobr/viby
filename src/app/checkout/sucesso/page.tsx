@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -15,6 +14,7 @@ import { useCart } from "@/contexts/CartContext"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import { calculateDetailedVibyBreakdown } from "@/lib/financial-utils"
+import { processGamificationEvent } from "@/lib/gamification-service"
 
 export default function CheckoutSucessoPage() {
   const searchParams = useSearchParams()
@@ -80,7 +80,6 @@ export default function CheckoutSucessoPage() {
           const feesSettings = feesSettingsSnap.data();
 
           // Itera sobre as inscrições e gera registros fiscais individuais
-          // Nota: Para precisão total com a taxa fixa da Stripe, ela é aplicada apenas na primeira reg do checkout
           for (let i = 0; i < regIds.length; i++) {
             const regId = regIds[i];
             const regRef = doc(db, "registrations", regId);
@@ -106,6 +105,7 @@ export default function CheckoutSucessoPage() {
                   financialSnapshot: breakdown
                 });
 
+                // Registrar para o fisco
                 const monthKey = new Date().toISOString().slice(0, 7);
                 const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toLocaleDateString('pt-BR');
 
@@ -138,6 +138,15 @@ export default function CheckoutSucessoPage() {
                    nfDeadlineDate: lastDay,
                    nfStatus: 'pendente',
                    timestamp: serverTimestamp()
+                });
+
+                // Gatilho de Gamificação: Compra de Ingresso
+                await processGamificationEvent(db, user.uid, 'on_ticket_purchase', {
+                  eventId: regData.eventId,
+                  eventTitle: regData.eventTitle,
+                  categoryName: regData.categoryName,
+                  city: regData.eventCity,
+                  orgName: regData.organizer?.name
                 });
 
                 const eventDate = regData.eventDate?.toDate ? regData.eventDate.toDate().toLocaleString('pt-BR') : new Date(regData.eventDate).toLocaleString('pt-BR');
