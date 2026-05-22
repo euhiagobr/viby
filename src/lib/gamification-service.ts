@@ -82,7 +82,7 @@ export async function processGamificationEvent(
       await setDoc(gamificationRef, { ...gamificationData, totalXp: points });
     }
 
-    // 3. Registrar Log de XP (Usando ID único se disponível)
+    // 3. Registrar Log de XP
     const logData = {
       userId,
       amount: points,

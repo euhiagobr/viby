@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, limit, doc, setDoc, deleteDoc, serverTimestamp, getDocs, where, addDoc, writeBatch } from "firebase/firestore"
+import { collection, query, orderBy, limit, doc, setDoc, deleteDoc, serverTimestamp, getDocs, where, addDoc, writeBatch, getDoc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -228,38 +228,60 @@ export default function AdminPresencaPage() {
     if (!db) return
     setIsSyncingHistory(true)
     try {
+      const eventCache: Record<string, any> = {};
+
+      const getEventData = async (eventId: string) => {
+        if (eventCache[eventId]) return eventCache[eventId];
+        const eventSnap = await getDoc(doc(db, "events", eventId));
+        if (eventSnap.exists()) {
+          eventCache[eventId] = eventSnap.data();
+          return eventCache[eventId];
+        }
+        return null;
+      };
+
+      // 1. Sincronizar criação de conta
       const usersSnap = await getDocs(collection(db, "users"))
       for (const uDoc of usersSnap.docs) {
         await processGamificationEvent(db, uDoc.id, 'on_signup', {}, uDoc.id)
       }
 
-      const regsSnap = await getDocs(query(collection(db, "registrations"), where("checkedIn", "==", true)))
+      // 2. Sincronizar Ingressos e Check-ins (Com resolução de metadados faltantes)
+      const regsSnap = await getDocs(collection(db, "registrations"))
       for (const rDoc of regsSnap.docs) {
         const reg = rDoc.data()
-        await processGamificationEvent(db, reg.userId, 'on_checkin', {
+        const evData = await getEventData(reg.eventId);
+
+        const context = {
           eventId: reg.eventId,
-          eventTitle: reg.eventTitle,
-          categoryName: reg.categoryName,
-          neighborhood: reg.eventNeighborhood,
-          city: reg.eventCity,
-          orgName: reg.organizer?.name
-        }, rDoc.id)
+          eventTitle: reg.eventTitle || evData?.title,
+          categoryName: reg.categoryName || evData?.categoryName,
+          neighborhood: reg.eventNeighborhood || evData?.address?.neighborhood,
+          city: reg.eventCity || evData?.city || evData?.address?.city,
+          orgName: reg.organizer?.name || evData?.organizer?.name
+        };
+
+        if (reg.checkedIn) {
+          await processGamificationEvent(db, reg.userId, 'on_checkin', context, rDoc.id)
+        }
+
+        if (['Pago', 'Disponível'].includes(reg.paymentStatus)) {
+          await processGamificationEvent(db, reg.userId, 'on_ticket_purchase', context, rDoc.id)
+        }
       }
 
-      const paidSnap = await getDocs(query(collection(db, "registrations"), where("paymentStatus", "in", ["Pago", "Disponível"])))
-      for (const pDoc of paidSnap.docs) {
-        const reg = pDoc.data()
-        await processGamificationEvent(db, reg.userId, 'on_ticket_purchase', {
-          eventId: reg.eventId,
-          eventTitle: reg.eventTitle,
-          categoryName: reg.categoryName,
-          city: reg.eventCity,
-          orgName: reg.organizer?.name
-        }, pDoc.id)
+      // 3. Sincronizar Seguidores
+      const followsSnap = await getDocs(collection(db, "follows"))
+      for (const fDoc of followsSnap.docs) {
+        const follow = fDoc.data()
+        await processGamificationEvent(db, follow.followerId, follow.targetType === 'organization' ? 'on_follow_org' : 'on_follow_user', {
+          targetId: follow.followingId
+        }, fDoc.id)
       }
 
       toast({ title: "Sincronização completa!" })
     } catch (e) {
+      console.error(e)
       toast({ variant: "destructive", title: "Erro na sincronização" })
     } finally {
       setIsSyncingHistory(false)
