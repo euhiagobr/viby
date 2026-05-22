@@ -128,7 +128,7 @@ export default function ExplorarPage() {
           id: event.organizationId,
           name: event.organizer?.name || "Marca",
           username: event.organizer?.username || "marca",
-          avatar: event.organizer?.avatar,
+          avatar: event.organizer?.avatar || "",
           isVerified: event.organizer?.isVerified || event.organizer?.verified,
           distance: event._dist
         });
@@ -286,19 +286,13 @@ export default function ExplorarPage() {
                   </Avatar>
                   {org.isVerified && (
                     <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
-                      <BadgeCheck className="w-6 h-6 fill-blue-500 text-white" />
+                      <VerifiedBadge />
                     </div>
                   )}
                 </div>
                 <div className="flex-1 space-y-1">
                   <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary leading-tight line-clamp-1">{org.name}</h3>
                   <p className="text-[10px] font-black text-secondary uppercase tracking-widest">@{org.username}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                     <Badge variant="secondary" className="bg-muted text-muted-foreground border-none text-[9px] font-black uppercase px-2 py-0.5 flex items-center gap-1">
-                        <Navigation className="w-2.5 h-2.5" /> 
-                        {org.distance < 1 ? `${(org.distance * 1000).toFixed(0)}m` : `${org.distance.toFixed(1)}km`} de você
-                     </Badge>
-                  </div>
                 </div>
                 <ChevronRight className="w-6 h-6 text-muted-foreground opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
               </CardContent>
