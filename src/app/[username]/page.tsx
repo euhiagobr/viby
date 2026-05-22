@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -318,6 +319,8 @@ function UniversalProfileContent() {
   }, [db, data?.id])
   const { data: followersList } = useCollection<any>(followersCountQuery)
 
+  const isSelf = user && (data.id === user.uid || (type === 'organization' && data.createdBy === user.uid));
+
   const handleFollowToggle = async () => {
     if (!user) {
       toast({ title: "Ação necessária", description: "Entre para seguir perfis no Viby." })
@@ -325,6 +328,11 @@ function UniversalProfileContent() {
       return
     }
     if (!db || !data || followActionLoading) return
+
+    if (isSelf) {
+      toast({ variant: "destructive", title: "Operação inválida", description: "Você não pode seguir sua própria conta." })
+      return
+    }
 
     setFollowActionLoading(true)
     const followId = `${user.uid}_${data.id}`
@@ -405,16 +413,18 @@ function UniversalProfileContent() {
                         {isVerified && <InstagramVerifiedBadge />}
                       </div>
                       <div className="flex items-center justify-center gap-2">
-                        <Button 
-                          onClick={handleFollowToggle}
-                          disabled={followActionLoading}
-                          className={cn(
-                            "font-bold rounded-lg h-9 px-6 text-sm transition-all",
-                            isFollowing ? "bg-muted text-foreground" : "bg-secondary text-white"
-                          )}
-                        >
-                           {followActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : isFollowing ? "Seguindo" : "Seguir"}
-                        </Button>
+                        {!isSelf && (
+                          <Button 
+                            onClick={handleFollowToggle}
+                            disabled={followActionLoading}
+                            className={cn(
+                              "font-bold rounded-lg h-9 px-6 text-sm transition-all",
+                              isFollowing ? "bg-muted text-foreground" : "bg-secondary text-white"
+                            )}
+                          >
+                             {followActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : isFollowing ? "Seguindo" : "Seguir"}
+                          </Button>
+                        )}
                         <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg"><Share2 className="w-4 h-4" /></Button>
                       </div>
                    </div>
