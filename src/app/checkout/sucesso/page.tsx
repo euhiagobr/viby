@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -46,6 +47,10 @@ export default function CheckoutSucessoPage() {
           return;
         }
 
+        // Pré-carregar dados do usuário para otimizar gamificação
+        const userSnap = await getDoc(doc(db, "users", user.uid));
+        const userData = userSnap.exists() ? userSnap.data() : null;
+
         if (metadata.type === 'ad_balance_topup') {
           const orgRef = doc(db, "organizations", metadata.orgId);
           const amountToCredit = parseFloat(metadata.baseAmount);
@@ -79,7 +84,6 @@ export default function CheckoutSucessoPage() {
           const stripeSettings = stripeSettingsSnap.data();
           const feesSettings = feesSettingsSnap.data();
 
-          // Itera sobre as inscrições e gera registros fiscais individuais
           for (let i = 0; i < regIds.length; i++) {
             const regId = regIds[i];
             const regRef = doc(db, "registrations", regId);
@@ -140,14 +144,14 @@ export default function CheckoutSucessoPage() {
                    timestamp: serverTimestamp()
                 });
 
-                // Gatilho de Gamificação: Compra de Ingresso (Travado pelo regId)
+                // Gatilho de Gamificação: Compra de Ingresso
                 await processGamificationEvent(db, user.uid, 'on_ticket_purchase', {
                   eventId: regData.eventId,
                   eventTitle: regData.eventTitle,
                   categoryName: regData.categoryName,
                   city: regData.eventCity,
                   orgName: regData.organizer?.name
-                }, regId);
+                }, regId, userData);
 
                 const eventDate = regData.eventDate?.toDate ? regData.eventDate.toDate().toLocaleString('pt-BR') : new Date(regData.eventDate).toLocaleString('pt-BR');
                 
@@ -166,7 +170,7 @@ export default function CheckoutSucessoPage() {
           }
 
           if (metadata.type === 'cart_checkout') clearCart();
-          toast({ title: "Pagamento Confiramdo!" });
+          toast({ title: "Pagamento Confirmado!" });
         }
       } catch (error) {
         console.error("Erro ao processar sucesso de pagamento:", error);

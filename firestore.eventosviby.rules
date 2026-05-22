@@ -2,8 +2,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.18.0
-    // Integrado suporte a gamificação e correção de permissões de cadastro
+    // REGRAS VIBY - Versão: 2.19.0
+    // Ajustado para permitir gamificação via Admin e correção de travas de leitura
     
     function isSignedIn() {
       return request.auth != null;
@@ -58,19 +58,20 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Gamificação e Estatísticas
+    // Gamificação e Estatísticas (Adicionada permissão Admin para motor de XP)
     match /user_gamification/{userId} {
       allow read: if true;
-      allow write: if isSignedIn() && request.auth.uid == userId;
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
 
     match /cultural_stats/{userId} {
       allow read: if true;
-      allow write: if isSignedIn() && request.auth.uid == userId;
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
 
     match /xp_logs/{logId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      // Permitir leitura por qualquer usuário logado para check de idempotência do motor de XP
+      allow read: if isSignedIn();
       allow write: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
     }
 
@@ -93,7 +94,7 @@ service cloud.firestore {
 
     // Redefinição de Senha (Tokens temporários)
     match /password_resets/{resetId} {
-      allow read, create, update: if true; // Acesso controlado pelas Server Actions no backend
+      allow read, create, update: if true; 
     }
 
     // Organizações
@@ -101,7 +102,6 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isSignedIn();
       allow update: if hasOrgRole(orgId, ['owner', 'admin', 'editor']) || isAdmin() || (
-        // Permite atualizações públicas de métricas de acesso
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalViews', 'metrics_views_current', 'totalReach', 'metrics_reach_current', 'adBalance', 'blockedBalance'])
       );
       allow delete: if hasOrgRole(orgId, ['owner']) || isAdmin();

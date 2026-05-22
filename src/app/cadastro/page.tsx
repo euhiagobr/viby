@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -19,8 +20,6 @@ import { encryptDeterministic } from "@/lib/crypto-utils"
 import { cn } from "@/lib/utils"
 import { sendWelcomeEmail } from "@/app/actions/email"
 import Image from "next/image"
-import { errorEmitter } from "@/firebase/error-emitter"
-import { FirestorePermissionError } from "@/firebase/errors"
 import { processGamificationEvent } from "@/lib/gamification-service"
 
 const validateCPF = (cpf: string) => {
@@ -214,8 +213,8 @@ export default function CadastroPage() {
         })
       });
 
-      // Gatilho de Gamificação: Boas-vindas (Travado pelo UID do usuário)
-      await processGamificationEvent(db, user.uid, 'on_signup', {}, user.uid);
+      // Gatilho de Gamificação: Boas-vindas (Passando userData para evitar read redundante)
+      await processGamificationEvent(db, user.uid, 'on_signup', {}, user.uid, userData);
 
       sendWelcomeEmail({
         to: email,
