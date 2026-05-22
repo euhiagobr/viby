@@ -100,7 +100,7 @@ function ProfileHeader() {
               ))}
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link href="/dashboard/organizations/new" className="flex items-center gap-2 text-secondary font-bold">
+                <Link href="/dashboard/organizacoes/new" className="flex items-center gap-2 text-secondary font-bold">
                   <Plus className="w-4 h-4" />
                   Nova Organização
                 </Link>
@@ -379,20 +379,20 @@ function UniversalProfileContent() {
   return (
     <div className="flex-1">
        {isOrg && data.banner && (
-         <div className="h-48 md:h-64 w-full relative overflow-hidden">
+         <div className="h-48 md:h-64 w-full relative overflow-hidden border-b border-border shadow-sm">
             <img src={data.banner} className="w-full h-full object-cover" alt="Banner" />
-            <div className="absolute inset-0 bg-black/20" />
+            <div className="absolute inset-0 bg-black/10" />
          </div>
        )}
 
        <div className={cn(
          "container mx-auto px-4 pb-20",
-         isOrg && data.banner ? "-mt-16 relative z-10" : "pt-12 md:pt-20"
+         isOrg && data.banner ? "-mt-12 relative z-10" : "pt-12 md:pt-20"
        )}>
           <div className="max-w-4xl mx-auto">
-             <div className="flex flex-col md:flex-row gap-8 items-center md:items-start mb-12">
+             <div className="flex flex-col md:flex-row gap-8 items-center md:items-start mb-12 backdrop-blur-xl bg-white/40 p-8 rounded-[3rem] border border-white/50 shadow-xl">
                 <div className="shrink-0">
-                   <div className="p-1 rounded-full bg-gradient-to-tr from-secondary to-primary shadow-xl">
+                   <div className="p-1 rounded-full bg-gradient-to-tr from-[#2C52EE] via-[#52E9ED] to-[#9BF1F2] shadow-2xl">
                       <Avatar className="h-32 w-32 md:h-40 md:w-40 border-4 border-background">
                          <AvatarImage src={avatar} className="object-cover" />
                          <AvatarFallback className="text-4xl font-bold bg-muted">{displayName?.charAt(0)}</AvatarFallback>
@@ -403,7 +403,7 @@ function UniversalProfileContent() {
                 <div className="flex-1 space-y-6 text-center md:text-left">
                    <div className="flex flex-col md:flex-row md:items-center gap-4">
                       <div className="flex items-center justify-center md:justify-start gap-2">
-                        <h1 className="text-2xl font-bold tracking-tight">{displayName}</h1>
+                        <h1 className="text-2xl md:text-3xl font-black tracking-tight uppercase italic text-primary">{displayName}</h1>
                         {isVerified && <VerifiedBadge />}
                       </div>
                       <div className="flex items-center justify-center gap-2">
@@ -412,71 +412,73 @@ function UniversalProfileContent() {
                             onClick={handleFollowToggle} 
                             disabled={followActionLoading}
                             className={cn(
-                              "font-bold rounded-lg h-9 px-6 text-sm transition-all",
+                              "font-bold rounded-xl h-10 px-8 text-sm transition-all shadow-lg",
                               isFollowing ? "bg-muted text-foreground" : "bg-secondary text-white"
                             )}
                           >
                              {followActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : isFollowing ? "Seguindo" : "Seguir"}
                           </Button>
                         )}
-                        <Button onClick={handleShare} variant="outline" size="icon" className="h-9 w-9 rounded-lg"><Share2 className="w-4 h-4" /></Button>
+                        <Button onClick={handleShare} variant="outline" size="icon" className="h-10 w-10 rounded-xl bg-white/80 border-border hover:border-secondary transition-all">
+                           <Share2 className="w-4 h-4" />
+                        </Button>
                       </div>
                    </div>
 
                    <div className="flex justify-center md:justify-start gap-8">
                       {isOrg && (
                         <div className="flex flex-col items-center">
-                           <span className="font-bold text-lg">{ownedEvents.length}</span>
-                           <span className="text-xs text-muted-foreground uppercase font-black tracking-widest">Eventos</span>
+                           <span className="font-black text-xl">{ownedEvents.length}</span>
+                           <span className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Eventos</span>
                         </div>
                       )}
                       <div className="flex flex-col items-center">
-                         <span className="font-bold text-lg">{followersList?.length || 0}</span>
-                         <span className="text-xs text-muted-foreground uppercase font-black tracking-widest">Seguidores</span>
+                         <span className="font-black text-xl">{followersList?.length || 0}</span>
+                         <span className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Seguidores</span>
                       </div>
                    </div>
 
                    <div className="space-y-1">
-                      <p className="text-sm font-bold text-secondary">@{data.username}</p>
-                      <p className="text-sm font-medium leading-relaxed max-w-lg mx-auto md:mx-0">
+                      <p className="text-sm font-black text-secondary tracking-widest uppercase">@{data.username}</p>
+                      <p className="text-sm font-medium leading-relaxed max-w-lg mx-auto md:mx-0 opacity-80">
                          {data.bio || "Nenhuma biografia disponível."}
                       </p>
                       <div className="flex flex-wrap justify-center md:justify-start gap-4 pt-2">
-                         {data.website && <a href={data.website} target="_blank" className="text-sm font-bold text-blue-600 flex items-center gap-1"><Globe className="w-3.5 h-3.5" /> {data.website.replace(/^https?:\/\//, '')}</a>}
+                         {data.website && <a href={data.website} target="_blank" className="text-[11px] font-black uppercase text-blue-600 flex items-center gap-1.5"><Globe className="w-3.5 h-3.5" /> {data.website.replace(/^https?:\/\//, '')}</a>}
                          {data.instagram && (
                            <a 
                              href={`https://instagram.com/${data.instagram.replace(/^@/, '')}`} 
                              target="_blank" 
-                             className="text-sm font-bold flex items-center gap-1"
+                             className="text-[11px] font-black uppercase flex items-center gap-1.5"
                            >
-                             <Instagram className="w-3.5 h-3.5" /> @{data.instagram.replace(/^@/, '')}
+                             <Instagram className="w-3.5 h-3.5 text-pink-500" /> @{data.instagram.replace(/^@/, '')}
                            </a>
                          )}
-                         {data.city && <div className="text-sm font-medium text-muted-foreground flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {data.city}, {data.state}</div>}
+                         {data.city && <div className="text-[11px] font-black uppercase text-muted-foreground flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-secondary" /> {data.city}, {data.state}</div>}
                       </div>
                    </div>
                 </div>
              </div>
 
-             {isOrg && (
+             {isOrg ? (
                <Tabs defaultValue="events" className="w-full">
-                  <div className="flex justify-center border-b mb-8">
+                  <div className="flex justify-center border-b mb-8 bg-white/40 backdrop-blur-md rounded-2xl p-1">
                     <TabsList className="bg-transparent h-auto p-0 gap-8">
                       <TabsTrigger 
                         value="events" 
-                        className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-4 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
+                        className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-4 py-4 font-black uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
                       >
                         <Grid className="w-3.5 h-3.5" /> Eventos
                       </TabsTrigger>
                       <TabsTrigger 
                         value="partnerships" 
-                        className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-4 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
+                        className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-4 py-4 font-black uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
                       >
-                        <Handshake className="w-3.5 h-3.5" /> Eventos e Parcerias
+                        <Handshake className="w-3.5 h-3.5" /> Parcerias
                       </TabsTrigger>
                       <TabsTrigger 
                         value="about" 
-                        className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-4 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
+                        className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-4 py-4 font-black uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
                       >
                         <Info className="w-3.5 h-3.5" /> Sobre
                       </TabsTrigger>
@@ -505,36 +507,51 @@ function UniversalProfileContent() {
 
                   <TabsContent value="about" className="animate-in fade-in duration-500">
                      <div className="max-w-2xl mx-auto space-y-10">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-8 rounded-3xl shadow-sm border">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-8 rounded-[2.5rem] shadow-sm border">
                            <div className="space-y-6">
                               <div className="space-y-1">
-                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Razão Social</p>
+                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Razão Social</p>
                                  <p className="font-bold text-sm">{data.legalName || "Não informada"}</p>
                               </div>
                               <div className="space-y-1">
-                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Documento (CNPJ)</p>
-                                 <p className="font-mono text-sm">{data.cnpj || "---"}</p>
+                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Documento (CNPJ)</p>
+                                 <p className="font-mono text-sm font-bold">{data.cnpj || "---"}</p>
                               </div>
                            </div>
                            <div className="space-y-6">
                               <div className="space-y-1">
-                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Segmento</p>
+                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Segmento</p>
                                  <Badge variant="outline" className="bg-secondary/10 text-secondary border-none uppercase text-[10px] font-black">{data.type || "Marca"}</Badge>
                               </div>
                               <div className="space-y-1">
-                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Localidade</p>
+                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-40">Localidade</p>
                                  <p className="font-bold text-sm">{data.city ? `${data.city}, ${data.state}` : "Localização Global"}</p>
                               </div>
                            </div>
                         </div>
                         
-                        <div className="bg-muted/30 p-8 rounded-3xl border border-dashed">
-                           <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-4">Sobre a {displayName}</p>
-                           <p className="text-sm leading-relaxed whitespace-pre-line text-foreground/80">{data.bio || "Nenhuma descrição adicional informada."}</p>
+                        <div className="bg-muted/30 p-8 rounded-[2.5rem] border border-dashed border-border/60">
+                           <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-4 opacity-40">Sobre a {displayName}</p>
+                           <p className="text-sm leading-relaxed whitespace-pre-line text-foreground/80 font-medium italic">{data.bio || "Nenhuma descrição adicional informada."}</p>
                         </div>
                      </div>
                   </TabsContent>
                </Tabs>
+             ) : (
+                <div className="max-w-2xl mx-auto mt-12 bg-white/40 backdrop-blur-md p-8 rounded-[3rem] border border-white/50 text-center">
+                   <p className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground mb-4 opacity-40">Presença no Viby</p>
+                   <div className="flex justify-center gap-12">
+                      <div className="text-center">
+                         <p className="text-2xl font-black">{followersList?.length || 0}</p>
+                         <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Seguidores</p>
+                      </div>
+                      <div className="w-px h-10 bg-border/40" />
+                      <div className="text-center">
+                         <p className="text-2xl font-black">START</p>
+                         <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Membro</p>
+                      </div>
+                   </div>
+                </div>
              )}
           </div>
        </div>
@@ -544,9 +561,9 @@ function UniversalProfileContent() {
 
 function NoContentPlaceholder({ message }: { message: string }) {
   return (
-    <div className="py-24 text-center space-y-4">
+    <div className="py-24 text-center space-y-4 bg-white/20 rounded-[3rem] border-2 border-dashed border-border/40">
       <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto opacity-20"><Calendar className="w-8 h-8" /></div>
-      <p className="text-muted-foreground font-medium italic">{message}</p>
+      <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">{message}</p>
     </div>
   )
 }
