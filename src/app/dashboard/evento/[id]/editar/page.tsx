@@ -4,7 +4,7 @@
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
-import { useFirestore, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase, useDoc } from "@/firebase"
+import { useDoc, useFirestore, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
 import { updateDoc, doc, collection, serverTimestamp, getDoc, setDoc, deleteDoc, query, where, getDocs } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Button } from "@/components/ui/button"
@@ -36,7 +36,8 @@ import {
   X,
   Trophy,
   XCircle,
-  CheckCircle2
+  CheckCircle2,
+  Camera
 } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
@@ -103,7 +104,7 @@ export default function EditarEventoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const app = useFirebaseApp()
-  const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization()
+  const { currentOrg, userRole, loading: orgLoading, refreshOrg } = useCurrentOrganization()
 
   const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
@@ -238,7 +239,7 @@ export default function EditarEventoPage() {
         toast({ title: "Parceria removida" })
       } catch (e) {
         toast({ variant: "destructive", title: "Erro ao remover", description: "Verifique suas permissões." })
-        return
+        return;
       }
     }
     setCoOrganizers(coOrganizers.filter(o => o.id !== orgId))
@@ -318,7 +319,6 @@ export default function EditarEventoPage() {
         batches: noTickets ? [] : batches.map(b => ({ ...b, ticketTypes: b.ticketTypes.map(t => ({ ...t, price: parseFloat(t.price as any) || 0, quantity: parseInt(t.quantity as any) || 0 })) })),
         address, image: uploadedImageUrl || event.image || "", city: address.city, 
         updatedAt: serverTimestamp(),
-        // Garante que os dados da organização estejam atualizados
         organizationId: currentOrg.id,
         organizer: {
           id: currentOrg.id,
@@ -648,8 +648,7 @@ export default function EditarEventoPage() {
                      </Button>
                    )}
                  </React.Fragment>
-               )
-             )}
+               )}
             </CardContent>
          </Card>
 

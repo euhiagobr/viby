@@ -446,6 +446,7 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
+        {/* CO-ORGANIZADORES */}
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
             <CardTitle className="text-lg flex items-center gap-2"><Users className="w-5 h-5 text-secondary" /> Outros Organizadores (Parcerias)</CardTitle>
@@ -650,9 +651,9 @@ export default function NovoEventoPage() {
                          </div>
                       </div>
                    </div>
-                   )
+                 );
                  })}
-                 {ticketMode === 'batches' && (
+                 {!noTickets && ticketMode === 'batches' && (
                    <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic tracking-widest gap-2" onClick={addBatch}>
                      <Plus className="w-5 h-5" /> Adicionar Lote
                    </Button>
