@@ -84,21 +84,33 @@ export default function CheckoutSucessoPage() {
                   confirmedAt: serverTimestamp()
                 });
 
-                // Criar registro consolidado de imposto sobre taxas Viby
+                // Criar registro detalhado de imposto sobre taxas Viby
                 const monthKey = new Date().toISOString().slice(0, 7);
                 const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toLocaleDateString('pt-BR');
                 
+                // Cálculo de taxas para o registro fiscal
+                const vibyGross = (regData.administrativeFeeAmount || 0) + (regData.producerFeeAmount || 0);
+                const taxVal = vibyGross * 0.11;
+                // Estimativa de taxa Stripe (3.99% + 0.39)
+                const stripeFeeEst = (regData.price * 0.0399) + 0.39;
+
                 await addDoc(collection(db, "tax_tickets"), {
                    eventId: regData.eventId,
-                   eventTitle: regData.eventTitle,
+                   eventTitle: regData.eventTitle || "Evento",
+                   ticketTypeName: regData.ticketTypeName || "Geral",
+                   batchName: regData.batchName || "Único",
                    organizationId: regData.organizationId,
                    orgName: regData.organizer?.name || "Organização",
                    orgCnpj: regData.organizer?.cnpj || "---",
                    ticketsSold: 1,
-                   vibyGrossValue: regData.administrativeFeeAmount + (regData.producerFeeAmount || 0),
+                   ticketBasePrice: regData.ticketBasePrice || 0,
+                   buyerFee: regData.administrativeFeeAmount || 0,
+                   organizerFee: regData.producerFeeAmount || 0,
+                   stripeFee: stripeFeeEst,
+                   vibyGrossValue: vibyGross,
                    taxPercent: 11,
-                   taxValue: (regData.administrativeFeeAmount + (regData.producerFeeAmount || 0)) * 0.11,
-                   vibyNetValue: (regData.administrativeFeeAmount + (regData.producerFeeAmount || 0)) * 0.89,
+                   taxValue: taxVal,
+                   vibyNetValue: vibyGross - taxVal,
                    nfDeadlineDate: lastDay,
                    nfStatus: 'pendente',
                    monthKey,

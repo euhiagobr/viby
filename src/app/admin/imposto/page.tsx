@@ -23,7 +23,10 @@ import {
   FileSpreadsheet,
   XCircle,
   Ticket,
-  Megaphone
+  Megaphone,
+  TrendingUp,
+  Percent,
+  Coins
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -44,6 +47,7 @@ import {
   SelectValue 
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/financial-utils"
@@ -74,24 +78,32 @@ export default function AdminImpostoPage() {
   const { data: ads, loading: adsLoading } = useCollection<any>(adsQuery)
   const { data: rawTickets, loading: ticketsLoading } = useCollection<any>(ticketsQuery)
 
-  // Consolidação de Ingressos por Evento e Mês
+  // Consolidação de Ingressos por Evento, Lote/Tipo e Mês
   const consolidatedTickets = React.useMemo(() => {
     if (!rawTickets) return []
     const groups: Record<string, any> = {}
     
     rawTickets.forEach(t => {
-      const key = `${t.organizationId}_${t.eventId}_${t.monthKey}`
+      const key = `${t.organizationId}_${t.eventId}_${t.ticketTypeName}_${t.batchName}_${t.monthKey}`
       if (!groups[key]) {
         groups[key] = { 
           ...t, 
           ticketsSold: 0, 
+          ticketBasePriceTotal: 0,
+          buyerFeeTotal: 0,
+          organizerFeeTotal: 0,
+          stripeFeeTotal: 0,
           vibyGrossValue: 0, 
           taxValue: 0, 
           vibyNetValue: 0,
-          rawIds: [] // Armazena IDs originais para atualização de status em massa
+          rawIds: []
         }
       }
       groups[key].ticketsSold += (t.ticketsSold || 0)
+      groups[key].ticketBasePriceTotal += ((t.ticketBasePrice || 0) * (t.ticketsSold || 1))
+      groups[key].buyerFeeTotal += (t.buyerFee || 0)
+      groups[key].organizerFeeTotal += (t.organizerFee || 0)
+      groups[key].stripeFeeTotal += (t.stripeFee || 0)
       groups[key].vibyGrossValue += (t.vibyGrossValue || 0)
       groups[key].taxValue += (t.taxValue || 0)
       groups[key].vibyNetValue += (t.vibyNetValue || 0)
@@ -143,11 +155,13 @@ export default function AdminImpostoPage() {
     return filteredTickets.reduce((acc, t) => {
       acc.gross += (t.vibyGrossValue || 0)
       acc.tax += (t.taxValue || 0)
+      acc.stripe += (t.stripeFeeTotal || 0)
       acc.net += (t.vibyNetValue || 0)
       acc.tickets += (t.ticketsSold || 0)
-      acc.events++
+      // Lucro Real = (Taxas Viby) - Stripe - Imposto (11%)
+      acc.realProfit += (t.vibyGrossValue - (t.stripeFeeTotal || 0) - t.taxValue)
       return acc
-    }, { gross: 0, tax: 0, net: 0, tickets: 0, events: 0 })
+    }, { gross: 0, tax: 0, net: 0, tickets: 0, stripe: 0, realProfit: 0 })
   }, [filteredTickets])
 
   const handleExport = (format: 'csv' | 'xlsx', type: 'ads' | 'tickets') => {
@@ -163,8 +177,8 @@ export default function AdminImpostoPage() {
           'Início': item.startDate,
           'Fim': item.endDate,
           'Status': item.status,
-          'Valor Bruto (Total Cobrado)': item.grossValue,
-          'Imposto (11% do Líquido)': item.taxValue,
+          'Valor Bruto (Total)': item.grossValue,
+          'Imposto (11%)': item.taxValue,
           'Valor Líquido (Orçamento)': item.netValue,
           'Data Limite NF': item.nfDeadlineDate,
           'Status NF': item.nfStatus
@@ -172,13 +186,18 @@ export default function AdminImpostoPage() {
       }
       return {
         'Evento': item.eventTitle,
+        'Lote': item.batchName,
+        'Tipo': item.ticketTypeName,
         'Empresa': item.orgName,
         'CNPJ': item.orgCnpj,
-        'Mês Referência': item.monthKey,
-        'Ingressos Vendidos': item.ticketsSold,
-        'Bruto Viby': item.vibyGrossValue,
-        'Imposto (11%)': item.taxValue,
-        'Líquido Viby': item.vibyNetValue,
+        'Qtd': item.ticketsSold,
+        'Valor Face (Total)': item.ticketBasePriceTotal,
+        'Taxa Comprador': item.buyerFeeTotal,
+        'Comissão Organizador': item.organizerFeeTotal,
+        'Taxa Stripe': item.stripeFeeTotal,
+        'Bruto Viby (Taxas)': item.vibyGrossValue,
+        'Imposto (11% do Bruto)': item.taxValue,
+        'Lucro Real Viby': (item.vibyGrossValue - item.stripeFeeTotal - item.taxValue),
         'Data Limite NF': item.nfDeadlineDate,
         'Status NF': item.nfStatus
       }
@@ -198,12 +217,6 @@ export default function AdminImpostoPage() {
       XLSX.utils.book_append_sheet(workbook, worksheet, "Impostos")
       XLSX.writeFile(workbook, `${fileName}.xlsx`)
     }
-
-    if (db) {
-      addDoc(collection(db, "tax_exports"), {
-        type, format, filterMonth: selectedMonth, timestamp: serverTimestamp(), count: data.length
-      })
-    }
   }
 
   const handleUpdateNF = async (type: 'ads' | 'tickets', item: any, status: string) => {
@@ -215,7 +228,6 @@ export default function AdminImpostoPage() {
       const collName = type === 'ads' ? 'tax_ads' : 'tax_tickets'
 
       if (type === 'tickets' && item.rawIds) {
-        // Atualização em massa para registros consolidados
         item.rawIds.forEach((id: string) => {
           batch.update(doc(db, collName, id), { nfStatus: status, nfUpdatedAt: serverTimestamp() })
         })
@@ -225,14 +237,6 @@ export default function AdminImpostoPage() {
 
       await batch.commit()
       toast({ title: "Status da NF atualizado!" })
-      
-      addDoc(collection(db, "tax_audit"), {
-        type: 'nf_status_change',
-        entityId: item.id,
-        entityType: type,
-        newStatus: status,
-        timestamp: serverTimestamp()
-      })
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao atualizar" })
     } finally {
@@ -257,27 +261,27 @@ export default function AdminImpostoPage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
           <Receipt className="w-8 h-8 text-secondary" />
-          Gestão de Impostos e Notas
+          Gestão Fiscal e Notas
         </h1>
-        <p className="text-muted-foreground font-medium">Controle fiscal da plataforma e emissão de notas fiscais obrigatórias.</p>
+        <p className="text-muted-foreground font-medium">Controle de faturamento, impostos retidos e emissão de notas fiscais.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {activeTab === 'ads' ? (
           <>
-            <StatCard title="Total Bruto (Cobrado)" value={formatCurrency(adStats.gross)} icon={ArrowUpRight} color="blue" />
-            <StatCard title="Total Imposto (11%)" value={formatCurrency(adStats.tax)} icon={Receipt} color="orange" />
-            <StatCard title="Total Líquido (Orçamento)" value={formatCurrency(adStats.net)} icon={ArrowDownRight} color="green" />
+            <StatCard title="Bruto Cobrado" value={formatCurrency(adStats.gross)} icon={ArrowUpRight} color="blue" />
+            <StatCard title="Imposto Retido" value={formatCurrency(adStats.tax)} icon={Receipt} color="orange" />
+            <StatCard title="Orçamento Líquido" value={formatCurrency(adStats.net)} icon={ArrowDownRight} color="green" />
             <StatCard title="Campanhas Ativas" value={adStats.active} icon={CheckCircle2} color="secondary" />
-            <StatCard title="Campanhas Canceladas" value={adStats.canceled} icon={XCircle} color="red" />
+            <StatCard title="Canceladas" value={adStats.canceled} icon={XCircle} color="red" />
           </>
         ) : (
           <>
-            <StatCard title="Total Bruto Viby" value={formatCurrency(ticketStats.gross)} icon={ArrowUpRight} color="blue" />
-            <StatCard title="Total Imposto (11%)" value={formatCurrency(ticketStats.tax)} icon={Receipt} color="orange" />
-            <StatCard title="Total Líquido Viby" value={formatCurrency(ticketStats.net)} icon={ArrowDownRight} color="green" />
-            <StatCard title="Ingressos Vendidos" value={ticketStats.tickets} icon={Ticket} color="secondary" />
-            <StatCard title="Total de Eventos" value={ticketStats.events} icon={Calendar} color="purple" />
+            <StatCard title="Taxas Totais (Bruto)" value={formatCurrency(ticketStats.gross)} icon={ArrowUpRight} color="blue" />
+            <StatCard title="Custo Stripe" value={formatCurrency(ticketStats.stripe)} icon={CreditCard} color="red" />
+            <StatCard title="Imposto (11%)" value={formatCurrency(ticketStats.tax)} icon={Receipt} color="orange" />
+            <StatCard title="Lucro Real Viby" value={formatCurrency(ticketStats.realProfit)} icon={TrendingUp} color="green" />
+            <StatCard title="Tickets Vendidos" value={ticketStats.tickets} icon={Ticket} color="secondary" />
           </>
         )}
       </div>
@@ -342,7 +346,7 @@ export default function AdminImpostoPage() {
                     <TableRow>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest py-6 px-8">Anunciante / CNPJ</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Anúncio</TableHead>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Valores</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Detalhamento</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Data Limite NF</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Status NF</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-right px-8">Ações</TableHead>
@@ -365,9 +369,9 @@ export default function AdminImpostoPage() {
                         </TableCell>
                         <TableCell className="text-right">
                            <div className="flex flex-col">
-                              <span className="font-black text-sm text-primary" title="Orçamento + Impostos">{formatCurrency(ad.grossValue)}</span>
+                              <span className="font-black text-sm text-primary" title="Bruto (Total)">{formatCurrency(ad.grossValue)}</span>
                               <span className="text-[9px] font-bold text-orange-500 uppercase">Imposto: {formatCurrency(ad.taxValue)}</span>
-                              <span className="text-[9px] font-bold text-green-600 uppercase">Orçamento (Líq): {formatCurrency(ad.netValue)}</span>
+                              <span className="text-[9px] font-bold text-green-600 uppercase">Líquido (Orç): {formatCurrency(ad.netValue)}</span>
                            </div>
                         </TableCell>
                         <TableCell className="text-center">
@@ -394,7 +398,7 @@ export default function AdminImpostoPage() {
                         </TableCell>
                       </TableRow>
                     )) : (
-                      <TableRow><TableCell colSpan={6} className="py-20 text-center italic text-muted-foreground">Nenhum registro de imposto de anúncio localizado.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={6} className="py-20 text-center italic text-muted-foreground">Nenhum registro localizado.</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>
@@ -408,62 +412,86 @@ export default function AdminImpostoPage() {
                 <Table>
                   <TableHeader className="bg-muted/20">
                     <TableRow>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest py-6 px-8">Empresa / Evento</TableHead>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Referência / Vendas</TableHead>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Comissões Viby</TableHead>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Data Limite NF</TableHead>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Status NF</TableHead>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right px-8">Ações</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest py-6 px-8">Evento / Lote / Tipo</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Qtd / Face</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Breakdown Viby</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Imposto / NF</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right px-8">Lucro Real</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredTickets.length > 0 ? filteredTickets.map((t) => (
-                      <TableRow key={t.id} className="hover:bg-muted/5 transition-colors">
-                        <TableCell className="py-6 px-8">
-                           <div className="flex flex-col">
-                              <span className="font-bold text-sm uppercase">{t.orgName}</span>
-                              <span className="text-[10px] font-bold text-muted-foreground uppercase">{t.eventTitle}</span>
-                              <span className="text-[9px] font-mono opacity-40">{t.orgCnpj}</span>
-                           </div>
-                        </TableCell>
-                        <TableCell className="text-center font-black text-sm">
-                           <div className="flex flex-col">
-                              <span className="text-secondary font-black">{t.monthKey}</span>
-                              <span className="text-[10px] font-bold text-muted-foreground">{t.ticketsSold} <span className="opacity-50">un.</span></span>
-                           </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                           <div className="flex flex-col">
-                              <span className="font-black text-sm text-primary">{formatCurrency(t.vibyGrossValue)}</span>
-                              <span className="text-[9px] font-bold text-orange-500 uppercase">Imposto (11%): {formatCurrency(t.taxValue)}</span>
-                              <span className="text-[9px] font-bold text-green-600 uppercase">Líquido Viby: {formatCurrency(t.vibyNetValue)}</span>
-                           </div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                           <span className="text-xs font-bold text-muted-foreground">{t.nfDeadlineDate}</span>
-                        </TableCell>
-                        <TableCell className="text-center">
-                           <Badge className={cn(
-                             "text-[9px] font-black uppercase px-2.5 h-6",
-                             t.nfStatus === 'emitida' ? "bg-green-600 text-white" : "bg-orange-500 text-white"
-                           )}>
-                             {t.nfStatus || 'pendente'}
-                           </Badge>
-                        </TableCell>
-                        <TableCell className="text-right px-8">
-                           <Select value={t.nfStatus || 'pendente'} onValueChange={(val) => handleUpdateNF('tickets', t, val)} disabled={isUpdating === t.id}>
-                              <SelectTrigger className="h-8 rounded-lg text-[9px] font-black uppercase border-secondary/20">
-                                {isUpdating === t.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <SelectValue />}
-                              </SelectTrigger>
-                              <SelectContent className="rounded-xl">
-                                <SelectItem value="pendente">Pendente</SelectItem>
-                                <SelectItem value="emitida">Emitida</SelectItem>
-                              </SelectContent>
-                           </Select>
-                        </TableCell>
-                      </TableRow>
-                    )) : (
-                      <TableRow><TableCell colSpan={6} className="py-20 text-center italic text-muted-foreground">Nenhum registro de imposto sobre ingressos localizado.</TableCell></TableRow>
+                    {filteredTickets.length > 0 ? filteredTickets.map((t) => {
+                      const realProfit = t.vibyGrossValue - (t.stripeFeeTotal || 0) - t.taxValue;
+                      return (
+                        <TableRow key={t.id} className="hover:bg-muted/5 transition-colors">
+                          <TableCell className="py-6 px-8">
+                             <div className="flex flex-col">
+                                <span className="font-bold text-sm uppercase">{t.eventTitle}</span>
+                                <div className="flex items-center gap-1.5">
+                                   <Badge variant="outline" className="text-[8px] font-black uppercase h-4 px-1">{t.batchName}</Badge>
+                                   <span className="text-[10px] font-medium text-muted-foreground uppercase">{t.ticketTypeName}</span>
+                                </div>
+                                <span className="text-[9px] font-bold text-secondary uppercase mt-1">Prod: {t.orgName}</span>
+                             </div>
+                          </TableCell>
+                          <TableCell className="text-center font-black text-sm">
+                             <div className="flex flex-col">
+                                <span className="text-primary font-black">{t.ticketsSold} <span className="text-[9px] opacity-40">un.</span></span>
+                                <span className="text-[9px] font-bold text-muted-foreground uppercase">Face Total: {formatCurrency(t.ticketBasePriceTotal)}</span>
+                             </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                             <TooltipProvider>
+                               <Tooltip>
+                                 <TooltipTrigger asChild>
+                                    <div className="flex flex-col cursor-help">
+                                       <span className="font-black text-sm text-primary">{formatCurrency(t.vibyGrossValue)}</span>
+                                       <span className="text-[8px] font-bold text-muted-foreground uppercase">Taxa Comp: {formatCurrency(t.buyerFeeTotal)}</span>
+                                       <span className="text-[8px] font-bold text-muted-foreground uppercase">Comissão: {formatCurrency(t.organizerFeeTotal)}</span>
+                                    </div>
+                                 </TooltipTrigger>
+                                 <TooltipContent className="p-4 rounded-xl space-y-2">
+                                    <p className="text-[9px] font-black uppercase">Receita Bruta da Plataforma</p>
+                                    <div className="text-[10px] space-y-1">
+                                       <div className="flex justify-between gap-4"><span>Taxas Compradores:</span> <span>{formatCurrency(t.buyerFeeTotal)}</span></div>
+                                       <div className="flex justify-between gap-4"><span>Comissões Produtores:</span> <span>{formatCurrency(t.organizerFeeTotal)}</span></div>
+                                       <div className="border-t pt-1 font-bold flex justify-between gap-4"><span>Bruto Total:</span> <span>{formatCurrency(t.vibyGrossValue)}</span></div>
+                                    </div>
+                                 </TooltipContent>
+                               </Tooltip>
+                             </TooltipProvider>
+                          </TableCell>
+                          <TableCell className="text-center">
+                             <div className="flex flex-col gap-1 items-center">
+                                <span className="text-[10px] font-black text-orange-600 uppercase">Imposto: {formatCurrency(t.taxValue)}</span>
+                                <Badge className={cn(
+                                  "text-[8px] font-black uppercase h-5",
+                                  t.nfStatus === 'emitida' ? "bg-green-600 text-white" : "bg-orange-500 text-white"
+                                )}>
+                                  {t.nfStatus || 'pendente'}
+                                </Badge>
+                                <Select value={t.nfStatus || 'pendente'} onValueChange={(val) => handleUpdateNF('tickets', t, val)}>
+                                   <SelectTrigger className="h-6 rounded-md text-[8px] font-black uppercase mt-1 w-24">
+                                      <SelectValue />
+                                   </SelectTrigger>
+                                   <SelectContent className="rounded-lg">
+                                      <SelectItem value="pendente">Pendente</SelectItem>
+                                      <SelectItem value="emitida">Emitida</SelectItem>
+                                   </SelectContent>
+                                </Select>
+                             </div>
+                          </TableCell>
+                          <TableCell className="text-right px-8">
+                             <div className="flex flex-col">
+                                <span className="font-black text-sm text-green-600">{formatCurrency(realProfit)}</span>
+                                <span className="text-[8px] font-bold text-red-500 uppercase">Stripe: -{formatCurrency(t.stripeFeeTotal)}</span>
+                                <p className="text-[7px] font-black text-muted-foreground uppercase opacity-40">Repasse Produtor: {formatCurrency(t.ticketBasePriceTotal - t.organizerFeeTotal)}</p>
+                             </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }) : (
+                      <TableRow><TableCell colSpan={5} className="py-20 text-center italic text-muted-foreground">Nenhum registro localizado.</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>

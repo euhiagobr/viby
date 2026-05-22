@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -39,10 +40,10 @@
         "startDate": { "type": "string", "format": "date-time" },
         "endDate": { "type": "string", "format": "date-time" },
         "status": { "type": "string", "enum": ["ativo", "finalizado", "cancelado"] },
-        "grossValue": { "type": "number" },
-        "taxPercent": { "type": "number" },
-        "taxValue": { "type": "number" },
-        "netValue": { "type": "number" },
+        "grossValue": { "type": "number", "description": "Total cobrado (Orçamento + 11%)" },
+        "taxPercent": { "type": "number", "default": 11 },
+        "taxValue": { "type": "number", "description": "11% sobre o orçamento" },
+        "netValue": { "type": "number", "description": "Orçamento líquido consumido" },
         "nfDeadlineDate": { "type": "string", "format": "date" },
         "nfStatus": { "type": "string", "enum": ["pendente", "emitida"] },
         "monthKey": { "type": "string", "description": "YYYY-MM" }
@@ -50,18 +51,25 @@
     },
     "TaxTicket": {
       "title": "Imposto sobre Ingressos",
-      "description": "Registro consolidado de imposto sobre taxas e comissões da Viby",
+      "description": "Registro detalhado de taxas Viby e impostos sobre vendas",
       "type": "object",
       "properties": {
         "eventId": { "type": "string" },
+        "eventTitle": { "type": "string" },
+        "ticketTypeName": { "type": "string" },
+        "batchName": { "type": "string" },
         "organizationId": { "type": "string" },
         "orgName": { "type": "string" },
         "orgCnpj": { "type": "string" },
         "ticketsSold": { "type": "number" },
-        "vibyGrossValue": { "type": "number" },
-        "taxPercent": { "type": "number" },
-        "taxValue": { "type": "number" },
-        "vibyNetValue": { "type": "number" },
+        "ticketBasePrice": { "type": "number", "description": "Valor de face do ingresso" },
+        "buyerFee": { "type": "number", "description": "Taxa administrativa paga pelo cliente" },
+        "organizerFee": { "type": "number", "description": "Comissão Viby descontada do produtor" },
+        "stripeFee": { "type": "number", "description": "Taxa de processamento do Stripe" },
+        "vibyGrossValue": { "type": "number", "description": "Total de taxas (Buyer + Seller)" },
+        "taxPercent": { "type": "number", "default": 11 },
+        "taxValue": { "type": "number", "description": "11% sobre vibyGrossValue" },
+        "vibyNetValue": { "type": "number", "description": "vibyGrossValue - taxValue" },
         "nfDeadlineDate": { "type": "string", "format": "date" },
         "nfStatus": { "type": "string", "enum": ["pendente", "emitida"] },
         "monthKey": { "type": "string", "description": "YYYY-MM" }
