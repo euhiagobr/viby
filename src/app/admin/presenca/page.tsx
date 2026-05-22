@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -65,6 +66,17 @@ import {
   DialogTitle, 
   DialogTrigger 
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { processGamificationEvent } from "@/lib/gamification-service"
@@ -73,6 +85,7 @@ export default function AdminPresencaPage() {
   const db = useFirestore()
   const [search, setSearch] = React.useState("")
   const [isSyncingHistory, setIsSyncingHistory] = React.useState(false)
+  const [isResetDialogOpen, setIsResetDialogOpen] = React.useState(false)
 
   // Consultas de Gamificação
   const levelsQuery = useMemoFirebase(() => db ? query(collection(db, "levels"), orderBy("level", "asc")) : null, [db])
@@ -256,7 +269,7 @@ export default function AdminPresencaPage() {
   }
 
   const handleResetAndRecalculate = async () => {
-    if (!db || !confirm("ATENÇÃO: Isso apagará TODO o progresso de XP, Estatísticas e Logs de todos os usuários para recalcular corretamente do zero. Esta ação é irreversível. Deseja continuar?")) return
+    if (!db) return
     
     setIsSyncingHistory(true)
     try {
@@ -264,9 +277,22 @@ export default function AdminPresencaPage() {
       
       for (const collName of collectionsToWipe) {
         const snap = await getDocs(collection(db, collName));
-        const batch = writeBatch(db);
-        snap.docs.forEach(docSnap => batch.delete(docSnap.ref));
-        await batch.commit();
+        if (snap.empty) continue;
+
+        // Firestore batch is limited to 500 operations
+        let batch = writeBatch(db);
+        let count = 0;
+
+        for (const docSnap of snap.docs) {
+          batch.delete(docSnap.ref);
+          count++;
+          if (count === 500) {
+            await batch.commit();
+            batch = writeBatch(db);
+            count = 0;
+          }
+        }
+        if (count > 0) await batch.commit();
       }
 
       toast({ title: "Dados limpos!", description: "Iniciando recalculo do histórico..." });
@@ -278,6 +304,7 @@ export default function AdminPresencaPage() {
       toast({ variant: "destructive", title: "Erro ao resetar dados" });
     } finally {
       setIsSyncingHistory(false)
+      setIsResetDialogOpen(false)
     }
   }
 
@@ -298,10 +325,37 @@ export default function AdminPresencaPage() {
           <p className="text-muted-foreground font-medium">Gestão da identidade cultural e engajamento dos usuários.</p>
         </div>
         <div className="flex gap-2">
-           <Button variant="outline" onClick={handleResetAndRecalculate} disabled={isSyncingHistory} className="rounded-xl h-11 font-bold text-xs uppercase gap-2 border-destructive text-destructive hover:bg-destructive/5">
-              {isSyncingHistory ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />}
-              Reset Total & Limpeza
-           </Button>
+           <AlertDialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" disabled={isSyncingHistory} className="rounded-xl h-11 font-bold text-xs uppercase gap-2 border-destructive text-destructive hover:bg-destructive/5">
+                    {isSyncingHistory ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />}
+                    Reset Total & Limpeza
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="rounded-[2rem]">
+                <AlertDialogHeader>
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-3 bg-destructive/10 rounded-2xl text-destructive">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Ação Crítica!</AlertDialogTitle>
+                  </div>
+                  <AlertDialogDescription className="font-medium text-foreground/80 leading-relaxed">
+                    Isso apagará **TODO o progresso de XP, Estatísticas e Medalhas** de todos os usuários cadastrados. O sistema irá reconstruir tudo do zero baseado no histórico de compras e check-ins reais. Esta ação é irreversível.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Cancelar</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={handleResetAndRecalculate}
+                    className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] hover:bg-destructive/90 px-8"
+                  >
+                    Sim, Limpar e Recalcular
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+           </AlertDialog>
+
            <Button variant="outline" onClick={handleSyncHistory} disabled={isSyncingHistory} className="rounded-xl h-11 font-bold text-xs uppercase gap-2 border-secondary text-secondary hover:bg-secondary/5">
               {isSyncingHistory ? <Loader2 className="w-4 h-4 animate-spin" /> : <DatabaseZap className="w-4 h-4" />}
               Sincronizar Histórico
