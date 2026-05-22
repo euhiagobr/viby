@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from "@/firebase"
-import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, increment, writeBatch, getDoc, setDoc, deleteField } from "firebase/firestore"
+import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, increment, writeBatch, getDoc, setDoc, deleteField, getDocs } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -490,8 +490,7 @@ export default function OrganizationAdsPage() {
                        </div>
                     </div>
 
-                    {adPlanSummary.totalDays > 0 && (
-                      <div className="p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 space-y-4 animate-in slide-in-from-top-2 duration-300">
+                    <div className="p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 space-y-4 animate-in slide-in-from-top-2 duration-300">
                          <div className="space-y-2">
                             <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Período de Veiculação:</span> <span className="text-primary">{adPlanSummary.totalDays} dias</span></div>
                             <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Investimento Bruto:</span> <span className="text-primary">{formatCurrency(adPlanSummary.rawBudget)}</span></div>
@@ -507,7 +506,6 @@ export default function OrganizationAdsPage() {
                             <p className="text-[8px] text-muted-foreground font-medium uppercase leading-tight">O valor não consumido ao final da campanha (incluindo o imposto proporcional) será devolvido automaticamente ao seu saldo livre.</p>
                          </div>
                       </div>
-                    )}
                   </div>
               </form>
               <div className="p-8 border-t bg-muted/30">
