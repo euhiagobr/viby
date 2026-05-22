@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp, useDoc } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from "@/firebase"
 import { 
   collection, 
   query, 
@@ -40,7 +40,10 @@ import {
   Calendar,
   BadgeCheck,
   X,
-  RefreshCcw
+  RefreshCcw,
+  CheckCircle2,
+  ShieldCheck,
+  Globe
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -49,6 +52,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Switch } from "@/components/ui/switch"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -292,29 +296,113 @@ export default function AdminUsuariosPage() {
            </DialogHeader>
            <form onSubmit={handleUpdateUser} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="space-y-2"><Label>Nome Completo</Label><Input value={editingUser?.name || ""} onChange={e => setEditingUser({...editingUser, name: e.target.value})} className="rounded-xl" required /></div>
                  <div className="space-y-2">
-                    <Label>Username (@)</Label>
+                    <Label className="text-[10px] font-black uppercase opacity-60">Nome Completo</Label>
+                    <Input value={editingUser?.name || ""} onChange={e => setEditingUser({...editingUser, name: e.target.value})} className="rounded-xl h-11" required />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label>
                     <div className="relative">
-                       <Input value={editingUser?.username || ""} onChange={e => setEditingUser({...editingUser, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} className="rounded-xl pr-10" />
+                       <Input value={editingUser?.username || ""} onChange={e => setEditingUser({...editingUser, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} className="rounded-xl h-11 pr-10" />
                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
                           {checkingUsername && <Loader2 className="w-4 h-4 animate-spin opacity-40" />}
                        </div>
                     </div>
                  </div>
-                 <div className="space-y-2"><Label>E-mail</Label><Input value={editingUser?.email || ""} onChange={e => setEditingUser({...editingUser, email: e.target.value})} className="rounded-xl" required /></div>
                  <div className="space-y-2">
-                    <Label>Cargo</Label>
+                    <Label className="text-[10px] font-black uppercase opacity-60">E-mail</Label>
+                    <Input value={editingUser?.email || ""} onChange={e => setEditingUser({...editingUser, email: e.target.value})} className="rounded-xl h-11" required />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Cargo</Label>
                     <Select value={editingUser?.role || "user"} onValueChange={v => setEditingUser({...editingUser, role: v})}>
-                       <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                       <SelectContent className="rounded-xl"><SelectItem value="user">Usuário</SelectItem><SelectItem value="admin">Administrador</SelectItem></SelectContent>
+                       <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                       <SelectContent className="rounded-xl">
+                          <SelectItem value="user">Usuário</SelectItem>
+                          <SelectItem value="admin">Administrador</SelectItem>
+                       </SelectContent>
                     </Select>
                  </div>
               </div>
+
+              <div className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border border-dashed">
+                 <div className="space-y-0.5">
+                    <p className="font-bold text-sm flex items-center gap-2">
+                       <ShieldCheck className="w-4 h-4 text-blue-500" /> Selo Verificado
+                    </p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-black">Habilita o badge de verificação oficial</p>
+                 </div>
+                 <Switch 
+                   checked={editingUser?.isVerified || false} 
+                   onCheckedChange={v => setEditingUser({...editingUser, isVerified: v})} 
+                 />
+              </div>
+
               <DialogFooter>
-                 <Button type="submit" disabled={isSaving || (usernameStatus === 'taken')} className="w-full bg-primary text-white font-black h-12 rounded-xl">
+                 <Button type="submit" disabled={isSaving || (usernameStatus === 'taken')} className="w-full bg-primary text-white font-black h-12 rounded-xl uppercase italic">
                     {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
                     Salvar Usuário
+                 </Button>
+              </DialogFooter>
+           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG EDITAR PÁGINA / ORGANIZAÇÃO */}
+      <Dialog open={isEditOrgOpen} onOpenChange={setIsEditOrgOpen}>
+        <DialogContent className="max-w-xl rounded-[2.5rem]">
+           <DialogHeader>
+              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Editar Página Comercial</DialogTitle>
+           </DialogHeader>
+           <form onSubmit={handleUpdateOrg} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Nome da Marca</Label>
+                    <Input value={editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, name: e.target.value})} className="rounded-xl h-11" required />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label>
+                    <div className="relative">
+                       <Input value={editingOrg?.username || ""} onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} className="rounded-xl h-11 pr-10" />
+                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {checkingUsername && <Loader2 className="w-4 h-4 animate-spin opacity-40" />}
+                       </div>
+                    </div>
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Status de Visibilidade</Label>
+                    <Select value={editingOrg?.status || "Ativo"} onValueChange={v => setEditingOrg({...editingOrg, status: v})}>
+                       <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                       <SelectContent className="rounded-xl">
+                          <SelectItem value="Ativo">Ativo (No ar)</SelectItem>
+                          <SelectItem value="Desativado">Desativado (Oculto)</SelectItem>
+                          <SelectItem value="Bloqueado">Bloqueado (Restrito)</SelectItem>
+                       </SelectContent>
+                    </Select>
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">CNPJ</Label>
+                    <Input value={editingOrg?.cnpj || ""} onChange={e => setEditingOrg({...editingOrg, cnpj: e.target.value})} className="rounded-xl h-11" />
+                 </div>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border border-dashed">
+                 <div className="space-y-0.5">
+                    <p className="font-bold text-sm flex items-center gap-2">
+                       <ShieldCheck className="w-4 h-4 text-blue-500" /> Selo de Verificação
+                    </p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-black">Valida a autenticidade da marca</p>
+                 </div>
+                 <Switch 
+                   checked={editingOrg?.verified || false} 
+                   onCheckedChange={v => setEditingOrg({...editingOrg, verified: v})} 
+                 />
+              </div>
+
+              <DialogFooter>
+                 <Button type="submit" disabled={isSaving || (usernameStatus === 'taken')} className="w-full bg-secondary text-white font-black h-12 rounded-xl uppercase italic">
+                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
+                    Salvar Alterações da Página
                  </Button>
               </DialogFooter>
            </form>
