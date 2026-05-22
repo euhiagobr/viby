@@ -38,7 +38,11 @@ import {
   Ticket,
   Info,
   Zap,
-  Lock
+  Lock,
+  ArrowUpRight,
+  ArrowDownRight,
+  Search,
+  Filter
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
@@ -59,6 +63,7 @@ import Link from 'next/link';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function OrganizationFinancePage() {
   const { currentOrg, userRole, refreshOrg, loading: orgLoading } = useCurrentOrganization();
@@ -66,7 +71,7 @@ export default function OrganizationFinancePage() {
   const auth = useAuth();
   const { user } = useUser(auth);
 
-  const [topUpAmount, setTopUpAmount] = React.useState<string>("10.00");
+  const [topUpAmount, setTopUpAmount] = React.useState<string>("50.00");
   const [isTopUpLoading, setIsTopUpLoading] = React.useState(false);
   const [isWaitingPayment, setIsWaitingPayment] = React.useState(false);
 
@@ -75,9 +80,13 @@ export default function OrganizationFinancePage() {
   const [selectedSaleForAdvance, setSelectedSaleForAdvance] = React.useState<any>(null);
   const [isAdvancing, setIsAdvancing] = React.useState(false);
 
+  // Filtros de Transações
+  const [txFilter, setTxFilter] = React.useState<string>("all");
+
   const feesRef = React.useMemo(() => db ? doc(db, 'settings', 'fees') : null, [db])
   const { data: globalFees } = useDoc<any>(feesRef)
 
+  // Consulta de Vendas
   const salesQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null;
     return query(
@@ -87,6 +96,18 @@ export default function OrganizationFinancePage() {
   }, [db, currentOrg?.id]);
 
   const { data: rawSales, loading: salesLoading } = useCollection<any>(salesQuery);
+
+  // Consulta de Transações da Conta de Anúncios
+  const transactionsQuery = useMemoFirebase(() => {
+    if (!db || !currentOrg) return null;
+    return query(
+      collection(db, 'organizations', currentOrg.id, 'transactions'),
+      orderBy('createdAt', 'desc'),
+      limit(100)
+    );
+  }, [db, currentOrg?.id]);
+
+  const { data: rawTransactions, loading: txLoading } = useCollection<any>(transactionsQuery);
 
   const sales = React.useMemo(() => {
     if (!rawSales) return [];
@@ -98,6 +119,17 @@ export default function OrganizationFinancePage() {
         return timeB - timeA;
       });
   }, [rawSales]);
+
+  const filteredTransactions = React.useMemo(() => {
+    if (!rawTransactions) return [];
+    if (txFilter === "all") return rawTransactions;
+    return rawTransactions.filter(tx => {
+      if (txFilter === "topup") return tx.type === 'topup';
+      if (txFilter === "reservation") return tx.type === 'ad_reservation';
+      if (txFilter === "refund") return tx.type === 'ad_refund';
+      return true;
+    });
+  }, [rawTransactions, txFilter]);
 
   const isFinanceManager = ['owner', 'admin', 'finance'].includes(userRole || '');
 
@@ -380,7 +412,7 @@ export default function OrganizationFinancePage() {
            </div>
 
            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              <div className="lg:col-span-7 space-y-8">
+              <div className="lg:col-span-8 space-y-8">
                  <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
                     <CardHeader className="bg-muted/30 p-8">
                        <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
@@ -438,9 +470,92 @@ export default function OrganizationFinancePage() {
                        </div>
                     </CardContent>
                  </Card>
+
+                 {/* HISTÓRICO DE TRANSAÇÕES DA CONTA DE ANÚNCIOS */}
+                 <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+                    <CardHeader className="border-b p-8 pb-6">
+                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div>
+                             <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+                                <History className="w-5 h-5 text-secondary" /> Extrato Ads
+                             </CardTitle>
+                             <CardDescription className="font-medium">Histórico de recargas, reservas e estornos.</CardDescription>
+                          </div>
+                          <div className="flex items-center gap-2">
+                             <Filter className="w-4 h-4 text-muted-foreground" />
+                             <Select value={txFilter} onValueChange={setTxFilter}>
+                                <SelectTrigger className="w-[180px] h-9 rounded-xl border-secondary/20 text-xs font-bold uppercase">
+                                   <SelectValue placeholder="Filtrar tipo" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl">
+                                   <SelectItem value="all">Todas as transações</SelectItem>
+                                   <SelectItem value="topup">Recargas</SelectItem>
+                                   <SelectItem value="reservation">Reservas (Início)</SelectItem>
+                                   <SelectItem value="refund">Estornos (Fim)</SelectItem>
+                                </SelectContent>
+                             </Select>
+                          </div>
+                       </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                       {txLoading ? (
+                         <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+                       ) : filteredTransactions.length > 0 ? (
+                         <Table>
+                            <TableHeader className="bg-muted/30">
+                               <TableRow>
+                                  <TableHead className="font-black uppercase text-[9px] tracking-widest">Data</TableHead>
+                                  <TableHead className="font-black uppercase text-[9px] tracking-widest">Tipo</TableHead>
+                                  <TableHead className="font-black uppercase text-[9px] tracking-widest">Descrição</TableHead>
+                                  <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Valor</TableHead>
+                                  <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Status</TableHead>
+                               </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                               {filteredTransactions.map((tx) => {
+                                 const txDate = tx.createdAt?.toDate ? tx.createdAt.toDate() : new Date(tx.createdAt);
+                                 const isPositive = tx.type === 'topup' || tx.type === 'ad_refund';
+                                 return (
+                                   <TableRow key={tx.id} className="hover:bg-muted/10">
+                                      <TableCell className="text-[10px] font-bold text-muted-foreground">{txDate.toLocaleString('pt-BR')}</TableCell>
+                                      <TableCell>
+                                         <Badge variant="outline" className={cn(
+                                           "uppercase text-[7px] font-black h-4",
+                                           tx.type === 'topup' ? "border-green-200 text-green-600 bg-green-50" :
+                                           tx.type === 'ad_reservation' ? "border-orange-200 text-orange-600 bg-orange-50" :
+                                           "border-blue-200 text-blue-600 bg-blue-50"
+                                         )}>
+                                            {tx.type === 'topup' ? 'Recarga' : tx.type === 'ad_reservation' ? 'Reserva' : 'Estorno'}
+                                         </Badge>
+                                      </TableCell>
+                                      <TableCell className="text-xs font-bold uppercase truncate max-w-[200px]">{tx.description}</TableCell>
+                                      <TableCell className="text-right">
+                                         <span className={cn(
+                                           "font-black text-xs",
+                                           isPositive ? "text-green-600" : "text-red-500"
+                                         )}>
+                                            {isPositive ? "+" : "-"}{formatCurrency(tx.amount)}
+                                         </span>
+                                      </TableCell>
+                                      <TableCell className="text-center">
+                                         <div className="flex items-center justify-center gap-1">
+                                            {tx.status === 'completed' ? <CheckCircle2 className="w-3 h-3 text-green-500" /> : <Clock className="w-3 h-3 text-orange-500" />}
+                                            <span className="text-[8px] font-black uppercase">{tx.status === 'completed' ? 'Ok' : 'Pendente'}</span>
+                                         </div>
+                                      </TableCell>
+                                   </TableRow>
+                                 );
+                               })}
+                            </TableBody>
+                         </Table>
+                       ) : (
+                         <div className="py-24 text-center text-muted-foreground italic text-sm">Nenhum registro encontrado.</div>
+                       )}
+                    </CardContent>
+                 </Card>
               </div>
 
-              <div className="lg:col-span-5 space-y-6">
+              <div className="lg:col-span-4 space-y-6">
                  <Card className="border-none shadow-sm rounded-[2rem] bg-primary text-white">
                     <CardHeader>
                        <CardTitle className="text-sm font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
@@ -448,9 +563,18 @@ export default function OrganizationFinancePage() {
                        </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4 text-xs font-medium opacity-80 leading-relaxed">
-                       <p>1. O saldo recarregado é exclusivo para uso em campanhas de impulsionamento dentro da plataforma Viby.</p>
-                       <p>2. Os encargos de 21% cobrem taxas de processamento financeiro (Stripe) e impostos de intermediação.</p>
-                       <p>3. Saldo bloqueado refere-se a valores já reservados para campanhas ativas. Caso cancele uma campanha, o saldo remanescente volta para o Saldo Livre.</p>
+                       <div className="flex gap-3">
+                          <div className="p-2 bg-white/10 rounded-lg h-fit"><ArrowUpRight className="w-4 h-4 text-green-400" /></div>
+                          <p><strong>Recargas:</strong> Entram diretamente no seu Saldo Livre para uso em qualquer campanha.</p>
+                       </div>
+                       <div className="flex gap-3">
+                          <div className="p-2 bg-white/10 rounded-lg h-fit"><Lock className="w-4 h-4 text-orange-400" /></div>
+                          <p><strong>Reservas:</strong> Ao criar um anúncio, o orçamento total é bloqueado para garantir a veiculação.</p>
+                       </div>
+                       <div className="flex gap-3">
+                          <div className="p-2 bg-white/10 rounded-lg h-fit"><Undo2 className="w-4 h-4 text-blue-400" /></div>
+                          <p><strong>Estornos:</strong> Se você cancelar um anúncio ou ele expirar antes de gastar tudo, o saldo volta para você.</p>
+                       </div>
                     </CardContent>
                  </Card>
               </div>
@@ -458,6 +582,7 @@ export default function OrganizationFinancePage() {
         </TabsContent>
       </Tabs>
 
+      {/* MODAL DE ANTECIPAÇÃO */}
       <Dialog open={isAdvanceModalOpen} onOpenChange={setIsAdvanceModalOpen}>
         <DialogContent className="rounded-[2.5rem] max-w-sm">
            <DialogHeader>
