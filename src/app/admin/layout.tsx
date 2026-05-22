@@ -1,10 +1,9 @@
-
 'use client';
 
 import * as React from 'react';
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuth, useUser, useFirestore } from '@/firebase';
+import { useAuth, useUser, useFirestore, useDoc } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { 
   Loader2, 
@@ -30,6 +29,7 @@ import { signOut } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import Footer from '@/components/layout/Footer';
+import Image from "next/image"
 
 export default function AdminLayout({
   children,
@@ -43,6 +43,10 @@ export default function AdminLayout({
   const pathname = usePathname();
   const [verifying, setVerifying] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+
+  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
+  const { data: settings } = useDoc<any>(settingsRef)
+  const siteName = settings?.siteName || "Viby"
 
   useEffect(() => {
     async function checkAdmin() {
@@ -107,10 +111,23 @@ export default function AdminLayout({
       <aside className="w-64 bg-primary text-white hidden lg:flex flex-col sticky top-0 h-screen">
         <div className="p-8">
           <Link href="/admin" className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">V</span>
-            </div>
-            <span className="text-xl font-bold tracking-tight">Admin Viby</span>
+            {settings?.logoUrl ? (
+              <Image 
+                src={settings.logoUrl} 
+                alt={siteName} 
+                width={140} 
+                height={40} 
+                className="h-8 w-auto object-contain brightness-0 invert" 
+                priority 
+              />
+            ) : (
+              <>
+                <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-lg">{siteName.charAt(0)}</span>
+                </div>
+                <span className="text-xl font-bold tracking-tight">{siteName} Admin</span>
+              </>
+            )}
           </Link>
         </div>
 

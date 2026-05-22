@@ -18,6 +18,7 @@ import Footer from "@/components/layout/Footer"
 import { encryptDeterministic } from "@/lib/crypto-utils"
 import { cn } from "@/lib/utils"
 import { sendWelcomeEmail } from "@/app/actions/email"
+import Image from "next/image"
 
 export default function CadastroPage() {
   const [name, setName] = useState("")
@@ -201,7 +202,6 @@ export default function CadastroPage() {
         })
       })
 
-      // Envia e-mail de boas-vindas (assíncrono)
       sendWelcomeEmail({
         to: email,
         userName: name,
@@ -227,15 +227,22 @@ export default function CadastroPage() {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             {settings?.logoUrl ? (
-              <div className="w-8 h-8 relative flex items-center justify-center">
-                <img src={settings.logoUrl} alt={siteName} className="max-h-full max-w-full object-contain" />
-              </div>
+              <Image 
+                src={settings.logoUrl} 
+                alt={siteName} 
+                width={120} 
+                height={40} 
+                className="h-8 w-auto object-contain" 
+                priority 
+              />
             ) : (
-              <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">{siteName.charAt(0)}</span>
-              </div>
+              <>
+                <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-lg">{siteName.charAt(0)}</span>
+                </div>
+                <span className="text-xl font-bold tracking-tight">{siteName}</span>
+              </>
             )}
-            <span className="text-xl font-bold tracking-tight">{siteName}</span>
           </Link>
           <Button variant="ghost" asChild className="font-semibold">
             <Link href="/">
@@ -251,7 +258,14 @@ export default function CadastroPage() {
           <CardHeader className="space-y-1 flex flex-col items-center pt-8 pb-4">
             <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 overflow-hidden">
               {settings?.logoUrl ? (
-                <img src={settings.logoUrl} alt={siteName} className="max-w-full max-h-full object-contain p-2" />
+                <Image 
+                  src={settings.logoUrl} 
+                  alt={siteName} 
+                  width={48} 
+                  height={48} 
+                  className="w-full h-full object-contain p-2" 
+                  priority 
+                />
               ) : (
                 <Globe className="text-white w-7 h-7" />
               )}

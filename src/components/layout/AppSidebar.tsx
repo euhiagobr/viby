@@ -21,9 +21,11 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useAuth, useUser } from "@/firebase"
+import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { signOut } from "firebase/auth"
+import { doc } from "firebase/firestore"
+import Image from "next/image"
 
 import {
   Sidebar,
@@ -44,8 +46,14 @@ export function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const auth = useAuth()
+  const db = useFirestore()
   const { user } = useUser(auth)
   const { currentOrg, organizations, userRole, pendingInvitations } = useCurrentOrganization()
+
+  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
+  const { data: settings } = useDoc<any>(settingsRef)
+  
+  const siteName = settings?.siteName || "Viby"
 
   const handleLogout = async () => {
     if (!auth) return
@@ -62,7 +70,6 @@ export function AppSidebar() {
     { title: "Explorar", url: "/dashboard", icon: Globe },
     { title: "Meus Ingressos", url: "/dashboard/ingressos", icon: Ticket },
     { title: "Minhas Organizações", url: "/dashboard/organizacoes", icon: Building2 },
-    // Só mostra Planos se o usuário já tiver pelo menos uma marca criada
     ...(organizations.length > 0 ? [{ title: "Planos", url: "/dashboard/plano", icon: Trophy }] : []),
     { title: "Solicitações", url: "/dashboard/solicitacoes", icon: UserCheck, badge: pendingInvitations.length > 0 ? pendingInvitations.length : null },
     { title: "Seguindo", url: "/dashboard/seguindo", icon: Heart },
@@ -70,7 +77,6 @@ export function AppSidebar() {
     { title: "Suporte", url: "/dashboard/suporte", icon: LifeBuoy },
   ];
 
-  // RBAC Sidebar Rules - Updated to point to brand-specific ad management
   const orgItems = currentOrg ? [
     { 
       title: "Dashboard", 
@@ -114,10 +120,23 @@ export function AppSidebar() {
     <Sidebar className="border-r border-border">
       <SidebarHeader className="p-6">
         <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
-            <span className="text-white font-black text-lg">V</span>
-          </div>
-          <span className="text-xl font-bold tracking-tight italic">Viby</span>
+          {settings?.logoUrl ? (
+            <Image 
+              src={settings.logoUrl} 
+              alt={siteName} 
+              width={120} 
+              height={40} 
+              className="h-8 w-auto object-contain" 
+              priority 
+            />
+          ) : (
+            <>
+              <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
+                <span className="text-white font-black text-lg">{siteName.charAt(0)}</span>
+              </div>
+              <span className="text-xl font-bold tracking-tight italic">{siteName}</span>
+            </>
+          )}
         </Link>
       </SidebarHeader>
       <SidebarContent>

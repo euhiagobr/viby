@@ -10,6 +10,7 @@ import { Globe, Search, ArrowRight, Loader2, MapPin, Tag, FilterX, Navigation } 
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
+import Image from "next/image"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 import {
   Select,
@@ -77,7 +78,6 @@ export default function LandingPage() {
     let result = events.filter((e: any) => {
       const isNotDeleted = e.status !== 'Excluído';
       
-      // Filtrar apenas eventos futuros
       const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
       const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
       const isEnded = end < now;
@@ -185,15 +185,22 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             {settings?.logoUrl ? (
-              <div className="w-10 h-10 relative flex items-center justify-center">
-                <img src={settings.logoUrl} alt={siteName} className="max-h-full max-w-full object-contain" />
-              </div>
+              <Image 
+                src={settings.logoUrl} 
+                alt={siteName} 
+                width={120} 
+                height={40} 
+                className="h-10 w-auto object-contain" 
+                priority 
+              />
             ) : (
-              <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">{siteName.charAt(0)}</span>
-              </div>
+              <>
+                <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-lg">{siteName.charAt(0)}</span>
+                </div>
+                <span className="text-xl font-bold tracking-tight">{siteName}</span>
+              </>
             )}
-            <span className="text-xl font-bold tracking-tight">{siteName}</span>
           </Link>
           <div className="flex items-center gap-4">
             {user ? (
