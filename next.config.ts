@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   devIndicators: {
+    buildActivity: false,
     appShell: false,
   },
   images: {
