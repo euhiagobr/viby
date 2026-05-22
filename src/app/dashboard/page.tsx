@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -19,7 +18,7 @@ import {
   Users 
 } from "lucide-react"
 import { useState } from "react"
-import { Tabs, TabsList, TabsTrigger } from "@/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -123,7 +122,6 @@ export default function ExplorarPage() {
     eventsWithDistance.forEach((event: any) => {
       if (event.organizationId && !seenIds.has(event.organizationId)) {
         seenIds.add(event.organizationId);
-        // Prioriza dados do objeto organizer se existirem, senão tenta o ID
         const orgAvatar = event.organizer?.avatar || event.avatar || "";
         uniqueOrgs.push({
           id: event.organizationId,
@@ -319,6 +317,7 @@ export default function ExplorarPage() {
           ))
         )}
       </div>
+      <Footer />
     </div>
   )
 }
