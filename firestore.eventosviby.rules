@@ -1,8 +1,9 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.16.2
-    // Integrado suporte a registros fiscais e auditoria
+    // REGRAS VIBY - Versão: 2.17.0
+    // Integrado suporte a solicitações de saque e transferências
     
     function isSignedIn() {
       return request.auth != null;
@@ -114,7 +115,7 @@ service cloud.firestore {
     match /ads/{adId} {
       allow read: if true;
       allow create: if isSignedIn() && hasOrgRole(request.resource.data.organizationId, ['owner', 'admin', 'editor']); 
-      allow update: if isSignedIn() || isAdmin(); // Permite atualização de métricas (reach/clicks) por qualquer usuário logado
+      allow update: if isSignedIn() || isAdmin(); 
       allow delete: if isAdmin() || hasOrgRole(resource.data.organizationId, ['owner', 'admin']);
 
       match /viewers/{userId} {
@@ -166,6 +167,14 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
       allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
+    }
+
+    // Solicitações de Saque
+    match /payout_requests/{requestId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin());
+      allow create: if isSignedIn() && hasOrgRole(request.resource.data.organizationId, ['owner', 'admin']);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // Fiscal e Impostos (Admin Only)

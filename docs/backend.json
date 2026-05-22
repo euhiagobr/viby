@@ -81,6 +81,23 @@
         "nfDeadlineDate": { "type": "string", "format": "date" },
         "timestamp": { "type": "string", "format": "date-time" }
       }
+    },
+    "PayoutRequest": {
+      "title": "Solicitação de Saque",
+      "description": "Pedido de transferência de saldo disponível para a conta bancária da organização",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "organizationName": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["Pendente", "Concluído", "Recusado"] },
+        "proofUrl": { "type": "string", "description": "URL do comprovante de transferência" },
+        "requestedAt": { "type": "string", "format": "date-time" },
+        "processedAt": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string", "description": "ID do usuário que solicitou" },
+        "bankDetails": { "type": "object", "description": "Snapshot dos dados bancários no momento do pedido" }
+      }
     }
   },
   "auth": {
@@ -98,6 +115,10 @@
     "/tax_tickets/{taxId}": {
       "schema": "TaxTicket",
       "description": "Registros de impostos de ingressos"
+    },
+    "/payout_requests/{requestId}": {
+      "schema": "PayoutRequest",
+      "description": "Solicitações de saque das organizações"
     },
     "/tax_audit/{auditId}": {
       "schema": "object",

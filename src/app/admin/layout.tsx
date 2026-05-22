@@ -22,7 +22,8 @@ import {
   Receipt,
   Megaphone,
   Mail,
-  Scale
+  Scale,
+  SendHorizontal
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -97,6 +98,7 @@ export default function AdminLayout({
     { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays },
     { title: 'Anúncios', url: '/admin/anuncios', icon: Megaphone },
     { title: 'Fiscal / Impostos', url: '/admin/imposto', icon: Scale },
+    { title: 'Transferências', url: '/admin/transferencias', icon: SendHorizontal },
     { title: 'Financeiro (Contas)', url: '/admin/financeiro', icon: Landmark },
     { title: 'Extrato Global', url: '/admin/extrato', icon: Receipt },
     { title: 'E-mails Enviados', url: '/admin/notificacoes', icon: Mail },

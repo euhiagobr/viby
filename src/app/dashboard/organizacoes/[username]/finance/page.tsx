@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -13,7 +14,8 @@ import {
   increment, 
   setDoc,
   orderBy, 
-  limit
+  limit,
+  addDoc
 } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -42,7 +44,8 @@ import {
   ArrowDownRight,
   Search,
   Filter,
-  Undo2
+  Undo2,
+  SendHorizontal
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
@@ -75,6 +78,10 @@ export default function OrganizationFinancePage() {
   const [isTopUpLoading, setIsTopUpLoading] = React.useState(false);
   const [isWaitingPayment, setIsWaitingPayment] = React.useState(false);
 
+  // Saques
+  const [isPayoutModalOpen, setIsPayoutModalOpen] = React.useState(false);
+  const [isPayoutLoading, setIsPayoutLoading] = React.useState(false);
+
   // Estados para Antecipação
   const [isAdvanceModalOpen, setIsAdvanceModalOpen] = React.useState(false);
   const [selectedSaleForAdvance, setSelectedSaleForAdvance] = React.useState<any>(null);
@@ -96,6 +103,13 @@ export default function OrganizationFinancePage() {
   }, [db, currentOrg?.id]);
 
   const { data: rawSales, loading: salesLoading } = useCollection<any>(salesQuery);
+
+  // Consulta de Solicitações de Saque Existentes
+  const payoutRequestsQuery = useMemoFirebase(() => {
+    if (!db || !currentOrg) return null;
+    return query(collection(db, "payout_requests"), where("organizationId", "==", currentOrg.id));
+  }, [db, currentOrg?.id]);
+  const { data: payoutRequests } = useCollection<any>(payoutRequestsQuery);
 
   // Consulta de Transações da Conta de Anúncios
   const transactionsQuery = useMemoFirebase(() => {
@@ -137,8 +151,13 @@ export default function OrganizationFinancePage() {
     if (!sales) return { netTotal: 0, availableTotal: 0, lockedTotal: 0, grossTotal: 0, count: 0, fees: 0 };
     
     const now = new Date();
+    
+    // Soma de todos os saques solicitados (pendentes ou concluídos)
+    const totalWithdrawnAndPending = (payoutRequests || [])
+      .filter((r: any) => r.status !== 'Recusado')
+      .reduce((acc: number, r: any) => acc + (r.amount || 0), 0);
 
-    return sales.reduce((acc: any, sale: any) => {
+    const baseStats = sales.reduce((acc: any, sale: any) => {
       acc.count++;
       acc.grossTotal += (sale.ticketBasePrice || 0);
       acc.fees += (sale.producerFeeAmount || 0);
@@ -161,7 +180,13 @@ export default function OrganizationFinancePage() {
       }
       return acc;
     }, { netTotal: 0, availableTotal: 0, lockedTotal: 0, grossTotal: 0, count: 0, fees: 0 });
-  }, [sales]);
+
+    // O saldo disponível real é o total liberado menos o que já foi retirado/solicitado
+    return {
+      ...baseStats,
+      availableTotal: Math.max(0, baseStats.availableTotal - totalWithdrawnAndPending)
+    };
+  }, [sales, payoutRequests]);
 
   const handleTopUp = async () => {
     if (!currentOrg || !user || !db) return;
@@ -221,6 +246,48 @@ export default function OrganizationFinancePage() {
         });
         errorEmitter.emit('permission-error', permissionError);
         setIsTopUpLoading(false);
+      });
+  };
+
+  const handleRequestPayout = async () => {
+    if (!db || !currentOrg || !user) return;
+    if (salesStats.availableTotal < 10) {
+      toast({ variant: "destructive", title: "Saldo insuficiente", description: "O valor mínimo para saque é R$ 10,00." });
+      return;
+    }
+    if (currentOrg.payoutSettings?.status !== 'verified') {
+      toast({ variant: "destructive", title: "Conta não verificada", description: "Verifique sua conta bancária PJ antes de solicitar saques." });
+      return;
+    }
+
+    setIsPayoutLoading(true);
+    const amount = salesStats.availableTotal;
+
+    const payoutData = {
+      organizationId: currentOrg.id,
+      organizationName: currentOrg.name,
+      amount: amount,
+      status: "Pendente",
+      requestedAt: serverTimestamp(),
+      userId: user.uid,
+      bankDetails: currentOrg.payoutSettings
+    };
+
+    addDoc(collection(db, "payout_requests"), payoutData)
+      .then(() => {
+        toast({ title: "Saque solicitado!", description: `Sua solicitação de ${formatCurrency(amount)} está em análise.` });
+        setIsPayoutModalOpen(false);
+      })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: "payout_requests",
+          operation: "create",
+          requestResourceData: payoutData
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
+        setIsPayoutLoading(false);
       });
   };
 
@@ -286,9 +353,15 @@ export default function OrganizationFinancePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card className="border-none shadow-sm bg-primary text-white overflow-hidden relative border-l-4 border-secondary">
               <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Disponível para Saque</CardTitle></CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4 relative z-10">
                 <div className="text-3xl font-black">{formatCurrency(salesStats.availableTotal)}</div>
-                <p className="text-[9px] mt-2 font-bold opacity-40 uppercase">Liberação imediata</p>
+                <Button 
+                  onClick={() => setIsPayoutModalOpen(true)}
+                  disabled={salesStats.availableTotal < 10 || currentOrg.payoutSettings?.status !== 'verified'}
+                  className="w-full h-10 bg-secondary text-white font-black uppercase text-[10px] italic shadow-lg hover:scale-[1.02] transition-transform gap-2"
+                >
+                  <SendHorizontal className="w-4 h-4" /> Solicitar Saque
+                </Button>
               </CardContent>
               <CheckCircle2 className="absolute -bottom-2 -right-2 w-20 h-20 opacity-5 rotate-12" />
             </Card>
@@ -581,6 +654,45 @@ export default function OrganizationFinancePage() {
            </div>
         </TabsContent>
       </Tabs>
+
+      {/* MODAL DE SAQUE */}
+      <Dialog open={isPayoutModalOpen} onOpenChange={setIsPayoutModalOpen}>
+        <DialogContent className="rounded-[2.5rem] max-w-sm">
+           <DialogHeader>
+              <div className="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center mx-auto mb-2 text-secondary">
+                 <SendHorizontal className="w-8 h-8" />
+              </div>
+              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Confirmar Saque</DialogTitle>
+              <DialogDescription className="text-center font-medium">
+                 Você está solicitando o resgate total do seu saldo disponível liberado.
+              </DialogDescription>
+           </DialogHeader>
+           <div className="py-4 space-y-6">
+              <div className="p-6 bg-muted/30 rounded-[1.5rem] border border-dashed text-center space-y-1">
+                 <p className="text-[10px] font-black uppercase opacity-40">Valor a Receber</p>
+                 <p className="text-3xl font-black text-primary">{formatCurrency(salesStats.availableTotal)}</p>
+              </div>
+              
+              <div className="space-y-3">
+                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Destino PJ Verificado</p>
+                 <div className="text-[11px] font-bold text-primary flex flex-col items-center p-3 bg-secondary/5 rounded-xl border border-secondary/10">
+                    <span className="uppercase">{currentOrg.payoutSettings?.bank}</span>
+                    <span className="opacity-60">Ag: {currentOrg.payoutSettings?.branch} | Cta: {currentOrg.payoutSettings?.account}</span>
+                 </div>
+              </div>
+
+              <div className="p-3 bg-orange-50 rounded-xl flex gap-2">
+                 <AlertCircle className="w-4 h-4 text-orange-600 shrink-0" />
+                 <p className="text-[9px] text-orange-800 font-medium leading-tight uppercase">O prazo de processamento é de até 48h úteis após a solicitação.</p>
+              </div>
+           </div>
+           <DialogFooter>
+              <Button onClick={handleRequestPayout} disabled={isPayoutLoading} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                 {isPayoutLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Solicitar Transferência"}
+              </Button>
+           </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* MODAL DE ANTECIPAÇÃO */}
       <Dialog open={isAdvanceModalOpen} onOpenChange={setIsAdvanceModalOpen}>
