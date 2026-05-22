@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -9,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
 import { 
   UserCheck, 
   Check, 
@@ -260,7 +260,7 @@ export default function SolicitacoesPage() {
           )}
 
           {pendingInvitations.length === 0 && pendingPartnerships.length === 0 && (
-            <div className="py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed flex flex-col items-center justify-center gap-4 shadow-inner">
+            <div className="py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-border flex flex-col items-center justify-center gap-4 shadow-inner">
                <UserCheck className="w-12 h-12 text-muted-foreground opacity-10" />
                <p className="text-muted-foreground font-bold italic">Nenhum convite pendente no momento.</p>
             </div>
@@ -315,7 +315,7 @@ export default function SolicitacoesPage() {
                     </Card>
                  ))
               ) : (
-                <div className="col-span-full py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed flex flex-col items-center justify-center gap-4 shadow-inner">
+                <div className="col-span-full py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-border flex flex-col items-center justify-center gap-4 shadow-inner">
                    <SendHorizontal className="w-12 h-12 text-muted-foreground opacity-10" />
                    <p className="text-muted-foreground font-bold italic">Você ainda não solicitou nenhum saque.</p>
                 </div>
