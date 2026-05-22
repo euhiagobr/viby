@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -72,6 +71,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
+  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
