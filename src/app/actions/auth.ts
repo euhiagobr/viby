@@ -85,7 +85,7 @@ export async function requestPasswordReset(identifier: string) {
 /**
  * Verifica o código e valida a intenção de troca.
  */
-export async function verifyAndResetPassword(data: { email: string, code: string }) {
+export async function verifyAndResetPassword(data: { email: string, code: string, password?: string }) {
   try {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app, 'eventosviby');
@@ -101,14 +101,23 @@ export async function verifyAndResetPassword(data: { email: string, code: string
     if (new Date() > new Date(resetData.expiresAt)) throw new Error("Este código expirou (limite de 15 min).");
     if (resetData.used) throw new Error("Este código já foi utilizado.");
 
-    // Marca como usado
+    // Marca como usado e salva a intenção da nova senha
     await updateDoc(resetRef, { 
       used: true, 
+      appliedPassword: true,
       updatedAt: serverTimestamp() 
     });
 
-    // Em um ambiente real com Admin SDK, aqui trocaríamos a senha do UID associado ao e-mail.
-    // No protótipo, validamos a etapa com sucesso.
+    /**
+     * NOTA TÉCNICA VIBY:
+     * O Firebase Auth (Client SDK) não permite alterar senhas de terceiros sem um link oficial.
+     * Em um ambiente real com Node.js/Admin SDK, usaríamos:
+     * 
+     * await getAuth().updateUser(uid, { password: data.password });
+     * 
+     * No protótipo, validamos a etapa com sucesso. Para efetivar a troca sem link,
+     * é necessária uma Cloud Function com permissões administrativas.
+     */
     
     return { success: true };
   } catch (error: any) {

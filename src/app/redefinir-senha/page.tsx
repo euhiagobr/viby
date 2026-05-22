@@ -54,18 +54,19 @@ export default function RedefinirSenhaPage() {
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (code.length < 8) return
+    if (code.length < 8 || !newPassword) return
     
     setLoading(true)
     try {
       const result = await verifyAndResetPassword({ 
         email: resolvedEmail, 
-        code: code.trim().toUpperCase() 
+        code: code.trim().toUpperCase(),
+        password: newPassword
       })
       
       if (result.success) {
         setStep('success')
-        toast({ title: "Acesso Validado!", description: "Sua senha foi atualizada." })
+        toast({ title: "Acesso Validado!", description: "Sua solicitação foi processada." })
       } else {
         toast({ variant: "destructive", title: "Código Inválido", description: result.error || "Verifique se o código está correto ou se expirou." })
       }
@@ -175,7 +176,9 @@ export default function RedefinirSenhaPage() {
             {step === 'success' && (
               <div className="text-center space-y-8 animate-in zoom-in-95 duration-500">
                 <div className="p-6 bg-green-50 rounded-3xl border-2 border-dashed border-green-100">
-                   <p className="text-sm text-green-800 font-medium leading-relaxed uppercase italic tracking-tighter">Sua nova senha foi configurada com sucesso e já está ativa.</p>
+                   <p className="text-sm text-green-800 font-medium leading-relaxed uppercase italic tracking-tighter text-center">
+                     Sua identidade foi validada. Para o protótipo, utilize suas credenciais originais ou aguarde a integração com o Firebase Admin.
+                   </p>
                 </div>
                 <Button asChild className="w-full bg-primary text-white font-black h-16 rounded-[1.5rem] shadow-xl uppercase italic text-lg">
                   <Link href="/login">Fazer Login Agora</Link>
