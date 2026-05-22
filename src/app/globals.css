@@ -77,13 +77,19 @@
   transition: stroke-dashoffset 1s linear;
 }
 
-/* Força a remoção do indicador de desenvolvimento do Next.js/Turbopack */
+/* Supressão agressiva de indicadores de desenvolvimento do Next.js e Turbopack */
+nextjs-portal,
 #nextjs-portal,
 #nextjs-dev-indicator,
 .__next-dev-indicator,
-[data-nextjs-toast-wrapper] {
+[data-nextjs-toast-wrapper],
+[data-nextjs-portal],
+#nextjs-build-activity {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
   opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  z-index: -9999 !important;
 }
