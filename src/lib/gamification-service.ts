@@ -37,9 +37,10 @@ export async function processGamificationEvent(
   }
 
   try {
-    // 0. Validar se o alvo é um usuário
+    // 0. Validar se o alvo é um usuário e obter dados de localização para ranking
     const userSnap = await getDoc(doc(db, "users", userId));
     if (!userSnap.exists()) return;
+    const userProfile = userSnap.data();
 
     // 1. Buscar a regra de XP para o evento
     const ruleRef = doc(db, "xp_rules", eventKey);
@@ -71,12 +72,17 @@ export async function processGamificationEvent(
 
     const levelInfo = calculateLevel(currentTotalXp, DEFAULT_LEVELS);
 
+    // Espelha localização no documento de ranking para permitir queries scoped (Bairro, Cidade, etc)
     const gamificationData = {
       userId,
       totalXp: increment(points),
       level: levelInfo.current.level,
       levelName: levelInfo.current.name,
-      lastActivityAt: serverTimestamp()
+      lastActivityAt: serverTimestamp(),
+      city: context?.city?.trim() || userProfile.city || null,
+      neighborhood: context?.neighborhood?.trim() || null,
+      state: userProfile.state || null,
+      country: userProfile.country || "Brasil"
     };
 
     await setDoc(gamificationRef, gamificationData, { merge: true });

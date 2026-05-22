@@ -203,23 +203,46 @@ function UniversalProfileContent() {
   const culturalStatsRef = React.useMemo(() => (db && data?.id && type === 'user') ? doc(db, "cultural_stats", data.id) : null, [db, data?.id, type])
   const { data: culturalStats } = useDoc<any>(culturalStatsRef)
 
-  // Ranking Estável em Tempo Real
+  // Ranking Dinâmico por Escopo (Hierárquico)
   const xpValue = gamification?.totalXp !== undefined ? gamification.totalXp : -1;
-  const rankingQuery = useMemoFirebase(() => (db && type === 'user' && xpValue >= 0) 
-    ? query(collection(db, "user_gamification"), where("totalXp", ">", xpValue)) 
-    : null, [db, type, xpValue]);
-  
-  const { data: competitors } = useCollection<any>(rankingQuery);
-  
-  const userRank = React.useMemo(() => {
-    if (xpValue === -1) return "---";
-    return (competitors?.length || 0) + 1;
-  }, [competitors, xpValue]);
+  const userCity = gamification?.city || data?.city;
+  const userNeighborhood = gamification?.neighborhood;
+  const userState = gamification?.state || data?.state;
+  const userCountry = gamification?.country || "Brasil";
+
+  // Queries scoped para ranking
+  const qBairro = useMemoFirebase(() => (db && userNeighborhood && xpValue >= 0) ? query(collection(db, "user_gamification"), where("neighborhood", "==", userNeighborhood), where("city", "==", userCity), where("totalXp", ">", xpValue)) : null, [db, userNeighborhood, userCity, xpValue]);
+  const qCidade = useMemoFirebase(() => (db && userCity && xpValue >= 0) ? query(collection(db, "user_gamification"), where("city", "==", userCity), where("totalXp", ">", xpValue)) : null, [db, userCity, xpValue]);
+  const qEstado = useMemoFirebase(() => (db && userState && xpValue >= 0) ? query(collection(db, "user_gamification"), where("state", "==", userState), where("totalXp", ">", xpValue)) : null, [db, userState, xpValue]);
+  const qPais = useMemoFirebase(() => (db && userCountry && xpValue >= 0) ? query(collection(db, "user_gamification"), where("country", "==", userCountry), where("totalXp", ">", xpValue)) : null, [db, userCountry, xpValue]);
+  const qGlobal = useMemoFirebase(() => (db && xpValue >= 0) ? query(collection(db, "user_gamification"), where("totalXp", ">", xpValue)) : null, [db, xpValue]);
+
+  const { data: cBairro } = useCollection<any>(qBairro);
+  const { data: cCidade } = useCollection<any>(qCidade);
+  const { data: cEstado } = useCollection<any>(qEstado);
+  const { data: cPais } = useCollection<any>(qPais);
+  const { data: cGlobal } = useCollection<any>(qGlobal);
+
+  const bestRankInfo = React.useMemo(() => {
+    if (xpValue === -1) return { rank: "---", scope: "Calculando...", color: "bg-primary" };
+
+    const rB = (cBairro?.length || 0) + 1;
+    const rC = (cCidade?.length || 0) + 1;
+    const rE = (cEstado?.length || 0) + 1;
+    const rP = (cPais?.length || 0) + 1;
+    const rG = (cGlobal?.length || 0) + 1;
+
+    if (userNeighborhood && rB <= 99) return { rank: `#${rB}`, scope: `Top Bairro (${userNeighborhood})`, color: "bg-secondary" };
+    if (userCity && rC <= 99) return { rank: `#${rC}`, scope: `Top Cidade (${userCity})`, color: "bg-secondary" };
+    if (userState && rE <= 99) return { rank: `#${rE}`, scope: `Top Estado (${userState})`, color: "bg-secondary" };
+    if (userCountry && rP <= 99) return { rank: `#${rP}`, scope: `Top País (Brasil)`, color: "bg-primary" };
+    
+    return { rank: `#${rG}`, scope: "Posição Global", color: "bg-primary" };
+  }, [cBairro, cCidade, cEstado, cPais, cGlobal, userNeighborhood, userCity, userState, userCountry, xpValue]);
 
   const totalUsersQuery = useMemoFirebase(() => db ? query(collection(db, "user_gamification")) : null, [db]);
   const { data: allGamifiedUsers } = useCollection<any>(totalUsersQuery);
   const totalGamified = allGamifiedUsers?.length || 1;
-  const topPercent = typeof userRank === 'number' ? Math.round((userRank / totalGamified) * 100) : 0;
 
   const levelInfo = React.useMemo(() => {
     if (!gamification) return null;
@@ -452,11 +475,6 @@ function UniversalProfileContent() {
     }
     if (!db || !data || followActionLoading) return
 
-    if (isSelf) {
-      toast({ variant: "destructive", title: "Operação inválida", description: "Você não pode seguir seu próprio perfil pessoal." })
-      return
-    }
-
     const officialOrgId = "92aee5c9-6741-432e-9511-f5a1afbaa8db"
     if (isFollowing && data.id === officialOrgId) {
       toast({ variant: "destructive", title: "Ação bloqueada", description: "Você não pode deixar de seguir a conta oficial da Viby." })
@@ -490,7 +508,7 @@ function UniversalProfileContent() {
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na operação" })
     } finally {
-      followActionLoading && setFollowActionLoading(false)
+      setFollowActionLoading(false)
     }
   }
 
@@ -799,19 +817,19 @@ function UniversalProfileContent() {
                         <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
                            <BarChart3 className="w-4 h-4 text-secondary" /> Ranking de Presença
                         </h2>
-                        <Card className="border-none shadow-sm rounded-[2.5rem] bg-primary text-white p-8 relative overflow-hidden">
+                        <Card className={cn("border-none shadow-sm rounded-[2.5rem] text-white p-8 relative overflow-hidden transition-colors", bestRankInfo.color)}>
                            <div className="relative z-10 space-y-4">
-                              <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Posição Global</p>
+                              <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">{bestRankInfo.scope}</p>
                               <div className="flex items-baseline gap-2">
-                                 <span className="text-5xl font-black italic tracking-tighter">#{userRank}</span>
+                                 <span className="text-5xl font-black italic tracking-tighter">{bestRankInfo.rank}</span>
                                  <span className="text-[10px] font-black uppercase text-secondary">
-                                   {userRank === 1 ? 'Líder Absoluto' : `Top ${topPercent}%`} de {totalGamified} membros
+                                   {bestRankInfo.rank === '#1' ? 'Líder Absoluto' : `Membro Ativo`}
                                  </span>
                               </div>
                               <p className="text-[9px] font-medium leading-relaxed opacity-60 uppercase">
-                                {userRank === 1 
-                                  ? 'Este usuário é atualmente a maior referência da cena cultural local.' 
-                                  : 'Este usuário está entre os mais ativos da cena cultural local no último mês.'}
+                                {bestRankInfo.rank === '#1' 
+                                  ? 'Este usuário é atualmente a maior referência da cena cultural neste escopo.' 
+                                  : 'Este usuário está entre os mais ativos da cena cultural no último mês.'}
                               </p>
                            </div>
                            <Trophy className="absolute -bottom-6 -right-6 w-32 h-32 opacity-10 rotate-12" />
