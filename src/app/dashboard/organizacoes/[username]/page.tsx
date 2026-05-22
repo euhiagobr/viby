@@ -2,8 +2,8 @@
 
 import * as React from 'react';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, limit } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, query, where, limit, doc, getDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,9 @@ import {
   LayoutGrid,
   Lock,
   Eye,
-  MousePointer2
+  Calendar,
+  Clock,
+  Wallet
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/financial-utils';
@@ -39,6 +41,7 @@ export default function OrganizationDashboardPage() {
   // Permissões
   const isFinanceManager = ['owner', 'admin', 'finance'].includes(userRole || '');
 
+  // Consulta de Eventos
   const eventsQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null;
     return query(
@@ -61,6 +64,43 @@ export default function OrganizationDashboardPage() {
       .slice(0, 5);
   }, [rawEvents]);
 
+  // Consulta de Vendas (Registrations) para métricas financeiras
+  const salesQuery = useMemoFirebase(() => {
+    if (!db || !currentOrg || !isFinanceManager) return null;
+    return query(
+      collection(db, "registrations"), 
+      where("organizationId", "==", currentOrg.id)
+    );
+  }, [db, currentOrg?.id, isFinanceManager]);
+
+  const { data: sales, loading: salesLoading } = useCollection<any>(salesQuery);
+
+  const salesStats = React.useMemo(() => {
+    if (!sales) return { today: 0, month: 0 };
+    
+    const now = new Date();
+    const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+    const monthStart = new Date();
+    monthStart.setDate(now.getDate() - 30);
+
+    return sales.reduce((acc: any, sale: any) => {
+      // Apenas vendas confirmadas entram na receita líquida
+      if (!["Pago", "Disponível"].includes(sale.paymentStatus)) return acc;
+      
+      const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp);
+      const netAmount = sale.producerNetAmount || 0;
+
+      if (saleDate >= todayStart) {
+        acc.today += netAmount;
+      }
+      if (saleDate >= monthStart) {
+        acc.month += netAmount;
+      }
+      return acc;
+    }, { today: 0, month: 0 });
+  }, [sales]);
+
+  // Consulta de Membros
   const membersQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null;
     return collection(db, 'organizations', currentOrg.id, 'members');
@@ -121,7 +161,7 @@ export default function OrganizationDashboardPage() {
         <p className="text-muted-foreground font-medium">Gestão centralizada de {currentOrg.name}.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
@@ -138,54 +178,67 @@ export default function OrganizationDashboardPage() {
         <Card className="border-none shadow-sm bg-white overflow-hidden relative">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
-              Acessos (Acumulado)
+              Acessos (Total)
               <Eye className="w-4 h-4 text-secondary" />
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
             <div className="flex items-baseline gap-2">
                <span className="text-2xl font-black">{(currentOrg.totalViews || 0).toLocaleString()}</span>
-               <span className="text-[9px] font-bold text-muted-foreground uppercase">Visualizações</span>
+               <span className="text-[9px] font-bold text-muted-foreground uppercase">Views</span>
             </div>
             <div className="flex items-baseline gap-2">
                <span className="text-sm font-black text-secondary">{(currentOrg.totalReach || 0).toLocaleString()}</span>
-               <span className="text-[9px] font-bold text-muted-foreground uppercase">Alcance Único</span>
+               <span className="text-[9px] font-bold text-muted-foreground uppercase">Únicos</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white">
+        {/* RECEITA HOJE */}
+        <Card className="border-none shadow-sm bg-white border-l-4 border-green-500">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
-              Equipe
-              <Users className="w-4 h-4 text-secondary" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black">{members?.filter(m => m.status === 'accepted' || !m.status).length || 0}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-white">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
-              Receita Total (Líquida)
-              <DollarSign className="w-4 h-4 text-green-500" />
+              Receita Hoje
+              <Clock className="w-4 h-4 text-green-500" />
             </CardTitle>
           </CardHeader>
           <CardContent>
             {isFinanceManager ? (
-              <div className="text-2xl font-black text-green-600">{formatCurrency(0)}</div>
+              salesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                <div className="text-2xl font-black text-green-600">{formatCurrency(salesStats.today)}</div>
+              )
             ) : (
               <div className="flex items-center gap-2 text-muted-foreground bg-muted/50 p-2 rounded-lg">
-                <Lock className="w-4 h-4" />
-                <span className="text-[10px] font-black uppercase tracking-tight">Acesso Restrito</span>
+                <Lock className="w-4 h-4 shrink-0" />
+                <span className="text-[10px] font-black uppercase tracking-tight">Restrito</span>
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-secondary text-white lg:col-span-2 xl:col-span-1">
+        {/* RECEITA 30 DIAS */}
+        <Card className="border-none shadow-sm bg-white border-l-4 border-primary">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
+              Receita (30d)
+              <TrendingUp className="w-4 h-4 text-primary" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isFinanceManager ? (
+              salesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                <div className="text-2xl font-black text-primary">{formatCurrency(salesStats.month)}</div>
+              )
+            ) : (
+              <div className="flex items-center gap-2 text-muted-foreground bg-muted/50 p-2 rounded-lg">
+                <Lock className="w-4 h-4 shrink-0" />
+                <span className="text-[10px] font-black uppercase tracking-tight">Restrito</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm bg-secondary text-white">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest flex justify-between">
               Meu Cargo
@@ -216,7 +269,7 @@ export default function OrganizationDashboardPage() {
                <div className="divide-y">
                  {events.map((event: any) => {
                    const dateValue = event.startDate || event.date;
-                   const formattedDate = dateValue ? new Date(dateValue).toLocaleDateString('pt-BR') : 'Sem data';
+                   const formattedDate = dateValue ? (dateValue.toDate ? dateValue.toDate().toLocaleDateString('pt-BR') : new Date(dateValue).toLocaleDateString('pt-BR')) : 'Sem data';
                    
                    return (
                      <div key={event.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
@@ -264,7 +317,7 @@ export default function OrganizationDashboardPage() {
                      )}
                   </div>
                   <Button asChild className="bg-secondary text-white font-black uppercase text-[10px] italic h-10 px-6 rounded-xl hover:scale-105 transition-transform shadow-xl">
-                    <Link href="/dashboard/anuncios">Impulsionar</Link>
+                    <Link href={`/dashboard/organizacoes/${currentOrg.username}/anuncios`}>Impulsionar</Link>
                   </Button>
                </div>
             </div>
