@@ -34,7 +34,7 @@ import { createCheckoutSession } from "@/app/actions/stripe"
 import { toast } from "@/hooks/use-toast"
 import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, limit, getDoc } from "firebase/firestore"
 import { generateUniqueTicketCode } from "@/lib/ticket-utils"
-import { sendCartPendingEmail } from "@/app/actions/email"
+import { sendCartPendingEmail, sendTicketEmail } from "@/app/actions/email"
 import { cn } from "@/lib/utils"
 
 export default function CarrinhoPage() {
@@ -144,6 +144,8 @@ export default function CarrinhoPage() {
       const totalQtyEligible = items.reduce((acc, i) => acc + (appliedCoupon && i.eventId === appliedCoupon.eventId ? i.quantity : 0), 0);
       const discountPerUnit = totalQtyEligible > 0 ? (cartTotals.discount / totalQtyEligible) : 0;
 
+      const isFreeOrder = cartTotals.total <= 0;
+
       for (const item of items) {
         const isEligibleForDiscount = appliedCoupon && item.eventId === appliedCoupon.eventId;
         const currentItemDiscount = isEligibleForDiscount ? discountPerUnit : 0;
@@ -181,7 +183,8 @@ export default function CarrinhoPage() {
             couponId: isEligibleForDiscount ? appliedCoupon.id : null,
             quantity: 1,
             checkedIn: false,
-            paymentStatus: "Pendente",
+            paymentStatus: isFreeOrder ? "Disponível" : "Pendente",
+            confirmedAt: isFreeOrder ? serverTimestamp() : null,
             ticketCode,
             status: "Ativo",
             createdAt: serverTimestamp(),
@@ -189,43 +192,70 @@ export default function CarrinhoPage() {
           };
           const docRef = await addDoc(collection(db, "registrations"), regData);
           registrationIds.push(docRef.id);
+
+          if (isFreeOrder) {
+            // Disparar e-mail para ingresso gratuito imediatamente
+            const eventDate = item.eventDate?.toDate ? item.eventDate.toDate().toLocaleString('pt-BR') : new Date(item.eventDate).toLocaleString('pt-BR');
+            await sendTicketEmail({
+              to: user.email!,
+              userName: user.displayName || "Participante",
+              eventTitle: item.eventTitle,
+              ticketCode: ticketCode,
+              eventDate: eventDate,
+              eventCity: item.eventCity || "Local Confirmado",
+              voucherUrl: `https://viby.club/dashboard/ingressos/${docRef.id}/voucher`,
+              eventUrl: `https://viby.club/${item.organizerUsername || 'evento'}/${item.eventId}`,
+              ticketPrice: 0,
+              feePrice: 0,
+              totalPrice: 0,
+              isFree: true
+            });
+          }
         }
 
-        lineItems.push({
-          price_data: {
-            currency: 'brl',
-            product_data: {
-              name: `${item.eventTitle} - ${item.ticketTypeName}`,
-              description: `Voucher individual`,
-              images: (item.eventImage && item.eventImage.startsWith('http')) ? [item.eventImage] : [],
+        if (!isFreeOrder) {
+          lineItems.push({
+            price_data: {
+              currency: 'brl',
+              product_data: {
+                name: `${item.eventTitle} - ${item.ticketTypeName}`,
+                description: `Voucher individual`,
+                images: (item.eventImage && item.eventImage.startsWith('http')) ? [item.eventImage] : [],
+              },
+              unit_amount: Math.round(breakdown.customerFinalPrice * 100),
             },
-            unit_amount: Math.round(breakdown.customerFinalPrice * 100),
-          },
-          quantity: item.quantity,
-        });
+            quantity: item.quantity,
+          });
+        }
       }
 
-      await sendCartPendingEmail({
-        to: user.email!, userName: user.displayName || "Usuário",
-        items: items, totalAmount: cartTotals.total, siteName: settings?.siteName || "Viby Club"
-      });
+      if (isFreeOrder) {
+        clearCart();
+        toast({ title: "Reserva confirmada!", description: "Seus ingressos gratuitos já estão disponíveis no seu painel." });
+        router.push("/dashboard/ingressos");
+      } else {
+        await sendCartPendingEmail({
+          to: user.email!, userName: user.displayName || "Usuário",
+          items: items, totalAmount: cartTotals.total, siteName: settings?.siteName || "Viby Club"
+        });
 
-      const { url } = await createCheckoutSession({
-        eventId: "multiple", eventTitle: "Ingressos Viby Club", eventImage: "",
-        userId: user.uid, userName: user.displayName || "Usuário", userEmail: user.email!,
-        totalAmount: Math.round(cartTotals.total * 100),
-        metadata: { 
-          type: "cart_checkout",
-          registrationIds: registrationIds.join(","),
-          userId: user.uid,
-          couponId: appliedCoupon?.id || null
+        const { url } = await createCheckoutSession({
+          eventId: "multiple", eventTitle: "Ingressos Viby Club", eventImage: "",
+          userId: user.uid, userName: user.displayName || "Usuário", userEmail: user.email!,
+          totalAmount: Math.round(cartTotals.total * 100),
+          metadata: { 
+            type: "cart_checkout",
+            registrationIds: registrationIds.join(","),
+            userId: user.uid,
+            couponId: appliedCoupon?.id || null
+          }
+        });
+
+        if (url) { 
+          window.open(url, '_blank'); 
+          setIsWaitingPayment(true); 
+          setProcessing(false);
         }
-      });
-
-      if (url) { 
-        window.open(url, '_blank'); 
-        setIsWaitingPayment(true); 
-        setProcessing(false);
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro", description: e.message });
