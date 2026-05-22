@@ -232,13 +232,11 @@ function UniversalProfileContent() {
       const monthKey = `${today.getFullYear()}_${String(today.getMonth() + 1).padStart(2, '0')}`;
 
       try {
-        // Incrementa visualização (total e mensal)
         await updateDoc(orgRef, {
           totalViews: increment(1),
           metrics_views_current: increment(1)
         });
 
-        // Alcance Único (Baseado em usuários logados para precisão do protótipo)
         if (user) {
           const visitorKey = `${user.uid}_${monthKey}`;
           const visitorRef = doc(db, 'organizations', data.id, 'visitors', visitorKey);
@@ -257,7 +255,7 @@ function UniversalProfileContent() {
           }
         }
       } catch (e) {
-        // Falha silenciosa em caso de erro de cota ou rede
+        // Falha silenciosa
       }
     };
 
@@ -271,7 +269,6 @@ function UniversalProfileContent() {
     const fetchAllEvents = async () => {
       setEventsLoading(true)
       try {
-        // 1. Eventos produzidos pela marca
         const qOwned = query(collection(db, "events"), where("organizationId", "==", data.id))
         const snapOwned = await getDocs(qOwned)
         setOwnedEvents(snapOwned.docs
@@ -279,7 +276,6 @@ function UniversalProfileContent() {
           .filter(e => e.status === 'Ativo')
         )
 
-        // 2. Eventos co-produzidos (aceitos)
         try {
           const qPartnered = query(collectionGroup(db, 'partners'), where('orgId', '==', data.id), where('status', '==', 'accepted'))
           const snapPartnered = await getDocs(qPartnered)
@@ -440,10 +436,12 @@ function UniversalProfileContent() {
                    </div>
 
                    <div className="flex justify-center md:justify-start gap-8">
-                      <div className="flex flex-col items-center">
-                         <span className="font-bold text-lg">{ownedEvents.length}</span>
-                         <span className="text-xs text-muted-foreground uppercase font-black tracking-widest">Eventos</span>
-                      </div>
+                      {isOrg && (
+                        <div className="flex flex-col items-center">
+                           <span className="font-bold text-lg">{ownedEvents.length}</span>
+                           <span className="text-xs text-muted-foreground uppercase font-black tracking-widest">Eventos</span>
+                        </div>
+                      )}
                       <div className="flex flex-col items-center">
                          <span className="font-bold text-lg">{followersList?.length || 0}</span>
                          <span className="text-xs text-muted-foreground uppercase font-black tracking-widest">Seguidores</span>
@@ -472,84 +470,84 @@ function UniversalProfileContent() {
                 </div>
              </div>
 
-             <Tabs defaultValue="events" className="w-full">
-                <div className="flex justify-center border-b mb-8">
-                  <TabsList className="bg-transparent h-auto p-0 gap-8">
-                    <TabsTrigger 
-                      value="events" 
-                      className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-4 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
-                    >
-                      <Grid className="w-3.5 h-3.5" /> {isOrg ? 'Eventos' : 'Publicações'}
-                    </TabsTrigger>
-                    {isOrg && (
+             {isOrg && (
+               <Tabs defaultValue="events" className="w-full">
+                  <div className="flex justify-center border-b mb-8">
+                    <TabsList className="bg-transparent h-auto p-0 gap-8">
+                      <TabsTrigger 
+                        value="events" 
+                        className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-4 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
+                      >
+                        <Grid className="w-3.5 h-3.5" /> Eventos
+                      </TabsTrigger>
                       <TabsTrigger 
                         value="partnerships" 
                         className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-4 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
                       >
                         <Handshake className="w-3.5 h-3.5" /> Eventos e Parcerias
                       </TabsTrigger>
-                    )}
-                    <TabsTrigger 
-                      value="about" 
-                      className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-4 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
-                    >
-                      <Info className="w-3.5 h-3.5" /> Sobre
-                    </TabsTrigger>
-                  </TabsList>
-                </div>
+                      <TabsTrigger 
+                        value="about" 
+                        className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-4 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"
+                      >
+                        <Info className="w-3.5 h-3.5" /> Sobre
+                      </TabsTrigger>
+                    </TabsList>
+                  </div>
 
-                <TabsContent value="events" className="animate-in fade-in duration-500">
-                   {eventsLoading ? (
-                     <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
-                   ) : ownedEvents.length > 0 ? (
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {ownedEvents.map(e => <EventCard key={e.id} event={e} />)}
+                  <TabsContent value="events" className="animate-in fade-in duration-500">
+                     {eventsLoading ? (
+                       <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+                     ) : ownedEvents.length > 0 ? (
+                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {ownedEvents.map(e => <EventCard key={e.id} event={e} />)}
+                       </div>
+                     ) : <NoContentPlaceholder message="Nenhum evento produzido no momento." />}
+                  </TabsContent>
+
+                  <TabsContent value="partnerships" className="animate-in fade-in duration-500">
+                     {eventsLoading ? (
+                       <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+                     ) : partneredEvents.length > 0 ? (
+                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {partneredEvents.map(e => <EventCard key={e.id} event={e} />)}
+                       </div>
+                     ) : <NoContentPlaceholder message="Nenhuma parceria ativa no momento." />}
+                  </TabsContent>
+
+                  <TabsContent value="about" className="animate-in fade-in duration-500">
+                     <div className="max-w-2xl mx-auto space-y-10">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-8 rounded-3xl shadow-sm border">
+                           <div className="space-y-6">
+                              <div className="space-y-1">
+                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Razão Social</p>
+                                 <p className="font-bold text-sm">{data.legalName || "Não informada"}</p>
+                              </div>
+                              <div className="space-y-1">
+                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Documento (CNPJ)</p>
+                                 <p className="font-mono text-sm">{data.cnpj || "---"}</p>
+                              </div>
+                           </div>
+                           <div className="space-y-6">
+                              <div className="space-y-1">
+                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Segmento</p>
+                                 <Badge variant="outline" className="bg-secondary/10 text-secondary border-none uppercase text-[10px] font-black">{data.type || "Marca"}</Badge>
+                              </div>
+                              <div className="space-y-1">
+                                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Localidade</p>
+                                 <p className="font-bold text-sm">{data.city ? `${data.city}, ${data.state}` : "Localização Global"}</p>
+                              </div>
+                           </div>
+                        </div>
+                        
+                        <div className="bg-muted/30 p-8 rounded-3xl border border-dashed">
+                           <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-4">Sobre a {displayName}</p>
+                           <p className="text-sm leading-relaxed whitespace-pre-line text-foreground/80">{data.bio || "Nenhuma descrição adicional informada."}</p>
+                        </div>
                      </div>
-                   ) : <NoContentPlaceholder message="Nenhum evento produzido no momento." />}
-                </TabsContent>
-
-                <TabsContent value="partnerships" className="animate-in fade-in duration-500">
-                   {eventsLoading ? (
-                     <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
-                   ) : partneredEvents.length > 0 ? (
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {partneredEvents.map(e => <EventCard key={e.id} event={e} />)}
-                     </div>
-                   ) : <NoContentPlaceholder message="Nenhuma parceria ativa no momento." />}
-                </TabsContent>
-
-                <TabsContent value="about" className="animate-in fade-in duration-500">
-                   <div className="max-w-2xl mx-auto space-y-10">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white p-8 rounded-3xl shadow-sm border">
-                         <div className="space-y-6">
-                            <div className="space-y-1">
-                               <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Razão Social</p>
-                               <p className="font-bold text-sm">{data.legalName || "Não informada"}</p>
-                            </div>
-                            <div className="space-y-1">
-                               <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Documento (CNPJ)</p>
-                               <p className="font-mono text-sm">{data.cnpj || "---"}</p>
-                            </div>
-                         </div>
-                         <div className="space-y-6">
-                            <div className="space-y-1">
-                               <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Segmento</p>
-                               <Badge variant="outline" className="bg-secondary/10 text-secondary border-none uppercase text-[10px] font-black">{data.type || "Marca"}</Badge>
-                            </div>
-                            <div className="space-y-1">
-                               <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Localidade</p>
-                               <p className="font-bold text-sm">{data.city ? `${data.city}, ${data.state}` : "Localização Global"}</p>
-                            </div>
-                         </div>
-                      </div>
-                      
-                      <div className="bg-muted/30 p-8 rounded-3xl border border-dashed">
-                         <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-4">Sobre a {displayName}</p>
-                         <p className="text-sm leading-relaxed whitespace-pre-line text-foreground/80">{data.bio || "Nenhuma descrição adicional informada."}</p>
-                      </div>
-                   </div>
-                </TabsContent>
-             </Tabs>
+                  </TabsContent>
+               </Tabs>
+             )}
           </div>
        </div>
     </div>
