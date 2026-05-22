@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -36,7 +37,8 @@ import {
   Check,
   Handshake,
   Info,
-  BadgeCheck
+  BadgeCheck,
+  Phone
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -378,16 +380,20 @@ function UniversalProfileContent() {
 
   return (
     <div className="flex-1">
-       {isOrg && data.banner && (
+       {isOrg && (
          <div className="h-48 md:h-64 w-full relative overflow-hidden border-b border-border shadow-sm">
-            <img src={data.banner} className="w-full h-full object-cover" alt="Banner" />
+            {data.banner ? (
+              <img src={data.banner} className="w-full h-full object-cover" alt="Banner" />
+            ) : (
+              <div className="w-full h-full bg-muted/30" />
+            )}
             <div className="absolute inset-0 bg-black/10" />
          </div>
        )}
 
        <div className={cn(
          "container mx-auto px-4 pb-20",
-         isOrg && data.banner ? "-mt-12 relative z-10" : "pt-12 md:pt-20"
+         isOrg ? "-mt-12 relative z-10" : "pt-12 md:pt-20"
        )}>
           <div className="max-w-4xl mx-auto">
              <div className="flex flex-col md:flex-row gap-8 items-center md:items-start mb-12 backdrop-blur-xl bg-white/40 p-8 rounded-[3rem] border border-white/50 shadow-xl">
@@ -454,13 +460,22 @@ function UniversalProfileContent() {
                              <Instagram className="w-3.5 h-3.5 text-pink-500" /> @{data.instagram.replace(/^@/, '')}
                            </a>
                          )}
+                         {(data.phone || data.whatsapp) && (
+                           <a 
+                             href={`https://wa.me/${(data.phone || data.whatsapp).replace(/\D/g, '')}`} 
+                             target="_blank" 
+                             className="text-[11px] font-black uppercase flex items-center gap-1.5"
+                           >
+                             <Phone className="w-3.5 h-3.5 text-green-500" /> WhatsApp
+                           </a>
+                         )}
                          {data.city && <div className="text-[11px] font-black uppercase text-muted-foreground flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-secondary" /> {data.city}, {data.state}</div>}
                       </div>
                    </div>
                 </div>
              </div>
 
-             {isOrg ? (
+             {isOrg && (
                <Tabs defaultValue="events" className="w-full">
                   <div className="flex justify-center border-b mb-8 bg-white/40 backdrop-blur-md rounded-2xl p-1">
                     <TabsList className="bg-transparent h-auto p-0 gap-8">
@@ -537,7 +552,9 @@ function UniversalProfileContent() {
                      </div>
                   </TabsContent>
                </Tabs>
-             ) : (
+             )}
+
+             {!isOrg && (
                 <div className="max-w-2xl mx-auto mt-12 bg-white/40 backdrop-blur-md p-8 rounded-[3rem] border border-white/50 text-center">
                    <p className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground mb-4 opacity-40">Presença no Viby</p>
                    <div className="flex justify-center gap-12">
