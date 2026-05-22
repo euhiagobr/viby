@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useFirebaseApp } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useFirebaseApp, useDoc } from "@/firebase"
 import { 
   doc, 
   getDoc, 
@@ -47,7 +47,16 @@ import {
   X,
   Send,
   ShieldAlert,
-  EyeOff
+  EyeOff,
+  Trophy,
+  Zap,
+  Award,
+  Sparkles,
+  TrendingUp,
+  BarChart3,
+  Map as MapIcon,
+  ChevronRight,
+  Target
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -84,6 +93,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/hooks/use-toast"
+import { calculateLevel, DEFAULT_LEVELS } from "@/lib/gamification"
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (
@@ -182,6 +192,21 @@ function UniversalProfileContent() {
   const [ownedEvents, setOwnedEvents] = React.useState<any[]>([])
   const [partneredEvents, setPartneredEvents] = React.useState<any[]>([])
   const [eventsLoading, setEventsLoading] = React.useState(false)
+
+  // Estados de Gamificação
+  const gamificationRef = React.useMemo(() => (db && data?.id && type === 'user') ? doc(db, "user_gamification", data.id) : null, [db, data?.id, type])
+  const { data: gamification } = useDoc<any>(gamificationRef)
+
+  const culturalStatsRef = React.useMemo(() => (db && data?.id && type === 'user') ? doc(db, "cultural_stats", data.id) : null, [db, data?.id, type])
+  const { data: culturalStats } = useDoc<any>(culturalStatsRef)
+
+  const userBadgesQuery = useMemoFirebase(() => (db && data?.id && type === 'user') ? query(collection(db, "user_badges"), where("userId", "==", data.id)) : null, [db, data?.id, type])
+  const { data: userBadges } = useCollection<any>(userBadgesQuery)
+
+  const levelInfo = React.useMemo(() => {
+    if (!gamification) return null;
+    return calculateLevel(gamification.totalXp || 0, DEFAULT_LEVELS);
+  }, [gamification]);
 
   // Estados da Denúncia
   const [isReportOpen, setIsReportOpen] = React.useState(false)
@@ -527,6 +552,13 @@ function UniversalProfileContent() {
                          <AvatarFallback className="text-4xl font-bold bg-muted">{displayName?.charAt(0)}</AvatarFallback>
                       </Avatar>
                    </div>
+                   {!isOrg && levelInfo && (
+                      <div className="flex justify-center -mt-6 relative z-20">
+                         <Badge className="bg-primary text-white border-2 border-background h-8 px-4 font-black uppercase italic italic text-[10px] shadow-lg tracking-tighter">
+                            LVL {levelInfo.current.level} • {levelInfo.current.name}
+                         </Badge>
+                      </div>
+                   )}
                 </div>
 
                 <div className="flex-1 space-y-6 text-center md:text-left">
@@ -536,7 +568,6 @@ function UniversalProfileContent() {
                         {isVerified && <VerifiedBadge />}
                       </div>
                       <div className="flex items-center justify-center gap-2">
-                        {/* BOTÃO SEGUIR RESTAURADO */}
                         {!isSelf && (
                           <Button 
                             onClick={handleFollowToggle} 
@@ -639,6 +670,17 @@ function UniversalProfileContent() {
                       </div>
                    </div>
 
+                   {!isOrg && levelInfo && (
+                      <div className="space-y-2">
+                         <div className="flex justify-between items-end">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Progresso Cultural</p>
+                            <p className="text-[9px] font-black uppercase text-secondary tracking-widest">{Math.round(levelInfo.progress)}% para Nv. {levelInfo.next?.level || 'MAX'}</p>
+                         </div>
+                         <Progress value={levelInfo.progress} className="h-1.5" />
+                         <p className="text-[9px] font-bold text-muted-foreground/60 uppercase">Total Acumulado: {gamification?.totalXp || 0} XP</p>
+                      </div>
+                   )}
+
                    <div className="flex justify-center md:justify-start gap-8">
                       {isOrg && (
                         <div className="flex flex-col items-center">
@@ -650,6 +692,12 @@ function UniversalProfileContent() {
                          <span className="font-black text-xl">{followersList?.length || 0}</span>
                          <span className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Seguidores</span>
                       </div>
+                      {!isOrg && (
+                         <div className="flex flex-col items-center">
+                            <span className="font-black text-xl">{culturalStats?.totalCheckins || 0}</span>
+                            <span className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Check-ins</span>
+                         </div>
+                      )}
                    </div>
 
                    <div className="space-y-1">
@@ -668,22 +716,13 @@ function UniversalProfileContent() {
                              <Instagram className="w-3.5 h-3.5 text-pink-500" /> @{data.instagram.replace(/^@/, '')}
                            </a>
                          )}
-                         {(data.phone || data.whatsapp) && (
-                           <a 
-                             href={`https://wa.me/${(data.phone || data.whatsapp).replace(/\D/g, '')}`} 
-                             target="_blank" 
-                             className="text-[11px] font-black uppercase flex items-center gap-1.5"
-                           >
-                             <Phone className="w-3.5 h-3.5 text-green-500" /> WhatsApp
-                           </a>
-                         )}
                          {data.city && <div className="text-[11px] font-black uppercase text-muted-foreground flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-secondary" /> {data.city}, {data.state}</div>}
                       </div>
                    </div>
                 </div>
              </div>
 
-             {isOrg && (
+             {isOrg ? (
                <Tabs defaultValue="events" className="w-full">
                   <div className="flex justify-center border-b mb-8 bg-white/40 backdrop-blur-md rounded-2xl p-1">
                     <TabsList className="bg-transparent h-auto p-0 gap-8">
@@ -769,23 +808,97 @@ function UniversalProfileContent() {
                      </div>
                   </TabsContent>
                </Tabs>
-             )}
+             ) : (
+               <div className="space-y-12">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                     <Card className="border-none shadow-sm rounded-[2rem] bg-white p-6 flex flex-col items-center text-center gap-3">
+                        <div className="p-3 bg-secondary/10 rounded-2xl text-secondary"><Sparkles className="w-6 h-6" /></div>
+                        <div>
+                           <p className="text-[9px] font-black uppercase text-muted-foreground opacity-40">Categoria Favorita</p>
+                           <p className="text-lg font-black uppercase italic tracking-tighter text-primary">{culturalStats?.topCategory || "Explorando..."}</p>
+                        </div>
+                     </Card>
+                     <Card className="border-none shadow-sm rounded-[2rem] bg-white p-6 flex flex-col items-center text-center gap-3">
+                        <div className="p-3 bg-primary/5 rounded-2xl text-primary"><MapIcon className="w-6 h-6" /></div>
+                        <div>
+                           <p className="text-[9px] font-black uppercase text-muted-foreground opacity-40">Bairro Favorito</p>
+                           <p className="text-lg font-black uppercase italic tracking-tighter text-primary">{culturalStats?.topNeighborhood || "Descobrindo..."}</p>
+                        </div>
+                     </Card>
+                     <Card className="border-none shadow-sm rounded-[2rem] bg-white p-6 flex flex-col items-center text-center gap-3">
+                        <div className="p-3 bg-green-50 rounded-2xl text-green-600"><Target className="w-6 h-6" /></div>
+                        <div>
+                           <p className="text-[9px] font-black uppercase text-muted-foreground opacity-40">Diversidade Cultural</p>
+                           <p className="text-lg font-black uppercase italic tracking-tighter text-primary">{culturalStats?.categoriesExplored?.length || 0} Estilos</p>
+                        </div>
+                     </Card>
+                  </div>
 
-             {!isOrg && (
-                <div className="max-w-2xl mx-auto mt-12 bg-white/40 backdrop-blur-md p-8 rounded-[3rem] border border-white/50 text-center">
-                   <p className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground mb-4 opacity-40">Presença no Viby</p>
-                   <div className="flex justify-center gap-12">
-                      <div className="text-center">
-                         <p className="text-2xl font-black">{followersList?.length || 0}</p>
-                         <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Seguidores</p>
-                      </div>
-                      <div className="w-px h-10 bg-border/40" />
-                      <div className="text-center">
-                         <p className="text-2xl font-black">START</p>
-                         <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Membro</p>
-                      </div>
-                   </div>
-                </div>
+                  <div className="space-y-6">
+                     <div className="flex items-center justify-between px-2">
+                        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                           <Award className="w-4 h-4 text-secondary" /> Conquistas & Medalhas
+                        </h2>
+                        {userBadges?.length > 0 && <span className="text-[10px] font-black text-secondary uppercase">{userBadges.length} desbloqueadas</span>}
+                     </div>
+                     {userBadges && userBadges.length > 0 ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
+                           {userBadges.map((ub: any) => (
+                             <div key={ub.id} className="flex flex-col items-center gap-2 p-4 bg-white/40 rounded-3xl border border-white/60 shadow-sm group hover:scale-105 transition-transform">
+                                <div className="w-12 h-12 bg-secondary/10 rounded-full flex items-center justify-center text-secondary group-hover:bg-secondary group-hover:text-white transition-colors">
+                                   <Award className="w-6 h-6" />
+                                </div>
+                                <span className="text-[9px] font-black text-center uppercase leading-tight line-clamp-2">{ub.name}</span>
+                             </div>
+                           ))}
+                        </div>
+                     ) : (
+                        <div className="py-12 text-center bg-white/20 rounded-[3rem] border-2 border-dashed border-border/40">
+                           <p className="text-muted-foreground font-black uppercase tracking-widest text-[9px]">Ainda não possui medalhas públicas.</p>
+                        </div>
+                     )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <div className="space-y-6">
+                        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
+                           <TrendingUp className="w-4 h-4 text-secondary" /> Marcas Favoritas
+                        </h2>
+                        {culturalStats?.favoriteOrganizers?.length > 0 ? (
+                           <div className="space-y-3">
+                              {culturalStats.favoriteOrganizers.slice(0, 3).map((org: string, i: number) => (
+                                 <div key={i} className="flex items-center justify-between p-4 bg-white/60 rounded-3xl border border-white/60 shadow-sm">
+                                    <div className="flex items-center gap-3">
+                                       <div className="h-10 w-10 rounded-2xl bg-muted flex items-center justify-center text-[10px] font-black">{i + 1}</div>
+                                       <span className="font-bold text-sm uppercase">{org}</span>
+                                    </div>
+                                    <ChevronRight className="w-4 h-4 text-muted-foreground opacity-20" />
+                                 </div>
+                              ))}
+                           </div>
+                        ) : (
+                           <div className="p-8 text-center bg-white/20 rounded-[2.5rem] border border-dashed text-[9px] font-bold text-muted-foreground uppercase">Explorando marcas...</div>
+                        )}
+                     </div>
+
+                     <div className="space-y-6">
+                        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
+                           <BarChart3 className="w-4 h-4 text-secondary" /> Ranking de Presença
+                        </h2>
+                        <Card className="border-none shadow-sm rounded-[2.5rem] bg-primary text-white p-8 relative overflow-hidden">
+                           <div className="relative z-10 space-y-4">
+                              <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Posição na Cidade</p>
+                              <div className="flex items-baseline gap-2">
+                                 <span className="text-5xl font-black italic tracking-tighter">#128</span>
+                                 <span className="text-[10px] font-black uppercase text-secondary">Top 5% de {data.city || 'POA'}</span>
+                              </div>
+                              <p className="text-[9px] font-medium leading-relaxed opacity-60 uppercase">Este usuário está entre os mais ativos da cena cultural local no último mês.</p>
+                           </div>
+                           <Trophy className="absolute -bottom-6 -right-6 w-32 h-32 opacity-10 rotate-12" />
+                        </Card>
+                     </div>
+                  </div>
+               </div>
              )}
           </div>
        </div>

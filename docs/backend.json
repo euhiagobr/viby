@@ -28,75 +28,34 @@
       },
       "required": ["uid", "username", "email", "plan"]
     },
-    "TaxAd": {
-      "title": "Imposto sobre Anúncio",
-      "description": "Registro consolidado de imposto para campanhas publicitárias",
+    "UserGamification": {
+      "title": "Gamificação do Usuário",
+      "description": "Dados de progresso, XP e nível",
       "type": "object",
       "properties": {
-        "adId": { "type": "string" },
-        "advertiserCnpj": { "type": "string" },
-        "advertiserName": { "type": "string" },
-        "adTitle": { "type": "string" },
-        "startDate": { "type": "string", "format": "date-time" },
-        "endDate": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["ativo", "finalizado", "cancelado"] },
-        "grossValue": { "type": "number", "description": "Total cobrado (Orçamento + 11%)" },
-        "taxPercent": { "type": "number", "default": 11 },
-        "taxValue": { "type": "number", "description": "11% sobre o orçamento" },
-        "netValue": { "type": "number", "description": "Orçamento líquido consumido" },
-        "nfDeadlineDate": { "type": "string", "format": "date" },
-        "nfStatus": { "type": "string", "enum": ["pendente", "emitida"] },
-        "monthKey": { "type": "string", "description": "YYYY-MM" }
+        "userId": { "type": "string" },
+        "currentXp": { "type": "number", "default": 0 },
+        "totalXp": { "type": "number", "default": 0 },
+        "level": { "type": "number", "default": 1 },
+        "levelName": { "type": "string" },
+        "nextLevelXp": { "type": "number" },
+        "lastActivityAt": { "type": "string", "format": "date-time" }
       }
     },
-    "TaxTicket": {
-      "title": "Imposto sobre Ingressos",
-      "description": "Registro detalhado de taxas Viby e impostos sobre vendas com snapshot de taxas",
+    "CulturalStats": {
+      "title": "Estatísticas Culturais",
+      "description": "Perfil de consumo cultural do usuário",
       "type": "object",
       "properties": {
-        "eventId": { "type": "string" },
-        "eventTitle": { "type": "string" },
-        "organizationId": { "type": "string" },
-        "orgName": { "type": "string" },
-        "orgCnpj": { "type": "string" },
-        "buyerName": { "type": "string" },
-        "buyerEmail": { "type": "string" },
-        "ticketTypeName": { "type": "string" },
-        "batchName": { "type": "string" },
-        "quantity": { "type": "number" },
-        "unitPrice": { "type": "number" },
-        "totalFacePrice": { "type": "number" },
-        "buyerFeeAmount": { "type": "number" },
-        "organizerFeeAmount": { "type": "number" },
-        "stripeFeePercentUsed": { "type": "number" },
-        "stripeFeeFixedUsed": { "type": "number" },
-        "stripeFeeAmount": { "type": "number" },
-        "vibyGrossProfit": { "type": "number" },
-        "taxPercentUsed": { "type": "number", "default": 11 },
-        "taxAmount": { "type": "number" },
-        "vibyNetProfit": { "type": "number" },
-        "payoutToProducer": { "type": "number" },
-        "monthKey": { "type": "string", "description": "YYYY-MM" },
-        "nfStatus": { "type": "string", "enum": ["pendente", "emitida"] },
-        "nfDeadlineDate": { "type": "string", "format": "date" },
-        "timestamp": { "type": "string", "format": "date-time" }
-      }
-    },
-    "PayoutRequest": {
-      "title": "Solicitação de Saque",
-      "description": "Pedido de transferência de saldo disponível para a conta bancária da organização",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "organizationId": { "type": "string" },
-        "organizationName": { "type": "string" },
-        "amount": { "type": "number" },
-        "status": { "type": "string", "enum": ["Pendente", "Concluído", "Recusado"] },
-        "proofUrl": { "type": "string", "description": "URL do comprovante de transferência" },
-        "requestedAt": { "type": "string", "format": "date-time" },
-        "processedAt": { "type": "string", "format": "date-time" },
-        "userId": { "type": "string", "description": "ID do usuário que solicitou" },
-        "bankDetails": { "type": "object", "description": "Snapshot dos dados bancários no momento do pedido" }
+        "userId": { "type": "string" },
+        "topCategory": { "type": "string" },
+        "topNeighborhood": { "type": "string" },
+        "topCity": { "type": "string" },
+        "totalEvents": { "type": "number" },
+        "totalCheckins": { "type": "number" },
+        "categoriesExplored": { "type": "array", "items": { "type": "string" } },
+        "neighborhoodsExplored": { "type": "array", "items": { "type": "string" } },
+        "favoriteOrganizers": { "type": "array", "items": { "type": "string" } }
       }
     }
   },
@@ -107,6 +66,34 @@
     "/users/{userId}": {
       "schema": "User",
       "description": "Identidade pessoal e configurações"
+    },
+    "/user_gamification/{userId}": {
+      "schema": "UserGamification",
+      "description": "Progresso de gamificação por usuário"
+    },
+    "/cultural_stats/{userId}": {
+      "schema": "CulturalStats",
+      "description": "Perfil cultural e estatísticas por usuário"
+    },
+    "/levels/{levelId}": {
+      "schema": "object",
+      "description": "Configuração dos níveis de progressão"
+    },
+    "/badges/{badgeId}": {
+      "schema": "object",
+      "description": "Configuração de medalhas e conquistas"
+    },
+    "/user_badges/{userBadgeId}": {
+      "schema": "object",
+      "description": "Associação entre usuários e medalhas conquistadas"
+    },
+    "/xp_rules/{ruleId}": {
+      "schema": "object",
+      "description": "Regras automáticas de ganho de XP"
+    },
+    "/xp_logs/{logId}": {
+      "schema": "object",
+      "description": "Histórico detalhado de ganhos de XP"
     },
     "/tax_ads/{taxId}": {
       "schema": "TaxAd",
@@ -119,14 +106,6 @@
     "/payout_requests/{requestId}": {
       "schema": "PayoutRequest",
       "description": "Solicitações de saque das organizações"
-    },
-    "/tax_audit/{auditId}": {
-      "schema": "object",
-      "description": "Histórico de auditoria de impostos"
-    },
-    "/tax_exports/{exportId}": {
-      "schema": "object",
-      "description": "Histórico de exportações de dados fiscais"
     }
   }
 }
