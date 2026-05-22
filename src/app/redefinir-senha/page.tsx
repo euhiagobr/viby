@@ -14,6 +14,7 @@ import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import Image from "next/image"
 import { requestPasswordReset } from "@/app/actions/auth"
+import { cn } from "@/lib/utils"
 
 export default function RedefinirSenhaPage() {
   const [step, setStep] = useState<'request' | 'success' | 'error'>('request')
