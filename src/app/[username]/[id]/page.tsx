@@ -4,7 +4,7 @@
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, collection, query, where, getDocs } from "firebase/firestore"
+import { doc, collection, query, where } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,7 +28,8 @@ import {
   Map as MapIcon,
   Navigation,
   Users,
-  EyeOff
+  EyeOff,
+  TicketX
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -73,11 +74,17 @@ export default function EventoDetalhesPage() {
 
   const [activeBatch, setActiveBatch] = React.useState<any>(null)
   const [selectedTicketType, setSelectedTicketType] = React.useState<any>(null)
-  const [saleStatus, setSaleStatus] = React.useState<'open' | 'pending' | 'ended' | 'soldout' | 'suspended'>('pending')
+  const [saleStatus, setSaleStatus] = React.useState<'open' | 'pending' | 'ended' | 'soldout' | 'suspended' | 'none'>('pending')
   const [quantity, setQuantity] = React.useState(1)
 
   React.useEffect(() => {
     if (!event) return
+
+    // Caso o evento não possua ingressos configurados
+    if (event.noTickets || event.ticketMode === 'none') {
+      setSaleStatus('none')
+      return
+    }
 
     // Se a organização não estiver ativa, suspende as vendas
     if (organizationProfile && organizationProfile.status !== 'Ativo') {
@@ -339,6 +346,12 @@ export default function EventoDetalhesPage() {
                               <EyeOff className="w-8 h-8 text-orange-400 mx-auto mb-2" />
                               <p className="font-black uppercase italic">Vendas Suspensas</p>
                               <p className="text-[10px] font-medium text-muted-foreground leading-relaxed uppercase">O organizador ocultou esta página temporariamente.</p>
+                           </>
+                         ) : saleStatus === 'none' ? (
+                           <>
+                              <TicketX className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                              <p className="font-black uppercase italic">Sem Bilheteria</p>
+                              <p className="text-[10px] font-medium text-muted-foreground leading-relaxed uppercase">Este evento não possui reserva ou venda de ingressos online.</p>
                            </>
                          ) : (
                            <>

@@ -5,6 +5,7 @@
  * 1. Taxa Administrativa (Plataforma): Definida globalmente, somada ao valor do ingresso e paga pelo COMPRADOR.
  * 2. Taxa do Organizador (Plataforma): Definida globalmente, calculada sobre o valor de face do ingresso e DESCONTADA do produtor.
  * 3. Regra do Organizador: O custo é o MAIOR valor entre o percentual (%) e o valor mínimo (R$) definidos globalmente.
+ * 4. Ingressos Grátis: Não possuem taxas para nenhuma das partes.
  */
 
 export function formatCurrency(value: number): string {
@@ -23,6 +24,7 @@ export function formatCurrency(value: number): string {
 export function calculateFinancialBreakdown(facePrice: number, globalFees?: any) {
   const price = parseFloat(facePrice as any) || 0;
   
+  // REGRA 4: Ingressos grátis não geram taxas
   if (price <= 0) {
     return { 
       ticketBasePrice: 0,
