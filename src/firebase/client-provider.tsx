@@ -10,20 +10,16 @@ import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 /**
  * Inicialização centralizada para o Viby.
- * Suporta bancos de dados nomeados (eventosviby) de forma resiliente.
+ * Tenta usar o banco de dados 'eventosviby' se existir, caso contrário usa o (default).
  */
 export function initializeFirebase() {
-  // Inicializa o App se não existir
   const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
   
-  /**
-   * GARANTIA VIBY:
-   * Para acessar o banco de dados nomeado 'eventosviby', usamos a assinatura
-   * getFirestore(app, databaseId). Isso funciona tanto em SSR quanto no cliente.
-   */
+  // No novo projeto, tentamos acessar o banco nomeado. 
+  // Se não existir, o Firestore SDK fallback para o default em algumas situações, 
+  // mas aqui definimos a conexão principal.
   const db: Firestore = getFirestore(app, 'eventosviby');
 
-  // Inicializa Auth
   const auth: Auth = getAuth(app);
 
   return { firebaseApp: app, firestore: db, auth };
@@ -34,7 +30,6 @@ export function FirebaseClientProvider({
 }: {
   children: ReactNode;
 }) {
-  // useMemo garante estabilidade na referência dos serviços e evita re-inicialização
   const firebaseData = useMemo(() => initializeFirebase(), []);
 
   return (

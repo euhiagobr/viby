@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -8,8 +7,7 @@ import { firebaseConfig } from '@/firebase/config';
 import { sendPasswordResetLinkEmail } from './email';
 
 /**
- * Inicializa o Firebase Admin SDK de forma resiliente.
- * Em ambientes como o Studio, ele tenta usar a aplicação padrão se disponível.
+ * Inicializa o Firebase Admin SDK de forma resiliente usando o ID do novo projeto.
  */
 function getAdminAuth() {
   if (admin.apps.length === 0) {
@@ -57,16 +55,14 @@ export async function requestPasswordReset(identifier: string) {
     }
 
     // 2. Gera o LINK oficial do Firebase
-    // Nota: Em ambientes de desenvolvimento sem Service Account configurada, 
-    // esta chamada pode falhar.
     const resetLink = await authAdmin.generatePasswordResetLink(email);
 
-    // 3. Envia o e-mail via nosso SMTP
+    // 3. Envia o e-mail via SMTP configurado
     const emailResult = await sendPasswordResetLinkEmail({
       to: email,
       userName,
       resetLink,
-      siteName: "Viby.Club"
+      siteName: "Viby"
     });
 
     if (!emailResult.success) throw new Error("Erro ao disparar e-mail de segurança.");

@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -51,6 +50,7 @@ export default function AdminFinanceiroPage() {
 
   const regsQuery = useMemoFirebase(() => {
     if (!db) return null
+    // Import de 'where' corrigido no topo do arquivo
     return query(collection(db, "registrations"), where("paymentStatus", "in", ["Pago", "Disponível"]))
   }, [db])
 
@@ -60,7 +60,6 @@ export default function AdminFinanceiroPage() {
   const filteredOrgs = React.useMemo(() => {
     if (!orgs) return []
     
-    // Mapear saldos por organização
     const orgBalances = (regs || []).reduce((acc: any, reg: any) => {
       const orgId = reg.organizationId;
       if (!acc[orgId]) acc[orgId] = { available: 0, locked: 0 };
