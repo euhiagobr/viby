@@ -57,7 +57,8 @@ import {
   Map as MapIcon,
   ChevronRight,
   Target,
-  Navigation
+  Navigation,
+  Search
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -195,6 +196,7 @@ function UniversalProfileContent() {
   const [ownedEvents, setOwnedEvents] = React.useState<any[]>([])
   const [partneredEvents, setPartneredEvents] = React.useState<any[]>([])
   const [eventsLoading, setEventsLoading] = React.useState(false)
+  const [eventSearch, setEventSearch] = React.useState("")
 
   // Estados de Gamificação
   const gamificationRef = React.useMemo(() => (db && data?.id && type === 'user') ? doc(db, "user_gamification", data.id) : null, [db, data?.id, type])
@@ -420,6 +422,52 @@ function UniversalProfileContent() {
 
     fetchAllEvents()
   }, [db, data?.id, type, data?.status])
+
+  // Função helper para filtrar e ordenar eventos de forma inteligente
+  const processEventsList = React.useCallback((evs: any[]) => {
+    const now = new Date();
+    
+    return evs
+      .filter(e => {
+        const search = eventSearch.toLowerCase();
+        return (
+          e.title?.toLowerCase().includes(search) || 
+          e.city?.toLowerCase().includes(search)
+        );
+      })
+      .sort((a, b) => {
+        const getDates = (e: any) => {
+          const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+          const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+          return { start, end };
+        }
+        
+        const { start: startA, end: endA } = getDates(a);
+        const { start: startB, end: endB } = getDates(b);
+
+        const isHappening = (s: Date, e: Date) => s <= now && e >= now;
+        const isPast = (e: Date) => e < now;
+
+        const hapA = isHappening(startA, endA);
+        const hapB = isHappening(startB, endB);
+        if (hapA && !hapB) return -1;
+        if (!hapA && hapB) return 1;
+
+        const pastA = isPast(endA);
+        const pastB = isPast(endB);
+        if (!pastA && pastB) return -1;
+        if (pastA && !pastB) return 1;
+
+        // Se ambos estão no mesmo grupo (acontecendo, futuro ou passado), ordena por data de início
+        // Para os passados, podemos querer inverter para ver os mais recentes primeiro
+        if (pastA && pastB) return startB.getTime() - startA.getTime();
+        
+        return startA.getTime() - startB.getTime();
+      });
+  }, [eventSearch]);
+
+  const filteredOwned = React.useMemo(() => processEventsList(ownedEvents), [ownedEvents, processEventsList]);
+  const filteredPartnered = React.useMemo(() => processEventsList(partneredEvents), [partneredEvents, processEventsList]);
 
   // Lógica de Seguidores
   const followRelationQuery = useMemoFirebase(() => {
@@ -667,19 +715,45 @@ function UniversalProfileContent() {
 
              {isOrg ? (
                <Tabs defaultValue="events" className="w-full">
-                  <div className="flex justify-center border-b mb-8 bg-white/40 backdrop-blur-md rounded-2xl p-1">
-                    <TabsList className="bg-transparent h-auto p-0 gap-8">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between border-b mb-8 bg-white/40 backdrop-blur-md rounded-2xl p-1 gap-4 px-4">
+                    <TabsList className="bg-transparent h-auto p-0 gap-8 justify-start">
                       <TabsTrigger value="events" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-4 py-4 font-black uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"><Grid className="w-3.5 h-3.5" /> Eventos</TabsTrigger>
                       <TabsTrigger value="partnerships" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-4 py-4 font-black uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"><Handshake className="w-3.5 h-3.5" /> Parcerias</TabsTrigger>
                       <TabsTrigger value="about" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-4 py-4 font-black uppercase text-[11px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100"><Info className="w-3.5 h-3.5" /> Sobre</TabsTrigger>
                     </TabsList>
+
+                    <div className="relative w-full md:w-64 mb-2 md:mb-0">
+                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground opacity-50" />
+                       <Input 
+                         placeholder="Buscar evento ou cidade..." 
+                         value={eventSearch}
+                         onChange={(e) => setEventSearch(e.target.value)}
+                         className="h-9 text-[11px] font-bold uppercase pl-9 rounded-xl border-dashed border-secondary/20 bg-background/50 focus-visible:ring-secondary/30"
+                       />
+                    </div>
                   </div>
 
                   <TabsContent value="events" className="animate-in fade-in duration-500">
-                     {eventsLoading ? <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div> : ownedEvents.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{ownedEvents.map(e => <EventCard key={e.id} event={e} />)}</div> : <NoContentPlaceholder message="Nenhum evento produzido no momento." />}
+                     {eventsLoading ? (
+                       <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+                     ) : filteredOwned.length > 0 ? (
+                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                         {filteredOwned.map(e => <EventCard key={e.id} event={e} />)}
+                       </div>
+                     ) : (
+                       <NoContentPlaceholder message={eventSearch ? "Nenhum evento encontrado para esta busca." : "Nenhum evento produzido no momento."} />
+                     )}
                   </TabsContent>
                   <TabsContent value="partnerships" className="animate-in fade-in duration-500">
-                     {eventsLoading ? <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div> : partneredEvents.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{partneredEvents.map(e => <EventCard key={e.id} event={e} />)}</div> : <NoContentPlaceholder message="Nenhuma parceria ativa no momento." />}
+                     {eventsLoading ? (
+                       <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+                     ) : filteredPartnered.length > 0 ? (
+                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                         {filteredPartnered.map(e => <EventCard key={e.id} event={e} />)}
+                       </div>
+                     ) : (
+                       <NoContentPlaceholder message={eventSearch ? "Nenhuma parceria encontrada para esta busca." : "Nenhuma parceria ativa no momento."} />
+                     )}
                   </TabsContent>
                   <TabsContent value="about" className="animate-in fade-in duration-500">
                      <div className="max-w-2xl mx-auto space-y-10">
