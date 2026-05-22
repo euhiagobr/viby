@@ -26,7 +26,9 @@ import {
   Megaphone,
   TrendingUp,
   Percent,
-  Coins
+  Coins,
+  CreditCard,
+  Layers
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -269,11 +271,11 @@ export default function AdminImpostoPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {activeTab === 'ads' ? (
           <>
-            <StatCard title="Bruto Cobrado" value={formatCurrency(adStats.gross)} icon={ArrowUpRight} color="blue" />
-            <StatCard title="Imposto Retido" value={formatCurrency(adStats.tax)} icon={Receipt} color="orange" />
-            <StatCard title="Orçamento Líquido" value={formatCurrency(adStats.net)} icon={ArrowDownRight} color="green" />
+            <StatCard title="Total Bruto Ads" value={formatCurrency(adStats.gross)} icon={ArrowUpRight} color="blue" />
+            <StatCard title="Imposto Ads (11%)" value={formatCurrency(adStats.tax)} icon={Receipt} color="orange" />
+            <StatCard title="Total Líquido Anúncios" value={formatCurrency(adStats.net)} icon={ArrowDownRight} color="green" />
             <StatCard title="Campanhas Ativas" value={adStats.active} icon={CheckCircle2} color="secondary" />
-            <StatCard title="Canceladas" value={adStats.canceled} icon={XCircle} color="red" />
+            <StatCard title="Campanhas Canceladas" value={adStats.canceled} icon={XCircle} color="red" />
           </>
         ) : (
           <>
@@ -412,9 +414,11 @@ export default function AdminImpostoPage() {
                 <Table>
                   <TableHeader className="bg-muted/20">
                     <TableRow>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest py-6 px-8">Evento / Lote / Tipo</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest py-6 px-8">Ingresso / Tipo / Lote</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Qtd / Face</TableHead>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Breakdown Viby</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Taxa Comprador</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Comissão Viby</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Taxa Stripe</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Imposto / NF</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-right px-8">Lucro Real</TableHead>
                     </TableRow>
@@ -434,32 +438,20 @@ export default function AdminImpostoPage() {
                                 <span className="text-[9px] font-bold text-secondary uppercase mt-1">Prod: {t.orgName}</span>
                              </div>
                           </TableCell>
-                          <TableCell className="text-center font-black text-sm">
+                          <TableCell className="text-center">
                              <div className="flex flex-col">
-                                <span className="text-primary font-black">{t.ticketsSold} <span className="text-[9px] opacity-40">un.</span></span>
+                                <span className="font-black text-sm text-primary">{t.ticketsSold} un.</span>
                                 <span className="text-[9px] font-bold text-muted-foreground uppercase">Face Total: {formatCurrency(t.ticketBasePriceTotal)}</span>
                              </div>
                           </TableCell>
                           <TableCell className="text-right">
-                             <TooltipProvider>
-                               <Tooltip>
-                                 <TooltipTrigger asChild>
-                                    <div className="flex flex-col cursor-help">
-                                       <span className="font-black text-sm text-primary">{formatCurrency(t.vibyGrossValue)}</span>
-                                       <span className="text-[8px] font-bold text-muted-foreground uppercase">Taxa Comp: {formatCurrency(t.buyerFeeTotal)}</span>
-                                       <span className="text-[8px] font-bold text-muted-foreground uppercase">Comissão: {formatCurrency(t.organizerFeeTotal)}</span>
-                                    </div>
-                                 </TooltipTrigger>
-                                 <TooltipContent className="p-4 rounded-xl space-y-2">
-                                    <p className="text-[9px] font-black uppercase">Receita Bruta da Plataforma</p>
-                                    <div className="text-[10px] space-y-1">
-                                       <div className="flex justify-between gap-4"><span>Taxas Compradores:</span> <span>{formatCurrency(t.buyerFeeTotal)}</span></div>
-                                       <div className="flex justify-between gap-4"><span>Comissões Produtores:</span> <span>{formatCurrency(t.organizerFeeTotal)}</span></div>
-                                       <div className="border-t pt-1 font-bold flex justify-between gap-4"><span>Bruto Total:</span> <span>{formatCurrency(t.vibyGrossValue)}</span></div>
-                                    </div>
-                                 </TooltipContent>
-                               </Tooltip>
-                             </TooltipProvider>
+                             <span className="font-bold text-xs text-primary">{formatCurrency(t.buyerFeeTotal)}</span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                             <span className="font-bold text-xs text-primary">{formatCurrency(t.organizerFeeTotal)}</span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                             <span className="font-bold text-xs text-red-500">-{formatCurrency(t.stripeFeeTotal || 0)}</span>
                           </TableCell>
                           <TableCell className="text-center">
                              <div className="flex flex-col gap-1 items-center">
@@ -484,14 +476,13 @@ export default function AdminImpostoPage() {
                           <TableCell className="text-right px-8">
                              <div className="flex flex-col">
                                 <span className="font-black text-sm text-green-600">{formatCurrency(realProfit)}</span>
-                                <span className="text-[8px] font-bold text-red-500 uppercase">Stripe: -{formatCurrency(t.stripeFeeTotal)}</span>
                                 <p className="text-[7px] font-black text-muted-foreground uppercase opacity-40">Repasse Produtor: {formatCurrency(t.ticketBasePriceTotal - t.organizerFeeTotal)}</p>
                              </div>
                           </TableCell>
                         </TableRow>
                       );
                     }) : (
-                      <TableRow><TableCell colSpan={5} className="py-20 text-center italic text-muted-foreground">Nenhum registro localizado.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={7} className="py-20 text-center italic text-muted-foreground">Nenhum registro localizado.</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>
