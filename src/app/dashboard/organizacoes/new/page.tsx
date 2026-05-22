@@ -27,13 +27,7 @@ import {
   Building2,
   Globe,
   Camera,
-  MapPin,
-  Phone,
-  Mail,
-  Instagram,
-  Fingerprint,
-  Info,
-  Trophy
+  Info
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -96,12 +90,6 @@ export default function NovaOrganizacaoPage() {
   const { user } = useUser(auth)
   const db = useFirestore()
   const app = useFirebaseApp()
-
-  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
-  const { data: profile } = useDoc<any>(userDocRef)
-
-  const plansRef = React.useMemo(() => db ? doc(db, 'settings', 'plans') : null, [db])
-  const { data: plansSettings } = useDoc<any>(plansRef)
 
   const blockedRef = React.useMemo(() => (db ? doc(db, 'settings', 'blocked_usernames') : null), [db]);
   const { data: blockedData } = useDoc<any>(blockedRef);
@@ -241,21 +229,7 @@ export default function NovaOrganizacaoPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!db || !user || !profile || usernameStatus !== 'valid') return
-
-    // Validar limites do plano
-    const userPlan = profile.plan || "START"
-    const planLimits = profile.planOverride || plansSettings?.[userPlan.toLowerCase()] || { maxOrganizations: 1 }
-    const maxOrgs = planLimits.maxOrganizations ?? 1
-    
-    // Contar quantas orgs o usuário já tem ativas
-    const qOrgs = query(collection(db, "organizations"), where("createdBy", "==", user.uid))
-    const existingOrgs = await getDocs(qOrgs)
-    
-    if (maxOrgs !== 0 && existingOrgs.size >= maxOrgs) {
-      toast({ variant: "destructive", title: "Limite do Plano", description: `Seu plano (${userPlan}) permite criar no máximo ${maxOrgs} organização(ões). Faça um upgrade para liberar mais.` })
-      return
-    }
+    if (!db || !user || usernameStatus !== 'valid') return
 
     setLoading(true)
     const orgId = crypto.randomUUID()

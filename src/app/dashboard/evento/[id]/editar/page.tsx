@@ -27,10 +27,7 @@ import {
   ImageIcon,
   Save,
   Clock,
-  Building2,
   Info,
-  AlertTriangle,
-  CheckCircle2,
   Ticket,
   Sparkles,
   Layers,
@@ -109,12 +106,6 @@ export default function EditarEventoPage() {
   const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
 
-  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
-  const { data: profile } = useDoc<any>(userDocRef)
-
-  const plansRef = React.useMemo(() => db ? doc(db, 'settings', 'plans') : null, [db])
-  const { data: plansSettings } = useDoc<any>(plansRef)
-  
   const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
   const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
@@ -141,12 +132,6 @@ export default function EditarEventoPage() {
   const [totalToDistribute, setTotalToDistribute] = useState("")
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
-
-  // Limites do Plano
-  const userPlan = profile?.plan || "START"
-  const planLimits = profile?.planOverride || plansSettings?.[userPlan.toLowerCase()] || {}
-  const maxTickets = planLimits?.maxTicketsPerEvent ?? 30
-  const isLimitedByTickets = maxTickets > 0
 
   useEffect(() => {
     if (!db || !eventId) return
@@ -262,11 +247,6 @@ export default function EditarEventoPage() {
     const total = parseInt(totalToDistribute)
     if (isNaN(total)) return
 
-    if (isLimitedByTickets && total > maxTickets) {
-      toast({ variant: "destructive", title: "Limite do Plano", description: `Seu plano permite no máximo ${maxTickets} ingressos por evento.` })
-      return
-    }
-
     const meiaPoolId = crypto.randomUUID()
     const meiaQuantity = Math.floor(total * 0.4)
     const inteiraQuantity = total - meiaQuantity
@@ -289,13 +269,6 @@ export default function EditarEventoPage() {
   const removeTicketType = (bi: number, ti: number) => { const n = [...batches]; if(n[bi].ticketTypes.length > 1) { n[bi].ticketTypes.splice(ti, 1); setBatches(n); } }
   
   const updateTicketTypeField = (bi: number, ti: number, f: keyof TicketType, v: any) => { 
-    if (f === 'quantity' && isLimitedByTickets) {
-      const val = parseInt(v) || 0
-      if (val > maxTickets) {
-        toast({ variant: "destructive", title: "Limite atingido", description: `Seu plano atual permite apenas ${maxTickets} ingressos.` })
-        return
-      }
-    }
     const n = [...batches]; n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; setBatches(n); 
   }
 
@@ -324,15 +297,6 @@ export default function EditarEventoPage() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!db || !user || !eventRef || !isAtLeastEditor) return
-
-    // Validar total de ingressos do plano
-    if (isLimitedByTickets) {
-      const totalTickets = batches.reduce((acc, b) => acc + calculateHalfPriceStats(b).total, 0)
-      if (totalTickets > maxTickets) {
-         toast({ variant: "destructive", title: "Muitos ingressos", description: `Seu plano permite no máximo ${maxTickets} ingressos.` })
-         return
-      }
-    }
 
     setSaving(true)
     const formData = new FormData(e.currentTarget)
@@ -395,17 +359,6 @@ export default function EditarEventoPage() {
         <Button variant="ghost" size="icon" asChild><Link href="/dashboard/projetos"><ArrowLeft className="w-5 h-5" /></Link></Button>
         <h1 className="text-3xl font-black italic tracking-tighter text-primary uppercase">Editar Evento</h1>
       </div>
-
-      {isLimitedByTickets && (
-         <Card className="border-none bg-orange-50 border-2 border-dashed border-orange-200 rounded-3xl">
-            <CardContent className="p-4 flex items-center gap-3">
-               <Trophy className="w-5 h-5 text-orange-600" />
-               <p className="text-xs font-bold text-orange-800 uppercase italic">
-                  Plano {userPlan}: Você pode gerenciar até {maxTickets} ingressos para este evento.
-               </p>
-            </CardContent>
-         </Card>
-      )}
 
       <form onSubmit={handleSubmit} className="space-y-8">
          <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
@@ -482,7 +435,6 @@ export default function EditarEventoPage() {
           </CardContent>
         </Card>
 
-        {/* CO-ORGANIZADORES */}
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
             <CardTitle className="text-lg flex items-center gap-2"><Users className="w-5 h-5 text-secondary" /> Outros Organizadores (Parcerias)</CardTitle>
@@ -551,8 +503,8 @@ export default function EditarEventoPage() {
                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <CardTitle className="text-lg">Ingressos</CardTitle>
                   <div className="bg-white p-1 rounded-xl border flex gap-1">
-                    <Button type="button" variant={ticketMode === 'free' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('free'); setBatches([{ id: crypto.randomUUID(), name: "Grátis", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Entrada Franca", price: 0, quantity: isLimitedByTickets ? maxTickets : 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Grátis</Button>
-                    <Button type="button" variant={ticketMode === 'paid_single' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('paid_single'); setBatches([{ id: crypto.randomUUID(), name: "Único", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: isLimitedByTickets ? maxTickets : 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Único</Button>
+                    <Button type="button" variant={ticketMode === 'free' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('free'); setBatches([{ id: crypto.randomUUID(), name: "Grátis", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Entrada Franca", price: 0, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Grátis</Button>
+                    <Button type="button" variant={ticketMode === 'paid_single' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('paid_single'); setBatches([{ id: crypto.randomUUID(), name: "Único", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Único</Button>
                     <Button type="button" variant={ticketMode === 'batches' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('batches')}>Lotes</Button>
                   </div>
                </div>

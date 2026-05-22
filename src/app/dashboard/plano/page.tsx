@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -8,7 +9,6 @@ import {
   Loader2, 
   Sparkles, 
   Trophy, 
-  XCircle, 
   Info, 
   ShieldCheck, 
   Building2, 
@@ -17,8 +17,7 @@ import {
   BarChart3,
   Percent,
   Coins,
-  ArrowUp,
-  ArrowDown
+  ArrowRight
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -26,249 +25,117 @@ import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { createPlanCheckoutSession } from "@/app/actions/stripe"
-import { toast } from "@/hooks/use-toast"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
-
-const PLAN_INFO = {
-  START: {
-    label: "Gratuito",
-    badge: "Básico",
-    color: "muted",
-    icon: Zap,
-    rank: 0
-  },
-  PRO: {
-    label: "Recomendado",
-    badge: "Popular",
-    color: "secondary",
-    icon: Sparkles,
-    rank: 1
-  },
-  TOP: {
-    label: "Premium",
-    badge: "Elite",
-    color: "primary",
-    icon: Trophy,
-    rank: 2
-  }
-}
-
-const PLAN_ORDER = ['START', 'PRO', 'TOP'];
+import Link from "next/link"
 
 export default function PlanoPage() {
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
   const router = useRouter()
-  const { organizations, loading: orgsLoading } = useCurrentOrganization()
+  const { currentOrg, loading: orgLoading } = useCurrentOrganization()
   
-  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
-  const { data: profile, loading: profileLoading } = useDoc<any>(userDocRef)
+  const feesRef = React.useMemo(() => db ? doc(db, 'settings', 'fees') : null, [db])
+  const { data: feesSettings, loading: feesLoading } = useDoc<any>(feesRef)
 
-  const plansRef = React.useMemo(() => db ? doc(db, 'settings', 'plans') : null, [db])
-  const { data: plansSettings, loading: plansLoading } = useDoc<any>(plansRef)
-
-  const [billingCycle, setBillingCycle] = React.useState<'monthly' | 'annual'>('annual')
-  const [upgrading, setUpgrading] = React.useState<string | null>(null)
-
-  React.useEffect(() => {
-    if (!orgsLoading && organizations.length === 0) {
-      router.replace('/dashboard/organizacoes')
-    }
-  }, [organizations, orgsLoading, router])
-
-  const handleUpgrade = async (planId: 'PRO' | 'TOP', planName: string, amount: number) => {
-    if (!user) return
-    
-    setUpgrading(planId)
-    try {
-      const { url } = await createPlanCheckoutSession({
-        planId,
-        planName,
-        billingCycle,
-        userId: user.uid,
-        userEmail: user.email!,
-        totalAmount: Math.round(amount * 100)
-      })
-
-      if (url) {
-        window.location.href = url
-      }
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro ao processar", description: error.message })
-    } finally {
-      setUpgrading(null)
-    }
-  }
-
-  if (profileLoading || plansLoading || orgsLoading) {
+  if (orgLoading || feesLoading) {
     return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
   }
 
-  if (organizations.length === 0) return null;
-
-  const currentPlan = (profile?.plan || "START").toUpperCase();
-  const currentRank = PLAN_INFO[currentPlan as keyof typeof PLAN_INFO]?.rank ?? 0;
-  const override = profile?.planOverride
-
-  const getPlanLimit = (planKey: string, field: string) => {
-    const baseVal = plansSettings?.[planKey.toLowerCase()]?.[field] ?? 0;
-    return baseVal === 0 ? "Ilimitado" : baseVal;
-  }
-
-  const getPlanPrice = (planKey: string) => {
-    if (planKey === 'START') return 0;
-    const planData = plansSettings?.[planKey.toLowerCase()];
-    if (!planData) return 0;
-    return billingCycle === 'monthly' ? planData.monthlyPrice : planData.annualPrice;
-  }
-
   return (
-    <div className="space-y-8 pb-20 animate-in fade-in duration-500">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">Meu Plano e Benefícios</h1>
-          <p className="text-muted-foreground font-medium">Escolha o nível de visibilidade e economia para seus eventos.</p>
-        </div>
-        
-        <Tabs value={billingCycle} onValueChange={(v: any) => setBillingCycle(v)} className="w-fit">
-          <TabsList className="bg-muted p-1 rounded-xl h-12">
-            <TabsTrigger value="monthly" className="rounded-lg px-6 font-bold">Mensal</TabsTrigger>
-            <TabsTrigger value="annual" className="rounded-lg px-6 font-bold flex items-center gap-2">
-              Anual 
-              <Badge className="bg-green-500 text-[8px] h-4 font-black px-1.5 uppercase">Até 23% OFF</Badge>
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+    <div className="max-w-4xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
+      <div className="space-y-2">
+        <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">Regras da Plataforma</h1>
+        <p className="text-muted-foreground font-medium">Informações sobre taxas, recebimentos e funcionalidades liberadas.</p>
       </div>
 
-      {override && (
-        <Card className="border-none bg-secondary/10 border-2 border-dashed border-secondary/30 rounded-[2rem]">
-          <CardContent className="p-6 flex items-center gap-4">
-             <div className="p-3 bg-secondary/20 rounded-2xl"><ShieldCheck className="w-6 h-6 text-secondary" /></div>
-             <div>
-                <p className="text-xs font-black uppercase text-secondary">Plano Personalizado Ativo</p>
-                <p className="text-sm font-medium text-muted-foreground">O administrador aplicou limites especiais exclusivos para sua conta.</p>
-             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {PLAN_ORDER.map((planId) => {
-          const info = PLAN_INFO[planId as keyof typeof PLAN_INFO]
-          const isCurrent = currentPlan === planId
-          const planData = plansSettings?.[planId.toLowerCase()]
-          const amount = getPlanPrice(planId)
-          const renderedRank = info.rank;
-          const isDowngrade = renderedRank < currentRank;
-
-          return (
-            <Card key={planId} className={cn(
-              "border-none shadow-xl rounded-[2.5rem] overflow-hidden relative transition-all group flex flex-col",
-              isCurrent ? "ring-4 ring-secondary/20 bg-white" : planId === 'PRO' ? "bg-primary text-white" : "bg-white"
-            )}>
-              <CardHeader className="p-8 pb-4">
-                <div className="flex justify-between items-start">
-                  <div className="space-y-1">
-                    <Badge className={cn("border-none text-[10px] font-black uppercase px-3 py-1", planId === 'PRO' ? "bg-secondary text-white" : "bg-muted text-muted-foreground")}>{info.badge}</Badge>
-                    <CardTitle className={cn("text-3xl font-black italic tracking-tighter uppercase", planId === 'PRO' ? "text-white" : "text-primary")}>Viby {planId}</CardTitle>
-                  </div>
-                  <info.icon className={cn("w-7 h-7", planId === 'PRO' ? "text-secondary fill-secondary" : "text-muted-foreground")} />
-                </div>
-                <div className="mt-6">
-                   {planId === 'START' ? (
-                     <div className="text-2xl font-black">Grátis</div>
-                   ) : (
-                     <div className="space-y-1">
-                        <div className={cn("text-2xl font-black", planId === 'PRO' ? "text-secondary" : "text-primary")}>
-                           {billingCycle === 'monthly' ? `R$ ${amount.toFixed(2)}` : `12x R$ ${(amount / 12).toFixed(2)}`}
-                           <span className="text-[10px] font-bold opacity-40 uppercase ml-1">/{billingCycle === 'monthly' ? 'mês' : 'ano'}</span>
-                        </div>
-                        {billingCycle === 'annual' && <p className="text-[10px] font-bold opacity-40 uppercase">Cobrado anualmente: R$ {amount.toFixed(2)}</p>}
-                     </div>
-                   )}
-                </div>
-              </CardHeader>
-              
-              <CardContent className="p-8 pt-4 space-y-6 flex-1">
-                <div className="space-y-4">
-                   <div className="flex items-center gap-3 text-xs font-bold">
-                      <Building2 className="w-4 h-4 opacity-40" />
-                      <span>{getPlanLimit(planId, 'maxOrganizations')} Marca(s)</span>
-                   </div>
-                   <div className="flex items-center gap-3 text-xs font-bold">
-                      <CalendarDays className="w-4 h-4 opacity-40" />
-                      <span>{getPlanLimit(planId, 'maxActiveEvents')} Evento(s) Ativo(s)</span>
-                   </div>
-                   <div className="flex items-center gap-3 text-xs font-bold">
-                      <Percent className="w-4 h-4 opacity-40" />
-                      <span>Taxa: {planData?.feePercent}%</span>
-                   </div>
-                   <div className="flex items-center gap-3 text-xs font-bold">
-                      <Coins className="w-4 h-4 opacity-40" />
-                      <span>Mínimo: {planData?.minFeeAmount?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                   </div>
-                   <div className={cn("flex items-center gap-3 text-xs font-bold", planData?.isVerified ? "text-green-500" : "opacity-30")}>
-                      {planData?.isVerified ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                      <span>Selo Verificado</span>
-                   </div>
-                   <div className={cn("flex items-center gap-3 text-xs font-bold", planData?.hasReports ? "text-green-500" : "opacity-30")}>
-                      {planData?.hasReports ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                      <span>Métricas VIP</span>
-                   </div>
-                   {planData?.maxTicketsPerEvent > 0 && (
-                     <div className="flex items-center gap-3 text-xs font-bold text-orange-500">
-                        <Ticket className="w-4 h-4" />
-                        <span>Máx {planData.maxTicketsPerEvent} ingressos/evento</span>
-                     </div>
-                   )}
-                </div>
-              </CardContent>
-
-              <CardFooter className="p-8 pt-0">
-                 {isCurrent ? (
-                    <Button disabled className="w-full h-12 rounded-xl bg-green-500/20 text-green-600 font-black uppercase italic text-xs border-none">
-                       Plano Atual
-                    </Button>
-                 ) : isDowngrade ? (
-                    <Button 
-                      variant="outline" 
-                      className="w-full h-12 rounded-xl font-bold uppercase text-[10px] gap-2" 
-                      onClick={() => router.refresh()}
-                    >
-                      <ArrowDown className="w-3 h-3" /> Fazer Downgrade
-                    </Button>
-                 ) : planId === 'START' ? (
-                    <Button variant="outline" className="w-full h-12 rounded-xl font-bold uppercase text-[10px]" onClick={() => router.refresh()}>Fazer Downgrade</Button>
-                 ) : (
-                    <Button 
-                      onClick={() => handleUpgrade(planId as 'PRO' | 'TOP', planId, amount)}
-                      disabled={!!upgrading}
-                      className={cn(
-                        "w-full h-14 rounded-2xl font-black uppercase italic text-sm shadow-xl transition-all hover:scale-105 gap-2",
-                        planId === 'PRO' ? "bg-secondary text-white shadow-secondary/20" : "bg-primary text-white shadow-primary/20"
-                      )}
-                    >
-                       {upgrading === planId ? <Loader2 className="w-5 h-5 animate-spin" /> : <><ArrowUp className="w-4 h-4" /> Fazer Upgrade</>}
-                    </Button>
-                 )}
-              </CardFooter>
-            </Card>
-          )
-        })}
-      </div>
-
-      <div className="max-w-2xl mx-auto p-8 bg-muted/30 rounded-[2.5rem] flex gap-6 items-start">
-         <Info className="w-6 h-6 text-secondary shrink-0 mt-1" />
-         <div className="space-y-2">
-            <h4 className="font-black uppercase italic text-primary">Informações sobre Cobrança</h4>
-            <p className="text-xs text-muted-foreground leading-relaxed font-medium">
-               As taxas de serviço são aplicadas individualmente por ingresso vendido. O valor da taxa (percentual ou mínimo) é determinado pelo seu plano no momento da venda. Upgrades de plano entram em vigor instantaneamente após a confirmação do pagamento no Stripe.
+      <Card className="border-none shadow-xl rounded-[2.5rem] bg-primary text-white overflow-hidden relative">
+        <CardContent className="p-10 md:p-16 flex flex-col md:flex-row items-center gap-10">
+          <div className="flex-1 space-y-6">
+            <Badge className="bg-secondary text-white font-black uppercase text-[10px] px-3">Acesso Total Liberado</Badge>
+            <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-tight">O Viby agora é para todos.</h2>
+            <p className="text-lg opacity-80 leading-relaxed font-medium">
+              Removemos os limites de planos. Agora você pode criar quantas marcas e eventos desejar, sem custos fixos mensais. Você paga apenas quando vende.
             </p>
-         </div>
+            <div className="flex flex-wrap gap-4 pt-4">
+              <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full">
+                <CheckCircle2 className="w-4 h-4 text-secondary" />
+                <span className="text-[10px] font-black uppercase tracking-widest">Organizações Ilimitadas</span>
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full">
+                <CheckCircle2 className="w-4 h-4 text-secondary" />
+                <span className="text-[10px] font-black uppercase tracking-widest">Eventos Ilimitados</span>
+              </div>
+            </div>
+          </div>
+          <div className="shrink-0">
+             <div className="w-40 h-40 bg-secondary rounded-full flex items-center justify-center shadow-2xl shadow-secondary/20">
+                <Sparkles className="w-20 h-20 text-white animate-pulse" />
+             </div>
+          </div>
+        </CardContent>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-secondary/10 rounded-full -mr-32 -mt-32 blur-3xl" />
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
+            <CardHeader className="p-8 pb-4">
+               <div className="w-12 h-12 bg-secondary/10 rounded-2xl flex items-center justify-center mb-4 text-secondary">
+                  <Percent className="w-6 h-6" />
+               </div>
+               <CardTitle className="text-xl font-black uppercase italic tracking-tighter">Taxa de Venda</CardTitle>
+               <CardDescription className="font-medium">O que é cobrado por ingresso vendido.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8 pt-4 space-y-6">
+               <div className="space-y-4">
+                  <div className="flex justify-between items-center py-3 border-b border-dashed">
+                     <span className="text-sm font-bold opacity-60">Porcentagem</span>
+                     <span className="font-black text-primary">{feesSettings?.organizerFeePercent || 10}%</span>
+                  </div>
+                  <div className="flex justify-between items-center py-3 border-b border-dashed">
+                     <span className="text-sm font-bold opacity-60">Valor Mínimo</span>
+                     <span className="font-black text-primary">{feesSettings?.organizerMinFee?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) || 'R$ 9,99'}</span>
+                  </div>
+               </div>
+               <div className="p-4 bg-muted/30 rounded-2xl flex gap-3">
+                  <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">
+                    A plataforma aplica automaticamente o maior valor entre a porcentagem e o mínimo. Ingressos grátis não possuem taxa de serviço.
+                  </p>
+               </div>
+            </CardContent>
+         </Card>
+
+         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
+            <CardHeader className="p-8 pb-4">
+               <div className="w-12 h-12 bg-primary/5 rounded-2xl flex items-center justify-center mb-4 text-primary">
+                  <Building2 className="w-6 h-6" />
+               </div>
+               <CardTitle className="text-xl font-black uppercase italic tracking-tighter">Recursos da Conta</CardTitle>
+               <CardDescription className="font-medium">Funcionalidades inclusas para todas as marcas.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8 pt-4 space-y-4">
+               {[
+                 "Acesso a métricas de visualização em tempo real",
+                 "Gestão de equipe ilimitada (Admin, Editor, Financeiro)",
+                 "Check-in integrado via QR Code",
+                 "Link de perfil personalizado (@suamarca)",
+                 "Solicitação de parcerias e co-organização",
+                 "Selo de verificação (após validação de CNPJ)"
+               ].map((feat, i) => (
+                 <div key={i} className="flex items-center gap-3 text-xs font-bold">
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    <span>{feat}</span>
+                 </div>
+               ))}
+            </CardContent>
+         </Card>
+      </div>
+
+      <div className="flex justify-center">
+         <Button asChild className="bg-secondary text-white font-black h-14 rounded-2xl px-12 shadow-xl shadow-secondary/20 uppercase italic transition-all hover:scale-105 gap-2">
+            <Link href="/dashboard/projetos/novo">Criar Meu Próximo Evento <ArrowRight className="w-5 h-5" /></Link>
+         </Button>
       </div>
     </div>
   )
