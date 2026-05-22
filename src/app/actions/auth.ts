@@ -1,3 +1,4 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -7,15 +8,18 @@ import { firebaseConfig } from '@/firebase/config';
 import { sendPasswordResetLinkEmail } from './email';
 
 /**
- * Inicializa o Firebase Admin SDK com suporte a ambiente de servidor Next.js.
+ * Inicializa o Firebase Admin SDK de forma resiliente.
+ * Em ambientes como o Studio, ele tenta usar a aplicação padrão se disponível.
  */
 function getAdminAuth() {
   if (admin.apps.length === 0) {
-    admin.initializeApp({
-      projectId: firebaseConfig.projectId,
-      // Em ambientes de produção (Firebase App Hosting/Functions), o Admin usa as credenciais do ambiente.
-      // No Studio, ele tentará usar a aplicação padrão.
-    });
+    try {
+      admin.initializeApp({
+        projectId: firebaseConfig.projectId,
+      });
+    } catch (e) {
+      console.error("Erro ao inicializar Firebase Admin:", e);
+    }
   }
   return admin.auth();
 }
@@ -53,8 +57,8 @@ export async function requestPasswordReset(identifier: string) {
     }
 
     // 2. Gera o LINK oficial do Firebase
-    // Este link aponta para o domínio de autenticação do projeto e permite a troca real da senha no banco do Google.
-    // Importante: O link expira por tempo e é de uso único.
+    // Nota: Em ambientes de desenvolvimento sem Service Account configurada, 
+    // esta chamada pode falhar.
     const resetLink = await authAdmin.generatePasswordResetLink(email);
 
     // 3. Envia o e-mail via nosso SMTP
