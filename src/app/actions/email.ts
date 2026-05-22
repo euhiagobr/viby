@@ -140,6 +140,53 @@ export async function sendTicketEmail(data: any) {
   }
 }
 
+export async function sendPayoutConfirmedEmail(data: any) {
+  try {
+    const { smtpUser, smtpPass } = await getEmailConfig();
+    const formatBRL = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
+    const htmlContent = `
+      <div style="font-family: 'Poppins', sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 32px; overflow: hidden; border: 1px solid #e2e8f0; padding: 40px;">
+        <h1 style="color: #2563eb; font-style: italic; text-transform: uppercase;">Viby Club</h1>
+        <h2>Sua transferência foi realizada! 💸</h2>
+        <p>Olá, ${data.userName}. O seu pedido de saque no valor de <strong>${formatBRL(data.amount)}</strong> para a organização <strong>${data.orgName}</strong> foi processado com sucesso.</p>
+        <div style="text-align: center; margin: 40px 0;">
+          <a href="${data.proofUrl}" style="display: inline-block; background: #2563eb; color: white !important; padding: 18px 36px; text-decoration: none; border-radius: 16px; font-weight: bold; font-size: 16px;">Ver Comprovante Bancário</a>
+        </div>
+        <p style="font-size: 11px; color: #94a3b8; line-height: 1.4;">O valor deve estar disponível em sua conta bancária nos próximos minutos, dependendo da sua instituição financeira.</p>
+      </div>
+    `;
+
+    await logEmail({
+      sender: "Viby Finance",
+      recipientName: data.userName,
+      recipientEmail: data.to,
+      subject: "✅ Saque Concluído: Sua transferência chegou!",
+      content: htmlContent,
+      type: "payout_confirmation"
+    });
+
+    if (!smtpUser || !smtpPass) return { success: true };
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com', port: 465, secure: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    await transporter.sendMail({
+      from: `"Viby Finance" <${smtpUser}>`,
+      to: data.to,
+      subject: "✅ Saque Concluído: Sua transferência chegou!",
+      html: htmlContent
+    });
+
+    return { success: true };
+  } catch (e) {
+    console.error("Erro no envio do e-mail de saque:", e);
+    return { success: false };
+  }
+}
+
 export async function sendCartPendingEmail(data: any) {
   try {
     const { smtpUser, smtpPass } = await getEmailConfig();

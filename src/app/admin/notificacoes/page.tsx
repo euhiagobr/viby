@@ -50,6 +50,7 @@ const TYPE_LABELS: Record<string, { label: string; color: string }> = {
   invitation_notice: { label: 'Aviso Convite', color: 'bg-orange-500' },
   invitation_result: { label: 'Resultado Convite', color: 'bg-indigo-500' },
   resend_ticket_confirmation: { label: 'Reenvio Ingresso', color: 'bg-teal-600' },
+  payout_confirmation: { label: 'Saque Realizado', color: 'bg-emerald-600' },
 };
 
 export default function AdminNotificacoesPage() {
@@ -152,7 +153,7 @@ export default function AdminNotificacoesPage() {
               </TableHeader>
               <TableBody>
                 {filteredEmails.map((email) => {
-                  const isAutomated = email.sender === "Viby System";
+                  const isAutomated = ["Viby System", "Viby Finance", "Viby Auth"].includes(email.sender);
                   const typeInfo = TYPE_LABELS[email.type] || { label: email.type, color: 'bg-muted text-muted-foreground' };
                   
                   return (

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from "@/firebase"
-import { collection, query, orderBy, doc, updateDoc, serverTimestamp } from "firebase/firestore"
+import { collection, query, orderBy, doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -47,6 +47,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
+import { sendPayoutConfirmedEmail } from "@/app/actions/email"
 
 export default function AdminTransferenciasPage() {
   const db = useFirestore()
@@ -102,11 +103,30 @@ export default function AdminTransferenciasPage() {
 
     setIsSubmitting(true)
     try {
+      // 1. Atualizar o documento do saque
       await updateDoc(doc(db, "payout_requests", selectedRequest.id), {
         status: "Concluído",
         proofUrl: proofUrl,
         processedAt: serverTimestamp()
       })
+
+      // 2. Disparar e logar e-mail de notificação
+      try {
+        const userSnap = await getDoc(doc(db, "users", selectedRequest.userId));
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          await sendPayoutConfirmedEmail({
+            to: userData.email,
+            userName: userData.name || userData.displayName || "Usuário",
+            orgName: selectedRequest.organizationName,
+            amount: selectedRequest.amount,
+            proofUrl: proofUrl
+          });
+        }
+      } catch (emailErr) {
+        console.warn("E-mail não disparado, mas saque concluído no banco.");
+      }
+
       toast({ title: "Saque Concluído!", description: "O comprovante foi enviado ao usuário." })
       setSelectedRequest(null)
       setProofUrl("")
