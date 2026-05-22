@@ -74,61 +74,31 @@ export default function CadastroPage() {
   const siteName = settings?.siteName || "Viby"
 
   useEffect(() => {
-    if (!db) return
-
-    if (username.length === 0) {
+    if (!db || !formData.username) {
       setUsernameStatus('idle')
-      setCheckingUsername(false)
       return
     }
 
+    const newUsername = formData.username.toLowerCase().trim()
     const regex = /^[a-zA-Z0-9]+$/
-    if (username.length < 5 || !regex.test(username)) {
+    
+    if (newUsername.length < 5 || !regex.test(newUsername)) {
       setUsernameStatus('invalid')
-      setCheckingUsername(false)
       return
     }
 
-    const normalized = username.toLowerCase()
+    if (blockedData?.list?.includes(newUsername)) {
+      setUsernameStatus('taken')
+      return
+    }
 
-    setUsernameStatus('idle')
     setCheckingUsername(true)
-
     const timer = setTimeout(async () => {
       try {
-        const usernameRef = doc(db, "usernames", normalized)
+        const usernameRef = doc(db, "usernames", newUsername)
         const usernameSnap = await getDoc(usernameRef)
-        const isBlocked = blockedData?.list?.includes(normalized);
-        
-        if (usernameSnap.exists() || isBlocked) {
-          if (!isUsernameCustom) {
-             let nextNum = 1;
-             let found = false;
-             let currentTry = normalized;
-
-             while(!found && nextNum <= 15) {
-                const tryName = `${normalized}${nextNum}`;
-                const tryRef = doc(db, "usernames", tryName);
-                const trySnap = await getDoc(tryRef);
-                const tryBlocked = blockedData?.list?.includes(tryName);
-                
-                if (!trySnap.exists() && !tryBlocked) {
-                   found = true;
-                   currentTry = tryName;
-                } else {
-                   nextNum++;
-                }
-             }
-
-             if (found) {
-                setUsername(currentTry);
-                setUsernameStatus('valid');
-             } else {
-                setUsernameStatus('taken');
-             }
-          } else {
-            setUsernameStatus('taken');
-          }
+        if (usernameSnap.exists()) {
+          setUsernameStatus('taken')
         } else {
           setUsernameStatus('valid')
         }
@@ -140,7 +110,7 @@ export default function CadastroPage() {
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [username, db, blockedData, isUsernameCustom])
+  }, [formData.username, db, blockedData])
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -266,7 +236,13 @@ export default function CadastroPage() {
       toast({ title: "Conta criada!", description: `Bem-vindo ao ${siteName}.` })
       router.push("/dashboard")
     } catch (error: any) {
-      if (error.code !== 'permission-denied') {
+      if (error.code === 'auth/email-already-in-use') {
+        toast({
+          variant: "destructive",
+          title: "E-mail já cadastrado",
+          description: "Este endereço de e-mail já está associado a uma conta. Tente fazer login ou use outro e-mail."
+        })
+      } else if (error.code !== 'permission-denied') {
         toast({
           variant: "destructive",
           title: "Erro ao cadastrar",

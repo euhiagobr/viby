@@ -229,43 +229,38 @@ export default function EditarPerfilPage() {
     }
 
     setSaving(true)
-    try {
-      const batch = writeBatch(db)
-      if (usernameChanged) {
-        if (oldUsername) batch.delete(doc(db, "usernames", oldUsername));
-        batch.set(doc(db, "usernames", newUsername), { uid: user.uid, type: 'user' });
-      }
+    const batch = writeBatch(db)
+    if (usernameChanged) {
+      if (oldUsername) batch.delete(doc(db, "usernames", oldUsername));
+      batch.set(doc(db, "usernames", newUsername), { uid: user.uid, type: 'user' });
+    }
 
-      const encryptedCpf = formData.cpf ? encryptDeterministic(formData.cpf) : "";
-      const userRef = doc(db, "users", user.uid)
-      
-      const updateData = {
-        ...formData,
-        cpf: encryptedCpf,
-        username: newUsername,
-        updatedAt: serverTimestamp()
-      }
+    const encryptedCpf = formData.cpf ? encryptDeterministic(formData.cpf) : "";
+    const userRef = doc(db, "users", user.uid)
+    
+    const updateData = {
+      ...formData,
+      cpf: encryptedCpf,
+      username: newUsername,
+      updatedAt: serverTimestamp()
+    }
 
-      batch.update(userRef, updateData)
-      await batch.commit().catch(async (serverError) => {
-        if (serverError.code === 'permission-denied') {
-          const permissionError = new FirestorePermissionError({
-            path: `users/${user.uid}`,
-            operation: 'write',
-            requestResourceData: updateData
-          });
-          errorEmitter.emit('permission-error', permissionError);
-        }
-        throw serverError;
-      });
-
-      toast({ title: "Perfil atualizado!" })
-      router.push("/dashboard/perfil")
-    } catch (error: any) {
-      if (error.code !== 'permission-denied') {
-        toast({ variant: "destructive", title: "Erro ao salvar" })
-      }
-    } finally { setSaving(false) }
+    batch.update(userRef, updateData)
+    
+    batch.commit()
+      .then(() => {
+        toast({ title: "Perfil atualizado!" })
+        router.push("/dashboard/perfil")
+      })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: `users/${user.uid}`,
+          operation: 'update',
+          requestResourceData: updateData
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => { setSaving(false) })
   }
 
   if (profileLoading) return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
