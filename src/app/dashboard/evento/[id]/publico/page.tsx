@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -48,6 +49,8 @@ import { cn } from "@/lib/utils"
 import { Html5Qrcode } from "html5-qrcode"
 import { formatCurrency } from "@/lib/financial-utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 export default function EventoPublicoPage() {
   const params = useParams()
@@ -195,22 +198,36 @@ export default function EventoPublicoPage() {
   const confirmCheckIn = async () => {
     if (!db || !scanResult || !currentUser) return
     setIsValidating(true)
-    try {
-      await updateDoc(doc(db, "registrations", scanResult.id), {
-        checkedIn: true,
-        checkedInAt: serverTimestamp(),
-        checkedInBy: currentUser.uid,
-        status: "Utilizado"
+    
+    const updateData = {
+      checkedIn: true,
+      checkedInAt: serverTimestamp(),
+      checkedInBy: currentUser.uid,
+      status: "Utilizado"
+    };
+
+    updateDoc(doc(db, "registrations", scanResult.id), updateData)
+      .then(() => {
+        toast({ title: "Sucesso!", description: `Check-in de ${scanResult.userName} realizado.` })
+        setScanMode('idle')
+        setScanResult(null)
+        setManualCode("")
       })
-      toast({ title: "Sucesso!", description: `Check-in de ${scanResult.userName} realizado.` })
-      setScanMode('idle')
-      setScanResult(null)
-      setManualCode("")
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro", description: "Sem permissão." })
-    } finally {
-      setIsValidating(false)
-    }
+      .catch(async (serverError) => {
+        if (serverError.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: `registrations/${scanResult.id}`,
+            operation: "update",
+            requestResourceData: updateData
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        } else {
+          toast({ variant: "destructive", title: "Erro", description: "Sem permissão." })
+        }
+      })
+      .finally(() => {
+        setIsValidating(false)
+      })
   }
 
   const calculateAge = (birthDate: string) => {
@@ -228,23 +245,36 @@ export default function EventoPublicoPage() {
     if (!ts) return "---";
     try {
       const d = ts.toDate ? ts.toDate() : new Date(ts);
-      return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleString('pt-BR');
     } catch (e) { return "---"; }
   }
 
   const handleCheckIn = async (regId: string, currentStatus: boolean) => {
     if (!db || !canAction) return
-    try {
-      await updateDoc(doc(db, "registrations", regId), {
-        checkedIn: !currentStatus,
-        checkedInAt: !currentStatus ? serverTimestamp() : null,
-        checkedInBy: !currentStatus ? currentUser?.uid : null,
-        status: !currentStatus ? "Utilizado" : "Ativo"
+    
+    const updateData = {
+      checkedIn: !currentStatus,
+      checkedInAt: !currentStatus ? serverTimestamp() : null,
+      checkedInBy: !currentStatus ? currentUser?.uid : null,
+      status: !currentStatus ? "Utilizado" : "Ativo"
+    };
+
+    updateDoc(doc(db, "registrations", regId), updateData)
+      .then(() => {
+        toast({ title: !currentStatus ? "Check-in realizado!" : "Check-in removido." })
       })
-      toast({ title: !currentStatus ? "Check-in realizado!" : "Check-in removido." })
-    } catch (error) {
-      toast({ variant: "destructive", title: "Erro no check-in" })
-    }
+      .catch(async (serverError) => {
+        if (serverError.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: `registrations/${regId}`,
+            operation: "update",
+            requestResourceData: updateData
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        } else {
+          toast({ variant: "destructive", title: "Erro no check-in" })
+        }
+      })
   }
 
   const handleRepairData = async () => {
@@ -272,9 +302,24 @@ export default function EventoPublicoPage() {
           }
         }
       }
-      if (count > 0) await batch.commit();
+      if (count > 0) {
+        await batch.commit().catch(async (serverError) => {
+          if (serverError.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+              path: "registrations (batch)",
+              operation: "update"
+            });
+            errorEmitter.emit('permission-error', permissionError);
+          }
+          throw serverError;
+        });
+      }
       toast({ title: "Concluído", description: `${count} registros sincronizados.` })
-    } catch (error) { toast({ variant: "destructive", title: "Erro" }) }
+    } catch (error: any) { 
+      if (error.code !== 'permission-denied') {
+        toast({ variant: "destructive", title: "Erro" })
+      }
+    }
     finally { setIsSyncing(false) }
   }
 
@@ -282,7 +327,7 @@ export default function EventoPublicoPage() {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
         <ShieldAlert className="w-16 h-16 text-muted-foreground opacity-20" />
-        <h2 className="text-xl font-bold italic uppercase tracking-tighter">Acesso Negado</h2>
+        <h2 className="text-xl font-bold italic uppercase tracking-tighter">Acesso Restrito</h2>
         <p className="text-muted-foreground font-medium max-w-sm">Seu cargo ({userRole}) não permite realizar check-in neste evento.</p>
         <Button asChild variant="outline" className="rounded-full mt-4"><Link href="/dashboard">Voltar</Link></Button>
       </div>
@@ -443,8 +488,17 @@ export default function EventoPublicoPage() {
                       {['owner', 'admin'].includes(userRole || '') && (
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" onClick={async () => {
                           if (confirm(`Remover inscrição de ${reg.userName}?`)) {
-                            await deleteDoc(doc(db!, "registrations", reg.id))
-                            toast({ title: "Inscrição removida" })
+                            deleteDoc(doc(db!, "registrations", reg.id))
+                              .then(() => toast({ title: "Inscrição removida" }))
+                              .catch(async (serverError) => {
+                                if (serverError.code === 'permission-denied') {
+                                  const permissionError = new FirestorePermissionError({
+                                    path: `registrations/${reg.id}`,
+                                    operation: "delete"
+                                  });
+                                  errorEmitter.emit('permission-error', permissionError);
+                                }
+                              })
                           }
                         }}><Trash2 className="w-4 h-4" /></Button>
                       )}

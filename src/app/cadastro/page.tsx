@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -19,6 +20,8 @@ import { encryptDeterministic } from "@/lib/crypto-utils"
 import { cn } from "@/lib/utils"
 import { sendWelcomeEmail } from "@/app/actions/email"
 import Image from "next/image"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 /**
  * Validação de algoritimo de CPF.
@@ -204,6 +207,24 @@ export default function CadastroPage() {
 
       const encryptedCpf = encryptDeterministic(cpf);
 
+      const userData = {
+        uid: user.uid,
+        name,
+        username: normalizedUsername,
+        email,
+        birthDate,
+        gender,
+        cpf: encryptedCpf,
+        avatar: `https://picsum.photos/seed/${user.uid}/100/100`,
+        plan: "free",
+        platform: "viby",
+        role: "user",
+        city: "",
+        state: "",
+        country: "Brasil",
+        createdAt: serverTimestamp()
+      };
+
       await runTransaction(db, async (transaction) => {
         const usernameRef = doc(db, "usernames", normalizedUsername)
         const userRef = doc(db, "users", user.uid)
@@ -213,37 +234,28 @@ export default function CadastroPage() {
           throw new Error("Nome de usuário acaba de ser ocupado.")
         }
 
-        // Criar conta e username
         transaction.set(usernameRef, { uid: user.uid, type: 'user' })
-        transaction.set(userRef, {
-          uid: user.uid,
-          name,
-          username: normalizedUsername,
-          email,
-          birthDate,
-          gender,
-          cpf: encryptedCpf,
-          avatar: `https://picsum.photos/seed/${user.uid}/100/100`,
-          plan: "free",
-          platform: "viby",
-          role: "user",
-          city: "",
-          state: "",
-          country: "Brasil",
-          createdAt: serverTimestamp()
-        })
+        transaction.set(userRef, userData)
 
-        // SEGUIR CONTA OFICIAL AUTOMATICAMENTE
         const officialOrgId = "92aee5c9-6741-432e-9511-f5a1afbaa8db"
-        const followId = `${user.uid}_${officialOrgId}`
-        const followRef = doc(db, "follows", followId)
+        const followRef = doc(db, "follows", `${user.uid}_${officialOrgId}`)
         transaction.set(followRef, {
           followerId: user.uid,
           followingId: officialOrgId,
           targetType: 'organization',
           timestamp: serverTimestamp()
         })
-      })
+      }).catch(async (serverError) => {
+        if (serverError.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: `users/${user.uid}`,
+            operation: 'write',
+            requestResourceData: userData
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        }
+        throw serverError;
+      });
 
       sendWelcomeEmail({
         to: email,
@@ -254,11 +266,13 @@ export default function CadastroPage() {
       toast({ title: "Conta criada!", description: `Bem-vindo ao ${siteName}.` })
       router.push("/dashboard")
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Erro ao cadastrar",
-        description: error.message
-      })
+      if (error.code !== 'permission-denied') {
+        toast({
+          variant: "destructive",
+          title: "Erro ao cadastrar",
+          description: error.message
+        })
+      }
     } finally {
       setLoading(false)
     }

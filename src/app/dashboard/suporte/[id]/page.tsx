@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -23,6 +24,8 @@ import {
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 export default function TicketDetailsPage() {
   const params = useParams()
@@ -51,19 +54,32 @@ export default function TicketDetailsPage() {
       isAdmin: false
     }
 
-    try {
-      await updateDoc(ticketRef, {
-        messages: arrayUnion(messageObj),
-        updatedAt: serverTimestamp(),
-        status: "Em tratamento" // Opcional: mudar status ao usuário responder
+    const updateData = {
+      messages: arrayUnion(messageObj),
+      updatedAt: serverTimestamp(),
+      status: "Em tratamento"
+    };
+
+    updateDoc(ticketRef, updateData)
+      .then(() => {
+        setNewMessage("")
+        toast({ title: "Mensagem enviada!" })
       })
-      setNewMessage("")
-      toast({ title: "Mensagem enviada!" })
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro ao enviar" })
-    } finally {
-      setIsSending(false)
-    }
+      .catch(async (serverError) => {
+        if (serverError.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: ticketRef.path,
+            operation: "update",
+            requestResourceData: updateData
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        } else {
+          toast({ variant: "destructive", title: "Erro ao enviar" })
+        }
+      })
+      .finally(() => {
+        setIsSending(false)
+      })
   }
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>

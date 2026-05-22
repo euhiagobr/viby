@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -37,6 +38,8 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { encryptDeterministic, decryptData } from "@/lib/crypto-utils"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 /**
  * Validação de algoritimo de CPF.
@@ -72,7 +75,7 @@ export default function EditarPerfilPage() {
 
   const storage = React.useMemo(() => {
     if (!app) return null;
-    return getStorage(app, 'viby');
+    return getStorage(app, 'gs://viby');
   }, [app])
 
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
@@ -244,12 +247,24 @@ export default function EditarPerfilPage() {
       }
 
       batch.update(userRef, updateData)
-      await batch.commit()
+      await batch.commit().catch(async (serverError) => {
+        if (serverError.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: `users/${user.uid}`,
+            operation: 'write',
+            requestResourceData: updateData
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        }
+        throw serverError;
+      });
 
       toast({ title: "Perfil atualizado!" })
       router.push("/dashboard/perfil")
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro ao salvar" })
+      if (error.code !== 'permission-denied') {
+        toast({ variant: "destructive", title: "Erro ao salvar" })
+      }
     } finally { setSaving(false) }
   }
 

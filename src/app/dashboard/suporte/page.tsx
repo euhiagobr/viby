@@ -32,6 +32,8 @@ import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 export default function SuportePage() {
   const db = useFirestore()
@@ -109,16 +111,27 @@ export default function SuportePage() {
       updatedAt: serverTimestamp()
     }
 
-    try {
-      await addDoc(collection(db, "support_tickets"), ticketData)
-      toast({ title: "Ticket criado!", description: `Protocolo: ${ticketData.protocol}` })
-      setIsDialogOpen(false)
-      setAttachments([])
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro ao criar ticket" })
-    } finally {
-      setIsSubmitting(false)
-    }
+    addDoc(collection(db, "support_tickets"), ticketData)
+      .then(() => {
+        toast({ title: "Ticket criado!", description: `Protocolo: ${ticketData.protocol}` })
+        setIsDialogOpen(false)
+        setAttachments([])
+      })
+      .catch(async (serverError) => {
+        if (serverError.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: "support_tickets",
+            operation: "create",
+            requestResourceData: ticketData
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        } else {
+          toast({ variant: "destructive", title: "Erro ao criar ticket" })
+        }
+      })
+      .finally(() => {
+        setIsSubmitting(false)
+      })
   }
 
   const getStatusBadge = (status: string) => {
