@@ -180,6 +180,9 @@ export default function OrganizationAdsPage() {
         const monthKey = new Date(ad.endDate).toISOString().slice(0, 7);
         const lastDay = new Date(new Date(ad.endDate).getFullYear(), new Date(ad.endDate).getMonth() + 1, 0).toLocaleDateString('pt-BR');
 
+        const consumedRaw = ad.initialBudget - remainingRaw;
+        const consumedTax = consumedRaw * 0.11;
+
         batch.set(doc(db, "tax_ads", taxEntryId), {
            adId: ad.id,
            advertiserCnpj: currentOrg.cnpj || "---",
@@ -188,10 +191,10 @@ export default function OrganizationAdsPage() {
            startDate: ad.startDate,
            endDate: ad.endDate,
            status: 'finalizado',
-           grossValue: ad.initialBudget - ad.remainingBudget,
+           grossValue: consumedRaw + consumedTax, // Total consumido real
            taxPercent: 11,
-           taxValue: (ad.initialBudget - ad.remainingBudget) * 0.11,
-           netValue: (ad.initialBudget - ad.remainingBudget) * 0.89,
+           taxValue: consumedTax,
+           netValue: consumedRaw,
            nfDeadlineDate: lastDay,
            nfStatus: 'pendente',
            monthKey
@@ -314,10 +317,10 @@ export default function OrganizationAdsPage() {
          startDate: startDateInput,
          endDate: endDateInput,
          status: status.toLowerCase(),
-         grossValue: adData.initialBudget,
+         grossValue: adPlanSummary.totalReserved, // Orçamento + Imposto
          taxPercent: 11,
-         taxValue: adData.initialBudget * 0.11,
-         netValue: adData.initialBudget * 0.89,
+         taxValue: adPlanSummary.tax,
+         netValue: adPlanSummary.rawBudget,
          nfDeadlineDate: lastDay,
          nfStatus: 'pendente',
          monthKey
@@ -391,12 +394,13 @@ export default function OrganizationAdsPage() {
       const taxQ = query(collection(db, "tax_ads"), where("adId", "==", adToCancel.id));
       const taxSnap = await getDocs(taxQ);
       if (!taxSnap.empty) {
-        const consumedGross = adToCancel.initialBudget - remainingRaw;
+        const consumedRaw = adToCancel.initialBudget - remainingRaw;
+        const consumedTax = consumedRaw * 0.11;
         batch.update(taxSnap.docs[0].ref, {
            status: 'cancelado',
-           grossValue: consumedGross,
-           taxValue: consumedGross * 0.11,
-           netValue: consumedGross * 0.89,
+           grossValue: consumedRaw + consumedTax,
+           taxValue: consumedTax,
+           netValue: consumedRaw,
            updatedAt: serverTimestamp()
         });
       }
@@ -493,8 +497,8 @@ export default function OrganizationAdsPage() {
                     <div className="p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 space-y-4 animate-in slide-in-from-top-2 duration-300">
                          <div className="space-y-2">
                             <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Período de Veiculação:</span> <span className="text-primary">{adPlanSummary.totalDays} dias</span></div>
-                            <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Investimento Bruto:</span> <span className="text-primary">{formatCurrency(adPlanSummary.rawBudget)}</span></div>
-                            <div className="flex justify-between text-[10px] font-black uppercase text-secondary"><span>Impostos & Taxas (11%):</span> <span>+ {formatCurrency(adPlanSummary.tax)}</span></div>
+                            <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Investimento Bruto (Líquido do Imposto):</span> <span className="text-primary">{formatCurrency(adPlanSummary.rawBudget)}</span></div>
+                            <div className="flex justify-between text-[10px] font-black uppercase text-secondary"><span>Impostos & Taxas Adicionais (11%):</span> <span>+ {formatCurrency(adPlanSummary.tax)}</span></div>
                          </div>
                          <Separator className="bg-secondary/10" />
                          <div className="flex justify-between items-center">

@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -162,9 +163,9 @@ export default function AdminImpostoPage() {
           'Início': item.startDate,
           'Fim': item.endDate,
           'Status': item.status,
-          'Valor Bruto': item.grossValue,
-          'Imposto (11%)': item.taxValue,
-          'Valor Líquido': item.netValue,
+          'Valor Bruto (Total Cobrado)': item.grossValue,
+          'Imposto (11% do Líquido)': item.taxValue,
+          'Valor Líquido (Orçamento)': item.netValue,
           'Data Limite NF': item.nfDeadlineDate,
           'Status NF': item.nfStatus
         }
@@ -264,9 +265,9 @@ export default function AdminImpostoPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {activeTab === 'ads' ? (
           <>
-            <StatCard title="Total Bruto Anúncios" value={formatCurrency(adStats.gross)} icon={ArrowUpRight} color="blue" />
+            <StatCard title="Total Bruto (Cobrado)" value={formatCurrency(adStats.gross)} icon={ArrowUpRight} color="blue" />
             <StatCard title="Total Imposto (11%)" value={formatCurrency(adStats.tax)} icon={Receipt} color="orange" />
-            <StatCard title="Total Líquido Anúncios" value={formatCurrency(adStats.net)} icon={ArrowDownRight} color="green" />
+            <StatCard title="Total Líquido (Orçamento)" value={formatCurrency(adStats.net)} icon={ArrowDownRight} color="green" />
             <StatCard title="Campanhas Ativas" value={adStats.active} icon={CheckCircle2} color="secondary" />
             <StatCard title="Campanhas Canceladas" value={adStats.canceled} icon={XCircle} color="red" />
           </>
@@ -364,9 +365,9 @@ export default function AdminImpostoPage() {
                         </TableCell>
                         <TableCell className="text-right">
                            <div className="flex flex-col">
-                              <span className="font-black text-sm text-primary">{formatCurrency(ad.grossValue)}</span>
+                              <span className="font-black text-sm text-primary" title="Orçamento + Impostos">{formatCurrency(ad.grossValue)}</span>
                               <span className="text-[9px] font-bold text-orange-500 uppercase">Imposto: {formatCurrency(ad.taxValue)}</span>
-                              <span className="text-[9px] font-bold text-green-600 uppercase">Líquido: {formatCurrency(ad.netValue)}</span>
+                              <span className="text-[9px] font-bold text-green-600 uppercase">Orçamento (Líq): {formatCurrency(ad.netValue)}</span>
                            </div>
                         </TableCell>
                         <TableCell className="text-center">
