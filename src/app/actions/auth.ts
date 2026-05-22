@@ -2,7 +2,7 @@
 'use server';
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, query, where, getDocs, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, doc, setDoc, serverTimestamp, updateDoc, getDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { sendPasswordResetCodeEmail } from './email';
 
@@ -32,19 +32,20 @@ export async function requestPasswordReset(identifier: string) {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app, 'eventosviby');
 
-    let email = identifier;
+    let email = identifier.trim().toLowerCase();
     let userName = "Usuário";
 
     // 1. Resolve o identificador (se for username, pega o email)
     if (!identifier.includes("@")) {
-      const q = query(collection(db, "users"), where("username", "==", identifier.toLowerCase().trim()));
+      const normalizedUsername = identifier.replace('@', '').toLowerCase().trim();
+      const q = query(collection(db, "users"), where("username", "==", normalizedUsername));
       const snap = await getDocs(q);
       if (snap.empty) throw new Error("Usuário não encontrado.");
       const userData = snap.docs[0].data();
       email = userData.email;
       userName = userData.name || userData.displayName || "Usuário";
     } else {
-      const q = query(collection(db, "users"), where("email", "==", identifier.toLowerCase().trim()));
+      const q = query(collection(db, "users"), where("email", "==", email));
       const snap = await getDocs(q);
       if (!snap.empty) {
         const userData = snap.docs[0].data();
@@ -73,7 +74,7 @@ export async function requestPasswordReset(identifier: string) {
       siteName: "Viby Club"
     });
 
-    if (!emailResult.success) throw new Error("Erro ao disparar e-mail.");
+    if (!emailResult.success) throw new Error("Erro ao disparar e-mail de segurança.");
 
     return { success: true, email };
   } catch (error: any) {
@@ -82,9 +83,7 @@ export async function requestPasswordReset(identifier: string) {
 }
 
 /**
- * Verifica o código e "reseta" a senha. 
- * Nota: Como estamos no cliente/RSC sem Admin SDK direto no Auth, 
- * este fluxo valida o acesso e orienta a troca.
+ * Verifica o código e valida a intenção de troca.
  */
 export async function verifyAndResetPassword(data: { email: string, code: string }) {
   try {
@@ -98,15 +97,18 @@ export async function verifyAndResetPassword(data: { email: string, code: string
     if (!resetSnap.exists()) throw new Error("Solicitação expirada ou inexistente.");
     
     const resetData = resetSnap.data();
-    if (resetData.code !== data.code.toUpperCase()) throw new Error("Código incorreto.");
-    if (new Date() > new Date(resetData.expiresAt)) throw new Error("Código expirado.");
+    if (resetData.code !== data.code.toUpperCase()) throw new Error("Código de segurança incorreto.");
+    if (new Date() > new Date(resetData.expiresAt)) throw new Error("Este código expirou (limite de 15 min).");
     if (resetData.used) throw new Error("Este código já foi utilizado.");
 
     // Marca como usado
-    await updateDoc(resetRef, { used: true, updatedAt: serverTimestamp() });
+    await updateDoc(resetRef, { 
+      used: true, 
+      updatedAt: serverTimestamp() 
+    });
 
-    // Aqui, em produção com Admin SDK, faríamos:
-    // await adminAuth.updateUser(uid, { password: newPassword });
+    // Em um ambiente real com Admin SDK, aqui trocaríamos a senha do UID associado ao e-mail.
+    // No protótipo, validamos a etapa com sucesso.
     
     return { success: true };
   } catch (error: any) {

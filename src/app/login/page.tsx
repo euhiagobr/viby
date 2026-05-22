@@ -53,7 +53,7 @@ export default function LoginPage() {
       let emailToUse = identifier
 
       if (!identifier.includes("@")) {
-        const usernameRef = doc(db, "usernames", identifier.toLowerCase().trim())
+        const usernameRef = doc(db, "usernames", identifier.toLowerCase().trim().replace('@', ''))
         const usernameSnap = await getDoc(usernameRef)
         
         if (!usernameSnap.exists()) {
