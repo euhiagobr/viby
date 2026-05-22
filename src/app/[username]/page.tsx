@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -203,6 +204,18 @@ function UniversalProfileContent() {
 
   const userBadgesQuery = useMemoFirebase(() => (db && data?.id && type === 'user') ? query(collection(db, "user_badges"), where("userId", "==", data.id)) : null, [db, data?.id, type])
   const { data: userBadges } = useCollection<any>(userBadgesQuery)
+
+  // Ranking em Tempo Real
+  const rankingQuery = useMemoFirebase(() => (db && type === 'user' && gamification?.totalXp !== undefined) 
+    ? query(collection(db, "user_gamification"), where("totalXp", ">", gamification.totalXp)) 
+    : null, [db, type, gamification?.totalXp]);
+  const { data: competitors } = useCollection<any>(rankingQuery);
+  const userRank = (competitors?.length || 0) + 1;
+
+  const totalUsersQuery = useMemoFirebase(() => db ? query(collection(db, "user_gamification")) : null, [db]);
+  const { data: allGamifiedUsers } = useCollection<any>(totalUsersQuery);
+  const totalGamified = allGamifiedUsers?.length || 1;
+  const topPercent = Math.round((userRank / totalGamified) * 100);
 
   const levelInfo = React.useMemo(() => {
     if (!gamification) return null;
@@ -562,7 +575,7 @@ function UniversalProfileContent() {
                    </div>
                    {!isOrg && levelInfo && (
                       <div className="flex justify-center -mt-6 relative z-20">
-                         <Badge className="bg-primary text-white border-2 border-background h-8 px-4 font-black uppercase italic italic text-[10px] shadow-lg tracking-tighter">
+                         <Badge className="bg-primary text-white border-2 border-background h-8 px-4 font-black uppercase italic text-[10px] shadow-lg tracking-tighter">
                             LVL {levelInfo.current.level} • {levelInfo.current.name}
                          </Badge>
                       </div>
@@ -897,10 +910,16 @@ function UniversalProfileContent() {
                            <div className="relative z-10 space-y-4">
                               <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Posição na Cidade</p>
                               <div className="flex items-baseline gap-2">
-                                 <span className="text-5xl font-black italic tracking-tighter">#128</span>
-                                 <span className="text-[10px] font-black uppercase text-secondary">Top 5% de {data.city || 'POA'}</span>
+                                 <span className="text-5xl font-black italic tracking-tighter">#{userRank}</span>
+                                 <span className="text-[10px] font-black uppercase text-secondary">
+                                   {userRank === 1 ? 'Líder Absoluto' : `Top ${topPercent}%`} de {data.city || 'POA'}
+                                 </span>
                               </div>
-                              <p className="text-[9px] font-medium leading-relaxed opacity-60 uppercase">Este usuário está entre os mais ativos da cena cultural local no último mês.</p>
+                              <p className="text-[9px] font-medium leading-relaxed opacity-60 uppercase">
+                                {userRank === 1 
+                                  ? 'Este usuário é atualmente a maior referência da cena cultural local.' 
+                                  : 'Este usuário está entre os mais ativos da cena cultural local no último mês.'}
+                              </p>
                            </div>
                            <Trophy className="absolute -bottom-6 -right-6 w-32 h-32 opacity-10 rotate-12" />
                         </Card>
