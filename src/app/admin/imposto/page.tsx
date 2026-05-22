@@ -10,7 +10,6 @@ import {
   Receipt, 
   Loader2, 
   Search, 
-  Download, 
   FileText, 
   Building2, 
   CheckCircle2, 
@@ -28,9 +27,9 @@ import {
   Coins,
   User,
   Clock,
-  Mail,
   ArrowRight,
-  Scale
+  Scale,
+  Inbox
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -261,17 +260,15 @@ export default function AdminImpostoPage() {
       </div>
 
       {activeTab === 'tickets' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
            <StatCard title="Total Vendido (Face)" value={formatCurrency(ticketStats.totalSold)} icon={TrendingUp} color="blue" />
            <StatCard title="Repasse Produtores" value={formatCurrency(ticketStats.payouts)} icon={ArrowDownRight} color="orange" />
-           <StatCard title="T. Comprador" value={formatCurrency(ticketStats.buyerFees)} icon={User} color="secondary" />
-           <StatCard title="T. Organizador" value={formatCurrency(ticketStats.orgFees)} icon={Building2} color="secondary" />
-           <StatCard title="Stripe %" value={formatCurrency(ticketStats.stripePercent)} icon={CreditCard} color="red" />
-           <StatCard title="Stripe Fixo" value={formatCurrency(ticketStats.stripeFixed)} icon={CreditCard} color="red" />
-           <StatCard title="Stripe Total" value={formatCurrency(ticketStats.stripeTotal)} icon={CreditCard} color="red" />
-           <StatCard title="Lucro Bruto Viby" value={formatCurrency(ticketStats.vibyGross)} icon={ArrowUpRight} color="secondary" subtitle="Taxas - Stripe" />
+           <StatCard title="Total Taxas (Viby)" value={formatCurrency(ticketStats.buyerFees + ticketStats.orgFees)} icon={Coins} color="secondary" subtitle="Comprador + Organizador" />
+           <StatCard title="Custos Stripe" value={formatCurrency(ticketStats.stripeTotal)} icon={CreditCard} color="red" subtitle="% + Fixo" />
            <StatCard title="Imposto (11%)" value={formatCurrency(ticketStats.imposto)} icon={Receipt} color="orange" subtitle="Sobre Lucro Bruto" />
-           <StatCard title="Lucro Líquido Viby" value={formatCurrency(ticketStats.vibyNet)} icon={CheckCircle2} color="green" />
+           <StatCard title="Lucro Bruto Viby" value={formatCurrency(ticketStats.vibyGross)} icon={ArrowUpRight} color="secondary" subtitle="Taxas - Stripe" />
+           <StatCard title="Lucro Líquido Viby" value={formatCurrency(ticketStats.vibyNet)} icon={CheckCircle2} color="green" subtitle="Pós Imposto" />
+           <StatCard title="Tickets Vendidos" value={ticketStats.qty} icon={Ticket} color="secondary" />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -416,14 +413,11 @@ export default function AdminImpostoPage() {
                                       <TableHead className="text-[8px] font-black uppercase py-3">Tipo / Lote</TableHead>
                                       <TableHead className="text-[8px] font-black uppercase">Comprador</TableHead>
                                       <TableHead className="text-[8px] font-black uppercase text-center">Qtd</TableHead>
-                                      <TableHead className="text-[8px] font-black uppercase text-right">Face Unit.</TableHead>
-                                      <TableHead className="text-[8px] font-black uppercase text-right">Face Total</TableHead>
+                                      <TableHead className="text-[8px] font-black uppercase text-right">Valor Total</TableHead>
                                       <TableHead className="text-[8px] font-black uppercase text-right">T. Comprador</TableHead>
-                                      <TableHead className="text-[8px] font-black uppercase text-right">T. Organizador</TableHead>
-                                      <TableHead className="text-[8px] font-black uppercase text-right">Stripe %</TableHead>
-                                      <TableHead className="text-[8px] font-black uppercase text-right">Stripe Fixo</TableHead>
+                                      <TableHead className="text-[8px] font-black uppercase text-right">Com. Produtor</TableHead>
                                       <TableHead className="text-[8px] font-black uppercase text-right">Stripe Total</TableHead>
-                                      <TableHead className="text-[8px] font-black uppercase text-right">Imposto</TableHead>
+                                      <TableHead className="text-[8px] font-black uppercase text-right">Imposto (11%)</TableHead>
                                       <TableHead className="text-[8px] font-black uppercase text-right">Lucro Líquido</TableHead>
                                    </TableRow>
                                 </TableHeader>
@@ -443,14 +437,11 @@ export default function AdminImpostoPage() {
                                            </div>
                                         </TableCell>
                                         <TableCell className="text-center font-bold text-[10px]">{t.quantity || 1}</TableCell>
-                                        <TableCell className="text-right text-[10px]">{formatCurrency(t.unitPrice || t.ticketBasePrice)}</TableCell>
                                         <TableCell className="text-right font-bold text-[10px]">{formatCurrency(t.totalFacePrice)}</TableCell>
                                         <TableCell className="text-right text-[10px] text-primary">{formatCurrency(t.buyerFeeAmount)}</TableCell>
                                         <TableCell className="text-right text-[10px] text-primary">{formatCurrency(t.organizerFeeAmount)}</TableCell>
-                                        <TableCell className="text-right text-[10px] text-red-500">-{formatCurrency(t.stripeFeePercentAmount || 0)}</TableCell>
-                                        <TableCell className="text-right text-[10px] text-red-500">-{formatCurrency(t.stripeFeeFixedAmount || 0)}</TableCell>
                                         <TableCell className="text-right text-[10px] text-red-500 font-bold">-{formatCurrency(t.stripeFeeAmount)}</TableCell>
-                                        <TableCell className="text-right text-[10px] text-orange-600">-{formatCurrency(t.taxAmount)}</TableCell>
+                                        <TableCell className="text-right text-[10px] text-orange-600 font-bold">-{formatCurrency(t.taxAmount)}</TableCell>
                                         <TableCell className="text-right font-black text-[10px] text-green-600">{formatCurrency(t.vibyNetProfit)}</TableCell>
                                      </TableRow>
                                    ))}
@@ -459,7 +450,12 @@ export default function AdminImpostoPage() {
                           </div>
                         )}
                      </div>
-                   )) : <div className="py-24 text-center opacity-30 italic">Nenhuma venda encontrada para os filtros aplicados.</div>}
+                   )) : (
+                    <div className="py-24 text-center">
+                       <Inbox className="w-12 h-12 text-muted-foreground opacity-10 mx-auto mb-4" />
+                       <p className="text-muted-foreground font-bold italic">Nenhuma venda encontrada para os filtros aplicados.</p>
+                    </div>
+                   )}
                 </div>
               )}
            </TabsContent>
