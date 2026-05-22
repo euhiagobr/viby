@@ -28,6 +28,17 @@
       },
       "required": ["uid", "username", "email", "plan"]
     },
+    "PasswordReset": {
+      "title": "Redefinição de Senha",
+      "description": "Tokens temporários para troca de senha via código",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "code": { "type": "string" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "used": { "type": "boolean" }
+      }
+    },
     "Organization": {
       "title": "Organização",
       "description": "Entidade promotora de eventos (Produtora, ONG, etc)",
@@ -104,6 +115,10 @@
     "/users/{userId}": {
       "schema": "User",
       "description": "Identidade pessoal e configurações"
+    },
+    "/password_resets/{resetId}": {
+      "schema": "PasswordReset",
+      "description": "Controle de tokens de recuperação"
     },
     "/organizations/{orgId}": {
       "schema": "Organization",

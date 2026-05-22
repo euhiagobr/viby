@@ -1,3 +1,4 @@
+
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -38,6 +39,13 @@ interface CartPendingEmailData {
   userName: string;
   items: any[];
   totalAmount: number;
+  siteName: string;
+}
+
+interface PasswordResetEmailData {
+  to: string;
+  userName: string;
+  code: string;
   siteName: string;
 }
 
@@ -85,6 +93,53 @@ async function getEmailConfig() {
     console.error('Erro ao buscar config de e-mail no Firestore:', e);
     return { smtpUser: null, smtpPass: null };
   }
+}
+
+/**
+ * Envia o e-mail de redefinição de senha com código.
+ */
+export async function sendPasswordResetCodeEmail(data: PasswordResetEmailData) {
+  try {
+    const { smtpUser, smtpPass } = await getEmailConfig();
+
+    const htmlContent = `
+      <div style="font-family: 'Poppins', sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 32px; overflow: hidden; border: 1px solid #e2e8f0; padding: 40px;">
+        <h1 style="color: #2563eb; font-style: italic; text-transform: uppercase;">Viby.Club</h1>
+        <h2 style="font-size: 24px; color: #0f172a;">Redefinição de Senha</h2>
+        <p style="color: #475569; line-height: 1.6;">Olá, ${data.userName}. Recebemos uma solicitação para redefinir sua senha.</p>
+        <div style="background: #f1f5f9; border-radius: 24px; padding: 30px; text-align: center; margin: 30px 0;">
+          <p style="text-transform: uppercase; font-size: 10px; font-weight: 900; color: #64748b; letter-spacing: 1px; margin-bottom: 10px;">Seu código de acesso</p>
+          <div style="font-family: monospace; font-size: 32px; font-weight: bold; color: #2563eb; letter-spacing: 5px;">${data.code}</div>
+        </div>
+        <p style="font-size: 12px; color: #94a3b8;">Este código expira em 15 minutos. Se você não solicitou a troca de senha, ignore este e-mail.</p>
+      </div>
+    `;
+
+    await logEmail({
+      sender: "Viby Auth",
+      recipientName: data.userName,
+      recipientEmail: data.to,
+      subject: "Seu código de redefinição de senha",
+      content: htmlContent,
+      type: "password_reset"
+    });
+
+    if (!smtpUser || !smtpPass) return { success: false };
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com', port: 465, secure: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    await transporter.sendMail({
+      from: `"Viby Auth" <${smtpUser}>`,
+      to: data.to,
+      subject: "🔐 Código de Segurança: Redefinição de Senha",
+      html: htmlContent
+    });
+
+    return { success: true };
+  } catch (e) { return { success: false }; }
 }
 
 /**

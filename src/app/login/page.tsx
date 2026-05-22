@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -11,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { Globe, Loader2, User, Mail, ArrowLeft } from "lucide-react"
+import { Globe, Loader2, User, Mail, ArrowLeft, KeyRound } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import Image from "next/image"
@@ -122,9 +123,9 @@ export default function LoginPage() {
       </nav>
 
       <div className="flex-1 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md border-none shadow-xl">
-          <CardHeader className="space-y-1 flex flex-col items-center">
-            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 overflow-hidden">
+        <Card className="w-full max-w-md border-none shadow-xl rounded-[2rem] overflow-hidden bg-white">
+          <CardHeader className="space-y-1 flex flex-col items-center pt-10 pb-6">
+            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 overflow-hidden shadow-lg shadow-secondary/20">
               {settings?.logoUrl ? (
                 <Image 
                   src={settings.logoUrl} 
@@ -138,45 +139,58 @@ export default function LoginPage() {
                 <Globe className="text-white w-7 h-7" />
               )}
             </div>
-            <CardTitle className="text-2xl font-bold">{siteName} Login</CardTitle>
-            <CardDescription>Acesse sua conta com e-mail ou nome de usuário.</CardDescription>
+            <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Acessar Clube</CardTitle>
+            <CardDescription className="font-medium text-center">Entre com seu e-mail ou @username exclusivo.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 px-8">
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="identifier">Identificador (E-mail ou Usuário)</Label>
+                <Label htmlFor="identifier" className="text-[10px] font-black uppercase tracking-widest opacity-60">Identificador</Label>
                 <div className="relative">
                   <Input 
                     id="identifier" 
-                    placeholder="seu@email.com ou seu_usuario" 
+                    placeholder="E-mail ou @username" 
                     value={identifier} 
                     onChange={(e) => setIdentifier(e.target.value)} 
-                    className="pl-10"
+                    className="pl-10 h-12 rounded-xl border-dashed border-secondary/30"
                     required 
                   />
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary">
                     {identifier.includes("@") ? <Mail className="h-4 w-4" /> : <User className="h-4 w-4" />}
                   </div>
                 </div>
               </div>
               <div className="space-y-2">
-                <div className="flex justify-between">
-                  <Label htmlFor="password">Senha</Label>
-                  <Link href="#" className="text-xs text-secondary hover:underline">Esqueceu a senha?</Link>
+                <div className="flex justify-between items-center mb-1">
+                  <Label htmlFor="password" className="text-[10px] font-black uppercase tracking-widest opacity-60">Sua Senha</Label>
+                  <Link href="/redefinir-senha" className="text-[10px] font-black uppercase tracking-widest text-secondary hover:underline">Esqueceu a senha?</Link>
                 </div>
-                <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <div className="relative">
+                   <Input 
+                     id="password" 
+                     type="password" 
+                     placeholder="••••••••" 
+                     value={password} 
+                     onChange={(e) => setPassword(e.target.value)} 
+                     required 
+                     className="pl-10 h-12 rounded-xl border-dashed border-secondary/30"
+                   />
+                   <div className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary">
+                      <KeyRound className="h-4 w-4" />
+                   </div>
+                </div>
               </div>
-              <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 font-bold" disabled={loading}>
+              <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 font-black h-14 rounded-2xl shadow-xl shadow-secondary/20 uppercase italic mt-4" disabled={loading}>
                 {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 Entrar no {siteName}
               </Button>
             </form>
           </CardContent>
-          <CardFooter className="flex justify-center border-t border-border mt-4 pt-6">
-            <p className="text-sm text-muted-foreground">
-              Ainda não tem conta no {siteName}?{" "}
-              <Link href="/cadastro" className="text-secondary font-bold hover:underline">
-                Cadastrar-se
+          <CardFooter className="flex justify-center border-t border-border mt-6 py-8 bg-muted/20">
+            <p className="text-xs font-bold text-muted-foreground">
+              Novo por aqui?{" "}
+              <Link href="/cadastro" className="text-secondary font-black hover:underline uppercase italic">
+                Criar conta gratuita
               </Link>
             </p>
           </CardFooter>
