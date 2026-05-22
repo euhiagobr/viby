@@ -137,17 +137,38 @@ export default function OrganizationFinancePage() {
     }
     setIsTopUpLoading(true);
     try {
-      const tax = amount * 0.16;
-      const fee = amount * 0.05;
-      const totalToCharge = amount + tax + fee;
+      // 21% de encargos totais (Stripe + Impostos)
+      const totalToCharge = amount * 1.21;
+      
       const txRef = await addDoc(collection(db, 'organizations', currentOrg.id, 'transactions'), {
-        type: 'topup', description: 'Recarga de Saldo Ads (Aguardando)', amount: amount, totalCharged: totalToCharge,
-        status: 'pending', createdAt: serverTimestamp(), updatedAt: serverTimestamp(), userId: user.uid, userName: user.displayName || "Usuário"
+        type: 'topup', 
+        description: 'Recarga de Saldo Ads (Aguardando)', 
+        amount: amount, 
+        totalCharged: totalToCharge,
+        status: 'pending', 
+        createdAt: serverTimestamp(), 
+        updatedAt: serverTimestamp(), 
+        userId: user.uid, 
+        userName: user.displayName || "Usuário"
       });
-      const { url } = await createAdBalanceTopUpSession({ orgId: currentOrg.id, orgName: currentOrg.name, userEmail: user.email!, baseAmount: amount, transactionId: txRef.id });
-      if (url) { window.open(url, '_blank'); setIsWaitingPayment(true); }
-    } catch (e) { toast({ variant: "destructive", title: "Erro na recarga" }); }
-    finally { setIsTopUpLoading(false); }
+
+      const { url } = await createAdBalanceTopUpSession({ 
+        orgId: currentOrg.id, 
+        orgName: currentOrg.name, 
+        userEmail: user.email!, 
+        baseAmount: amount, 
+        transactionId: txRef.id 
+      });
+
+      if (url) { 
+        window.open(url, '_blank'); 
+        setIsWaitingPayment(true); 
+      }
+    } catch (e) { 
+      toast({ variant: "destructive", title: "Erro na recarga" }); 
+    } finally { 
+      setIsTopUpLoading(false); 
+    }
   };
 
   const handleRequestAdvance = async () => {
@@ -179,6 +200,7 @@ export default function OrganizationFinancePage() {
   }
 
   if (orgLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
+  if (!currentOrg) return null;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -302,13 +324,139 @@ export default function OrganizationFinancePage() {
         </TabsContent>
 
         <TabsContent value="anuncios" className="space-y-8 animate-in fade-in zoom-in-95 duration-300">
-           {/* Conteúdo de Anúncios */}
-           <div className="p-8 text-center bg-white rounded-3xl border-2 border-dashed border-border opacity-50">
-              <Coins className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <p className="font-bold">Gerencie seu saldo de publicidade nesta aba.</p>
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="border-none shadow-sm bg-secondary text-white overflow-hidden relative">
+                 <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Saldo Livre para Ads</CardTitle></CardHeader>
+                 <CardContent>
+                    <div className="text-3xl font-black">{formatCurrency(currentOrg.adBalance || 0)}</div>
+                    <p className="text-[9px] mt-2 font-bold opacity-40 uppercase">Utilizável em campanhas</p>
+                 </CardContent>
+                 <Coins className="absolute -bottom-2 -right-2 w-20 h-20 opacity-10 rotate-12" />
+              </Card>
+
+              <Card className="border-none shadow-sm bg-white border-l-4 border-primary">
+                 <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">Saldo em Campanhas</CardTitle></CardHeader>
+                 <CardContent>
+                    <div className="text-3xl font-black text-primary">{formatCurrency(currentOrg.blockedBalance || 0)}</div>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase mt-2">Vinculado a anúncios ativos</p>
+                 </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-sm bg-white">
+                 <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Investimento Total</CardTitle></CardHeader>
+                 <CardContent>
+                    <div className="text-3xl font-black text-foreground">{formatCurrency((currentOrg.adBalance || 0) + (currentOrg.blockedBalance || 0))}</div>
+                 </CardContent>
+              </Card>
+           </div>
+
+           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              <div className="lg:col-span-7 space-y-8">
+                 <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
+                    <CardHeader className="bg-muted/30 p-8">
+                       <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+                          <Plus className="w-5 h-5 text-secondary" /> Recarregar Saldo
+                       </CardTitle>
+                       <CardDescription className="font-medium">Adicione crédito para impulsionar seus eventos.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-8 space-y-6">
+                       <div className="space-y-4">
+                          <div className="space-y-2">
+                             <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Valor da Recarga (Mín. R$ 10,00)</Label>
+                             <div className="relative">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-secondary">R$</span>
+                                <Input 
+                                   type="number" 
+                                   step="0.01" 
+                                   value={topUpAmount}
+                                   onChange={e => setTopUpAmount(e.target.value)}
+                                   className="h-16 text-3xl font-black pl-12 rounded-2xl border-secondary/20"
+                                />
+                             </div>
+                          </div>
+
+                          <div className="p-4 bg-muted/30 rounded-2xl space-y-3">
+                             <div className="flex justify-between text-xs font-bold uppercase opacity-60">
+                                <span>Subtotal</span>
+                                <span>{formatCurrency(parseFloat(topUpAmount) || 0)}</span>
+                             </div>
+                             <div className="flex justify-between text-xs font-bold uppercase opacity-60">
+                                <span>Encargos (21%)</span>
+                                <span>{formatCurrency((parseFloat(topUpAmount) || 0) * 0.21)}</span>
+                             </div>
+                             <Separator />
+                             <div className="flex justify-between items-center">
+                                <span className="text-sm font-black uppercase italic">Total a Pagar</span>
+                                <span className="text-xl font-black text-primary">{formatCurrency((parseFloat(topUpAmount) || 0) * 1.21)}</span>
+                             </div>
+                          </div>
+
+                          <Button 
+                             onClick={handleTopUp}
+                             disabled={isTopUpLoading || !topUpAmount || parseFloat(topUpAmount) < 10}
+                             className="w-full h-16 bg-secondary text-white font-black text-lg rounded-2xl shadow-xl shadow-secondary/20 uppercase italic transition-all hover:scale-[1.02]"
+                          >
+                             {isTopUpLoading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <CreditCard className="w-6 h-6 mr-2" />}
+                             Pagar com Cartão / PIX
+                          </Button>
+
+                          {isWaitingPayment && (
+                             <div className="flex items-center gap-3 p-4 bg-orange-50 rounded-2xl border border-orange-200 animate-pulse">
+                                <RefreshCw className="w-5 h-5 text-orange-600 animate-spin" />
+                                <p className="text-[10px] font-black text-orange-800 uppercase">Aguardando confirmação do pagamento...</p>
+                             </div>
+                          )}
+                       </div>
+                    </CardContent>
+                 </Card>
+              </div>
+
+              <div className="lg:col-span-5 space-y-6">
+                 <Card className="border-none shadow-sm rounded-[2rem] bg-primary text-white">
+                    <CardHeader>
+                       <CardTitle className="text-sm font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                          <Info className="w-4 h-4" /> Sobre o Saldo Ads
+                       </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4 text-xs font-medium opacity-80 leading-relaxed">
+                       <p>1. O saldo recarregado é exclusivo para uso em campanhas de impulsionamento dentro da plataforma Viby.</p>
+                       <p>2. Os encargos de 21% cobrem taxas de processamento financeiro (Stripe) e impostos de intermediação.</p>
+                       <p>3. Saldo bloqueado refere-se a valores já reservados para campanhas ativas. Caso cancele uma campanha, o saldo remanescente volta para o Saldo Livre.</p>
+                    </CardContent>
+                 </Card>
+              </div>
            </div>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={isAdvanceModalOpen} onOpenChange={setIsAdvanceModalOpen}>
+        <DialogContent className="rounded-[2.5rem] max-w-sm">
+           <DialogHeader>
+              <div className="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center mx-auto mb-2 text-secondary">
+                 <Zap className="w-8 h-8 fill-secondary" />
+              </div>
+              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Antecipação Express</DialogTitle>
+              <DialogDescription className="text-center font-medium">
+                 Receba o valor deste ingresso em 24h em vez de 30 dias.
+              </DialogDescription>
+           </DialogHeader>
+           <div className="py-4 space-y-4">
+              <div className="p-4 bg-muted/30 rounded-2xl space-y-3">
+                 <div className="flex justify-between text-xs font-bold opacity-60"><span>Valor Original</span> <span>{formatCurrency(selectedSaleForAdvance?.producerNetAmount || 0)}</span></div>
+                 <div className="flex justify-between text-xs font-bold text-red-500"><span>Taxa de Antecipação (1.9%)</span> <span>-{formatCurrency((selectedSaleForAdvance?.producerNetAmount || 0) * 0.019)}</span></div>
+                 <Separator />
+                 <div className="flex justify-between items-center"><span className="text-sm font-black uppercase italic">Você Recebe</span> <span className="text-xl font-black text-green-600">{formatCurrency((selectedSaleForAdvance?.producerNetAmount || 0) * 0.981)}</span></div>
+              </div>
+              <p className="text-[9px] text-muted-foreground font-medium uppercase leading-relaxed text-center italic">A liberação ocorrerá na sua conta bancária verificada em até 1 dia útil após a aprovação.</p>
+           </div>
+           <DialogFooter>
+              <Button onClick={handleRequestAdvance} disabled={isAdvancing} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-lg uppercase italic">
+                 {isAdvancing ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Zap className="w-5 h-5 mr-2 fill-white" />}
+                 Confirmar Antecipação
+              </Button>
+           </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
