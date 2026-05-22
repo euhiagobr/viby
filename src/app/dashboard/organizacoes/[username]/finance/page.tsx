@@ -136,7 +136,7 @@ export default function OrganizationFinancePage() {
       const standardReleaseDate = new Date(saleDate);
       standardReleaseDate.setDate(standardReleaseDate.getDate() + 30);
 
-      // Se foi antecipado, libera em 1 dia após a solicitação
+      // Se foi antecipado, libera em 1 dia após a solicitação (D+1)
       const releaseDate = sale.advanceRequestedAt 
         ? new Date(new Date(sale.advanceRequestedAt).getTime() + 24 * 60 * 60 * 1000)
         : standardReleaseDate;
@@ -326,6 +326,7 @@ export default function OrganizationFinancePage() {
                         : standardReleaseDate;
 
                       const isAvailable = new Date() >= releaseDate;
+                      const isAdvanced = !!sale.advanceRequested;
 
                       return (
                         <TableRow key={sale.id} className="hover:bg-muted/10 transition-colors">
@@ -353,15 +354,21 @@ export default function OrganizationFinancePage() {
                                   isAvailable ? "text-green-600" : "text-orange-500"
                                 )}>
                                   {isAvailable ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                                  {isAvailable ? "Liberado" : "Bloqueado"}
+                                  {isAvailable ? "Liberado" : isAdvanced ? "D+1 Ativo" : "Bloqueado"}
                                 </div>
-                                <span className="text-[8px] font-bold text-muted-foreground uppercase">
-                                  {releaseDate.toLocaleDateString('pt-BR')}
+                                <span className={cn(
+                                  "font-bold uppercase",
+                                  isAdvanced ? "text-[7px] text-secondary" : "text-[8px] text-muted-foreground"
+                                )}>
+                                  {isAdvanced 
+                                    ? releaseDate.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                                    : releaseDate.toLocaleDateString('pt-BR')
+                                  }
                                 </span>
                              </div>
                           </TableCell>
                           <TableCell className="text-right">
-                             {!isAvailable && !sale.advanceRequested && (
+                             {!isAvailable && !isAdvanced && (
                                <Button 
                                  size="sm" 
                                  variant="outline" 
@@ -371,7 +378,7 @@ export default function OrganizationFinancePage() {
                                   <Zap className="w-3 h-3 fill-secondary" /> Antecipar (D+1)
                                </Button>
                              )}
-                             {sale.advanceRequested && (
+                             {isAdvanced && (
                                <Badge className="bg-secondary/10 text-secondary border-secondary/20 text-[8px] font-black uppercase">
                                  Antecipado
                                </Badge>
