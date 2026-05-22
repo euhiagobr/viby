@@ -1,9 +1,7 @@
-
 "use client"
 
 import * as React from "react"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
@@ -11,17 +9,18 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { ArrowLeft, Loader2, KeyRound, Mail, ShieldCheck, CheckCircle2, Send } from "lucide-react"
+import { ArrowLeft, Loader2, KeyRound, Mail, CheckCircle2, Send, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import Image from "next/image"
 import { requestPasswordReset } from "@/app/actions/auth"
 
 export default function RedefinirSenhaPage() {
-  const [step, setStep] = useState<'request' | 'success'>('request')
+  const [step, setStep] = useState<'request' | 'success' | 'error'>('request')
   const [identifier, setIdentifier] = useState("")
   const [loading, setLoading] = useState(false)
   const [sentEmail, setSentEmail] = useState("")
+  const [errorMessage, setErrorMessage] = useState("")
   
   const db = useFirestore()
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
@@ -33,6 +32,8 @@ export default function RedefinirSenhaPage() {
     if (!identifier.trim()) return
     
     setLoading(true)
+    setErrorMessage("")
+    
     try {
       const result = await requestPasswordReset(identifier)
       if (result.success) {
@@ -40,9 +41,13 @@ export default function RedefinirSenhaPage() {
         setStep('success')
         toast({ title: "E-mail enviado!", description: `Confira sua caixa de entrada em ${result.email}.` })
       } else {
-        toast({ variant: "destructive", title: "Ops!", description: result.error || "Não conseguimos localizar sua conta." })
+        setErrorMessage(result.error || "Não conseguimos processar sua solicitação.")
+        setStep('error')
+        toast({ variant: "destructive", title: "Erro na solicitação", description: result.error })
       }
     } catch (error) {
+      setErrorMessage("Erro interno de comunicação com o servidor.")
+      setStep('error')
       toast({ variant: "destructive", title: "Erro no servidor" })
     } finally {
       setLoading(false)
@@ -55,7 +60,7 @@ export default function RedefinirSenhaPage() {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             {settings?.logoUrl ? (
-              <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-8 w-auto object-contain" priority />
+              <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-8 w-auto object-contain" priority unoptimized />
             ) : (
               <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-lg">{siteName.charAt(0)}</span>
@@ -72,14 +77,21 @@ export default function RedefinirSenhaPage() {
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md border-none shadow-2xl rounded-[2.5rem] overflow-hidden bg-white">
           <CardHeader className="space-y-1 flex flex-col items-center pt-12 pb-6">
-            <div className="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center mb-6 text-secondary shadow-inner">
-               {step === 'request' ? <KeyRound className="w-8 h-8" /> : <CheckCircle2 className="w-8 h-8 text-green-500" />}
+            <div className={cn(
+              "w-16 h-16 rounded-2xl flex items-center justify-center mb-6 shadow-inner",
+              step === 'error' ? "bg-destructive/10 text-destructive" : "bg-secondary/10 text-secondary"
+            )}>
+               {step === 'request' && <KeyRound className="w-8 h-8" />}
+               {step === 'success' && <CheckCircle2 className="w-8 h-8 text-green-500" />}
+               {step === 'error' && <AlertTriangle className="w-8 h-8" />}
             </div>
-            <CardTitle className="text-3xl font-black italic uppercase tracking-tighter text-primary">
-              {step === 'request' ? 'Esqueceu a Senha?' : 'E-mail Enviado!'}
+            <CardTitle className="text-3xl font-black italic uppercase tracking-tighter text-primary text-center">
+              {step === 'request' ? 'Esqueceu a Senha?' : step === 'success' ? 'E-mail Enviado!' : 'Indisponível'}
             </CardTitle>
             <CardDescription className="text-center font-medium px-4">
-              {step === 'request' ? 'Informe seu e-mail ou @username para receber o link oficial de redefinição.' : `Enviamos as instruções de recuperação para ${sentEmail}.`}
+              {step === 'request' ? 'Informe seu e-mail ou @username para receber o link oficial de redefinição.' : 
+               step === 'success' ? `Enviamos as instruções de recuperação para ${sentEmail}.` :
+               'Houve um problema técnico ao gerar seu link de recuperação.'}
             </CardDescription>
           </CardHeader>
           
@@ -109,13 +121,29 @@ export default function RedefinirSenhaPage() {
               <div className="text-center space-y-8 animate-in zoom-in-95 duration-500">
                 <div className="p-6 bg-green-50 rounded-3xl border-2 border-dashed border-green-100">
                    <p className="text-sm text-green-800 font-medium leading-relaxed uppercase italic tracking-tighter text-center">
-                     Clique no botão dentro do e-mail que acabamos de enviar para definir sua nova senha com segurança.
+                     Clique no botão dentro do e-mail que acabamos de enviar para definir sua nova senha com segurança no sistema oficial.
                    </p>
                 </div>
                 <Button asChild className="w-full bg-primary text-white font-black h-16 rounded-[1.5rem] shadow-xl uppercase italic text-lg">
                   <Link href="/login">Voltar ao Login</Link>
                 </Button>
                 <button type="button" onClick={() => setStep('request')} className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary">Não recebeu? Tentar novamente</button>
+              </div>
+            )}
+
+            {step === 'error' && (
+              <div className="text-center space-y-6 animate-in zoom-in-95 duration-500">
+                <div className="p-6 bg-destructive/5 rounded-3xl border-2 border-dashed border-destructive/20">
+                   <p className="text-xs text-destructive font-bold leading-relaxed uppercase">
+                     {errorMessage}
+                   </p>
+                </div>
+                <p className="text-xs text-muted-foreground font-medium">
+                  Isso geralmente ocorre quando o projeto de autenticação não possui as credenciais de administrador configuradas no servidor.
+                </p>
+                <Button variant="outline" onClick={() => setStep('request')} className="w-full h-12 rounded-xl font-bold uppercase text-[10px] tracking-widest">
+                  Tentar Novamente
+                </Button>
               </div>
             )}
           </CardContent>

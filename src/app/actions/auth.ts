@@ -1,25 +1,24 @@
 'use server';
 
 import * as admin from 'firebase-admin';
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
 import { authConfig, vibyConfig } from '@/firebase/config';
 import { sendPasswordResetLinkEmail } from './email';
 
 /**
- * Inicializa o Firebase Admin de forma resiliente.
- * Em ambientes como o Firebase Studio, tentamos usar o Application Default Credentials (ADC).
+ * Inicializa o Firebase Admin de forma resiliente para o projeto de Auth.
  */
 function getAdminAuth() {
-  if (admin.apps.length === 0) {
+  const adminApp = admin.apps.find(a => a?.name === '[DEFAULT]' || a?.options?.projectId === authConfig.projectId);
+  
+  if (!adminApp) {
     try {
-      // Inicialização sem o parâmetro 'credential' para tentar herdar do ambiente
-      // ou apenas passando o projectId.
       admin.initializeApp({
         projectId: authConfig.projectId,
       });
     } catch (e) {
-      console.error("Erro ao inicializar Firebase Admin:", e);
+      // Falha silenciosa se já existir
     }
   }
   return admin.auth();
@@ -27,11 +26,10 @@ function getAdminAuth() {
 
 /**
  * Solicita a redefinição de senha gerando o link oficial do Firebase.
- * O link é enviado através do sistema de e-mail customizado da Viby.
  */
 export async function requestPasswordReset(identifier: string) {
   try {
-    // Inicialização das apps cliente para busca de dados
+    // Inicialização da app cliente Viby para busca de dados no Firestore do projeto ONG
     const vibyApp = getApps().find(a => a.name === "vibyApp") || initializeApp(vibyConfig, "vibyApp");
     const db = getFirestore(vibyApp, 'eventosviby');
     const authAdmin = getAdminAuth();
@@ -51,7 +49,6 @@ export async function requestPasswordReset(identifier: string) {
       email = userData.email;
       userName = userData.name || userData.displayName || "Usuário";
     } else {
-      // Busca dados do usuário pelo e-mail para pegar o nome
       const q = query(collection(db, "users"), where("email", "==", email));
       const snap = await getDocs(q);
       if (!snap.empty) {
@@ -61,10 +58,10 @@ export async function requestPasswordReset(identifier: string) {
     }
 
     // 2. Gerar link oficial de redefinição de senha
-    // Este link aponta para o domínio de auth do Firebase onde a troca é efetivada
+    // Nota: generatePasswordResetLink exige que o projeto 'authConfig.projectId' tenha uma Service Account ativa
     const resetLink = await authAdmin.generatePasswordResetLink(email);
 
-    // 3. Disparar e-mail via SMTP customizado contendo o link oficial
+    // 3. Disparar e-mail via SMTP customizado
     const emailResult = await sendPasswordResetLinkEmail({
       to: email,
       userName,
@@ -80,14 +77,13 @@ export async function requestPasswordReset(identifier: string) {
   } catch (error: any) {
     console.error("Erro na redefinição de senha:", error);
     
-    // Tratamento de erro de credenciais específico para o usuário
-    if (error.message?.includes("credential") || error.code === 'auth/operation-not-allowed') {
-      return { 
-        success: false, 
-        error: "O serviço de geração de links está temporariamente indisponível. Verifique as permissões do Firebase Admin." 
-      };
+    let userFriendlyError = error.message;
+    
+    // Tratamento de erro de credenciais específico
+    if (error.message?.includes("credential") || error.code?.includes("auth/operation-not-allowed") || error.message?.includes("access token")) {
+      userFriendlyError = "O serviço de geração de links exige configuração de Service Account no projeto de Auth. Por favor, verifique o console do Firebase.";
     }
 
-    return { success: false, error: error.message };
+    return { success: false, error: userFriendlyError };
   }
 }
