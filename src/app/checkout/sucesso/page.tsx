@@ -140,14 +140,14 @@ export default function CheckoutSucessoPage() {
                    timestamp: serverTimestamp()
                 });
 
-                // Gatilho de Gamificação: Compra de Ingresso
+                // Gatilho de Gamificação: Compra de Ingresso (Travado pelo regId)
                 await processGamificationEvent(db, user.uid, 'on_ticket_purchase', {
                   eventId: regData.eventId,
                   eventTitle: regData.eventTitle,
                   categoryName: regData.categoryName,
                   city: regData.eventCity,
                   orgName: regData.organizer?.name
-                });
+                }, regId);
 
                 const eventDate = regData.eventDate?.toDate ? regData.eventDate.toDate().toLocaleString('pt-BR') : new Date(regData.eventDate).toLocaleString('pt-BR');
                 
@@ -166,7 +166,7 @@ export default function CheckoutSucessoPage() {
           }
 
           if (metadata.type === 'cart_checkout') clearCart();
-          toast({ title: "Pagamento Confirmado!" });
+          toast({ title: "Pagamento Confiramdo!" });
         }
       } catch (error) {
         console.error("Erro ao processar sucesso de pagamento:", error);

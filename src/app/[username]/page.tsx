@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -484,11 +483,11 @@ function UniversalProfileContent() {
           timestamp: serverTimestamp()
         });
 
-        // Gatilho Gamificação: Seguir
+        // Gatilho Gamificação: Seguir (Travado pela relação única follower_target)
         await processGamificationEvent(db, user.uid, type === 'organization' ? 'on_follow_org' : 'on_follow_user', {
           targetId: data.id,
           targetName: displayName
-        });
+        }, data.id);
 
         toast({ title: `Seguindo ${displayName}!` })
       }

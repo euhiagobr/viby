@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -216,13 +215,15 @@ export default function AdminPresencaPage() {
       // 1. Sincronizar criação de conta para todos os usuários
       const usersSnap = await getDocs(collection(db, "users"))
       for (const uDoc of usersSnap.docs) {
-        await processGamificationEvent(db, uDoc.id, 'on_signup')
+        // Passamos o ID do usuário como UniqueId para evitar duplicidade no on_signup
+        await processGamificationEvent(db, uDoc.id, 'on_signup', {}, uDoc.id)
       }
 
       // 2. Sincronizar check-ins passados
       const regsSnap = await getDocs(query(collection(db, "registrations"), where("checkedIn", "==", true)))
       for (const rDoc of regsSnap.docs) {
         const reg = rDoc.data()
+        // Passamos o ID da inscrição como UniqueId para evitar duplicidade no on_checkin
         await processGamificationEvent(db, reg.userId, 'on_checkin', {
           eventId: reg.eventId,
           eventTitle: reg.eventTitle,
@@ -230,23 +231,24 @@ export default function AdminPresencaPage() {
           neighborhood: reg.eventNeighborhood,
           city: reg.eventCity,
           orgName: reg.organizer?.name
-        })
+        }, rDoc.id)
       }
 
       // 3. Sincronizar compras passadas
       const paidSnap = await getDocs(query(collection(db, "registrations"), where("paymentStatus", "in", ["Pago", "Disponível"])))
       for (const pDoc of paidSnap.docs) {
         const reg = pDoc.data()
+        // Passamos o ID da inscrição como UniqueId para evitar duplicidade no on_ticket_purchase
         await processGamificationEvent(db, reg.userId, 'on_ticket_purchase', {
           eventId: reg.eventId,
           eventTitle: reg.eventTitle,
           categoryName: reg.categoryName,
           city: reg.eventCity,
           orgName: reg.organizer?.name
-        })
+        }, pDoc.id)
       }
 
-      toast({ title: "Sincronização completa!", description: "XP e estatísticas atualizados para todos os usuários." })
+      toast({ title: "Sincronização completa!", description: "XP e estatísticas atualizados para todos os usuários (sem duplicidade)." })
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na sincronização" })
     } finally {

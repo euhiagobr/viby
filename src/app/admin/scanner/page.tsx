@@ -130,7 +130,7 @@ export default function AdminScannerPage() {
         status: "Utilizado"
       })
 
-      // Gatilho Gamificação: Check-in via Scanner Admin
+      // Gatilho Gamificação: Check-in via Scanner Admin (Travado pelo ID do ingresso)
       await processGamificationEvent(db, ticketData.userId, 'on_checkin', {
         eventId: ticketData.eventId,
         eventTitle: ticketData.eventTitle,
@@ -138,7 +138,7 @@ export default function AdminScannerPage() {
         neighborhood: ticketData.eventNeighborhood,
         city: ticketData.eventCity,
         orgName: ticketData.organizer?.name
-      });
+      }, ticketData.id);
 
       setTicketData({ ...ticketData, checkedIn: true })
       toast({ title: "Check-in realizado!", description: `Entrada autorizada para ${ticketData.userName}.` })

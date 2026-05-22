@@ -214,8 +214,8 @@ export default function CadastroPage() {
         })
       });
 
-      // Gatilho de Gamificação: Boas-vindas
-      await processGamificationEvent(db, user.uid, 'on_signup');
+      // Gatilho de Gamificação: Boas-vindas (Travado pelo UID do usuário)
+      await processGamificationEvent(db, user.uid, 'on_signup', {}, user.uid);
 
       sendWelcomeEmail({
         to: email,
@@ -279,7 +279,7 @@ export default function CadastroPage() {
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md border-none shadow-xl rounded-[2rem] overflow-hidden">
           <CardHeader className="space-y-1 flex flex-col items-center pt-8 pb-4">
-            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 overflow-hidden">
+            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 overflow-hidden shadow-lg shadow-secondary/20">
               {settings?.logoUrl ? (
                 <Image 
                   src={settings.logoUrl} 

@@ -13,16 +13,27 @@ import {
 import { DEFAULT_LEVELS, calculateLevel } from "./gamification";
 
 /**
- * @fileOverview Serviço para processar eventos de gamificação e atualizar o progresso do usuário.
+ * @fileOverview Serviço para processar eventos de gamificação e atualizar o progresso do usuário com travas de duplicidade.
  */
 
 export async function processGamificationEvent(
   db: Firestore, 
   userId: string, 
   eventKey: string, 
-  context?: any
+  context?: any,
+  uniqueId?: string // ID que torna o evento único (ex: ID da compra, ID do checkin)
 ) {
   if (!db || !userId) return;
+
+  // TRAVA DE IDEMPOTÊNCIA: Verifica se este evento já foi processado
+  const logId = uniqueId ? `${eventKey}_${uniqueId}` : null;
+  if (logId) {
+    const logRef = doc(db, "xp_logs", logId);
+    const logSnap = await getDoc(logRef);
+    if (logSnap.exists()) {
+      return; // Já computado, evita duplicidade de XP e Stats
+    }
+  }
 
   try {
     // 1. Buscar a regra de XP para o evento
@@ -67,17 +78,23 @@ export async function processGamificationEvent(
     if (gamificationSnap.exists()) {
       await updateDoc(gamificationRef, gamificationData);
     } else {
-      await setDoc(gamificationRef, gamificationData);
+      await setDoc(gamificationRef, { ...gamificationData, totalXp: points });
     }
 
-    // 3. Registrar Log de XP
-    await addDoc(collection(db, "xp_logs"), {
+    // 3. Registrar Log de XP (Usando ID único se disponível)
+    const logData = {
       userId,
       amount: points,
       reason: eventKey,
       timestamp: serverTimestamp(),
       context: context || {}
-    });
+    };
+
+    if (logId) {
+      await setDoc(doc(db, "xp_logs", logId), logData);
+    } else {
+      await addDoc(collection(db, "xp_logs"), logData);
+    }
 
     // 4. Atualizar Estatísticas Culturais
     const statsRef = doc(db, "cultural_stats", userId);
@@ -98,7 +115,6 @@ export async function processGamificationEvent(
 
     if (context?.categoryName) {
       statsUpdate.categoriesExplored = arrayUnion(context.categoryName);
-      // Lógica simples para "topCategory" - em um sistema real isso seria um contador por categoria
       statsUpdate.topCategory = context.categoryName; 
     }
 

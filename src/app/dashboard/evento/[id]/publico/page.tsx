@@ -208,7 +208,7 @@ export default function EventoPublicoPage() {
 
     updateDoc(doc(db, "registrations", scanResult.id), updateData)
       .then(async () => {
-        // Gatilho Gamificação: Check-in
+        // Gatilho Gamificação: Check-in (Travado pelo regId)
         await processGamificationEvent(db, scanResult.userId, 'on_checkin', {
           eventId: eventId,
           eventTitle: event.title,
@@ -216,7 +216,7 @@ export default function EventoPublicoPage() {
           neighborhood: event.address?.neighborhood,
           city: event.address?.city,
           orgName: event.organizer?.name
-        });
+        }, scanResult.id);
 
         toast({ title: "Sucesso!", description: `Check-in de ${scanResult.userName} realizado.` })
         setScanMode('idle')
@@ -272,7 +272,7 @@ export default function EventoPublicoPage() {
     updateDoc(doc(db, "registrations", reg.id), updateData)
       .then(async () => {
         if (!currentStatus) {
-          // Gatilho Gamificação: Check-in Manual
+          // Gatilho Gamificação: Check-in Manual (Travado pelo regId)
           await processGamificationEvent(db, reg.userId, 'on_checkin', {
             eventId: eventId,
             eventTitle: event.title,
@@ -280,7 +280,7 @@ export default function EventoPublicoPage() {
             neighborhood: event.address?.neighborhood,
             city: event.address?.city,
             orgName: event.organizer?.name
-          });
+          }, reg.id);
         }
         toast({ title: !currentStatus ? "Check-in realizado!" : "Check-in removido." })
       })
