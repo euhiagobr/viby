@@ -606,7 +606,7 @@ function UniversalProfileContent() {
                         </Button>
 
                         {!isSelf && user && (
-                          <Dialog dialogProps={{ open: isReportOpen, onOpenChange: setIsReportOpen }}>
+                          <Dialog>
                             <DialogTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl bg-white/80 border-border hover:text-destructive hover:bg-destructive/5 transition-all" title="Denunciar Perfil">
                                 <Flag className="w-4 h-4" />

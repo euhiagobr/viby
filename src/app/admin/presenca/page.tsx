@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, limit, doc, setDoc, deleteDoc, serverTimestamp, getDocs, where, addDoc, getDoc, writeBatch } from "firebase/firestore"
+import { collection, query, orderBy, limit, doc, setDoc, deleteDoc, serverTimestamp, getDocs, where, addDoc, writeBatch } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -72,6 +72,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
+  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -227,13 +228,11 @@ export default function AdminPresencaPage() {
     if (!db) return
     setIsSyncingHistory(true)
     try {
-      // 1. Sincronizar criação de conta para todos os usuários
       const usersSnap = await getDocs(collection(db, "users"))
       for (const uDoc of usersSnap.docs) {
         await processGamificationEvent(db, uDoc.id, 'on_signup', {}, uDoc.id)
       }
 
-      // 2. Sincronizar check-ins passados
       const regsSnap = await getDocs(query(collection(db, "registrations"), where("checkedIn", "==", true)))
       for (const rDoc of regsSnap.docs) {
         const reg = rDoc.data()
@@ -247,7 +246,6 @@ export default function AdminPresencaPage() {
         }, rDoc.id)
       }
 
-      // 3. Sincronizar compras passadas
       const paidSnap = await getDocs(query(collection(db, "registrations"), where("paymentStatus", "in", ["Pago", "Disponível"])))
       for (const pDoc of paidSnap.docs) {
         const reg = pDoc.data()
@@ -260,7 +258,7 @@ export default function AdminPresencaPage() {
         }, pDoc.id)
       }
 
-      toast({ title: "Sincronização completa!", description: "XP e estatísticas atualizados sem duplicidade." })
+      toast({ title: "Sincronização completa!" })
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na sincronização" })
     } finally {
@@ -279,7 +277,6 @@ export default function AdminPresencaPage() {
         const snap = await getDocs(collection(db, collName));
         if (snap.empty) continue;
 
-        // Firestore batch is limited to 500 operations
         let batch = writeBatch(db);
         let count = 0;
 
@@ -295,12 +292,8 @@ export default function AdminPresencaPage() {
         if (count > 0) await batch.commit();
       }
 
-      toast({ title: "Dados limpos!", description: "Iniciando recalculo do histórico..." });
-      
-      // Chama a sincronização logo após a limpeza
       await handleSyncHistory();
     } catch (error) {
-      console.error(error);
       toast({ variant: "destructive", title: "Erro ao resetar dados" });
     } finally {
       setIsSyncingHistory(false)
