@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -88,19 +87,40 @@ export default function FinanceiroPage() {
   const handleConfirmVerification = async () => {
     if (!db || !currentOrg || !verificationValue || !isOwnerOrAdmin) return
 
+    const amount = parseFloat(verificationValue.replace(',', '.'))
+    const sentValue = currentOrg.payoutSettings?.verificationAmountSent
+
+    if (!sentValue) {
+      toast({ variant: "destructive", title: "Aguarde", description: "Nossa equipe ainda não registrou o envio do micro-depósito." })
+      return
+    }
+
     setIsSubmitting(true)
     try {
-      const amount = parseFloat(verificationValue.replace(',', '.'))
-      await updateDoc(doc(db, "organizations", currentOrg.id), {
-        "payoutSettings.verificationAmountInput": amount,
-        updatedAt: serverTimestamp()
-      })
+      // Verifica se o valor inserido coincide com o valor enviado pelo administrador
+      if (Math.abs(amount - sentValue) < 0.001) {
+        // VALOR CORRETO - Verifica conta automaticamente
+        await updateDoc(doc(db, "organizations", currentOrg.id), {
+          "payoutSettings.status": "verified",
+          "payoutSettings.verifiedAt": new Date().toISOString(),
+          "payoutSettings.verificationAmountInput": amount,
+          updatedAt: serverTimestamp()
+        })
+        toast({ title: "Conta Verificada!", description: "Sua conta foi validada com sucesso e está habilitada para repasses." })
+      } else {
+        // VALOR INCORRETO - Apenas registra a tentativa
+        await updateDoc(doc(db, "organizations", currentOrg.id), {
+          "payoutSettings.verificationAmountInput": amount,
+          updatedAt: serverTimestamp()
+        })
+        toast({ variant: "destructive", title: "Divergência de Valor", description: "O valor informado não coincide com o valor depositado. Verifique seu extrato bancário." })
+      }
+      
       await refreshOrg()
-      toast({ title: "Valor enviado!", description: "Nossa equipe validará se o valor coincide com o depósito." })
       setIsVerifyingOpen(false)
       setVerificationValue("")
     } catch (error) {
-      toast({ variant: "destructive", title: "Erro ao enviar" })
+      toast({ variant: "destructive", title: "Erro ao validar", description: "Tente novamente mais tarde." })
     } finally {
       setIsSubmitting(false)
     }
@@ -278,7 +298,7 @@ export default function FinanceiroPage() {
                                 <p className="text-xs text-blue-700 font-medium leading-relaxed">
                                    {vStatus === 'pending_admin' 
                                      ? 'Nossa equipe fará um depósito de centavos em sua conta em até 48h. Fique atento ao seu extrato bancário.' 
-                                     : 'Já identificamos o envio do depósito. Agora, informe o valor exato que você recebeu.'}
+                                     : 'Já identificamos o envio do depósito. Agora, informe o valor exato que você recebeu em sua conta.'}
                                 </p>
                              </div>
                           </div>
@@ -298,7 +318,7 @@ export default function FinanceiroPage() {
                                          </div>
                                          <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Validar Recebimento</DialogTitle>
                                          <DialogDescription className="font-medium">
-                                            Consulte seu extrato e insira o valor exato recebido do Viby Club (ex: 0,32).
+                                            Consulte seu extrato e insira o valor exato recebido da Viby (ex: 0,32).
                                          </DialogDescription>
                                       </DialogHeader>
                                       <div className="space-y-4">
@@ -312,8 +332,8 @@ export default function FinanceiroPage() {
                                             />
                                          </div>
                                          <Button onClick={handleConfirmVerification} disabled={isSubmitting || !verificationValue} className="w-full h-14 bg-secondary text-white font-black rounded-2xl shadow-lg uppercase italic">
-                                            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Send className="w-5 h-5 mr-2" />}
-                                            Confirmar e Finalizar
+                                            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <ShieldCheck className="w-5 h-5 mr-2" />}
+                                            Verificar Agora
                                          </Button>
                                       </div>
                                    </div>

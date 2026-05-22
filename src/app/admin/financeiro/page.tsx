@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, doc, updateDoc, serverTimestamp, orderBy } from "firebase/firestore"
+import { collection, query, doc, updateDoc, serverTimestamp, orderBy, getDoc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -80,7 +80,7 @@ export default function AdminFinanceiroPage() {
         "payoutSettings.updatedAt": new Date().toISOString(),
         updatedAt: serverTimestamp()
       })
-      toast({ title: "Depósito Sinalizado!", description: "A marca agora pode inserir o valor no painel dela." })
+      toast({ title: "Depósito Sinalizado!", description: "A marca agora pode validar o recebimento inserindo este valor no painel dela." })
       setIsDepositModalOpen(false)
       setSelectedOrg(null)
       setDepositAmount("")
@@ -251,7 +251,7 @@ export default function AdminFinanceiroPage() {
                               disabled={isSubmitting}
                             >
                               {isSubmitting ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                              Validar Conta
+                              Validar Manualmente
                             </Button>
                           )}
                           {ps?.status === 'verified' && (
@@ -299,7 +299,7 @@ export default function AdminFinanceiroPage() {
             <div className="p-5 bg-orange-50 rounded-2xl border border-orange-100 flex gap-4">
               <AlertTriangle className="w-6 h-6 text-orange-500 shrink-0" />
               <p className="text-[10px] text-orange-800 font-bold uppercase leading-relaxed">
-                Este valor servirá como "chave de segurança" para a marca validar a conta. Sinalize apenas após realizar o PIX/TED.
+                Este valor servirá como "chave de segurança" para a marca validar a conta. Sinalize apenas após realizar o PIX/TED de fato.
               </p>
             </div>
           </div>
