@@ -20,7 +20,9 @@ import {
   DollarSign,
   History,
   ShieldCheck,
-  FileText
+  FileText,
+  Mail,
+  RefreshCw
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -59,6 +61,7 @@ export default function AdminTransferenciasPage() {
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
   const [proofUrl, setProofUrl] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [resendingId, setResendingId] = React.useState<string | null>(null)
 
   const requestsQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -110,22 +113,8 @@ export default function AdminTransferenciasPage() {
         processedAt: serverTimestamp()
       })
 
-      // 2. Disparar e logar e-mail de notificação
-      try {
-        const userSnap = await getDoc(doc(db, "users", selectedRequest.userId));
-        if (userSnap.exists()) {
-          const userData = userSnap.data();
-          await sendPayoutConfirmedEmail({
-            to: userData.email,
-            userName: userData.name || userData.displayName || "Usuário",
-            orgName: selectedRequest.organizationName,
-            amount: selectedRequest.amount,
-            proofUrl: proofUrl
-          });
-        }
-      } catch (emailErr) {
-        console.warn("E-mail não disparado, mas saque concluído no banco.");
-      }
+      // 2. Disparar e-mail de notificação
+      await triggerPayoutNotification(selectedRequest.userId, selectedRequest.organizationName, selectedRequest.amount, proofUrl);
 
       toast({ title: "Saque Concluído!", description: "O comprovante foi enviado ao usuário." })
       setSelectedRequest(null)
@@ -134,6 +123,38 @@ export default function AdminTransferenciasPage() {
       toast({ variant: "destructive", title: "Erro ao atualizar" })
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const triggerPayoutNotification = async (userId: string, orgName: string, amount: number, proof: string) => {
+    if (!db) return;
+    try {
+      const userSnap = await getDoc(doc(db, "users", userId));
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        await sendPayoutConfirmedEmail({
+          to: userData.email,
+          userName: userData.name || userData.displayName || "Usuário",
+          orgName: orgName,
+          amount: amount,
+          proofUrl: proof
+        });
+      }
+    } catch (err) {
+      console.warn("Falha ao disparar e-mail de saque.", err);
+    }
+  }
+
+  const handleResendNotification = async (req: any) => {
+    if (!req.userId || !req.proofUrl) return;
+    setResendingId(req.id);
+    try {
+      await triggerPayoutNotification(req.userId, req.organizationName, req.amount, req.proofUrl);
+      toast({ title: "Notificação reenviada!" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao reenviar" });
+    } finally {
+      setResendingId(null);
     }
   }
 
@@ -265,7 +286,7 @@ export default function AdminTransferenciasPage() {
                        <TableHead className="font-bold">Organização</TableHead>
                        <TableHead className="font-bold">Processado em</TableHead>
                        <TableHead className="font-bold text-right">Valor Pago</TableHead>
-                       <TableHead className="text-right font-bold">Comprovante</TableHead>
+                       <TableHead className="text-right font-bold">Ações</TableHead>
                     </TableRow>
                  </TableHeader>
                  <TableBody>
@@ -276,9 +297,21 @@ export default function AdminTransferenciasPage() {
                          <TableCell><span className="text-[11px] font-medium">{formatTimestamp(req.processedAt)}</span></TableCell>
                          <TableCell className="text-right font-black text-green-600">{formatCurrency(req.amount)}</TableCell>
                          <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" asChild className="h-8 text-secondary font-bold gap-1.5 text-[9px] uppercase">
-                               <a href={req.proofUrl} target="_blank" rel="noopener noreferrer"><FileText className="w-3.5 h-3.5" /> Ver PDF</a>
-                            </Button>
+                            <div className="flex items-center justify-end gap-2">
+                               <Button 
+                                 variant="outline" 
+                                 size="sm" 
+                                 className="h-8 rounded-lg text-secondary border-secondary/20 font-bold gap-1.5 text-[9px] uppercase hover:bg-secondary/5"
+                                 onClick={() => handleResendNotification(req)}
+                                 disabled={resendingId === req.id}
+                               >
+                                  {resendingId === req.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+                                  Reenviar E-mail
+                               </Button>
+                               <Button variant="ghost" size="sm" asChild className="h-8 text-secondary font-bold gap-1.5 text-[9px] uppercase">
+                                  <a href={req.proofUrl} target="_blank" rel="noopener noreferrer"><FileText className="w-3.5 h-3.5" /> Comprovante</a>
+                               </Button>
+                            </div>
                          </TableCell>
                       </TableRow>
                     ))}
