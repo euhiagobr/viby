@@ -133,7 +133,6 @@ export default function LandingPage() {
 
         if (ad.type === 'evento') {
           const fullEvent = events?.find((e: any) => e.id === ad.eventId)
-          // Se o evento do anúncio já acabou, não mostramos o anúncio
           if (!fullEvent) return null;
           
           const evStart = fullEvent.date?.toDate ? fullEvent.date.toDate() : new Date(fullEvent.date);

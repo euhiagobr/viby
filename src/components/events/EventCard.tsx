@@ -33,6 +33,8 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const cardRef = React.useRef<HTMLDivElement>(null)
   const hasTrackedImpression = React.useRef(false)
 
+  const adId = event.adId;
+
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: userProfile } = useDoc<any>(userDocRef)
 
@@ -40,35 +42,42 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const { data: adsSettings } = useDoc<any>(adsSettingsRef)
   
   const [liveStatus, setLiveStatus] = React.useState<{ label: string; colorClass: string } | null>(null);
-  const [isEnded, setIsEnded] = React.useState(false);
+
+  const eventDates = React.useMemo(() => {
+    const start = event.date?.toDate ? event.date.toDate() : new Date(event.date);
+    const end = event.endDate?.toDate ? event.endDate.toDate() : (event.endDate ? new Date(event.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+    return { start, end };
+  }, [event.date, event.endDate]);
+
+  const isEnded = React.useMemo(() => {
+    const now = new Date();
+    return eventDates.end < now;
+  }, [eventDates.end]);
 
   React.useEffect(() => {
     const update = () => {
       const now = new Date();
-      const start = event.date?.toDate ? event.date.toDate() : new Date(event.date);
-      const end = event.endDate?.toDate ? event.endDate.toDate() : (event.endDate ? new Date(event.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+      const { start, end } = eventDates;
 
       const hasEnded = end < now;
-      setIsEnded(hasEnded);
-
       const diffEnd = end.getTime() - now.getTime();
       const diffStart = start.getTime() - now.getTime();
       const isToday = now.toDateString() === start.toDateString();
 
       if (hasEnded) {
-        setLiveStatus({ label: "Evento já acabou", colorClass: "bg-gray-500/80" });
+        setLiveStatus({ label: "Evento já acabou", colorClass: "bg-muted text-muted-foreground border-none" });
       } else if (diffEnd <= 1 * 60 * 60 * 1000 && now >= start) {
-        setLiveStatus({ label: "Evento encerrando", colorClass: "bg-orange-600 animate-pulse" });
+        setLiveStatus({ label: "Evento encerrando", colorClass: "bg-orange-600 animate-pulse text-white" });
       } else if (now >= start && now < end) {
-        setLiveStatus({ label: "Evento acontecendo", colorClass: "bg-green-600 animate-pulse shadow-lg shadow-green-500/20" });
+        setLiveStatus({ label: "Evento acontecendo", colorClass: "bg-green-600 animate-pulse shadow-lg shadow-green-500/20 text-white" });
       } else if (diffStart <= 2 * 60 * 60 * 1000 && diffStart > 0) {
         const totalMinutes = Math.floor(diffStart / (1000 * 60));
         const hours = Math.floor(totalMinutes / 60);
         const minutes = totalMinutes % 60;
         const countdown = hours > 0 ? `${hours}h${minutes.toString().padStart(2, '0')}` : `${minutes}min`;
-        setLiveStatus({ label: `Começa em ${countdown}`, colorClass: "bg-secondary" });
+        setLiveStatus({ label: `Começa em ${countdown}`, colorClass: "bg-secondary text-white" });
       } else if (isToday) {
-        setLiveStatus({ label: "Acontece hoje", colorClass: "bg-secondary" });
+        setLiveStatus({ label: "Acontece hoje", colorClass: "bg-secondary text-white" });
       } else {
         setLiveStatus(null);
       }
@@ -77,7 +86,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     update();
     const interval = setInterval(update, 60000);
     return () => clearInterval(interval);
-  }, [event.date, event.endDate]);
+  }, [eventDates]);
 
   const getAgeGroup = (birthDate: string) => {
     if (!birthDate) return "desconhecido";
@@ -117,7 +126,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }
   
   React.useEffect(() => {
-    if (!isSponsored || !event.adId || !db || !adsSettings || hasTrackedImpression.current || (user && !userProfile)) return
+    if (!isSponsored || !adId || !db || !adsSettings || hasTrackedImpression.current || (user && !userProfile)) return
 
     const observer = new IntersectionObserver(
       async (entries) => {
@@ -127,7 +136,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           const cpmValue = adsSettings.cpmValue || 0
           const costPerImpression = cpmValue / 1000
 
-          const adRef = doc(db, "ads", event.adId)
+          const adRef = doc(db, "ads", adId)
           const updateData: any = { 
             reach: increment(1),
             remainingBudget: increment(-costPerImpression),
@@ -135,7 +144,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           };
 
           if (user) {
-            const viewerRef = doc(db, "ads", event.adId, "viewers", user.uid);
+            const viewerRef = doc(db, "ads", adId, "viewers", user.uid);
             const viewerSnap = await getDoc(viewerRef);
             if (!viewerSnap.exists()) {
               await setDoc(viewerRef, { timestamp: serverTimestamp() });
@@ -164,7 +173,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
     if (cardRef.current) observer.observe(cardRef.current)
     return () => observer.disconnect()
-  }, [isSponsored, event.adId, db, adsSettings, userProfile, event.organizationId, user]);
+  }, [isSponsored, adId, db, adsSettings, userProfile, event.organizationId, user]);
 
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
@@ -215,9 +224,9 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }, [userLocation, event.latitude, event.longitude]);
 
   const handleCardClick = () => {
-    if (isSponsored && event.adId && db && adsSettings) {
+    if (isSponsored && adId && db && adsSettings) {
       const cpcValue = adsSettings.cpcValue || 0
-      const adRef = doc(db, "ads", event.adId);
+      const adRef = doc(db, "ads", adId);
       const demoUpdate = getDemographicsUpdate();
 
       updateDoc(adRef, { 
@@ -253,7 +262,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       className={cn(
         "group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[1.5rem] cursor-pointer relative",
         isSponsored && "ring-2 ring-secondary/20 shadow-secondary/10",
-        isEnded && "opacity-80 grayscale-[0.8]"
+        isEnded && "opacity-70 grayscale-[0.8]"
       )}
       onClick={handleCardClick}
     >
@@ -279,7 +288,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         
         <div className="absolute top-3 left-3 flex flex-col gap-2 z-10">
           {liveStatus && (
-            <Badge className={cn("text-white border-none shadow-xl px-3 py-1 text-[10px] font-black uppercase tracking-wider", liveStatus.colorClass)}>
+            <Badge className={cn("border-none shadow-xl px-3 py-1 text-[10px] font-black uppercase tracking-wider", liveStatus.colorClass)}>
               {liveStatus.label}
             </Badge>
           )}
@@ -365,7 +374,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           )}
         >
           <Ticket className="w-3.5 h-3.5" />
-          {isEnded ? "Voucher" : "Detalhes"}
+          {isEnded ? "Finalizado" : "Detalhes"}
         </Button>
       </CardFooter>
     </Card>
