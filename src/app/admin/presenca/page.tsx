@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -246,7 +247,7 @@ export default function AdminPresencaPage() {
         await processGamificationEvent(db, uDoc.id, 'on_signup', {}, uDoc.id)
       }
 
-      // 2. Sincronizar Ingressos e Check-ins (Com resolução de metadados faltantes)
+      // 2. Sincronizar Ingressos e Check-ins
       const regsSnap = await getDocs(collection(db, "registrations"))
       for (const rDoc of regsSnap.docs) {
         const reg = rDoc.data()
@@ -255,10 +256,10 @@ export default function AdminPresencaPage() {
         const context = {
           eventId: reg.eventId,
           eventTitle: reg.eventTitle || evData?.title,
-          categoryName: reg.categoryName || evData?.categoryName || evData?.category || "Geral",
-          neighborhood: reg.eventNeighborhood || evData?.address?.neighborhood || evData?.location || "Centro",
-          city: reg.eventCity || evData?.city || evData?.address?.city || "Sua Cidade",
-          orgName: reg.organizer?.name || evData?.organizer?.name || "Marca"
+          categoryName: reg.categoryName || evData?.categoryName || evData?.category,
+          neighborhood: reg.eventNeighborhood || evData?.address?.neighborhood || evData?.location,
+          city: reg.eventCity || evData?.city || evData?.address?.city,
+          orgName: reg.organizer?.name || evData?.organizer?.name
         };
 
         if (reg.checkedIn) {
@@ -275,13 +276,17 @@ export default function AdminPresencaPage() {
       for (const fDoc of followsSnap.docs) {
         const follow = fDoc.data()
         const targetSnap = await getDoc(doc(db, follow.targetType === 'organization' ? 'organizations' : 'users', follow.followingId))
-        const targetName = targetSnap.exists() ? (targetSnap.data().name || targetSnap.data().displayName) : "Alvo"
+        
+        if (targetSnap.exists()) {
+          const targetData = targetSnap.data();
+          const targetName = targetData.name || targetData.displayName;
 
-        await processGamificationEvent(db, follow.followerId, follow.targetType === 'organization' ? 'on_follow_org' : 'on_follow_user', {
-          targetId: follow.followingId,
-          orgName: follow.targetType === 'organization' ? targetName : null,
-          targetName: targetName
-        }, fDoc.id)
+          await processGamificationEvent(db, follow.followerId, follow.targetType === 'organization' ? 'on_follow_org' : 'on_follow_user', {
+            targetId: follow.followingId,
+            orgName: follow.targetType === 'organization' ? targetName : null,
+            targetName: targetName
+          }, fDoc.id)
+        }
       }
 
       toast({ title: "Sincronização completa!" })
@@ -319,7 +324,6 @@ export default function AdminPresencaPage() {
         if (count > 0) await batch.commit();
       }
 
-      // Aumentar delay para garantir consistência do reset antes de iniciar nova sincronização
       await new Promise(r => setTimeout(r, 1000));
       await handleSyncHistory();
     } catch (error) {
@@ -468,7 +472,7 @@ export default function AdminPresencaPage() {
                    <CardContent className="px-8 pb-8 pt-0">
                       <div className="p-4 bg-muted/30 rounded-2xl border border-dashed border-border/50">
                          <p className="text-[9px] font-black uppercase text-muted-foreground mb-1">XP Necessário</p>
-                         <p className="text-xl font-black text-primary">{(lvl.xpRequired).toLocaleString()} XP</p>
+                         <p className="text-xl font-black text-primary">{(lvl.xpRequired).toLocaleString() XP}</p>
                       </div>
                       <div className="flex gap-2 mt-4">
                          <Button variant="ghost" size="sm" className="flex-1 rounded-xl text-[10px] font-black uppercase text-muted-foreground hover:bg-muted/50" onClick={() => { setEditingLevel(lvl); setIsLevelDialogOpen(true); }}>Editar</Button>

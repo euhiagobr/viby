@@ -761,7 +761,7 @@ function UniversalProfileContent() {
                         <div className="p-3 bg-blue-50 rounded-2xl text-blue-600"><Navigation className="w-6 h-6" /></div>
                         <div>
                            <p className="text-[9px] font-black uppercase text-muted-foreground opacity-40">Cidades Desbravadas</p>
-                           <p className="text-lg font-black uppercase italic tracking-tighter text-primary">{culturalStats?.citiesExplored?.length || 0} Localidades</p>
+                           <p className="text-lg font-black uppercase italic tracking-tighter text-primary">{culturalStats?.citiesExplored?.length || 0} Cidades</p>
                         </div>
                      </Card>
                      <Card className="border-none shadow-sm rounded-[2rem] bg-white p-6 flex flex-col items-center text-center gap-3">

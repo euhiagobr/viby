@@ -14,7 +14,7 @@ import {
 import { DEFAULT_LEVELS, calculateLevel } from "./gamification";
 
 /**
- * @fileOverview Serviço para processar eventos de gamificação e atualizar o progresso do usuário com travas de duplicidade.
+ * @fileOverview Serviço para processar eventos de gamificação e atualizar o progresso do usuário com travas de duplicidade e normalização de dados.
  */
 
 export async function processGamificationEvent(
@@ -22,7 +22,7 @@ export async function processGamificationEvent(
   userId: string, 
   eventKey: string, 
   context?: any,
-  uniqueId?: string // ID que torna o evento único (ex: ID da compra, ID do checkin)
+  uniqueId?: string 
 ) {
   if (!db || !userId) return;
 
@@ -32,7 +32,7 @@ export async function processGamificationEvent(
     const logRef = doc(db, "xp_logs", logId);
     const logSnap = await getDoc(logRef);
     if (logSnap.exists()) {
-      return; // Já computado, evita duplicidade de XP e Stats
+      return; 
     }
   }
 
@@ -96,7 +96,7 @@ export async function processGamificationEvent(
       await addDoc(collection(db, "xp_logs"), logData);
     }
 
-    // 4. Atualizar Estatísticas Culturais (Usando setDoc com merge para evitar perda de dados em loops)
+    // 4. Atualizar Estatísticas Culturais com Normalização
     const statsRef = doc(db, "cultural_stats", userId);
     
     const statsUpdate: any = {
@@ -112,26 +112,30 @@ export async function processGamificationEvent(
       statsUpdate.totalCheckins = increment(1);
     }
 
-    if (context?.categoryName) {
-      statsUpdate.categoriesExplored = arrayUnion(context.categoryName);
-      statsUpdate.topCategory = context.categoryName; 
+    // Normalização: Trim nas strings para evitar duplicados por espaços
+    if (context?.categoryName?.trim()) {
+      const cat = context.categoryName.trim();
+      statsUpdate.categoriesExplored = arrayUnion(cat);
+      statsUpdate.topCategory = cat; 
     }
 
-    if (context?.neighborhood) {
-      statsUpdate.neighborhoodsExplored = arrayUnion(context.neighborhood);
-      statsUpdate.topNeighborhood = context.neighborhood;
+    if (context?.neighborhood?.trim()) {
+      const neigh = context.neighborhood.trim();
+      statsUpdate.neighborhoodsExplored = arrayUnion(neigh);
+      statsUpdate.topNeighborhood = neigh;
     }
 
-    if (context?.city) {
-      statsUpdate.citiesExplored = arrayUnion(context.city);
-      statsUpdate.topCity = context.city;
+    if (context?.city?.trim()) {
+      const city = context.city.trim();
+      statsUpdate.citiesExplored = arrayUnion(city);
+      statsUpdate.topCity = city;
     }
 
-    if (context?.orgName) {
-      statsUpdate.favoriteOrganizers = arrayUnion(context.orgName);
+    if (context?.orgName?.trim()) {
+      const org = context.orgName.trim();
+      statsUpdate.favoriteOrganizers = arrayUnion(org);
     }
 
-    // Usar setDoc com merge: true para garantir que o documento exista e os campos sejam mesclados atomicamente
     await setDoc(statsRef, statsUpdate, { merge: true });
 
   } catch (error) {
