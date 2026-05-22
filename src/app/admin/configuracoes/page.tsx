@@ -34,7 +34,8 @@ import {
   Percent,
   Receipt,
   Building2,
-  User
+  User,
+  ArrowRight
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -271,7 +272,7 @@ export default function AdminConfiguracoesPage() {
           <TabsTrigger value="payments" className="gap-2 rounded-lg font-bold"><CreditCard className="w-4 h-4" /> Pagamentos</TabsTrigger>
           <TabsTrigger value="email" className="gap-2 rounded-lg font-bold"><Mail className="w-4 h-4" /> E-mail</TabsTrigger>
           <TabsTrigger value="maps" className="gap-2 rounded-lg font-bold"><MapIcon className="w-4 h-4" /> Maps</TabsTrigger>
-          <TabsTrigger value="values" className="gap-2 rounded-lg font-bold"><Coins className="w-4 h-4" /> Valores</TabsTrigger>
+          <TabsTrigger value="values" className="gap-2 rounded-lg font-bold"><Coins className="w-4 h-4" /> Publicidade</TabsTrigger>
         </TabsList>
 
         <TabsContent value="brand">
