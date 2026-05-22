@@ -37,7 +37,7 @@ export async function processGamificationEvent(
   }
 
   try {
-    // 0. Validar se o alvo é um usuário (Gamificação é para CPFs, não CNPJs)
+    // 0. Validar se o alvo é um usuário
     const userSnap = await getDoc(doc(db, "users", userId));
     if (!userSnap.exists()) return;
 
@@ -49,7 +49,6 @@ export async function processGamificationEvent(
     if (ruleSnap.exists()) {
       points = ruleSnap.data().points || 0;
     } else {
-      // Fallbacks caso o banco não esteja semeado
       const fallbacks: Record<string, number> = {
         'on_signup': 50,
         'on_profile_complete': 100,
@@ -80,11 +79,7 @@ export async function processGamificationEvent(
       lastActivityAt: serverTimestamp()
     };
 
-    if (gamificationSnap.exists()) {
-      await updateDoc(gamificationRef, gamificationData);
-    } else {
-      await setDoc(gamificationRef, { ...gamificationData, totalXp: points });
-    }
+    await setDoc(gamificationRef, gamificationData, { merge: true });
 
     // 3. Registrar Log de XP
     const logData = {
@@ -101,9 +96,8 @@ export async function processGamificationEvent(
       await addDoc(collection(db, "xp_logs"), logData);
     }
 
-    // 4. Atualizar Estatísticas Culturais
+    // 4. Atualizar Estatísticas Culturais (Usando setDoc com merge para evitar perda de dados em loops)
     const statsRef = doc(db, "cultural_stats", userId);
-    const statsSnap = await getDoc(statsRef);
     
     const statsUpdate: any = {
       userId,
@@ -137,23 +131,8 @@ export async function processGamificationEvent(
       statsUpdate.favoriteOrganizers = arrayUnion(context.orgName);
     }
 
-    if (statsSnap.exists()) {
-      await updateDoc(statsRef, statsUpdate);
-    } else {
-      // Inicializar documento com arrays vazios para evitar undefined e permitir arrayUnion subsequente
-      await setDoc(statsRef, {
-        ...statsUpdate,
-        categoriesExplored: context?.categoryName ? [context.categoryName] : [],
-        neighborhoodsExplored: context?.neighborhood ? [context.neighborhood] : [],
-        citiesExplored: context?.city ? [context.city] : [],
-        favoriteOrganizers: context?.orgName ? [context.orgName] : [],
-        totalEvents: eventKey === 'on_ticket_purchase' ? 1 : 0,
-        totalCheckins: eventKey === 'on_checkin' ? 1 : 0,
-        topCategory: context?.categoryName || null,
-        topNeighborhood: context?.neighborhood || null,
-        topCity: context?.city || null
-      });
-    }
+    // Usar setDoc com merge: true para garantir que o documento exista e os campos sejam mesclados atomicamente
+    await setDoc(statsRef, statsUpdate, { merge: true });
 
   } catch (error) {
     console.error("Erro ao processar gamificação:", error);

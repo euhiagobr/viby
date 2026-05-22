@@ -72,7 +72,6 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -231,6 +230,7 @@ export default function AdminPresencaPage() {
       const eventCache: Record<string, any> = {};
 
       const getEventData = async (eventId: string) => {
+        if (!eventId) return null;
         if (eventCache[eventId]) return eventCache[eventId];
         const eventSnap = await getDoc(doc(db, "events", eventId));
         if (eventSnap.exists()) {
@@ -275,7 +275,7 @@ export default function AdminPresencaPage() {
       for (const fDoc of followsSnap.docs) {
         const follow = fDoc.data()
         const targetSnap = await getDoc(doc(db, follow.targetType === 'organization' ? 'organizations' : 'users', follow.followingId))
-        const targetName = targetSnap.exists() ? (targetSnap.data().name || targetSnap.data().displayName) : "Marca"
+        const targetName = targetSnap.exists() ? (targetSnap.data().name || targetSnap.data().displayName) : "Alvo"
 
         await processGamificationEvent(db, follow.followerId, follow.targetType === 'organization' ? 'on_follow_org' : 'on_follow_user', {
           targetId: follow.followingId,
@@ -319,6 +319,8 @@ export default function AdminPresencaPage() {
         if (count > 0) await batch.commit();
       }
 
+      // Aumentar delay para garantir consistência do reset antes de iniciar nova sincronização
+      await new Promise(r => setTimeout(r, 1000));
       await handleSyncHistory();
     } catch (error) {
       toast({ variant: "destructive", title: "Erro ao resetar dados" });
