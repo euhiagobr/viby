@@ -35,7 +35,8 @@ import {
   AtSign,
   X,
   Trophy,
-  XCircle
+  XCircle,
+  CheckCircle2
 } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
@@ -123,7 +124,6 @@ export default function EditarEventoPage() {
 
   const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
   
-  // Co-organizadores
   const [coOrganizers, setCoOrganizers] = useState<any[]>([])
   const [searchUsername, setSearchUsername] = useState("")
   const [isSearching, setIsSearching] = useState(false)
@@ -299,7 +299,7 @@ export default function EditarEventoPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!db || !user || !eventRef || !isAtLeastEditor) return
+    if (!db || !user || !eventRef || !isAtLeastEditor || !currentOrg) return
 
     setSaving(true)
     const formData = new FormData(e.currentTarget)
@@ -316,7 +316,17 @@ export default function EditarEventoPage() {
         ticketMode: noTickets ? 'none' : ticketMode,
         isFree: noTickets ? true : (ticketMode === 'free'),
         batches: noTickets ? [] : batches.map(b => ({ ...b, ticketTypes: b.ticketTypes.map(t => ({ ...t, price: parseFloat(t.price as any) || 0, quantity: parseInt(t.quantity as any) || 0 })) })),
-        address, image: uploadedImageUrl || event.image || "", city: address.city, updatedAt: serverTimestamp()
+        address, image: uploadedImageUrl || event.image || "", city: address.city, 
+        updatedAt: serverTimestamp(),
+        // Garante que os dados da organização estejam atualizados
+        organizationId: currentOrg.id,
+        organizer: {
+          id: currentOrg.id,
+          name: currentOrg.name,
+          username: currentOrg.username,
+          avatar: currentOrg.avatar || "",
+          isVerified: currentOrg.verified || false
+        }
       }
       
       await updateDoc(eventRef, eventData)
@@ -531,108 +541,115 @@ export default function EditarEventoPage() {
                    <p className="text-sm font-medium text-muted-foreground">A bilheteria está desativada para este evento.</p>
                  </div>
                ) : (
-                 batches.map((batch, bi) => {
-                   const stats = calculateHalfPriceStats(batch);
-                   const isFreeMode = ticketMode === 'free';
-                   return (
-                     <div key={batch.id} className="p-6 rounded-[1.5rem] border-2 bg-muted/10 space-y-6">
-                        <div className="flex justify-between items-center">
-                          <h3 className="font-black italic uppercase text-secondary text-xl">{isFreeMode ? "Grátis" : batch.name}</h3>
-                          <div className="flex gap-2">
-                             {!isFreeMode && <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setDistributeBatchIdx(bi); setIsDistributeOpen(true); }}><Sparkles className="w-3 h-3" /> Distribuir por Tipo</Button>}
-                             {ticketMode === 'batches' && batches.length > 1 && <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)}><Trash2 className="w-4 h-4" /></Button>}
+                 <React.Fragment>
+                   {batches.map((batch, bi) => {
+                     const stats = calculateHalfPriceStats(batch);
+                     const isFreeMode = ticketMode === 'free';
+                     return (
+                       <div key={batch.id} className="p-6 rounded-[1.5rem] border-2 bg-muted/10 space-y-6">
+                          <div className="flex justify-between items-center">
+                            <h3 className="font-black italic uppercase text-secondary text-xl">{isFreeMode ? "Grátis" : batch.name}</h3>
+                            <div className="flex gap-2">
+                               {!isFreeMode && <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setDistributeBatchIdx(bi); setIsDistributeOpen(true); }}><Sparkles className="w-3 h-3" /> Distribuir por Tipo</Button>}
+                               {ticketMode === 'batches' && batches.length > 1 && <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)}><Trash2 className="w-4 h-4" /></Button>}
+                            </div>
                           </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" disabled={isFreeMode} /></div>
-                           <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity(40)">Início das Vendas</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
-                              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity(40)">Fim das Vendas</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
-                           </div>
-                        </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" disabled={isFreeMode} /></div>
+                             <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Início das Vendas</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Fim das Vendas</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                             </div>
+                          </div>
 
-                        <div className="space-y-4">
-                           <div className="flex items-center justify-between border-b pb-2"><h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Tipos de Ingresso</h4>{!isFreeMode && <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase" onClick={() => addTicketType(bi)}>Adicionar Tipo</Button>}</div>
-                           <div className="space-y-3">
-                              {batch.ticketTypes.map((t, ti) => (
-                                <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm space-y-4">
-                                   <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                                      <div className="md:col-span-3 space-y-2">
-                                         <Label className="text-[10px] font-black uppercase opacity-40">Nome</Label>
-                                         <div className="flex flex-col gap-1">
-                                            <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" disabled={isFreeMode} />
-                                            {t.poolName && <span className="text-[8px] font-black text-secondary uppercase flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> Pool: {t.poolName}</span>}
-                                         </div>
-                                      </div>
-                                      <div className="md:col-span-3 space-y-2">
-                                         <Label className="text-[10px] font-black uppercase opacity-40">Tipo/Categoria</Label>
-                                         <Select 
-                                           value={TICKET_CATEGORIES.find(c => c.name === t.name)?.name || "Personalizado"} 
-                                           onValueChange={(val) => {
-                                              const cat = TICKET_CATEGORIES.find(c => c.name === val);
-                                              if (cat) {
-                                                updateTicketTypeField(bi, ti, 'name', cat.name);
-                                                updateTicketTypeField(bi, ti, 'isLegalHalf', cat.isLegalHalf);
-                                                updateTicketTypeField(bi, ti, 'requiresProof', cat.requiresProof);
-                                              }
-                                           }}
-                                           disabled={isFreeMode}
-                                         >
-                                            <SelectTrigger className="h-10 rounded-xl">
-                                               <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent className="rounded-xl">
-                                               {TICKET_CATEGORIES.map(c => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
-                                               <SelectItem value="Personalizado">Personalizado</SelectItem>
-                                            </SelectContent>
-                                         </Select>
-                                      </div>
-                                      <div className="md:col-span-2 space-y-2">
-                                         <Label className="text-[10px] font-black uppercase opacity-40">Qtd {t.poolId && "(Pool)"}</Label>
-                                         <div className="flex flex-col gap-1">
-                                            <Input type="number" value={t.quantity} onChange={e => { const val = e.target.value; if(t.poolId) { const n = [...batches]; n[bi].ticketTypes.forEach((item, idx) => { if(item.poolId === t.poolId) n[bi].ticketTypes[idx].quantity = parseInt(val as any) || 0 }); setBatches(n); } else { updateTicketTypeField(bi, ti, 'quantity', val); } }} className="rounded-xl h-10 font-black" />
-                                            {t.poolId && <span className="text-[7px] font-bold text-muted-foreground uppercase text-center">Compartilhado</span>}
-                                         </div>
-                                      </div>
-                                      <div className="md:col-span-2 space-y-2">
-                                         <Label className="text-[10px] font-black uppercase opacity-40">Valor (R$)</Label>
-                                         <Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} className="rounded-xl h-10 font-black text-secondary" disabled={isFreeMode} />
-                                      </div>
-                                      <div className="md:col-span-2 flex items-center justify-end pb-1 gap-2">
-                                         <div className="flex flex-col items-center gap-1">
-                                            <Switch checked={t.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} />
-                                            <span className="text-[8px] font-black uppercase">Doc.</span>
-                                         </div>
-                                         {!isFreeMode && batch.ticketTypes.length > 1 && (
-                                           <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => removeTicketType(bi, ti)}>
-                                              <Trash2 className="w-4 h-4" />
-                                           </Button>
-                                         )}
-                                      </div>
-                                   </div>
+                          <div className="space-y-4">
+                             <div className="flex items-center justify-between border-b pb-2"><h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Tipos de Ingresso</h4>{!isFreeMode && <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase" onClick={() => addTicketType(bi)}>Adicionar Tipo</Button>}</div>
+                             <div className="space-y-3">
+                                {batch.ticketTypes.map((t, ti) => (
+                                  <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm space-y-4">
+                                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                                        <div className="md:col-span-3 space-y-2">
+                                           <Label className="text-[10px] font-black uppercase opacity-40">Nome</Label>
+                                           <div className="flex flex-col gap-1">
+                                              <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" disabled={isFreeMode} />
+                                              {t.poolName && <span className="text-[8px] font-black text-secondary uppercase flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> Pool: {t.poolName}</span>}
+                                           </div>
+                                        </div>
+                                        <div className="md:col-span-3 space-y-2">
+                                           <Label className="text-[10px] font-black uppercase opacity-40">Tipo/Categoria</Label>
+                                           <Select 
+                                             value={TICKET_CATEGORIES.find(c => c.name === t.name)?.name || "Personalizado"} 
+                                             onValueChange={(val) => {
+                                                const cat = TICKET_CATEGORIES.find(c => c.name === val);
+                                                if (cat) {
+                                                  updateTicketTypeField(bi, ti, 'name', cat.name);
+                                                  updateTicketTypeField(bi, ti, 'isLegalHalf', cat.isLegalHalf);
+                                                  updateTicketTypeField(bi, ti, 'requiresProof', cat.requiresProof);
+                                                }
+                                             }}
+                                             disabled={isFreeMode}
+                                           >
+                                              <SelectTrigger className="h-10 rounded-xl">
+                                                 <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent className="rounded-xl">
+                                                 {TICKET_CATEGORIES.map(c => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
+                                                 <SelectItem value="Personalizado">Personalizado</SelectItem>
+                                              </SelectContent>
+                                           </Select>
+                                        </div>
+                                        <div className="md:col-span-2 space-y-2">
+                                           <Label className="text-[10px] font-black uppercase opacity-40">Qtd {t.poolId && "(Pool)"}</Label>
+                                           <div className="flex flex-col gap-1">
+                                              <Input type="number" value={t.quantity} onChange={e => { const val = e.target.value; if(t.poolId) { const n = [...batches]; n[bi].ticketTypes.forEach((item, idx) => { if(item.poolId === t.poolId) n[bi].ticketTypes[idx].quantity = parseInt(val as any) || 0 }); setBatches(n); } else { updateTicketTypeField(bi, ti, 'quantity', val); } }} className="rounded-xl h-10 font-black" />
+                                              {t.poolId && <span className="text-[7px] font-bold text-muted-foreground uppercase text-center">Compartilhado</span>}
+                                           </div>
+                                        </div>
+                                        <div className="md:col-span-2 space-y-2">
+                                           <Label className="text-[10px] font-black uppercase opacity-40">Valor (R$)</Label>
+                                           <Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} className="rounded-xl h-10 font-black text-secondary" disabled={isFreeMode} />
+                                        </div>
+                                        <div className="md:col-span-2 flex items-center justify-end pb-1 gap-2">
+                                           <div className="flex flex-col items-center gap-1">
+                                              <Switch checked={t.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} />
+                                              <span className="text-[8px] font-black uppercase">Doc.</span>
+                                           </div>
+                                           {!isFreeMode && batch.ticketTypes.length > 1 && (
+                                             <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => removeTicketType(bi, ti)}>
+                                                <Trash2 className="w-4 h-4" />
+                                             </Button>
+                                           )}
+                                        </div>
+                                     </div>
+                                  </div>
+                                ))}
+                             </div>
+                          </div>
+
+                          <div className={cn("p-5 bg-white rounded-3xl border space-y-4", stats.percentage < 40 ? "border-orange-200" : "border-green-200")}>
+                             <div className="flex justify-between items-center">
+                                <div className="space-y-1">
+                                   <div className="flex items-center gap-2"><Info className="w-4 h-4 text-secondary" /><h5 className="text-[10px] font-black uppercase tracking-widest text-primary">Conformidade Legal</h5></div>
+                                   <p className="text-[9px] text-muted-foreground font-medium">Recomenda-se 40% para Meia-Entrada Legal.</p>
                                 </div>
-                              ))}
-                           </div>
-                        </div>
-
-                        <div className={cn("p-5 bg-white rounded-3xl border space-y-4", stats.percentage < 40 ? "border-orange-200" : "border-green-200")}>
-                           <div className="flex justify-between items-center">
-                              <div className="space-y-1">
-                                 <div className="flex items-center gap-2"><Info className="w-4 h-4 text-secondary" /><h5 className="text-[10px] font-black uppercase tracking-widest text-primary">Conformidade Legal</h5></div>
-                                 <p className="text-[9px] text-muted-foreground font-medium">Recomenda-se 40% para Meia-Entrada Legal.</p>
-                              </div>
-                              <div className="text-right">
-                                 <p className="text-[9px] font-black uppercase opacity-40">Percentual</p>
-                                 <p className={cn("text-xl font-black italic", stats.percentage < 40 ? "text-orange-500" : "text-green-600")}>{stats.percentage.toFixed(1)}%</p>
-                              </div>
-                           </div>
-                        </div>
-                     </div>
-                   );
-                 })
-               )}
-               {!noTickets && ticketMode === 'batches' && <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic tracking-widest gap-2" onClick={addBatch}><Plus className="w-5 h-5" /> Adicionar Lote</Button>}
+                                <div className="text-right">
+                                   <p className="text-[9px] font-black uppercase opacity-40">Percentual</p>
+                                   <p className={cn("text-xl font-black italic", stats.percentage < 40 ? "text-orange-500" : "text-green-600")}>{stats.percentage.toFixed(1)}%</p>
+                                </div>
+                             </div>
+                          </div>
+                       </div>
+                     );
+                   })}
+                   {!noTickets && ticketMode === 'batches' && (
+                     <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic tracking-widest gap-2" onClick={addBatch}>
+                       <Plus className="w-5 h-5" /> Adicionar Lote
+                     </Button>
+                   )}
+                 </React.Fragment>
+               )
+             )}
             </CardContent>
          </Card>
 

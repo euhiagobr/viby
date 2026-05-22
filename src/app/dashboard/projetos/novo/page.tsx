@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -131,7 +132,6 @@ export default function NovoEventoPage() {
 
   const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
   
-  // Co-organizadores
   const [coOrganizers, setCoOrganizers] = useState<any[]>([])
   const [searchUsername, setSearchUsername] = useState("")
   const [isSearching, setIsSearching] = useState(false)
@@ -301,9 +301,12 @@ export default function NovoEventoPage() {
           ...b,
           ticketTypes: b.ticketTypes.map(t => ({ ...t, price: parseFloat(t.price as any) || 0, quantity: parseInt(t.quantity as any) || 0 }))
         })),
-        address, image: uploadedImageUrl || "",
-        organizationId: currentOrg.id, organizerId: user.uid,
+        address, 
+        image: uploadedImageUrl || "",
+        organizationId: currentOrg.id, 
+        organizerId: user.uid,
         organizer: {
+          id: currentOrg.id,
           name: currentOrg.name,
           username: currentOrg.username,
           avatar: currentOrg.avatar || "",
@@ -314,7 +317,6 @@ export default function NovoEventoPage() {
 
       const docRef = await addDoc(collection(db, "events"), eventData)
 
-      // Criar convites de parcerias
       for (const org of coOrganizers) {
         const expiresAt = new Date()
         expiresAt.setHours(expiresAt.getHours() + 24)
@@ -518,7 +520,7 @@ export default function NovoEventoPage() {
               {!noTickets && (
                 <div className="bg-white p-1 rounded-xl border flex gap-1">
                   <Button type="button" variant={ticketMode === 'free' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('free'); setBatches([{ id: crypto.randomUUID(), name: "Grátis", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Entrada Franca", price: 0, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Grátis</Button>
-                  <Button type="button" variant={ticketMode === 'paid_single' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('paid_single'); setBatches([{ id: crypto.randomUUID(), name: "Lote Único", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Único Pago</Button>
+                  <Button type="button" variant={ticketMode === 'paid_single' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('paid_single'); setBatches([{ id: crypto.randomUUID(), name: "Único", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Único</Button>
                   <Button type="button" variant={ticketMode === 'batches' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('batches')}>Lotes</Button>
                 </div>
               )}
@@ -533,7 +535,7 @@ export default function NovoEventoPage() {
                  <p className="text-sm font-medium text-muted-foreground">Bilheteria desativada.</p>
                </div>
              ) : (
-               <>
+               <React.Fragment>
                  {batches.map((batch, bi) => {
                    const stats = calculateHalfPriceStats(batch)
                    const isFreeMode = ticketMode === 'free'
@@ -655,7 +657,7 @@ export default function NovoEventoPage() {
                      <Plus className="w-5 h-5" /> Adicionar Lote
                    </Button>
                  )}
-               </>
+               </React.Fragment>
              )}
           </CardContent>
         </Card>
@@ -670,7 +672,7 @@ export default function NovoEventoPage() {
         <DialogContent className="rounded-[2.5rem] max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Distribuir Ingressos</DialogTitle>
-            <DialogDescription>Defina a quantidade total do lote para automação da Meia-Entrada.</DialogDescription>
+            <DialogDescription>Defina a quantidade total deste lote para automação da Meia-Entrada.</DialogDescription>
           </DialogHeader>
           <div className="py-6 space-y-4">
             <div className="space-y-2">
