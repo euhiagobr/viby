@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -93,12 +94,14 @@ export function AdCard({ ad }: AdCardProps) {
       async (entries) => {
         if (entries[0].isIntersecting && !hasTrackedImpression.current) {
           hasTrackedImpression.current = true
-          const cost = (adsSettings.cpmValue || 0) / 1000
+          
+          const rawCost = (adsSettings.cpmValue || 0) / 1000
+          const totalDeduction = rawCost * 1.11 // Deduz custo + imposto do blockedBalance
           
           const adRef = doc(db, "ads", adId)
           const updateData: any = { 
             reach: increment(1),
-            remainingBudget: increment(-cost),
+            remainingBudget: increment(-rawCost),
             updatedAt: serverTimestamp()
           };
 
@@ -118,7 +121,7 @@ export function AdCard({ ad }: AdCardProps) {
           updateDoc(adRef, updateData).then(() => {
             if (ad.organizationId) {
               updateDoc(doc(db, "organizations", ad.organizationId), {
-                blockedBalance: increment(-cost)
+                blockedBalance: increment(-totalDeduction)
               });
             }
           });
@@ -134,13 +137,15 @@ export function AdCard({ ad }: AdCardProps) {
 
   const handleClick = () => {
     if (db && adsSettings && adId) {
-      const cost = adsSettings.cpcValue || 0
+      const rawCost = adsSettings.cpcValue || 0
+      const totalDeduction = rawCost * 1.11 // Deduz custo + imposto do blockedBalance
+      
       const adRef = doc(db, "ads", adId)
       const demoUpdate = getDemographicsUpdate()
 
       updateDoc(adRef, { 
         clicks: increment(1),
-        remainingBudget: increment(-cost),
+        remainingBudget: increment(-rawCost),
         updatedAt: serverTimestamp(),
         ...Object.keys(demoUpdate).reduce((acc: any, key) => {
           acc[key.replace('stats_', 'click_stats_')] = increment(1);
@@ -149,7 +154,7 @@ export function AdCard({ ad }: AdCardProps) {
       }).then(() => {
         if (ad.organizationId) {
           updateDoc(doc(db, "organizations", ad.organizationId), {
-            blockedBalance: increment(-cost)
+            blockedBalance: increment(-totalDeduction)
           });
         }
       });

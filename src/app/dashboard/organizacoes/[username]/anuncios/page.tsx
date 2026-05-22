@@ -116,6 +116,9 @@ export default function OrganizationAdsPage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [selectedEventId, setSelectedEventId] = React.useState("")
   const [adType, setAdType] = React.useState("evento")
+  const [dailyBudgetInput, setDailyBudgetInput] = React.useState("")
+  const [startDateInput, setStartDateInput] = React.useState("")
+  const [endDateInput, setEndDateInput] = React.useState("")
   const [actionLoadingId, setActionLoadingId] = React.useState<string | null>(null)
   const [selectedAdForMetrics, setSelectedAdForMetrics] = React.useState<any>(null)
   const [adToCancel, setAdToCancel] = React.useState<any>(null)
@@ -124,6 +127,24 @@ export default function OrganizationAdsPage() {
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
+
+  // Cálculos de resumo da nova campanha
+  const adPlanSummary = React.useMemo(() => {
+    const daily = parseFloat(dailyBudgetInput) || 0
+    if (!startDateInput || !endDateInput) return { daily, totalDays: 0, rawBudget: 0, tax: 0, totalReserved: 0 }
+    
+    const start = new Date(startDateInput)
+    const end = new Date(endDateInput)
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) return { daily, totalDays: 0, rawBudget: 0, tax: 0, totalReserved: 0 }
+    
+    const diffTime = Math.abs(end.getTime() - start.getTime())
+    const totalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)))
+    const rawBudget = daily * totalDays
+    const tax = rawBudget * 0.11
+    const totalReserved = rawBudget + tax
+
+    return { daily, totalDays, rawBudget, tax, totalReserved }
+  }, [dailyBudgetInput, startDateInput, endDateInput])
 
   React.useEffect(() => {
     if (!db || !rawAds || !currentOrg || isSubmitting) return;
@@ -142,13 +163,21 @@ export default function OrganizationAdsPage() {
       let totalRefund = 0;
 
       for (const ad of expired) {
-        const refund = Math.max(0, ad.remainingBudget || 0);
-        totalRefund += refund;
-        batch.update(doc(db, "ads", ad.id), { status: "Finalizado", remainingBudget: 0, refundedAmount: refund, updatedAt: serverTimestamp() });
+        const remainingRaw = Math.max(0, ad.remainingBudget || 0);
+        const refundWithTax = remainingRaw * 1.11; // Devolve o saldo bruto + o imposto proporcional não usado
+        totalRefund += refundWithTax;
+        
+        batch.update(doc(db, "ads", ad.id), { 
+          status: "Finalizado", 
+          remainingBudget: 0, 
+          refundedAmount: refundWithTax, 
+          updatedAt: serverTimestamp() 
+        });
+        
         batch.set(doc(collection(db, 'organizations', currentOrg.id, 'transactions')), {
           type: 'ad_refund',
           description: `Expirado: ${ad.eventTitle}`,
-          amount: refund,
+          amount: refundWithTax,
           status: 'completed',
           createdAt: serverTimestamp(),
           userId: user?.uid
@@ -156,7 +185,11 @@ export default function OrganizationAdsPage() {
       }
 
       if (totalRefund > 0 || expired.length > 0) {
-        batch.update(doc(db, "organizations", currentOrg.id), { adBalance: increment(totalRefund), blockedBalance: increment(-totalRefund), updatedAt: serverTimestamp() });
+        batch.update(doc(db, "organizations", currentOrg.id), { 
+          adBalance: increment(totalRefund), 
+          blockedBalance: increment(-totalRefund), 
+          updatedAt: serverTimestamp() 
+        });
         try {
           await batch.commit();
           await refreshOrg();
@@ -186,26 +219,37 @@ export default function OrganizationAdsPage() {
     e.preventDefault()
     if (!db || !user || !currentOrg) return
     const formData = new FormData(e.currentTarget)
-    const dailyBudget = parseFloat(formData.get("budget") as string) || 0
-    const start = new Date(formData.get("startDate") as string)
-    const end = new Date(formData.get("endDate") as string)
-    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) { toast({ variant: "destructive", title: "Datas inválidas" }); return; }
-    const days = Math.max(1, Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
-    const totalBudget = dailyBudget * days
-    if (totalBudget > (currentOrg.adBalance || 0)) { toast({ variant: "destructive", title: "Saldo Insuficiente" }); return; }
+    
+    if (adPlanSummary.totalDays <= 0) { toast({ variant: "destructive", title: "Datas inválidas" }); return; }
+    if (adPlanSummary.totalReserved > (currentOrg.adBalance || 0)) { toast({ variant: "destructive", title: "Saldo Insuficiente" }); return; }
     if ((adType === 'banner' || adType === 'site') && !adImageUrl) { toast({ variant: "destructive", title: "Imagem necessária" }); return; }
 
     setIsSubmitting(true)
     const event = myEvents?.find(ev => ev.id === selectedEventId)
     const status = (adType === 'evento' || adType === 'pagina') ? 'Ativo' : 'Pendente'
+    
     const adData = {
       eventId: adType === 'evento' ? selectedEventId : null,
       eventTitle: adType === 'evento' ? (event?.title || "Evento") : (adType === 'pagina' ? `Promover: ${currentOrg.name}` : (formData.get("title") as string)),
       externalUrl: (adType === 'site' || adType === 'banner') ? (formData.get("url") as string) : null,
       adImage: adImageUrl || (adType === 'pagina' ? currentOrg.avatar : null),
-      organizationId: currentOrg.id, organizerId: user.uid,
-      type: adType, status: status, dailyBudget, initialBudget: totalBudget, remainingBudget: totalBudget, budget: totalBudget, 
-      durationDays: days, startDate: start, endDate: end, reach: 0, uniqueReach: 0, clicks: 0, createdAt: serverTimestamp()
+      organizationId: currentOrg.id, 
+      organizerId: user.uid,
+      type: adType, 
+      status: status, 
+      dailyBudget: adPlanSummary.daily, 
+      initialBudget: adPlanSummary.rawBudget, 
+      remainingBudget: adPlanSummary.rawBudget, 
+      budget: adPlanSummary.rawBudget, 
+      taxRate: 0.11,
+      totalReserved: adPlanSummary.totalReserved,
+      durationDays: adPlanSummary.totalDays, 
+      startDate: new Date(startDateInput), 
+      endDate: new Date(endDateInput), 
+      reach: 0, 
+      uniqueReach: 0, 
+      clicks: 0, 
+      createdAt: serverTimestamp()
     }
 
     try {
@@ -213,12 +257,12 @@ export default function OrganizationAdsPage() {
       const adRef = doc(collection(db, "ads"))
       batch.set(adRef, adData)
       
-      // REATIVAÇÃO AUTOMÁTICA: Se estava oculto/excluindo, volta a ser Ativo
       const orgUpdate: any = { 
-        adBalance: increment(-totalBudget), 
-        blockedBalance: increment(totalBudget), 
+        adBalance: increment(-adPlanSummary.totalReserved), 
+        blockedBalance: increment(adPlanSummary.totalReserved), 
         updatedAt: serverTimestamp() 
       };
+      
       if (currentOrg.status !== 'Ativo') {
         orgUpdate.status = 'Ativo';
         orgUpdate.deletionScheduledAt = deleteField();
@@ -226,13 +270,29 @@ export default function OrganizationAdsPage() {
 
       batch.update(doc(db, "organizations", currentOrg.id), orgUpdate)
       batch.set(doc(collection(db, 'organizations', currentOrg.id, 'transactions')), {
-        type: 'ad_reservation', description: `Reserva: ${adData.eventTitle}`, amount: totalBudget, status: 'completed', createdAt: serverTimestamp(), userId: user.uid
+        type: 'ad_reservation', 
+        description: `Reserva: ${adData.eventTitle} (Incl. Impostos)`, 
+        amount: adPlanSummary.totalReserved, 
+        status: 'completed', 
+        createdAt: serverTimestamp(), 
+        userId: user.uid
       })
-      await batch.commit(); await refreshOrg();
+      
+      await batch.commit(); 
+      await refreshOrg();
+      
       toast({ title: status === 'Ativo' ? "Campanha Ativa!" : "Enviado para Aprovação" })
-      setIsCreateDialogOpen(false); setSelectedEventId(""); setAdImageUrl(null);
-    } catch (error: any) { toast({ variant: "destructive", title: "Erro ao criar" }) }
-    finally { setIsSubmitting(false) }
+      setIsCreateDialogOpen(false); 
+      setSelectedEventId(""); 
+      setAdImageUrl(null);
+      setDailyBudgetInput("");
+      setStartDateInput("");
+      setEndDateInput("");
+    } catch (error: any) { 
+      toast({ variant: "destructive", title: "Erro ao criar" }) 
+    } finally { 
+      setIsSubmitting(false) 
+    }
   }
 
   const handleToggleStatus = async (adId: string, currentStatus: string) => {
@@ -256,14 +316,32 @@ export default function OrganizationAdsPage() {
     setActionLoadingId(adToCancel.id)
     try {
       const batch = writeBatch(db)
-      const refundAmount = adToCancel.remainingBudget || 0
-      batch.update(doc(db, "ads", adToCancel.id), { status: "Cancelado", remainingBudget: 0, refundedAmount: refundAmount, updatedAt: serverTimestamp() })
-      if (refundAmount > 0) {
-        batch.update(doc(db, "organizations", currentOrg.id), { adBalance: increment(refundAmount), blockedBalance: increment(-refundAmount), updatedAt: serverTimestamp() })
+      const remainingRaw = adToCancel.remainingBudget || 0
+      const refundWithTax = remainingRaw * 1.11 // Devolve o valor bruto + imposto não usado
+      
+      batch.update(doc(db, "ads", adToCancel.id), { 
+        status: "Cancelado", 
+        remainingBudget: 0, 
+        refundedAmount: refundWithTax, 
+        updatedAt: serverTimestamp() 
+      })
+      
+      if (refundWithTax > 0) {
+        batch.update(doc(db, "organizations", currentOrg.id), { 
+          adBalance: increment(refundWithTax), 
+          blockedBalance: increment(-refundWithTax), 
+          updatedAt: serverTimestamp() 
+        })
         batch.set(doc(collection(db, 'organizations', currentOrg.id, 'transactions')), {
-          type: 'ad_refund', description: `Estorno: ${adToCancel.eventTitle}`, amount: refundAmount, status: 'completed', createdAt: serverTimestamp(), userId: user?.uid
+          type: 'ad_refund', 
+          description: `Estorno: ${adToCancel.eventTitle}`, 
+          amount: refundWithTax, 
+          status: 'completed', 
+          createdAt: serverTimestamp(), 
+          userId: user?.uid
         })
       }
+      
       await batch.commit(); await refreshOrg(); toast({ title: "Campanha cancelada" })
     } catch (e) { toast({ variant: "destructive", title: "Erro ao cancelar" }) }
     finally { setActionLoadingId(null); setAdToCancel(null) }
@@ -329,11 +407,41 @@ export default function OrganizationAdsPage() {
                     {adImageUrl ? <img src={adImageUrl} className="w-full h-full object-cover" /> : <div className="text-center opacity-40"><Camera className="w-8 h-8 mx-auto mb-2" /><p className="text-[8px] font-black uppercase">Carregar mídia</p></div>}
                     <input id="ad-image-up" type="file" className="hidden" accept="image/*" onChange={handleImageUpload} /></div>{uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}</div></>
                   )}
+                  
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input name="startDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Término</Label><Input name="endDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input name="startDate" type="datetime-local" value={startDateInput} onChange={e => setStartDateInput(e.target.value)} required className="rounded-xl h-11 text-xs" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Término</Label><Input name="endDate" type="datetime-local" value={endDateInput} onChange={e => setEndDateInput(e.target.value)} required className="rounded-xl h-11 text-xs" /></div>
                   </div>
-                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Orçamento Diário (R$)</Label><div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-secondary">R$</span><Input name="budget" type="number" step="0.01" placeholder="50,00" required className="rounded-2xl h-14 pl-12 text-xl font-black border-secondary/20" /></div></div>
+                  
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">Orçamento Diário (R$)</Label>
+                       <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-secondary">R$</span>
+                          <Input 
+                            name="budget" 
+                            type="number" 
+                            step="0.01" 
+                            placeholder="50,00" 
+                            value={dailyBudgetInput}
+                            onChange={e => setDailyBudgetInput(e.target.value)}
+                            required 
+                            className="rounded-2xl h-14 pl-12 text-xl font-black border-secondary/20" 
+                          />
+                       </div>
+                    </div>
+
+                    {adPlanSummary.totalDays > 0 && (
+                      <div className="p-4 bg-muted/30 rounded-2xl border border-dashed border-border space-y-2">
+                         <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Duração:</span> <span>{adPlanSummary.totalDays} dias</span></div>
+                         <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Orçamento Bruto:</span> <span>{formatCurrency(adPlanSummary.rawBudget)}</span></div>
+                         <div className="flex justify-between text-[10px] font-bold uppercase text-secondary"><span>Imposto (11%):</span> <span>+{formatCurrency(adPlanSummary.tax)}</span></div>
+                         <Separator />
+                         <div className="flex justify-between items-center"><span className="text-xs font-black uppercase italic">Total a Reservar:</span> <span className="text-lg font-black text-primary">{formatCurrency(adPlanSummary.totalReserved)}</span></div>
+                         <p className="text-[8px] text-muted-foreground font-medium text-center uppercase mt-2">Valores não utilizados (incluindo o imposto proporcional) serão estornados ao fim da campanha.</p>
+                      </div>
+                    )}
+                  </div>
               </form>
               <div className="p-8 border-t bg-muted/30"><Button onClick={(e:any) => e.target.closest('div').previousSibling.requestSubmit()} type="submit" disabled={isSubmitting || uploadProgress !== null} className="w-full bg-secondary text-white font-black h-16 rounded-[2rem] shadow-xl uppercase italic text-lg">{isSubmitting ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><Target className="w-6 h-6 mr-2" /> Iniciar Impulsionamento</>}</Button></div>
             </DialogContent>
@@ -414,7 +522,7 @@ export default function OrganizationAdsPage() {
                          <div className="col-span-1 text-center"><span className="font-black text-xs bg-muted px-2 py-0.5 rounded-full">{ctr.toFixed(2)}%</span></div>
                          <div className="col-span-2 text-right space-y-0.5">
                             <p className="font-black text-xs">{formatCurrency(ad.initialBudget || ad.budget || 0)}</p>
-                            <p className="text-[8px] font-bold text-secondary uppercase">Saldo: {formatCurrency(isFinished ? ad.refundedAmount || 0 : ad.remainingBudget || 0)}</p>
+                            <p className="text-[8px] font-bold text-secondary uppercase">Saldo (+Imp): {formatCurrency(isFinished ? ad.refundedAmount || 0 : (ad.remainingBudget * 1.11) || 0)}</p>
                          </div>
                          <div className="col-span-3 flex items-center justify-end gap-2">
                             <Button variant="outline" size="sm" className="h-8 rounded-lg border-secondary/20 text-secondary gap-1.5 font-bold text-[9px] uppercase" onClick={() => setSelectedAdForMetrics(ad)}>
@@ -496,7 +604,10 @@ export default function OrganizationAdsPage() {
 
       <AlertDialog open={!!adToCancel} onOpenChange={(o) => !o && setAdToCancel(null)}>
         <AlertDialogContent className="rounded-[2.5rem]">
-          <AlertDialogHeader><AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Confirmar Cancelamento?</AlertDialogTitle><AlertDialogDescription>Esta ação encerrará a campanha e devolverá <strong>{formatCurrency(adToCancel?.remainingBudget || 0)}</strong> ao saldo da marca.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Confirmar Cancelamento?</AlertDialogTitle>
+            <AlertDialogDescription>Esta ação encerrará a campanha e devolverá <strong>{formatCurrency((adToCancel?.remainingBudget || 0) * 1.11)}</strong> ao saldo da marca (Saldo Bruto + Imposto Proporcional).</AlertDialogDescription>
+          </AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Não</AlertDialogCancel><AlertDialogAction onClick={handleCancelAd} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] px-8">Encerrar e Estornar</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
