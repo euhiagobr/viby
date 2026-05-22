@@ -2,8 +2,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.17.0
-    // Integrado suporte a solicitações de saque e transferências
+    // REGRAS VIBY - Versão: 2.18.0
+    // Integrado suporte a gamificação e correção de permissões de cadastro
     
     function isSignedIn() {
       return request.auth != null;
@@ -57,6 +57,32 @@ service cloud.firestore {
       allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow delete: if isAdmin();
     }
+
+    // Gamificação e Estatísticas
+    match /user_gamification/{userId} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /cultural_stats/{userId} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /xp_logs/{logId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow write: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /user_badges/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Configurações de Gamificação (Leitura pública para o motor de XP)
+    match /levels/{levelId} { allow read: if true; }
+    match /badges/{badgeId} { allow read: if true; }
+    match /xp_rules/{ruleId} { allow read: if true; }
 
     // Unicidade de Nomes de Usuário
     match /usernames/{username} {
