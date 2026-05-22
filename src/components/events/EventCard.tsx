@@ -1,8 +1,7 @@
-
 "use client"
 
 import * as React from "react"
-import { Calendar, MapPin, Clock, Ticket, Navigation, Megaphone } from "lucide-react"
+import { Calendar, MapPin, Clock, Ticket, Navigation, Megaphone, BadgeCheck } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -14,22 +13,9 @@ import { calculateDistance, type Coordinates } from "@/lib/location-utils"
 import { useFirestore, useDoc, useAuth, useUser } from "@/firebase"
 import { doc, updateDoc, increment, serverTimestamp, getDoc, setDoc } from "firebase/firestore"
 
-function InstagramVerifiedBadge({ className }: { className?: string }) {
+function VerifiedBadge({ className }: { className?: string }) {
   return (
-    <svg 
-      viewBox="0 0 128 128" 
-      className={cn("w-3.5 h-3.5", className)} 
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path 
-        fill="#0095f6" 
-        d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1-4.4 1.2-8.9-5.3 10.7l8.4 3.7 2.3 9c1.1-4.4 5.2-7.4 9.7 7l9.2-.7 6.5 6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.4-6.3 5.3-10.7l-2.3-9 6.5-6.6c3.2-3.2 3.2-8.2 0-11.4z"
-      />
-      <path 
-        fill="#fff" 
-        d="M57.6 86.8c-1.8 0-3.5-.7-4.8-2L38.2 70.2c-2.7-2.7-2.7-7 0-9.6s7-2.7 9.6 0l9.8 9.8 22.8-22.8c2.7-2.7 7-2.7 9.6 0s2.7 7 0 9.6L62.4 84.8c-1.3 1.3-3 2-4.8 2z"
-      />
-    </svg>
+    <BadgeCheck className={cn("w-3.5 h-3.5 fill-blue-500 text-white", className)} />
   )
 }
 
@@ -354,7 +340,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
             <span className="text-[10px] font-bold text-muted-foreground uppercase hover:text-secondary truncate max-w-[100px]">
               {event.organizer?.name || "Organizador"}
             </span>
-            {isVerified && <InstagramVerifiedBadge />}
+            {isVerified && <VerifiedBadge />}
           </div>
         </div>
         

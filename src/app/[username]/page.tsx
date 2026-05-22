@@ -35,7 +35,8 @@ import {
   Plus,
   Check,
   Handshake,
-  Info
+  Info,
+  BadgeCheck
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -59,22 +60,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { toast } from "@/hooks/use-toast"
 
-function InstagramVerifiedBadge({ className }: { className?: string }) {
+function VerifiedBadge({ className }: { className?: string }) {
   return (
-    <svg 
-      viewBox="0 0 128 128" 
-      className={cn("w-5 h-5", className)} 
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path 
-        fill="#0095f6" 
-        d="M117.2 60.1l-6.5-6.6 2.3-9c1.1-4.4-1.2-8.9-5.3-10.7l-8.4-3.7-2.3-9c-1.1-4.4-5.2-7.4-9.7-7l-9.2.7-6.5-6.6c-3.2-3.2-8.2-3.2-11.4 0l-6.5 6.6-9.2-.7c-4.5-.4-8.6 2.6-9.7 7l-2.3 9-8.4 3.7c-4.1 1.8-6.4 6.3-5.3 10.7l2.3 9-6.5 6.6c-3.2 3.2-3.2 8.2 0 11.4l6.5 6.6-2.3 9c-1.1-4.4 1.2-8.9-5.3 10.7l8.4 3.7 2.3 9c1.1-4.4-5.2-7.4-9.7 7l9.2-.7 6.5 6.6c1.6 1.6 3.7 2.4 5.7 2.4s4.1-.8 5.7-2.4l6.5-6.6 9.2.7c.4 0 .7.1 1.1.1 4.1 0 7.9-3 8.6-7.1l2.3-9 8.4-3.7c4.1-1.8 6.4-6.3-5.3-10.7l-2.3-9 6.5-6.6c3.2-3.2 3.2-8.2 0-11.4z"
-      />
-      <path 
-        fill="#fff" 
-        d="M57.6 86.8c-1.8 0-3.5-.7-4.8-2L38.2 70.2c-2.7-2.7-2.7-7 0-9.6s7-2.7 9.6 0l9.8 9.8 22.8-22.8c2.7-2.7 7-2.7 9.6 0s2.7 7 0 9.6L62.4 84.8c-1.3 1.3-3 2-4.8 2z"
-      />
-    </svg>
+    <BadgeCheck className={cn("w-5 h-5 fill-blue-500 text-white", className)} />
   )
 }
 
@@ -416,12 +404,12 @@ function UniversalProfileContent() {
                    <div className="flex flex-col md:flex-row md:items-center gap-4">
                       <div className="flex items-center justify-center md:justify-start gap-2">
                         <h1 className="text-2xl font-bold tracking-tight">{displayName}</h1>
-                        {isVerified && <InstagramVerifiedBadge />}
+                        {isVerified && <VerifiedBadge />}
                       </div>
                       <div className="flex items-center justify-center gap-2">
                         {!isSelf && (
                           <Button 
-                            onClick={handleFollowToggle}
+                            onClick={handleFollowToggle} 
                             disabled={followActionLoading}
                             className={cn(
                               "font-bold rounded-lg h-9 px-6 text-sm transition-all",
