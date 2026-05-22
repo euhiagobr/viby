@@ -536,13 +536,14 @@ function UniversalProfileContent() {
                         {isVerified && <VerifiedBadge />}
                       </div>
                       <div className="flex items-center justify-center gap-2">
+                        {/* BOTÃO SEGUIR RESTAURADO */}
                         {!isSelf && (
                           <Button 
                             onClick={handleFollowToggle} 
                             disabled={followActionLoading}
                             className={cn(
                               "font-bold rounded-xl h-10 px-8 text-sm transition-all shadow-lg",
-                              isFollowing ? "bg-muted text-foreground" : "bg-secondary text-white"
+                              isFollowing ? "bg-muted text-foreground" : "bg-secondary text-white hover:bg-secondary/90"
                             )}
                           >
                              {followActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : isFollowing ? "Seguindo" : "Seguir"}
