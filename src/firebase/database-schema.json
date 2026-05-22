@@ -19,7 +19,36 @@
       "fields": ["adId", "advertiserCnpj", "advertiserName", "adTitle", "startDate", "endDate", "status", "grossValue", "taxPercent", "taxValue", "netValue", "nfDeadlineDate", "nfStatus", "monthKey", "updatedAt"]
     },
     "tax_tickets": {
-      "fields": ["eventId", "eventTitle", "organizationId", "orgName", "orgCnpj", "buyerName", "buyerEmail", "ticketTypeName", "batchName", "quantity", "unitPrice", "totalFacePrice", "buyerFeeAmount", "organizerFeeAmount", "stripeFeePercentUsed", "stripeFeeFixedUsed", "stripeFeeAmount", "vibyGrossProfit", "taxPercentUsed", "taxAmount", "vibyNetProfit", "payoutToProducer", "monthKey", "nfStatus", "nfDeadlineDate", "timestamp"]
+      "fields": [
+        "eventId", 
+        "eventTitle", 
+        "organizationId", 
+        "orgName", 
+        "orgCnpj", 
+        "buyerName", 
+        "buyerEmail", 
+        "ticketTypeName", 
+        "batchName", 
+        "quantity", 
+        "unitPrice", 
+        "totalFacePrice", 
+        "buyerFeeAmount", 
+        "organizerFeeAmount", 
+        "stripeFeePercentUsed", 
+        "stripeFeeFixedUsed", 
+        "stripeFeePercentAmount",
+        "stripeFeeFixedAmount",
+        "stripeFeeAmount", 
+        "vibyGrossProfit", 
+        "taxPercentUsed", 
+        "taxAmount", 
+        "vibyNetProfit", 
+        "payoutToProducer", 
+        "monthKey", 
+        "nfStatus", 
+        "nfDeadlineDate", 
+        "timestamp"
+      ]
     },
     "usernames": {
       "fields": ["uid", "type"]

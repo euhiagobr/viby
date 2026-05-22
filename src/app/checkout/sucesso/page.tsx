@@ -71,7 +71,6 @@ export default function CheckoutSucessoPage() {
             ? metadata.registrationIds.split(",") 
             : [metadata.registrationId];
           
-          // Buscar configurações de taxas e stripe vigentes para snapshot
           const [stripeSettingsSnap, feesSettingsSnap] = await Promise.all([
             getDoc(doc(db, 'settings', 'stripe')),
             getDoc(doc(db, 'settings', 'fees'))
@@ -80,19 +79,23 @@ export default function CheckoutSucessoPage() {
           const stripeSettings = stripeSettingsSnap.data();
           const feesSettings = feesSettingsSnap.data();
 
-          for (const regId of regIds) {
+          // Itera sobre as inscrições e gera registros fiscais individuais
+          // Nota: Para precisão total com a taxa fixa da Stripe, ela é aplicada apenas na primeira reg do checkout
+          for (let i = 0; i < regIds.length; i++) {
+            const regId = regIds[i];
             const regRef = doc(db, "registrations", regId);
             const regSnap = await getDoc(regRef);
             
             if (regSnap.exists()) {
               const regData = regSnap.data();
               if (regData.paymentStatus !== "Pago") {
-                // Cálculo financeiro detalhado para snapshot fiscal
+                const isFirst = i === 0;
                 const breakdown = calculateDetailedVibyBreakdown(
                   regData.ticketBasePrice || 0,
                   1,
                   feesSettings,
-                  stripeSettings
+                  stripeSettings,
+                  isFirst
                 );
 
                 await updateDoc(regRef, {
@@ -100,11 +103,9 @@ export default function CheckoutSucessoPage() {
                   stripeSessionId: sessionId,
                   updatedAt: serverTimestamp(),
                   confirmedAt: serverTimestamp(),
-                  // Congelamento de snapshot financeiro no registro da venda
                   financialSnapshot: breakdown
                 });
 
-                // Criar registro fiscal oficial e detalhado
                 const monthKey = new Date().toISOString().slice(0, 7);
                 const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toLocaleDateString('pt-BR');
 
@@ -119,13 +120,15 @@ export default function CheckoutSucessoPage() {
                    ticketTypeName: regData.ticketTypeName || "Geral",
                    batchName: regData.batchName || "Único",
                    quantity: 1,
-                   unitPrice: regData.ticketBasePrice || 0,
+                   unitPrice: breakdown.unitPrice,
                    totalFacePrice: breakdown.totalFace,
                    buyerFeeAmount: breakdown.buyerFeeTotal,
                    organizerFeeAmount: breakdown.organizerFeeTotal,
                    stripeFeePercentUsed: stripeSettings?.feePercent ?? 3.99,
                    stripeFeeFixedUsed: stripeSettings?.feeFixed ?? 0.39,
-                   stripeFeeAmount: breakdown.stripeFeeAmount,
+                   stripeFeePercentAmount: breakdown.stripeFeePercentAmount,
+                   stripeFeeFixedAmount: breakdown.stripeFeeFixedAmount,
+                   stripeFeeAmount: breakdown.stripeFeeTotal,
                    vibyGrossProfit: breakdown.vibyGross,
                    taxPercentUsed: 11,
                    taxAmount: breakdown.imposto,

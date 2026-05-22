@@ -12,22 +12,52 @@ export function formatCurrency(value: number): string {
 }
 
 /**
- * Calcula a quebra financeira completa de uma venda baseada nas configurações globais de taxas e stripe.
+ * Interface que define o snapshot financeiro de uma venda.
  */
-export function calculateDetailedVibyBreakdown(facePrice: number, qty: number, globalFees: any, stripeSettings: any) {
+export interface VibyFinancialSnapshot {
+  unitPrice: number;
+  quantity: number;
+  totalFace: number;
+  buyerFeeTotal: number;
+  organizerFeeTotal: number;
+  customerPaid: number;
+  stripeFeePercentAmount: number;
+  stripeFeeFixedAmount: number;
+  stripeFeeTotal: number;
+  vibyGross: number;
+  imposto: number;
+  vibyNet: number;
+  payoutToProducer: number;
+}
+
+/**
+ * Calcula a quebra financeira completa de uma venda seguindo as regras de negócio da Viby.
+ * O imposto de 11% é calculado apenas sobre o Lucro Bruto da Viby (Taxas - Stripe).
+ */
+export function calculateDetailedVibyBreakdown(
+  facePrice: number, 
+  qty: number, 
+  globalFees: any, 
+  stripeSettings: any,
+  isFirstInCharge: boolean = true // Para aplicar a taxa fixa da Stripe apenas uma vez por grupo
+): VibyFinancialSnapshot {
   const impostoRate = 0.11;
   const totalFace = facePrice * qty;
 
   if (totalFace <= 0) {
     return {
+      unitPrice: facePrice,
+      quantity: qty,
       totalFace: 0,
       buyerFeeTotal: 0,
       organizerFeeTotal: 0,
       customerPaid: 0,
-      stripeFeeAmount: 0,
-      vibyGrossProfit: 0,
-      taxAmount: 0,
-      vibyNetProfit: 0,
+      stripeFeePercentAmount: 0,
+      stripeFeeFixedAmount: 0,
+      stripeFeeTotal: 0,
+      vibyGross: 0,
+      imposto: 0,
+      vibyNet: 0,
       payoutToProducer: 0
     };
   }
@@ -45,30 +75,37 @@ export function calculateDetailedVibyBreakdown(facePrice: number, qty: number, g
 
   // 3. Taxa Stripe (Calculada sobre o total pago pelo cliente)
   const sPercent = (stripeSettings?.feePercent ?? 3.99) / 100;
-  const sFixed = (stripeSettings?.feeFixed ?? 0.39) * qty;
-  const stripeFeeAmount = (customerPaid * sPercent) + sFixed;
+  const sFixed = isFirstInCharge ? (stripeSettings?.feeFixed ?? 0.39) : 0; // Taxa fixa por transação
+  
+  const stripeFeePercentAmount = customerPaid * sPercent;
+  const stripeFeeFixedAmount = sFixed;
+  const stripeFeeTotal = stripeFeePercentAmount + stripeFeeFixedAmount;
 
   // 4. Lucro Bruto da Viby (Taxas - Stripe)
-  const vibyGrossProfit = (buyerFeeTotal + organizerFeeTotal) - stripeFeeAmount;
+  const vibyGross = (buyerFeeTotal + organizerFeeTotal) - stripeFeeTotal;
 
-  // 5. Imposto (11% sobre o Lucro Bruto)
-  const taxAmount = vibyGrossProfit > 0 ? vibyGrossProfit * impostoRate : 0;
+  // 5. Imposto (11% sobre o Lucro Bruto da Viby apenas)
+  const imposto = vibyGross > 0 ? vibyGross * impostoRate : 0;
 
   // 6. Lucro Líquido Final da Viby
-  const vibyNetProfit = vibyGrossProfit - taxAmount;
+  const vibyNet = vibyGross - imposto;
 
   // 7. Repasse ao Produtor (Valor de Face - Taxa Organizador)
   const payoutToProducer = totalFace - organizerFeeTotal;
 
   return {
+    unitPrice: Number(facePrice.toFixed(2)),
+    quantity: qty,
     totalFace: Number(totalFace.toFixed(2)),
     buyerFeeTotal: Number(buyerFeeTotal.toFixed(2)),
     organizerFeeTotal: Number(organizerFeeTotal.toFixed(2)),
     customerPaid: Number(customerPaid.toFixed(2)),
-    stripeFeeAmount: Number(stripeFeeAmount.toFixed(2)),
-    vibyGrossProfit: Number(vibyGrossProfit.toFixed(2)),
-    taxAmount: Number(taxAmount.toFixed(2)),
-    vibyNetProfit: Number(vibyNetProfit.toFixed(2)),
+    stripeFeePercentAmount: Number(stripeFeePercentAmount.toFixed(2)),
+    stripeFeeFixedAmount: Number(stripeFeeFixedAmount.toFixed(2)),
+    stripeFeeTotal: Number(stripeFeeTotal.toFixed(2)),
+    vibyGross: Number(vibyGross.toFixed(2)),
+    imposto: Number(imposto.toFixed(2)),
+    vibyNet: Number(vibyNet.toFixed(2)),
     payoutToProducer: Number(payoutToProducer.toFixed(2))
   };
 }
