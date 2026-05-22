@@ -29,6 +29,7 @@ import { getCurrentLocation, calculateDistance, type Coordinates } from "@/lib/l
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 import { cn } from "@/lib/utils"
 import Footer from "@/components/layout/Footer"
+import Image from "next/image"
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (
@@ -108,6 +109,7 @@ export default function ExplorarPage() {
   const nearbyOrganizers = React.useMemo(() => {
     if (!events || !userLocation) return []
     
+    // Filtra eventos que têm geolocalização e calcula distância
     const eventsWithDistance = events
       .filter((e: any) => e.status !== 'Excluído' && e.latitude && e.longitude)
       .map((e: any) => ({
@@ -122,10 +124,13 @@ export default function ExplorarPage() {
     eventsWithDistance.forEach((event: any) => {
       if (event.organizationId && !seenIds.has(event.organizationId)) {
         seenIds.add(event.organizationId);
-        const orgAvatar = event.organizer?.avatar || event.avatar || "";
+        
+        // Lógica robusta para captura do avatar da marca em diferentes formatos de documento
+        const orgAvatar = event.organizer?.avatar || event.organizerAvatar || event.avatar || "";
+        
         uniqueOrgs.push({
           id: event.organizationId,
-          name: event.organizer?.name || "Marca",
+          name: event.organizer?.name || "Marca Local",
           username: event.organizer?.username || "marca",
           avatar: orgAvatar,
           isVerified: event.organizer?.isVerified || event.organizer?.verified || false
@@ -283,10 +288,21 @@ export default function ExplorarPage() {
               <CardContent className="p-8 flex items-center gap-6">
                 <div className="relative">
                   <Avatar className="h-20 w-20 border-2 border-secondary/10 p-0.5 shadow-sm">
-                    <AvatarImage src={org.avatar} alt={org.name} className="object-cover rounded-full" />
-                    <AvatarFallback className="font-bold text-xl bg-muted text-muted-foreground">
-                       {org.name?.charAt(0)}
-                    </AvatarFallback>
+                    {org.avatar ? (
+                      <div className="relative h-full w-full rounded-full overflow-hidden">
+                        <Image 
+                          src={org.avatar} 
+                          alt={org.name} 
+                          fill 
+                          className="object-cover" 
+                          unoptimized 
+                        />
+                      </div>
+                    ) : (
+                      <AvatarFallback className="font-bold text-xl bg-muted text-muted-foreground">
+                         {org.name?.charAt(0)}
+                      </AvatarFallback>
+                    )}
                   </Avatar>
                   {org.isVerified && (
                     <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
