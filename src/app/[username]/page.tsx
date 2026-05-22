@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -414,6 +413,17 @@ function UniversalProfileContent() {
 
     if (isSelf) {
       toast({ variant: "destructive", title: "Operação inválida", description: "Você não pode seguir sua própria conta." })
+      return
+    }
+
+    // TRAVA PARA CONTA OFICIAL
+    const officialOrgId = "92aee5c9-6741-432e-9511-f5a1afbaa8db"
+    if (isFollowing && data.id === officialOrgId) {
+      toast({ 
+        variant: "destructive", 
+        title: "Ação bloqueada", 
+        description: "Você não pode deixar de seguir a conta oficial da Viby." 
+      })
       return
     }
 

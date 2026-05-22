@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth, useFirestore, useDoc } from "@/firebase"
+import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
 import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
@@ -182,6 +182,7 @@ export default function CadastroPage() {
           throw new Error("Nome de usuário acaba de ser ocupado.")
         }
 
+        // Criar conta e username
         transaction.set(usernameRef, { uid: user.uid, type: 'user' })
         transaction.set(userRef, {
           uid: user.uid,
@@ -199,6 +200,17 @@ export default function CadastroPage() {
           state: "",
           country: "Brasil",
           createdAt: serverTimestamp()
+        })
+
+        // SEGUIR CONTA OFICIAL AUTOMATICAMENTE
+        const officialOrgId = "92aee5c9-6741-432e-9511-f5a1afbaa8db"
+        const followId = `${user.uid}_${officialOrgId}`
+        const followRef = doc(db, "follows", followId)
+        transaction.set(followRef, {
+          followerId: user.uid,
+          followingId: officialOrgId,
+          targetType: 'organization',
+          timestamp: serverTimestamp()
         })
       })
 
