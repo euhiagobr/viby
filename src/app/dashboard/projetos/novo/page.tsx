@@ -447,7 +447,6 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
-        {/* CO-ORGANIZADORES */}
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
             <CardTitle className="text-lg flex items-center gap-2"><Users className="w-5 h-5 text-secondary" /> Outros Organizadores (Parcerias)</CardTitle>
@@ -696,7 +695,12 @@ export default function NovoEventoPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Não</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { setCoOrganizers(coOrganizers.filter(o => o.id !== orgToDelete.id)); setOrgToDelete(null); }} className="bg-destructive text-white rounded-xl font-bold uppercase text-[10px]">Sim, remover</AlertDialogAction>
+            <AlertDialogAction 
+              onClick={() => { setCoOrganizers(coOrganizers.filter(o => o.id !== orgToDelete.id)); setOrgToDelete(null); }} 
+              className="bg-destructive text-white rounded-xl font-bold uppercase text-[10px]"
+            >
+              Sim, remover
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

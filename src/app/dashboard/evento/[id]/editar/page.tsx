@@ -5,7 +5,7 @@ import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
-import { updateDoc, doc, collection, serverTimestamp, getDoc, setDoc, deleteDoc, query, where, getDocs } from "firebase/firestore"
+import { updateDoc, doc, collection, serverTimestamp, getDoc, setDoc, deleteDoc, query, where, getDocs, deleteField } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,10 +34,9 @@ import {
   Users,
   AtSign,
   X,
-  Trophy,
-  XCircle,
   CheckCircle2,
-  Camera
+  Camera,
+  XCircle
 } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
@@ -148,7 +147,7 @@ export default function EditarEventoPage() {
   }, [db, eventId])
 
   useEffect(() => {
-    if (event && categories) {
+    if (event && categories && categories.length > 0) {
       // Tenta mapear a categoria pelo ID ou pelo Nome (Legacy)
       if (event.categoryId && categories.some(c => c.id === event.categoryId)) {
         setSelectedCategory(event.categoryId);
@@ -178,10 +177,14 @@ export default function EditarEventoPage() {
       const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
       const storageRef = ref(storage, `events/${user.uid}/${fileName}`)
       const uploadTask = uploadBytesResumable(storageRef, file)
-      uploadTask.on('state_changed', (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), () => setUploadProgress(null), async () => {
-        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
-        setUploadedImageUrl(downloadURL); setUploadProgress(null)
-      })
+      uploadTask.on('state_changed', 
+        (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), 
+        () => setUploadProgress(null), 
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+          setUploadedImageUrl(downloadURL); setUploadProgress(null)
+        }
+      )
     } catch (err) { setUploadProgress(null) }
   }
 
