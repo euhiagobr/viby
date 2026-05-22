@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from "@/firebase"
-import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, increment, writeBatch, getDoc, setDoc } from "firebase/firestore"
+import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, increment, writeBatch, getDoc, setDoc, deleteField } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -212,7 +212,19 @@ export default function OrganizationAdsPage() {
       const batch = writeBatch(db)
       const adRef = doc(collection(db, "ads"))
       batch.set(adRef, adData)
-      batch.update(doc(db, "organizations", currentOrg.id), { adBalance: increment(-totalBudget), blockedBalance: increment(totalBudget), updatedAt: serverTimestamp() })
+      
+      // REATIVAÇÃO AUTOMÁTICA: Se estava oculto/excluindo, volta a ser Ativo
+      const orgUpdate: any = { 
+        adBalance: increment(-totalBudget), 
+        blockedBalance: increment(totalBudget), 
+        updatedAt: serverTimestamp() 
+      };
+      if (currentOrg.status !== 'Ativo') {
+        orgUpdate.status = 'Ativo';
+        orgUpdate.deletionScheduledAt = deleteField();
+      }
+
+      batch.update(doc(db, "organizations", currentOrg.id), orgUpdate)
       batch.set(doc(collection(db, 'organizations', currentOrg.id, 'transactions')), {
         type: 'ad_reservation', description: `Reserva: ${adData.eventTitle}`, amount: totalBudget, status: 'completed', createdAt: serverTimestamp(), userId: user.uid
       })

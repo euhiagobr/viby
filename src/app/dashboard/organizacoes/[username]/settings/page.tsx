@@ -1,10 +1,12 @@
+
 'use client';
 
 import * as React from 'react';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
-import { useFirestore, useFirebaseApp } from '@/firebase';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useFirebaseApp, useAuth } from '@/firebase';
+import { doc, updateDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +15,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
 import { 
   Settings, 
   Save, 
@@ -27,14 +28,29 @@ import {
   Info,
   ShieldAlert,
   MapPin,
-  Fingerprint
+  Fingerprint,
+  Trash2,
+  EyeOff,
+  RefreshCcw,
+  AlertTriangle,
+  Lock
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
 
 export default function OrganizationSettingsPage() {
   const { currentOrg, userRole, refreshOrg } = useCurrentOrganization();
   const db = useFirestore();
+  const auth = useAuth();
   const app = useFirebaseApp();
   const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app]);
 
@@ -42,6 +58,11 @@ export default function OrganizationSettingsPage() {
   const [formData, setFormData] = React.useState<any>(null);
   const [avatarProgress, setAvatarProgress] = React.useState<number | null>(null);
   const [bannerProgress, setBannerProgress] = React.useState<number | null>(null);
+
+  // Estados para Exclusão/Desativação
+  const [isDeleteDialogOpen, setIsDeleteOpen] = React.useState(false);
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [isProcessingAction, setIsProcessingAction] = React.useState(false);
 
   React.useEffect(() => {
     if (currentOrg) {
@@ -128,12 +149,15 @@ export default function OrganizationSettingsPage() {
 
     setSaving(true);
     try {
+      // Ao salvar configurações, reativa a página automaticamente
       await updateDoc(doc(db, 'organizations', currentOrg.id), {
         ...formData,
+        status: 'Ativo',
+        deletionScheduledAt: deleteField(),
         updatedAt: serverTimestamp(),
       });
       await refreshOrg();
-      toast({ title: "Configurações salvas!", description: "Os dados da marca foram atualizados com sucesso." });
+      toast({ title: "Configurações salvas!", description: "Sua página está ativa e os dados foram atualizados." });
     } catch (error) {
       toast({ variant: "destructive", title: "Erro ao salvar" });
     } finally {
@@ -141,7 +165,73 @@ export default function OrganizationSettingsPage() {
     }
   };
 
-  const canEditSettings = ['owner', 'admin', 'editor'].includes(userRole || '');
+  const handleDeactivate = async () => {
+    if (!db || !currentOrg) return;
+    setIsProcessingAction(true);
+    try {
+      await updateDoc(doc(db, 'organizations', currentOrg.id), {
+        status: 'Desativado',
+        updatedAt: serverTimestamp()
+      });
+      await refreshOrg();
+      toast({ title: "Página desativada", description: "Sua marca está oculta para o público." });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro na desativação" });
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
+  const handleScheduleDeletion = async () => {
+    if (!db || !currentOrg || !auth?.currentUser || !confirmPassword) return;
+    
+    setIsProcessingAction(true);
+    try {
+      // 1. Reautenticar por segurança
+      const credential = EmailAuthProvider.credential(auth.currentUser.email!, confirmPassword);
+      await reauthenticateWithCredential(auth.currentUser, credential);
+
+      // 2. Agendar exclusão
+      const deletionDate = new Date();
+      deletionDate.setDate(deletionDate.getDate() + 30);
+
+      await updateDoc(doc(db, 'organizations', currentOrg.id), {
+        status: 'Exclusão Programada',
+        deletionScheduledAt: deletionDate.toISOString(),
+        updatedAt: serverTimestamp()
+      });
+
+      await refreshOrg();
+      toast({ title: "Exclusão Agendada", description: "A marca será removida em 30 dias. A página já está oculta." });
+      setIsDeleteOpen(false);
+      setConfirmPassword("");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Senha incorreta", description: "Verifique seus dados de acesso." });
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
+  const handleCancelDeletion = async () => {
+    if (!db || !currentOrg) return;
+    setIsProcessingAction(true);
+    try {
+      await updateDoc(doc(db, 'organizations', currentOrg.id), {
+        status: 'Ativo',
+        deletionScheduledAt: deleteField(),
+        updatedAt: serverTimestamp()
+      });
+      await refreshOrg();
+      toast({ title: "Exclusão cancelada!", description: "Sua marca voltou ao ar normalmente." });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao cancelar" });
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
+  const canEditSettings = ['owner', 'admin'].includes(userRole || '');
+  const isOwner = userRole === 'owner';
 
   if (!canEditSettings) {
     return (
@@ -155,6 +245,9 @@ export default function OrganizationSettingsPage() {
   }
 
   if (!formData) return null;
+
+  const isDeleting = currentOrg?.status === 'Exclusão Programada';
+  const isDeactivated = currentOrg?.status === 'Desativado';
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -360,17 +453,6 @@ export default function OrganizationSettingsPage() {
                 </div>
               </div>
             </div>
-
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
-                <Globe className="w-3 h-3" /> País (Sempre Visível)
-              </Label>
-              <Input 
-                value={formData.country}
-                readOnly
-                className="rounded-xl h-11 bg-muted/30"
-              />
-            </div>
           </CardContent>
         </Card>
 
@@ -418,17 +500,102 @@ export default function OrganizationSettingsPage() {
              disabled={saving}
            >
               {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-              Salvar Alterações
+              {isDeleting || isDeactivated ? "Reativar & Salvar" : "Salvar Alterações"}
            </Button>
         </div>
       </form>
 
-      <div className="p-6 bg-muted/30 rounded-3xl flex items-start gap-4">
-         <Info className="w-6 h-6 text-primary shrink-0 opacity-20" />
-         <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
-            Os dados fiscais e de endereço são protegidos e utilizados para validação da conta. A visibilidade pública apenas oculta a exibição visual nos perfis, mas os dados permanecem registrados no sistema para auditoria.
-         </p>
-      </div>
+      {/* ZONA DE PERIGO */}
+      <Card className="border-none shadow-sm rounded-[2rem] border-t-8 border-destructive/20 bg-white overflow-hidden">
+        <CardHeader className="bg-destructive/5">
+           <CardTitle className="text-lg flex items-center gap-2 text-destructive"><ShieldAlert className="w-5 h-5" /> Zona de Perigo</CardTitle>
+           <CardDescription>Ações irreversíveis ou que afetam a visibilidade da marca.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-8 space-y-8">
+           {isDeleting ? (
+             <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 bg-orange-50 rounded-[1.5rem] border-2 border-dashed border-orange-200">
+                <div className="flex items-center gap-4">
+                   <div className="p-3 bg-orange-100 rounded-full text-orange-600"><Clock className="w-6 h-6 animate-pulse" /></div>
+                   <div className="space-y-1">
+                      <p className="font-black uppercase text-xs text-orange-800 italic">Exclusão Programada</p>
+                      <p className="text-[10px] text-orange-700 font-medium">Sua marca será apagada permanentemente em <strong>{new Date(currentOrg.deletionScheduledAt).toLocaleDateString('pt-BR')}</strong>.</p>
+                   </div>
+                </div>
+                <Button 
+                  onClick={handleCancelDeletion} 
+                  disabled={isProcessingAction}
+                  className="bg-orange-600 text-white font-black rounded-xl h-11 px-8 shadow-lg uppercase text-[10px] italic"
+                >
+                   {isProcessingAction ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <RefreshCcw className="w-3 h-3 mr-2" />}
+                   Cancelar Exclusão
+                </Button>
+             </div>
+           ) : (
+             <>
+               <div className="flex flex-col md:flex-row items-center justify-between gap-6 border-b pb-8">
+                  <div className="space-y-1 flex-1">
+                     <p className="font-bold text-sm">Desativar Página</p>
+                     <p className="text-[11px] text-muted-foreground">Oculta sua marca e eventos do feed público. Seus dados continuam salvos e você pode reativar a qualquer momento.</p>
+                  </div>
+                  <Button 
+                    variant={isDeactivated ? "secondary" : "outline"} 
+                    onClick={isDeactivated ? handleSave : handleDeactivate}
+                    disabled={isProcessingAction}
+                    className="rounded-xl h-11 px-8 font-bold uppercase text-[10px]"
+                  >
+                     {isProcessingAction ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : isDeactivated ? <RefreshCcw className="w-3 h-3 mr-2" /> : <EyeOff className="w-3 h-3 mr-2" />}
+                     {isDeactivated ? "Ativar Página" : "Desativar Página"}
+                  </Button>
+               </div>
+
+               <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                  <div className="space-y-1 flex-1">
+                     <p className="font-bold text-sm text-destructive">Excluir Organização</p>
+                     <p className="text-[11px] text-muted-foreground">Remove permanentemente todos os eventos, membros e dados financeiros da marca após 30 dias de inatividade.</p>
+                  </div>
+                  <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="destructive" className="rounded-xl h-11 px-8 font-black uppercase text-[10px] italic shadow-lg shadow-destructive/20">
+                         <Trash2 className="w-3 h-3 mr-2" /> Excluir Marca
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="rounded-[2.5rem] max-w-sm">
+                       <DialogHeader>
+                          <div className="mx-auto w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-2 text-destructive">
+                             <AlertTriangle className="w-8 h-8" />
+                          </div>
+                          <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Confirmar Exclusão</DialogTitle>
+                          <DialogDescription className="text-center font-medium">
+                             A página ficará oculta por 30 dias. Para confirmar, insira sua senha de acesso.
+                          </DialogDescription>
+                       </DialogHeader>
+                       <div className="space-y-6 py-4">
+                          <div className="space-y-2">
+                             <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Lock className="w-3 h-3" /> Sua Senha</Label>
+                             <Input 
+                                type="password" 
+                                placeholder="••••••••" 
+                                value={confirmPassword}
+                                onChange={e => setConfirmPassword(e.target.value)}
+                                className="h-12 rounded-xl"
+                             />
+                          </div>
+                          <div className="p-4 bg-muted/50 rounded-2xl border-2 border-dashed border-border text-[10px] text-muted-foreground font-medium uppercase leading-relaxed italic">
+                             Ao confirmar, sua marca sairá do ar hoje e será apagada em definitivo daqui a 30 dias.
+                          </div>
+                       </div>
+                       <DialogFooter>
+                          <Button onClick={handleScheduleDeletion} disabled={isProcessingAction || !confirmPassword} className="w-full bg-destructive text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                             {isProcessingAction ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Agendar Exclusão"}
+                          </Button>
+                       </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+               </div>
+             </>
+           )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

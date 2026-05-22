@@ -5,14 +5,14 @@ import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, query, where, getDocs, limit } from "firebase/firestore"
+import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, query, where, getDocs, limit, deleteField, updateDoc } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
@@ -101,7 +101,7 @@ export default function NovoEventoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const app = useFirebaseApp()
-  const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization()
+  const { currentOrg, userRole, loading: orgLoading, refreshOrg } = useCurrentOrganization()
 
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile } = useDoc<any>(userDocRef)
@@ -392,6 +392,16 @@ export default function NovoEventoPage() {
         }
       }
 
+      // REATIVAÇÃO AUTOMÁTICA: Se a organização estava desativada ou em exclusão, ela volta a ser Ativa
+      if (currentOrg.status !== 'Ativo') {
+        await updateDoc(doc(db, 'organizations', currentOrg.id), {
+          status: 'Ativo',
+          deletionScheduledAt: deleteField(),
+          updatedAt: serverTimestamp()
+        });
+        await refreshOrg();
+      }
+
       toast({ title: "Evento Publicado!" })
       router.push("/dashboard/projetos")
     } catch (error: any) { 
@@ -432,7 +442,9 @@ export default function NovoEventoPage() {
         )}
 
         <Card className="border-none shadow-sm rounded-[2rem]">
-          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Info className="w-5 h-5 text-secondary" /> Informações Básicas</CardTitle></CardHeader>
+          <CardHeader>
+             <CardTitle className="text-lg flex items-center gap-2"><Info className="w-5 h-5 text-secondary" /> Informações Básicas</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Título do Evento</Label><Input name="title" required className="rounded-xl h-11" placeholder="Ex: Festival Viby 2024" /></div>

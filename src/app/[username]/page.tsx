@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -45,7 +46,8 @@ import {
   Paperclip,
   X,
   Send,
-  ShieldAlert
+  ShieldAlert,
+  EyeOff
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -300,7 +302,7 @@ function UniversalProfileContent() {
 
   // Lógica de Analytics (Rastreamento Real)
   React.useEffect(() => {
-    if (!db || !data?.id || type !== 'organization' || trackedRef.current || data.status === 'Bloqueado') return;
+    if (!db || !data?.id || type !== 'organization' || trackedRef.current || data.status === 'Bloqueado' || data.status === 'Desativado' || data.status === 'Exclusão Programada') return;
 
     const trackVisit = async () => {
       trackedRef.current = true;
@@ -341,7 +343,7 @@ function UniversalProfileContent() {
 
   // Busca eventos separados (Produzidos vs Parcerias)
   React.useEffect(() => {
-    if (!db || !data?.id || type !== 'organization' || data.status === 'Bloqueado') return
+    if (!db || !data?.id || type !== 'organization' || data.status === 'Bloqueado' || data.status === 'Desativado' || data.status === 'Exclusão Programada') return
 
     const fetchAllEvents = async () => {
       setEventsLoading(true)
@@ -471,16 +473,20 @@ function UniversalProfileContent() {
     )
   }
 
-  if (data.status === 'Bloqueado') {
+  if (data.status === 'Bloqueado' || data.status === 'Desativado' || data.status === 'Exclusão Programada') {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-6 text-center p-12 py-32">
-        <div className="p-8 bg-destructive/10 rounded-full text-destructive animate-pulse">
-          <ShieldAlert className="w-20 h-20" />
+        <div className="p-8 bg-muted/10 rounded-full text-muted-foreground">
+          {data.status === 'Bloqueado' ? <ShieldAlert className="w-20 h-20 text-destructive" /> : <EyeOff className="w-20 h-20" />}
         </div>
         <div className="space-y-2">
-           <h2 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Perfil Indisponível</h2>
+           <h2 className="text-3xl font-black italic uppercase tracking-tighter text-primary">
+             {data.status === 'Bloqueado' ? 'Perfil Indisponível' : 'Página Oculta'}
+           </h2>
            <p className="text-muted-foreground font-medium max-w-md mx-auto">
-             Este perfil foi removido da plataforma por violar nossos termos de uso ou diretrizes de segurança.
+             {data.status === 'Bloqueado' 
+                ? 'Este perfil foi removido da plataforma por violar nossos termos de uso ou diretrizes de segurança.'
+                : 'Esta organização optou por ocultar sua página temporariamente.'}
            </p>
         </div>
         <Button asChild variant="outline" className="rounded-xl font-bold uppercase text-xs h-12 px-10">

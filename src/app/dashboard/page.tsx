@@ -48,7 +48,7 @@ function OrgCard({ orgId, usernameFallback }: { orgId: string, usernameFallback:
   const { data: org, loading } = useDoc<any>(orgRef)
 
   if (loading) return <Card className="h-32 animate-pulse bg-muted/50 border-none rounded-[2rem]" />
-  if (!org) return null
+  if (!org || org.status === 'Desativado' || org.status === 'Exclusão Programada' || org.status === 'Bloqueado') return null
 
   return (
     <Card 
