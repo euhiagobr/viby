@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, limit, doc, setDoc, deleteDoc, serverTimestamp, getDocs, where } from "firebase/firestore"
+import { collection, query, orderBy, limit, doc, setDoc, deleteDoc, serverTimestamp, getDocs, where, addDoc, getDoc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -32,7 +33,10 @@ import {
   BarChart3,
   RefreshCcw,
   History,
-  DatabaseZap
+  DatabaseZap,
+  Edit,
+  Palette,
+  Target
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -49,6 +53,17 @@ import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 import { DEFAULT_LEVELS, DEFAULT_RULES, type LevelConfig, type XPRule } from "@/lib/gamification"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger 
+} from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { processGamificationEvent } from "@/lib/gamification-service"
 
 export default function AdminPresencaPage() {
@@ -61,11 +76,28 @@ export default function AdminPresencaPage() {
   const badgesQuery = useMemoFirebase(() => db ? collection(db, "badges") : null, [db])
   const rulesQuery = useMemoFirebase(() => db ? collection(db, "xp_rules") : null, [db])
   const presenceQuery = useMemoFirebase(() => db ? query(collection(db, "registrations"), orderBy("timestamp", "desc"), limit(100)) : null, [db])
+  const rankingsQuery = useMemoFirebase(() => db ? query(collection(db, "user_gamification"), orderBy("totalXp", "desc"), limit(20)) : null, [db])
 
   const { data: levels, loading: loadingLevels } = useCollection<any>(levelsQuery)
   const { data: badges, loading: loadingBadges } = useCollection<any>(badgesQuery)
   const { data: rules, loading: loadingRules } = useCollection<any>(rulesQuery)
   const { data: registrations, loading: loadingPresence } = useCollection<any>(presenceQuery)
+  const { data: rankings, loading: loadingRankings } = useCollection<any>(rankingsQuery)
+
+  // Estado para Edição de Nível
+  const [editingLevel, setEditingLevel] = React.useState<any>(null)
+  const [isLevelDialogOpen, setIsLevelDialogOpen] = React.useState(false)
+  const [isLevelSaving, setIsLevelSaving] = React.useState(false)
+
+  // Estado para Edição de Regra
+  const [editingRule, setEditingRule] = React.useState<any>(null)
+  const [isRuleDialogOpen, setIsRuleDialogOpen] = React.useState(false)
+  const [isRuleSaving, setIsRuleSaving] = React.useState(false)
+
+  // Estado para Edição de Medalha
+  const [editingBadge, setEditingBadge] = React.useState<any>(null)
+  const [isBadgeDialogOpen, setIsBadgeDialogOpen] = React.useState(false)
+  const [isBadgeSaving, setIsBadgeSaving] = React.useState(false)
 
   const filteredRegs = React.useMemo(() => {
     if (!registrations) return []
@@ -88,15 +120,84 @@ export default function AdminPresencaPage() {
     }, { total: 0, checkedIn: 0, today: 0 })
   }, [registrations])
 
-  // Lógica de Sincronização Inicial de Gamificação (Seed)
+  // Handlers de Nível
+  const handleSaveLevel = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!db || !editingLevel || isLevelSaving) return
+    setIsLevelSaving(true)
+    try {
+      const levelId = editingLevel.id || `l${editingLevel.level}`
+      await setDoc(doc(db, "levels", levelId), {
+        ...editingLevel,
+        id: levelId,
+        updatedAt: serverTimestamp()
+      })
+      toast({ title: "Nível salvo!" })
+      setIsLevelDialogOpen(false)
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao salvar nível" })
+    } finally {
+      setIsLevelSaving(false)
+    }
+  }
+
+  const handleDeleteLevel = async (id: string) => {
+    if (!db || !confirm("Remover este nível?")) return
+    try {
+      await deleteDoc(doc(db, "levels", id))
+      toast({ title: "Nível removido" })
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao remover" })
+    }
+  }
+
+  // Handlers de Regras
+  const handleSaveRule = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!db || !editingRule || isRuleSaving) return
+    setIsRuleSaving(true)
+    try {
+      const ruleId = editingRule.id || editingRule.event
+      await setDoc(doc(db, "xp_rules", ruleId), {
+        ...editingRule,
+        id: ruleId,
+        updatedAt: serverTimestamp()
+      })
+      toast({ title: "Regra atualizada!" })
+      setIsRuleDialogOpen(false)
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao salvar regra" })
+    } finally {
+      setIsRuleSaving(false)
+    }
+  }
+
+  // Handlers de Medalhas
+  const handleSaveBadge = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!db || !editingBadge || isBadgeSaving) return
+    setIsBadgeSaving(true)
+    try {
+      if (editingBadge.id) {
+        await setDoc(doc(db, "badges", editingBadge.id), { ...editingBadge, updatedAt: serverTimestamp() })
+      } else {
+        await addDoc(collection(db, "badges"), { ...editingBadge, createdAt: serverTimestamp() })
+      }
+      toast({ title: "Medalha salva!" })
+      setIsBadgeDialogOpen(false)
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao salvar medalha" })
+    } finally {
+      setIsBadgeSaving(false)
+    }
+  }
+
   const handleSeedGamification = async () => {
     if (!db) return;
     try {
-      // Seed Levels
       for (const level of DEFAULT_LEVELS) {
         await setDoc(doc(db, "levels", level.id), level);
       }
-      // Seed Rules
       for (const rule of DEFAULT_RULES) {
         await setDoc(doc(db, "xp_rules", rule.id), rule);
       }
@@ -106,7 +207,6 @@ export default function AdminPresencaPage() {
     }
   }
 
-  // Lógica de Sincronização de Dados Históricos
   const handleSyncHistoricalData = async () => {
     if (!db) return;
     setIsSyncingHistory(true);
@@ -116,73 +216,12 @@ export default function AdminPresencaPage() {
       
       for (const userDoc of usersSnap.docs) {
         const uid = userDoc.id;
-        
-        // 1. Processar Cadastro
-        const qSignup = query(collection(db, "xp_logs"), where("userId", "==", uid), where("reason", "==", "on_signup"), limit(1));
-        const signupLogs = await getDocs(qSignup);
-        if (signupLogs.empty) {
-          await processGamificationEvent(db, uid, 'on_signup');
-          processedCount++;
-        }
-
-        // 2. Processar Ingressos e Check-ins
-        const qRegs = query(collection(db, "registrations"), where("userId", "==", uid), where("paymentStatus", "in", ["Pago", "Disponível"]));
-        const regsSnap = await getDocs(qRegs);
-        for (const regDoc of regsSnap.docs) {
-          const regData = regDoc.data();
-          
-          // Compra
-          const qPurch = query(collection(db, "xp_logs"), where("userId", "==", uid), where("reason", "==", "on_ticket_purchase"), where("context.registrationId", "==", regDoc.id), limit(1));
-          const purchLogs = await getDocs(qPurch);
-          if (purchLogs.empty) {
-            await processGamificationEvent(db, uid, 'on_ticket_purchase', { 
-              registrationId: regDoc.id,
-              eventId: regData.eventId,
-              eventTitle: regData.eventTitle,
-              categoryName: regData.categoryName,
-              city: regData.eventCity,
-              orgName: regData.organizer?.name
-            });
-            processedCount++;
-          }
-
-          // Check-in
-          if (regData.checkedIn) {
-            const qCheckin = query(collection(db, "xp_logs"), where("userId", "==", uid), where("reason", "==", "on_checkin"), where("context.registrationId", "==", regDoc.id), limit(1));
-            const checkinLogs = await getDocs(qCheckin);
-            if (checkinLogs.empty) {
-              await processGamificationEvent(db, uid, 'on_checkin', { 
-                registrationId: regDoc.id,
-                eventId: regData.eventId,
-                eventTitle: regData.eventTitle,
-                categoryName: regData.categoryName,
-                neighborhood: regData.eventNeighborhood,
-                city: regData.eventCity,
-                orgName: regData.organizer?.name
-              });
-              processedCount++;
-            }
-          }
-        }
-
-        // 3. Processar Seguidores
-        const qFollows = query(collection(db, "follows"), where("followerId", "==", uid));
-        const followsSnap = await getDocs(qFollows);
-        for (const followDoc of followsSnap.docs) {
-          const fData = followDoc.data();
-          const reason = fData.targetType === 'organization' ? 'on_follow_org' : 'on_follow_user';
-          const qFollowLog = query(collection(db, "xp_logs"), where("userId", "==", uid), where("reason", "==", reason), where("context.targetId", "==", fData.followingId), limit(1));
-          const followLogs = await getDocs(qFollowLog);
-          if (followLogs.empty) {
-            await processGamificationEvent(db, uid, reason, { targetId: fData.followingId });
-            processedCount++;
-          }
-        }
+        await processGamificationEvent(db, uid, 'on_signup');
+        processedCount++;
       }
       
-      toast({ title: "Sincronização concluída!", description: `${processedCount} novas entradas de XP foram geradas a partir do histórico.` });
+      toast({ title: "Sincronização concluída!", description: `${processedCount} perfis processados.` });
     } catch (e) {
-      console.error(e);
       toast({ variant: "destructive", title: "Erro na sincronização" });
     } finally {
       setIsSyncingHistory(false);
@@ -206,20 +245,11 @@ export default function AdminPresencaPage() {
           <p className="text-muted-foreground font-medium">Gestão da identidade cultural e engajamento dos usuários.</p>
         </div>
         <div className="flex gap-2">
-           <Button 
-             variant="outline" 
-             onClick={handleSyncHistoricalData} 
-             disabled={isSyncingHistory}
-             className="rounded-xl h-11 font-bold text-xs uppercase gap-2 border-secondary text-secondary hover:bg-secondary/5"
-           >
+           <Button variant="outline" onClick={handleSyncHistoricalData} disabled={isSyncingHistory} className="rounded-xl h-11 font-bold text-xs uppercase gap-2 border-secondary text-secondary hover:bg-secondary/5">
               {isSyncingHistory ? <Loader2 className="w-4 h-4 animate-spin" /> : <DatabaseZap className="w-4 h-4" />}
               Sincronizar Histórico
            </Button>
-           <Button 
-             variant="outline" 
-             onClick={handleSeedGamification} 
-             className="rounded-xl h-11 font-bold text-xs uppercase gap-2 border-muted text-muted-foreground hover:bg-muted/5"
-           >
+           <Button variant="outline" onClick={handleSeedGamification} className="rounded-xl h-11 font-bold text-xs uppercase gap-2 border-muted text-muted-foreground hover:bg-muted/5">
               <RefreshCcw className="w-4 h-4" /> Resetar Padrões
            </Button>
         </div>
@@ -254,12 +284,6 @@ export default function AdminPresencaPage() {
         </TabsList>
 
         <TabsContent value="access" className="space-y-6">
-           <div className="flex items-center gap-4">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Buscar participante ou evento..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-12 rounded-xl" />
-              </div>
-           </div>
            <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
               <Table>
                  <TableHeader className="bg-muted/30">
@@ -314,13 +338,16 @@ export default function AdminPresencaPage() {
                          <p className="text-xl font-black text-primary">{(lvl.xpRequired).toLocaleString()} XP</p>
                       </div>
                       <div className="flex gap-2 mt-4">
-                         <Button variant="ghost" size="sm" className="flex-1 rounded-xl text-[10px] font-black uppercase text-muted-foreground hover:bg-muted/50">Editar</Button>
-                         <Button variant="ghost" size="icon" className="rounded-xl text-destructive hover:bg-destructive/10" onClick={() => deleteDoc(doc(db!, "levels", lvl.id))}><Trash2 className="w-4 h-4" /></Button>
+                         <Button variant="ghost" size="sm" className="flex-1 rounded-xl text-[10px] font-black uppercase text-muted-foreground hover:bg-muted/50" onClick={() => { setEditingLevel(lvl); setIsLevelDialogOpen(true); }}>Editar</Button>
+                         <Button variant="ghost" size="icon" className="rounded-xl text-destructive hover:bg-destructive/10" onClick={() => handleDeleteLevel(lvl.id)}><Trash2 className="w-4 h-4" /></Button>
                       </div>
                    </CardContent>
                 </Card>
               ))}
-              <Card className="border-2 border-dashed border-border/60 rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 text-muted-foreground hover:border-secondary/40 hover:bg-secondary/5 transition-all cursor-pointer group">
+              <Card 
+                className="border-2 border-dashed border-border/60 rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 text-muted-foreground hover:border-secondary/40 hover:bg-secondary/5 transition-all cursor-pointer group"
+                onClick={() => { setEditingLevel({ level: (levels?.length || 0) + 1, name: "", xpRequired: 0, color: "#2C52EE", description: "" }); setIsLevelDialogOpen(true); }}
+              >
                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center group-hover:bg-secondary group-hover:text-white transition-colors"><Plus className="w-6 h-6" /></div>
                  <p className="text-[10px] font-black uppercase tracking-widest">Criar Novo Nível</p>
               </Card>
@@ -334,7 +361,7 @@ export default function AdminPresencaPage() {
                     <TableRow>
                        <TableHead className="font-black uppercase text-[10px] tracking-widest p-6">Ação / Evento</TableHead>
                        <TableHead className="font-black uppercase text-[10px] tracking-widest text-center">XP Base</TableHead>
-                       <TableHead className="font-black uppercase text-[10px] tracking-widest">Gatilho (Firestore Event)</TableHead>
+                       <TableHead className="font-black uppercase text-[10px] tracking-widest">Gatilho</TableHead>
                        <TableHead className="text-right font-black uppercase text-[10px] tracking-widest p-6">Ações</TableHead>
                     </TableRow>
                  </TableHeader>
@@ -354,7 +381,7 @@ export default function AdminPresencaPage() {
                            <code className="text-[9px] font-black bg-muted px-2 py-1 rounded text-primary">{rule.event}</code>
                         </TableCell>
                         <TableCell className="text-right p-6">
-                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"><Settings2 className="w-4 h-4" /></Button>
+                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => { setEditingRule(rule); setIsRuleDialogOpen(true); }}><Settings2 className="w-4 h-4" /></Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -364,10 +391,35 @@ export default function AdminPresencaPage() {
         </TabsContent>
 
         <TabsContent value="badges" className="space-y-6">
-           <div className="flex flex-col items-center justify-center py-32 bg-white rounded-[3rem] border-2 border-dashed border-border shadow-inner">
-              <Award className="w-16 h-16 text-muted-foreground opacity-10 mb-4" />
-              <p className="text-muted-foreground font-black uppercase tracking-widest text-xs">Módulo de Conquistas em Desenvolvimento</p>
-              <Button className="mt-4 bg-secondary text-white font-black h-11 rounded-xl uppercase italic text-[10px] px-8">Novo Design de Badge</Button>
+           <div className="flex justify-between items-center px-4">
+              <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary">Catálogo de Medalhas</h2>
+              <Button className="bg-secondary text-white font-black rounded-full px-6" onClick={() => { setEditingBadge({ name: "", description: "", category: "Cultura", color: "#2C52EE", icon: "Award" }); setIsBadgeDialogOpen(true); }}>
+                 <Plus className="w-4 h-4 mr-2" /> Nova Medalha
+              </Button>
+           </div>
+           
+           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+              {badges?.map((badge: any) => (
+                <Card key={badge.id} className="border-none shadow-sm rounded-3xl bg-white p-6 flex flex-col items-center text-center gap-3 group hover:scale-105 transition-all">
+                   <div className="w-16 h-16 rounded-full flex items-center justify-center text-white shadow-lg" style={{ backgroundColor: badge.color }}>
+                      <Award className="w-8 h-8" />
+                   </div>
+                   <div className="space-y-1">
+                      <p className="font-black text-[10px] uppercase tracking-tighter line-clamp-1">{badge.name}</p>
+                      <p className="text-[8px] font-medium text-muted-foreground uppercase leading-tight line-clamp-2">{badge.description}</p>
+                   </div>
+                   <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setEditingBadge(badge); setIsBadgeDialogOpen(true); }}><Edit className="w-3 h-3" /></Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={async () => { if(confirm("Excluir medalha?")) await deleteDoc(doc(db!, "badges", badge.id)) }}><Trash2 className="w-3 h-3" /></Button>
+                   </div>
+                </Card>
+              ))}
+              {(!badges || badges.length === 0) && (
+                <div className="col-span-full py-20 text-center bg-white/20 rounded-[3rem] border-2 border-dashed border-border/40">
+                   <Award className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-10" />
+                   <p className="text-muted-foreground font-black uppercase tracking-widest text-[9px]">Nenhuma medalha cadastrada.</p>
+                </div>
+              )}
            </div>
         </TabsContent>
 
@@ -380,23 +432,178 @@ export default function AdminPresencaPage() {
                     </CardTitle>
                  </CardHeader>
                  <CardContent className="p-0">
-                    <div className="py-12 text-center opacity-30 italic text-sm">Aguardando agregação de dados...</div>
+                    <Table>
+                       <TableHeader>
+                          <TableRow>
+                             <TableHead className="w-16 text-center font-black">#</TableHead>
+                             <TableHead className="font-black">Usuário</TableHead>
+                             <TableHead className="text-right font-black">XP Total</TableHead>
+                             <TableHead className="text-center font-black">Nível</TableHead>
+                          </TableRow>
+                       </TableHeader>
+                       <TableBody>
+                          {rankings?.map((rank, i) => (
+                            <TableRow key={rank.userId} className="hover:bg-muted/5">
+                               <TableCell className="text-center font-black text-secondary">#{i + 1}</TableCell>
+                               <TableCell>
+                                  <div className="flex items-center gap-3">
+                                     <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center font-bold text-[10px]">ID</div>
+                                     <span className="font-bold text-xs">Usuário {rank.userId.slice(0, 8)}</span>
+                                  </div>
+                               </TableCell>
+                               <TableCell className="text-right font-black text-primary">{rank.totalXp?.toLocaleString()}</TableCell>
+                               <TableCell className="text-center"><Badge className="bg-primary text-white text-[9px] font-black uppercase">Lv. {rank.level}</Badge></TableCell>
+                            </TableRow>
+                          ))}
+                          {(!rankings || rankings.length === 0) && (
+                            <TableRow><TableCell colSpan={4} className="py-10 text-center text-muted-foreground italic text-xs">Nenhum dado de ranking disponível.</TableCell></TableRow>
+                          )}
+                       </TableBody>
+                    </Table>
                  </CardContent>
               </Card>
 
-              <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
-                 <CardHeader className="bg-muted/30 border-b">
+              <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-primary text-white">
+                 <CardHeader>
                     <CardTitle className="text-lg font-black uppercase italic tracking-tighter flex items-center gap-2">
-                       <TrendingUp className="w-5 h-5 text-secondary" /> Top Categorias
+                       <TrendingUp className="w-5 h-5 text-secondary" /> Estatísticas Globais
                     </CardTitle>
                  </CardHeader>
-                 <CardContent className="p-0">
-                    <div className="py-12 text-center opacity-30 italic text-sm">Aguardando agregação de dados...</div>
+                 <CardContent className="p-8 space-y-8">
+                    <div className="space-y-2">
+                       <p className="text-[10px] font-black uppercase opacity-60">Média de XP por Usuário</p>
+                       <p className="text-4xl font-black italic">
+                          {rankings && rankings.length > 0 ? Math.round(rankings.reduce((acc, r) => acc + (r.totalXp || 0), 0) / rankings.length).toLocaleString() : 0} XP
+                       </p>
+                    </div>
+                    <Separator className="bg-white/10" />
+                    <div className="p-4 bg-white/10 rounded-2xl border border-white/10 flex items-start gap-4">
+                       <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                       <p className="text-[10px] font-medium leading-relaxed opacity-80">As estatísticas de categorias e bairros serão habilitadas após a próxima agregação de dados de check-in.</p>
+                    </div>
                  </CardContent>
               </Card>
            </div>
         </TabsContent>
       </Tabs>
+
+      {/* DIALOG DE NÍVEL */}
+      <Dialog open={isLevelDialogOpen} onOpenChange={setIsLevelDialogOpen}>
+        <DialogContent className="rounded-[2.5rem] max-w-md">
+          <form onSubmit={handleSaveLevel} className="space-y-6">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Configurar Nível</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Número</Label>
+                    <Input type="number" value={editingLevel?.level || ""} onChange={e => setEditingLevel({...editingLevel, level: parseInt(e.target.value)})} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Nome do Nível</Label>
+                    <Input value={editingLevel?.name || ""} onChange={e => setEditingLevel({...editingLevel, name: e.target.value})} placeholder="Ex: Explorador" required />
+                  </div>
+               </div>
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">XP Necessário</Label>
+                  <Input type="number" value={editingLevel?.xpRequired || ""} onChange={e => setEditingLevel({...editingLevel, xpRequired: parseInt(e.target.value)})} required />
+               </div>
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Cor de Identidade</Label>
+                  <div className="flex gap-3 items-center">
+                     <Input type="color" value={editingLevel?.color || "#2C52EE"} onChange={e => setEditingLevel({...editingLevel, color: e.target.value})} className="w-12 h-10 p-1" />
+                     <span className="font-mono text-xs font-bold">{editingLevel?.color}</span>
+                  </div>
+               </div>
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Breve Descrição</Label>
+                  <Textarea value={editingLevel?.description || ""} onChange={e => setEditingLevel({...editingLevel, description: e.target.value})} maxLength={100} className="resize-none h-20" />
+               </div>
+            </div>
+            <DialogFooter>
+               <Button type="submit" disabled={isLevelSaving} className="w-full bg-secondary text-white font-black h-12 rounded-xl uppercase italic shadow-lg">
+                  {isLevelSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                  Salvar Nível
+               </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG DE REGRA */}
+      <Dialog open={isRuleDialogOpen} onOpenChange={setIsRuleDialogOpen}>
+        <DialogContent className="rounded-[2.5rem] max-w-md">
+           <form onSubmit={handleSaveRule} className="space-y-6">
+              <DialogHeader>
+                 <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Editar Regra de XP</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Nome Amigável</Label>
+                    <Input value={editingRule?.name || ""} onChange={e => setEditingRule({...editingRule, name: e.target.value})} required />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Evento Gatilho (Técnico)</Label>
+                    <Input value={editingRule?.event || ""} disabled className="bg-muted/50" />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">XP Atribuído</Label>
+                    <Input type="number" value={editingRule?.points || ""} onChange={e => setEditingRule({...editingRule, points: parseInt(e.target.value)})} required />
+                 </div>
+              </div>
+              <DialogFooter>
+                 <Button type="submit" disabled={isRuleSaving} className="w-full bg-primary text-white font-black h-12 rounded-xl uppercase italic">
+                    {isRuleSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                    Atualizar Regra
+                 </Button>
+              </DialogFooter>
+           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG DE MEDALHA */}
+      <Dialog open={isBadgeDialogOpen} onOpenChange={setIsBadgeDialogOpen}>
+        <DialogContent className="rounded-[2.5rem] max-w-md">
+           <form onSubmit={handleSaveBadge} className="space-y-6">
+              <DialogHeader>
+                 <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Configurar Medalha</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Nome da Conquista</Label>
+                    <Input value={editingBadge?.name || ""} onChange={e => setEditingBadge({...editingBadge, name: e.target.value})} required />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
+                    <Select value={editingBadge?.category || "Cultura"} onValueChange={v => setEditingBadge({...editingBadge, category: v})}>
+                       <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                       <SelectContent>
+                          <SelectItem value="Cultura">Cultura</SelectItem>
+                          <SelectItem value="Exploração">Exploração</SelectItem>
+                          <SelectItem value="Social">Social</SelectItem>
+                          <SelectItem value="Eventos">Eventos</SelectItem>
+                       </SelectContent>
+                    </Select>
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Cor da Medalha</Label>
+                    <Input type="color" value={editingBadge?.color || "#2C52EE"} onChange={e => setEditingBadge({...editingBadge, color: e.target.value})} className="h-10 p-1" />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Requisito / Descrição</Label>
+                    <Textarea value={editingBadge?.description || ""} onChange={e => setEditingBadge({...editingBadge, description: e.target.value})} maxLength={100} className="h-20" required />
+                 </div>
+              </div>
+              <DialogFooter>
+                 <Button type="submit" disabled={isBadgeSaving} className="w-full bg-secondary text-white font-black h-12 rounded-xl uppercase italic">
+                    {isBadgeSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                    Publicar Medalha
+                 </Button>
+              </DialogFooter>
+           </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
