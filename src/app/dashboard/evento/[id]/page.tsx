@@ -48,8 +48,8 @@ export default function EventoDetalhesPage() {
   const currentUserRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: currentUserProfile } = useDoc<any>(currentUserRef)
 
-  const plansRef = React.useMemo(() => db ? doc(db, 'settings', 'plans') : null, [db])
-  const { data: plansSettings } = useDoc<any>(plansRef)
+  const feesRef = React.useMemo(() => db ? doc(db, 'settings', 'fees') : null, [db])
+  const { data: globalFees, loading: feesLoading } = useDoc<any>(feesRef)
   
   const [isRegistered, setIsRegistered] = React.useState(false)
   const [registering, setRegistering] = React.useState(false)
@@ -103,21 +103,15 @@ export default function EventoDetalhesPage() {
       return
     }
 
-    if (!db || !eventId || !event || !plansSettings) return
+    if (!db || !eventId || !event || feesLoading) return
 
     setRegistering(true)
     
     try {
-      const organizerRef = doc(db, "users", event.organizerId);
-      const organizerSnap = await getDoc(organizerRef);
-      const organizerData = organizerSnap.data();
-      const planKey = (organizerData?.plan || "START").toLowerCase();
-      const planData = organizerData?.planOverride || plansSettings[planKey] || {};
-
       const basePrice = event.isFree ? 0 : (event.batches?.[0]?.price || 0);
       const batchName = event.isFree ? "Gratuito" : (event.batches?.[0]?.name || "Lote Único");
       
-      const breakdown = calculateFinancialBreakdown(basePrice, planData);
+      const breakdown = calculateFinancialBreakdown(basePrice, globalFees);
 
       const regData = {
         eventId,
@@ -136,6 +130,7 @@ export default function EventoDetalhesPage() {
         ticketBasePrice: basePrice,
         price: breakdown.customerFinalPrice,
         administrativeFeeAmount: breakdown.administrativeFeeAmount,
+        producerFeeAmount: breakdown.producerFeeAmount,
         producerNetAmount: breakdown.producerNetAmount,
         batchName: batchName,
         checkedIn: false,
