@@ -148,8 +148,18 @@ export default function EditarEventoPage() {
   }, [db, eventId])
 
   useEffect(() => {
-    if (event) {
-      setSelectedCategory(event.categoryId || event.category || "")
+    if (event && categories) {
+      // Tenta mapear a categoria pelo ID ou pelo Nome (Legacy)
+      if (event.categoryId && categories.some(c => c.id === event.categoryId)) {
+        setSelectedCategory(event.categoryId);
+      } else {
+        const catName = event.categoryName || event.category;
+        if (catName) {
+          const matched = categories.find(c => c.name.toLowerCase() === catName.toLowerCase());
+          if (matched) setSelectedCategory(matched.id);
+        }
+      }
+
       setNoTickets(event.noTickets || false)
       setTicketMode(event.ticketMode || (event.isFree ? 'free' : 'batches'))
       setBatches(event.batches || [])
@@ -157,7 +167,7 @@ export default function EditarEventoPage() {
       setImagePreview(event.image || null)
       setUploadedImageUrl(event.image || null)
     }
-  }, [event])
+  }, [event, categories])
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -394,8 +404,14 @@ export default function EditarEventoPage() {
                   <div className="space-y-2">
                     <Label>Categoria</Label>
                     <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                      <SelectContent className="rounded-xl">{categories?.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                      <SelectTrigger className="rounded-xl">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        {categories?.map((c: any) => (
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
                     </Select>
                   </div>
                </div>
@@ -437,7 +453,7 @@ export default function EditarEventoPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label>
-                  <Input value={address.neighborhood || ""} onChange={e => setAddress(prev => ({ ...prev, neighborhood: e.target.value }))} className="rounded-xl" />
+                  <Input id="neighborhood" value={address.neighborhood || ""} onChange={e => setAddress(prev => ({ ...prev, neighborhood: e.target.value }))} className="rounded-xl" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label>
