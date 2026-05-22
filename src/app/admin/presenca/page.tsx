@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, limit, doc, setDoc, deleteDoc, serverTimestamp, getDocs, where, addDoc, getDoc } from "firebase/firestore"
+import { collection, query, orderBy, limit, doc, setDoc, deleteDoc, serverTimestamp, getDocs, where, addDoc, getDoc, writeBatch } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -36,7 +36,9 @@ import {
   Edit,
   Palette,
   Target,
-  Info
+  Info,
+  ChevronRight,
+  Eraser
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -215,7 +217,6 @@ export default function AdminPresencaPage() {
       // 1. Sincronizar criação de conta para todos os usuários
       const usersSnap = await getDocs(collection(db, "users"))
       for (const uDoc of usersSnap.docs) {
-        // Passamos o ID do usuário como UniqueId para evitar duplicidade no on_signup
         await processGamificationEvent(db, uDoc.id, 'on_signup', {}, uDoc.id)
       }
 
@@ -223,7 +224,6 @@ export default function AdminPresencaPage() {
       const regsSnap = await getDocs(query(collection(db, "registrations"), where("checkedIn", "==", true)))
       for (const rDoc of regsSnap.docs) {
         const reg = rDoc.data()
-        // Passamos o ID da inscrição como UniqueId para evitar duplicidade no on_checkin
         await processGamificationEvent(db, reg.userId, 'on_checkin', {
           eventId: reg.eventId,
           eventTitle: reg.eventTitle,
@@ -238,7 +238,6 @@ export default function AdminPresencaPage() {
       const paidSnap = await getDocs(query(collection(db, "registrations"), where("paymentStatus", "in", ["Pago", "Disponível"])))
       for (const pDoc of paidSnap.docs) {
         const reg = pDoc.data()
-        // Passamos o ID da inscrição como UniqueId para evitar duplicidade no on_ticket_purchase
         await processGamificationEvent(db, reg.userId, 'on_ticket_purchase', {
           eventId: reg.eventId,
           eventTitle: reg.eventTitle,
@@ -248,9 +247,35 @@ export default function AdminPresencaPage() {
         }, pDoc.id)
       }
 
-      toast({ title: "Sincronização completa!", description: "XP e estatísticas atualizados para todos os usuários (sem duplicidade)." })
+      toast({ title: "Sincronização completa!", description: "XP e estatísticas atualizados sem duplicidade." })
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na sincronização" })
+    } finally {
+      setIsSyncingHistory(false)
+    }
+  }
+
+  const handleResetAndRecalculate = async () => {
+    if (!db || !confirm("ATENÇÃO: Isso apagará TODO o progresso de XP, Estatísticas e Logs de todos os usuários para recalcular corretamente do zero. Esta ação é irreversível. Deseja continuar?")) return
+    
+    setIsSyncingHistory(true)
+    try {
+      const collectionsToWipe = ["user_gamification", "cultural_stats", "xp_logs", "user_badges"];
+      
+      for (const collName of collectionsToWipe) {
+        const snap = await getDocs(collection(db, collName));
+        const batch = writeBatch(db);
+        snap.docs.forEach(docSnap => batch.delete(docSnap.ref));
+        await batch.commit();
+      }
+
+      toast({ title: "Dados limpos!", description: "Iniciando recalculo do histórico..." });
+      
+      // Chama a sincronização logo após a limpeza
+      await handleSyncHistory();
+    } catch (error) {
+      console.error(error);
+      toast({ variant: "destructive", title: "Erro ao resetar dados" });
     } finally {
       setIsSyncingHistory(false)
     }
@@ -273,6 +298,10 @@ export default function AdminPresencaPage() {
           <p className="text-muted-foreground font-medium">Gestão da identidade cultural e engajamento dos usuários.</p>
         </div>
         <div className="flex gap-2">
+           <Button variant="outline" onClick={handleResetAndRecalculate} disabled={isSyncingHistory} className="rounded-xl h-11 font-bold text-xs uppercase gap-2 border-destructive text-destructive hover:bg-destructive/5">
+              {isSyncingHistory ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />}
+              Reset Total & Limpeza
+           </Button>
            <Button variant="outline" onClick={handleSyncHistory} disabled={isSyncingHistory} className="rounded-xl h-11 font-bold text-xs uppercase gap-2 border-secondary text-secondary hover:bg-secondary/5">
               {isSyncingHistory ? <Loader2 className="w-4 h-4 animate-spin" /> : <DatabaseZap className="w-4 h-4" />}
               Sincronizar Histórico
@@ -491,7 +520,7 @@ export default function AdminPresencaPage() {
                  </CardContent>
               </Card>
 
-              <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-primary text-white">
+              <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-primary text-white">
                  <CardHeader>
                     <CardTitle className="text-lg font-black uppercase italic tracking-tighter flex items-center gap-2">
                        <TrendingUp className="w-5 h-5 text-secondary" /> Estatísticas Globais
