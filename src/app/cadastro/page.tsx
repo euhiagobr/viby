@@ -23,9 +23,6 @@ import Image from "next/image"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 
-/**
- * Validação de algoritimo de CPF.
- */
 const validateCPF = (cpf: string) => {
   const cleanCPF = cpf.replace(/\D/g, "");
   if (cleanCPF.length !== 11) return false;
@@ -74,12 +71,12 @@ export default function CadastroPage() {
   const siteName = settings?.siteName || "Viby"
 
   useEffect(() => {
-    if (!db || !formData.username) {
+    if (!db || !username) {
       setUsernameStatus('idle')
       return
     }
 
-    const newUsername = formData.username.toLowerCase().trim()
+    const newUsername = username.toLowerCase().trim()
     const regex = /^[a-zA-Z0-9]+$/
     
     if (newUsername.length < 5 || !regex.test(newUsername)) {
@@ -110,7 +107,7 @@ export default function CadastroPage() {
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [formData.username, db, blockedData])
+  }, [username, db, blockedData])
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -195,7 +192,7 @@ export default function CadastroPage() {
         createdAt: serverTimestamp()
       };
 
-      await runTransaction(db, async (transaction) => {
+      runTransaction(db, async (transaction) => {
         const usernameRef = doc(db, "usernames", normalizedUsername)
         const userRef = doc(db, "users", user.uid)
 
@@ -224,7 +221,6 @@ export default function CadastroPage() {
           });
           errorEmitter.emit('permission-error', permissionError);
         }
-        throw serverError;
       });
 
       sendWelcomeEmail({
@@ -242,7 +238,7 @@ export default function CadastroPage() {
           title: "E-mail já cadastrado",
           description: "Este endereço de e-mail já está associado a uma conta. Tente fazer login ou use outro e-mail."
         })
-      } else if (error.code !== 'permission-denied') {
+      } else {
         toast({
           variant: "destructive",
           title: "Erro ao cadastrar",

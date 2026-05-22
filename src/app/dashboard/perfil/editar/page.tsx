@@ -41,9 +41,6 @@ import { encryptDeterministic, decryptData } from "@/lib/crypto-utils"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 
-/**
- * Validação de algoritimo de CPF.
- */
 const validateCPF = (cpf: string) => {
   const cleanCPF = cpf.replace(/\D/g, "");
   if (cleanCPF.length !== 11) return false;
@@ -147,7 +144,6 @@ export default function EditarPerfilPage() {
       return
     }
 
-    // Verificar lista de bloqueados
     if (blockedData?.list?.includes(newUsername)) {
       setUsernameStatus('taken')
       setCheckingUsername(false)
@@ -253,12 +249,14 @@ export default function EditarPerfilPage() {
         router.push("/dashboard/perfil")
       })
       .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: `users/${user.uid}`,
-          operation: 'update',
-          requestResourceData: updateData
-        });
-        errorEmitter.emit('permission-error', permissionError);
+        if (serverError.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: `users/${user.uid}`,
+            operation: 'update',
+            requestResourceData: updateData
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        }
       })
       .finally(() => { setSaving(false) })
   }
