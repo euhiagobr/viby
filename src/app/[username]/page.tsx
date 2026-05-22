@@ -63,6 +63,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { EventCard } from "@/components/events/EventCard"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
@@ -592,7 +593,7 @@ function UniversalProfileContent() {
                         </Button>
 
                         {!isSelf && user && (
-                          <Dialog open={isReportOpen} onOpenChange={setIsReportOpen}>
+                          <Dialog dialogProps={{ open: isReportOpen, onOpenChange: setIsReportOpen }}>
                             <DialogTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl bg-white/80 border-border hover:text-destructive hover:bg-destructive/5 transition-all" title="Denunciar Perfil">
                                 <Flag className="w-4 h-4" />
