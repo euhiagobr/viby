@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -73,15 +72,23 @@ export default function LandingPage() {
   const filteredEvents = React.useMemo(() => {
     if (!events) return []
     
+    const now = new Date();
+    
     let result = events.filter((e: any) => {
       const isNotDeleted = e.status !== 'Excluído';
+      
+      // Filtrar apenas eventos futuros
+      const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+      const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+      const isEnded = end < now;
+
       const matchesSearch = !searchName || 
                           e.title?.toLowerCase().includes(searchName.toLowerCase()) ||
                           e.description?.toLowerCase().includes(searchName.toLowerCase());
       const matchesCity = selectedCity === 'all' || e.city === selectedCity;
       const matchesCategory = selectedCategory === 'all' || e.categoryId === selectedCategory;
       
-      return isNotDeleted && matchesSearch && matchesCity && matchesCategory;
+      return isNotDeleted && !isEnded && matchesSearch && matchesCity && matchesCategory;
     })
 
     if (userLocation) {
@@ -126,9 +133,13 @@ export default function LandingPage() {
 
         if (ad.type === 'evento') {
           const fullEvent = events?.find((e: any) => e.id === ad.eventId)
-          if (!fullEvent) {
-            return { ...ad, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: true }
-          }
+          // Se o evento do anúncio já acabou, não mostramos o anúncio
+          if (!fullEvent) return null;
+          
+          const evStart = fullEvent.date?.toDate ? fullEvent.date.toDate() : new Date(fullEvent.date);
+          const evEnd = fullEvent.endDate?.toDate ? fullEvent.endDate.toDate() : (fullEvent.endDate ? new Date(fullEvent.endDate) : new Date(evStart.getTime() + 4 * 60 * 60 * 1000));
+          if (evEnd < now) return null;
+
           return { ...fullEvent, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: false }
         }
 
@@ -319,7 +330,7 @@ export default function LandingPage() {
 
         {!eventsLoading && interleavedContent.length === 0 && (
           <div className="py-12 text-center text-muted-foreground">
-             Nenhum evento ou patrocínio disponível nesta região.
+             Nenhum evento futuro disponível nesta região.
           </div>
         )}
       </section>

@@ -40,6 +40,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const { data: adsSettings } = useDoc<any>(adsSettingsRef)
   
   const [liveStatus, setLiveStatus] = React.useState<{ label: string; colorClass: string } | null>(null);
+  const [isEnded, setIsEnded] = React.useState(false);
 
   React.useEffect(() => {
     const update = () => {
@@ -47,12 +48,15 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       const start = event.date?.toDate ? event.date.toDate() : new Date(event.date);
       const end = event.endDate?.toDate ? event.endDate.toDate() : (event.endDate ? new Date(event.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
 
+      const hasEnded = end < now;
+      setIsEnded(hasEnded);
+
       const diffEnd = end.getTime() - now.getTime();
       const diffStart = start.getTime() - now.getTime();
       const isToday = now.toDateString() === start.toDateString();
 
-      if (diffEnd <= 0) {
-        setLiveStatus({ label: "Evento encerrado", colorClass: "bg-gray-500/80" });
+      if (hasEnded) {
+        setLiveStatus({ label: "Evento já acabou", colorClass: "bg-gray-500/80" });
       } else if (diffEnd <= 1 * 60 * 60 * 1000 && now >= start) {
         setLiveStatus({ label: "Evento encerrando", colorClass: "bg-orange-600 animate-pulse" });
       } else if (now >= start && now < end) {
@@ -113,7 +117,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }
   
   React.useEffect(() => {
-    // Se o usuário está logado, esperamos o perfil carregar para ter dados demográficos precisos
     if (!isSponsored || !event.adId || !db || !adsSettings || hasTrackedImpression.current || (user && !userProfile)) return
 
     const observer = new IntersectionObserver(
@@ -131,7 +134,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
             updatedAt: serverTimestamp()
           };
 
-          // Alcance Único e Demografia
           if (user) {
             const viewerRef = doc(db, "ads", event.adId, "viewers", user.uid);
             const viewerSnap = await getDoc(viewerRef);
@@ -250,15 +252,15 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       ref={cardRef}
       className={cn(
         "group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[1.5rem] cursor-pointer relative",
-        isSponsored && "ring-2 ring-secondary/20 shadow-secondary/10"
+        isSponsored && "ring-2 ring-secondary/20 shadow-secondary/10",
+        isEnded && "opacity-80 grayscale-[0.8]"
       )}
       onClick={handleCardClick}
     >
-      {isSponsored && (
+      {isSponsored && !isEnded && (
         <div className="absolute top-0 right-0 z-20">
           <Badge className="bg-primary text-white rounded-none rounded-bl-xl font-black text-[9px] uppercase px-3 py-1.5 flex items-center gap-1.5">
-            <Megaphone className="w-3 h-3 text-secondary" />
-            Patrocinado
+            <Megaphone className="w-3 h-3 text-secondary" /> Patrocinado
           </Badge>
         </div>
       )}
@@ -268,7 +270,10 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           src={event.image || `https://picsum.photos/seed/${event.id}/600/400`}
           alt={event.title}
           fill
-          className="object-cover transition-transform group-hover:scale-105"
+          className={cn(
+            "object-cover transition-transform group-hover:scale-105",
+            isEnded && "grayscale"
+          )}
           unoptimized
         />
         
@@ -278,15 +283,19 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
               {liveStatus.label}
             </Badge>
           )}
-          <Badge className="bg-white/90 text-primary border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider">
-            {categoryDisplay}
-          </Badge>
-          <Badge className={cn("text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider", event.isFree ? "bg-green-500" : "bg-primary")}>
-            {getPriceDisplay()}
-          </Badge>
+          {!isEnded && (
+            <>
+              <Badge className="bg-white/90 text-primary border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider">
+                {categoryDisplay}
+              </Badge>
+              <Badge className={cn("text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider", event.isFree ? "bg-green-500" : "bg-primary")}>
+                {getPriceDisplay()}
+              </Badge>
+            </>
+          )}
         </div>
 
-        {distance !== null && (
+        {distance !== null && !isEnded && (
           <div className="absolute bottom-3 right-3">
             <Badge className="bg-white/95 text-secondary border-none shadow-xl backdrop-blur-md px-3 py-1.5 text-[11px] font-black uppercase flex items-center gap-1.5 ring-2 ring-secondary/10">
               <Navigation className="w-3.5 h-3.5 fill-secondary" />
@@ -297,7 +306,10 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       </div>
       <CardHeader className="p-4 pb-2">
         <div className="flex justify-between items-start gap-2">
-          <h3 className="text-lg font-bold line-clamp-1 group-hover:text-secondary transition-colors uppercase italic tracking-tight">
+          <h3 className={cn(
+            "text-lg font-bold line-clamp-1 group-hover:text-secondary transition-colors uppercase italic tracking-tight",
+            isEnded && "text-muted-foreground"
+          )}>
             {event.title}
           </h3>
         </div>
@@ -347,10 +359,13 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         <Button 
           variant="ghost" 
           size="sm" 
-          className="h-8 text-[10px] font-black uppercase gap-1.5 text-secondary hover:bg-secondary/10"
+          className={cn(
+            "h-8 text-[10px] font-black uppercase gap-1.5 text-secondary hover:bg-secondary/10",
+            isEnded && "opacity-50"
+          )}
         >
           <Ticket className="w-3.5 h-3.5" />
-          Detalhes
+          {isEnded ? "Voucher" : "Detalhes"}
         </Button>
       </CardFooter>
     </Card>
