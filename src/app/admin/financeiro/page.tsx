@@ -50,7 +50,6 @@ export default function AdminFinanceiroPage() {
 
   const regsQuery = useMemoFirebase(() => {
     if (!db) return null
-    // Import de 'where' corrigido no topo do arquivo
     return query(collection(db, "registrations"), where("paymentStatus", "in", ["Pago", "Disponível"]))
   }, [db])
 
