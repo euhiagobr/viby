@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -109,7 +110,6 @@ export default function ExplorarPage() {
   const nearbyOrganizers = React.useMemo(() => {
     if (!events || !userLocation) return []
     
-    // Filtra eventos que têm geolocalização e calcula distância
     const eventsWithDistance = events
       .filter((e: any) => e.status !== 'Excluído' && e.latitude && e.longitude)
       .map((e: any) => ({
@@ -125,7 +125,7 @@ export default function ExplorarPage() {
       if (event.organizationId && !seenIds.has(event.organizationId)) {
         seenIds.add(event.organizationId);
         
-        // Lógica robusta para captura do avatar da marca em diferentes formatos de documento
+        // Tenta pegar o avatar de todas as fontes possíveis denormalizadas no evento
         const orgAvatar = event.organizer?.avatar || event.organizerAvatar || event.avatar || "";
         
         uniqueOrgs.push({
@@ -279,45 +279,43 @@ export default function ExplorarPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {filter === 'organizadores' ? (
-          nearbyOrganizers.map((org) => (
-            <Card 
-              key={org.id} 
-              className="group overflow-hidden border-none shadow-lg bg-white transition-all hover:-translate-y-1 hover:shadow-xl rounded-[2rem] cursor-pointer"
-              onClick={() => router.push(`/${org.username}`)}
-            >
-              <CardContent className="p-8 flex items-center gap-6">
-                <div className="relative">
-                  <Avatar className="h-20 w-20 border-2 border-secondary/10 p-0.5 shadow-sm">
-                    {org.avatar ? (
-                      <div className="relative h-full w-full rounded-full overflow-hidden">
-                        <Image 
-                          src={org.avatar} 
-                          alt={org.name} 
-                          fill 
-                          className="object-cover" 
-                          unoptimized 
-                        />
-                      </div>
-                    ) : (
-                      <AvatarFallback className="font-bold text-xl bg-muted text-muted-foreground">
-                         {org.name?.charAt(0)}
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
-                  {org.isVerified && (
-                    <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
-                      <VerifiedBadge />
+          nearbyOrganizers.map((org) => {
+            // Fallback robusto para foto se não existir no banco
+            const finalAvatar = org.avatar || `https://picsum.photos/seed/${org.id}/200/200`;
+            
+            return (
+              <Card 
+                key={org.id} 
+                className="group overflow-hidden border-none shadow-lg bg-white transition-all hover:-translate-y-1 hover:shadow-xl rounded-[2rem] cursor-pointer"
+                onClick={() => router.push(`/${org.username}`)}
+              >
+                <CardContent className="p-8 flex items-center gap-6">
+                  <div className="relative shrink-0">
+                    <div className="h-20 w-20 rounded-full border-2 border-secondary/10 p-0.5 shadow-sm relative overflow-hidden bg-muted">
+                      <Image 
+                        src={finalAvatar} 
+                        alt={org.name} 
+                        fill 
+                        className="object-cover" 
+                        unoptimized 
+                        data-ai-hint="brand logo"
+                      />
                     </div>
-                  )}
-                </div>
-                <div className="flex-1 space-y-1">
-                  <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary leading-tight line-clamp-1">{org.name}</h3>
-                  <p className="text-[10px] font-black text-secondary uppercase tracking-widest">@{org.username}</p>
-                </div>
-                <ChevronRight className="w-6 h-6 text-muted-foreground opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-              </CardContent>
-            </Card>
-          ))
+                    {org.isVerified && (
+                      <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
+                        <VerifiedBadge />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-1 min-w-0">
+                    <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary leading-tight line-clamp-1">{org.name}</h3>
+                    <p className="text-[10px] font-black text-secondary uppercase tracking-widest">@{org.username}</p>
+                  </div>
+                  <ChevronRight className="w-6 h-6 text-muted-foreground opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                </CardContent>
+              </Card>
+            )
+          })
         ) : (
           interleavedContent.map((item: any, idx: number) => (
             item._isAdObject ? (
