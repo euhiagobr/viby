@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from "@/firebase"
-import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, increment, writeBatch, getDoc, setDoc, deleteField, getDocs } from "firebase/firestore"
+import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, increment, writeBatch, getDoc, setDoc, deleteField, getDocs, limit } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -129,7 +129,6 @@ export default function OrganizationAdsPage() {
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
 
-  // Cálculos de resumo da nova campanha
   const adPlanSummary = React.useMemo(() => {
     const daily = parseFloat(dailyBudgetInput) || 0
     if (!startDateInput || !endDateInput) return { daily, totalDays: 0, rawBudget: 0, tax: 0, totalReserved: 0 }
@@ -175,30 +174,20 @@ export default function OrganizationAdsPage() {
           updatedAt: serverTimestamp() 
         });
         
-        // Logar imposto proporcional para fechamento fiscal
-        const taxEntryId = doc(collection(db, "tax_ads")).id;
-        const monthKey = new Date(ad.endDate).toISOString().slice(0, 7);
-        const lastDay = new Date(new Date(ad.endDate).getFullYear(), new Date(ad.endDate).getMonth() + 1, 0).toLocaleDateString('pt-BR');
-
-        const consumedRaw = ad.initialBudget - remainingRaw;
-        const consumedTax = consumedRaw * 0.11;
-
-        batch.set(doc(db, "tax_ads", taxEntryId), {
-           adId: ad.id,
-           advertiserCnpj: currentOrg.cnpj || "---",
-           advertiserName: currentOrg.name,
-           adTitle: ad.eventTitle,
-           startDate: ad.startDate,
-           endDate: ad.endDate,
-           status: 'finalizado',
-           grossValue: consumedRaw + consumedTax, // Total consumido real
-           taxPercent: 11,
-           taxValue: consumedTax,
-           netValue: consumedRaw,
-           nfDeadlineDate: lastDay,
-           nfStatus: 'pendente',
-           monthKey
-        });
+        // Sincronizar Registro Fiscal: Ajustar para o consumo real
+        const taxQ = query(collection(db, "tax_ads"), where("adId", "==", ad.id), limit(1));
+        const taxSnap = await getDocs(taxQ);
+        if (!taxSnap.empty) {
+          const consumedRaw = (ad.initialBudget || ad.budget) - remainingRaw;
+          const consumedTax = consumedRaw * 0.11;
+          batch.update(taxSnap.docs[0].ref, {
+             status: 'finalizado',
+             grossValue: consumedRaw + consumedTax,
+             taxValue: consumedTax,
+             netValue: consumedRaw,
+             updatedAt: serverTimestamp()
+          });
+        }
 
         batch.set(doc(collection(db, 'organizations', currentOrg.id, 'transactions')), {
           type: 'ad_refund',
@@ -317,7 +306,7 @@ export default function OrganizationAdsPage() {
          startDate: startDateInput,
          endDate: endDateInput,
          status: status.toLowerCase(),
-         grossValue: adPlanSummary.totalReserved, // Orçamento + Imposto
+         grossValue: adPlanSummary.totalReserved, 
          taxPercent: 11,
          taxValue: adPlanSummary.tax,
          netValue: adPlanSummary.rawBudget,
@@ -364,7 +353,7 @@ export default function OrganizationAdsPage() {
     setActionLoadingId(adToCancel.id)
     try {
       const batch = writeBatch(db)
-      const remainingRaw = adToCancel.remainingBudget || 0
+      const remainingRaw = Math.max(0, adToCancel.remainingBudget || 0)
       const refundWithTax = remainingRaw * 1.11
       
       batch.update(doc(db, "ads", adToCancel.id), { 
@@ -390,11 +379,11 @@ export default function OrganizationAdsPage() {
         })
       }
 
-      // Atualizar registro fiscal para 'cancelado' e recalcular bruto/imposto consumido
-      const taxQ = query(collection(db, "tax_ads"), where("adId", "==", adToCancel.id));
+      // Sincronizar Registro Fiscal: Ajustar para o consumo real
+      const taxQ = query(collection(db, "tax_ads"), where("adId", "==", adToCancel.id), limit(1));
       const taxSnap = await getDocs(taxQ);
       if (!taxSnap.empty) {
-        const consumedRaw = adToCancel.initialBudget - remainingRaw;
+        const consumedRaw = (adToCancel.initialBudget || adToCancel.budget) - remainingRaw;
         const consumedTax = consumedRaw * 0.11;
         batch.update(taxSnap.docs[0].ref, {
            status: 'cancelado',
@@ -496,18 +485,18 @@ export default function OrganizationAdsPage() {
 
                     <div className="p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 space-y-4 animate-in slide-in-from-top-2 duration-300">
                          <div className="space-y-2">
-                            <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Período de Veiculação:</span> <span className="text-primary">{adPlanSummary.totalDays} dias</span></div>
-                            <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Investimento Bruto (Líquido do Imposto):</span> <span className="text-primary">{formatCurrency(adPlanSummary.rawBudget)}</span></div>
-                            <div className="flex justify-between text-[10px] font-black uppercase text-secondary"><span>Impostos & Taxas Adicionais (11%):</span> <span>+ {formatCurrency(adPlanSummary.tax)}</span></div>
+                            <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Período:</span> <span className="text-primary">{adPlanSummary.totalDays} dias</span></div>
+                            <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Orçamento Líquido:</span> <span className="text-primary">{formatCurrency(adPlanSummary.rawBudget)}</span></div>
+                            <div className="flex justify-between text-[10px] font-black uppercase text-secondary"><span>Imposto Recolhido (11%):</span> <span>+ {formatCurrency(adPlanSummary.tax)}</span></div>
                          </div>
                          <Separator className="bg-secondary/10" />
                          <div className="flex justify-between items-center">
-                            <span className="text-xs font-black uppercase italic text-primary">Total a Bloquear do Saldo:</span> 
+                            <span className="text-xs font-black uppercase italic text-primary">Total a Bloquear:</span> 
                             <span className="text-2xl font-black text-secondary">{formatCurrency(adPlanSummary.totalReserved)}</span>
                          </div>
                          <div className="flex gap-2 p-3 bg-white rounded-xl shadow-sm items-start">
                             <Info className="w-3.5 h-3.5 text-secondary shrink-0 mt-0.5" />
-                            <p className="text-[8px] text-muted-foreground font-medium uppercase leading-tight">O valor não consumido ao final da campanha (incluindo o imposto proporcional) será devolvido automaticamente ao seu saldo livre.</p>
+                            <p className="text-[8px] text-muted-foreground font-medium uppercase leading-tight">O imposto de 11% é somado ao seu orçamento. Valores não consumidos são estornados integralmente (crédito + imposto proporcional).</p>
                          </div>
                       </div>
                   </div>
