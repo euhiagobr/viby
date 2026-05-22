@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -14,7 +13,7 @@ import {
   getDocs, 
   setDoc, 
   deleteDoc, 
-  serverTimestamp,
+  serverTimestamp, 
   collectionGroup,
   increment,
   updateDoc
@@ -170,6 +169,16 @@ function UniversalProfileContent() {
   const [eventsLoading, setEventsLoading] = React.useState(false)
 
   const trackedRef = React.useRef(false);
+
+  const handleShare = () => {
+    if (typeof window === 'undefined') return;
+    const url = window.location.href;
+    navigator.clipboard.writeText(url);
+    toast({
+      title: "Link copiado!",
+      description: "O link do perfil foi copiado para sua área de transferência.",
+    });
+  };
 
   // Resolvedor de username
   React.useEffect(() => {
@@ -426,7 +435,7 @@ function UniversalProfileContent() {
                              {followActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : isFollowing ? "Seguindo" : "Seguir"}
                           </Button>
                         )}
-                        <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg"><Share2 className="w-4 h-4" /></Button>
+                        <Button onClick={handleShare} variant="outline" size="icon" className="h-9 w-9 rounded-lg"><Share2 className="w-4 h-4" /></Button>
                       </div>
                    </div>
 
@@ -448,7 +457,15 @@ function UniversalProfileContent() {
                       </p>
                       <div className="flex flex-wrap justify-center md:justify-start gap-4 pt-2">
                          {data.website && <a href={data.website} target="_blank" className="text-sm font-bold text-blue-600 flex items-center gap-1"><Globe className="w-3.5 h-3.5" /> {data.website.replace(/^https?:\/\//, '')}</a>}
-                         {data.instagram && <a href={`https://instagram.com/${data.instagram}`} target="_blank" className="text-sm font-bold flex items-center gap-1"><Instagram className="w-3.5 h-3.5" /> @{data.instagram}</a>}
+                         {data.instagram && (
+                           <a 
+                             href={`https://instagram.com/${data.instagram.replace(/^@/, '')}`} 
+                             target="_blank" 
+                             className="text-sm font-bold flex items-center gap-1"
+                           >
+                             <Instagram className="w-3.5 h-3.5" /> @{data.instagram.replace(/^@/, '')}
+                           </a>
+                         )}
                          {data.city && <div className="text-sm font-medium text-muted-foreground flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {data.city}, {data.state}</div>}
                       </div>
                    </div>
