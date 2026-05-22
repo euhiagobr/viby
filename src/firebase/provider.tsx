@@ -47,6 +47,7 @@ export function FirebaseProvider({
 export const useFirebase = () => useContext(FirebaseContext);
 export const useAuthApp = () => useContext(FirebaseContext).authApp;
 export const useVibyApp = () => useContext(FirebaseContext).vibyApp;
+export const useFirebaseApp = () => useContext(FirebaseContext).vibyApp;
 export const useFirestore = () => useContext(FirebaseContext).firestore;
 export const useAuth = () => useContext(FirebaseContext).auth;
 export const useStorage = () => useContext(FirebaseContext).storage;
