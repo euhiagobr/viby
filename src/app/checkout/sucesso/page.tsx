@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -13,6 +14,7 @@ import { toast } from "@/hooks/use-toast"
 import { useCart } from "@/contexts/CartContext"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
+import { calculateDetailedVibyBreakdown } from "@/lib/financial-utils"
 
 export default function CheckoutSucessoPage() {
   const searchParams = useSearchParams()
@@ -69,11 +71,14 @@ export default function CheckoutSucessoPage() {
             ? metadata.registrationIds.split(",") 
             : [metadata.registrationId];
           
-          // Buscar taxas do stripe configuradas no admin para registro fiscal preciso
-          const stripeSettingsSnap = await getDoc(doc(db, 'settings', 'stripe'));
+          // Buscar configurações de taxas e stripe vigentes para snapshot
+          const [stripeSettingsSnap, feesSettingsSnap] = await Promise.all([
+            getDoc(doc(db, 'settings', 'stripe')),
+            getDoc(doc(db, 'settings', 'fees'))
+          ]);
+
           const stripeSettings = stripeSettingsSnap.data();
-          const sPercent = (stripeSettings?.feePercent ?? 3.99) / 100;
-          const sFixed = stripeSettings?.feeFixed ?? 0.39;
+          const feesSettings = feesSettingsSnap.data();
 
           for (const regId of regIds) {
             const regRef = doc(db, "registrations", regId);
@@ -82,44 +87,53 @@ export default function CheckoutSucessoPage() {
             if (regSnap.exists()) {
               const regData = regSnap.data();
               if (regData.paymentStatus !== "Pago") {
+                // Cálculo financeiro detalhado para snapshot fiscal
+                const breakdown = calculateDetailedVibyBreakdown(
+                  regData.ticketBasePrice || 0,
+                  1,
+                  feesSettings,
+                  stripeSettings
+                );
+
                 await updateDoc(regRef, {
                   paymentStatus: "Pago",
                   stripeSessionId: sessionId,
                   updatedAt: serverTimestamp(),
-                  confirmedAt: serverTimestamp()
+                  confirmedAt: serverTimestamp(),
+                  // Congelamento de snapshot financeiro no registro da venda
+                  financialSnapshot: breakdown
                 });
 
-                // Criar registro detalhado de imposto sobre taxas Viby
+                // Criar registro fiscal oficial e detalhado
                 const monthKey = new Date().toISOString().slice(0, 7);
                 const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toLocaleDateString('pt-BR');
-                
-                // Cálculo de taxas para o registro fiscal
-                const vibyGross = (regData.administrativeFeeAmount || 0) + (regData.producerFeeAmount || 0);
-                const taxVal = vibyGross * 0.11;
-                
-                // Custo real do Stripe baseado na configuração do sistema
-                const stripeFeeEst = (regData.price * sPercent) + sFixed;
 
                 await addDoc(collection(db, "tax_tickets"), {
                    eventId: regData.eventId,
                    eventTitle: regData.eventTitle || "Evento",
-                   ticketTypeName: regData.ticketTypeName || "Geral",
-                   batchName: regData.batchName || "Único",
                    organizationId: regData.organizationId,
                    orgName: regData.organizer?.name || "Organização",
                    orgCnpj: regData.organizer?.cnpj || "---",
-                   ticketsSold: 1,
-                   ticketBasePrice: regData.ticketBasePrice || 0,
-                   buyerFee: regData.administrativeFeeAmount || 0,
-                   organizerFee: regData.producerFeeAmount || 0,
-                   stripeFee: stripeFeeEst,
-                   vibyGrossValue: vibyGross,
-                   taxPercent: 11,
-                   taxValue: taxVal,
-                   vibyNetValue: vibyGross - taxVal,
+                   buyerName: regData.userName || "Comprador",
+                   buyerEmail: regData.userEmail || "",
+                   ticketTypeName: regData.ticketTypeName || "Geral",
+                   batchName: regData.batchName || "Único",
+                   quantity: 1,
+                   unitPrice: regData.ticketBasePrice || 0,
+                   totalFacePrice: breakdown.totalFace,
+                   buyerFeeAmount: breakdown.buyerFeeTotal,
+                   organizerFeeAmount: breakdown.organizerFeeTotal,
+                   stripeFeePercentUsed: stripeSettings?.feePercent ?? 3.99,
+                   stripeFeeFixedUsed: stripeSettings?.feeFixed ?? 0.39,
+                   stripeFeeAmount: breakdown.stripeFeeAmount,
+                   vibyGrossProfit: breakdown.vibyGross,
+                   taxPercentUsed: 11,
+                   taxAmount: breakdown.imposto,
+                   vibyNetProfit: breakdown.vibyNet,
+                   payoutToProducer: breakdown.payoutToProducer,
+                   monthKey,
                    nfDeadlineDate: lastDay,
                    nfStatus: 'pendente',
-                   monthKey,
                    timestamp: serverTimestamp()
                 });
 
@@ -133,11 +147,7 @@ export default function CheckoutSucessoPage() {
                   eventDate: eventDate,
                   eventCity: regData.eventCity || "Local Confirmado",
                   voucherUrl: `https://viby.club/dashboard/ingressos/${regId}/voucher`,
-                  eventUrl: `https://viby.club/${regData.organizerUsername || 'evento'}/${regData.eventId}`,
-                  ticketPrice: regData.ticketBasePrice || 0,
-                  feePrice: regData.administrativeFeeAmount || 0,
-                  totalPrice: regData.price || 0,
-                  isFree: (regData.ticketBasePrice || 0) === 0
+                  eventUrl: `https://viby.club/${regData.organizerUsername || 'evento'}/${regData.eventId}`
                 });
               }
             }

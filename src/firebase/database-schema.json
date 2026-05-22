@@ -1,3 +1,4 @@
+
 {
   "database": "eventosviby",
   "project": "ong-desafios-3942a",
@@ -9,10 +10,16 @@
       "fields": ["id", "name", "username", "slug", "bio", "avatar", "banner", "type", "verified", "createdBy", "adBalance", "blockedBalance", "payoutSettings", "status", "createdAt"]
     },
     "events": {
-      "fields": ["organizationId", "organizerId", "title", "description", "date", "endDate", "categoryId", "categoryName", "image", "address", "ticketMode", "isFree", "batches", "status", "createdAt"]
+      "fields": ["organizationId", "organizerId", "title", "description", "date", "endDate", "categoryId", "categoryName", "image", "address", "ticketMode", "isFree", "batches", "status", "createdAt", "organizer"]
     },
     "registrations": {
-      "fields": ["eventId", "userId", "organizationId", "organizerId", "ticketCode", "paymentStatus", "checkedIn", "price", "ticketBasePrice", "producerNetAmount", "timestamp"]
+      "fields": ["eventId", "userId", "organizationId", "organizerId", "ticketCode", "paymentStatus", "checkedIn", "price", "ticketBasePrice", "producerNetAmount", "timestamp", "financialSnapshot"]
+    },
+    "tax_ads": {
+      "fields": ["adId", "advertiserName", "grossValue", "taxValue", "netValue", "monthKey", "nfStatus"]
+    },
+    "tax_tickets": {
+      "fields": ["eventId", "eventTitle", "organizationId", "orgName", "buyerName", "quantity", "totalFacePrice", "buyerFeeAmount", "organizerFeeAmount", "stripeFeeAmount", "vibyGrossProfit", "taxAmount", "vibyNetProfit", "payoutToProducer", "monthKey", "nfStatus", "timestamp"]
     },
     "usernames": {
       "fields": ["uid", "type"]
@@ -21,7 +28,7 @@
       "fields": ["protocol", "userId", "subject", "status", "messages", "createdAt"]
     },
     "ads": {
-      "fields": ["organizationId", "eventId", "type", "status", "budget", "reach", "clicks", "startDate", "endDate"]
+      "fields": ["organizationId", "eventId", "type", "status", "budget", "reach", "clicks", "startDate", "endDate", "remainingBudget"]
     }
   }
 }
