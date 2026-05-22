@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -6,19 +7,42 @@ import { collection, doc, query, where, limit, orderBy } from "firebase/firestor
 import { EventCard } from "@/components/events/EventCard"
 import { AdCard } from "@/components/ads/AdCard"
 import { Button } from "@/components/ui/button"
-import { Search, Filter, Loader2, ShieldCheck, Navigation } from "lucide-react"
+import { 
+  Search, 
+  Filter, 
+  Loader2, 
+  ShieldCheck, 
+  Navigation, 
+  Building2, 
+  BadgeCheck, 
+  ChevronRight,
+  Users 
+} from "lucide-react"
 import { useState } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
+import { Card, CardContent } from "@/components/ui/card"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { getCurrentLocation, calculateDistance, type Coordinates } from "@/lib/location-utils"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
+
+function VerifiedBadge({ className }: { className?: string }) {
+  return (
+    <BadgeCheck className={cn("w-5 h-5 fill-blue-500 text-white", className)} />
+  )
+}
+
+import { cn } from "@/lib/utils"
 
 export default function ExplorarPage() {
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
   
+  const router = useRouter()
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
@@ -33,7 +57,7 @@ export default function ExplorarPage() {
     return query(collection(db, "events"), limit(100))
   }, [db])
 
-  const { data: events, loading, error } = useCollection<any>(eventsQuery)
+  const { data: events, loading } = useCollection<any>(eventsQuery)
 
   const adsQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -42,7 +66,7 @@ export default function ExplorarPage() {
   const { data: activeAds } = useCollection<any>(adsQuery)
 
   React.useEffect(() => {
-    if (filter === 'nearby' && !userLocation) {
+    if ((filter === 'nearby' || filter === 'organizadores') && !userLocation) {
       getCurrentLocation()
         .then(setUserLocation)
         .catch(() => setFilter('all'))
@@ -57,7 +81,6 @@ export default function ExplorarPage() {
     let result = events.filter((e: any) => {
       const isNotDeleted = e.status !== 'Excluído';
       
-      // Filtrar apenas eventos futuros para a página de explorar
       const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
       const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
       const isEnded = end < now;
@@ -82,6 +105,38 @@ export default function ExplorarPage() {
 
     return result;
   }, [events, search, filter, userLocation])
+
+  // Lógica para a nova aba de Organizadores Próximos
+  const nearbyOrganizers = React.useMemo(() => {
+    if (!events || !userLocation) return []
+    
+    const eventsWithDistance = events
+      .filter((e: any) => e.status !== 'Excluído' && e.latitude && e.longitude)
+      .map((e: any) => ({
+        ...e,
+        _dist: calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude })
+      }))
+      .sort((a, b) => a._dist - b._dist);
+
+    const uniqueOrgs: any[] = [];
+    const seenIds = new Set();
+
+    eventsWithDistance.forEach((event: any) => {
+      if (event.organizationId && !seenIds.has(event.organizationId)) {
+        seenIds.add(event.organizationId);
+        uniqueOrgs.push({
+          id: event.organizationId,
+          name: event.organizer?.name || "Marca",
+          username: event.organizer?.username || "marca",
+          avatar: event.organizer?.avatar,
+          isVerified: event.organizer?.isVerified || event.organizer?.verified,
+          distance: event._dist
+        });
+      }
+    });
+
+    return uniqueOrgs;
+  }, [events, userLocation]);
 
   const interleavedContent = React.useMemo(() => {
     const now = new Date()
@@ -113,7 +168,6 @@ export default function ExplorarPage() {
           return { ...fullEvent, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: false }
         }
 
-        // Marcas, Banners e Links
         return { ...ad, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: true }
       })
       .filter(Boolean)
@@ -150,7 +204,7 @@ export default function ExplorarPage() {
   }, [filteredEvents, activeAds, events])
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
@@ -171,26 +225,29 @@ export default function ExplorarPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
               placeholder="Buscar por tema..." 
-              className="pl-10" 
+              className="pl-10 h-11 rounded-xl" 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2 rounded-xl h-11 border-dashed">
             <Filter className="w-4 h-4" />
             Filtros
           </Button>
         </div>
       </div>
 
-      <div className="flex items-center justify-between border-b border-border pb-2">
-        <Tabs defaultValue="all" onValueChange={setFilter} className="w-full">
+      <div className="flex items-center justify-between border-b border-border pb-2 bg-white/40 backdrop-blur-md rounded-xl p-1">
+        <Tabs defaultValue="all" value={filter} onValueChange={setFilter} className="w-full">
           <TabsList className="bg-transparent h-auto p-0 gap-8">
-            <TabsTrigger value="all" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold uppercase text-[10px] tracking-widest">Geral</TabsTrigger>
-            <TabsTrigger value="nearby" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold uppercase text-[10px] tracking-widest flex items-center gap-2">
+            <TabsTrigger value="all" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold uppercase text-[10px] tracking-widest opacity-50 data-[state=active]:opacity-100">Geral</TabsTrigger>
+            <TabsTrigger value="nearby" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold uppercase text-[10px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100">
               <Navigation className="w-3 h-3" /> Perto de Você
             </TabsTrigger>
-            <TabsTrigger value="new" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold uppercase text-[10px] tracking-widest">Recém Lançados</TabsTrigger>
+            <TabsTrigger value="new" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold uppercase text-[10px] tracking-widest opacity-50 data-[state=active]:opacity-100">Recém Lançados</TabsTrigger>
+            <TabsTrigger value="organizadores" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold uppercase text-[10px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100">
+              <Building2 className="w-3 h-3" /> Organizadores
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -201,25 +258,66 @@ export default function ExplorarPage() {
         </div>
       )}
 
-      {!loading && interleavedContent.length === 0 && (
-        <div className="py-24 text-center">
-          <p className="text-muted-foreground font-medium italic">Nenhum evento ou anúncio disponível no momento.</p>
+      {!loading && filter !== 'organizadores' && interleavedContent.length === 0 && (
+        <div className="py-24 text-center border-2 border-dashed rounded-[3rem] bg-white/20">
+          <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">Nenhum evento disponível no momento.</p>
+        </div>
+      )}
+
+      {filter === 'organizadores' && nearbyOrganizers.length === 0 && !loading && (
+        <div className="py-24 text-center border-2 border-dashed rounded-[3rem] bg-white/20">
+          <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">Nenhum organizador ativo encontrado próximo a você.</p>
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {interleavedContent.map((item: any, idx: number) => (
-          item._isAdObject ? (
-            <AdCard key={`ad-${item.id || item.adId}-${idx}`} ad={item} />
-          ) : (
-            <EventCard 
-              key={`event-${item.id}-${idx}`} 
-              event={item} 
-              userLocation={userLocation} 
-              isSponsored={item.isSponsored}
-            />
-          )
-        ))}
+        {filter === 'organizadores' ? (
+          nearbyOrganizers.map((org) => (
+            <Card 
+              key={org.id} 
+              className="group overflow-hidden border-none shadow-lg bg-white transition-all hover:-translate-y-1 hover:shadow-xl rounded-[2rem] cursor-pointer"
+              onClick={() => router.push(`/${org.username}`)}
+            >
+              <CardContent className="p-8 flex items-center gap-6">
+                <div className="relative">
+                  <Avatar className="h-20 w-20 border-2 border-secondary/10 p-0.5">
+                    <AvatarImage src={org.avatar} className="object-cover rounded-full" />
+                    <AvatarFallback className="font-bold text-xl bg-muted">{org.name.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  {org.isVerified && (
+                    <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
+                      <BadgeCheck className="w-6 h-6 fill-blue-500 text-white" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 space-y-1">
+                  <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary leading-tight line-clamp-1">{org.name}</h3>
+                  <p className="text-[10px] font-black text-secondary uppercase tracking-widest">@{org.username}</p>
+                  <div className="flex items-center gap-2 mt-2">
+                     <Badge variant="secondary" className="bg-muted text-muted-foreground border-none text-[9px] font-black uppercase px-2 py-0.5 flex items-center gap-1">
+                        <Navigation className="w-2.5 h-2.5" /> 
+                        {org.distance < 1 ? `${(org.distance * 1000).toFixed(0)}m` : `${org.distance.toFixed(1)}km`} de você
+                     </Badge>
+                  </div>
+                </div>
+                <ChevronRight className="w-6 h-6 text-muted-foreground opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          interleavedContent.map((item: any, idx: number) => (
+            item._isAdObject ? (
+              <AdCard key={`ad-${item.id || item.adId}-${idx}`} ad={item} />
+            ) : (
+              <EventCard 
+                key={`event-${item.id}-${idx}`} 
+                event={item} 
+                userLocation={userLocation} 
+                isSponsored={item.isSponsored}
+              />
+            )
+          ))
+        )}
       </div>
     </div>
   )
