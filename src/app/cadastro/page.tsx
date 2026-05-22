@@ -20,6 +20,31 @@ import { cn } from "@/lib/utils"
 import { sendWelcomeEmail } from "@/app/actions/email"
 import Image from "next/image"
 
+/**
+ * Validação de algoritimo de CPF.
+ */
+const validateCPF = (cpf: string) => {
+  const cleanCPF = cpf.replace(/\D/g, "");
+  if (cleanCPF.length !== 11) return false;
+  if (/^(\d)\1+$/.test(cleanCPF)) return false;
+
+  let sum = 0;
+  let remainder;
+
+  for (let i = 1; i <= 9; i++) sum = sum + parseInt(cleanCPF.substring(i - 1, i)) * (11 - i);
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cleanCPF.substring(9, 10))) return false;
+
+  sum = 0;
+  for (let i = 1; i <= 10; i++) sum = sum + parseInt(cleanCPF.substring(i - 1, i)) * (12 - i);
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cleanCPF.substring(10, 11))) return false;
+
+  return true;
+};
+
 export default function CadastroPage() {
   const [name, setName] = useState("")
   const [username, setUsername] = useState("")
@@ -152,6 +177,7 @@ export default function CadastroPage() {
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!auth || !db) return
+    
     if (usernameStatus !== 'valid') {
       toast({ variant: "destructive", title: "Erro", description: "Nome de usuário inválido ou já em uso." })
       return
@@ -159,6 +185,11 @@ export default function CadastroPage() {
 
     if (!birthDate || !gender || !cpf) {
       toast({ variant: "destructive", title: "Campos obrigatórios", description: "Preencha todos os campos obrigatórios." })
+      return
+    }
+
+    if (!validateCPF(cpf)) {
+      toast({ variant: "destructive", title: "CPF Inválido", description: "O número de CPF informado não é válido." })
       return
     }
 
