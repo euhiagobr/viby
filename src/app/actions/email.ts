@@ -71,7 +71,7 @@ export async function sendPasswordResetLinkEmail(data: any) {
       type: "password_reset_link"
     });
 
-    if (!smtpUser || !smtpPass) return { success: false };
+    if (!smtpUser || !smtpPass) return { success: false, error: "SMTP não configurado no Admin." };
 
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com', port: 465, secure: true,
@@ -119,7 +119,7 @@ export async function sendTicketEmail(data: any) {
       type: "ticket_confirmation"
     });
 
-    if (!smtpUser || !smtpPass) return { success: false };
+    if (!smtpUser || !smtpPass) return { success: false, error: "SMTP não configurado no Admin." };
 
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com', port: 465, secure: true,
@@ -166,7 +166,7 @@ export async function sendPayoutConfirmedEmail(data: any) {
       type: "payout_confirmation"
     });
 
-    if (!smtpUser || !smtpPass) return { success: true };
+    if (!smtpUser || !smtpPass) return { success: false, error: "SMTP não configurado no Admin." };
 
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com', port: 465, secure: true,
@@ -208,7 +208,7 @@ export async function sendCartPendingEmail(data: any) {
       type: "order_summary"
     });
 
-    if (!smtpUser || !smtpPass) return { success: false };
+    if (!smtpUser || !smtpPass) return { success: false, error: "SMTP não configurado no Admin." };
 
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com', port: 465, secure: true,
@@ -248,7 +248,7 @@ export async function sendWelcomeEmail(data: any) {
       type: "welcome_email"
     });
 
-    if (!smtpUser || !smtpPass) return { success: false };
+    if (!smtpUser || !smtpPass) return { success: false, error: "SMTP não configurado no Admin." };
 
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com', port: 465, secure: true,
@@ -315,7 +315,7 @@ export async function sendPartnerInvitationEmail(data: any) {
 export async function resendLoggedEmail(logData: any) {
   try {
     const { smtpUser, smtpPass } = await getEmailConfig();
-    if (!smtpUser || !smtpPass) return { success: false };
+    if (!smtpUser || !smtpPass) return { success: false, error: "SMTP não configurado no Admin." };
     const transporter = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user: smtpUser, pass: smtpPass } });
     await transporter.sendMail({ from: `"Viby Club" <${smtpUser}>`, to: logData.recipientEmail, subject: `[REENVIO] ${logData.subject}`, html: logData.content });
     return { success: true };

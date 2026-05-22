@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
 import { useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, updateDoc, deleteDoc, serverTimestamp, collection, query, where, orderBy } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, serverTimestamp, collection, query, where } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +23,8 @@ import {
   SendHorizontal,
   FileText,
   DollarSign,
-  CheckCircle2
+  CheckCircle2,
+  Inbox
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from "@/lib/utils";
@@ -40,7 +41,7 @@ const roleLabels: Record<string, string> = {
 };
 
 export default function SolicitacoesPage() {
-  const { pendingInvitations, pendingPartnerships, loading } = useCurrentOrganization();
+  const { pendingInvitations, pendingPartnerships, loading: contextLoading } = useCurrentOrganization();
   const db = useFirestore();
   const auth = useAuth();
   const { user } = useUser(auth);
@@ -48,11 +49,22 @@ export default function SolicitacoesPage() {
   const [actionLoadingId, setActionLoadingId] = React.useState<string | null>(null);
 
   // Consulta de saques do usuário (em todas as suas marcas)
+  // Removido orderBy para evitar erros de índice ausente durante o protótipo
   const payoutRequestsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return query(collection(db, "payout_requests"), where("userId", "==", user.uid), orderBy("requestedAt", "desc"));
+    return query(collection(db, "payout_requests"), where("userId", "==", user.uid));
   }, [db, user]);
-  const { data: saques, loading: saquesLoading } = useCollection<any>(payoutRequestsQuery);
+  
+  const { data: rawSaques, loading: saquesLoading, error: saquesError } = useCollection<any>(payoutRequestsQuery);
+
+  const saques = React.useMemo(() => {
+    if (!rawSaques) return [];
+    return [...rawSaques].sort((a, b) => {
+      const tA = a.requestedAt?.seconds || 0;
+      const tB = b.requestedAt?.seconds || 0;
+      return tB - tA;
+    });
+  }, [rawSaques]);
 
   const handleAcceptMember = async (invite: any) => {
     if (!db || !user || !invite.id) return;
@@ -164,7 +176,7 @@ export default function SolicitacoesPage() {
       .finally(() => setActionLoadingId(null));
   };
 
-  if (loading) {
+  if (contextLoading) {
     return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
   }
 
@@ -271,6 +283,12 @@ export default function SolicitacoesPage() {
            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {saquesLoading ? (
                  <div className="col-span-full py-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+              ) : saquesError ? (
+                <div className="col-span-full p-8 bg-destructive/5 rounded-2xl border border-destructive text-center">
+                   <AlertCircle className="w-8 h-8 text-destructive mx-auto mb-2" />
+                   <p className="text-xs font-bold text-destructive uppercase">Erro ao carregar saques</p>
+                   <p className="text-[10px] text-muted-foreground mt-1">Verifique sua conexão ou tente novamente.</p>
+                </div>
               ) : saques && saques.length > 0 ? (
                  saques.map((saque: any) => (
                     <Card key={saque.id} className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">

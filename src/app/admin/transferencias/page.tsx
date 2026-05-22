@@ -65,10 +65,19 @@ export default function AdminTransferenciasPage() {
 
   const requestsQuery = useMemoFirebase(() => {
     if (!db) return null
-    return query(collection(db, "payout_requests"), orderBy("requestedAt", "desc"))
+    return query(collection(db, "payout_requests"));
   }, [db])
 
-  const { data: requests, loading } = useCollection<any>(requestsQuery)
+  const { data: rawRequests, loading } = useCollection<any>(requestsQuery)
+
+  const requests = React.useMemo(() => {
+    if (!rawRequests) return [];
+    return [...rawRequests].sort((a, b) => {
+      const tA = a.requestedAt?.seconds || 0;
+      const tB = b.requestedAt?.seconds || 0;
+      return tB - tA;
+    });
+  }, [rawRequests]);
 
   const filteredRequests = React.useMemo(() => {
     if (!requests) return []
@@ -132,13 +141,17 @@ export default function AdminTransferenciasPage() {
       const userSnap = await getDoc(doc(db, "users", userId));
       if (userSnap.exists()) {
         const userData = userSnap.data();
-        await sendPayoutConfirmedEmail({
+        const result = await sendPayoutConfirmedEmail({
           to: userData.email,
           userName: userData.name || userData.displayName || "Usuário",
           orgName: orgName,
           amount: amount,
           proofUrl: proof
         });
+        
+        if (!result.success && result.error) {
+          toast({ variant: "destructive", title: "E-mail não enviado", description: result.error });
+        }
       }
     } catch (err) {
       console.warn("Falha ao disparar e-mail de saque.", err);
@@ -150,7 +163,7 @@ export default function AdminTransferenciasPage() {
     setResendingId(req.id);
     try {
       await triggerPayoutNotification(req.userId, req.organizationName, req.amount, req.proofUrl);
-      toast({ title: "Notificação reenviada!" });
+      toast({ title: "Tentativa de reenvio realizada!" });
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao reenviar" });
     } finally {
@@ -202,7 +215,7 @@ export default function AdminTransferenciasPage() {
          </Card>
       </div>
 
-      <div className="relative w-full max-w-sm">
+      <div className="relative w-full max-sm:w-full md:w-80">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input 
           placeholder="Buscar por marca ou protocolo..." 
