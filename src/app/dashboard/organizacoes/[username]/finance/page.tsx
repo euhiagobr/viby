@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -42,7 +41,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Search,
-  Filter
+  Filter,
+  Undo2
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
