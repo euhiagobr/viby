@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -95,6 +94,25 @@ export default function OrganizationSettingsPage() {
       });
     }
   }, [currentOrg]);
+
+  const handleCepBlur = async () => {
+    if (!formData?.cep) return;
+    const cleanCep = formData.cep.replace(/\D/g, "");
+    if (cleanCep.length !== 8) return;
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await response.json();
+      if (!data.erro) {
+        setFormData((prev: any) => ({
+          ...prev,
+          street: data.logradouro || prev.street,
+          neighborhood: data.bairro || prev.neighborhood,
+          city: data.localidade || prev.city,
+          state: data.uf || prev.state
+        }));
+      }
+    } catch (e) {}
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'banner') => {
     const file = e.target.files?.[0];
@@ -346,7 +364,7 @@ export default function OrganizationSettingsPage() {
           <CardContent className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase opacity-60">CEP</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
                 <Input 
                   value={formData.cep}
                   onChange={e => setFormData({...formData, cep: e.target.value})}
