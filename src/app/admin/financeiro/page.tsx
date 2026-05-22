@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, doc, updateDoc, serverTimestamp, orderBy, getDoc } from "firebase/firestore"
+import { collection, query, where, doc, updateDoc, serverTimestamp, orderBy, getDoc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -289,7 +289,9 @@ export default function AdminFinanceiroPage() {
                               className="h-8 text-[9px] font-black uppercase gap-1.5 border-secondary text-secondary hover:bg-secondary/5"
                               onClick={() => { setSelectedOrg(org); setIsDepositModalOpen(true); }}
                             >
-                              <DollarSign className="w-3 h-3" /> Sinalizar Depósito
+                              <div className="flex items-center gap-1">
+                                <DollarSign className="w-3 h-3" /> Sinalizar Depósito
+                              </div>
                             </Button>
                           )}
                           {ps?.status === 'waiting_user' && ps?.verificationAmountInput && (
