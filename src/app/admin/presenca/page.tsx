@@ -36,7 +36,8 @@ import {
   DatabaseZap,
   Edit,
   Palette,
-  Target
+  Target,
+  Info
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -64,6 +65,7 @@ import {
   DialogTrigger 
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
 import { processGamificationEvent } from "@/lib/gamification-service"
 
 export default function AdminPresencaPage() {
@@ -207,24 +209,48 @@ export default function AdminPresencaPage() {
     }
   }
 
-  const handleSyncHistoricalData = async () => {
-    if (!db) return;
-    setIsSyncingHistory(true);
+  const handleSyncHistory = async () => {
+    if (!db) return
+    setIsSyncingHistory(true)
     try {
-      const usersSnap = await getDocs(collection(db, "users"));
-      let processedCount = 0;
-      
-      for (const userDoc of usersSnap.docs) {
-        const uid = userDoc.id;
-        await processGamificationEvent(db, uid, 'on_signup');
-        processedCount++;
+      // 1. Sincronizar criação de conta para todos os usuários
+      const usersSnap = await getDocs(collection(db, "users"))
+      for (const uDoc of usersSnap.docs) {
+        await processGamificationEvent(db, uDoc.id, 'on_signup')
       }
-      
-      toast({ title: "Sincronização concluída!", description: `${processedCount} perfis processados.` });
+
+      // 2. Sincronizar check-ins passados
+      const regsSnap = await getDocs(query(collection(db, "registrations"), where("checkedIn", "==", true)))
+      for (const rDoc of regsSnap.docs) {
+        const reg = rDoc.data()
+        await processGamificationEvent(db, reg.userId, 'on_checkin', {
+          eventId: reg.eventId,
+          eventTitle: reg.eventTitle,
+          categoryName: reg.categoryName,
+          neighborhood: reg.eventNeighborhood,
+          city: reg.eventCity,
+          orgName: reg.organizer?.name
+        })
+      }
+
+      // 3. Sincronizar compras passadas
+      const paidSnap = await getDocs(query(collection(db, "registrations"), where("paymentStatus", "in", ["Pago", "Disponível"])))
+      for (const pDoc of paidSnap.docs) {
+        const reg = pDoc.data()
+        await processGamificationEvent(db, reg.userId, 'on_ticket_purchase', {
+          eventId: reg.eventId,
+          eventTitle: reg.eventTitle,
+          categoryName: reg.categoryName,
+          city: reg.eventCity,
+          orgName: reg.organizer?.name
+        })
+      }
+
+      toast({ title: "Sincronização completa!", description: "XP e estatísticas atualizados para todos os usuários." })
     } catch (e) {
-      toast({ variant: "destructive", title: "Erro na sincronização" });
+      toast({ variant: "destructive", title: "Erro na sincronização" })
     } finally {
-      setIsSyncingHistory(false);
+      setIsSyncingHistory(false)
     }
   }
 
@@ -245,7 +271,7 @@ export default function AdminPresencaPage() {
           <p className="text-muted-foreground font-medium">Gestão da identidade cultural e engajamento dos usuários.</p>
         </div>
         <div className="flex gap-2">
-           <Button variant="outline" onClick={handleSyncHistoricalData} disabled={isSyncingHistory} className="rounded-xl h-11 font-bold text-xs uppercase gap-2 border-secondary text-secondary hover:bg-secondary/5">
+           <Button variant="outline" onClick={handleSyncHistory} disabled={isSyncingHistory} className="rounded-xl h-11 font-bold text-xs uppercase gap-2 border-secondary text-secondary hover:bg-secondary/5">
               {isSyncingHistory ? <Loader2 className="w-4 h-4 animate-spin" /> : <DatabaseZap className="w-4 h-4" />}
               Sincronizar Histórico
            </Button>
@@ -417,7 +443,7 @@ export default function AdminPresencaPage() {
               {(!badges || badges.length === 0) && (
                 <div className="col-span-full py-20 text-center bg-white/20 rounded-[3rem] border-2 border-dashed border-border/40">
                    <Award className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-10" />
-                   <p className="text-muted-foreground font-black uppercase tracking-widest text-[9px]">Nenhuma medalha cadastrada.</p>
+                   <p className="text-muted-foreground font-black uppercase tracking-widest text-[9px]">Ainda não possui medalhas públicas.</p>
                 </div>
               )}
            </div>
