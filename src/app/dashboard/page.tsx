@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
-import { collection, doc, query, where, limit, orderBy } from "firebase/firestore"
+import { collection, doc, query, where, limit, orderBy, getDoc } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { AdCard } from "@/components/ads/AdCard"
 import { Button } from "@/components/ui/button"
@@ -19,7 +19,7 @@ import {
   Users 
 } from "lucide-react"
 import { useState } from "react"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/tabs"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -28,14 +28,14 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { getCurrentLocation, calculateDistance, type Coordinates } from "@/lib/location-utils"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
+import { cn } from "@/lib/utils"
+import Footer from "@/components/layout/Footer"
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (
     <BadgeCheck className={cn("w-5 h-5 fill-blue-500 text-white", className)} />
   )
 }
-
-import { cn } from "@/lib/utils"
 
 export default function ExplorarPage() {
   const [filter, setFilter] = useState('all')
@@ -106,7 +106,6 @@ export default function ExplorarPage() {
     return result;
   }, [events, search, filter, userLocation])
 
-  // Lógica para a nova aba de Organizadores Próximos
   const nearbyOrganizers = React.useMemo(() => {
     if (!events || !userLocation) return []
     
@@ -124,13 +123,14 @@ export default function ExplorarPage() {
     eventsWithDistance.forEach((event: any) => {
       if (event.organizationId && !seenIds.has(event.organizationId)) {
         seenIds.add(event.organizationId);
+        // Prioriza dados do objeto organizer se existirem, senão tenta o ID
+        const orgAvatar = event.organizer?.avatar || event.avatar || "";
         uniqueOrgs.push({
           id: event.organizationId,
           name: event.organizer?.name || "Marca",
           username: event.organizer?.username || "marca",
-          avatar: event.organizer?.avatar || "",
-          isVerified: event.organizer?.isVerified || event.organizer?.verified,
-          distance: event._dist
+          avatar: orgAvatar,
+          isVerified: event.organizer?.isVerified || event.organizer?.verified || false
         });
       }
     });
@@ -203,6 +203,10 @@ export default function ExplorarPage() {
     return result
   }, [filteredEvents, activeAds, events])
 
+  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
+  const { data: settings } = useDoc<any>(settingsRef)
+  const siteName = settings?.siteName || "Viby"
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -218,7 +222,7 @@ export default function ExplorarPage() {
               </Button>
             )}
           </div>
-          <p className="text-muted-foreground">Descubra o que está acontecendo e como divulgar melhor seus eventos.</p>
+          <p className="text-muted-foreground font-medium">Descubra o que está acontecendo e quem são as marcas por trás das experiências.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative w-64">
@@ -266,7 +270,7 @@ export default function ExplorarPage() {
 
       {filter === 'organizadores' && nearbyOrganizers.length === 0 && !loading && (
         <div className="py-24 text-center border-2 border-dashed rounded-[3rem] bg-white/20">
-          <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">Nenhum organizador ativo encontrado próximo a você.</p>
+          <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">Habilite sua localização para ver organizadores próximos.</p>
         </div>
       )}
 
@@ -280,9 +284,11 @@ export default function ExplorarPage() {
             >
               <CardContent className="p-8 flex items-center gap-6">
                 <div className="relative">
-                  <Avatar className="h-20 w-20 border-2 border-secondary/10 p-0.5">
-                    <AvatarImage src={org.avatar} className="object-cover rounded-full" />
-                    <AvatarFallback className="font-bold text-xl bg-muted">{org.name.charAt(0)}</AvatarFallback>
+                  <Avatar className="h-20 w-20 border-2 border-secondary/10 p-0.5 shadow-sm">
+                    <AvatarImage src={org.avatar} alt={org.name} className="object-cover rounded-full" />
+                    <AvatarFallback className="font-bold text-xl bg-muted text-muted-foreground">
+                       {org.name?.charAt(0)}
+                    </AvatarFallback>
                   </Avatar>
                   {org.isVerified && (
                     <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
