@@ -38,6 +38,51 @@ function VerifiedBadge({ className }: { className?: string }) {
   )
 }
 
+/**
+ * Componente de Card de Organizador que busca dados em tempo real da coleção 'organizations'
+ */
+function OrgCard({ orgId, usernameFallback }: { orgId: string, usernameFallback: string }) {
+  const db = useFirestore()
+  const router = useRouter()
+  const orgRef = React.useMemo(() => db ? doc(db, "organizations", orgId) : null, [db, orgId])
+  const { data: org, loading } = useDoc<any>(orgRef)
+
+  if (loading) return <Card className="h-32 animate-pulse bg-muted/50 border-none rounded-[2rem]" />
+  if (!org) return null
+
+  return (
+    <Card 
+      className="group overflow-hidden border-none shadow-lg bg-white transition-all hover:-translate-y-1 hover:shadow-xl rounded-[2rem] cursor-pointer"
+      onClick={() => router.push(`/${org.username || usernameFallback}`)}
+    >
+      <CardContent className="p-8 flex items-center gap-6">
+        <div className="relative shrink-0">
+          <Avatar className="h-20 w-20 border-2 border-secondary/10 p-0.5 shadow-sm">
+            <AvatarImage src={org.avatar} className="object-cover" />
+            <AvatarFallback className="text-2xl font-black bg-muted text-muted-foreground">
+              {org.name?.charAt(0) || "O"}
+            </AvatarFallback>
+          </Avatar>
+          {org.verified && (
+            <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
+              <VerifiedBadge />
+            </div>
+          )}
+        </div>
+        <div className="flex-1 space-y-1 min-w-0">
+          <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary leading-tight line-clamp-1">
+            {org.name}
+          </h3>
+          <p className="text-[10px] font-black text-secondary uppercase tracking-widest">
+            @{org.username || usernameFallback}
+          </p>
+        </div>
+        <ChevronRight className="w-6 h-6 text-muted-foreground opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function ExplorarPage() {
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
@@ -107,7 +152,7 @@ export default function ExplorarPage() {
     return result;
   }, [events, search, filter, userLocation])
 
-  const nearbyOrganizers = React.useMemo(() => {
+  const nearbyOrganizerIds = React.useMemo(() => {
     if (!events || !userLocation) return []
     
     const eventsWithDistance = events
@@ -124,16 +169,9 @@ export default function ExplorarPage() {
     eventsWithDistance.forEach((event: any) => {
       if (event.organizationId && !seenIds.has(event.organizationId)) {
         seenIds.add(event.organizationId);
-        
-        // Tenta pegar o avatar de todas as fontes possíveis denormalizadas no evento
-        const orgAvatar = event.organizer?.avatar || event.organizerAvatar || event.avatar || "";
-        
         uniqueOrgs.push({
           id: event.organizationId,
-          name: event.organizer?.name || "Marca Local",
-          username: event.organizer?.username || "marca",
-          avatar: orgAvatar,
-          isVerified: event.organizer?.isVerified || event.organizer?.verified || false
+          username: event.organizer?.username || "marca"
         });
       }
     });
@@ -271,7 +309,7 @@ export default function ExplorarPage() {
         </div>
       )}
 
-      {filter === 'organizadores' && nearbyOrganizers.length === 0 && !loading && (
+      {filter === 'organizadores' && nearbyOrganizerIds.length === 0 && !loading && (
         <div className="py-24 text-center border-2 border-dashed rounded-[3rem] bg-white/20">
           <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">Habilite sua localização para ver organizadores próximos.</p>
         </div>
@@ -279,43 +317,9 @@ export default function ExplorarPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {filter === 'organizadores' ? (
-          nearbyOrganizers.map((org) => {
-            // Fallback robusto para foto se não existir no banco
-            const finalAvatar = org.avatar || `https://picsum.photos/seed/${org.id}/200/200`;
-            
-            return (
-              <Card 
-                key={org.id} 
-                className="group overflow-hidden border-none shadow-lg bg-white transition-all hover:-translate-y-1 hover:shadow-xl rounded-[2rem] cursor-pointer"
-                onClick={() => router.push(`/${org.username}`)}
-              >
-                <CardContent className="p-8 flex items-center gap-6">
-                  <div className="relative shrink-0">
-                    <div className="h-20 w-20 rounded-full border-2 border-secondary/10 p-0.5 shadow-sm relative overflow-hidden bg-muted">
-                      <Image 
-                        src={finalAvatar} 
-                        alt={org.name} 
-                        fill 
-                        className="object-cover" 
-                        unoptimized 
-                        data-ai-hint="brand logo"
-                      />
-                    </div>
-                    {org.isVerified && (
-                      <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
-                        <VerifiedBadge />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 space-y-1 min-w-0">
-                    <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary leading-tight line-clamp-1">{org.name}</h3>
-                    <p className="text-[10px] font-black text-secondary uppercase tracking-widest">@{org.username}</p>
-                  </div>
-                  <ChevronRight className="w-6 h-6 text-muted-foreground opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-                </CardContent>
-              </Card>
-            )
-          })
+          nearbyOrganizerIds.map((item) => (
+            <OrgCard key={item.id} orgId={item.id} usernameFallback={item.username} />
+          ))
         ) : (
           interleavedContent.map((item: any, idx: number) => (
             item._isAdObject ? (
