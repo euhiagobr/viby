@@ -13,22 +13,28 @@
       "fields": ["organizationId", "organizerId", "title", "description", "date", "endDate", "categoryId", "categoryName", "image", "address", "ticketMode", "isFree", "batches", "status", "createdAt", "organizer"]
     },
     "registrations": {
-      "fields": ["eventId", "userId", "organizationId", "organizerId", "ticketCode", "paymentStatus", "checkedIn", "price", "ticketBasePrice", "producerNetAmount", "timestamp", "financialSnapshot"]
+      "fields": ["eventId", "userId", "organizationId", "organizerId", "ticketCode", "paymentStatus", "checkedIn", "price", "ticketBasePrice", "producerNetAmount", "timestamp", "financialSnapshot", "advanceRequested", "advanceRequestedAt", "advanceFee", "originalProducerNet"]
     },
     "tax_ads": {
-      "fields": ["adId", "advertiserName", "grossValue", "taxValue", "netValue", "monthKey", "nfStatus"]
+      "fields": ["adId", "advertiserCnpj", "advertiserName", "adTitle", "startDate", "endDate", "status", "grossValue", "taxPercent", "taxValue", "netValue", "nfDeadlineDate", "nfStatus", "monthKey", "updatedAt"]
     },
     "tax_tickets": {
-      "fields": ["eventId", "eventTitle", "organizationId", "orgName", "buyerName", "quantity", "totalFacePrice", "buyerFeeAmount", "organizerFeeAmount", "stripeFeeAmount", "vibyGrossProfit", "taxAmount", "vibyNetProfit", "payoutToProducer", "monthKey", "nfStatus", "timestamp"]
+      "fields": ["eventId", "eventTitle", "organizationId", "orgName", "orgCnpj", "buyerName", "buyerEmail", "ticketTypeName", "batchName", "quantity", "unitPrice", "totalFacePrice", "buyerFeeAmount", "organizerFeeAmount", "stripeFeePercentUsed", "stripeFeeFixedUsed", "stripeFeeAmount", "vibyGrossProfit", "taxPercentUsed", "taxAmount", "vibyNetProfit", "payoutToProducer", "monthKey", "nfStatus", "nfDeadlineDate", "timestamp"]
     },
     "usernames": {
       "fields": ["uid", "type"]
     },
     "support_tickets": {
-      "fields": ["protocol", "userId", "subject", "status", "messages", "createdAt"]
+      "fields": ["protocol", "userId", "subject", "status", "messages", "createdAt", "updatedAt", "attachments"]
     },
     "ads": {
-      "fields": ["organizationId", "eventId", "type", "status", "budget", "reach", "clicks", "startDate", "endDate", "remainingBudget"]
+      "fields": ["organizationId", "eventId", "type", "status", "budget", "dailyBudget", "initialBudget", "remainingBudget", "totalReserved", "taxRate", "reach", "uniqueReach", "clicks", "startDate", "endDate", "createdAt", "updatedAt"]
+    },
+    "coupons": {
+      "fields": ["code", "discountType", "discountValue", "maxUses", "currentUses", "eventId", "organizerId", "validFrom", "validUntil", "status", "createdAt"]
+    },
+    "follows": {
+      "fields": ["followerId", "followingId", "targetType", "timestamp"]
     }
   }
 }

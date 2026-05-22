@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, where, updateDoc, doc, serverTimestamp, writeBatch } from "firebase/firestore"
+import { collection, query, orderBy, where, updateDoc, doc, serverTimestamp } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -28,7 +28,8 @@ import {
   Coins,
   User,
   Clock,
-  Mail
+  Mail,
+  ArrowRight
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
