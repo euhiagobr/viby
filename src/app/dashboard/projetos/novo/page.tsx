@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -47,6 +46,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { sendPartnerInvitationEmail } from "@/app/actions/email"
 import Image from "next/image"
@@ -397,7 +406,7 @@ export default function NovoEventoPage() {
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
+                  <Label htmlFor="cep" className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
                   <Input 
                     value={address.cep} 
                     onChange={e => setAddress(prev => ({ ...prev, cep: e.target.value.replace(/\D/g, "").substring(0, 8) }))}
@@ -407,25 +416,25 @@ export default function NovoEventoPage() {
                   />
                 </div>
                 <div className="md:col-span-3 space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Rua / Logradouro</Label>
+                  <Label htmlFor="street" className="text-[10px] font-black uppercase tracking-widest opacity-60">Rua / Logradouro</Label>
                   <Input id="street" value={address.street} onChange={e => setAddress(prev => ({ ...prev, street: e.target.value }))} className="rounded-xl h-11" />
                 </div>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Número</Label>
+                  <Label htmlFor="number" className="text-[10px] font-black uppercase tracking-widest opacity-60">Número</Label>
                   <Input id="number" value={address.number} onChange={e => setAddress(prev => ({ ...prev, number: e.target.value }))} className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Complemento</Label>
+                  <Label htmlFor="complement" className="text-[10px] font-black uppercase tracking-widest opacity-60">Complemento</Label>
                   <Input id="complement" value={address.complement} onChange={e => setAddress(prev => ({ ...prev, complement: e.target.value }))} className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Bairro</Label>
+                  <Label htmlFor="neighborhood" className="text-[10px] font-black uppercase tracking-widest opacity-60">Bairro</Label>
                   <Input id="neighborhood" value={address.neighborhood} onChange={e => setAddress(prev => ({ ...prev, neighborhood: e.target.value }))} className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Cidade / UF</Label>
+                  <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest opacity-60">Cidade / UF</Label>
                   <div className="flex gap-2">
                     <Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" />
                     <Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30 w-16" />
@@ -435,7 +444,6 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
-        {/* PARCERIAS */}
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
             <CardTitle className="text-lg flex items-center gap-2"><Users className="w-5 h-5 text-secondary" /> Outros Organizadores (Parcerias)</CardTitle>
@@ -603,31 +611,32 @@ export default function NovoEventoPage() {
                                                  updateTicketTypeField(bi, ti, 'quantity', val);
                                                }
                                             }} className="rounded-xl h-10 font-black" />
+                                            {type.poolId && <span className="text-[7px] font-bold text-muted-foreground uppercase text-center">Estoque Compartilhado</span>}
                                          </div>
-                                      </div>
-                                      <div className="md:col-span-2 space-y-2">
-                                         <Label className="text-[10px] font-black uppercase opacity-40">Valor (R$)</Label>
-                                         <Input type="number" step="0.01" value={type.price} onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} className="rounded-xl h-10 font-black text-secondary" disabled={isFreeMode} />
-                                      </div>
-                                      <div className="md:col-span-2 flex items-center justify-end pb-1 gap-2">
-                                         <div className="flex flex-col items-center gap-1">
-                                            <Switch checked={type.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} />
-                                            <Label className="text-[8px] font-black uppercase">Doc.</Label>
-                                         </div>
-                                         {!isFreeMode && batch.ticketTypes.length > 1 && (
-                                           <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => removeTicketType(bi, ti)}>
-                                              <Trash2 className="w-4 h-4" />
-                                           </Button>
-                                         )}
-                                      </div>
-                                   </div>
-                                </div>
-                              ))}
-                           </div>
-                        </div>
+                                  </div>
+                                  <div className="md:col-span-2 space-y-2">
+                                     <Label className="text-[10px] font-black uppercase opacity-40">Valor (R$)</Label>
+                                     <Input type="number" step="0.01" value={type.price} onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} className="rounded-xl h-10 font-black text-secondary" disabled={isFreeMode} />
+                                  </div>
+                                  <div className="md:col-span-2 flex items-center justify-end pb-1 gap-2">
+                                     <div className="flex flex-col items-center gap-1">
+                                        <Switch checked={type.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} />
+                                        <Label className="text-[8px] font-black uppercase">Doc.</Label>
+                                     </div>
+                                     {!isFreeMode && batch.ticketTypes.length > 1 && (
+                                       <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => removeTicketType(bi, ti)}>
+                                          <Trash2 className="w-4 h-4" />
+                                       </Button>
+                                     )}
+                                  </div>
+                               </div>
+                            </div>
+                          ))}
+                       </div>
+                    </div>
 
-                        <div className={cn("p-5 bg-white rounded-3xl border space-y-4", stats.percentage < 40 ? "border-orange-200" : "border-green-200")}>
-                           <div className="flex justify-between items-center">
+                    <div className={cn("p-5 bg-white rounded-3xl border space-y-4", stats.percentage < 40 ? "border-orange-200" : "border-green-200")}>
+                       <div className="flex justify-between items-center">
                             <div className="space-y-1">
                                <div className="flex items-center gap-2"><Info className="w-4 h-4 text-secondary" /><h5 className="text-[10px] font-black uppercase tracking-widest text-primary">Conformidade Legal</h5></div>
                                <p className="text-[9px] text-muted-foreground font-medium">Cota de 40% para Meia-Entrada.</p>
