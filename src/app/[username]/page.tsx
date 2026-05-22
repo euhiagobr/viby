@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useFirebaseApp } from "@/firebase"
 import { 
   doc, 
   getDoc, 
@@ -17,8 +17,10 @@ import {
   serverTimestamp, 
   collectionGroup,
   increment,
-  updateDoc
+  updateDoc,
+  addDoc
 } from "firebase/firestore"
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { 
   Loader2, 
   AlertTriangle, 
@@ -38,7 +40,13 @@ import {
   Handshake,
   Info,
   BadgeCheck,
-  Phone
+  Phone,
+  Flag,
+  Camera,
+  Paperclip,
+  X,
+  Send,
+  ShieldAlert
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -60,6 +68,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Progress } from "@/components/ui/progress"
 import { toast } from "@/hooks/use-toast"
 
 function VerifiedBadge({ className }: { className?: string }) {
@@ -145,8 +167,10 @@ function UniversalProfileContent() {
   const params = useParams()
   const router = useRouter()
   const db = useFirestore()
+  const app = useFirebaseApp()
   const auth = useAuth()
   const { user } = useUser(auth)
+  const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
   const username = (params.username as string).toLowerCase()
 
   const [loading, setLoading] = React.useState(true)
@@ -157,6 +181,14 @@ function UniversalProfileContent() {
   const [ownedEvents, setOwnedEvents] = React.useState<any[]>([])
   const [partneredEvents, setPartneredEvents] = React.useState<any[]>([])
   const [eventsLoading, setEventsLoading] = React.useState(false)
+
+  // Estados da Denúncia
+  const [isReportOpen, setIsReportOpen] = React.useState(false)
+  const [reportReason, setReportReason] = React.useState("")
+  const [reportDescription, setReportDescription] = React.useState("")
+  const [reportAttachments, setReportAttachments] = React.useState<string[]>([])
+  const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
+  const [isSubmittingReport, setIsSubmittingReport] = React.useState(false)
 
   const trackedRef = React.useRef(false);
 
@@ -169,6 +201,62 @@ function UniversalProfileContent() {
       description: "O link do perfil foi copiado para sua área de transferência.",
     });
   };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !storage || !user) return
+
+    setUploadProgress(0)
+    try {
+      const fileName = `reports/${user.uid}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
+      const storageRef = ref(storage, fileName)
+      const uploadTask = uploadBytesResumable(storageRef, file)
+
+      uploadTask.on('state_changed', 
+        (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+        () => { toast({ variant: "destructive", title: "Erro no upload" }); setUploadProgress(null); },
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+          setReportAttachments(prev => [...prev, downloadURL])
+          setUploadProgress(null)
+          toast({ title: "Prova anexada!" })
+        }
+      )
+    } catch (err) { setUploadProgress(null) }
+  }
+
+  const handleSendReport = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!db || !user || !data || !reportReason) return
+
+    setIsSubmittingReport(true)
+    try {
+      const reportData = {
+        type: 'profile',
+        targetId: data.id,
+        targetCollection: type === 'organization' ? 'organizations' : 'users',
+        targetName: type === 'organization' ? data.name : (data.name || data.displayName),
+        reason: reportReason,
+        description: reportDescription,
+        attachments: reportAttachments,
+        reporterId: user.uid,
+        reporterName: user.displayName || user.email || "Usuário",
+        status: 'Pendente',
+        timestamp: serverTimestamp()
+      }
+
+      await addDoc(collection(db, "reports"), reportData)
+      toast({ title: "Denúncia enviada!", description: "Nossa equipe analisará o caso em até 48 horas." })
+      setIsReportOpen(false)
+      setReportReason("")
+      setReportDescription("")
+      setReportAttachments([])
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao enviar denúncia" })
+    } finally {
+      setIsSubmittingReport(false)
+    }
+  }
 
   // Resolvedor de username
   React.useEffect(() => {
@@ -213,7 +301,7 @@ function UniversalProfileContent() {
 
   // Lógica de Analytics (Rastreamento Real)
   React.useEffect(() => {
-    if (!db || !data?.id || type !== 'organization' || trackedRef.current) return;
+    if (!db || !data?.id || type !== 'organization' || trackedRef.current || data.status === 'Bloqueado') return;
 
     const trackVisit = async () => {
       trackedRef.current = true;
@@ -250,11 +338,11 @@ function UniversalProfileContent() {
     };
 
     trackVisit();
-  }, [db, data?.id, type, user]);
+  }, [db, data?.id, type, user, data?.status]);
 
   // Busca eventos separados (Produzidos vs Parcerias)
   React.useEffect(() => {
-    if (!db || !data?.id || type !== 'organization') return
+    if (!db || !data?.id || type !== 'organization' || data.status === 'Bloqueado') return
 
     const fetchAllEvents = async () => {
       setEventsLoading(true)
@@ -292,7 +380,7 @@ function UniversalProfileContent() {
     }
 
     fetchAllEvents()
-  }, [db, data?.id, type])
+  }, [db, data?.id, type, data?.status])
 
   // Lógica de Seguidores
   const followRelationQuery = useMemoFirebase(() => {
@@ -373,6 +461,25 @@ function UniversalProfileContent() {
     )
   }
 
+  if (data.status === 'Bloqueado') {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-6 text-center p-12 py-32">
+        <div className="p-8 bg-destructive/10 rounded-full text-destructive animate-pulse">
+          <ShieldAlert className="w-20 h-20" />
+        </div>
+        <div className="space-y-2">
+           <h2 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Perfil Indisponível</h2>
+           <p className="text-muted-foreground font-medium max-w-md mx-auto">
+             Este perfil foi removido da plataforma por violar nossos termos de uso ou diretrizes de segurança.
+           </p>
+        </div>
+        <Button asChild variant="outline" className="rounded-xl font-bold uppercase text-xs h-12 px-10">
+          <Link href="/dashboard">Voltar ao Início</Link>
+        </Button>
+      </div>
+    )
+  }
+
   const isOrg = type === 'organization'
   const displayName = isOrg ? data.name : data.name || data.displayName
   const avatar = data.avatar || `https://picsum.photos/seed/${data.id}/200/200`
@@ -428,6 +535,90 @@ function UniversalProfileContent() {
                         <Button onClick={handleShare} variant="outline" size="icon" className="h-10 w-10 rounded-xl bg-white/80 border-border hover:border-secondary transition-all">
                            <Share2 className="w-4 h-4" />
                         </Button>
+
+                        {!isSelf && user && (
+                          <Dialog open={isReportOpen} onOpenChange={setIsReportOpen}>
+                            <DialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl bg-white/80 border-border hover:text-destructive hover:bg-destructive/5 transition-all" title="Denunciar Perfil">
+                                <Flag className="w-4 h-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-md rounded-[2rem]">
+                              <form onSubmit={handleSendReport} className="space-y-6">
+                                <DialogHeader>
+                                  <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+                                    <Flag className="w-5 h-5 text-destructive" />
+                                    Denunciar Perfil
+                                  </DialogTitle>
+                                  <DialogDescription>
+                                    Relate irregularidades, fraudes ou comportamentos que violem nossas diretrizes.
+                                  </DialogDescription>
+                                </DialogHeader>
+                                
+                                <div className="space-y-4">
+                                   <div className="space-y-2">
+                                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Motivo Principal</Label>
+                                      <Select value={reportReason} onValueChange={setReportReason} required>
+                                         <SelectTrigger className="rounded-xl h-11">
+                                            <SelectValue placeholder="Selecione o motivo" />
+                                         </SelectTrigger>
+                                         <SelectContent className="rounded-xl">
+                                            <SelectItem value="Fraude ou Golpe">Fraude ou Golpe</SelectItem>
+                                            <SelectItem value="Evento Falso">Evento Falso</SelectItem>
+                                            <SelectItem value="Conteúdo Impróprio">Conteúdo Impróprio</SelectItem>
+                                            <SelectItem value="Spam / Abuso">Spam ou Abuso</SelectItem>
+                                            <SelectItem value="Outro">Outro motivo</SelectItem>
+                                         </SelectContent>
+                                      </Select>
+                                   </div>
+
+                                   <div className="space-y-2">
+                                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Descrição dos Fatos</Label>
+                                      <Textarea 
+                                        placeholder="Conte detalhadamente o que aconteceu..." 
+                                        value={reportDescription}
+                                        onChange={(e) => setReportDescription(e.target.value)}
+                                        required
+                                        className="rounded-xl min-h-[120px] border-dashed border-destructive/20 focus-visible:ring-destructive"
+                                      />
+                                   </div>
+
+                                   <div className="space-y-3">
+                                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                                        <Paperclip className="w-3.5 h-3.5" /> Anexar Provas (Prints, PDF)
+                                      </Label>
+                                      <div className="flex flex-wrap gap-2">
+                                        {reportAttachments.map((url, i) => (
+                                          <div key={i} className="relative w-16 h-16 rounded-lg bg-muted border border-border overflow-hidden">
+                                            <img src={url} className="w-full h-full object-cover" alt="Anexo" />
+                                            <button 
+                                              type="button" 
+                                              onClick={() => setReportAttachments(prev => prev.filter((_, idx) => idx !== i))}
+                                              className="absolute top-0 right-0 bg-black/50 text-white p-0.5 rounded-bl-lg"
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          </div>
+                                        ))}
+                                        <label className="w-16 h-16 rounded-lg border-2 border-dashed border-border flex items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors">
+                                          <Camera className="w-5 h-5 text-muted-foreground/40" />
+                                          <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} />
+                                        </label>
+                                      </div>
+                                      {uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}
+                                   </div>
+                                </div>
+
+                                <DialogFooter>
+                                   <Button type="submit" disabled={isSubmittingReport || uploadProgress !== null} className="w-full bg-destructive text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                                      {isSubmittingReport ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Send className="w-5 h-5 mr-2" />}
+                                      Enviar Denúncia
+                                   </Button>
+                                </DialogFooter>
+                              </form>
+                            </DialogContent>
+                          </Dialog>
+                        )}
                       </div>
                    </div>
 
