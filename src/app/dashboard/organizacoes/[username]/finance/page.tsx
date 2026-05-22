@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -169,8 +170,9 @@ export default function OrganizationFinancePage() {
           });
 
           if (result && result.url) { 
-            window.location.href = result.url;
+            window.open(result.url, '_blank');
             setIsWaitingPayment(true); 
+            setIsTopUpLoading(false);
           } else {
             throw new Error("Não foi possível gerar a URL de pagamento.");
           }
@@ -430,7 +432,7 @@ export default function OrganizationFinancePage() {
                           {isWaitingPayment && (
                              <div className="flex items-center gap-3 p-4 bg-orange-50 rounded-2xl border border-orange-200 animate-pulse">
                                 <RefreshCw className="w-5 h-5 text-orange-600 animate-spin" />
-                                <p className="text-[10px] font-black text-orange-800 uppercase">Aguardando confirmação do pagamento...</p>
+                                <p className="text-[10px] font-black text-orange-800 uppercase">Aguardando confirmação em nova aba...</p>
                              </div>
                           )}
                        </div>

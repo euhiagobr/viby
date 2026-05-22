@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -221,7 +222,11 @@ export default function CarrinhoPage() {
         }
       });
 
-      if (url) { window.open(url, '_blank'); setIsWaitingPayment(true); }
+      if (url) { 
+        window.open(url, '_blank'); 
+        setIsWaitingPayment(true); 
+        setProcessing(false);
+      }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro", description: e.message });
       setProcessing(false);
@@ -246,11 +251,11 @@ export default function CarrinhoPage() {
               <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center relative">
                  <RefreshCw className="w-10 h-10 animate-spin text-secondary" /><CreditCard className="w-5 h-5 absolute text-white" />
               </div>
-              <h2 className="text-2xl font-black uppercase italic tracking-tighter">Aguardando Pagamento</h2>
+              <h2 className="text-2xl font-black uppercase italic tracking-tighter">Pagamento Iniciado</h2>
            </div>
            <CardContent className="p-10 text-center space-y-8">
               <div className="p-4 bg-muted/30 rounded-2xl border border-dashed flex gap-3 text-left">
-                 <Info className="w-5 h-5 text-secondary shrink-0" /><p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">Seu painel será atualizado assim que o pagamento for concluído.</p>
+                 <Info className="w-5 h-5 text-secondary shrink-0" /><p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">O checkout abriu em uma nova página. Seu painel será atualizado assim que o pagamento for concluído.</p>
               </div>
               <div className="flex flex-col gap-3">
                  <Button variant="outline" className="h-12 rounded-xl font-bold" onClick={() => window.location.reload()}>Verificar Status</Button>
