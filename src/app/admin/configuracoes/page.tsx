@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -30,7 +29,9 @@ import {
   MousePointer2,
   Lock,
   X,
-  Map as MapIcon
+  Map as MapIcon,
+  Percent,
+  Receipt
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -46,6 +47,7 @@ export default function AdminConfiguracoesPage() {
   const adsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
   const mapsRef = React.useMemo(() => (db ? doc(db, 'settings', 'maps') : null), [db]);
   const blockedRef = React.useMemo(() => (db ? doc(db, 'settings', 'blocked_usernames') : null), [db]);
+  const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db]);
 
   const { data: settings, loading: loadingSettings } = useDoc<any>(settingsRef);
   const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
@@ -53,6 +55,7 @@ export default function AdminConfiguracoesPage() {
   const { data: adsSettings, loading: loadingAds } = useDoc<any>(adsRef);
   const { data: mapsSettings, loading: loadingMaps } = useDoc<any>(mapsRef);
   const { data: blockedData, loading: loadingBlocked } = useDoc<any>(blockedRef);
+  const { data: feesSettings, loading: loadingFees } = useDoc<any>(feesRef);
 
   const [saving, setSaving] = React.useState(false);
   const [logoUploadProgress, setLogoUploadProgress] = React.useState<number | null>(null);
@@ -70,6 +73,10 @@ export default function AdminConfiguracoesPage() {
   const [cpcValue, setCpcValue] = React.useState('');
   const [cpmValue, setCpmValue] = React.useState('');
   const [googleMapsApiKey, setGoogleMapsApiKey] = React.useState('');
+
+  const [buyerFeePercent, setBuyerFeePercent] = React.useState('15');
+  const [processingFeePercent, setProcessingFeePercent] = React.useState('4.99');
+  const [processingFeeFixed, setProcessingFeeFixed] = React.useState('0.30');
 
   const [blockedInput, setBlockedInput] = React.useState('');
   const [blockedList, setBlockedList] = React.useState<string[]>([]);
@@ -115,9 +122,17 @@ export default function AdminConfiguracoesPage() {
     }
   }, [blockedData]);
 
+  React.useEffect(() => {
+    if (feesSettings) {
+      setBuyerFeePercent(feesSettings.buyerFeePercent?.toString() || '15');
+      setProcessingFeePercent(feesSettings.processingFeePercent?.toString() || '4.99');
+      setProcessingFeeFixed(feesSettings.processingFeeFixed?.toString() || '0.30');
+    }
+  }, [feesSettings]);
+
   const storage = React.useMemo(() => {
     if (!app) return null;
-    return getStorage(app, 'viby');
+    return getStorage(app);
   }, [app]);
 
   const handleFileUpload = async (file: File, type: 'logo' | 'icon') => {
@@ -196,6 +211,22 @@ export default function AdminConfiguracoesPage() {
       .finally(() => setSaving(false));
   };
 
+  const handleSaveFees = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!db) return;
+    setSaving(true);
+    const feesData = { 
+      buyerFeePercent: parseFloat(buyerFeePercent) || 0, 
+      processingFeePercent: parseFloat(processingFeePercent) || 0,
+      processingFeeFixed: parseFloat(processingFeeFixed) || 0,
+      updatedAt: serverTimestamp() 
+    };
+    setDoc(doc(db, 'settings', 'fees'), feesData, { merge: true })
+      .then(() => toast({ title: 'Taxas globais salvas!' }))
+      .catch(async (error) => { errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'settings/fees', operation: 'write', requestResourceData: feesData })); })
+      .finally(() => setSaving(false));
+  };
+
   const handleAddBlocked = () => {
     const names = blockedInput.split(',').map(n => n.trim().toLowerCase()).filter(n => n.length > 0);
     if (names.length === 0) return;
@@ -218,7 +249,7 @@ export default function AdminConfiguracoesPage() {
       .finally(() => setSaving(false));
   };
 
-  if (loadingSettings || loadingStripe || loadingEmail || loadingAds || loadingBlocked || loadingMaps) {
+  if (loadingSettings || loadingStripe || loadingEmail || loadingAds || loadingBlocked || loadingMaps || loadingFees) {
     return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
   }
 
@@ -226,13 +257,14 @@ export default function AdminConfiguracoesPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight text-primary">Configurações do Sistema</h1>
-        <p className="text-muted-foreground">Gerencie a identidade visual, integrações e segurança da plataforma.</p>
+        <p className="text-muted-foreground">Gerencie a identidade visual, integrações, taxas e segurança da plataforma.</p>
       </div>
 
       <Tabs defaultValue="brand" className="space-y-6">
         <TabsList className="bg-muted/50 p-1 rounded-xl flex-wrap h-auto">
           <TabsTrigger value="brand" className="gap-2 rounded-lg font-bold"><Layout className="w-4 h-4" /> Marca</TabsTrigger>
           <TabsTrigger value="usernames" className="gap-2 rounded-lg font-bold"><Lock className="w-4 h-4" /> Usernames</TabsTrigger>
+          <TabsTrigger value="fees" className="gap-2 rounded-lg font-bold"><Percent className="w-4 h-4" /> Taxas</TabsTrigger>
           <TabsTrigger value="payments" className="gap-2 rounded-lg font-bold"><CreditCard className="w-4 h-4" /> Pagamentos</TabsTrigger>
           <TabsTrigger value="email" className="gap-2 rounded-lg font-bold"><Mail className="w-4 h-4" /> E-mail</TabsTrigger>
           <TabsTrigger value="maps" className="gap-2 rounded-lg font-bold"><MapIcon className="w-4 h-4" /> Maps</TabsTrigger>
@@ -319,6 +351,53 @@ export default function AdminConfiguracoesPage() {
               Salvar Usernames Reservados
             </Button>
           </div>
+        </TabsContent>
+
+        <TabsContent value="fees">
+          <form onSubmit={handleSaveFees} className="space-y-6 max-w-2xl">
+            <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-secondary/10 rounded-lg"><Receipt className="w-5 h-5 text-secondary" /></div>
+                  <div>
+                    <CardTitle className="text-xl">Taxas Globais de Serviço</CardTitle>
+                    <CardDescription>Defina as taxas aplicadas em cada transação de ingressos.</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2"><Percent className="w-3.5 h-3.5 text-muted-foreground" /> Taxa Administrativa (Comprador %)</Label>
+                  <div className="relative">
+                    <Input type="number" step="0.1" value={buyerFeePercent} onChange={(e) => setBuyerFeePercent(e.target.value)} placeholder="15" className="rounded-xl pr-9 h-12 font-bold" />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic">Taxa somada ao valor do ingresso e paga pelo cliente final.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2"><CreditCard className="w-3.5 h-3.5 text-muted-foreground" /> Processamento Stripe (%)</Label>
+                    <div className="relative">
+                      <Input type="number" step="0.01" value={processingFeePercent} onChange={(e) => setProcessingFeePercent(e.target.value)} placeholder="4.99" className="rounded-xl pr-9 h-12 font-bold" />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2"><Coins className="w-3.5 h-3.5 text-muted-foreground" /> Processamento Fixo (R$)</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">R$</span>
+                      <Input type="number" step="0.01" value={processingFeeFixed} onChange={(e) => setProcessingFeeFixed(e.target.value)} placeholder="0.30" className="rounded-xl pl-9 h-12 font-bold" />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Button type="submit" disabled={saving} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-lg">
+              {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
+              Salvar Configurações de Taxas
+            </Button>
+          </form>
         </TabsContent>
 
         <TabsContent value="payments">
