@@ -37,6 +37,10 @@ export async function processGamificationEvent(
   }
 
   try {
+    // 0. Validar se o alvo é um usuário (Gamificação é para CPFs, não CNPJs)
+    const userSnap = await getDoc(doc(db, "users", userId));
+    if (!userSnap.exists()) return;
+
     // 1. Buscar a regra de XP para o evento
     const ruleRef = doc(db, "xp_rules", eventKey);
     const ruleSnap = await getDoc(ruleRef);
@@ -136,6 +140,7 @@ export async function processGamificationEvent(
     if (statsSnap.exists()) {
       await updateDoc(statsRef, statsUpdate);
     } else {
+      // Inicializar documento com arrays vazios para evitar undefined e permitir arrayUnion subsequente
       await setDoc(statsRef, {
         ...statsUpdate,
         categoriesExplored: context?.categoryName ? [context.categoryName] : [],
@@ -143,7 +148,10 @@ export async function processGamificationEvent(
         citiesExplored: context?.city ? [context.city] : [],
         favoriteOrganizers: context?.orgName ? [context.orgName] : [],
         totalEvents: eventKey === 'on_ticket_purchase' ? 1 : 0,
-        totalCheckins: eventKey === 'on_checkin' ? 1 : 0
+        totalCheckins: eventKey === 'on_checkin' ? 1 : 0,
+        topCategory: context?.categoryName || null,
+        topNeighborhood: context?.neighborhood || null,
+        topCity: context?.city || null
       });
     }
 

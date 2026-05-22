@@ -255,10 +255,10 @@ export default function AdminPresencaPage() {
         const context = {
           eventId: reg.eventId,
           eventTitle: reg.eventTitle || evData?.title,
-          categoryName: reg.categoryName || evData?.categoryName,
-          neighborhood: reg.eventNeighborhood || evData?.address?.neighborhood,
-          city: reg.eventCity || evData?.city || evData?.address?.city,
-          orgName: reg.organizer?.name || evData?.organizer?.name
+          categoryName: reg.categoryName || evData?.categoryName || evData?.category || "Geral",
+          neighborhood: reg.eventNeighborhood || evData?.address?.neighborhood || evData?.location || "Centro",
+          city: reg.eventCity || evData?.city || evData?.address?.city || "Sua Cidade",
+          orgName: reg.organizer?.name || evData?.organizer?.name || "Marca"
         };
 
         if (reg.checkedIn) {
@@ -274,8 +274,13 @@ export default function AdminPresencaPage() {
       const followsSnap = await getDocs(collection(db, "follows"))
       for (const fDoc of followsSnap.docs) {
         const follow = fDoc.data()
+        const targetSnap = await getDoc(doc(db, follow.targetType === 'organization' ? 'organizations' : 'users', follow.followingId))
+        const targetName = targetSnap.exists() ? (targetSnap.data().name || targetSnap.data().displayName) : "Marca"
+
         await processGamificationEvent(db, follow.followerId, follow.targetType === 'organization' ? 'on_follow_org' : 'on_follow_user', {
-          targetId: follow.followingId
+          targetId: follow.followingId,
+          orgName: follow.targetType === 'organization' ? targetName : null,
+          targetName: targetName
         }, fDoc.id)
       }
 
@@ -568,7 +573,7 @@ export default function AdminPresencaPage() {
                           </TableRow>
                        </TableHeader>
                        <TableBody>
-                          {rankings?.map((rank, i) => (
+                          {rankings?.map((rank: any, i: number) => (
                             <TableRow key={rank.userId} className="hover:bg-muted/5">
                                <TableCell className="text-center font-black text-secondary">#{i + 1}</TableCell>
                                <TableCell>
@@ -599,7 +604,7 @@ export default function AdminPresencaPage() {
                     <div className="space-y-2">
                        <p className="text-[10px] font-black uppercase opacity-60">Média de XP por Usuário</p>
                        <p className="text-4xl font-black italic">
-                          {rankings && rankings.length > 0 ? Math.round(rankings.reduce((acc, r) => acc + (r.totalXp || 0), 0) / rankings.length).toLocaleString() : 0} XP
+                          {rankings && rankings.length > 0 ? Math.round(rankings.reduce((acc: number, r: any) => acc + (r.totalXp || 0), 0) / rankings.length).toLocaleString() : 0} XP
                        </p>
                     </div>
                     <Separator className="bg-white/10" />

@@ -481,7 +481,8 @@ function UniversalProfileContent() {
 
         await processGamificationEvent(db, user.uid, type === 'organization' ? 'on_follow_org' : 'on_follow_user', {
           targetId: data.id,
-          targetName: displayName
+          targetName: displayName,
+          orgName: type === 'organization' ? displayName : null
         }, data.id);
 
         toast({ title: `Seguindo ${displayName}!` })
@@ -489,7 +490,7 @@ function UniversalProfileContent() {
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na operação" })
     } finally {
-      setFollowActionLoading(false)
+      followActionLoading && setFollowActionLoading(false)
     }
   }
 
@@ -726,7 +727,6 @@ function UniversalProfileContent() {
                </Tabs>
              ) : (
                <div className="space-y-12">
-                  {/* GRADE DE ESTATÍSTICAS CULTURAIS REFORÇADA */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                      <Card className="border-none shadow-sm rounded-[2rem] bg-white p-6 flex flex-col items-center text-center gap-3">
                         <div className="p-3 bg-secondary/10 rounded-2xl text-secondary"><Sparkles className="w-6 h-6" /></div>
@@ -750,7 +750,6 @@ function UniversalProfileContent() {
                         </div>
                      </Card>
 
-                     {/* NOVOS CARDS DE CIDADES E BAIRROS */}
                      <Card className="border-none shadow-sm rounded-[2rem] bg-white p-6 flex flex-col items-center text-center gap-3">
                         <div className="p-3 bg-orange-50 rounded-2xl text-orange-600"><Globe className="w-6 h-6" /></div>
                         <div>
