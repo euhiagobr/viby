@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { 
   Loader2, 
   Save, 
@@ -54,7 +55,7 @@ export default function AdminConfiguracoesPage() {
   const { data: settings, loading: loadingSettings } = useDoc<any>(settingsRef);
   const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
   const { data: emailSettings, loading: loadingEmail } = useDoc<any>(emailRef);
-  const { data: adsSettings, loading: loadingAds } = useDoc<any>(adsSettings);
+  const { data: adsSettings, loading: loadingAds } = useDoc<any>(adsRef);
   const { data: mapsSettings, loading: loadingMaps } = useDoc<any>(mapsRef);
   const { data: blockedData, loading: loadingBlocked } = useDoc<any>(blockedRef);
   const { data: feesSettings, loading: loadingFees } = useDoc<any>(feesRef);
@@ -79,8 +80,6 @@ export default function AdminConfiguracoesPage() {
   const [buyerFeePercent, setBuyerFeePercent] = React.useState('15');
   const [organizerFeePercent, setOrganizerFeePercent] = React.useState('10');
   const [organizerMinFee, setOrganizerMinFee] = React.useState('9.99');
-  const [processingFeePercent, setProcessingFeePercent] = React.useState('4.99');
-  const [processingFeeFixed, setProcessingFeeFixed] = React.useState('0.30');
 
   const [blockedInput, setBlockedInput] = React.useState('');
   const [blockedList, setBlockedList] = React.useState<string[]>([]);
@@ -131,8 +130,6 @@ export default function AdminConfiguracoesPage() {
       setBuyerFeePercent(feesSettings.buyerFeePercent?.toString() || '15');
       setOrganizerFeePercent(feesSettings.organizerFeePercent?.toString() || '10');
       setOrganizerMinFee(feesSettings.organizerMinFee?.toString() || '9.99');
-      setProcessingFeePercent(feesSettings.processingFeePercent?.toString() || '4.99');
-      setProcessingFeeFixed(feesSettings.processingFeeFixed?.toString() || '0.30');
     }
   }, [feesSettings]);
 
@@ -225,8 +222,6 @@ export default function AdminConfiguracoesPage() {
       buyerFeePercent: parseFloat(buyerFeePercent) || 0, 
       organizerFeePercent: parseFloat(organizerFeePercent) || 0,
       organizerMinFee: parseFloat(organizerMinFee) || 0,
-      processingFeePercent: parseFloat(processingFeePercent) || 0,
-      processingFeeFixed: parseFloat(processingFeeFixed) || 0,
       updatedAt: serverTimestamp() 
     };
     setDoc(doc(db, 'settings', 'fees'), feesData, { merge: true })
@@ -409,29 +404,6 @@ export default function AdminConfiguracoesPage() {
                       </div>
                    </div>
                    <p className="text-[10px] text-muted-foreground italic">Custo descontado do produtor. Será aplicado o maior valor entre os dois acima.</p>
-                </div>
-
-                <Separator />
-
-                {/* TAXAS DE PROCESSAMENTO */}
-                <div className="space-y-4">
-                   <div className="flex items-center gap-2 text-muted-foreground font-black uppercase text-[10px] tracking-widest"><CreditCard className="w-4 h-4" /> Processamento (Checkout)</div>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2"><Percent className="w-3.5 h-3.5 text-muted-foreground" /> Percentual (%)</Label>
-                      <div className="relative">
-                        <Input type="number" step="0.01" value={processingFeePercent} onChange={(e) => setProcessingFeePercent(e.target.value)} placeholder="4.99" className="rounded-xl pr-9 h-12 font-bold" />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2"><Coins className="w-3.5 h-3.5 text-muted-foreground" /> Fixo por venda (R$)</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">R$</span>
-                        <Input type="number" step="0.01" value={processingFeeFixed} onChange={(e) => setProcessingFeeFixed(e.target.value)} placeholder="0.30" className="rounded-xl pl-9 h-12 font-bold" />
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </CardContent>
             </Card>
