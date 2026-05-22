@@ -1,6 +1,6 @@
 'use client';
 
 import { getFirestore } from "firebase/firestore";
-import { vibyApp } from "./apps";
+import { app } from "./apps";
 
-export const db = getFirestore(vibyApp, "eventosviby");
+export const db = getFirestore(app, "eventosviby");

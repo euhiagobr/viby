@@ -1,10 +1,9 @@
-
 "use client"
 
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
+import { useAuth, useFirestore, useDoc } from "@/firebase"
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
 import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
@@ -192,7 +191,7 @@ export default function CadastroPage() {
         createdAt: serverTimestamp()
       };
 
-      runTransaction(db, async (transaction) => {
+      await runTransaction(db, async (transaction) => {
         const usernameRef = doc(db, "usernames", normalizedUsername)
         const userRef = doc(db, "users", user.uid)
 
@@ -212,7 +211,7 @@ export default function CadastroPage() {
           targetType: 'organization',
           timestamp: serverTimestamp()
         })
-      }).catch(async (serverError) => {
+      }).catch(async (serverError: any) => {
         if (serverError.code === 'permission-denied') {
           const permissionError = new FirestorePermissionError({
             path: `users/${user.uid}`,

@@ -1,43 +1,28 @@
-
 'use client';
 
-import { authApp, vibyApp } from './apps';
-import { auth } from './auth';
-import { db } from './database';
-import { storage } from './storage';
-import { 
-  FirebaseProvider, 
-  useFirebase, 
-  useAuthApp, 
-  useVibyApp, 
-  useFirebaseApp, 
-  useFirestore, 
-  useAuth, 
-  useStorage 
-} from './provider';
-import { FirebaseClientProvider } from './client-provider';
-import { useCollection } from './firestore/use-collection';
-import { useDoc } from './firestore/use-doc';
-import { useMemoFirebase } from './firestore/use-memo-firebase';
-import { useUser } from './auth/use-user';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
+import { firebaseConfig } from './config';
+
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+export const auth = getAuth(app);
+export const db = getFirestore(app, "eventosviby");
+export const storage = getStorage(app);
 
 export {
-  authApp,
-  vibyApp,
-  auth,
-  db,
-  storage,
   FirebaseProvider,
-  FirebaseClientProvider,
-  useCollection,
-  useDoc,
-  useMemoFirebase,
-  useUser,
   useFirebase,
-  useAuthApp,
-  useVibyApp,
   useFirebaseApp,
   useFirestore,
   useAuth,
   useStorage,
-};
+} from './provider';
+
+export { FirebaseClientProvider } from './client-provider';
+export { useCollection } from './firestore/use-collection';
+export { useDoc } from './firestore/use-doc';
+export { useMemoFirebase } from './firestore/use-memo-firebase';
+export { useUser } from './auth/use-user';

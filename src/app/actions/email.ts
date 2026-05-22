@@ -2,9 +2,9 @@
 
 import nodemailer from 'nodemailer';
 import QRCode from 'qrcode';
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { vibyConfig } from '@/firebase/config';
+import { firebaseConfig } from '@/firebase/config';
 
 async function logEmail(data: {
   sender: string;
@@ -15,8 +15,8 @@ async function logEmail(data: {
   type: string;
 }) {
   try {
-    const vibyApp = getApps().find(a => a.name === "vibyApp") || initializeApp(vibyConfig, "vibyApp");
-    const db = getFirestore(vibyApp, 'eventosviby');
+    const app = getApps().find(a => a.name === "[DEFAULT]") || initializeApp(firebaseConfig);
+    const db = getFirestore(app, 'eventosviby');
     await addDoc(collection(db, 'sent_emails'), {
       ...data,
       timestamp: serverTimestamp(),
@@ -28,8 +28,8 @@ async function logEmail(data: {
 
 async function getEmailConfig() {
   try {
-    const vibyApp = getApps().find(a => a.name === "vibyApp") || initializeApp(vibyConfig, "vibyApp");
-    const db = getFirestore(vibyApp, 'eventosviby');
+    const app = getApps().find(a => a.name === "[DEFAULT]") || initializeApp(firebaseConfig);
+    const db = getFirestore(app, 'eventosviby');
     
     const emailDoc = await getDoc(doc(db, 'settings', 'email'));
     if (!emailDoc.exists()) {
@@ -58,9 +58,6 @@ export async function sendPasswordResetLinkEmail(data: any) {
         <div style="text-align: center; margin: 40px 0;">
           <a href="${data.resetLink}" style="display: inline-block; background: #2563eb; color: white !important; padding: 18px 36px; text-decoration: none; border-radius: 16px; font-weight: bold; font-size: 16px;">Redefinir Senha Agora</a>
         </div>
-        <p style="font-size: 12px; color: #94a3b8; line-height: 1.6;">Se o botão acima não funcionar, copie e cole o link abaixo no seu navegador:</p>
-        <p style="font-size: 10px; color: #cbd5e1; word-break: break-all;">${data.resetLink}</p>
-        <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 30px 0;" />
         <p style="font-size: 11px; color: #94a3b8;">Se você não solicitou a troca de senha, ignore este e-mail.</p>
       </div>
     `;
@@ -99,7 +96,6 @@ export async function sendTicketEmail(data: any) {
   try {
     const { smtpUser, smtpPass } = await getEmailConfig();
     const qrCodeBuffer = await QRCode.toBuffer(data.ticketCode, { margin: 1, width: 400 });
-    const formatBRL = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
     const htmlContent = `
       <div style="font-family: 'Poppins', sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 32px; overflow: hidden; border: 1px solid #e2e8f0; padding: 40px;">

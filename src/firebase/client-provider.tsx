@@ -1,10 +1,9 @@
 'use client';
 
-import { ReactNode, useMemo } from 'react';
-import { authApp, vibyApp } from './apps';
-import { auth } from './auth';
-import { db } from './database';
-import { storage } from './storage';
+import { ReactNode } from 'react';
+import { auth, db, storage } from './index';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { firebaseConfig } from './config';
 import { FirebaseProvider } from './provider';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
@@ -13,10 +12,11 @@ export function FirebaseClientProvider({
 }: {
   children: ReactNode;
 }) {
+  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
   return (
     <FirebaseProvider 
-      authApp={authApp}
-      vibyApp={vibyApp}
+      firebaseApp={app}
       firestore={db} 
       auth={auth}
       storage={storage}

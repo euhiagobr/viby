@@ -2,14 +2,14 @@
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import { vibyConfig } from '@/firebase/config';
+import { firebaseConfig } from '@/firebase/config';
 
 async function getStripeKeys() {
   try {
-    const vibyApp = getApps().find(a => a.name === "vibyApp") || initializeApp(vibyConfig, "vibyApp");
-    const db = getFirestore(vibyApp, 'eventosviby');
+    const app = getApps().find(a => a.name === "[DEFAULT]") || initializeApp(firebaseConfig);
+    const db = getFirestore(app, 'eventosviby');
     const stripeDoc = await getDoc(doc(db, 'settings', 'stripe'));
     if (!stripeDoc.exists()) return { publishableKey: null, secretKey: null };
     const data = stripeDoc.data();

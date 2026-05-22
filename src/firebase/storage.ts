@@ -1,6 +1,6 @@
 'use client';
 
 import { getStorage } from "firebase/storage";
-import { vibyApp } from "./apps";
+import { app } from "./apps";
 
-export const storage = getStorage(vibyApp);
+export const storage = getStorage(app);

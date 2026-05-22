@@ -1,26 +1,22 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
-import { authConfig, vibyConfig } from '@/firebase/config';
+import { firebaseConfig } from '@/firebase/config';
 import { sendPasswordResetLinkEmail } from './email';
 
 /**
- * Inicializa o Firebase Admin de forma resiliente para o projeto de Auth.
+ * Inicializa o Firebase Admin de forma resiliente.
  */
 function getAdminAuth() {
-  const adminApp = admin.apps.find(a => a?.name === '[DEFAULT]' || a?.options?.projectId === authConfig.projectId);
-  
-  if (!adminApp) {
+  if (admin.apps.length === 0) {
     try {
-      // Tenta inicializar com as credenciais padrões do ambiente
       admin.initializeApp({
-        projectId: authConfig.projectId,
+        projectId: firebaseConfig.projectId,
       });
     } catch (e) {
-      // Falha silenciosa se já existir ou se houver erro de permissão
+      console.error("Erro ao inicializar Firebase Admin:", e);
     }
   }
   return admin.auth();
@@ -31,9 +27,8 @@ function getAdminAuth() {
  */
 export async function requestPasswordReset(identifier: string) {
   try {
-    // Inicialização da app cliente Viby para busca de dados no Firestore do projeto ONG
-    const vibyApp = getApps().find(a => a.name === "vibyApp") || initializeApp(vibyConfig, "vibyApp");
-    const db = getFirestore(vibyApp, 'eventosviby');
+    const app = getApps().find(a => a.name === "[DEFAULT]") || initializeApp(firebaseConfig);
+    const db = getFirestore(app, 'eventosviby');
     const authAdmin = getAdminAuth();
 
     let email = identifier.trim().toLowerCase();
@@ -60,16 +55,15 @@ export async function requestPasswordReset(identifier: string) {
     }
 
     // 2. Gerar link oficial de redefinição de senha
-    // Nota: generatePasswordResetLink exige que o projeto 'authConfig.projectId' tenha uma Service Account ativa
     let resetLink;
     try {
       resetLink = await authAdmin.generatePasswordResetLink(email);
     } catch (adminError: any) {
       console.error("Erro do Admin SDK ao gerar link:", adminError);
-      throw new Error("O serviço de geração de links exige configuração de Service Account no projeto de Auth. Verifique o console do Firebase.");
+      throw new Error("O serviço de redefinição exige configuração de Service Account ou permissões administrativas.");
     }
 
-    // 3. Disparar e-mail via SMTP customizado
+    // 3. Disparar e-mail via SMTP
     const emailResult = await sendPasswordResetLinkEmail({
       to: email,
       userName,
@@ -78,7 +72,7 @@ export async function requestPasswordReset(identifier: string) {
     });
 
     if (!emailResult.success) {
-      throw new Error("Não foi possível enviar o e-mail de segurança. Verifique as configurações de SMTP.");
+      throw new Error("Não foi possível enviar o e-mail de segurança.");
     }
 
     return { success: true, email };
