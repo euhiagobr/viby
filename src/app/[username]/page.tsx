@@ -224,7 +224,7 @@ function UniversalProfileContent() {
   const { data: cGlobal } = useCollection<any>(qGlobal);
 
   const bestRankInfo = React.useMemo(() => {
-    if (xpValue === -1) return { rank: "---", scope: "Calculando...", color: "bg-primary" };
+    if (xpValue === -1) return { rank: "---", scope: "Calculando...", color: "bg-primary", text: "text-white", badge: "bg-white/20" };
 
     const rB = (cBairro?.length || 0) + 1;
     const rC = (cCidade?.length || 0) + 1;
@@ -232,17 +232,15 @@ function UniversalProfileContent() {
     const rP = (cPais?.length || 0) + 1;
     const rG = (cGlobal?.length || 0) + 1;
 
-    if (userNeighborhood && rB <= 99) return { rank: `#${rB}`, scope: `Top Bairro (${userNeighborhood})`, color: "bg-secondary" };
-    if (userCity && rC <= 99) return { rank: `#${rC}`, scope: `Top Cidade (${userCity})`, color: "bg-secondary" };
-    if (userState && rE <= 99) return { rank: `#${rE}`, scope: `Top Estado (${userState})`, color: "bg-secondary" };
-    if (userCountry && rP <= 99) return { rank: `#${rP}`, scope: `Top País (Brasil)`, color: "bg-primary" };
+    // Hierarchy: Global > País > Estado > Cidade > Bairro
+    if (rG <= 499) return { rank: `#${rG}`, scope: "Líder Global", color: "bg-black", text: "text-white", badge: "text-secondary" };
+    if (rP <= 99) return { rank: `#${rP}`, scope: "Líder Nacional", color: "bg-[#FFD700]", text: "text-black", badge: "text-black/60" };
+    if (rE <= 99) return { rank: `#${rE}`, scope: `Top Estado (${userState})`, color: "bg-[#B76E79]", text: "text-white", badge: "text-white/60" };
+    if (rC <= 99) return { rank: `#${rC}`, scope: `Top Cidade (${userCity})`, color: "bg-[#C0C0C0]", text: "text-black", badge: "text-black/60" };
+    if (rB <= 99) return { rank: `#${rB}`, scope: `Top Bairro (${userNeighborhood})`, color: "bg-[#CD7F32]", text: "text-white", badge: "text-white/60" };
     
-    return { rank: `#${rG}`, scope: "Posição Global", color: "bg-primary" };
+    return { rank: `#${rG}`, scope: "Membro Ativo", color: "bg-primary", text: "text-white", badge: "text-white/60" };
   }, [cBairro, cCidade, cEstado, cPais, cGlobal, userNeighborhood, userCity, userState, userCountry, xpValue]);
-
-  const totalUsersQuery = useMemoFirebase(() => db ? query(collection(db, "user_gamification")) : null, [db]);
-  const { data: allGamifiedUsers } = useCollection<any>(totalUsersQuery);
-  const totalGamified = allGamifiedUsers?.length || 1;
 
   const levelInfo = React.useMemo(() => {
     if (!gamification) return null;
@@ -268,28 +266,6 @@ function UniversalProfileContent() {
       description: "O link do perfil foi copiado para sua área de transferência.",
     });
   };
-
-  const handleFileUpload = async (file: File) => {
-    if (!file || !storage || !user) return
-
-    setUploadProgress(0)
-    try {
-      const fileName = `reports/${user.uid}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
-      const storageRef = ref(storage, fileName)
-      const uploadTask = uploadBytesResumable(storageRef, file)
-
-      uploadTask.on('state_changed', 
-        (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-        () => { toast({ variant: "destructive", title: "Erro no upload" }); setUploadProgress(null); },
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
-          setReportAttachments(prev => [...prev, downloadURL])
-          setUploadProgress(null)
-          toast({ title: "Prova anexada!" })
-        }
-      )
-    } catch (err) { setUploadProgress(null) }
-  }
 
   const handleSendReport = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -526,29 +502,6 @@ function UniversalProfileContent() {
         <AlertTriangle className="w-16 h-16 text-muted-foreground opacity-20" />
         <h2 className="text-2xl font-bold">Perfil não encontrado</h2>
         <Button asChild className="rounded-full px-8 bg-secondary text-white">
-          <Link href="/dashboard">Voltar ao Início</Link>
-        </Button>
-      </div>
-    )
-  }
-
-  if (data.status === 'Bloqueado' || data.status === 'Desativado' || data.status === 'Exclusão Programada') {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-6 text-center p-12 py-32">
-        <div className="p-8 bg-muted/10 rounded-full text-muted-foreground">
-          {data.status === 'Bloqueado' ? <ShieldAlert className="w-20 h-20 text-destructive" /> : <EyeOff className="w-20 h-20" />}
-        </div>
-        <div className="space-y-2">
-           <h2 className="text-3xl font-black italic uppercase tracking-tighter text-primary">
-             {data.status === 'Bloqueado' ? 'Perfil Indisponível' : 'Página Oculta'}
-           </h2>
-           <p className="text-muted-foreground font-medium max-w-md mx-auto">
-             {data.status === 'Bloqueado' 
-                ? 'Este perfil foi removido da plataforma por violar nossos termos de uso ou diretrizes de segurança.'
-                : 'Esta organização optou por ocultar sua página temporariamente.'}
-           </p>
-        </div>
-        <Button asChild variant="outline" className="rounded-xl font-bold uppercase text-xs h-12 px-10">
           <Link href="/dashboard">Voltar ao Início</Link>
         </Button>
       </div>
@@ -817,22 +770,22 @@ function UniversalProfileContent() {
                         <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-2">
                            <BarChart3 className="w-4 h-4 text-secondary" /> Ranking de Presença
                         </h2>
-                        <Card className={cn("border-none shadow-sm rounded-[2.5rem] text-white p-8 relative overflow-hidden transition-colors", bestRankInfo.color)}>
+                        <Card className={cn("border-none shadow-xl rounded-[2.5rem] p-8 relative overflow-hidden transition-all duration-500", bestRankInfo.color, bestRankInfo.text)}>
                            <div className="relative z-10 space-y-4">
-                              <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">{bestRankInfo.scope}</p>
+                              <p className={cn("text-[10px] font-black uppercase tracking-widest", bestRankInfo.badge)}>{bestRankInfo.scope}</p>
                               <div className="flex items-baseline gap-2">
-                                 <span className="text-5xl font-black italic tracking-tighter">{bestRankInfo.rank}</span>
-                                 <span className="text-[10px] font-black uppercase text-secondary">
+                                 <span className="text-6xl font-black italic tracking-tighter">{bestRankInfo.rank}</span>
+                                 <span className={cn("text-[10px] font-black uppercase", bestRankInfo.badge)}>
                                    {bestRankInfo.rank === '#1' ? 'Líder Absoluto' : `Membro Ativo`}
                                  </span>
                               </div>
-                              <p className="text-[9px] font-medium leading-relaxed opacity-60 uppercase">
+                              <p className="text-[10px] font-medium leading-relaxed opacity-70 uppercase max-w-[240px]">
                                 {bestRankInfo.rank === '#1' 
-                                  ? 'Este usuário é atualmente a maior referência da cena cultural neste escopo.' 
-                                  : 'Este usuário está entre os mais ativos da cena cultural no último mês.'}
+                                  ? 'Destaque absoluto. Este usuário é a maior referência cultural neste escopo.' 
+                                  : 'Este usuário está entre os exploradores mais ativos da cena cultural.'}
                               </p>
                            </div>
-                           <Trophy className="absolute -bottom-6 -right-6 w-32 h-32 opacity-10 rotate-12" />
+                           <Trophy className="absolute -bottom-6 -right-6 w-40 h-40 opacity-10 rotate-12" />
                         </Card>
                      </div>
                   </div>
