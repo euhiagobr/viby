@@ -21,12 +21,12 @@
             "cor": "string (hex)",
             "ativo": "boolean",
             "ordem": "number",
-            "posicaoGrade": "number (0-11, representa a coluna na grade de 12)",
-            "larguraGrade": "number (1-12, colunas ocupadas)",
-            "fileiras": "number (opcional)",
-            "assentosPorFileira": "number (opcional)",
-            "quantidadeMesas": "number (opcional)",
-            "lugaresPorMesa": "number (opcional)",
+            "posicaoGrade": "number (0-11)",
+            "larguraGrade": "number (1-12)",
+            "fileiras": "number",
+            "assentosPorFileira": "number",
+            "quantidadeMesas": "number",
+            "lugaresPorMesa": "number",
             "formatoMesa": "string ('circular' | 'quadrada')",
             "criadoEm": "serverTimestamp"
           },
@@ -34,13 +34,13 @@
             "assentos": {
               "id": "auto-id",
               "fields": {
-                "codigo": "string (ex: A01, M1)",
+                "codigo": "string",
                 "fileira": "string",
                 "numero": "number",
+                "categoria": "string ('comum' | 'pcd' | 'obeso' | 'acompanhante')",
                 "status": "string ('disponivel' | 'reservado' | 'vendido' | 'bloqueado')",
                 "reservadoPor": "string (uid)",
                 "reservadoAte": "timestamp",
-                "ingressoId": "string",
                 "setorId": "string",
                 "eventoId": "string"
               }

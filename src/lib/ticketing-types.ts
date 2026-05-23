@@ -1,6 +1,7 @@
 
 export type SectorType = 'livre' | 'assentos' | 'mesas';
 export type SeatStatus = 'disponivel' | 'reservado' | 'vendido' | 'bloqueado';
+export type SeatCategory = 'comum' | 'pcd' | 'obeso' | 'acompanhante';
 
 export interface Sector {
   id: string;
@@ -12,6 +13,8 @@ export interface Sector {
   cor: string;
   ativo: boolean;
   ordem: number;
+  posicaoGrade: number;
+  larguraGrade: number;
   fileiras?: number;
   assentosPorFileira?: number;
   quantidadeMesas?: number;
@@ -25,6 +28,7 @@ export interface Seat {
   codigo: string;
   fileira?: string;
   numero: number;
+  categoria: SeatCategory;
   status: SeatStatus;
   reservadoPor?: string;
   reservadoAte?: any;

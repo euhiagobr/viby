@@ -47,18 +47,19 @@ import {
   Layout,
   Grid3X3,
   Circle,
-  Square
+  Square,
+  Accessibility,
+  UserCheck
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
-import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { formatCurrency, calculateFinancialBreakdown } from "@/lib/financial-utils"
+import { formatCurrency } from "@/lib/financial-utils"
 import { useCart } from "@/contexts/CartContext"
 import Footer from "@/components/layout/Footer"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
-import { reserveSeat, releaseSeat } from "@/lib/ticketing-service"
+import { reserveSeat } from "@/lib/ticketing-service"
 
 const renderFormattedText = (text: string) => {
   if (!text) return "";
@@ -152,7 +153,6 @@ export default function EventoDetalhesPage() {
   const [selectedSeat, setSelectedSeat] = React.useState<any>(null)
   const [isReserving, setIsReserving] = React.useState(false)
 
-  // Comentários
   const commentsQuery = useMemoFirebase(() => {
     if (!db || !eventId) return null
     return query(collection(db, "events", eventId, "comments"), orderBy("createdAt", "asc"))
@@ -225,7 +225,7 @@ export default function EventoDetalhesPage() {
       batchName: selectedSector.nome,
       price: selectedSector.preco,
       quantity: isNumbered ? 1 : quantity,
-      requiresProof: false,
+      requiresProof: selectedSeat?.categoria && selectedSeat.categoria !== 'comum',
       seatId: selectedSeat?.id,
       seatCode: selectedSeat?.codigo,
       sectorId: selectedSector.id
@@ -341,20 +341,23 @@ export default function EventoDetalhesPage() {
 
               {event.possuiMapa && setores && (
                 <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
-                   <CardHeader className="bg-primary p-10 border-b relative overflow-hidden">
-                      <div className="relative z-10 text-center space-y-2">
-                         <div className="w-full h-14 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center text-white font-black italic uppercase tracking-[0.5em] shadow-2xl border border-white/20">
+                   <CardHeader className="bg-primary p-12 border-b relative overflow-hidden">
+                      <div className="relative z-10 text-center space-y-3">
+                         <div className="w-full h-16 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center text-white font-black italic uppercase tracking-[0.8em] shadow-2xl border border-white/20 text-lg">
                             {event.palcoNome || "PALCO"}
                          </div>
-                         <div className="flex justify-center gap-4 pt-4">
+                         <div className="flex justify-center flex-wrap gap-4 pt-4">
                             <div className="flex items-center gap-1.5 text-white"><div className="w-2.5 h-2.5 bg-white border border-secondary rounded-sm" /> <span className="text-[8px] font-black uppercase">Livre</span></div>
                             <div className="flex items-center gap-1.5 text-white"><div className="w-2.5 h-2.5 bg-secondary rounded-sm" /> <span className="text-[8px] font-black uppercase">Selecionado</span></div>
                             <div className="flex items-center gap-1.5 text-white/50"><div className="w-2.5 h-2.5 bg-white/20 rounded-sm" /> <span className="text-[8px] font-black uppercase">Ocupado</span></div>
+                            <div className="w-px h-3 bg-white/20" />
+                            <div className="flex items-center gap-1.5 text-cyan-400"><Accessibility className="w-3 h-3" /> <span className="text-[8px] font-black uppercase">PCD</span></div>
+                            <div className="flex items-center gap-1.5 text-orange-400"><Accessibility className="w-3 h-3" /> <span className="text-[8px] font-black uppercase">Obeso</span></div>
                          </div>
                       </div>
                       <div className="absolute top-0 right-0 w-64 h-64 bg-secondary/10 rounded-full -mr-32 -mt-32 blur-3xl" />
                    </CardHeader>
-                   <CardContent className="p-8 lg:p-12">
+                   <CardContent className="p-8 lg:p-12 bg-[#fafafa]">
                       <div className="grid grid-cols-12 gap-8 items-start">
                          {setores.map((setor: any) => (
                            <div 
@@ -363,7 +366,7 @@ export default function EventoDetalhesPage() {
                              className="space-y-4"
                            >
                               <div className="flex justify-between items-center px-2">
-                                 <h4 className="font-black uppercase italic text-primary text-xs">{setor.nome}</h4>
+                                 <h4 className="font-black uppercase italic text-primary text-[10px]">{setor.nome}</h4>
                                  <Badge className="bg-secondary/10 text-secondary border-none font-black text-[9px]">{formatCurrency(setor.preco)}</Badge>
                               </div>
                               
@@ -395,7 +398,6 @@ export default function EventoDetalhesPage() {
                 </Card>
               )}
 
-              {/* Discussão */}
               <Card ref={commentsSectionRef} className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
                  <CardHeader className="bg-muted/30 pb-4"><CardTitle className="flex items-center gap-2 text-xl font-bold"><MessageCircle className="w-5 h-5 text-secondary" /> Discussão</CardTitle></CardHeader>
                  <CardContent className="pt-8 space-y-8">
@@ -414,7 +416,7 @@ export default function EventoDetalhesPage() {
                        )}
                     </div>
                     <form onSubmit={handleAddComment} className="flex gap-3 pt-6 border-t border-dashed">
-                       <Input placeholder={user ? "Escreva um comentário... @marca alguém" : "Faça login para comentar"} value={newComment} onChange={e => setNewComment(e.target.value)} disabled={!user || isSubmittingComment} className="rounded-xl h-12 border-dashed border-secondary/30" />
+                       <Input placeholder={user ? "Escreva um comentário..." : "Faça login para comentar"} value={newComment} onChange={e => setNewComment(e.target.value)} disabled={!user || isSubmittingComment} className="rounded-xl h-12 border-dashed border-secondary/30" />
                        <Button type="submit" disabled={!user || !newComment.trim() || isSubmittingComment} className="h-12 w-12 shrink-0 bg-secondary text-white rounded-xl shadow-lg">
                           {isSubmittingComment ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                        </Button>
@@ -431,7 +433,15 @@ export default function EventoDetalhesPage() {
                        <div className="space-y-6 animate-in slide-in-from-right-4">
                           <div className="p-5 bg-muted/30 rounded-2xl space-y-3">
                              <div className="flex justify-between"><span className="text-[10px] font-black uppercase opacity-40">Setor</span><span className="font-bold text-sm uppercase">{selectedSector.nome}</span></div>
-                             {selectedSeat && <div className="flex justify-between"><span className="text-[10px] font-black uppercase opacity-40">Lugar</span><span className="font-black text-secondary uppercase italic">{selectedSeat.codigo}</span></div>}
+                             {selectedSeat && (
+                               <div className="flex justify-between items-center">
+                                 <span className="text-[10px] font-black uppercase opacity-40">Lugar</span>
+                                 <div className="flex flex-col items-end">
+                                    <span className="font-black text-secondary uppercase italic">{selectedSeat.codigo}</span>
+                                    {selectedSeat.categoria !== 'comum' && <Badge variant="outline" className="text-[8px] h-4 uppercase border-secondary text-secondary">{selectedSeat.categoria}</Badge>}
+                                 </div>
+                               </div>
+                             )}
                              <Separator className="border-dashed" />
                              <div className="flex justify-between items-center"><span className="text-[10px] font-black uppercase opacity-40">Valor</span><span className="text-xl font-black text-primary">{formatCurrency(selectedSector.preco)}</span></div>
                           </div>
@@ -451,6 +461,13 @@ export default function EventoDetalhesPage() {
                           >
                              <ShoppingCart className="w-6 h-6" /> {selectedSector.tipo !== 'livre' ? "Garantir Lugar" : "Adicionar ao Carrinho"}
                           </Button>
+
+                          {selectedSeat?.categoria && selectedSeat.categoria !== 'comum' && (
+                            <div className="flex gap-2 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                               <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                               <p className="text-[9px] text-blue-800 font-bold uppercase leading-tight">Este lugar possui reserva especial ({selectedSeat.categoria}). Será exigido documento comprobatório no acesso.</p>
+                            </div>
+                          )}
                        </div>
                     ) : (
                       <div className="p-10 text-center space-y-4 opacity-30">
@@ -481,15 +498,14 @@ function SectorMapViewer({ eventoId, setor, selectedSeat, onSelect, isReserving 
 
   return (
     <div className={cn(
-      "grid gap-1 p-2 bg-white rounded-3xl border shadow-inner",
-      setor.tipo === 'assentos' ? "grid-cols-8 sm:grid-cols-10 lg:grid-cols-12" : "grid-cols-4 sm:grid-cols-6"
+      "grid gap-1.5 p-3 bg-white rounded-2xl border shadow-sm",
+      setor.tipo === 'assentos' ? "grid-cols-8 sm:grid-cols-10 md:grid-cols-12" : "grid-cols-4 sm:grid-cols-6"
     )}>
        {assentos?.map((a: any) => {
          const isSelected = selectedSeat?.id === a.id;
          const isSold = a.status === 'vendido';
          const isReserved = a.status === 'reservado';
          const isBlocked = a.status === 'bloqueado';
-         
          const isAvailable = a.status === 'disponivel';
 
          return (
@@ -500,25 +516,27 @@ function SectorMapViewer({ eventoId, setor, selectedSeat, onSelect, isReserving 
                      disabled={!isAvailable || isReserving}
                      onClick={() => onSelect(a)}
                      className={cn(
-                       "aspect-square rounded-md border transition-all relative flex items-center justify-center group",
+                       "aspect-square rounded-[4px] border transition-all relative flex items-center justify-center group",
                        isAvailable ? "hover:scale-110 active:scale-95" : "cursor-not-allowed",
-                       isSelected ? "bg-secondary border-secondary text-white shadow-lg z-10" : 
+                       isSelected ? "bg-secondary border-secondary text-white shadow-lg z-10 scale-125" : 
                        isSold ? "bg-muted border-transparent opacity-20" :
                        isReserved ? "bg-orange-400 border-orange-400 text-white" :
-                       isBlocked ? "bg-muted border-muted text-muted-foreground" : "bg-white border-muted"
+                       isBlocked ? "bg-muted border-muted text-muted-foreground" : 
+                       a.categoria === 'pcd' ? "bg-cyan-100 border-cyan-400 text-cyan-700" :
+                       a.categoria === 'acompanhante' ? "bg-blue-50 border-blue-300 text-blue-600" :
+                       a.categoria === 'obeso' ? "bg-orange-50 border-orange-300 text-orange-600" :
+                       "bg-white border-muted-foreground/20"
                      )}
-                     style={{ borderColor: (isAvailable && !isSelected) ? setor.cor : undefined }}
                    >
-                      {setor.tipo === 'assentos' ? (
-                        <div className={cn("w-1 h-1 rounded-full", isSelected ? "bg-white" : "opacity-40")} style={{ backgroundColor: isAvailable && !isSelected ? setor.cor : undefined }} />
-                      ) : (
-                        <span className="text-[6px] font-black">{a.codigo}</span>
-                      )}
+                      {a.categoria === 'pcd' && !isSelected ? <Accessibility className="w-2 h-2" /> :
+                       a.categoria === 'acompanhante' && !isSelected ? <UserCheck className="w-2 h-2" /> :
+                       a.categoria === 'obeso' && !isSelected ? <Accessibility className="w-2 h-2" /> :
+                       <span className="text-[6px] font-black">{setor.tipo === 'assentos' ? a.codigo.slice(1) : a.codigo}</span>}
                       {isReserving && isSelected && <Loader2 className="absolute w-2 h-2 animate-spin text-white" />}
                    </button>
                 </TooltipTrigger>
                 <TooltipContent className="rounded-xl font-bold uppercase text-[9px] p-2">
-                   {a.codigo} • {isAvailable ? "Livre" : isSold ? "Ocupado" : isReserved ? "Reservado" : "Bloqueado"}
+                   {a.codigo} • {a.categoria !== 'comum' ? a.categoria : 'Comum'} • {isAvailable ? "Livre" : isSold ? "Ocupado" : isReserved ? "Reservado" : "Bloqueado"}
                 </TooltipContent>
              </Tooltip>
            </TooltipProvider>
