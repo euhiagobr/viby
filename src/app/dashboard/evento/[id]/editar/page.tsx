@@ -37,10 +37,7 @@ import {
   CheckCircle2,
   Camera,
   XCircle,
-  Map as MapIcon,
-  Armchair,
-  Grid3X3,
-  Layout
+  Map as MapIcon
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -123,6 +120,10 @@ export default function EditarEventoPage() {
   const [searchUsername, setSearchUsername] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [orgToDelete, setOrgToDelete] = useState<any | null>(null)
+
+  const [isDistributeOpen, setIsDistributeOpen] = useState(false)
+  const [distributeBatchIdx, setDistributeBatchIdx] = useState<number | null>(null)
+  const [totalToDistribute, setTotalToDistribute] = useState("")
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
 
@@ -222,6 +223,30 @@ export default function EditarEventoPage() {
       } catch (e) { return; }
     }
     setCoOrganizers(coOrganizers.filter(o => o.id !== orgId)); setOrgToDelete(null);
+  }
+
+  const handleDistribute = () => {
+    if (distributeBatchIdx === null || !totalToDistribute) return
+    const total = parseInt(totalToDistribute)
+    if (isNaN(total)) return
+
+    const meiaPoolId = crypto.randomUUID()
+    const meiaQuantity = Math.floor(total * 0.4)
+    const inteiraQuantity = total - meiaQuantity
+
+    const newTypes: TicketType[] = [
+      { id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: inteiraQuantity, requiresProof: false, isLegalHalf: false, description: "" },
+      { id: crypto.randomUUID(), name: "Meia Estudante", price: 50, quantity: meiaQuantity, poolId: meiaPoolId, poolName: "Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
+      { id: crypto.randomUUID(), name: "Meia PCD", price: 50, quantity: meiaQuantity, poolId: meiaPoolId, poolName: "Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
+      { id: crypto.randomUUID(), name: "Meia Idoso", price: 50, quantity: meiaQuantity, poolId: meiaPoolId, poolName: "Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" }
+    ]
+
+    const newBatches = [...batches]
+    newBatches[distributeBatchIdx].ticketTypes = newTypes
+    setBatches(newBatches)
+    setIsDistributeOpen(false)
+    setTotalToDistribute("")
+    toast({ title: "Ingressos distribuídos!", description: "Meia-entrada configurada como estoque compartilhado (40%)." })
   }
 
   const addBatch = () => setBatches([...batches, { id: crypto.randomUUID(), name: `Lote ${batches.length + 1}`, description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 50, requiresProof: false, isLegalHalf: false, description: "" }] }])
@@ -365,7 +390,15 @@ export default function EditarEventoPage() {
                <React.Fragment>
                  {batches.map((batch, bi) => (
                    <div key={batch.id} className="p-6 rounded-[1.5rem] border-2 bg-muted/10 space-y-6">
-                      <div className="flex justify-between items-center"><h3 className="font-black italic uppercase text-secondary text-xl">{batch.name}</h3><Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)}><Trash2 className="w-4 h-4" /></Button></div>
+                      <div className="flex justify-between items-center">
+                        <h3 className="font-black italic uppercase text-secondary text-xl">{batch.name}</h3>
+                        {ticketMode === 'batches' && (
+                          <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setDistributeBatchIdx(bi); setIsDistributeOpen(true); }}>
+                             <Sparkles className="w-3 h-3" /> Distribuir Meia (40%)
+                          </Button>
+                        )}
+                        <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)}><Trash2 className="w-4 h-4" /></Button>
+                      </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Lote</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" /></div>
                          <div className="grid grid-cols-2 gap-4">
@@ -376,7 +409,11 @@ export default function EditarEventoPage() {
                       <div className="space-y-4">
                          {batch.ticketTypes.map((t, ti) => (
                            <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm grid grid-cols-12 gap-4 items-end">
-                              <div className="col-span-4 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40">Tipo</Label><Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" /></div>
+                              <div className="col-span-4 space-y-2">
+                                 <Label className="text-[9px] uppercase font-black opacity-40">Tipo</Label>
+                                 <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" />
+                                 {t.poolId && <Badge variant="secondary" className="text-[7px] h-3 uppercase">{t.poolName}</Badge>}
+                              </div>
                               <div className="col-span-3 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40">Qtd</Label><Input type="number" value={t.quantity} onChange={e => updateTicketTypeField(bi, ti, 'quantity', e.target.value)} className="rounded-xl h-10 font-black" /></div>
                               <div className="col-span-3 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40">R$</Label><Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} className="rounded-xl h-10 font-black text-secondary" disabled={ticketMode === 'free'} /></div>
                               <div className="col-span-2 flex justify-end pb-1"><Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTicketType(bi, ti)} disabled={batch.ticketTypes.length === 1}><Trash2 className="w-4 h-4" /></Button></div>
@@ -397,6 +434,35 @@ export default function EditarEventoPage() {
             Salvar Evento
          </Button>
       </form>
+
+      {/* DIALOG DE DISTRIBUIÇÃO */}
+      <Dialog open={isDistributeOpen} onOpenChange={setIsDistributeOpen}>
+        <DialogContent className="rounded-[2.5rem] max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Distribuir Lote</DialogTitle>
+            <DialogDescription>O sistema criará automaticamente a cota de 40% de meia-entrada compartilhada.</DialogDescription>
+          </DialogHeader>
+          <div className="py-6 space-y-4">
+             <Label className="text-[10px] font-black uppercase opacity-60">Quantidade Total do Lote</Label>
+             <Input 
+               type="number" 
+               placeholder="Ex: 1000"
+               value={totalToDistribute} 
+               onChange={e => setTotalToDistribute(e.target.value)} 
+               className="h-14 text-2xl font-black rounded-xl text-center border-secondary/20" 
+             />
+             <div className="p-4 bg-muted/30 rounded-2xl flex gap-3">
+                <Info className="w-4 h-4 text-secondary shrink-0" />
+                <p className="text-[9px] font-bold text-muted-foreground uppercase leading-tight">
+                  A meia-entrada será configurada em um estoque único para Estudantes, PCD e Idosos, respeitando o limite legal.
+                </p>
+             </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleDistribute} disabled={!totalToDistribute} className="w-full bg-secondary text-white font-black h-12 rounded-xl shadow-lg uppercase italic">Confirmar Distribuição</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
