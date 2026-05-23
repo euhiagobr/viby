@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -23,7 +24,8 @@ import {
   Users,
   CheckCircle2,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Map as MapIcon
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
@@ -216,6 +218,11 @@ export default function OrganizationEventsPage() {
                           <DropdownMenuItem asChild>
                              <Link href={`/dashboard/evento/${event.id}/editar`} className="flex items-center gap-2 py-2 cursor-pointer">
                                 <Edit className="w-4 h-4" /> Editar Evento
+                             </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                             <Link href={`/dashboard/evento/${event.id}/mapa`} className="flex items-center gap-2 py-2 cursor-pointer text-secondary">
+                                <MapIcon className="w-4 h-4" /> Mapa de Ingressos
                              </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>

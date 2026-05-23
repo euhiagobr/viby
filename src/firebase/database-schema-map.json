@@ -1,0 +1,51 @@
+
+{
+  "database": "eventosviby",
+  "collections": {
+    "events": {
+      "fields": {
+        "possuiMapa": "boolean",
+        "modoMapa": "string ('setores' | 'numerado')",
+        "palcoNome": "string",
+        "mapaPublicado": "boolean"
+      },
+      "subcollections": {
+        "setores": {
+          "id": "auto-id",
+          "fields": {
+            "nome": "string",
+            "tipo": "string ('livre' | 'assentos' | 'mesas')",
+            "preco": "number",
+            "capacidade": "number",
+            "descricao": "string",
+            "cor": "string (hex)",
+            "ativo": "boolean",
+            "ordem": "number",
+            "fileiras": "number (opcional)",
+            "assentosPorFileira": "number (opcional)",
+            "quantidadeMesas": "number (opcional)",
+            "lugaresPorMesa": "number (opcional)",
+            "formatoMesa": "string ('circular' | 'quadrada')",
+            "criadoEm": "serverTimestamp"
+          },
+          "subcollections": {
+            "assentos": {
+              "id": "auto-id",
+              "fields": {
+                "codigo": "string (ex: A01, M1)",
+                "fileira": "string",
+                "numero": "number",
+                "status": "string ('disponivel' | 'reservado' | 'vendido' | 'bloqueado')",
+                "reservadoPor": "string (uid)",
+                "reservadoAte": "timestamp",
+                "ingressoId": "string",
+                "setorId": "string",
+                "eventoId": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

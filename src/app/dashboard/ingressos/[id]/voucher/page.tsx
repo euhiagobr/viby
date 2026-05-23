@@ -21,7 +21,9 @@ import {
   AlertCircle,
   CheckCircle2,
   Lock,
-  History
+  History,
+  Armchair,
+  Layers
 } from "lucide-react"
 import Image from "next/image"
 import { QRCodeSVG } from "qrcode.react"
@@ -116,14 +118,14 @@ export default function VoucherPage() {
                 <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase">
                   {registration.batchName || "Lote Único"}
                 </Badge>
+                {registration.seatCode && (
+                   <Badge className="bg-white text-primary border-none text-[10px] font-black uppercase flex items-center gap-1">
+                      <Armchair className="w-3 h-3" /> {registration.seatCode}
+                   </Badge>
+                )}
                 {registration.checkedIn && (
                   <Badge className="bg-green-500 text-white border-none text-[10px] font-black uppercase flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" /> Utilizado
-                  </Badge>
-                )}
-                {!isCurrentActivePossessor && (
-                  <Badge className="bg-orange-500 text-white border-none text-[10px] font-black uppercase flex items-center gap-1">
-                    <History className="w-3 h-3" /> Transferido
                   </Badge>
                 )}
               </div>
@@ -153,15 +155,16 @@ export default function VoucherPage() {
               </div>
               <div className="space-y-4">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Término</p>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Acomodação</p>
                   <div className="flex items-center gap-2 font-bold text-xs text-primary">
-                    <Calendar className="w-3 h-3 text-secondary" />
-                    {formatDate(registration.eventEndDate || registration.eventDate)}
+                    <Layers className="w-3 h-3 text-secondary" />
+                    {registration.batchName || "Geral"}
                   </div>
-                  <div className="flex items-center gap-2 font-bold text-xs text-primary pl-5">
-                    <Clock className="w-3 h-3 text-secondary" />
-                    {formatTime(registration.eventEndDate || registration.eventDate)}
-                  </div>
+                  {registration.seatCode && (
+                    <div className="flex items-center gap-2 font-black text-sm text-secondary pl-5">
+                       Lugar: {registration.seatCode}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -199,7 +202,12 @@ export default function VoucherPage() {
                    <div className="w-48 h-48 relative flex items-center justify-center">
                       {isCurrentActivePossessor && isPaid ? (
                         <QRCodeSVG 
-                          value={registration.ticketCode || "VOID"} 
+                          value={JSON.stringify({
+                             ev: registration.eventId,
+                             reg: registration.id,
+                             seat: registration.seatCode || null,
+                             code: registration.ticketCode
+                          })} 
                           size={192}
                           level="H"
                         />
