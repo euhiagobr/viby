@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, where, orderBy, limit } from "firebase/firestore"
+import { collection, query, where, limit } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { Loader2, Heart, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -29,6 +29,7 @@ export default function TenhoInteressePage() {
   }, [follows])
 
   // 2. Buscar eventos dessas organizações
+  // Simplificado removendo orderBy para evitar necessidade de índices compostos em ambiente de dev
   const eventsQuery = useMemoFirebase(() => {
     if (!db || followedIds.length === 0) return null
     
@@ -39,12 +40,21 @@ export default function TenhoInteressePage() {
       collection(db, "events"), 
       where("organizationId", "in", slicedIds),
       where("status", "==", "Ativo"),
-      orderBy("createdAt", "desc"),
-      limit(50)
+      limit(100) // Buscamos um volume maior para ordenar em memória
     )
   }, [db, followedIds])
 
-  const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
+  const { data: rawEvents, loading: eventsLoading } = useCollection<any>(eventsQuery)
+
+  // Ordenação manual em memória para garantir funcionamento imediato sem índices
+  const events = React.useMemo(() => {
+    if (!rawEvents) return []
+    return [...rawEvents].sort((a, b) => {
+      const dateA = a.createdAt?.seconds || new Date(a.createdAt).getTime() / 1000 || 0
+      const dateB = b.createdAt?.seconds || new Date(b.createdAt).getTime() / 1000 || 0
+      return dateB - dateA
+    })
+  }, [rawEvents])
 
   if (followsLoading) {
     return (
@@ -81,7 +91,7 @@ export default function TenhoInteressePage() {
             <Link href="/dashboard">Explorar Marcas</Link>
           </Button>
         </div>
-      ) : (eventsLoading && !events) ? (
+      ) : (eventsLoading && !rawEvents) ? (
         <div className="flex justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-secondary" />
         </div>
