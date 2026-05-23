@@ -90,8 +90,9 @@ export default function EditarEventoPage() {
   const [isPercentageDialogOpen, setIsPercentageDialogOpen] = useState(false)
 
   // Paid Single Form
-  const [singleConfig, setSingleConfig] = useState({ name: "Ingresso Único", quantity: 100, price: 0, startD: "", startT: "", endD: "", endT: "" })
+  const [singleConfig, setSingleConfig] = useState({ name: "Ingresso Único", quantity: 100, price: 0, halfPrice: 0, startD: "", startT: "", endD: "", endT: "" })
   const [priceInput, setPriceInput] = useState("")
+  const [halfPriceInput, setHalfPriceInput] = useState("")
 
   // Free Form
   const [freeConfig, setFreeConfig] = useState({ name: "Ingresso Gratuito", quantity: 100, startD: "", startT: "", endD: "", endT: "" })
@@ -117,12 +118,15 @@ export default function EditarEventoPage() {
             name: b.name || "Ingresso Único",
             quantity: b.initialCapacity || 100,
             price: b.price || 0,
+            halfPrice: b.ticketTypes?.find((t:any) => t.isLegalHalf)?.price || b.price / 2,
             startD: b.salesStart?.split('T')[0] || "",
             startT: b.salesStart?.split('T')[1] || "",
             endD: b.salesEnd?.split('T')[0] || "",
             endT: b.salesEnd?.split('T')[1] || ""
           })
-          setPriceInput(formatCurrency((b.price * 100).toString()));
+          setPriceInput(formatCurrencyToMask((b.price * 100).toString()));
+          const halfP = b.ticketTypes?.find((t:any) => t.isLegalHalf)?.price;
+          if (halfP) setHalfPriceInput(formatCurrencyToMask((halfP * 100).toString()));
         } else if (event.ticketMode === 'free') {
           setFreeConfig({
             name: b.name || "Ingresso Gratuito",
@@ -137,20 +141,27 @@ export default function EditarEventoPage() {
     }
   }, [event])
 
-  const formatCurrency = (value: string) => {
+  function formatCurrencyToMask(value: string) {
     const numeric = value.replace(/\D/g, "");
     const amount = Number(numeric) / 100;
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
     }).format(amount);
-  };
+  }
 
   const handlePriceInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     const numeric = value.replace(/\D/g, "");
-    setPriceInput(formatCurrency(numeric));
+    setPriceInput(formatCurrencyToMask(numeric));
     setSingleConfig({ ...singleConfig, price: Number(numeric) / 100 });
+  };
+
+  const handleHalfPriceInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const numeric = value.replace(/\D/g, "");
+    setHalfPriceInput(formatCurrencyToMask(numeric));
+    setSingleConfig({ ...singleConfig, halfPrice: Number(numeric) / 100 });
   };
 
   const handleCepBlur = async () => {
@@ -226,7 +237,7 @@ export default function EditarEventoPage() {
             types.push({
               id: `half_${typeId}`,
               name: catLabel,
-              price: singleConfig.price / 2,
+              price: singleConfig.halfPrice || singleConfig.price / 2,
               quantity: halfQty,
               poolId,
               poolName: 'Estoque Único',
@@ -301,9 +312,9 @@ export default function EditarEventoPage() {
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Título</Label><Input name="title" defaultValue={event.title} required className="rounded-xl h-11" /></div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                    <SelectContent className="rounded-xl">{categories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory} required>
+                    <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent className="rounded-xl">{categories?.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
              </div>
@@ -388,7 +399,7 @@ export default function EditarEventoPage() {
               </div>
               <div className="bg-white p-1 rounded-xl border flex flex-wrap gap-1">
                 {['none', 'free', 'paid_single', 'batches'].map((mode: any) => (
-                  <Button key={mode} type="button" variant={ticketMode === mode ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[9px] font-black uppercase px-4" onClick={() => setTicketMode(mode)}>
+                  <Button key={mode} type="button" variant={ticketMode === mode ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode(mode)}>
                     {mode === 'none' ? 'Sem Ingresso' : mode === 'free' ? 'Grátis' : mode === 'paid_single' ? 'Valor Único' : 'Lotes'}
                   </Button>
                 ))}
@@ -434,7 +445,7 @@ export default function EditarEventoPage() {
                     <Input value={singleConfig.name} onChange={e => setSingleConfig({...singleConfig, name: e.target.value})} className="rounded-xl h-11" placeholder="Ex: Ingresso Geral" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Preço</Label>
+                    <Label className="text-[10px] font-black uppercase opacity-60">Preço Inteira</Label>
                     <Input 
                       value={priceInput} 
                       onChange={handlePriceInputChange} 
@@ -472,12 +483,24 @@ export default function EditarEventoPage() {
 
                    {autoHalfPrice && (
                      <div className="p-6 bg-secondary/5 border-2 border-dashed border-secondary/20 rounded-[2rem] space-y-6 animate-in slide-in-from-top-4 duration-500">
-                        <div className="flex items-center justify-between">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                            <div className="space-y-1">
                               <h4 className="text-sm font-black uppercase italic text-primary">Cota de Meia: {halfPricePercentage}%</h4>
                               <p className="text-[10px] font-bold text-muted-foreground uppercase">{Math.floor(singleConfig.quantity * (halfPricePercentage / 100))} ingressos reservados.</p>
                            </div>
-                           <Button type="button" variant="outline" size="sm" onClick={() => setIsPercentageDialogOpen(true)} className="rounded-xl h-8 text-[9px] font-black uppercase border-secondary text-secondary">Alterar %</Button>
+                           <div className="space-y-2">
+                              <Label className="text-[10px] font-black uppercase opacity-60">Preço Meia-Entrada</Label>
+                              <Input 
+                                value={halfPriceInput} 
+                                onChange={handleHalfPriceInputChange} 
+                                placeholder="R$ 0,00"
+                                className="rounded-xl h-11 font-black text-secondary bg-white" 
+                              />
+                           </div>
+                        </div>
+                        
+                        <div className="flex justify-end">
+                           <Button type="button" variant="outline" size="sm" onClick={() => setIsPercentageDialogOpen(true)} className="rounded-xl h-8 text-[9px] font-black uppercase border-secondary text-secondary">Alterar % da Cota</Button>
                         </div>
                         
                         <div className="space-y-3">

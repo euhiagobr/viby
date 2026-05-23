@@ -36,7 +36,6 @@ import {
   CheckCircle2,
   InfoIcon,
   TicketPercent,
-  ChevronRight,
   Settings2,
   MapPin
 } from "lucide-react"
@@ -52,34 +51,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
-
-interface TicketType {
-  id: string
-  name: string
-  price: number
-  quantity: number
-  requiresProof: boolean
-  isLegalHalf: boolean
-  description: string
-  poolId?: string
-  poolName?: string
-}
-
-interface Batch {
-  id: string
-  name: string
-  description: string
-  startDate: string
-  startTime: string
-  endDate: string
-  endTime: string
-  capacidadeInicial: number
-  capacidadeAtual: number
-  vendidos: number
-  restantes: number
-  migradosDoLoteAnterior: number
-  ticketTypes: TicketType[]
-}
 
 const HALF_PRICE_CATEGORIES = [
   { id: "estudante", label: "Estudante" },
@@ -122,27 +93,9 @@ export default function NovoEventoPage() {
   const [freeConfig, setFreeConfig] = useState({ name: "Ingresso Gratuito", quantity: 100, startD: "", startT: "", endD: "", endT: "" })
   
   // Valor Único
-  const [singleConfig, setSingleConfig] = useState({ name: "Ingresso Único", quantity: 100, price: 0, startD: "", startT: "", endD: "", endT: "" })
+  const [singleConfig, setSingleConfig] = useState({ name: "Ingresso Único", quantity: 100, price: 0, halfPrice: 0, startD: "", startT: "", endD: "", endT: "" })
   const [priceInput, setPriceInput] = useState("")
-
-  // Lotes
-  const [batches, setBatches] = useState<Batch[]>([
-    { 
-      id: crypto.randomUUID(), 
-      name: "Lote 1", 
-      description: "", 
-      startDate: "", 
-      startTime: "", 
-      endDate: "", 
-      endTime: "", 
-      capacidadeInicial: 100, 
-      capacidadeAtual: 100,
-      vendidos: 0,
-      restantes: 100,
-      migradosDoLoteAnterior: 0,
-      ticketTypes: [] 
-    }
-  ])
+  const [halfPriceInput, setHalfPriceInput] = useState("")
 
   const formatCurrency = (value: string) => {
     const numeric = value.replace(/\D/g, "");
@@ -158,6 +111,13 @@ export default function NovoEventoPage() {
     const numeric = value.replace(/\D/g, "");
     setPriceInput(formatCurrency(numeric));
     setSingleConfig({ ...singleConfig, price: Number(numeric) / 100 });
+  };
+
+  const handleHalfPriceInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const numeric = value.replace(/\D/g, "");
+    setHalfPriceInput(formatCurrency(numeric));
+    setSingleConfig({ ...singleConfig, halfPrice: Number(numeric) / 100 });
   };
 
   const handleCepBlur = async () => {
@@ -235,7 +195,7 @@ export default function NovoEventoPage() {
             types.push({
               id: `half_${typeId}`,
               name: catLabel,
-              price: singleConfig.price / 2,
+              price: singleConfig.halfPrice || singleConfig.price / 2,
               quantity: halfQty,
               poolId,
               poolName: 'Estoque Único',
@@ -413,7 +373,7 @@ export default function NovoEventoPage() {
               </div>
               <div className="bg-white p-1 rounded-xl border flex flex-wrap gap-1">
                 {['none', 'free', 'paid_single', 'batches'].map((mode: any) => (
-                  <Button key={mode} type="button" variant={ticketMode === mode ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[9px] font-black uppercase px-4" onClick={() => setTicketMode(mode)}>
+                  <Button key={mode} type="button" variant={ticketMode === mode ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode(mode)}>
                     {mode === 'none' ? 'Sem Ingresso' : mode === 'free' ? 'Grátis' : mode === 'paid_single' ? 'Valor Único' : 'Lotes'}
                   </Button>
                 ))}
@@ -459,7 +419,7 @@ export default function NovoEventoPage() {
                     <Input value={singleConfig.name} onChange={e => setSingleConfig({...singleConfig, name: e.target.value})} className="rounded-xl h-11" placeholder="Ex: Ingresso Geral" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Preço</Label>
+                    <Label className="text-[10px] font-black uppercase opacity-60">Preço Inteira</Label>
                     <Input 
                       value={priceInput} 
                       onChange={handlePriceInputChange} 
@@ -497,12 +457,24 @@ export default function NovoEventoPage() {
 
                    {autoHalfPrice && (
                      <div className="p-6 bg-secondary/5 border-2 border-dashed border-secondary/20 rounded-[2rem] space-y-6 animate-in slide-in-from-top-4 duration-500">
-                        <div className="flex items-center justify-between">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                            <div className="space-y-1">
                               <h4 className="text-sm font-black uppercase italic text-primary">Cota de Meia: {halfPricePercentage}%</h4>
                               <p className="text-[10px] font-bold text-muted-foreground uppercase">{Math.floor(singleConfig.quantity * (halfPricePercentage / 100))} ingressos reservados.</p>
                            </div>
-                           <Button type="button" variant="outline" size="sm" onClick={() => setIsPercentageDialogOpen(true)} className="rounded-xl h-8 text-[9px] font-black uppercase border-secondary text-secondary">Alterar %</Button>
+                           <div className="space-y-2">
+                              <Label className="text-[10px] font-black uppercase opacity-60">Preço Meia-Entrada</Label>
+                              <Input 
+                                value={halfPriceInput} 
+                                onChange={handleHalfPriceInputChange} 
+                                placeholder="R$ 0,00"
+                                className="rounded-xl h-11 font-black text-secondary bg-white" 
+                              />
+                           </div>
+                        </div>
+
+                        <div className="flex justify-end">
+                           <Button type="button" variant="outline" size="sm" onClick={() => setIsPercentageDialogOpen(true)} className="rounded-xl h-8 text-[9px] font-black uppercase border-secondary text-secondary">Alterar % da Cota</Button>
                         </div>
                         
                         <div className="space-y-3">
@@ -587,7 +559,7 @@ export default function NovoEventoPage() {
               </div>
            </div>
            <DialogFooter>
-              <Button onClick={() => { setAutoHalfPrice(true); setIsPercentageDialogOpen(false); }} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Confirmar Cota</Button>
+              <Button onClick={() => { setAutoHalfPrice(true); setIsPercentageDialogOpen(false); }} className="w-full bg-secondary text-white font-black h-12 rounded-xl shadow-lg uppercase italic">Confirmar Cota</Button>
            </DialogFooter>
         </DialogContent>
       </Dialog>
