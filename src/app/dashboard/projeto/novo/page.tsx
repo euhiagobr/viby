@@ -16,7 +16,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGr
 import { Switch } from "@/components/ui/switch"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { toast } from "@/hooks/use-toast"
 import { 
   Loader2, 
@@ -37,7 +36,11 @@ import {
   InfoIcon,
   TicketPercent,
   Settings2,
-  MapPin
+  MapPin,
+  Trash2,
+  ArrowDown,
+  Coins,
+  Users2
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -50,15 +53,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Checkbox } from "@/components/ui/checkbox"
 
-const HALF_PRICE_CATEGORIES = [
-  { id: "estudante", label: "Estudante" },
-  { id: "meia", label: "Meia-Entrada Geral" },
-  { id: "obeso", label: "Obeso" },
-  { id: "pcd", label: "PCD" },
-  { id: "idoso", label: "Idoso" }
-]
+interface TicketType {
+  id: string
+  name: string
+  price: number
+  quantity: number
+  requiresProof: boolean
+  isLegalHalf: boolean
+  description: string
+  poolId?: string
+  poolName?: string
+}
+
+interface Batch {
+  id: string
+  name: string
+  startDate: string
+  endDate: string
+  capacidadeInicial: number
+  capacidadeAtual: number
+  ticketTypes: TicketType[]
+}
 
 export default function NovoEventoPage() {
   const router = useRouter()
@@ -79,23 +95,28 @@ export default function NovoEventoPage() {
   
   const [selectedCategory, setSelectedCategory] = useState("")
   const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches'>('free')
-  const [hasMap, setHasMap] = useState(false)
   
-  const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
+  const [globalCapacity, setGlobalCapacity] = useState<number>(500)
+  const [batches, setBatches] = useState<Batch[]>([
+    { 
+      id: crypto.randomUUID(),
+      name: "1º Lote", 
+      startDate: "", 
+      endDate: "", 
+      capacidadeInicial: 100,
+      capacidadeAtual: 100,
+      ticketTypes: [
+        { id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }
+      ] 
+    }
+  ])
 
-  // Independent Half Price Logic
-  const [autoHalfPrice, setAutoHalfPrice] = useState(false)
-  const [halfPricePercentage, setHalfPricePercentage] = useState(40)
-  const [selectedHalfTypes, setSelectedHalfTypes] = useState<string[]>([])
-  const [isPercentageDialogOpen, setIsPercentageDialogOpen] = useState(false)
-
-  // Gratuito
-  const [freeConfig, setFreeConfig] = useState({ name: "Ingresso Gratuito", quantity: 100, startD: "", startT: "", endD: "", endT: "" })
-  
   // Valor Único
-  const [singleConfig, setSingleConfig] = useState({ name: "Ingresso Único", quantity: 100, price: 0, halfPrice: 0, startD: "", startT: "", endD: "", endT: "" })
+  const [singleConfig, setSingleConfig] = useState({ name: "Ingresso Único", quantity: 100, price: 0, halfPrice: 0 })
   const [priceInput, setPriceInput] = useState("")
   const [halfPriceInput, setHalfPriceInput] = useState("")
+
+  const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
 
   const formatCurrency = (value: string) => {
     const numeric = value.replace(/\D/g, "");
@@ -104,21 +125,35 @@ export default function NovoEventoPage() {
       style: "currency",
       currency: "BRL",
     }).format(amount);
-  };
+  }
 
   const handlePriceInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     const numeric = value.replace(/\D/g, "");
     setPriceInput(formatCurrency(numeric));
     setSingleConfig({ ...singleConfig, price: Number(numeric) / 100 });
-  };
+  }
 
-  const handleHalfPriceInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const handleBatchTicketPriceChange = (bi: number, ti: number, value: string) => {
     const numeric = value.replace(/\D/g, "");
-    setHalfPriceInput(formatCurrency(numeric));
-    setSingleConfig({ ...singleConfig, halfPrice: Number(numeric) / 100 });
-  };
+    const price = Number(numeric) / 100;
+    const n = [...batches];
+    n[bi].ticketTypes[ti].price = price;
+    setBatches(n);
+  }
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !storage || !user) return
+    setImagePreview(URL.createObjectURL(file))
+    setUploadProgress(0)
+    const storageRef = ref(storage, `events/${user.uid}/${Date.now()}_${file.name}`)
+    const uploadTask = uploadBytesResumable(storageRef, file)
+    uploadTask.on('state_changed', (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), () => setUploadProgress(null), async () => {
+      const url = await getDownloadURL(uploadTask.snapshot.ref)
+      setUploadedImageUrl(url); setUploadProgress(null)
+    })
+  }
 
   const handleCepBlur = async () => {
     const cleanCep = address.cep.replace(/\D/g, "")
@@ -138,26 +173,35 @@ export default function NovoEventoPage() {
     } catch (e) {}
   }
 
-  const handleToggleHalfPrice = (checked: boolean) => {
-    if (checked) {
-      setIsPercentageDialogOpen(true);
-    } else {
-      setAutoHalfPrice(false);
-      setSelectedHalfTypes([]);
+  const addBatch = () => {
+    const newB: Batch = {
+      id: crypto.randomUUID(),
+      name: `${batches.length + 1}º Lote`,
+      startDate: "",
+      endDate: "",
+      capacidadeInicial: 100,
+      capacidadeAtual: 100,
+      ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }]
     }
-  };
+    setBatches([...batches, newB])
+  }
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !storage || !user) return
-    setImagePreview(URL.createObjectURL(file))
-    setUploadProgress(0)
-    const storageRef = ref(storage, `events/${user.uid}/${Date.now()}_${file.name}`)
-    const uploadTask = uploadBytesResumable(storageRef, file)
-    uploadTask.on('state_changed', (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), () => setUploadProgress(null), async () => {
-      const url = await getDownloadURL(uploadTask.snapshot.ref)
-      setUploadedImageUrl(url); setUploadProgress(null)
-    })
+  const generateHalfPriceTypes = (bi: number) => {
+    const n = [...batches];
+    const batch = n[bi];
+    const poolId = crypto.randomUUID();
+    const halfQty = Math.floor(batch.capacidadeInicial * 0.4);
+    
+    const types: TicketType[] = [
+      { id: crypto.randomUUID(), name: "Inteira", price: batch.ticketTypes[0].price, quantity: batch.capacidadeInicial, poolId, poolName: "Estoque Lote", requiresProof: false, isLegalHalf: false, description: "" },
+      { id: crypto.randomUUID(), name: "Meia Estudante", price: batch.ticketTypes[0].price / 2, quantity: halfQty, poolId, poolName: "Estoque Lote", requiresProof: true, isLegalHalf: true, description: "" },
+      { id: crypto.randomUUID(), name: "Meia PCD", price: batch.ticketTypes[0].price / 2, quantity: halfQty, poolId, poolName: "Estoque Lote", requiresProof: true, isLegalHalf: true, description: "" },
+      { id: crypto.randomUUID(), name: "Meia Idoso", price: batch.ticketTypes[0].price / 2, quantity: halfQty, poolId, poolName: "Estoque Lote", requiresProof: true, isLegalHalf: true, description: "" }
+    ];
+    
+    n[bi].ticketTypes = types;
+    setBatches(n);
+    toast({ title: "Categorias de meia geradas!" });
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -169,53 +213,33 @@ export default function NovoEventoPage() {
       const cat = categories?.find(c => c.id === selectedCategory)
       
       let finalBatches: any[] = []
-      let totalCapacity = 0
+      let totalCapacity = globalCapacity
 
       if (ticketMode === 'free') {
-        totalCapacity = freeConfig.quantity
         finalBatches = [{
           id: 'free',
-          name: freeConfig.name,
+          name: 'Ingresso Gratuito',
           price: 0,
-          initialCapacity: freeConfig.quantity,
-          currentCapacity: freeConfig.quantity,
-          salesStart: `${freeConfig.startD}T${freeConfig.startT}`,
-          salesEnd: `${freeConfig.endD}T${freeConfig.endT}`,
-          ticketTypes: [{ id: 'free_type', name: 'Gratuito', price: 0, quantity: freeConfig.quantity, requiresProof: false, isLegalHalf: false, description: '' }]
+          initialCapacity: globalCapacity,
+          currentCapacity: globalCapacity,
+          ticketTypes: [{ id: 'free_type', name: 'Gratuito', price: 0, quantity: globalCapacity, requiresProof: false, isLegalHalf: false, description: '' }]
         }]
       } else if (ticketMode === 'paid_single') {
-        totalCapacity = singleConfig.quantity
-        const poolId = crypto.randomUUID()
-        const types: any[] = [{ id: 'single_type', name: singleConfig.name, price: singleConfig.price, quantity: singleConfig.quantity, poolId, poolName: 'Estoque Único', requiresProof: false, isLegalHalf: false, description: '' }]
-        
-        if (autoHalfPrice) {
-          const halfQty = Math.floor(singleConfig.quantity * (halfPricePercentage / 100))
-          selectedHalfTypes.forEach(typeId => {
-            const catLabel = HALF_PRICE_CATEGORIES.find(c => c.id === typeId)?.label || "Meia"
-            types.push({
-              id: `half_${typeId}`,
-              name: catLabel,
-              price: singleConfig.halfPrice || singleConfig.price / 2,
-              quantity: halfQty,
-              poolId,
-              poolName: 'Estoque Único',
-              requiresProof: true,
-              isLegalHalf: true,
-              description: `Válido para ${catLabel}`
-            })
-          })
-        }
-
         finalBatches = [{
           id: 'single',
-          name: 'Venda Geral',
+          name: 'Valor Único',
           price: singleConfig.price,
           initialCapacity: singleConfig.quantity,
           currentCapacity: singleConfig.quantity,
-          salesStart: `${singleConfig.startD}T${singleConfig.startT}`,
-          salesEnd: `${singleConfig.endD}T${singleConfig.endT}`,
-          ticketTypes: types
+          ticketTypes: [{ id: 'single_type', name: 'Inteira', price: singleConfig.price, quantity: singleConfig.quantity, requiresProof: false, isLegalHalf: false, description: '' }]
         }]
+      } else if (ticketMode === 'batches') {
+        finalBatches = batches.map(b => ({
+          ...b,
+          capacidadeAtual: b.capacidadeInicial,
+          restantes: b.capacidadeInicial,
+          vendidos: 0
+        }))
       }
 
       const eventData = {
@@ -226,10 +250,6 @@ export default function NovoEventoPage() {
         categoryId: selectedCategory,
         categoryName: cat?.name || "Outros",
         ticketMode,
-        hasMap,
-        autoHalfPrice,
-        halfPricePercentage,
-        selectedHalfTypes,
         capacidadeTotal: totalCapacity,
         batches: finalBatches,
         address,
@@ -278,88 +298,45 @@ export default function NovoEventoPage() {
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2.5rem]">
-          <CardHeader><CardTitle className="text-lg">Essenciais</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg">Informações</CardTitle></CardHeader>
           <CardContent className="p-8 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Título</Label><Input name="title" required className="rounded-xl h-12" /></div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Título</Label><Input name="title" required className="rounded-xl h-11" /></div>
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
                 <Select value={selectedCategory} onValueChange={setSelectedCategory} required>
-                  <SelectTrigger className="rounded-xl h-12"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent className="rounded-xl">{categories?.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                  <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {categories?.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Data Início</Label><Input name="startDate" type="datetime-local" required className="rounded-xl h-12" /></div>
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Data Fim</Label><Input name="endDate" type="datetime-local" required className="rounded-xl h-12" /></div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input name="startDate" type="datetime-local" required className="rounded-xl h-11" /></div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fim</Label><Input name="endDate" type="datetime-local" required className="rounded-xl h-11" /></div>
             </div>
-            <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Descrição</Label><Textarea name="description" className="min-h-[150px] rounded-2xl resize-none" required /></div>
+            <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Descrição</Label><Textarea name="description" className="min-h-[120px] rounded-xl" required /></div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2rem]">
-          <CardHeader>
-             <CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle>
-             <CardDescription>Onde o evento será realizado? Informe o CEP para facilitar.</CardDescription>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle></CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
-                  <Input 
-                    value={address.cep}
-                    onChange={e => setAddress({...address, cep: e.target.value})}
-                    onBlur={handleCepBlur}
-                    placeholder="00000-000" 
-                    required
-                    className="rounded-xl h-11"
-                  />
+                  <Input value={address.cep} onChange={e => setAddress({...address, cep: e.target.value})} onBlur={handleCepBlur} placeholder="00000-000" required className="rounded-xl h-11" />
                 </div>
-                <div className="md:col-span-3 space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Logradouro / Rua</Label>
-                  <Input 
-                    value={address.street}
-                    onChange={e => setAddress({...address, street: e.target.value})}
-                    required
-                    className="rounded-xl h-11"
-                  />
-                </div>
+                <div className="md:col-span-3 space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Rua</Label><Input value={address.street} onChange={e => setAddress({...address, street: e.target.value})} required className="rounded-xl h-11" /></div>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Número</Label>
-                  <Input 
-                    value={address.number}
-                    onChange={e => setAddress({...address, number: e.target.value})}
-                    required
-                    className="rounded-xl h-11"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label>
-                  <Input 
-                    value={address.complement}
-                    onChange={e => setAddress({...address, complement: e.target.value})}
-                    className="rounded-xl h-11"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label>
-                  <Input 
-                    value={address.neighborhood}
-                    onChange={e => setAddress({...address, neighborhood: e.target.value})}
-                    required
-                    className="rounded-xl h-11"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label>
-                  <div className="flex gap-2">
-                    <Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" />
-                    <Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30 w-16" />
-                  </div>
-                </div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Número</Label><Input value={address.number} onChange={e => setAddress({...address, number: e.target.value})} required className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} required className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">UF</Label><Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
              </div>
           </CardContent>
         </Card>
@@ -367,10 +344,7 @@ export default function NovoEventoPage() {
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle>
-                <CardDescription>Configure como será o acesso ao evento.</CardDescription>
-              </div>
+              <div className="space-y-1"><CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle></div>
               <div className="bg-white p-1 rounded-xl border flex flex-wrap gap-1">
                 {['none', 'free', 'paid_single', 'batches'].map((mode: any) => (
                   <Button key={mode} type="button" variant={ticketMode === mode ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode(mode)}>
@@ -380,189 +354,91 @@ export default function NovoEventoPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-8">
+          <CardContent className="p-8 space-y-8">
             {ticketMode === 'none' && (
-              <div className="py-12 text-center space-y-4 animate-in fade-in duration-500">
-                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
-                   <InfoIcon className="w-8 h-8 text-muted-foreground opacity-30" />
-                </div>
-                <div className="space-y-1">
-                  <h3 className="text-lg font-black uppercase italic tracking-tighter">Evento Informativo</h3>
-                  <p className="text-sm text-muted-foreground max-w-sm mx-auto">Esse evento não terá controle de entrada. Ele servirá apenas para divulgação das informações e localização.</p>
-                </div>
+              <div className="py-12 text-center space-y-4">
+                <InfoIcon className="w-12 h-12 text-muted-foreground mx-auto opacity-20" />
+                <h3 className="text-lg font-black uppercase italic">Evento Informativo</h3>
+                <p className="text-sm text-muted-foreground">Esse evento não terá controle de entrada.</p>
               </div>
             )}
 
-            {ticketMode === 'free' && (
-              <div className="space-y-8 animate-in fade-in duration-500">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Ingresso</Label><Input value={freeConfig.name} onChange={e => setFreeConfig({...freeConfig, name: e.target.value})} className="rounded-xl h-11" /></div>
-                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Quantidade Total</Label><Input type="number" value={freeConfig.quantity} onChange={e => setFreeConfig({...freeConfig, quantity: Number(e.target.value)})} className="rounded-xl h-11 font-black" /></div>
-                </div>
-                <div className="space-y-4">
-                   <Label className="text-[10px] font-black uppercase tracking-widest text-secondary">Janela de Distribuição</Label>
-                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-muted/20 rounded-[1.5rem] border-2 border-dashed">
-                      <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-40">Abre em</Label><Input type="date" value={freeConfig.startD} onChange={e => setFreeConfig({...freeConfig, startD: e.target.value})} required className="h-10" /></div>
-                      <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-40">Hora</Label><Input type="time" value={freeConfig.startT} onChange={e => setFreeConfig({...freeConfig, startT: e.target.value})} required className="h-10" /></div>
-                      <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-40">Fecha em</Label><Input type="date" value={freeConfig.endD} onChange={e => setFreeConfig({...freeConfig, endD: e.target.value})} required className="h-10" /></div>
-                      <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-40">Hora</Label><Input type="time" value={freeConfig.endT} onChange={e => setFreeConfig({...freeConfig, endT: e.target.value})} required className="h-10" /></div>
-                   </div>
-                </div>
-              </div>
+            {(ticketMode === 'free' || ticketMode === 'paid_single' || ticketMode === 'batches') && (
+               <div className="space-y-4 pb-6 border-b border-dashed">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-secondary">Capacidade Total do Local</Label>
+                  <div className="flex items-center gap-4">
+                     <Users2 className="w-8 h-8 text-muted-foreground opacity-20" />
+                     <Input 
+                        type="number" 
+                        value={globalCapacity} 
+                        onChange={e => setGlobalCapacity(Number(e.target.value))}
+                        className="h-14 text-2xl font-black rounded-2xl w-32 text-center border-secondary/20"
+                     />
+                     <p className="text-xs text-muted-foreground font-medium">O total de ingressos em todos os lotes não ultrapassará este limite.</p>
+                  </div>
+               </div>
             )}
 
-            {ticketMode === 'paid_single' && (
+            {ticketMode === 'batches' && (
               <div className="space-y-10 animate-in fade-in duration-500">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Nome Comercial</Label>
-                    <Input value={singleConfig.name} onChange={e => setSingleConfig({...singleConfig, name: e.target.value})} className="rounded-xl h-11" placeholder="Ex: Ingresso Geral" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Preço Inteira</Label>
-                    <Input 
-                      value={priceInput} 
-                      onChange={handlePriceInputChange} 
-                      placeholder="R$ 0,00"
-                      className="rounded-xl h-11 font-black text-secondary" 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Capacidade</Label>
-                    <Input type="number" value={singleConfig.quantity} onChange={e => setSingleConfig({...singleConfig, quantity: Number(e.target.value)})} className="rounded-xl h-11 font-black" />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                   <Label className="text-[10px] font-black uppercase tracking-widest text-secondary">Janela de Vendas</Label>
-                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-muted/20 rounded-[1.5rem] border-2 border-dashed">
-                      <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-40">Abre em</Label><Input type="date" value={singleConfig.startD} onChange={e => setSingleConfig({...singleConfig, startD: e.target.value})} required className="h-10" /></div>
-                      <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-40">Hora</Label><Input type="time" value={singleConfig.startT} onChange={e => setSingleConfig({...singleConfig, startT: e.target.value})} required className="h-10" /></div>
-                      <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-40">Fecha em</Label><Input type="date" value={singleConfig.endD} onChange={e => setSingleConfig({...singleConfig, endD: e.target.value})} required className="h-10" /></div>
-                      <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-40">Hora</Label><Input type="time" value={singleConfig.endT} onChange={e => setSingleConfig({...singleConfig, endT: e.target.value})} required className="h-10" /></div>
-                   </div>
-                </div>
-
-                <div className="space-y-4 pt-6 border-t border-dashed">
-                   <div className="flex items-center justify-between p-5 bg-primary text-white rounded-3xl shadow-xl">
-                      <div className="flex items-center gap-4">
-                         <div className="p-3 bg-white/10 rounded-2xl"><TicketPercent className="w-6 h-6 text-secondary" /></div>
-                         <div className="space-y-0.5">
-                            <p className="font-black uppercase text-xs italic tracking-tighter">Meia-Entrada Automática</p>
-                            <p className="text-[9px] opacity-60 uppercase font-bold">Gerencie as cotas de meia-entrada de forma automatizada.</p>
-                         </div>
-                      </div>
-                      <Switch checked={autoHalfPrice} onCheckedChange={handleToggleHalfPrice} />
-                   </div>
-
-                   {autoHalfPrice && (
-                     <div className="p-6 bg-secondary/5 border-2 border-dashed border-secondary/20 rounded-[2rem] space-y-6 animate-in slide-in-from-top-4 duration-500">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                           <div className="space-y-1">
-                              <h4 className="text-sm font-black uppercase italic text-primary">Cota de Meia: {halfPricePercentage}%</h4>
-                              <p className="text-[10px] font-bold text-muted-foreground uppercase">{Math.floor(singleConfig.quantity * (halfPricePercentage / 100))} ingressos reservados.</p>
-                           </div>
-                           <div className="space-y-2">
-                              <Label className="text-[10px] font-black uppercase opacity-60">Preço Meia-Entrada</Label>
-                              <Input 
-                                value={halfPriceInput} 
-                                onChange={handleHalfPriceInputChange} 
-                                placeholder="R$ 0,00"
-                                className="rounded-xl h-11 font-black text-secondary bg-white" 
-                              />
-                           </div>
+                {batches.map((batch, bi) => (
+                  <div key={batch.id} className="p-6 rounded-[2rem] border-2 bg-muted/10 space-y-6 relative">
+                     <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                           <h3 className="font-black italic uppercase text-secondary text-xl">{batch.name}</h3>
+                           <Badge variant="outline" className="text-[10px] font-bold uppercase">{batch.capacidadeInicial} Lugares</Badge>
                         </div>
-
-                        <div className="flex justify-end">
-                           <Button type="button" variant="outline" size="sm" onClick={() => setIsPercentageDialogOpen(true)} className="rounded-xl h-8 text-[9px] font-black uppercase border-secondary text-secondary">Alterar % da Cota</Button>
-                        </div>
-                        
-                        <div className="space-y-3">
-                           <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Categorias Habilitadas</Label>
-                           <div className="flex flex-wrap gap-2">
-                              {HALF_PRICE_CATEGORIES.map((cat) => (
-                                <div key={cat.id} className="flex items-center space-x-2 bg-white px-4 py-2 rounded-xl border border-border shadow-sm">
-                                  <Checkbox 
-                                    id={`cat-${cat.id}`} 
-                                    checked={selectedHalfTypes.includes(cat.id)}
-                                    onCheckedChange={(checked) => {
-                                      if (checked) setSelectedHalfTypes([...selectedHalfTypes, cat.id]);
-                                      else setSelectedHalfTypes(selectedHalfTypes.filter(id => id !== cat.id));
-                                    }}
-                                  />
-                                  <label htmlFor={`cat-${cat.id}`} className="text-[11px] font-bold uppercase cursor-pointer">{cat.label}</label>
-                                </div>
-                              ))}
-                           </div>
+                        <div className="flex gap-2">
+                           <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => generateHalfPriceTypes(bi)}>
+                              <Sparkles className="w-3 h-3" /> Gerar Categorias de Meia
+                           </Button>
+                           <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)} disabled={batches.length === 1}><X className="w-4 h-4" /></Button>
                         </div>
                      </div>
-                   )}
 
-                   <div className="flex items-center justify-between p-5 bg-muted/50 rounded-3xl">
-                      <div className="flex items-center gap-4">
-                         <div className="p-3 bg-background rounded-2xl"><MapIcon className="w-6 h-6 text-secondary" /></div>
-                         <div className="space-y-0.5">
-                            <p className="font-black uppercase text-xs italic tracking-tighter">Habilitar Lugar Marcado</p>
-                            <p className="text-[9px] opacity-60 uppercase font-bold">Permita que o público escolha cadeiras ou mesas no mapa visual.</p>
-                         </div>
-                      </div>
-                      <Switch checked={hasMap} onCheckedChange={setHasMap} />
-                   </div>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-60">Vigência Início</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="h-10 text-xs rounded-xl" /></div>
+                        <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-60">Vigência Fim</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="h-10 text-xs rounded-xl" /></div>
+                     </div>
 
-                   {hasMap && (
-                     <div className="flex justify-center pt-2">
-                        <Button type="button" className="bg-secondary text-white font-black h-12 rounded-xl px-10 shadow-lg uppercase italic text-xs gap-2 hover:scale-105 transition-all">
-                           <Settings2 className="w-4 h-4" /> Configurar Mapa de Locais
+                     <div className="space-y-4">
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Categorias e Valores</Label>
+                        {batch.ticketTypes.map((t, ti) => (
+                           <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm grid grid-cols-12 gap-4 items-end">
+                              <div className="col-span-6 space-y-2">
+                                 <Label className="text-[9px] uppercase font-black opacity-40">Título do Ingresso</Label>
+                                 <Input value={t.name} onChange={e => { const n = [...batches]; n[bi].ticketTypes[ti].name = e.target.value; setBatches(n); }} className="rounded-xl h-10 font-bold" />
+                              </div>
+                              <div className="col-span-4 space-y-2">
+                                 <Label className="text-[9px] uppercase font-black opacity-40">Preço (R$)</Label>
+                                 <Input 
+                                    value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(t.price)}
+                                    onChange={e => handleBatchTicketPriceChange(bi, ti, e.target.value)}
+                                    className="rounded-xl h-10 font-black text-secondary"
+                                 />
+                              </div>
+                              <div className="col-span-2 flex justify-end pb-1">
+                                 <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => { if(batch.ticketTypes.length > 1) { const n = [...batches]; n[bi].ticketTypes.splice(ti, 1); setBatches(n); } }}><Trash2 className="w-4 h-4" /></Button>
+                              </div>
+                           </div>
+                        ))}
+                        <Button type="button" variant="ghost" size="sm" className="text-secondary font-black uppercase text-[10px] gap-1" onClick={() => { const n = [...batches]; n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Nova Categoria", price: 100, quantity: batch.capacidadeInicial, requiresProof: false, isLegalHalf: false, description: "" }); setBatches(n); }}>
+                           <Plus className="w-3 h-3" /> Adicionar Categoria
                         </Button>
                      </div>
-                   )}
-                </div>
+                     {bi < batches.length - 1 && <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 z-10 bg-secondary text-white p-1 rounded-full shadow-lg"><ArrowDown className="w-4 h-4" /></div>}
+                  </div>
+                ))}
+                <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>
               </div>
-            )}
-            
-            {ticketMode === 'batches' && (
-              <div className="py-20 text-center opacity-30 italic">Lógica de lotes preservada para preenchimento futuro.</div>
             )}
           </CardContent>
         </Card>
 
-        <Button type="submit" disabled={loading} className="w-full h-16 rounded-[2rem] bg-secondary text-white font-black text-xl shadow-xl uppercase italic hover:scale-[1.02] transition-transform">
-          {loading ? <Loader2 className="animate-spin mr-2" /> : <><CheckCircle2 className="mr-2" /> Publicar Evento</>}
+        <Button type="submit" disabled={loading} className="w-full h-16 bg-secondary text-white font-black text-xl rounded-[2rem] shadow-xl uppercase italic">
+          {loading ? <Loader2 className="animate-spin mr-2" /> : "Publicar Evento"}
         </Button>
       </form>
-
-      <Dialog open={isPercentageDialogOpen} onOpenChange={setIsPercentageDialogOpen}>
-        <DialogContent className="max-w-sm rounded-[2.5rem]">
-           <DialogHeader>
-              <div className="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center mx-auto mb-2 text-secondary">
-                 <TicketPercent className="w-8 h-8" />
-              </div>
-              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Configurar Cota</DialogTitle>
-              <DialogDescription className="text-center font-medium">Quantos % da capacidade total do evento serão destinados à meia-entrada?</DialogDescription>
-           </DialogHeader>
-           <div className="py-6 space-y-6">
-              <div className="space-y-2">
-                 <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Porcentagem (%)</Label>
-                 <div className="relative">
-                    <Input 
-                      type="number" 
-                      value={halfPricePercentage} 
-                      onChange={e => setHalfPricePercentage(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-                      className="h-16 text-3xl font-black rounded-2xl text-center pr-12 border-secondary/20" 
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-2xl font-black text-muted-foreground opacity-30">%</span>
-                 </div>
-              </div>
-              <div className="p-4 bg-muted/30 rounded-2xl border border-dashed flex gap-3">
-                 <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
-                 <p className="text-[9px] text-muted-foreground font-bold uppercase leading-tight">Por padrão, a legislação brasileira exige reserva mínima de 40% para categorias beneficiadas.</p>
-              </div>
-           </div>
-           <DialogFooter>
-              <Button onClick={() => { setAutoHalfPrice(true); setIsPercentageDialogOpen(false); }} className="w-full bg-secondary text-white font-black h-12 rounded-xl shadow-lg uppercase italic">Confirmar Cota</Button>
-           </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
