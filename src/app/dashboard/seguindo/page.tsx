@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -23,19 +24,21 @@ export default function TenhoInteressePage() {
 
   const followedIds = React.useMemo(() => {
     if (!follows) return []
+    // Filtramos apenas as IDs seguidas
     return follows.map((f: any) => f.followingId)
   }, [follows])
 
-  // 2. Buscar eventos desses organizadores
+  // 2. Buscar eventos dessas organizações
   const eventsQuery = useMemoFirebase(() => {
     if (!db || followedIds.length === 0) return null
-    // Firestore limit: 'in' query supports up to 30 items
+    
+    // Limite do Firestore para o operador 'in' é de 30 itens
     const slicedIds = followedIds.slice(0, 30)
+    
     return query(
       collection(db, "events"), 
-      where("organizerId", "in", slicedIds),
-      where("status", "!=", "Excluído"),
-      orderBy("status"), // Necessário por causa do filtro de desigualdade
+      where("organizationId", "in", slicedIds),
+      where("status", "==", "Ativo"),
       orderBy("createdAt", "desc"),
       limit(50)
     )
@@ -56,10 +59,10 @@ export default function TenhoInteressePage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
           <Heart className="w-8 h-8 text-secondary fill-secondary" />
-          Tenho Interesse
+          Feed de Seguindo
         </h1>
         <p className="text-muted-foreground font-medium">
-          Feed exclusivo com eventos dos organizadores que você segue.
+          Confira as novidades e publicações das marcas que você acompanha.
         </p>
       </div>
 
@@ -71,23 +74,23 @@ export default function TenhoInteressePage() {
           <div className="text-center space-y-2">
             <p className="text-xl font-bold">Você ainda não segue ninguém.</p>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-              Siga seus produtores favoritos para ver as novidades deles aqui primeiro.
+              Siga seus produtores favoritos para ver as publicações deles aqui primeiro.
             </p>
           </div>
           <Button asChild className="bg-secondary text-white font-black px-10 h-12 rounded-full shadow-lg hover:scale-105 transition-transform">
-            <Link href="/dashboard">Explorar Organizadores</Link>
+            <Link href="/dashboard">Explorar Marcas</Link>
           </Button>
         </div>
-      ) : eventsLoading ? (
+      ) : (eventsLoading && !events) ? (
         <div className="flex justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-secondary" />
         </div>
       ) : !events || events.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[2.5rem] border-2 border-dashed border-border gap-6 shadow-sm">
           <div className="text-center space-y-2">
-            <p className="text-xl font-bold">Nenhum evento novo por enquanto.</p>
+            <p className="text-xl font-bold">Sem publicações recentes.</p>
             <p className="text-sm text-muted-foreground">
-              Os organizadores que você segue ainda não publicaram eventos recentes.
+              As marcas que você segue ainda não publicaram eventos novos.
             </p>
           </div>
         </div>
