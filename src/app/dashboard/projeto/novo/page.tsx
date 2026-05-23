@@ -12,10 +12,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { toast } from "@/hooks/use-toast"
 import { 
   Loader2, 
@@ -36,7 +37,8 @@ import {
   InfoIcon,
   TicketPercent,
   ChevronRight,
-  Settings2
+  Settings2,
+  MapPin
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -48,7 +50,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 
@@ -109,6 +110,8 @@ export default function NovoEventoPage() {
   const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches'>('free')
   const [hasMap, setHasMap] = useState(false)
   
+  const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
+
   // Independent Half Price Logic
   const [autoHalfPrice, setAutoHalfPrice] = useState(false)
   const [halfPricePercentage, setHalfPricePercentage] = useState(40)
@@ -157,6 +160,24 @@ export default function NovoEventoPage() {
     setSingleConfig({ ...singleConfig, price: Number(numeric) / 100 });
   };
 
+  const handleCepBlur = async () => {
+    const cleanCep = address.cep.replace(/\D/g, "")
+    if (cleanCep.length !== 8) return
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
+      const data = await response.json()
+      if (!data.erro) {
+        setAddress(prev => ({
+          ...prev,
+          street: data.logradouro || "",
+          neighborhood: data.bairro || "",
+          city: data.localidade || "",
+          state: data.uf || ""
+        }))
+      }
+    } catch (e) {}
+  }
+
   const handleToggleHalfPrice = (checked: boolean) => {
     if (checked) {
       setIsPercentageDialogOpen(true);
@@ -164,11 +185,6 @@ export default function NovoEventoPage() {
       setAutoHalfPrice(false);
       setSelectedHalfTypes([]);
     }
-  };
-
-  const confirmHalfPriceConfig = () => {
-    setAutoHalfPrice(true);
-    setIsPercentageDialogOpen(false);
   };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -256,10 +272,19 @@ export default function NovoEventoPage() {
         selectedHalfTypes,
         capacidadeTotal: totalCapacity,
         batches: finalBatches,
+        address,
         image: uploadedImageUrl || "",
         organizationId: currentOrg.id,
         organizerId: user.uid,
+        organizer: {
+          id: currentOrg.id,
+          name: currentOrg.name,
+          username: currentOrg.username,
+          avatar: currentOrg.avatar || "",
+          isVerified: currentOrg.verified || false
+        },
         status: "Ativo",
+        city: address.city,
         createdAt: serverTimestamp()
       }
 
@@ -281,11 +306,11 @@ export default function NovoEventoPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
+        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="bg-muted/30"><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5" /> Mídia</CardTitle></CardHeader>
           <CardContent className="p-8">
             <div className="relative aspect-video bg-muted rounded-[2rem] overflow-hidden cursor-pointer group" onClick={() => document.getElementById('img-up')?.click()}>
-              {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" /> : <div className="h-full flex flex-col items-center justify-center opacity-30"><Upload className="w-10 h-10 mb-2" /><p className="text-[10px] font-black uppercase">Capa do Evento</p></div>}
+              {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" /> : <div className="h-full flex flex-col items-center justify-center opacity-30"><Upload className="w-10 h-10 mb-2" /><p className="text-[10px] font-black uppercase">Capa do Evento</p></div>}
               <input id="img-up" type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
             </div>
             {uploadProgress !== null && <Progress value={uploadProgress} className="h-1 mt-4" />}
@@ -313,7 +338,73 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
+        <Card className="border-none shadow-sm rounded-[2rem]">
+          <CardHeader>
+             <CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle>
+             <CardDescription>Onde o evento será realizado? Informe o CEP para facilitar.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
+                  <Input 
+                    value={address.cep}
+                    onChange={e => setAddress({...address, cep: e.target.value})}
+                    onBlur={handleCepBlur}
+                    placeholder="00000-000" 
+                    required
+                    className="rounded-xl h-11"
+                  />
+                </div>
+                <div className="md:col-span-3 space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Logradouro / Rua</Label>
+                  <Input 
+                    value={address.street}
+                    onChange={e => setAddress({...address, street: e.target.value})}
+                    required
+                    className="rounded-xl h-11"
+                  />
+                </div>
+             </div>
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Número</Label>
+                  <Input 
+                    value={address.number}
+                    onChange={e => setAddress({...address, number: e.target.value})}
+                    required
+                    className="rounded-xl h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label>
+                  <Input 
+                    value={address.complement}
+                    onChange={e => setAddress({...address, complement: e.target.value})}
+                    className="rounded-xl h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label>
+                  <Input 
+                    value={address.neighborhood}
+                    onChange={e => setAddress({...address, neighborhood: e.target.value})}
+                    required
+                    className="rounded-xl h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label>
+                  <div className="flex gap-2">
+                    <Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" />
+                    <Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30 w-16" />
+                  </div>
+                </div>
+             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1">
@@ -468,7 +559,6 @@ export default function NovoEventoPage() {
         </Button>
       </form>
 
-      {/* DIALOG PARA % DE MEIA */}
       <Dialog open={isPercentageDialogOpen} onOpenChange={setIsPercentageDialogOpen}>
         <DialogContent className="max-w-sm rounded-[2.5rem]">
            <DialogHeader>
@@ -497,7 +587,7 @@ export default function NovoEventoPage() {
               </div>
            </div>
            <DialogFooter>
-              <Button onClick={confirmHalfPriceConfig} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Confirmar Cota</Button>
+              <Button onClick={() => { setAutoHalfPrice(true); setIsPercentageDialogOpen(false); }} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Confirmar Cota</Button>
            </DialogFooter>
         </DialogContent>
       </Dialog>

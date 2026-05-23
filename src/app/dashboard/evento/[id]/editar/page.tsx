@@ -33,7 +33,8 @@ import {
   CheckCircle2,
   InfoIcon,
   TicketPercent,
-  Settings2
+  Settings2,
+  MapPin
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -80,6 +81,8 @@ export default function EditarEventoPage() {
   const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches'>('none')
   const [hasMap, setHasMap] = useState(false)
 
+  const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
+
   // Independent Half Price Logic
   const [autoHalfPrice, setAutoHalfPrice] = useState(false)
   const [halfPricePercentage, setHalfPricePercentage] = useState(40)
@@ -103,6 +106,10 @@ export default function EditarEventoPage() {
       setSelectedHalfTypes(event.selectedHalfTypes || [])
       setImagePreview(event.image || null)
       
+      if (event.address) {
+        setAddress({ ...address, ...event.address });
+      }
+
       if (event.batches && event.batches.length > 0) {
         const b = event.batches[0];
         if (event.ticketMode === 'paid_single') {
@@ -145,6 +152,24 @@ export default function EditarEventoPage() {
     setPriceInput(formatCurrency(numeric));
     setSingleConfig({ ...singleConfig, price: Number(numeric) / 100 });
   };
+
+  const handleCepBlur = async () => {
+    const cleanCep = address.cep.replace(/\D/g, "")
+    if (cleanCep.length !== 8) return
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
+      const data = await response.json()
+      if (!data.erro) {
+        setAddress(prev => ({
+          ...prev,
+          street: data.logradouro || "",
+          neighborhood: data.bairro || "",
+          city: data.localidade || "",
+          state: data.uf || ""
+        }))
+      }
+    } catch (e) {}
+  }
 
   const handleToggleHalfPrice = (checked: boolean) => {
     if (checked) {
@@ -234,6 +259,7 @@ export default function EditarEventoPage() {
         ticketMode, hasMap, autoHalfPrice, halfPricePercentage, selectedHalfTypes,
         capacidadeTotal: totalCapacity,
         batches: ticketMode === 'none' ? [] : finalBatches,
+        address,
         image: uploadedImageUrl || event.image || "",
         updatedAt: serverTimestamp()
       }
@@ -286,6 +312,71 @@ export default function EditarEventoPage() {
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fim</Label><Input name="endDate" type="datetime-local" defaultValue={event.endDate} required className="rounded-xl h-11" /></div>
              </div>
              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Descrição</Label><Textarea name="description" defaultValue={event.description} className="min-h-[120px] rounded-xl" required /></div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm rounded-[2rem]">
+          <CardHeader>
+             <CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
+                  <Input 
+                    value={address.cep}
+                    onChange={e => setAddress({...address, cep: e.target.value})}
+                    onBlur={handleCepBlur}
+                    placeholder="00000-000" 
+                    required
+                    className="rounded-xl h-11"
+                  />
+                </div>
+                <div className="md:col-span-3 space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Logradouro / Rua</Label>
+                  <Input 
+                    value={address.street}
+                    onChange={e => setAddress({...address, street: e.target.value})}
+                    required
+                    className="rounded-xl h-11"
+                  />
+                </div>
+             </div>
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Número</Label>
+                  <Input 
+                    value={address.number}
+                    onChange={e => setAddress({...address, number: e.target.value})}
+                    required
+                    className="rounded-xl h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label>
+                  <Input 
+                    value={address.complement}
+                    onChange={e => setAddress({...address, complement: e.target.value})}
+                    className="rounded-xl h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label>
+                  <Input 
+                    value={address.neighborhood}
+                    onChange={e => setAddress({...address, neighborhood: e.target.value})}
+                    required
+                    className="rounded-xl h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label>
+                  <div className="flex gap-2">
+                    <Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" />
+                    <Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30 w-16" />
+                  </div>
+                </div>
+             </div>
           </CardContent>
         </Card>
 
@@ -453,7 +544,7 @@ export default function EditarEventoPage() {
                  <TicketPercent className="w-8 h-8" />
               </div>
               <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Configurar Cota</DialogTitle>
-              <DialogDescription className="text-center font-medium">Quantos % da capacidade total serão destinados à meia-entrada?</DialogDescription>
+              <DialogDescription className="text-center font-medium">Quantos % da capacidade total do evento serão destinados à meia-entrada?</DialogDescription>
            </DialogHeader>
            <div className="py-6 space-y-6">
               <div className="space-y-2">
