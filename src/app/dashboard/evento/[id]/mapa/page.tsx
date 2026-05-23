@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -54,6 +53,17 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select"
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
 import Link from "next/link"
@@ -89,6 +99,7 @@ export default function EventoMapaPage() {
   
   const [palcoNome, setPalcoNome] = React.useState("PALCO PRINCIPAL")
   const [editMode, setEditMode] = React.useState<'list' | 'visual'>('visual')
+  const [sectorToDelete, setSectorToDelete] = React.useState<any>(null)
 
   React.useEffect(() => {
     if (event?.palcoNome) {
@@ -171,19 +182,22 @@ export default function EventoMapaPage() {
     }
   }
 
-  const handleDeleteSector = async (id: string) => {
-    if (!db || !eventId) return
-    if (!confirm("Isso removerá o setor e todos os assentos vinculados. Continuar?")) return
+  const handleDeleteSector = async () => {
+    if (!db || !eventId || !sectorToDelete) return
 
+    setIsSubmitting(true)
     try {
-      const assentosSnap = await getDocs(collection(db, "events", eventId, "setores", id, "assentos"))
+      const assentosSnap = await getDocs(collection(db, "events", eventId, "setores", sectorToDelete.id, "assentos"))
       const batch = writeBatch(db)
       assentosSnap.forEach(d => batch.delete(d.ref))
-      batch.delete(doc(db, "events", eventId, "setores", id))
+      batch.delete(doc(db, "events", eventId, "setores", sectorToDelete.id))
       await batch.commit()
       toast({ title: "Setor removido" })
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao remover" })
+    } finally {
+      setIsSubmitting(false)
+      setSectorToDelete(null)
     }
   }
 
@@ -281,7 +295,7 @@ export default function EventoMapaPage() {
                              {allTickets.map(t => (
                                <SelectItem key={t.id} value={t.id} className="text-xs font-bold uppercase">
                                   {t.label}
-                               </SelectItem>
+                                </SelectItem>
                              ))}
                           </SelectContent>
                        </Select>
@@ -386,7 +400,7 @@ export default function EventoMapaPage() {
                          variant="ghost" 
                          size="icon" 
                          className="absolute top-2 right-2 h-6 w-6 rounded-full text-destructive bg-white/80 opacity-0 group-hover:opacity-100 transition-opacity z-20"
-                         onClick={(e) => { e.stopPropagation(); handleDeleteSector(s.id); }}
+                         onClick={(e) => { e.stopPropagation(); setSectorToDelete(s); }}
                        >
                           <Trash2 className="w-3 h-3" />
                        </Button>
@@ -432,7 +446,7 @@ export default function EventoMapaPage() {
                             {s.linkedTicketId && <Badge variant="outline" className="text-[8px] uppercase mt-1 border-secondary text-secondary">Vinculado a: {allTickets.find(t => t.id === s.linkedTicketId)?.name}</Badge>}
                          </div>
                       </div>
-                      <Button variant="ghost" size="icon" className="text-destructive h-10 w-10 rounded-full hover:bg-destructive/5" onClick={() => handleDeleteSector(s.id)}>
+                      <Button variant="ghost" size="icon" className="text-destructive h-10 w-10 rounded-full hover:bg-destructive/5" onClick={() => setSectorToDelete(s)}>
                          <Trash2 className="w-5 h-5" />
                       </Button>
                    </CardContent>
@@ -442,6 +456,35 @@ export default function EventoMapaPage() {
         </div>
       )}
       </TooltipProvider>
+
+      {/* ALERT DIALOG DE EXCLUSÃO */}
+      <AlertDialog open={!!sectorToDelete} onOpenChange={(open) => !open && setSectorToDelete(null)}>
+        <AlertDialogContent className="rounded-[2rem]">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+               <div className="p-3 bg-destructive/10 rounded-2xl text-destructive">
+                  <Trash2 className="w-6 h-6" />
+               </div>
+               <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Remover Setor?</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="font-medium text-foreground/80 leading-relaxed">
+              Você está prestes a excluir o setor <strong>{sectorToDelete?.nome}</strong>. 
+              Esta ação removerá permanentemente todos os assentos e configurações vinculadas a esta área do mapa.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3 mt-4">
+            <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px] tracking-widest border-none bg-muted hover:bg-muted/80">Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteSector}
+              disabled={isSubmitting}
+              className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-destructive/20 h-11 px-8"
+            >
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Sim, Excluir Setor
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
