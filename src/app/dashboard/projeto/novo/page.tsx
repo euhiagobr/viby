@@ -4,7 +4,7 @@
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase, useDoc } from "@/firebase"
+import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, addDoc, serverTimestamp, doc, getDoc, setDoc, query, where, getDocs, limit, deleteField, updateDoc, writeBatch } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -42,7 +42,8 @@ import {
   XCircle,
   ImageIcon,
   Save,
-  ArrowDown
+  ArrowDown,
+  InfoIcon
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -104,9 +105,9 @@ export default function NovoEventoPage() {
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
   
   const [selectedCategory, setSelectedCategory] = useState("")
-  const [ticketMode, setTicketMode] = useState<'free' | 'paid_single' | 'batches' | 'map'>('free')
-  const [noTickets, setNoTickets] = useState(false)
+  const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches'>('free')
   
+  // Lotes (Modo Batches)
   const [batches, setBatches] = useState<Batch[]>([
     { 
       id: crypto.randomUUID(),
@@ -114,26 +115,34 @@ export default function NovoEventoPage() {
       description: "", 
       startDate: "", 
       endDate: "", 
-      capacidadeInicial: 200,
-      capacidadeAtual: 200,
+      capacidadeInicial: 100,
+      capacidadeAtual: 100,
       vendidos: 0,
-      restantes: 200,
+      restantes: 100,
       migradosDoLoteAnterior: 0,
       ticketTypes: [
-        { id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 200, requiresProof: false, isLegalHalf: false, description: "" }
+        { id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }
       ] 
     }
   ])
 
-  const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
+  // Valor Único
+  const [singleCapacity, setSingleCapacity] = useState<number>(100)
+  const [singleTicketTypes, setSingleTicketTypes] = useState<TicketType[]>([
+    { id: crypto.randomUUID(), name: "Inteira", price: 50, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }
+  ])
 
+  // Gratuito
+  const [freeCapacity, setFreeCapacity] = useState<number>(100)
+
+  const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
+  
   const [isDistributeOpen, setIsDistributeOpen] = useState(false)
   const [distributeBatchIdx, setDistributeBatchIdx] = useState<number | null>(null)
   const [totalToDistribute, setTotalToDistribute] = useState("")
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
 
-  // Recalcular lotes sempre que a capacidade inicial de um deles mudar
   const recalculateBatches = (currentBatches: Batch[]) => {
     const updated = [...currentBatches];
     let carryOver = 0;
@@ -143,7 +152,6 @@ export default function NovoEventoPage() {
       b.migradosDoLoteAnterior = carryOver;
       b.capacidadeAtual = b.capacidadeInicial + carryOver;
       b.restantes = b.capacidadeAtual - (b.vendidos || 0);
-      
       carryOver = Math.max(0, b.restantes);
     }
     return updated;
@@ -198,13 +206,19 @@ export default function NovoEventoPage() {
       { id: crypto.randomUUID(), name: "Meia Idoso", price: 50, quantity: meiaQuantity, poolId, poolName: "Estoque Compartilhado", requiresProof: true, isLegalHalf: true, description: "" }
     ]
 
-    const newBatches = [...batches]
-    newBatches[distributeBatchIdx].ticketTypes = newTypes
-    newBatches[distributeBatchIdx].capacidadeInicial = total
-    setBatches(recalculateBatches(newBatches))
+    if (ticketMode === 'batches') {
+      const newBatches = [...batches]
+      newBatches[distributeBatchIdx].ticketTypes = newTypes
+      newBatches[distributeBatchIdx].capacidadeInicial = total
+      setBatches(recalculateBatches(newBatches))
+    } else if (ticketMode === 'paid_single') {
+      setSingleTicketTypes(newTypes)
+      setSingleCapacity(total)
+    }
+
     setIsDistributeOpen(false)
     setTotalToDistribute("")
-    toast({ title: "Ingressos distribuídos!" })
+    toast({ title: "Meia-entrada configurada!" })
   }
 
   const addBatch = () => {
@@ -233,31 +247,7 @@ export default function NovoEventoPage() {
   const updateBatchField = (i: number, f: keyof Batch, v: any) => { 
     const n = [...batches]; 
     n[i] = { ...n[i], [f]: v } as any; 
-    if (f === 'capacidadeInicial') {
-      setBatches(recalculateBatches(n))
-    } else {
-      setBatches(n)
-    }
-  }
-
-  const addTicketType = (bi: number) => { 
-    const n = [...batches]; 
-    n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }); 
-    setBatches(n); 
-  }
-
-  const removeTicketType = (bi: number, ti: number) => { 
-    const n = [...batches]; 
-    if(n[bi].ticketTypes.length > 1) { 
-      n[bi].ticketTypes.splice(ti, 1); 
-      setBatches(n); 
-    } 
-  }
-
-  const updateTicketTypeField = (bi: number, ti: number, f: string, v: any) => { 
-    const n = [...batches]; 
-    n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v } as any; 
-    setBatches(n); 
+    if (f === 'capacidadeInicial') setBatches(recalculateBatches(n)); else setBatches(n);
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -267,8 +257,44 @@ export default function NovoEventoPage() {
     const formData = new FormData(e.currentTarget)
     try {
       const cat = categories?.find(c => c.id === selectedCategory)
-      const finalBatches = recalculateBatches(batches)
-      const totalCap = finalBatches.reduce((acc, b) => acc + b.capacidadeInicial, 0)
+      
+      let finalBatches: Batch[] = []
+      let totalCapacity = 0
+
+      if (ticketMode === 'batches') {
+        finalBatches = recalculateBatches(batches)
+        totalCapacity = finalBatches.reduce((acc, b) => acc + (b.capacidadeInicial || 0), 0)
+      } else if (ticketMode === 'paid_single') {
+        totalCapacity = singleCapacity
+        finalBatches = [{
+          id: 'single',
+          name: 'Lote Único',
+          description: '',
+          startDate: '',
+          endDate: '',
+          capacidadeInicial: singleCapacity,
+          capacidadeAtual: singleCapacity,
+          vendidos: 0,
+          restantes: singleCapacity,
+          migradosDoLoteAnterior: 0,
+          ticketTypes: singleTicketTypes
+        }]
+      } else if (ticketMode === 'free') {
+        totalCapacity = freeCapacity
+        finalBatches = [{
+          id: 'free',
+          name: 'Ingresso Gratuito',
+          description: '',
+          startDate: '',
+          endDate: '',
+          capacidadeInicial: freeCapacity,
+          capacidadeAtual: freeCapacity,
+          vendidos: 0,
+          restantes: freeCapacity,
+          migradosDoLoteAnterior: 0,
+          ticketTypes: [{ id: 'free_type', name: 'Gratuito', price: 0, quantity: freeCapacity, requiresProof: false, isLegalHalf: false, description: '' }]
+        }]
+      }
 
       const eventData = {
         title: formData.get("title") as string,
@@ -277,27 +303,21 @@ export default function NovoEventoPage() {
         endDate: formData.get("endDate") as string,
         categoryId: selectedCategory,
         categoryName: cat?.name || "Outros",
-        noTickets,
-        capacidadeTotal: totalCap,
-        ticketMode: noTickets ? 'none' : ticketMode,
-        isFree: noTickets ? true : (ticketMode === 'free'),
-        batches: noTickets ? [] : finalBatches.map(b => ({
-          ...b,
-          ticketTypes: b.ticketTypes.map(t => ({ ...t, price: parseFloat(t.price as any) || 0, quantity: parseInt(t.quantity as any) || 0 }))
-        })),
+        ticketMode,
+        isFree: ticketMode === 'free',
+        capacidadeTotal: totalCapacity,
+        batches: ticketMode === 'none' ? [] : finalBatches,
         address, image: uploadedImageUrl || "",
         organizationId: currentOrg.id, 
         organizerId: user.uid,
-        organizer: {
-          id: currentOrg.id, name: currentOrg.name, username: currentOrg.username, avatar: currentOrg.avatar || "", isVerified: currentOrg.verified || false
-        },
+        organizer: { id: currentOrg.id, name: currentOrg.name, username: currentOrg.username, avatar: currentOrg.avatar || "", isVerified: currentOrg.verified || false },
         status: "Ativo", city: address.city, createdAt: serverTimestamp()
       }
 
       await addDoc(collection(db, "events"), eventData)
-      toast({ title: "Evento Publicado!", description: "Bilheteria configurada com migração automática." })
+      toast({ title: "Evento Publicado!" })
       router.push("/dashboard/organizacoes")
-    } catch (error: any) { toast({ variant: "destructive", title: "Erro", description: error.message }) }
+    } catch (error: any) { toast({ variant: "destructive", title: "Erro ao publicar", description: error.message }) }
     finally { setLoading(false) }
   }
 
@@ -310,7 +330,7 @@ export default function NovoEventoPage() {
 
       <form onSubmit={handleSubmit} className="space-y-8">
         <Card className="overflow-hidden border-none shadow-sm rounded-[2rem]">
-          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5 text-secondary" /> Capa do Evento</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5 text-secondary" /> Capa</CardTitle></CardHeader>
           <CardContent className="px-6 pb-6">
             <div className="relative aspect-video rounded-[1.5rem] bg-muted overflow-hidden cursor-pointer" onClick={() => document.getElementById('img-up')?.click()}>
               {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" /> : <div className="flex flex-col items-center justify-center h-full opacity-20"><Upload className="w-10 h-10 mb-2" /><p className="text-xs font-bold uppercase tracking-widest">Carregar Imagem</p></div>}
@@ -337,7 +357,7 @@ export default function NovoEventoPage() {
                 <div className="space-y-2"><Label>Início</Label><Input name="startDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
                 <div className="space-y-2"><Label>Término</Label><Input name="endDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
              </div>
-             <div className="space-y-2"><Label>Descrição</Label><Textarea name="description" className="min-h-[120px] rounded-xl border-dashed border-secondary/30" required placeholder="Fale sobre a experiência..." /></div>
+             <div className="space-y-2"><Label>Descrição</Label><Textarea name="description" className="min-h-[120px] rounded-xl border-dashed border-secondary/30" required placeholder="Fale tudo sobre a experiência..." /></div>
           </CardContent>
         </Card>
 
@@ -345,31 +365,88 @@ export default function NovoEventoPage() {
           <CardHeader className="bg-muted/30 border-b">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1">
-                <CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria Híbrida</CardTitle>
-                <div className="flex items-center gap-2"><Switch checked={noTickets} onCheckedChange={setNoTickets} /><Label className="text-xs font-bold text-muted-foreground uppercase">Sem Ingressos</Label></div>
+                <CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Gestão de Bilheteria</CardTitle>
               </div>
-              <div className="bg-white p-1 rounded-xl border flex gap-1">
-                <Button type="button" variant={ticketMode === 'free' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('free')}>Grátis</Button>
-                <Button type="button" variant={ticketMode === 'paid_single' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('paid_single')}>Único</Button>
-                <Button type="button" variant={ticketMode === 'batches' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('batches')}>Lotes</Button>
-                <Button type="button" variant={ticketMode === 'map' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('map')}>Mapa</Button>
+              <div className="bg-white p-1 rounded-xl border flex flex-wrap gap-1">
+                <Button type="button" variant={ticketMode === 'none' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-3" onClick={() => setTicketMode('none')}>Sem Ingresso</Button>
+                <Button type="button" variant={ticketMode === 'free' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-3" onClick={() => setTicketMode('free')}>Grátis</Button>
+                <Button type="button" variant={ticketMode === 'paid_single' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-3" onClick={() => setTicketMode('paid_single')}>Valor Único</Button>
+                <Button type="button" variant={ticketMode === 'batches' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-3" onClick={() => setTicketMode('batches')}>Lotes</Button>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-6 space-y-8">
-             {noTickets ? <div className="py-12 text-center opacity-30"><XCircle className="w-10 h-10 mx-auto mb-2" /><p className="text-sm font-bold uppercase tracking-widest">Vendas Desativadas</p></div> : 
-             (
-               <React.Fragment>
+          <CardContent className="p-6">
+             {ticketMode === 'none' && (
+               <div className="py-12 text-center space-y-4">
+                  <InfoIcon className="w-12 h-12 mx-auto text-muted-foreground opacity-20" />
+                  <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Evento Informativo</p>
+                  <p className="text-xs text-muted-foreground max-w-xs mx-auto">Este evento não terá venda de ingressos. O público verá apenas as informações e localização.</p>
+               </div>
+             )}
+
+             {ticketMode === 'free' && (
+               <div className="space-y-6 animate-in fade-in duration-300">
+                  <div className="p-6 bg-muted/20 rounded-2xl border-2 border-dashed border-border flex flex-col items-center gap-4">
+                     <Label className="text-xs font-black uppercase tracking-widest">Quantidade de Ingressos Gratuitos</Label>
+                     <Input 
+                       type="number" 
+                       value={freeCapacity} 
+                       onChange={e => setFreeCapacity(parseInt(e.target.value) || 0)} 
+                       className="h-14 text-2xl font-black rounded-xl text-center border-secondary/20 max-w-[200px]" 
+                     />
+                  </div>
+               </div>
+             )}
+
+             {ticketMode === 'paid_single' && (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                    <div className="md:col-span-1 space-y-2">
+                      <Label className="text-[10px] font-black uppercase opacity-60">Capacidade Total</Label>
+                      <Input type="number" value={singleCapacity} onChange={e => setSingleCapacity(parseInt(e.target.value) || 0)} className="rounded-xl h-11 font-black text-primary" />
+                    </div>
+                    <div className="md:col-span-2">
+                       <Button type="button" variant="outline" className="w-full rounded-xl h-11 border-dashed font-bold uppercase text-[10px] gap-2" onClick={() => { setDistributeBatchIdx(0); setTotalToDistribute(singleCapacity.toString()); setIsDistributeOpen(true); }}>
+                          <Sparkles className="w-4 h-4 text-secondary" /> Distribuir Meia-Entrada Legal
+                       </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                     {singleTicketTypes.map((t, ti) => (
+                        <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm grid grid-cols-12 gap-4 items-end transition-all hover:border-secondary/20">
+                           <div className="col-span-6 space-y-2">
+                              <Label className="text-[9px] uppercase font-black opacity-40">Título do Ingresso</Label>
+                              <Input value={t.name} onChange={e => { const n = [...singleTicketTypes]; n[ti].name = e.target.value; setSingleTicketTypes(n); }} className="rounded-xl h-10 font-bold" />
+                           </div>
+                           <div className="col-span-4 space-y-2">
+                              <Label className="text-[9px] uppercase font-black opacity-40">Preço (R$)</Label>
+                              <Input type="number" step="0.01" value={t.price} onChange={e => { const n = [...singleTicketTypes]; n[ti].price = parseFloat(e.target.value) || 0; setSingleTicketTypes(n); }} className="rounded-xl h-10 font-black text-secondary" />
+                           </div>
+                           <div className="col-span-2 flex justify-end pb-1">
+                              <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => { if(singleTicketTypes.length > 1) setSingleTicketTypes(singleTicketTypes.filter((_, idx) => idx !== ti)) }}><Trash2 className="w-4 h-4" /></Button>
+                           </div>
+                        </div>
+                     ))}
+                     <Button type="button" variant="outline" size="sm" className="h-9 rounded-xl text-[9px] font-black uppercase gap-1.5 border-dashed" onClick={() => setSingleTicketTypes([...singleTicketTypes, { id: crypto.randomUUID(), name: "Nova Categoria", price: 100, quantity: singleCapacity, requiresProof: false, isLegalHalf: false, description: "" }])}>
+                        <Plus className="w-3.5 h-3.5" /> Adicionar Categoria
+                     </Button>
+                  </div>
+                </div>
+             )}
+
+             {ticketMode === 'batches' && (
+               <div className="space-y-8 animate-in fade-in duration-300">
                  {batches.map((batch, bi) => (
                    <div key={batch.id} className="p-6 rounded-[1.5rem] border-2 bg-muted/10 space-y-6 relative overflow-hidden">
                       <div className="flex justify-between items-center relative z-10">
                         <div className="flex items-center gap-3">
                            <h3 className="font-black italic uppercase text-secondary text-xl">{batch.name}</h3>
-                           <Badge variant="outline" className="text-[10px] font-bold uppercase">Janela de Venda #{bi+1}</Badge>
+                           <Badge variant="outline" className="text-[10px] font-bold uppercase">Janela #{bi+1}</Badge>
                         </div>
                         <div className="flex gap-2">
                            <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setDistributeBatchIdx(bi); setTotalToDistribute(batch.capacidadeInicial.toString()); setIsDistributeOpen(true); }}>
-                              <Sparkles className="w-3 h-3" /> Gerar Meia-Entrada
+                              <Sparkles className="w-3 h-3" /> Distribuir Meia
                            </Button>
                            <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)} disabled={batches.length === 1}><Trash2 className="w-4 h-4" /></Button>
                         </div>
@@ -381,10 +458,8 @@ export default function NovoEventoPage() {
                            <Input type="number" value={batch.capacidadeInicial} onChange={e => updateBatchField(bi, 'capacidadeInicial', parseInt(e.target.value) || 0)} className="rounded-xl h-11 font-black text-primary" />
                          </div>
                          <div className="md:col-span-1 space-y-2">
-                           <Label className="text-[10px] font-black uppercase opacity-40">Capacidade Atual</Label>
-                           <div className="h-11 flex items-center font-black text-secondary px-3 bg-white/50 rounded-xl">
-                              {batch.capacidadeAtual}
-                           </div>
+                           <Label className="text-[10px] font-black uppercase opacity-40">Carga Atual</Label>
+                           <div className="h-11 flex items-center font-black text-secondary px-3 bg-white/50 rounded-xl">{batch.capacidadeAtual}</div>
                          </div>
                          <div className="md:col-span-2 space-y-2">
                             <Label className="text-[10px] font-black uppercase opacity-60">Nome da Janela</Label>
@@ -396,51 +471,57 @@ export default function NovoEventoPage() {
                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Início das Vendas</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Fim das Vendas</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
                       </div>
+
                       <div className="space-y-4">
                          {batch.ticketTypes.map((t, ti) => (
                            <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm grid grid-cols-12 gap-4 items-end">
                               <div className="col-span-6 space-y-2">
-                                 <Label className="text-[9px] uppercase font-black opacity-40">Título da Categoria</Label>
+                                 <Label className="text-[9px] uppercase font-black opacity-40">Título</Label>
                                  <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" />
                               </div>
                               <div className="col-span-4 space-y-2">
-                                <Label className="text-[9px] uppercase font-black opacity-40">Valor (R$)</Label>
-                                <Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} className="rounded-xl h-10 font-black text-secondary" disabled={ticketMode === 'free'} />
+                                <Label className="text-[9px] uppercase font-black opacity-40">Preço (R$)</Label>
+                                <Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', parseFloat(e.target.value) || 0)} className="rounded-xl h-10 font-black text-secondary" />
                               </div>
                               <div className="col-span-2 flex justify-end pb-1"><Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTicketType(bi, ti)} disabled={batch.ticketTypes.length === 1}><Trash2 className="w-4 h-4" /></Button></div>
                            </div>
                          ))}
                          <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[9px] font-black uppercase gap-1.5" onClick={() => addTicketType(bi)}><Plus className="w-3 h-3" /> Adicionar Categoria</Button>
                       </div>
+
                       {bi < batches.length - 1 && (
                         <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-20">
-                           <div className="bg-secondary text-white p-1 rounded-full shadow-lg">
-                              <ArrowDown className="w-4 h-4" />
-                           </div>
+                           <div className="bg-secondary text-white p-1 rounded-full shadow-lg"><ArrowDown className="w-4 h-4" /></div>
                         </div>
                       )}
                    </div>
                  ))}
-                 {(ticketMode === 'batches' || ticketMode === 'paid_single' || ticketMode === 'free') && <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Próxima Janela de Venda</Button>}
-               </React.Fragment>
+                 <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Próximo Lote</Button>
+
+                 <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
+                    <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">
+                      As sobras de cada lote migram automaticamente para o próximo. A capacidade total do evento será a soma das cargas iniciais de todos os lotes.
+                    </p>
+                 </div>
+               </div>
              )}
           </CardContent>
         </Card>
 
-        <Button type="submit" disabled={loading} className="w-full h-16 rounded-[2rem] bg-secondary text-white font-black text-xl shadow-xl uppercase italic">
-          {loading ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 w-6 h-6" />}
-          Publicar Evento
+        <Button type="submit" disabled={loading} className="w-full h-16 rounded-[2rem] bg-secondary text-white font-black text-xl shadow-xl uppercase italic hover:scale-[1.02] transition-transform">
+          {loading ? <Loader2 className="animate-spin mr-2" /> : <><Save className="mr-2 w-6 h-6" /> Publicar Evento</>}
         </Button>
       </form>
 
       <Dialog open={isDistributeOpen} onOpenChange={setIsDistributeOpen}>
         <DialogContent className="rounded-[2.5rem] max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Carga do Lote</DialogTitle>
-            <DialogDescription>As sobras da carga migrarão automaticamente para o próximo lote.</DialogDescription>
+            <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Gerar Meia-Entrada</DialogTitle>
+            <DialogDescription>O sistema criará as cotas automáticas baseadas na carga definida.</DialogDescription>
           </DialogHeader>
           <div className="py-6 space-y-4">
-             <Label className="text-[10px] font-black uppercase opacity-60">Carga Inicial deste Lote</Label>
+             <Label className="text-[10px] font-black uppercase opacity-60">Capacidade da Janela (Ex: 200)</Label>
              <Input 
                type="number" 
                placeholder="Ex: 200"
@@ -451,7 +532,7 @@ export default function NovoEventoPage() {
              <div className="p-4 bg-muted/30 rounded-2xl flex gap-3">
                 <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
                 <p className="text-[9px] font-bold text-muted-foreground uppercase leading-tight">
-                  O sistema gerencia o estoque compartilhado entre inteiras e meias nesta janela de venda.
+                  Inteira e Meias compartilharão o mesmo estoque (Pool). A venda de uma meia reduzirá o total disponível da janela.
                 </p>
              </div>
           </div>
