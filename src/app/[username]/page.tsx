@@ -109,6 +109,13 @@ function ProfileHeader() {
   const { currentOrg, organizations, setCurrentOrg } = useCurrentOrganization()
   const auth = useAuth()
   const { user } = useUser(auth)
+  const db = useFirestore()
+
+  const unreadQuery = useMemoFirebase(() => {
+    if (!db || !user) return null
+    return query(collection(db, "notifications"), where("targetUid", "==", user.uid), where("read", "==", false))
+  }, [db, user])
+  const { data: unreadNotifications } = useCollection<any>(unreadQuery)
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur-md">
@@ -161,8 +168,13 @@ function ProfileHeader() {
           </>
         ) : (
           <>
-            <Button variant="ghost" size="icon" className="relative h-9 w-9">
-              <Bell className="h-5 w-5" />
+            <Button variant="ghost" size="icon" className="relative h-9 w-9" asChild>
+              <Link href="/dashboard/notificacoes">
+                <Bell className="h-5 w-5" />
+                {unreadNotifications && unreadNotifications.length > 0 && (
+                  <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full border-2 border-background" />
+                )}
+              </Link>
             </Button>
             <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold border border-border shadow-sm overflow-hidden">
               {user.photoURL ? (
@@ -522,6 +534,18 @@ function UniversalProfileContent() {
           targetType: type,
           timestamp: serverTimestamp()
         });
+
+        // Notificação de Novo Seguidor
+        await addDoc(collection(db, "notifications"), {
+          targetUid: data.id,
+          senderId: user.uid,
+          senderName: user.displayName || "Alguém",
+          type: 'follow',
+          message: `${user.displayName || 'Um novo usuário'} começou a seguir você.`,
+          link: `/${user.displayName || user.uid}`,
+          read: false,
+          createdAt: serverTimestamp()
+        })
 
         await processGamificationEvent(db, user.uid, type === 'organization' ? 'on_follow_org' : 'on_follow_user', {
           targetId: data.id,

@@ -180,12 +180,27 @@ export default function EventoDetalhesPage() {
     });
   }
 
-  // Função para renderizar texto com suporte a negrito **
+  // Função para renderizar texto com suporte a negrito **, texto grande + e menções @
   const renderFormattedText = (text: string) => {
     if (!text) return "";
-    return text.split(/(\*\*.*?\*\*)/g).map((part, i) => {
+    
+    // Divide o texto em partes baseadas em **, + ou @username
+    const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@\w+)/g);
+
+    return parts.map((part, i) => {
       if (part.startsWith('**') && part.endsWith('**')) {
         return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith('+') && part.endsWith('+')) {
+        return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
+      }
+      if (part.startsWith('@')) {
+        const username = part.slice(1);
+        return (
+          <Link key={i} href={`/${username}`} className="text-secondary font-black hover:underline">
+            {part}
+          </Link>
+        );
       }
       return part;
     });

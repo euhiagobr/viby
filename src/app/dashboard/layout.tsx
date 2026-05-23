@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -6,7 +7,8 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
 import { Bell, Loader2, Plus, Building2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useAuth, useUser } from "@/firebase"
+import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { collection, query, where } from "firebase/firestore"
 import { OrganizationProvider, useCurrentOrganization } from "@/contexts/OrganizationContext"
 import {
   DropdownMenu,
@@ -23,7 +25,14 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const { currentOrg, organizations, setCurrentOrg, loading } = useCurrentOrganization()
   const auth = useAuth()
   const { user, loading: authLoading } = useUser(auth)
+  const db = useFirestore()
   const router = useRouter()
+
+  const unreadQuery = useMemoFirebase(() => {
+    if (!db || !user) return null
+    return query(collection(db, "notifications"), where("targetUid", "==", user.uid), where("read", "==", false))
+  }, [db, user])
+  const { data: unreadNotifications } = useCollection<any>(unreadQuery)
 
   if (authLoading || loading) {
     return (
@@ -75,9 +84,13 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             </div>
             
             <div className="flex items-center gap-3 ml-auto">
-              <Button variant="ghost" size="icon" className="relative h-9 w-9">
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full border-2 border-background" />
+              <Button variant="ghost" size="icon" className="relative h-9 w-9" asChild>
+                <Link href="/dashboard/notificacoes">
+                  <Bell className="h-5 w-5" />
+                  {unreadNotifications && unreadNotifications.length > 0 && (
+                    <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full border-2 border-background" />
+                  )}
+                </Link>
               </Button>
               <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold border border-border shadow-sm overflow-hidden">
                 {user?.photoURL ? (
