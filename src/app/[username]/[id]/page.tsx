@@ -209,6 +209,12 @@ export default function EventoDetalhesPage() {
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
   if (!event) return <div className="flex flex-col items-center py-20"><h2 className="text-2xl font-bold">Evento não encontrado</h2></div>
 
+  const eventDates = {
+    start: event.date?.toDate ? event.date.toDate() : new Date(event.date),
+    end: event.endDate?.toDate ? event.endDate.toDate() : (event.endDate ? new Date(event.endDate) : new Date(new Date(event.date).getTime() + 4 * 60 * 60 * 1000))
+  };
+  const isEnded = eventDates.end < new Date();
+
   const orgName = organizationProfile?.name || event.organizer?.name || "Organizador";
   const orgAvatar = organizationProfile?.avatar || event.organizer?.avatar;
   const isVerified = organizationProfile?.verified ?? event.organizer?.isVerified;
@@ -242,11 +248,15 @@ export default function EventoDetalhesPage() {
            </div>
         </div>
 
-        <div className="relative h-[300px] md:h-[450px] w-full rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white">
+        <div className={cn(
+          "relative h-[300px] md:h-[450px] w-full rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white transition-all",
+          isEnded && "grayscale opacity-80"
+        )}>
           <Image src={event.image || "https://picsum.photos/seed/event/1200/800"} alt={event.title} fill className="object-cover" unoptimized />
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
           <div className="absolute bottom-10 left-10 text-white space-y-4 pr-10">
              <div className="flex flex-wrap gap-2">
+                {isEnded && <Badge className="bg-muted text-muted-foreground px-4 py-1 rounded-full uppercase font-black tracking-widest border-none">Evento Encerrado</Badge>}
                 <Badge className="bg-secondary px-4 py-1 rounded-full uppercase font-black tracking-widest">{event.categoryName || "Geral"}</Badge>
              </div>
              <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-[0.9]">{event.title}</h1>

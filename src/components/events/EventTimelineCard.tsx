@@ -11,7 +11,8 @@ import {
   MoreHorizontal,
   BadgeCheck,
   ArrowRight,
-  Clock
+  Clock,
+  Ticket
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card"
@@ -21,6 +22,7 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
+import Link from "next/link"
 
 interface EventTimelineCardProps {
   event: any
@@ -31,6 +33,9 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
   const [isLiked, setIsLiked] = React.useState(false)
   
   const eventDate = event.date?.toDate ? event.date.toDate() : new Date(event.date)
+  const endDate = event.endDate?.toDate ? event.endDate.toDate() : (event.endDate ? new Date(event.endDate) : new Date(eventDate.getTime() + 4 * 60 * 60 * 1000))
+  const isEnded = endDate < new Date()
+
   const username = event.organizer?.username || "evento"
   const eventLink = `/${username}/${event.id}`
 
@@ -60,9 +65,38 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
     router.push(`${eventLink}#comentarios`)
   }
 
+  // Função para renderizar texto com suporte a negrito **, texto grande + e menções @
+  const renderFormattedText = (text: string) => {
+    if (!text) return "";
+    
+    // Divide o texto em partes baseadas em **, + ou @username
+    const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@\w+)/g);
+
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith('+') && part.endsWith('+')) {
+        return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
+      }
+      if (part.startsWith('@')) {
+        const usernameMention = part.slice(1);
+        return (
+          <Link key={i} href={`/${usernameMention}`} className="text-secondary font-black hover:underline" onClick={(e) => e.stopPropagation()}>
+            {part}
+          </Link>
+        );
+      }
+      return part;
+    });
+  }
+
   return (
     <Card 
-      className="overflow-hidden border-none shadow-xl bg-white rounded-[2rem] transition-all hover:shadow-2xl cursor-pointer w-full max-w-xl mx-auto"
+      className={cn(
+        "overflow-hidden border-none shadow-xl bg-white rounded-[2.5rem] transition-all hover:shadow-2xl cursor-pointer w-full max-w-xl mx-auto",
+        isEnded && "opacity-70 grayscale-[0.5]"
+      )}
       onClick={() => router.push(eventLink)}
     >
       {/* Header do Organizador */}
@@ -94,21 +128,26 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
       </CardHeader>
 
       {/* Imagem do Evento */}
-      <div className="relative aspect-square sm:aspect-[4/3] w-full bg-muted">
+      <div className="relative aspect-square sm:aspect-[4/3] w-full bg-muted overflow-hidden">
         <Image
           src={event.image || `https://picsum.photos/seed/${event.id}/800/600`}
           alt={event.title}
           fill
-          className="object-cover"
+          className={cn("object-cover transition-transform group-hover:scale-105", isEnded && "grayscale")}
           unoptimized
         />
-        {event.categoryName && (
-          <div className="absolute top-4 left-4">
+        <div className="absolute top-4 left-4 flex flex-col gap-2">
+          {isEnded && (
+            <Badge className="bg-muted text-muted-foreground border-none shadow-lg text-[10px] font-black uppercase px-3 py-1">
+              Evento Encerrado
+            </Badge>
+          )}
+          {event.categoryName && (
             <Badge className="bg-white/90 text-primary border-none shadow-lg text-[10px] font-black uppercase px-3 py-1">
               {event.categoryName}
             </Badge>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Ações Sociais */}
@@ -139,19 +178,22 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
             <Share2 className="w-6 h-6" />
           </Button>
         </div>
-        <Badge variant="outline" className="border-secondary text-secondary font-black uppercase text-[9px] h-6 px-3">
-          {event.isFree ? "Grátis" : "Bilheteria Aberta"}
+        <Badge variant="outline" className={cn("font-black uppercase text-[9px] h-6 px-3", isEnded ? "border-muted text-muted-foreground" : "border-secondary text-secondary")}>
+          {event.isFree ? "Grátis" : "Bilheteria"}
         </Badge>
       </div>
 
       {/* Conteúdo do Card */}
       <CardContent className="px-6 pb-6 space-y-4">
         <div className="space-y-1">
-          <h3 className="text-xl font-black uppercase italic tracking-tighter leading-tight text-primary">
+          <h3 className={cn(
+            "text-xl font-black uppercase italic tracking-tighter leading-tight text-primary",
+            isEnded && "text-muted-foreground"
+          )}>
             {event.title}
           </h3>
           <p className="text-sm text-muted-foreground line-clamp-2 font-medium leading-relaxed">
-            {event.description || event.shortDescription}
+            {renderFormattedText(event.description || event.shortDescription)}
           </p>
         </div>
 
@@ -175,8 +217,14 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
            </div>
         </div>
 
-        <Button className="w-full h-12 bg-primary text-white font-black rounded-2xl uppercase italic text-xs gap-2 group hover:bg-secondary transition-colors">
-          Ver detalhes do evento <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+        <Button 
+          disabled={isEnded}
+          className={cn(
+            "w-full h-12 font-black rounded-2xl uppercase italic text-xs gap-2 group transition-colors",
+            isEnded ? "bg-muted text-muted-foreground" : "bg-primary text-white hover:bg-secondary"
+          )}
+        >
+          {isEnded ? "Evento Encerrado" : <><Ticket className="w-4 h-4" /> Garantir meu Ingresso <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></>}
         </Button>
       </CardContent>
     </Card>
