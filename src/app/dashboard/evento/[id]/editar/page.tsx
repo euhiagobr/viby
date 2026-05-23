@@ -38,7 +38,8 @@ import {
   Layout,
   Armchair,
   Grid3X3,
-  X
+  X,
+  Users2
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -324,7 +325,7 @@ export default function EditarEventoPage() {
   if (eventLoading || orgLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-20">
+    <div className="max-w-4xl mx-auto space-y-8 pb-20 text-foreground">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
         <h1 className="text-3xl font-black italic tracking-tighter text-primary uppercase">Editar Evento</h1>
@@ -364,7 +365,6 @@ export default function EditarEventoPage() {
           </CardContent>
         </Card>
 
-        {/* ESTRUTURA DO EVENTO (MAPA) */}
         <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
            <CardHeader className="bg-primary/5">
               <CardTitle className="text-lg flex items-center gap-2"><MapIcon className="w-5 h-5 text-primary" /> Estrutura do Evento (Mapa)</CardTitle>
@@ -411,7 +411,6 @@ export default function EditarEventoPage() {
            </CardContent>
         </Card>
 
-        {/* MODO DE BILHETERIA */}
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

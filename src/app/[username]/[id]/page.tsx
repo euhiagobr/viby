@@ -2,7 +2,7 @@
 "use client"
 
 import * as React from "react"
-import { useParams, useRouter, useSearchParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
 import { doc, collection, query, where, orderBy, addDoc, serverTimestamp, deleteDoc, writeBatch, getDocs, limit, setDoc } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
@@ -53,7 +53,8 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize,
-  InfoIcon
+  InfoIcon,
+  Zap
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -98,25 +99,15 @@ export default function EventoDetalhesPage() {
   const [selectedTicketType, setSelectedTicketType] = React.useState<any>(null)
   const [isReserving, setIsReserving] = React.useState(false)
 
-  // Lógica de Lote Ativo baseada no Modo de Ingresso
-  const activeBatchInfo = React.useMemo(() => {
-    if (!event) return null;
-    if (event.ticketMode === 'none') return null;
-    
-    // Se for Valor Único ou Gratuito, usamos o único lote gerado
-    if (event.ticketMode === 'paid_single' || event.ticketMode === 'free') {
-      return event.batches?.[0] || null;
-    }
-
-    // Lógica Dinâmica de Lote Ativo com Migração para Modo 'batches'
-    if (!event.batches || event.batches.length === 0) return null;
+  // Lógica Dinâmica de Lote Ativo com Migração Sequencial
+  const getActiveBatchForTicket = React.useCallback((ticketName: string) => {
+    if (!event || !event.batches || event.batches.length === 0) return null;
     
     const now = new Date();
-    const sortedBatches = [...event.batches];
     let carryOver = 0;
 
-    for (let i = 0; i < sortedBatches.length; i++) {
-      const b = sortedBatches[i];
+    for (let i = 0; i < event.batches.length; i++) {
+      const b = event.batches[i];
       const start = b.startDate ? new Date(b.startDate) : null;
       const end = b.endDate ? new Date(b.endDate) : null;
       
@@ -126,32 +117,44 @@ export default function EventoDetalhesPage() {
 
       const isDateValid = (!start || now >= start) && (!end || now <= end);
       
+      // Se a data for válida e houver estoque (incluindo migrados)
       if (isDateValid && restantes > 0) {
-        return { ...b, capacidadeAtual: capAtual, restantes };
+        const option = b.ticketTypes.find((t: any) => t.name === ticketName);
+        if (option) {
+          return { ...option, batchId: b.id, batchName: b.name, batchRemaining: restantes };
+        }
       }
       carryOver = restantes;
     }
 
-    const last = sortedBatches[sortedBatches.length - 1];
-    return { ...last, capacidadeAtual: (last.capacidadeInicial || 0) + carryOver, restantes: Math.max(0, (last.capacidadeInicial || 0) + carryOver - (last.vendidos || 0)) };
+    // Se nenhum lote estiver na data, tenta o último disponível com estoque
+    const lastBatch = event.batches[event.batches.length - 1];
+    const lastOption = lastBatch.ticketTypes.find((t: any) => t.name === ticketName);
+    return lastOption ? { ...lastOption, batchId: lastBatch.id, batchName: lastBatch.name } : null;
   }, [event]);
 
   const availableOptionsForSector = React.useMemo(() => {
-    if (!selectedSector || !activeBatchInfo) return []
+    if (!selectedSector || !event) return []
+    
+    // Se o setor está vinculado a um nome de ingresso (ex: "Cadeira Gold")
     if (selectedSector.linkedTicketName) {
-      return activeBatchInfo.ticketTypes.filter((t: any) => t.name === selectedSector.linkedTicketName)
+      const option = getActiveBatchForTicket(selectedSector.linkedTicketName);
+      return option ? [option] : [];
     }
+
+    // Fallback para preço fixo manual do setor (se não houver vínculo)
     return [{
        id: selectedSector.id,
        name: selectedSector.nome,
        price: selectedSector.preco,
-       batchId: activeBatchInfo.id,
-       batchName: activeBatchInfo.name
+       batchId: "fixed",
+       batchName: "Lote Único"
     }]
-  }, [selectedSector, activeBatchInfo])
+  }, [selectedSector, event, getActiveBatchForTicket])
 
   React.useEffect(() => {
-     if (availableOptionsForSector.length > 0) setSelectedTicketType(availableOptionsForSector[0]); else setSelectedTicketType(null)
+     if (availableOptionsForSector.length > 0) setSelectedTicketType(availableOptionsForSector[0]); 
+     else setSelectedTicketType(null)
   }, [availableOptionsForSector])
 
   const handleSeatClick = async (seat: any, sector: any) => {
@@ -163,7 +166,7 @@ export default function EventoDetalhesPage() {
       await reserveSeat(db, eventId, sector.id, seat.id, user.uid);
       setSelectedSector(sector);
       setSelectedSeat(seat);
-      toast({ title: "Lugar selecionado!", description: "Você tem 10 minutos para concluir a compra." });
+      toast({ title: "Lugar reservado!", description: "Você tem 10 minutos para concluir a compra." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro", description: e.message });
     } finally {
@@ -175,7 +178,6 @@ export default function EventoDetalhesPage() {
     if (!selectedSector || !event || !selectedTicketType || !globalFees) return
     const isNumbered = selectedSector.tipo !== 'livre';
     if (isNumbered && !selectedSeat) { toast({ variant: "destructive", title: "Selecione um lugar" }); return; }
-    if (activeBatchInfo && activeBatchInfo.restantes <= 0) { toast({ variant: "destructive", title: "Esgotado" }); return; }
 
     addItem({
       id: isNumbered ? `${event.id}_${selectedTicketType.id}_${selectedSeat.id}` : `${event.id}_${selectedTicketType.id}`,
@@ -189,8 +191,8 @@ export default function EventoDetalhesPage() {
       organizerUsername: usernameFromUrl,
       ticketTypeId: selectedTicketType.id,
       ticketTypeName: `${selectedTicketType.name}${selectedSeat ? ` (${selectedSeat.codigo})` : ''}`,
-      batchId: activeBatchInfo?.id || "map",
-      batchName: activeBatchInfo?.name || "Ingresso",
+      batchId: selectedTicketType.batchId || "map",
+      batchName: selectedTicketType.batchName || "Ingresso",
       price: selectedTicketType.price,
       quantity: 1,
       requiresProof: selectedTicketType.requiresProof || (selectedSeat?.categoria && selectedSeat.categoria !== 'comum'),
@@ -200,7 +202,10 @@ export default function EventoDetalhesPage() {
     });
 
     toast({ title: "Adicionado ao carrinho!" });
-    if (isNumbered) setSelectedSeat(null);
+    if (isNumbered) {
+      setSelectedSeat(null);
+      setSelectedSector(null);
+    }
   }
 
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
@@ -209,8 +214,8 @@ export default function EventoDetalhesPage() {
   const hasMap = event.possuiMapa || event.mapMode !== 'none';
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col">
-      <div className="max-w-7xl mx-auto px-4 pt-10 space-y-8 flex-1 w-full text-foreground">
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col text-foreground">
+      <div className="max-w-7xl mx-auto px-4 pt-10 space-y-8 flex-1 w-full">
         <div className="flex items-center justify-between">
            <Button variant="ghost" onClick={() => router.back()} className="rounded-full font-bold text-xs uppercase gap-2">
               <ArrowLeft className="w-4 h-4" /> Voltar
@@ -244,31 +249,15 @@ export default function EventoDetalhesPage() {
                 </div>
               ) : (
                 <React.Fragment>
-                  {/* Informações de Lote apenas se o modo for batches */}
-                  {activeBatchInfo && event.ticketMode === 'batches' && (
-                    <div className="flex items-center justify-between p-6 bg-white rounded-[2rem] shadow-sm border border-border/50 animate-in slide-in-from-top-2">
-                      <div className="flex items-center gap-4">
-                         <div className="p-3 bg-secondary/10 rounded-2xl text-secondary"><Ticket className="w-6 h-6" /></div>
-                         <div>
-                            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Janela de Venda Ativa</p>
-                            <h3 className="text-xl font-black italic uppercase text-primary tracking-tighter">{activeBatchInfo.name}</h3>
-                         </div>
-                      </div>
-                      <div className="text-right">
-                         <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Restantes</p>
-                         <p className="text-xl font-black text-secondary">{activeBatchInfo.restantes}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* MAPA VISUAL (SISTEMA HÍBRIDO) */}
+                  {/* MAPA VISUAL INTEGRADO */}
                   {hasMap && setores && (
                     <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
                        <CardHeader className="bg-muted/30 border-b flex flex-row items-center justify-between">
                           <CardTitle className="text-lg font-bold flex items-center gap-2"><MapIcon className="w-5 h-5 text-secondary" /> Mapa do Evento</CardTitle>
-                          <div className="flex gap-2">
+                          <div className="flex gap-4">
                              <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 bg-white border border-secondary rounded-sm" /> <span className="text-[8px] font-black uppercase">Livre</span></div>
                              <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 bg-secondary rounded-sm" /> <span className="text-[8px] font-black uppercase">Selecionado</span></div>
+                             <div className="flex items-center gap-1.5"><Accessibility className="w-3 h-3 text-secondary" /> <span className="text-[8px] font-black uppercase">PCD</span></div>
                           </div>
                        </CardHeader>
                        <CardContent className="p-0 bg-[#fafafa] relative h-[600px]">
@@ -287,7 +276,7 @@ export default function EventoDetalhesPage() {
                                         <span className="font-black italic uppercase tracking-[0.4em] text-lg">{event.palcoNome || "PALCO"}</span>
                                      </div>
                                      
-                                     {/* Setores Arrastáveis do Editor agora Estáticos para o Usuário */}
+                                     {/* Setores Dinâmicos */}
                                      {setores.map((s: any) => (
                                        <div 
                                          key={s.id} 
@@ -308,12 +297,12 @@ export default function EventoDetalhesPage() {
                                        >
                                           <div className="text-center p-4">
                                              <h4 className="font-black uppercase italic text-[10px]" style={{ color: s.cor }}>{s.nome}</h4>
-                                             {s.tipo === 'livre' && (<p className="text-[9px] font-black opacity-60" style={{ color: s.cor }}>A partir de {formatCurrency(s.preco)}</p>)}
+                                             {s.tipo === 'livre' && (<p className="text-[9px] font-black opacity-60" style={{ color: s.cor }}>Selecionar Área</p>)}
                                           </div>
                                           
-                                          {/* Se for numerado, mostra grid ao passar o mouse ou selecionar */}
+                                          {/* Seleção de Assentos/Mesas integrada no hover visual */}
                                           {s.tipo !== 'livre' && (
-                                            <div className="absolute inset-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 flex flex-col items-center justify-center rounded-[inherit] overflow-hidden">
+                                            <div className="absolute inset-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/95 flex flex-col items-center justify-center rounded-[inherit] overflow-hidden">
                                                <p className="text-[9px] font-black uppercase text-primary mb-3">Escolher {s.tipo === 'assentos' ? 'Lugar' : 'Mesa'}</p>
                                                <SectorPublicGrid setor={s} eventoId={eventId} onSelect={(seat) => handleSeatClick(seat, s)} selectedSeat={selectedSeat} />
                                             </div>
@@ -329,28 +318,33 @@ export default function EventoDetalhesPage() {
                     </Card>
                   )}
 
-                  {/* Se não tiver mapa, mostra lista simples de ingressos baseada no activeBatchInfo */}
-                  {!hasMap && activeBatchInfo && (
+                  {/* Se não tiver mapa, mostra lista baseada nos lotes sequenciais */}
+                  {!hasMap && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                       {activeBatchInfo.ticketTypes.map((type: any) => (
-                         <Card key={type.id} className="border-none shadow-sm hover:shadow-md transition-all rounded-2xl bg-white group border-l-4 border-secondary">
-                            <CardContent className="p-6 flex items-center justify-between">
-                               <div>
-                                  <h4 className="font-bold text-base uppercase">{type.name}</h4>
-                                  <p className="text-xs font-bold text-primary mt-1">{formatCurrency(type.price)}</p>
-                               </div>
-                               <Button 
-                                 onClick={() => {
-                                   setSelectedTicketType(type);
-                                   handleAddToCart();
-                                 }}
-                                 className="rounded-xl h-10 bg-secondary text-white font-black uppercase italic text-[10px]"
-                               >
-                                  Comprar
-                               </Button>
-                            </CardContent>
-                         </Card>
-                       ))}
+                       {event.batches?.[0]?.ticketTypes.map((type: any) => {
+                         const currentOption = getActiveBatchForTicket(type.name);
+                         if (!currentOption) return null;
+                         return (
+                           <Card key={type.id} className="border-none shadow-sm hover:shadow-md transition-all rounded-2xl bg-white group border-l-4 border-secondary">
+                              <CardContent className="p-6 flex items-center justify-between">
+                                 <div>
+                                    <h4 className="font-bold text-base uppercase">{currentOption.name}</h4>
+                                    <p className="text-xs font-bold text-primary mt-1">{formatCurrency(currentOption.price)}</p>
+                                    <p className="text-[8px] font-black uppercase text-muted-foreground mt-0.5">{currentOption.batchName}</p>
+                                 </div>
+                                 <Button 
+                                   onClick={() => {
+                                     setSelectedTicketType(currentOption);
+                                     handleAddToCart();
+                                   }}
+                                   className="rounded-xl h-10 bg-secondary text-white font-black uppercase italic text-[10px]"
+                                 >
+                                    Comprar
+                                 </Button>
+                              </CardContent>
+                           </Card>
+                         );
+                       })}
                     </div>
                   )}
                 </React.Fragment>
@@ -361,36 +355,53 @@ export default function EventoDetalhesPage() {
            {event.ticketMode !== 'none' && (
              <div className="lg:col-span-4 space-y-6">
                 <Card className="border-none shadow-xl rounded-[2.5rem] border-t-8 border-secondary overflow-hidden bg-white sticky top-24">
-                   <CardHeader><CardTitle className="flex items-center gap-2 font-black italic uppercase tracking-tighter"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle></CardHeader>
+                   <CardHeader><CardTitle className="flex items-center gap-2 font-black italic uppercase tracking-tighter text-primary"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle></CardHeader>
                    <CardContent className="space-y-6">
                       {selectedSector ? (
                          <div className="space-y-6 animate-in slide-in-from-right-4">
                             <div className="p-5 bg-muted/30 rounded-2xl space-y-4">
                                <div className="flex justify-between"><span className="text-[10px] font-black uppercase opacity-40">Setor</span><span className="font-bold text-sm uppercase">{selectedSector.nome}</span></div>
                                {selectedSeat && (
-                                 <div className="flex justify-between items-center"><span className="text-[10px] font-black uppercase opacity-40">Lugar</span><div className="flex flex-col items-end"><span className="font-black text-secondary uppercase italic">{selectedSeat.codigo}</span>{selectedSeat.categoria !== 'comum' && <Badge variant="outline" className="text-[8px] h-4 uppercase border-secondary text-secondary">{selectedSeat.categoria}</Badge>}</div></div>
+                                 <div className="flex justify-between items-center"><span className="text-[10px] font-black uppercase opacity-40">Lugar</span><div className="flex flex-col items-end"><span className="font-black text-secondary uppercase italic">{selectedSeat.codigo}</span>{selectedSeat.categoria !== 'comum' && <Badge variant="outline" className="text-[8px] h-4 uppercase border-secondary text-secondary gap-1"><Accessibility className="w-2 h-2" /> {selectedSeat.categoria}</Badge>}</div></div>
                                )}
                                <Separator className="border-dashed" />
                                <div className="space-y-2">
-                                  <Label className="text-[10px] font-black uppercase opacity-40">Opções Disponíveis</Label>
+                                  <Label className="text-[10px] font-black uppercase opacity-40">Preço Vigente</Label>
                                   <div className="space-y-2">
                                      {availableOptionsForSector.map((option: any) => (
-                                        <div key={option.id} onClick={() => setSelectedTicketType(option)} className={cn("p-3 rounded-xl border-2 cursor-pointer transition-all flex justify-between items-center", selectedTicketType?.id === option.id ? "border-secondary bg-secondary/5" : "border-transparent bg-white hover:bg-muted")}>
-                                           <div className="flex flex-col"><span className="text-xs font-bold uppercase">{option.name}</span><span className="text-[8px] font-black opacity-40 uppercase tracking-widest">{activeBatchInfo?.name}</span></div>
+                                        <div key={option.id} onClick={() => setSelectedTicketType(option)} className={cn("p-4 rounded-xl border-2 cursor-pointer transition-all flex justify-between items-center", selectedTicketType?.id === option.id ? "border-secondary bg-secondary/5" : "border-transparent bg-white hover:bg-muted")}>
+                                           <div className="flex flex-col">
+                                              <span className="text-xs font-bold uppercase">{option.name}</span>
+                                              <span className="text-[8px] font-black opacity-40 uppercase tracking-widest">{option.batchName}</span>
+                                           </div>
                                            <span className="font-black text-sm text-primary">{formatCurrency(option.price)}</span>
                                         </div>
                                      ))}
                                   </div>
                                </div>
                                <Separator className="border-dashed" />
-                               <div className="flex justify-between items-center"><span className="text-[10px] font-black uppercase opacity-40">Valor</span><span className="text-xl font-black text-primary">{formatCurrency(selectedTicketType?.price || 0)}</span></div>
+                               <div className="flex justify-between items-center"><span className="text-[10px] font-black uppercase opacity-40">Valor Total</span><span className="text-xl font-black text-primary">{formatCurrency(selectedTicketType?.price || 0)}</span></div>
                             </div>
-                            <Button disabled={(selectedSector.tipo !== 'livre' && !selectedSeat) || !selectedTicketType || (activeBatchInfo && activeBatchInfo.restantes <= 0)} onClick={handleAddToCart} className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform gap-3"><ShoppingCart className="w-6 h-6" /> {activeBatchInfo?.restantes === 0 ? "Esgotado" : (selectedSector.tipo !== 'livre' ? "Confirmar Lugar" : "Adicionar ao Carrinho")}</Button>
+
+                            {selectedTicketType?.requiresProof && (
+                              <div className="p-4 bg-orange-50 rounded-2xl flex gap-3">
+                                 <AlertTriangle className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
+                                 <p className="text-[9px] text-orange-800 font-bold uppercase leading-tight">Este ingresso exige apresentação de documento comprobatório na portaria do evento.</p>
+                              </div>
+                            )}
+
+                            <Button 
+                              disabled={(selectedSector.tipo !== 'livre' && !selectedSeat) || !selectedTicketType || isReserving} 
+                              onClick={handleAddToCart} 
+                              className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform gap-3"
+                            >
+                               {isReserving ? <Loader2 className="w-6 h-6 animate-spin" /> : <><ShoppingCart className="w-6 h-6" /> {selectedSector.tipo !== 'livre' ? "Confirmar Lugar" : "Adicionar ao Carrinho"}</>}
+                            </Button>
                          </div>
                       ) : (
                         <div className="p-10 text-center space-y-4 opacity-30">
                            {hasMap ? (
-                             <><MapIcon className="w-8 h-8 mx-auto" /><p className="text-[10px] font-black uppercase italic">Selecione uma área no mapa para ver ingressos</p></>
+                             <><MapIcon className="w-8 h-8 mx-auto text-secondary" /><p className="text-[10px] font-black uppercase italic">Selecione uma área no mapa para ver ingressos</p></>
                            ) : (
                              <p className="text-[10px] font-black uppercase italic">Selecione uma opção na lista</p>
                            )}
@@ -414,11 +425,38 @@ function SectorPublicGrid({ setor, eventoId, onSelect, selectedSeat }: { setor: 
     return query(collection(db, "events", eventoId, "setores", setor.id, "assentos"), orderBy("codigo", "asc"))
   }, [db, setor.id])
   const { data: assentos, loading } = useCollection<any>(assentosQuery)
+  
   if (loading) return <div className="py-2 text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto text-primary" /></div>
+  
   return (
     <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-1 overflow-auto max-h-full p-1 custom-scrollbar">
        {assentos?.map((a: any) => (
-         <TooltipProvider key={a.id}><Tooltip><TooltipTrigger asChild><button disabled={a.status !== 'disponivel'} onClick={(e) => { e.stopPropagation(); onSelect(a); }} className={cn("w-6 h-6 rounded-[2px] text-[6px] font-black border transition-all", a.status === 'disponivel' ? "bg-white border-muted hover:border-secondary hover:scale-110" : "cursor-not-allowed", selectedSeat?.id === a.id ? "bg-secondary border-secondary text-white scale-125 z-10" : a.status === 'vendido' ? "bg-muted border-transparent opacity-30" : a.status === 'reservado' ? "bg-orange-400 border-orange-400 text-white" : "")}>{a.codigo.slice(-2)}</button></TooltipTrigger><TooltipContent className="text-[9px] font-bold uppercase">{a.codigo}</TooltipContent></Tooltip></TooltipProvider>
+         <TooltipProvider key={a.id}>
+           <Tooltip>
+             <TooltipTrigger asChild>
+               <button 
+                 disabled={a.status !== 'disponivel'} 
+                 onClick={(e) => { e.stopPropagation(); onSelect(a); }} 
+                 className={cn(
+                   "w-6 h-6 rounded-[2px] text-[6px] font-black border transition-all flex items-center justify-center relative", 
+                   a.status === 'disponivel' ? "bg-white border-muted hover:border-secondary hover:scale-110" : "cursor-not-allowed", 
+                   selectedSeat?.id === a.id ? "bg-secondary border-secondary text-white scale-125 z-10" : 
+                   a.status === 'vendido' ? "bg-muted border-transparent opacity-30" : 
+                   a.status === 'reservado' ? "bg-orange-400 border-orange-400 text-white" : ""
+                 )}
+               >
+                 {a.categoria !== 'comum' && a.status === 'disponivel' && (
+                    <Accessibility className="w-2.5 h-2.5 text-secondary absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-sm" />
+                 )}
+                 {a.codigo.slice(-2)}
+               </button>
+             </TooltipTrigger>
+             <TooltipContent className="text-[9px] font-bold uppercase p-2 space-y-1">
+                <p>{a.codigo}</p>
+                {a.categoria !== 'comum' && <Badge variant="outline" className="text-[7px] h-3 uppercase border-white/20 text-white bg-secondary/50">Cota: {a.categoria}</Badge>}
+             </TooltipContent>
+           </Tooltip>
+         </TooltipProvider>
        ))}
     </div>
   )
