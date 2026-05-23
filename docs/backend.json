@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "User": {
@@ -39,6 +38,11 @@
         "endDate": { "type": "string", "format": "date-time" },
         "possuiMapa": { "type": "boolean" },
         "palcoNome": { "type": "string" },
+        "palcoPosX": { "type": "number" },
+        "palcoPosY": { "type": "number" },
+        "palcoWidth": { "type": "number" },
+        "palcoHeight": { "type": "number" },
+        "mapaConfigurado": { "type": "boolean" },
         "organizationId": { "type": "string" }
       }
     },
@@ -52,9 +56,13 @@
         "preco": { "type": "number" },
         "capacidade": { "type": "number" },
         "cor": { "type": "string" },
-        "ordem": { "type": "number", "description": "Define a linha/profundidade no mapa" },
-        "posicaoGrade": { "type": "number", "description": "Coluna inicial (0-11)" },
-        "larguraGrade": { "type": "number", "description": "Quantas colunas ocupa (1-12)" },
+        "posX": { "type": "number" },
+        "posY": { "type": "number" },
+        "width": { "type": "number" },
+        "height": { "type": "number" },
+        "zIndex": { "type": "number" },
+        "formatoVisual": { "type": "string", "enum": ["retangulo", "circulo", "arena", "arredondado"] },
+        "ordem": { "type": "number" },
         "fileiras": { "type": "number" },
         "assentosPorFileira": { "type": "number" },
         "quantidadeMesas": { "type": "number" },
@@ -94,14 +102,6 @@
     "/events/{eventId}/setores/{sectorId}/assentos/{seatId}": {
       "schema": "Seat",
       "description": "Lugares individuais de um setor"
-    },
-    "/user_gamification/{userId}": {
-      "schema": "UserGamification",
-      "description": "Progresso de gamificação por usuário"
-    },
-    "/cultural_stats/{userId}": {
-      "schema": "CulturalStats",
-      "description": "Perfil cultural e estatísticas por usuário"
     }
   }
 }

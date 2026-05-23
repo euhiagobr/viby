@@ -1,0 +1,23 @@
+{
+  "collection": "events",
+  "document": "{eventId}",
+  "fields": {
+    "palcoPosX": "number (percentual 0-100)",
+    "palcoPosY": "number (percentual 0-100)",
+    "palcoWidth": "number (percentual 0-100)",
+    "palcoHeight": "number (percentual 0-100)",
+    "palcoNome": "string",
+    "mapaConfigurado": "boolean"
+  },
+  "subcollection": "setores",
+  "document_setor": "{sectorId}",
+  "fields_setor": {
+    "posX": "number (percentual 0-100)",
+    "posY": "number (percentual 0-100)",
+    "width": "number (percentual 0-100)",
+    "height": "number (percentual 0-100)",
+    "zIndex": "number",
+    "formatoVisual": "string (retangulo|circulo|arena|arredondado)",
+    "cor": "string (hex)"
+  }
+}
