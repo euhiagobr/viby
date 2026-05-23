@@ -274,6 +274,20 @@ export default function NovoEventoPage() {
     setBatches(n); 
   }
 
+  const addTicketType = (bi: number) => { 
+    const n = [...batches]; 
+    n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }); 
+    setBatches(n); 
+  }
+
+  const removeTicketType = (bi: number, ti: number) => { 
+    const n = [...batches]; 
+    if(n[bi].ticketTypes.length > 1) { 
+      n[bi].ticketTypes.splice(ti, 1); 
+      setBatches(n); 
+    } 
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!db || !user || !currentOrg || !isAtLeastEditor) return
@@ -497,15 +511,15 @@ export default function NovoEventoPage() {
                      <div className="p-6 bg-white rounded-3xl border shadow-sm grid grid-cols-12 gap-6 items-end">
                         <div className="col-span-5 space-y-2">
                            <Label className="text-[9px] uppercase font-black opacity-40 ml-1">Nome do Ingresso</Label>
-                           <Input value={singleTicketTypes[0].name} onChange={e => { const n = [...singleTicketTypes]; n[0].name = e.target.value; setSingleTicketTypes(n); }} className="rounded-xl h-12 font-bold" />
+                           <Input value={singleTicketTypes[0]?.name || ""} onChange={e => { const n = [...singleTicketTypes]; n[0].name = e.target.value; setSingleTicketTypes(n); }} className="rounded-xl h-12 font-bold" />
                         </div>
                         <div className="col-span-3 space-y-2">
                            <Label className="text-[9px] uppercase font-black opacity-40 ml-1">Quantidade</Label>
-                           <Input value={singleTicketTypes[0].quantity} readOnly className="rounded-xl h-12 font-black bg-muted/30" />
+                           <Input value={singleTicketTypes[0]?.quantity || 0} readOnly className="rounded-xl h-12 font-black bg-muted/30" />
                         </div>
                         <div className="col-span-4 space-y-2">
                            <Label className="text-[9px] uppercase font-black opacity-40 ml-1">Valor (R$)</Label>
-                           <Input type="number" step="0.01" value={singleTicketTypes[0].price} onChange={e => { const n = [...singleTicketTypes]; n[0].price = parseFloat(e.target.value) || 0; setSingleTicketTypes(n); }} className="rounded-xl h-12 font-black text-secondary" />
+                           <Input type="number" step="0.01" value={singleTicketTypes[0]?.price || 0} onChange={e => { const n = [...singleTicketTypes]; n[0].price = parseFloat(e.target.value) || 0; setSingleTicketTypes(n); }} className="rounded-xl h-12 font-black text-secondary" />
                         </div>
                      </div>
                   </div>
@@ -526,7 +540,7 @@ export default function NovoEventoPage() {
                     <div className="space-y-4 animate-in slide-in-from-top-4 duration-500">
                        <div className="flex items-center justify-between px-2">
                           <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Categorias de Meia-Entrada ({halfPricePercent}%)</h3>
-                          <Badge variant="outline" className="rounded-lg text-[10px] font-black uppercase border-secondary text-secondary">Cota: {singleCapacity - singleTicketTypes[0].quantity} Ingressos</Badge>
+                          <Badge variant="outline" className="rounded-lg text-[10px] font-black uppercase border-secondary text-secondary">Cota: {singleCapacity - (singleTicketTypes[0]?.quantity || 0)} Ingressos</Badge>
                        </div>
                        
                        <div className="space-y-3">

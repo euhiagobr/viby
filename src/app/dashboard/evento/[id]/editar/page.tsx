@@ -38,7 +38,8 @@ import {
   Map as MapIcon,
   Percent,
   Info,
-  Clock
+  Clock,
+  Layers
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -96,7 +97,7 @@ export default function EditarEventoPage() {
   const [loading, setLoading] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
   
   const [selectedCategory, setSelectedCategory] = useState("")
   const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches'>('none')
