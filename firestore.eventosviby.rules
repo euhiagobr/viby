@@ -2,8 +2,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.19.0
-    // Ajustado para permitir gamificação via Admin e correção de travas de leitura
+    // REGRAS VIBY - Versão: 2.21.0
+    // Adicionado suporte para notificações e correções de fluxos de interação
     
     function isSignedIn() {
       return request.auth != null;
@@ -44,6 +44,18 @@ service cloud.firestore {
       allow read: if true;
     }
 
+    // Notificações
+    match /notifications/{notificationId} {
+      // Permite que o destinatário ou o admin leiam
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.targetUid || isAdmin());
+      // Permite que qualquer usuário logado crie (para menções e follows)
+      allow create: if isSignedIn();
+      // Permite que o destinatário marque como lido ou o admin altere
+      allow update: if isSignedIn() && (request.auth.uid == resource.data.targetUid || isAdmin());
+      // Permite que o destinatário exclua a notificação
+      allow delete: if isSignedIn() && (request.auth.uid == resource.data.targetUid || isAdmin());
+    }
+
     // Configurações do Site
     match /settings/{settingId} {
       allow read: if true;
@@ -58,7 +70,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Gamificação e Estatísticas (Adicionada permissão Admin para motor de XP)
+    // Gamificação e Estatísticas
     match /user_gamification/{userId} {
       allow read: if true;
       allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
