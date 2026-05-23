@@ -32,17 +32,16 @@ import {
   ArrowDown,
   Users2,
   InfoIcon,
-  XCircle,
   Layout,
   Armchair,
   Grid3X3,
   Map as MapIcon,
   Percent,
-  Info
+  Info,
+  Clock
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import {
   Dialog,
@@ -117,7 +116,10 @@ export default function EditarEventoPage() {
   ])
 
   // --- Lotes ---
+  const [totalBatchCapacity, setTotalBatchCapacity] = useState<number>(500)
   const [batches, setBatches] = useState<Batch[]>([])
+  const [isBatchPercentDialogOpen, setIsBatchPercentDialogOpen] = useState(false)
+  const [activeBatchIdx, setActiveBatchIdx] = useState<number | null>(null)
   
   // --- Gratuito ---
   const [freeCapacity, setFreeCapacity] = useState<number>(100)
@@ -132,6 +134,7 @@ export default function EditarEventoPage() {
 
       if (event.ticketMode === 'batches') {
         setBatches(event.batches || [])
+        setTotalBatchCapacity(event.capacidadeTotal || 500)
       } else if (event.ticketMode === 'paid_single' && event.batches?.length > 0) {
         const b = event.batches[0];
         setSingleCapacity(b.capacidadeInicial || 100);
@@ -184,6 +187,31 @@ export default function EditarEventoPage() {
     setIsPercentDialogOpen(false);
   }
 
+  const handleEnableBatchHalfPrice = (percent: number) => {
+    if (activeBatchIdx === null) return;
+    const n = [...batches];
+    const batch = n[activeBatchIdx];
+    const poolId = crypto.randomUUID();
+    const halfQty = Math.floor(batch.capacidadeInicial * (percent / 100));
+    const inteiraQty = batch.capacidadeInicial - halfQty;
+
+    const currentInteiraPrice = batch.ticketTypes[0]?.price || 100;
+
+    const defaultMeias: TicketType[] = [
+      { id: crypto.randomUUID(), name: "Meia Estudante", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Lote", requiresProof: true, isLegalHalf: true, description: "" },
+      { id: crypto.randomUUID(), name: "Meia PCD", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Lote", requiresProof: true, isLegalHalf: true, description: "" },
+      { id: crypto.randomUUID(), name: "Meia Idoso", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Lote", requiresProof: true, isLegalHalf: true, description: "" }
+    ];
+
+    n[activeBatchIdx].ticketTypes = [
+      { ...batch.ticketTypes[0], quantity: inteiraQty },
+      ...defaultMeias
+    ];
+    setBatches(n);
+    setIsBatchPercentDialogOpen(false);
+    setActiveBatchIdx(null);
+  }
+
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !storage || !user) return
@@ -195,32 +223,6 @@ export default function EditarEventoPage() {
       const url = await getDownloadURL(uploadTask.snapshot.ref)
       setUploadedImageUrl(url); setUploadProgress(null)
     })
-  }
-
-  const handleBatchTicketPriceChange = (bi: number, ti: number, value: string) => {
-    const numeric = value.replace(/\D/g, "");
-    const price = Number(numeric) / 100;
-    const n = [...batches];
-    n[bi].ticketTypes[ti].price = price;
-    setBatches(n);
-  }
-
-  const generateHalfPriceTypes = (bi: number) => {
-    const n = [...batches];
-    const batch = n[bi];
-    const poolId = crypto.randomUUID();
-    const currentInteiraPrice = batch.ticketTypes.find(t => t.name === "Inteira")?.price || 100;
-    
-    const types: TicketType[] = [
-      { id: crypto.randomUUID(), name: "Inteira", price: currentInteiraPrice, quantity: batch.capacidadeInicial, poolId, poolName: "Estoque Lote", requiresProof: false, isLegalHalf: false, description: "" },
-      { id: crypto.randomUUID(), name: "Meia Estudante", price: currentInteiraPrice / 2, quantity: batch.capacidadeInicial, poolId, poolName: "Estoque Lote", requiresProof: true, isLegalHalf: true, description: "" },
-      { id: crypto.randomUUID(), name: "Meia PCD", price: currentInteiraPrice / 2, quantity: batch.capacidadeInicial, poolId, poolName: "Estoque Lote", requiresProof: true, isLegalHalf: true, description: "" },
-      { id: crypto.randomUUID(), name: "Meia Idoso", price: currentInteiraPrice / 2, quantity: batch.capacidadeInicial, poolId, poolName: "Estoque Lote", requiresProof: true, isLegalHalf: true, description: "" }
-    ];
-    
-    n[bi].ticketTypes = types;
-    setBatches(n);
-    toast({ title: "Categorias de meia geradas!" });
   }
 
   const addBatch = () => {
@@ -241,6 +243,32 @@ export default function EditarEventoPage() {
 
   const removeBatch = (i: number) => {
     if(batches.length > 1) setBatches(batches.filter((_, idx) => idx !== i))
+  }
+
+  const updateBatchField = (i: number, f: keyof Batch, v: any) => { 
+    const n = [...batches]; 
+    n[i] = { ...n[i], [f]: v } as any; 
+    setBatches(n); 
+  }
+
+  const updateTicketTypeField = (bi: number, ti: number, f: string, v: any) => { 
+    const n = [...batches]; 
+    n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; 
+    setBatches(n); 
+  }
+
+  const addTicketType = (bi: number) => { 
+    const n = [...batches]; 
+    n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }); 
+    setBatches(n); 
+  }
+
+  const removeTicketType = (bi: number, ti: number) => { 
+    const n = [...batches]; 
+    if(n[bi].ticketTypes.length > 1) { 
+      n[bi].ticketTypes.splice(ti, 1); 
+      setBatches(n); 
+    } 
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -267,7 +295,7 @@ export default function EditarEventoPage() {
         totalCapacity = singleCapacity
         finalBatches = [{
           id: 'single',
-          name: 'Valor Único',
+          name: 'Lote Único',
           startDate: singleSalesStart,
           endDate: singleSalesEnd,
           capacidadeInicial: singleCapacity,
@@ -276,7 +304,7 @@ export default function EditarEventoPage() {
         }]
       } else if (ticketMode === 'batches') {
         finalBatches = batches;
-        totalCapacity = batches.reduce((acc, b) => acc + (b.capacidadeInicial || 0), 0)
+        totalCapacity = totalBatchCapacity;
       }
 
       const updateData: any = {
@@ -339,8 +367,8 @@ export default function EditarEventoPage() {
                 </div>
              </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input name="startDate" type="datetime-local" defaultValue={event.date} required className="rounded-xl h-11" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fim</Label><Input name="endDate" type="datetime-local" defaultValue={event.endDate} required className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input name="startDate" type="datetime-local" defaultValue={event.date} required className="rounded-xl h-11 text-xs" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fim</Label><Input name="endDate" type="datetime-local" defaultValue={event.endDate} required className="rounded-xl h-11 text-xs" /></div>
              </div>
              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Descrição</Label><Textarea name="description" defaultValue={event.description} className="min-h-[120px] rounded-xl" required /></div>
           </CardContent>
@@ -415,10 +443,6 @@ export default function EditarEventoPage() {
 
             {ticketMode === 'free' && (
                <div className="space-y-6 animate-in fade-in duration-300">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Início das Vendas</Label><Input type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Fim das Vendas</Label><Input type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
-                  </div>
                   <div className="p-6 bg-muted/20 rounded-2xl border-2 border-dashed border-border flex flex-col items-center gap-4">
                      <Label className="text-xs font-black uppercase tracking-widest">Quantidade de Ingressos Gratuitos</Label>
                      <Input type="number" value={freeCapacity} onChange={e => setFreeCapacity(parseInt(e.target.value) || 0)} className="h-14 text-2xl font-black rounded-xl text-center border-secondary/20 max-w-[200px]" />
@@ -534,9 +558,14 @@ export default function EditarEventoPage() {
 
             {ticketMode === 'batches' && (
               <div className="space-y-10 animate-in fade-in duration-500">
-                <div className="p-6 bg-primary/5 rounded-[2rem] border-2 border-dashed border-primary/10 flex flex-col items-center gap-3">
-                   <Label className="text-[10px] font-black uppercase tracking-widest text-primary">Capacidade Total do Local</Label>
-                   <Input type="number" value={batches.reduce((acc, b) => acc + b.capacidadeInicial, 0)} readOnly className="h-14 text-2xl font-black rounded-2xl w-32 text-center border-primary/20 bg-white" />
+                <div className="p-8 bg-muted/20 rounded-[2rem] border-2 border-dashed border-border space-y-4 text-center">
+                   <Label className="text-sm font-black uppercase tracking-widest text-primary">Capacidade Total do Local</Label>
+                   <Input 
+                      type="number" 
+                      value={totalBatchCapacity} 
+                      onChange={e => setTotalBatchCapacity(parseInt(e.target.value) || 0)} 
+                      className="h-16 text-4xl font-black rounded-2xl text-center border-secondary/20 max-w-[250px] mx-auto bg-white" 
+                   />
                 </div>
 
                 {batches.map((batch, bi) => (
@@ -544,11 +573,11 @@ export default function EditarEventoPage() {
                      <div className="flex justify-between items-center relative z-10">
                         <div className="flex items-center gap-3">
                            <h3 className="font-black italic uppercase text-secondary text-xl">{batch.name}</h3>
-                           <Badge variant="outline" className="text-[10px] font-bold uppercase">{batch.capacidadeAtual} Ingressos Disponíveis</Badge>
+                           <Badge variant="outline" className="text-[10px] font-bold uppercase">{batch.capacidadeInicial} Ingressos Iniciais</Badge>
                         </div>
                         <div className="flex gap-2">
-                           <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => generateHalfPriceTypes(bi)}>
-                              <Sparkles className="w-3 h-3" /> Gerar Categorias de Meia
+                           <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setActiveBatchIdx(bi); setIsBatchPercentDialogOpen(true); }}>
+                              <Sparkles className="w-3 h-3" /> Gerar Meia
                            </Button>
                            <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)} disabled={batches.length === 1}><Trash2 className="w-4 h-4" /></Button>
                         </div>
@@ -556,40 +585,60 @@ export default function EditarEventoPage() {
 
                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="space-y-2">
-                           <Label className="text-[10px] font-black uppercase opacity-60">Carga Inicial</Label>
-                           <Input type="number" value={batch.capacidadeInicial} onChange={e => { const n = [...batches]; n[bi].capacidadeInicial = parseInt(e.target.value) || 0; setBatches(n); }} className="rounded-xl h-11 font-black text-primary" />
+                           <Label className="text-[10px] font-black uppercase opacity-60">Carga da Etapa</Label>
+                           <Input type="number" value={batch.capacidadeInicial} onChange={e => updateBatchField(bi, 'capacidadeInicial', parseInt(e.target.value) || 0)} className="rounded-xl h-11 font-black text-primary" />
                          </div>
-                        <div className="md:col-span-2 space-y-2">
-                            <Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote</Label>
-                            <Input value={batch.name} onChange={e => { const n = [...batches]; n[bi].name = e.target.value; setBatches(n); }} className="rounded-xl h-11" />
+                        <div className="md:col-span-3 space-y-2">
+                            <Label className="text-[10px] font-black uppercase opacity-60">Nome da Janela de Venda</Label>
+                            <Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" />
                          </div>
                      </div>
 
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-60">Vigência Início</Label><Input type="datetime-local" value={batch.startDate} onChange={e => { const n = [...batches]; n[bi].startDate = e.target.value; setBatches(n); }} className="h-10 text-xs rounded-xl" /></div>
-                        <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-60">Vigência Fim</Label><Input type="datetime-local" value={batch.endDate} onChange={e => { const n = [...batches]; n[bi].endDate = e.target.value; setBatches(n); }} className="h-10 text-xs rounded-xl" /></div>
+                        <div className="space-y-2">
+                           <Label className="text-[9px] font-black uppercase opacity-60 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Início das Vendas</Label>
+                           <Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="h-10 text-xs rounded-xl" />
+                        </div>
+                        <div className="space-y-2">
+                           <Label className="text-[9px] font-black uppercase opacity-60 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Fim das Vendas</Label>
+                           <Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="h-10 text-xs rounded-xl" />
+                        </div>
                      </div>
 
                      <div className="space-y-4">
-                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Carga e Valores Individuais</Label>
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Ingressos deste Lote</Label>
                         {batch.ticketTypes.map((t, ti) => (
                            <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm grid grid-cols-12 gap-4 items-end">
                               <div className="col-span-6 space-y-2">
                                  <Label className="text-[9px] uppercase font-black opacity-40">Título</Label>
-                                 <Input value={t.name} onChange={e => { const n = [...batches]; n[bi].ticketTypes[ti].name = e.target.value; setBatches(n); }} className="rounded-xl h-10 font-bold" />
+                                 <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" />
+                                 {t.poolId && <Badge variant="secondary" className="text-[7px] h-3.5 uppercase gap-1"><Layers className="w-2 h-2" /> Estoque Compartilhado</Badge>}
                               </div>
                               <div className="col-span-4 space-y-2">
                                 <Label className="text-[9px] uppercase font-black opacity-40">Preço (R$)</Label>
-                                <Input type="number" step="0.01" value={t.price} onChange={e => handleBatchTicketPriceChange(bi, ti, e.target.value)} className="rounded-xl h-10 font-black text-secondary" />
+                                <Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', parseFloat(e.target.value) || 0)} className="rounded-xl h-10 font-black text-secondary" />
                               </div>
-                              <div className="col-span-2 flex justify-end pb-1"><Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => { if(batch.ticketTypes.length > 1) { const n = [...batches]; n[bi].ticketTypes.splice(ti, 1); setBatches(n); } }}><Trash2 className="w-4 h-4" /></Button></div>
+                              <div className="col-span-2 flex justify-end pb-1"><Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTicketType(bi, ti)} disabled={batch.ticketTypes.length === 1}><Trash2 className="w-4 h-4" /></Button></div>
                            </div>
                          ))}
-                         <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[9px] font-black uppercase gap-1.5" onClick={() => addTicketType(bi)}><Plus className="w-3 h-3" /> Adicionar Tipo</Button>
+                         <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[9px] font-black uppercase gap-1.5" onClick={() => addTicketType(bi)}><Plus className="w-3 h-3" /> Adicionar Categoria</Button>
                       </div>
+
+                      {bi < batches.length - 1 && (
+                         <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-20">
+                            <div className="bg-secondary text-white p-1 rounded-full shadow-lg border-2 border-white"><ArrowDown className="w-4 h-4" /></div>
+                         </div>
+                      )}
                   </div>
                 ))}
                 <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>
+                
+                <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
+                    <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">
+                      Lembre-se: Os lotes são janelas de venda sequenciais. As sobras migram automaticamente. A soma das cargas deve coincidir com a capacidade total configurada.
+                    </p>
+                 </div>
               </div>
             )}
           </CardContent>
@@ -600,7 +649,7 @@ export default function EditarEventoPage() {
         </Button>
       </form>
 
-      {/* DIALOG DE PORCENTAGEM DE MEIA-ENTRADA */}
+      {/* DIALOG DE PORCENTAGEM DE MEIA-ENTRADA (VALOR ÚNICO) */}
       <Dialog open={isPercentDialogOpen} onOpenChange={setIsPercentDialogOpen}>
          <DialogContent className="max-w-sm rounded-[2.5rem]">
             <DialogHeader>
@@ -627,6 +676,33 @@ export default function EditarEventoPage() {
             </div>
             <DialogFooter>
                <Button onClick={() => handleEnableHalfPrice(halfPricePercent)} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Configurar Cota</Button>
+            </DialogFooter>
+         </DialogContent>
+      </Dialog>
+
+      {/* DIALOG DE PORCENTAGEM DE MEIA-ENTRADA (LOTES) */}
+      <Dialog open={isBatchPercentDialogOpen} onOpenChange={setIsBatchPercentDialogOpen}>
+         <DialogContent className="max-w-sm rounded-[2.5rem]">
+            <DialogHeader>
+               <div className="w-12 h-12 bg-secondary/10 rounded-xl flex items-center justify-center mb-2 mx-auto text-secondary">
+                  <Percent className="w-6 h-6" />
+               </div>
+               <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Meia por Lote</DialogTitle>
+               <DialogDescription className="text-center font-medium">Defina a porcentagem de cota de meia-entrada para este lote específico.</DialogDescription>
+            </DialogHeader>
+            <div className="py-6 space-y-4">
+               <div className="relative">
+                  <Input 
+                    type="number" 
+                    defaultValue={40}
+                    onChange={e => setHalfPricePercent(parseInt(e.target.value) || 0)} 
+                    className="h-20 text-5xl font-black text-center rounded-[1.5rem] border-secondary/20" 
+                  />
+                  <span className="absolute right-6 top-1/2 -translate-y-1/2 text-2xl font-black text-muted-foreground opacity-30">%</span>
+               </div>
+            </div>
+            <DialogFooter>
+               <Button onClick={() => handleEnableBatchHalfPrice(halfPricePercent)} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Confirmar Cota</Button>
             </DialogFooter>
          </DialogContent>
       </Dialog>
