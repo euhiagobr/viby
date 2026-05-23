@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -71,7 +70,6 @@ interface TicketType {
 interface Batch {
   id: string
   name: string
-  description: string
   startDate: string
   endDate: string
   capacidadeInicial: number
@@ -128,7 +126,6 @@ export default function NovoEventoPage() {
     { 
       id: crypto.randomUUID(),
       name: "Lote 1", 
-      description: "", 
       startDate: "", 
       endDate: "", 
       capacidadeInicial: 100,
@@ -151,21 +148,7 @@ export default function NovoEventoPage() {
   // --- Gratuito ---
   const [freeCapacity, setFreeCapacity] = useState<number>(100)
 
-  useEffect(() => {
-    if (ticketMode === 'paid_single') {
-      const halfQty = Math.floor(singleCapacity * (halfPricePercent / 100));
-      const inteiraQty = singleCapacity - (isHalfPriceEnabled ? halfQty : 0);
-      
-      const n = [...singleTicketTypes];
-      if (n[0]) n[0].quantity = inteiraQty;
-      if (isHalfPriceEnabled) {
-        for (let i = 1; i < n.length; i++) {
-          n[i].quantity = halfQty;
-        }
-      }
-      setSingleTicketTypes(n);
-    }
-  }, [singleCapacity, halfPricePercent, isHalfPriceEnabled]);
+  const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
 
   const handleEnableHalfPrice = (percent: number) => {
     setHalfPricePercent(percent);
@@ -235,8 +218,7 @@ export default function NovoEventoPage() {
   const addBatch = () => {
     const newB: Batch = { 
       id: crypto.randomUUID(), 
-      name: `${batches.length + 1}º Lote`, 
-      description: "", 
+      name: `Lote ${batches.length + 1}`, 
       startDate: "", 
       endDate: "", 
       capacidadeInicial: 100, 
@@ -258,8 +240,7 @@ export default function NovoEventoPage() {
   const updateBatchField = (i: number, f: keyof Batch, v: any) => { 
     const n = [...batches]; 
     n[i] = { ...n[i], [f]: v } as any; 
-
-    // Se mudar a carga inicial, recalcular as quantidades de inteira/meia
+    
     if (f === 'capacidadeInicial' && n[i].isHalfPriceEnabled) {
       const cap = parseInt(v) || 0;
       const hPercent = n[i].halfPricePercent || 40;
@@ -309,6 +290,24 @@ export default function NovoEventoPage() {
       n[bi].ticketTypes.splice(ti, 1); 
       setBatches(n); 
     } 
+  }
+
+  const handleCepBlur = async () => {
+    const cleanCep = address.cep.replace(/\D/g, "")
+    if (cleanCep.length !== 8) return
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
+      const data = await response.json()
+      if (!data.erro) {
+        setAddress(prev => ({
+          ...prev,
+          street: data.logradouro || "",
+          neighborhood: data.bairro || "",
+          city: data.localidade || "",
+          state: data.uf || ""
+        }))
+      }
+    } catch (e) {}
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -381,8 +380,6 @@ export default function NovoEventoPage() {
       setLoading(false) 
     }
   }
-
-  const isAtLeastEditorCheck = ['owner', 'admin', 'editor'].includes(userRole || '');
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 text-foreground">
@@ -661,32 +658,77 @@ export default function NovoEventoPage() {
                         </div>
                      </div>
 
-                     <div className="space-y-4">
-                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Ingressos deste Lote</Label>
-                        <div className="space-y-3">
-                           {batch.ticketTypes.map((t, ti) => (
-                              <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm grid grid-cols-12 gap-4 items-center">
-                                 <div className="col-span-5 space-y-2">
-                                    <Label className="text-[9px] uppercase font-black opacity-40">Título</Label>
-                                    <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" />
-                                    {t.poolId && <Badge variant="secondary" className="text-[7px] h-3.5 uppercase gap-1"><Layers className="w-2 h-2" /> Estoque Compartilhado</Badge>}
-                                 </div>
-                                 <div className="col-span-2 space-y-2 text-center">
-                                   <Label className="text-[9px] uppercase font-black opacity-40 block">Qtd</Label>
-                                   <span className="font-black text-sm">{t.quantity}</span>
-                                 </div>
-                                 <div className="col-span-3 space-y-2">
-                                   <Label className="text-[9px] uppercase font-black opacity-40">Preço (R$)</Label>
-                                   <Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', parseFloat(e.target.value) || 0)} className="rounded-xl h-10 font-black text-secondary" />
-                                 </div>
-                                 <div className="col-span-2 flex justify-end">
-                                    <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTicketType(bi, ti)} disabled={batch.ticketTypes.length === 1}><Trash2 className="w-4 h-4" /></Button>
-                                 </div>
-                              </div>
-                            ))}
+                     {/* PADRÃO IGUAL AO INGRESSO ÚNICO DENTRO DO LOTE */}
+                     <div className="space-y-6 pt-4 border-t border-dashed border-border/40">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-1">
+                           <Ticket className="w-3.5 h-3.5" /> Ingressos do Lote
+                        </h4>
+                        
+                        <div className="p-6 bg-white rounded-3xl border shadow-sm grid grid-cols-12 gap-6 items-end">
+                           <div className="col-span-5 space-y-2">
+                              <Label className="text-[9px] uppercase font-black opacity-40 ml-1">Ingresso Principal</Label>
+                              <Input value={batch.ticketTypes[0]?.name || ""} onChange={e => updateTicketTypeField(bi, 0, 'name', e.target.value)} className="rounded-xl h-11 font-bold" />
+                              {batch.isHalfPriceEnabled && <Badge variant="secondary" className="text-[7px] h-3.5 uppercase gap-1"><Layers className="w-2 h-2" /> Estoque Compartilhado</Badge>}
+                           </div>
+                           <div className="col-span-3 space-y-2">
+                              <Label className="text-[9px] uppercase font-black opacity-40 ml-1">Quantidade</Label>
+                              <Input value={batch.ticketTypes[0]?.quantity || 0} readOnly className="rounded-xl h-11 font-black bg-muted/30" />
+                           </div>
+                           <div className="col-span-4 space-y-2">
+                              <Label className="text-[9px] uppercase font-black opacity-40 ml-1">Valor (R$)</Label>
+                              <Input type="number" step="0.01" value={batch.ticketTypes[0]?.price || 0} onChange={e => updateTicketTypeField(bi, 0, 'price', parseFloat(e.target.value) || 0)} className="rounded-xl h-11 font-black text-secondary" />
+                           </div>
                         </div>
-                        <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[9px] font-black uppercase gap-1.5" onClick={() => addTicketType(bi)}><Plus className="w-3 h-3" /> Adicionar Categoria</Button>
-                      </div>
+
+                        {batch.isHalfPriceEnabled && (
+                           <div className="space-y-4 animate-in slide-in-from-top-4 duration-500">
+                              <div className="flex items-center justify-between px-2">
+                                 <h3 className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Categorias de Meia ({batch.halfPricePercent}%)</h3>
+                                 <Badge variant="outline" className="rounded-lg text-[8px] font-black uppercase border-secondary text-secondary">Cota Lote: {batch.capacidadeInicial - batch.ticketTypes[0].quantity} un.</Badge>
+                              </div>
+                              
+                              <div className="space-y-3">
+                                 {batch.ticketTypes.slice(1).map((t, ti_idx) => {
+                                    const ti = ti_idx + 1;
+                                    return (
+                                       <div key={t.id} className="p-5 bg-white rounded-[1.5rem] border shadow-sm grid grid-cols-12 gap-4 items-center hover:border-secondary/20 transition-all">
+                                          <div className="col-span-4 space-y-1">
+                                             <Label className="text-[8px] uppercase font-black opacity-40">Categoria</Label>
+                                             <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-9 font-bold border-none bg-muted/20" />
+                                          </div>
+                                          <div className="col-span-2 space-y-1">
+                                             <Label className="text-[8px] uppercase font-black opacity-40">Qtd</Label>
+                                             <div className="h-9 flex items-center font-black text-[10px] px-2 bg-muted/20 rounded-xl">Pool: {t.quantity}</div>
+                                          </div>
+                                          <div className="col-span-3 space-y-1">
+                                             <Label className="text-[8px] uppercase font-black opacity-40">Valor (R$)</Label>
+                                             <Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', parseFloat(e.target.value) || 0)} className="rounded-xl h-9 font-black text-secondary" />
+                                          </div>
+                                          <div className="col-span-2 flex flex-col items-center gap-1">
+                                             <Label className="text-[7px] uppercase font-black opacity-40">Doc.</Label>
+                                             <Switch checked={t.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} />
+                                          </div>
+                                          <div className="col-span-1 flex justify-end">
+                                             <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive rounded-full" onClick={() => removeTicketType(bi, ti)}>
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                             </Button>
+                                          </div>
+                                       </div>
+                                    )
+                                 })}
+                                 <Button 
+                                    type="button" 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="text-secondary font-black uppercase text-[9px] gap-2 ml-1"
+                                    onClick={() => addTicketType(bi)}
+                                 >
+                                    <Plus className="w-3.5 h-3.5" /> Adicionar Meia
+                                 </Button>
+                              </div>
+                           </div>
+                        )}
+                     </div>
 
                       {bi < batches.length - 1 && (
                          <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-20">
@@ -696,24 +738,17 @@ export default function NovoEventoPage() {
                   </div>
                 ))}
                 <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>
-                
-                <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
-                    <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
-                    <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">
-                      Lembre-se: Os lotes são janelas de venda sequenciais. As sobras migram automaticamente. A soma das cargas deve coincidir com a capacidade total configurada.
-                    </p>
-                 </div>
               </div>
             )}
           </CardContent>
         </Card>
 
         <Button type="submit" disabled={loading} className="w-full h-16 bg-secondary text-white font-black text-xl rounded-[2rem] shadow-xl uppercase italic">
-          {loading ? <Loader2 className="animate-spin mr-2" /> : "Publicar Evento"}
+          {loading ? <Loader2 className="animate-spin mr-2" /> : "Criar Evento"}
         </Button>
       </form>
 
-      {/* DIALOG DE PORCENTAGEM DE MEIA-ENTRADA (VALOR ÚNICO) */}
+      {/* DIALOGS DE CONFIGURAÇÃO */}
       <Dialog open={isPercentDialogOpen} onOpenChange={setIsPercentDialogOpen}>
          <DialogContent className="max-w-sm rounded-[2.5rem]">
             <DialogHeader>
@@ -725,26 +760,14 @@ export default function NovoEventoPage() {
             </DialogHeader>
             <div className="py-6 space-y-6">
                <div className="relative">
-                  <Input 
-                    type="number" 
-                    value={halfPricePercent} 
-                    onChange={e => setHalfPricePercent(parseInt(e.target.value) || 0)} 
-                    className="h-20 text-5xl font-black text-center rounded-[1.5rem] border-secondary/20" 
-                  />
+                  <Input type="number" value={halfPricePercent} onChange={e => setHalfPricePercent(parseInt(e.target.value) || 0)} className="h-20 text-5xl font-black text-center rounded-[1.5rem] border-secondary/20" />
                   <span className="absolute right-6 top-1/2 -translate-y-1/2 text-2xl font-black text-muted-foreground opacity-30">%</span>
                </div>
-               <div className="p-4 bg-muted/50 rounded-2xl border-2 border-dashed flex gap-3">
-                  <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
-                  <p className="text-[10px] text-muted-foreground font-bold uppercase leading-tight">Legislação Brasileira: A cota recomendada é de no mínimo 40% da carga total de ingressos.</p>
-               </div>
             </div>
-            <DialogFooter>
-               <Button onClick={() => handleEnableHalfPrice(halfPricePercent)} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Configurar Cota</Button>
-            </DialogFooter>
+            <DialogFooter><Button onClick={() => handleEnableHalfPrice(halfPricePercent)} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Configurar Cota</Button></DialogFooter>
          </DialogContent>
       </Dialog>
 
-      {/* DIALOG DE PORCENTAGEM DE MEIA-ENTRADA (LOTES) */}
       <Dialog open={isBatchPercentDialogOpen} onOpenChange={setIsBatchPercentDialogOpen}>
          <DialogContent className="max-w-sm rounded-[2.5rem]">
             <DialogHeader>
@@ -756,18 +779,11 @@ export default function NovoEventoPage() {
             </DialogHeader>
             <div className="py-6 space-y-4">
                <div className="relative">
-                  <Input 
-                    type="number" 
-                    value={tempBatchPercent}
-                    onChange={e => setTempBatchPercent(parseInt(e.target.value) || 0)} 
-                    className="h-20 text-5xl font-black text-center rounded-[1.5rem] border-secondary/20" 
-                  />
+                  <Input type="number" value={tempBatchPercent} onChange={e => setTempBatchPercent(parseInt(e.target.value) || 0)} className="h-20 text-5xl font-black text-center rounded-[1.5rem] border-secondary/20" />
                   <span className="absolute right-6 top-1/2 -translate-y-1/2 text-2xl font-black text-muted-foreground opacity-30">%</span>
                </div>
             </div>
-            <DialogFooter>
-               <Button onClick={handleEnableBatchHalfPrice} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Confirmar Cota</Button>
-            </DialogFooter>
+            <DialogFooter><Button onClick={handleEnableBatchHalfPrice} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Confirmar Cota</Button></DialogFooter>
          </DialogContent>
       </Dialog>
     </div>
