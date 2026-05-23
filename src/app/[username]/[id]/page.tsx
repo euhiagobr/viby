@@ -294,7 +294,7 @@ export default function EventoDetalhesPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
-      <div className="max-w-6xl mx-auto px-4 pt-10 space-y-8 flex-1 w-full">
+      <div className="max-w-7xl mx-auto px-4 pt-10 space-y-8 flex-1 w-full">
         <div className="flex items-center justify-between">
            <Button variant="ghost" onClick={() => router.back()} className="rounded-full font-bold text-xs uppercase gap-2">
               <ArrowLeft className="w-4 h-4" /> Voltar
@@ -341,37 +341,44 @@ export default function EventoDetalhesPage() {
 
               {event.possuiMapa && setores && (
                 <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
-                   <CardHeader className="bg-muted/30 pb-4">
-                      <div className="flex justify-between items-center">
-                         <CardTitle className="flex items-center gap-2 text-xl font-bold"><MapIcon className="w-5 h-5 text-secondary" /> Mapa de Assentos</CardTitle>
-                         <div className="flex gap-4">
-                            <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-white border-2 border-secondary rounded" /> <span className="text-[8px] font-black uppercase">Livre</span></div>
-                            <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-primary rounded" /> <span className="text-[8px] font-black uppercase">Vendido</span></div>
-                            <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-secondary rounded" /> <span className="text-[8px] font-black uppercase">Sua Seleção</span></div>
+                   <CardHeader className="bg-primary p-10 border-b relative overflow-hidden">
+                      <div className="relative z-10 text-center space-y-2">
+                         <div className="w-full h-14 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center text-white font-black italic uppercase tracking-[0.5em] shadow-2xl border border-white/20">
+                            {event.palcoNome || "PALCO"}
+                         </div>
+                         <div className="flex justify-center gap-4 pt-4">
+                            <div className="flex items-center gap-1.5 text-white"><div className="w-2.5 h-2.5 bg-white border border-secondary rounded-sm" /> <span className="text-[8px] font-black uppercase">Livre</span></div>
+                            <div className="flex items-center gap-1.5 text-white"><div className="w-2.5 h-2.5 bg-secondary rounded-sm" /> <span className="text-[8px] font-black uppercase">Selecionado</span></div>
+                            <div className="flex items-center gap-1.5 text-white/50"><div className="w-2.5 h-2.5 bg-white/20 rounded-sm" /> <span className="text-[8px] font-black uppercase">Ocupado</span></div>
                          </div>
                       </div>
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-secondary/10 rounded-full -mr-32 -mt-32 blur-3xl" />
                    </CardHeader>
-                   <CardContent className="p-8 space-y-10">
-                      <div className="w-full h-12 bg-primary rounded-xl flex items-center justify-center text-white font-black italic uppercase tracking-[0.4em] shadow-lg">{event.palcoNome || "PALCO"}</div>
-                      
-                      <div className="space-y-12">
+                   <CardContent className="p-8 lg:p-12">
+                      <div className="grid grid-cols-12 gap-8 items-start">
                          {setores.map((setor: any) => (
-                           <div key={setor.id} className="space-y-6">
-                              <div className="flex justify-between items-center border-b pb-2">
-                                 <h4 className="font-black uppercase italic text-primary">{setor.nome}</h4>
-                                 <Badge className="bg-secondary/10 text-secondary border-none font-black">{formatCurrency(setor.preco)}</Badge>
+                           <div 
+                             key={setor.id} 
+                             style={{ gridColumn: `${(setor.posicaoGrade || 0) + 1} / span ${setor.larguraGrade || 12}` }}
+                             className="space-y-4"
+                           >
+                              <div className="flex justify-between items-center px-2">
+                                 <h4 className="font-black uppercase italic text-primary text-xs">{setor.nome}</h4>
+                                 <Badge className="bg-secondary/10 text-secondary border-none font-black text-[9px]">{formatCurrency(setor.preco)}</Badge>
                               </div>
                               
                               {setor.tipo === 'livre' ? (
-                                <Button 
-                                  variant={selectedSector?.id === setor.id ? 'default' : 'outline'}
+                                <button 
                                   onClick={() => { setSelectedSector(setor); setSelectedSeat(null); }}
-                                  className={cn("w-full h-24 rounded-[1.5rem] border-2 border-dashed flex-col gap-1 uppercase", selectedSector?.id === setor.id && "bg-secondary border-secondary")}
+                                  className={cn(
+                                    "w-full h-24 rounded-3xl border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-all hover:scale-[1.02]",
+                                    selectedSector?.id === setor.id ? "bg-secondary text-white border-secondary shadow-lg" : "bg-white text-muted-foreground"
+                                  )}
                                   style={{ borderColor: selectedSector?.id === setor.id ? 'transparent' : setor.cor }}
                                 >
-                                   <Layout className="w-5 h-5" />
-                                   <span className="font-black text-xs">Selecionar este Setor</span>
-                                </Button>
+                                   <Users className="w-5 h-5 opacity-20" />
+                                   <span className="font-black text-[10px] uppercase">Selecionar este Setor</span>
+                                </button>
                               ) : (
                                 <SectorMapViewer 
                                   eventoId={eventId} 
@@ -418,7 +425,7 @@ export default function EventoDetalhesPage() {
            
            <div className="lg:col-span-4 space-y-6">
               <Card className="border-none shadow-xl rounded-[2.5rem] border-t-8 border-secondary overflow-hidden bg-white sticky top-24">
-                 <CardHeader><CardTitle className="flex items-center gap-2 font-black italic uppercase tracking-tighter"><Ticket className="w-5 h-5 text-secondary" /> Carrinho</CardTitle></CardHeader>
+                 <CardHeader><CardTitle className="flex items-center gap-2 font-black italic uppercase tracking-tighter"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle></CardHeader>
                  <CardContent className="space-y-6">
                     {selectedSector ? (
                        <div className="space-y-6 animate-in slide-in-from-right-4">
@@ -474,8 +481,8 @@ function SectorMapViewer({ eventoId, setor, selectedSeat, onSelect, isReserving 
 
   return (
     <div className={cn(
-      "grid gap-3",
-      setor.tipo === 'assentos' ? "grid-cols-6 sm:grid-cols-10" : "grid-cols-3 sm:grid-cols-6"
+      "grid gap-1 p-2 bg-white rounded-3xl border shadow-inner",
+      setor.tipo === 'assentos' ? "grid-cols-8 sm:grid-cols-10 lg:grid-cols-12" : "grid-cols-4 sm:grid-cols-6"
     )}>
        {assentos?.map((a: any) => {
          const isSelected = selectedSeat?.id === a.id;
@@ -493,26 +500,21 @@ function SectorMapViewer({ eventoId, setor, selectedSeat, onSelect, isReserving 
                      disabled={!isAvailable || isReserving}
                      onClick={() => onSelect(a)}
                      className={cn(
-                       "aspect-square rounded-xl border-2 transition-all relative flex items-center justify-center group",
+                       "aspect-square rounded-md border transition-all relative flex items-center justify-center group",
                        isAvailable ? "hover:scale-110 active:scale-95" : "cursor-not-allowed",
                        isSelected ? "bg-secondary border-secondary text-white shadow-lg z-10" : 
-                       isSold ? "bg-primary border-primary text-white" :
+                       isSold ? "bg-muted border-transparent opacity-20" :
                        isReserved ? "bg-orange-400 border-orange-400 text-white" :
                        isBlocked ? "bg-muted border-muted text-muted-foreground" : "bg-white border-muted"
                      )}
                      style={{ borderColor: (isAvailable && !isSelected) ? setor.cor : undefined }}
                    >
                       {setor.tipo === 'assentos' ? (
-                        <Armchair className={cn("w-4 h-4", isSelected ? "text-white" : "opacity-40")} />
+                        <div className={cn("w-1 h-1 rounded-full", isSelected ? "bg-white" : "opacity-40")} style={{ backgroundColor: isAvailable && !isSelected ? setor.cor : undefined }} />
                       ) : (
-                        <div className={cn(
-                          "w-6 h-6 rounded-full flex items-center justify-center border",
-                          setor.formatoMesa === 'quadrada' ? "rounded-lg" : "rounded-full"
-                        )}>
-                          <span className="text-[7px] font-black">{a.codigo}</span>
-                        </div>
+                        <span className="text-[6px] font-black">{a.codigo}</span>
                       )}
-                      {isReserving && isSelected && <Loader2 className="absolute w-3 h-3 animate-spin text-white" />}
+                      {isReserving && isSelected && <Loader2 className="absolute w-2 h-2 animate-spin text-white" />}
                    </button>
                 </TooltipTrigger>
                 <TooltipContent className="rounded-xl font-bold uppercase text-[9px] p-2">

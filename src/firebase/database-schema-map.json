@@ -21,6 +21,8 @@
             "cor": "string (hex)",
             "ativo": "boolean",
             "ordem": "number",
+            "posicaoGrade": "number (0-11, representa a coluna na grade de 12)",
+            "larguraGrade": "number (1-12, colunas ocupadas)",
             "fileiras": "number (opcional)",
             "assentosPorFileira": "number (opcional)",
             "quantidadeMesas": "number (opcional)",

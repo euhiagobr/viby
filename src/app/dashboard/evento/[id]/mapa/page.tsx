@@ -20,7 +20,10 @@ import {
   Palmtree,
   Square,
   Circle,
-  Info
+  Info,
+  ChevronLeft,
+  ChevronRight,
+  MoveHorizontal
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -47,6 +50,7 @@ import { toast } from "@/hooks/use-toast"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { generateMapData } from "@/lib/ticketing-service"
+import { Separator } from "@/components/ui/separator"
 
 export default function EventoMapaPage() {
   const params = useParams()
@@ -85,6 +89,8 @@ export default function EventoMapaPage() {
       cor: formData.get("cor") as string || "#2C52EE",
       descricao: formData.get("descricao") as string || "",
       ordem: (setores?.length || 0) + 1,
+      posicaoGrade: 0,
+      larguraGrade: 12,
       ativo: true,
       criadoEm: serverTimestamp()
     } as any
@@ -132,15 +138,22 @@ export default function EventoMapaPage() {
     }
   }
 
+  const handleUpdatePosition = async (id: string, updates: any) => {
+    if (!db || !eventId) return
+    try {
+      await updateDoc(doc(db, "events", eventId, "setores", id), updates)
+    } catch (e) {}
+  }
+
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-20">
-      <div className="flex items-center justify-between">
+    <div className="max-w-[1400px] mx-auto space-y-8 pb-20">
+      <div className="flex items-center justify-between px-4">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
           <div>
-            <h1 className="text-3xl font-black italic tracking-tighter text-primary uppercase">Mapa de Ingressos</h1>
+            <h1 className="text-3xl font-black italic tracking-tighter text-primary uppercase">Engenharia de Mapa</h1>
             <p className="text-muted-foreground font-medium">{event?.title}</p>
           </div>
         </div>
@@ -150,7 +163,7 @@ export default function EventoMapaPage() {
               <Plus className="w-4 h-4" /> Novo Setor
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md rounded-[2rem]">
+          <DialogContent className="max-w-md rounded-[2.5rem]">
             <form onSubmit={handleCreateSector} className="space-y-6">
               <DialogHeader>
                 <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Novo Setor</DialogTitle>
@@ -205,33 +218,61 @@ export default function EventoMapaPage() {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-         <div className="md:col-span-4 space-y-6">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 px-4">
+         <div className="xl:col-span-4 space-y-6">
             <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
-               <CardHeader className="bg-muted/30 border-b"><CardTitle className="text-sm font-black uppercase tracking-widest text-primary">Configuração Global</CardTitle></CardHeader>
+               <CardHeader className="bg-muted/30 border-b"><CardTitle className="text-sm font-black uppercase tracking-widest text-primary">Palco do Evento</CardTitle></CardHeader>
                <CardContent className="p-6 space-y-6">
-                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Palco / Foco</Label><Input value={event?.palcoNome || ""} onChange={e => updateDoc(eventRef!, { palcoNome: e.target.value })} placeholder="Ex: Palco Principal" className="rounded-xl" /></div>
-                  <div className="p-4 bg-muted/20 rounded-2xl border-2 border-dashed border-border flex gap-3"><Info className="w-5 h-5 text-secondary shrink-0" /><p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">O palco serve como orientação visual para os usuários no topo do mapa.</p></div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Nome para Orientação</Label>
+                    <Input value={event?.palcoNome || ""} onChange={e => updateDoc(eventRef!, { palcoNome: e.target.value })} placeholder="Ex: Palco Principal" className="rounded-xl" />
+                  </div>
                </CardContent>
             </Card>
 
             <div className="space-y-4">
-               <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-4">Setores Configurados</h2>
+               <h2 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-4">Gestão de Setores</h2>
                {setoresLoading ? <div className="p-8 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></div> : setores?.length === 0 ? (
-                 <div className="p-12 text-center bg-white rounded-[2rem] border-2 border-dashed"><p className="text-[10px] font-bold uppercase opacity-30">Nenhum setor</p></div>
+                 <div className="p-12 text-center bg-white rounded-[2rem] border-2 border-dashed opacity-30"><p className="text-[10px] font-bold uppercase">Nenhum setor criado</p></div>
                ) : (
-                 <div className="space-y-3">
+                 <div className="space-y-4">
                     {setores?.map((s: any) => (
-                      <Card key={s.id} className="border-none shadow-sm rounded-2xl bg-white group">
-                         <div className="p-4 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                               <div className="w-3 h-10 rounded-full" style={{ backgroundColor: s.cor }} />
-                               <div className="flex flex-col">
-                                  <span className="font-bold text-sm uppercase">{s.nome}</span>
-                                  <span className="text-[9px] font-black text-muted-foreground uppercase">{s.tipo} • {s.capacidade} lug.</span>
+                      <Card key={s.id} className="border-none shadow-sm rounded-3xl bg-white overflow-hidden">
+                         <div className="p-5 space-y-4">
+                            <div className="flex items-center justify-between">
+                               <div className="flex items-center gap-3">
+                                  <div className="w-3 h-10 rounded-full" style={{ backgroundColor: s.cor }} />
+                                  <div className="flex flex-col">
+                                     <span className="font-black text-sm uppercase italic text-primary">{s.nome}</span>
+                                     <span className="text-[9px] font-black text-muted-foreground uppercase">{s.tipo} • {s.capacidade} lug.</span>
+                                  </div>
+                               </div>
+                               <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteSector(s.id)}><Trash2 className="w-4 h-4" /></Button>
+                            </div>
+
+                            <Separator className="border-dashed" />
+                            
+                            <div className="space-y-3">
+                               <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Ajuste de Grade (12 colunas)</p>
+                               <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                     <Label className="text-[8px] font-black uppercase opacity-40">Largura (Span)</Label>
+                                     <div className="flex items-center gap-2">
+                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleUpdatePosition(s.id, { larguraGrade: Math.max(1, (s.larguraGrade || 12) - 1) })}><ChevronLeft className="w-3 h-3" /></Button>
+                                        <span className="font-black text-xs min-w-4 text-center">{s.larguraGrade || 12}</span>
+                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleUpdatePosition(s.id, { larguraGrade: Math.min(12, (s.larguraGrade || 1) + 1) })}><ChevronRight className="w-3 h-3" /></Button>
+                                     </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                     <Label className="text-[8px] font-black uppercase opacity-40">Posição X</Label>
+                                     <div className="flex items-center gap-2">
+                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleUpdatePosition(s.id, { posicaoGrade: Math.max(0, (s.posicaoGrade || 0) - 1) })}><ChevronLeft className="w-3 h-3" /></Button>
+                                        <span className="font-black text-xs min-w-4 text-center">{s.posicaoGrade || 0}</span>
+                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleUpdatePosition(s.id, { posicaoGrade: Math.min(11, (s.posicaoGrade || 0) + 1) })}><ChevronRight className="w-3 h-3" /></Button>
+                                     </div>
+                                  </div>
                                </div>
                             </div>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleDeleteSector(s.id)}><Trash2 className="w-4 h-4" /></Button>
                          </div>
                       </Card>
                     ))}
@@ -240,30 +281,47 @@ export default function EventoMapaPage() {
             </div>
          </div>
 
-         <div className="md:col-span-8 space-y-6">
-            <Card className="border-none shadow-xl rounded-[2.5rem] bg-white min-h-[600px] flex flex-col overflow-hidden">
-               <CardHeader className="bg-muted/30 border-b py-8">
-                  <div className="w-full h-12 bg-primary rounded-xl flex items-center justify-center text-white font-black italic uppercase tracking-[0.3em] shadow-lg mb-4">{event?.palcoNome || "PALCO"}</div>
-                  <p className="text-center text-[10px] font-black uppercase opacity-30 tracking-widest">Vista Superior do Mapa</p>
+         <div className="xl:col-span-8 space-y-6">
+            <Card className="border-none shadow-xl rounded-[2.5rem] bg-[#fdfdfd] min-h-[700px] flex flex-col overflow-hidden">
+               <CardHeader className="bg-primary p-10 border-b relative overflow-hidden">
+                  <div className="relative z-10 text-center space-y-2">
+                     <div className="w-full h-14 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center text-white font-black italic uppercase tracking-[0.5em] shadow-2xl border border-white/20">
+                        {event?.palcoNome || "PALCO"}
+                     </div>
+                     <p className="text-[10px] font-black uppercase text-white/40 tracking-[0.3em]">Área de Atuação / Foco</p>
+                  </div>
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-secondary/10 rounded-full -mr-32 -mt-32 blur-3xl" />
                </CardHeader>
-               <CardContent className="p-10 flex-1 flex flex-col items-center justify-center gap-12">
-                  {setores?.map((s: any) => (
-                    <div key={s.id} className="w-full space-y-4">
-                       <div className="flex items-center justify-between px-2"><h4 className="font-black uppercase italic tracking-tighter text-primary">{s.nome}</h4><Badge variant="outline" className="text-[8px] font-black uppercase">{s.tipo}</Badge></div>
-                       {s.tipo === 'livre' ? (
-                         <div className="w-full h-32 rounded-[1.5rem] border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-colors hover:bg-muted/10" style={{ borderColor: s.cor }}>
-                            <Users className="w-6 h-6 opacity-20" />
-                            <p className="text-[10px] font-black uppercase opacity-40">Área Livre: {s.capacidade} Pessoas</p>
-                         </div>
-                       ) : (
-                         <SectorPreview setorId={s.id} eventoId={eventId} tipo={s.tipo} cor={s.cor} />
-                       )}
-                    </div>
-                  ))}
+               
+               <CardContent className="p-10 flex-1">
+                  <div className="grid grid-cols-12 gap-6 items-start">
+                     {setores?.map((s: any) => (
+                       <div 
+                         key={s.id} 
+                         style={{ 
+                           gridColumn: `${(s.posicaoGrade || 0) + 1} / span ${s.larguraGrade || 12}`,
+                         }}
+                         className="space-y-3 animate-in fade-in duration-500"
+                       >
+                          <div className="flex items-center justify-between px-2">
+                             <h4 className="font-black uppercase italic text-xs text-primary">{s.nome}</h4>
+                             <Badge variant="ghost" className="text-[8px] p-0 font-black uppercase opacity-40">{s.tipo}</Badge>
+                          </div>
+                          {s.tipo === 'livre' ? (
+                            <div className="w-full h-24 rounded-3xl border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-all bg-white" style={{ borderColor: s.cor, color: s.cor }}>
+                               <Users className="w-5 h-5 opacity-20" />
+                               <p className="text-[9px] font-black uppercase opacity-60">Área Livre ({s.capacidade} lug.)</p>
+                            </div>
+                          ) : (
+                            <SectorPreview setorId={s.id} eventoId={eventId} tipo={s.tipo} cor={s.cor} />
+                          )}
+                       </div>
+                     ))}
+                  </div>
                   {(!setores || setores.length === 0) && (
-                    <div className="text-center space-y-4 opacity-20">
-                       <MapIcon className="w-16 h-16 mx-auto" />
-                       <p className="font-black uppercase tracking-widest text-xs">Aguardando definição de setores</p>
+                    <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-10 py-40">
+                       <MapIcon className="w-20 h-20" />
+                       <p className="font-black uppercase tracking-[0.4em] text-sm">Planta de Ingressos Vazia</p>
                     </div>
                   )}
                </CardContent>
@@ -287,14 +345,14 @@ function SectorPreview({ setorId, eventoId, tipo, cor }: { setorId: string, even
 
   return (
     <div className={cn(
-      "grid gap-2 w-full",
-      tipo === 'assentos' ? "grid-cols-10 md:grid-cols-20" : "grid-cols-4 md:grid-cols-8"
+      "grid gap-1.5 p-4 bg-white rounded-3xl shadow-sm border",
+      tipo === 'assentos' ? "grid-cols-10 md:grid-cols-12 lg:grid-cols-15" : "grid-cols-4 md:grid-cols-6"
     )}>
        {assentos?.map((a: any) => (
          <div 
            key={a.id} 
            className={cn(
-             "aspect-square rounded-md flex items-center justify-center text-[7px] font-black transition-all",
+             "aspect-square rounded-md flex items-center justify-center text-[6px] font-black transition-all",
              a.status === 'disponivel' ? "bg-white border-2" : "bg-muted text-muted-foreground opacity-50"
            )} 
            style={{ borderColor: a.status === 'disponivel' ? cor : 'transparent' }}
