@@ -48,6 +48,17 @@ export default function PerfilPage() {
     return `***.${digits.substring(3, 6)}.***-**`;
   };
 
+  const formatJoinDate = (dateValue: any) => {
+    if (!dateValue) return 'Recentemente';
+    try {
+      const d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
+      if (isNaN(d.getTime())) return 'Recentemente';
+      return d.toLocaleDateString('pt-BR');
+    } catch (e) {
+      return 'Recentemente';
+    }
+  };
+
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -89,9 +100,6 @@ export default function PerfilPage() {
                   {profile.username}
                 </p>
                 <div className="flex flex-wrap justify-center gap-2 mt-2">
-                  <Badge variant="secondary" className="uppercase text-[10px] font-black tracking-widest">
-                     Plano {profile.plan || 'Free'}
-                  </Badge>
                   {profile.gender && (
                     <Badge variant="outline" className="uppercase text-[10px] font-bold">
                        {profile.gender}
@@ -122,7 +130,7 @@ export default function PerfilPage() {
                 )}
                 <div className="flex items-center gap-3 text-sm">
                   <Calendar className="w-4 h-4 text-muted-foreground" />
-                  <span className="font-medium">Membro desde {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString('pt-BR') : 'Recentemente'}</span>
+                  <span className="font-medium">Membro desde {formatJoinDate(profile.createdAt)}</span>
                 </div>
               </div>
             </CardContent>
