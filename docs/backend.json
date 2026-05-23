@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -43,7 +44,26 @@
         "palcoWidth": { "type": "number" },
         "palcoHeight": { "type": "number" },
         "mapaConfigurado": { "type": "boolean" },
-        "organizationId": { "type": "string" }
+        "organizationId": { "type": "string" },
+        "capacidadeTotal": { "type": "number", "description": "Capacidade máxima do evento" },
+        "loteAtual": { "type": "number", "description": "Índice do lote ativo" },
+        "batches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "startDate": { "type": "string", "format": "date-time" },
+              "endDate": { "type": "string", "format": "date-time" },
+              "capacidadeInicial": { "type": "number", "description": "Carga inicial de venda deste lote" },
+              "capacidadeAtual": { "type": "number", "description": "Carga inicial + sobras de lotes anteriores" },
+              "vendidos": { "type": "number" },
+              "restantes": { "type": "number" },
+              "migradosDoLoteAnterior": { "type": "number" }
+            }
+          }
+        }
       }
     },
     "Sector": {
@@ -54,32 +74,14 @@
         "nome": { "type": "string" },
         "tipo": { "type": "string", "enum": ["livre", "assentos", "mesas"] },
         "preco": { "type": "number" },
-        "capacidade": { "type": "number" },
+        "capacidadeTotal": { "type": "number" },
         "cor": { "type": "string" },
         "posX": { "type": "number" },
         "posY": { "type": "number" },
         "width": { "type": "number" },
         "height": { "type": "number" },
         "zIndex": { "type": "number" },
-        "formatoVisual": { "type": "string", "enum": ["retangulo", "circulo", "arena", "arredondado"] },
-        "ordem": { "type": "number" },
-        "fileiras": { "type": "number" },
-        "assentosPorFileira": { "type": "number" },
-        "quantidadeMesas": { "type": "number" },
-        "lugaresPorMesa": { "type": "number" },
-        "formatoMesa": { "type": "string", "enum": ["circular", "quadrada"] }
-      }
-    },
-    "Seat": {
-      "title": "Assento/Lugar",
-      "description": "Unidade individual de lugar marcado",
-      "type": "object",
-      "properties": {
-        "codigo": { "type": "string" },
-        "categoria": { "type": "string", "enum": ["comum", "pcd", "obeso", "acompanhante"] },
-        "status": { "type": "string", "enum": ["disponivel", "reservado", "vendido", "bloqueado"] },
-        "reservadoPor": { "type": "string" },
-        "reservadoAte": { "type": "string", "format": "date-time" }
+        "formatoVisual": { "type": "string", "enum": ["retangulo", "circulo", "arena", "arredondado"] }
       }
     }
   },

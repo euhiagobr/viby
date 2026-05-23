@@ -97,25 +97,46 @@ export default function EventoDetalhesPage() {
   const [selectedTicketType, setSelectedTicketType] = React.useState<any>(null)
   const [isReserving, setIsReserving] = React.useState(false)
 
-  // Determina os tipos de ingresso disponíveis para o setor selecionado no lote atual
-  const availableOptionsForSector = React.useMemo(() => {
-    if (!selectedSector || !event?.batches) return []
+  // Lógica Dinâmica de Lote Ativo com Migração de Capacidade
+  const activeBatchInfo = React.useMemo(() => {
+    if (!event?.batches || event.batches.length === 0) return null;
     
-    // Encontrar o primeiro lote que está com data vigente e tem estoque
-    const now = new Date()
-    const activeBatch = event.batches.find((b: any) => {
-       const start = b.startDate ? new Date(b.startDate) : null
-       const end = b.endDate ? new Date(b.endDate) : null
-       const isStarted = !start || now >= start
-       const isEnded = end && now > end
-       return isStarted && !isEnded
-    }) || event.batches[0] // Fallback para o primeiro lote se nenhum estiver exatamente na data (ou estiver esgotado)
+    const now = new Date();
+    const sortedBatches = [...event.batches];
+    let carryOver = 0;
 
-    if (!activeBatch) return []
+    for (let i = 0; i < sortedBatches.length; i++) {
+      const b = sortedBatches[i];
+      const start = b.startDate ? new Date(b.startDate) : null;
+      const end = b.endDate ? new Date(b.endDate) : null;
+      
+      const capAtual = (b.capacidadeInicial || 0) + carryOver;
+      const vendidos = b.vendidos || 0;
+      const restantes = Math.max(0, capAtual - vendidos);
 
-    // Se o setor estiver vinculado dinamicamente, buscamos todas as variações desse nome no lote
+      // Verificamos se este é o lote que deve estar vendendo agora
+      const isDateValid = (!start || now >= start) && (!end || now <= end);
+      
+      if (isDateValid && restantes > 0) {
+        return { ...b, capacidadeAtual: capAtual, restantes };
+      }
+
+      // Se o lote expirou ou acabou, a sobra migra
+      carryOver = restantes;
+    }
+
+    // Se nenhum lote estiver na data ou com estoque, retorna o último como fallback
+    const last = sortedBatches[sortedBatches.length - 1];
+    return { ...last, capacidadeAtual: (last.capacidadeInicial || 0) + carryOver, restantes: Math.max(0, (last.capacidadeInicial || 0) + carryOver - (last.vendidos || 0)) };
+  }, [event?.batches]);
+
+  // Determina os tipos de ingresso disponíveis para o setor selecionado no lote calculado
+  const availableOptionsForSector = React.useMemo(() => {
+    if (!selectedSector || !activeBatchInfo) return []
+    
+    // Se o setor estiver vinculado dinamicamente, buscamos todas as variações desse nome no lote ativo
     if (selectedSector.linkedTicketName) {
-      return activeBatch.ticketTypes.filter((t: any) => t.name === selectedSector.linkedTicketName)
+      return activeBatchInfo.ticketTypes.filter((t: any) => t.name === selectedSector.linkedTicketName)
     }
 
     // Fallback: se não houver vínculo dinâmico, mostramos o que foi configurado manualmente no setor
@@ -123,10 +144,10 @@ export default function EventoDetalhesPage() {
        id: selectedSector.id,
        name: selectedSector.nome,
        price: selectedSector.preco,
-       batchId: activeBatch.id,
-       batchName: activeBatch.name
+       batchId: activeBatchInfo.id,
+       batchName: activeBatchInfo.name
     }]
-  }, [selectedSector, event?.batches])
+  }, [selectedSector, activeBatchInfo])
 
   // Seleciona automaticamente o primeiro tipo (Inteira) ao escolher um setor
   React.useEffect(() => {
@@ -163,6 +184,12 @@ export default function EventoDetalhesPage() {
       return;
     }
 
+    // Verificação de estoque final
+    if (activeBatchInfo && activeBatchInfo.restantes <= 0) {
+      toast({ variant: "destructive", title: "Lote Esgotado", description: "Infelizmente este lote não possui mais ingressos disponíveis." });
+      return;
+    }
+
     addItem({
       id: isNumbered ? `${event.id}_${selectedTicketType.id}_${selectedSeat.id}` : `${event.id}_${selectedTicketType.id}`,
       eventId: event.id,
@@ -175,8 +202,8 @@ export default function EventoDetalhesPage() {
       organizerUsername: usernameFromUrl,
       ticketTypeId: selectedTicketType.id,
       ticketTypeName: `${selectedTicketType.name}${selectedSeat ? ` (${selectedSeat.codigo})` : ''}`,
-      batchId: selectedTicketType.batchId || "map",
-      batchName: selectedTicketType.batchName || "Lote Atual",
+      batchId: activeBatchInfo?.id || "map",
+      batchName: activeBatchInfo?.name || "Lote Atual",
       price: selectedTicketType.price,
       quantity: 1,
       requiresProof: selectedTicketType.requiresProof || (selectedSeat?.categoria && selectedSeat.categoria !== 'comum'),
@@ -217,6 +244,24 @@ export default function EventoDetalhesPage() {
                    <h1 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter leading-tight">{event.title}</h1>
                 </div>
               </div>
+
+              {activeBatchInfo && (
+                <div className="flex items-center justify-between p-6 bg-white rounded-[2rem] shadow-sm border border-border/50">
+                  <div className="flex items-center gap-4">
+                     <div className="p-3 bg-secondary/10 rounded-2xl text-secondary">
+                        <Ticket className="w-6 h-6" />
+                     </div>
+                     <div>
+                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Janela de Venda Ativa</p>
+                        <h3 className="text-xl font-black italic uppercase text-primary tracking-tighter">{activeBatchInfo.name}</h3>
+                     </div>
+                  </div>
+                  <div className="text-right">
+                     <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Disponibilidade</p>
+                     <p className="text-sm font-bold text-secondary">{activeBatchInfo.restantes} Ingressos Restantes</p>
+                  </div>
+                </div>
+              )}
 
               {event.possuiMapa && setores && (
                 <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
@@ -328,7 +373,7 @@ export default function EventoDetalhesPage() {
                                       >
                                          <div className="flex flex-col">
                                             <span className="text-xs font-bold uppercase">{option.name}</span>
-                                            <span className="text-[8px] font-black opacity-40 uppercase tracking-widest">{option.batchName || "Lote Atual"}</span>
+                                            <span className="text-[8px] font-black opacity-40 uppercase tracking-widest">{activeBatchInfo?.name || "Lote Atual"}</span>
                                          </div>
                                          <span className="font-black text-sm text-primary">{formatCurrency(option.price)}</span>
                                       </div>
@@ -341,11 +386,11 @@ export default function EventoDetalhesPage() {
                           </div>
 
                           <Button 
-                            disabled={(selectedSector.tipo !== 'livre' && !selectedSeat) || !selectedTicketType}
+                            disabled={(selectedSector.tipo !== 'livre' && !selectedSeat) || !selectedTicketType || (activeBatchInfo && activeBatchInfo.restantes <= 0)}
                             onClick={handleAddToCart} 
                             className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform gap-3"
                           >
-                             <ShoppingCart className="w-6 h-6" /> {selectedSector.tipo !== 'livre' ? "Garantir Lugar" : "Adicionar ao Carrinho"}
+                             <ShoppingCart className="w-6 h-6" /> {activeBatchInfo?.restantes === 0 ? "Esgotado" : (selectedSector.tipo !== 'livre' ? "Garantir Lugar" : "Adicionar ao Carrinho")}
                           </Button>
                        </div>
                     ) : (
@@ -364,7 +409,7 @@ export default function EventoDetalhesPage() {
   )
 }
 
-function SectorPublicGrid({ setor, eventoId, onSelect, selectedSeat }: { setor: any, eventoId: string, onSelect: (s: any) => void, selectedSeat: any }) {
+function SectorPublicGrid({ setor, eventoId, onSelect, selectedSeat }: { setor: any, eventoId: string, onSelect: (seat: any) => void, selectedSeat: any }) {
   const db = useFirestore()
   const assentosQuery = useMemoFirebase(() => {
     if (!db) return null
