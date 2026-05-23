@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -30,7 +31,8 @@ import {
   Maximize2,
   Minimize2,
   Move,
-  GripHorizontal
+  GripHorizontal,
+  Ticket
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -83,6 +85,7 @@ export default function EventoMapaPage() {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [selectedType, setSelectedType] = React.useState<any>("livre")
+  const [linkedTicketId, setLinkedTicketId] = React.useState<string>("none")
   
   const [palcoNome, setPalcoNome] = React.useState("PALCO PRINCIPAL")
   const [editMode, setEditMode] = React.useState<'list' | 'visual'>('visual')
@@ -93,6 +96,17 @@ export default function EventoMapaPage() {
     }
   }, [event?.palcoNome])
 
+  const allTickets = React.useMemo(() => {
+    if (!event?.batches) return []
+    const tickets: any[] = []
+    event.batches.forEach((b: any) => {
+      b.ticketTypes.forEach((t: any) => {
+        tickets.push({ ...t, batchId: b.id, batchName: b.name })
+      })
+    })
+    return tickets
+  }, [event?.batches])
+
   const handleCreateSector = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!db || !user || !eventId) return
@@ -100,11 +114,14 @@ export default function EventoMapaPage() {
     setIsSubmitting(true)
     const formData = new FormData(e.currentTarget)
     
+    const linkedTicket = allTickets.find(t => t.id === linkedTicketId)
+
     const sectorData = {
       nome: formData.get("nome") as string,
       tipo: selectedType,
-      preco: parseFloat(formData.get("preco") as string) || 0,
-      capacidade: parseInt(formData.get("capacidade") as string) || 0,
+      preco: linkedTicket ? linkedTicket.price : (parseFloat(formData.get("preco") as string) || 0),
+      capacidade: linkedTicket ? linkedTicket.quantity : (parseInt(formData.get("capacidade") as string) || 0),
+      linkedTicketId: linkedTicketId === 'none' ? null : linkedTicketId,
       cor: formData.get("cor") as string || "#2C52EE",
       descricao: formData.get("descricao") as string || "",
       ordem: (setores?.length || 0) + 1,
@@ -135,10 +152,11 @@ export default function EventoMapaPage() {
         await generateMapData(db, eventId, docRef.id, sectorData)
       }
       if (!event.possuiMapa) {
-        await updateDoc(eventRef!, { possuiMapa: true, mapaConfigurado: true })
+        await updateDoc(eventRef!, { possuiMapa: true, mapaConfigurado: true, ticketMode: 'map' })
       }
       toast({ title: "Setor criado!", description: `${sectorData.nome} adicionado ao mapa.` })
       setIsDialogOpen(false)
+      setLinkedTicketId("none")
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao criar", description: error.message })
     } finally {
@@ -159,6 +177,23 @@ export default function EventoMapaPage() {
       toast({ title: "Setor removido" })
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao remover" })
+    }
+  }
+
+  const handleGlobalSave = async () => {
+    if (!db || !eventRef) return
+    setIsSubmitting(true)
+    try {
+      await updateDoc(eventRef, { 
+        palcoNome, 
+        mapaConfigurado: true,
+        updatedAt: serverTimestamp() 
+      })
+      toast({ title: "Mapa salvo com sucesso!" })
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao salvar" })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -200,19 +235,24 @@ export default function EventoMapaPage() {
             <p className="text-muted-foreground font-medium">{event?.title}</p>
           </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3">
            <div className="bg-muted p-1 rounded-xl flex">
               <Button variant={editMode === 'visual' ? 'secondary' : 'ghost'} size="sm" onClick={() => setEditMode('visual')} className="rounded-lg text-[10px] font-black uppercase">Editor Visual</Button>
               <Button variant={editMode === 'list' ? 'secondary' : 'ghost'} size="sm" onClick={() => setEditMode('list')} className="rounded-lg text-[10px] font-black uppercase">Configurações</Button>
            </div>
            
+           <Button onClick={handleGlobalSave} disabled={isSubmitting} className="bg-primary text-white font-black rounded-xl h-11 px-6 shadow-lg gap-2 uppercase italic">
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Salvar Mapa
+           </Button>
+
            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="rounded-xl font-bold gap-2 bg-secondary text-white shadow-lg">
+                <Button className="rounded-xl font-bold gap-2 bg-secondary text-white shadow-lg h-11 px-6">
                   <Plus className="w-4 h-4" /> Novo Setor
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md rounded-[2.5rem]">
+              <DialogContent className="max-w-md rounded-[2.5rem] max-h-[90vh] overflow-y-auto custom-scrollbar">
                 <form onSubmit={handleCreateSector} className="space-y-6">
                   <DialogHeader>
                     <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Novo Setor</DialogTitle>
@@ -224,10 +264,26 @@ export default function EventoMapaPage() {
                        <Button type="button" variant={selectedType === 'assentos' ? 'secondary' : 'outline'} className="flex-col h-20 gap-1 text-[10px] uppercase font-black" onClick={() => setSelectedType('assentos')}><Armchair className="w-5 h-5" /> Assentos</Button>
                        <Button type="button" variant={selectedType === 'mesas' ? 'secondary' : 'outline'} className="flex-col h-20 gap-1 text-[10px] uppercase font-black" onClick={() => setSelectedType('mesas')}><Grid3X3 className="w-5 h-5" /> Mesas</Button>
                     </div>
+
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Ticket className="w-3 h-3" /> Vincular a Ingresso Definido (Opcional)</Label>
+                       <Select value={linkedTicketId} onValueChange={setLinkedTicketId}>
+                          <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecione um ingresso" /></SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                             <SelectItem value="none" className="text-xs font-bold">Sem vínculo direto</SelectItem>
+                             {allTickets.map(t => (
+                               <SelectItem key={t.id} value={t.id} className="text-xs">
+                                  {t.batchName}: {t.name} (R$ {t.price})
+                               </SelectItem>
+                             ))}
+                          </SelectContent>
+                       </Select>
+                    </div>
+
                     <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Setor</Label><Input name="nome" placeholder="Ex: Pista Premium" required className="rounded-xl" /></div>
                     <div className="grid grid-cols-2 gap-4">
-                       <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Preço (R$)</Label><Input name="preco" type="number" step="0.01" required className="rounded-xl" /></div>
-                       {selectedType === 'livre' && <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Capacidade</Label><Input name="capacidade" type="number" required className="rounded-xl" /></div>}
+                       <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Preço (R$)</Label><Input name="preco" type="number" step="0.01" required disabled={linkedTicketId !== 'none'} className="rounded-xl" /></div>
+                       {selectedType === 'livre' && <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Capacidade</Label><Input name="capacidade" type="number" required disabled={linkedTicketId !== 'none'} className="rounded-xl" /></div>}
                     </div>
                     {selectedType === 'assentos' && (
                       <div className="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
@@ -252,6 +308,7 @@ export default function EventoMapaPage() {
         </div>
       </div>
 
+      <TooltipProvider>
       {editMode === 'visual' ? (
         <div className="flex-1 relative bg-muted/20 border-2 border-dashed rounded-[2.5rem] overflow-hidden">
            {/* Canvas Area */}
@@ -277,10 +334,10 @@ export default function EventoMapaPage() {
                      <div className="relative z-10 text-center space-y-1">
                         <Input 
                           value={palcoNome} 
-                          onChange={e => { setPalcoNome(e.target.value.toUpperCase()); updateDoc(eventRef!, { palcoNome: e.target.value.toUpperCase() }); }} 
+                          onChange={e => setPalcoNome(e.target.value.toUpperCase())} 
                           className="bg-transparent border-none text-center font-black italic uppercase tracking-[0.5em] text-xl focus-visible:ring-0 p-0 h-auto w-full min-w-[200px]" 
                         />
-                        <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Foco Frontal</p>
+                        <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Arraste para posicionar o palco</p>
                      </div>
                   </div>
                 </Rnd>
@@ -335,20 +392,18 @@ export default function EventoMapaPage() {
            <div className="absolute top-8 left-8 z-50 space-y-4">
               <Card className="p-2 border-none shadow-2xl rounded-2xl bg-white/90 backdrop-blur-md">
                  <div className="flex flex-col gap-2">
-                    <TooltipProvider>
-                       <Tooltip>
-                          <TooltipTrigger asChild>
-                             <Button variant="secondary" size="icon" className="rounded-xl"><Move className="w-4 h-4" /></Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="right">Arraste para mover</TooltipContent>
-                       </Tooltip>
-                       <Tooltip>
-                          <TooltipTrigger asChild>
-                             <Button variant="ghost" size="icon" className="rounded-xl"><Maximize2 className="w-4 h-4" /></Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="right">Redimensione pelos cantos</TooltipContent>
-                       </Tooltip>
-                    </TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                           <Button variant="secondary" size="icon" className="rounded-xl"><Move className="w-4 h-4" /></Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">Arraste para mover</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                           <Button variant="ghost" size="icon" className="rounded-xl"><Maximize2 className="w-4 h-4" /></Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">Redimensione pelos cantos</TooltipContent>
+                    </Tooltip>
                  </div>
               </Card>
            </div>
@@ -366,6 +421,7 @@ export default function EventoMapaPage() {
                          <div>
                             <h4 className="text-lg font-black uppercase italic tracking-tighter text-primary">{s.nome}</h4>
                             <p className="text-xs font-bold text-muted-foreground uppercase">{s.tipo} • {s.capacidade} Lugares • {s.preco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                            {s.linkedTicketId && <Badge variant="outline" className="text-[8px] uppercase mt-1">Vinculado a Ingresso</Badge>}
                          </div>
                       </div>
                       <Button variant="ghost" size="icon" className="text-destructive h-10 w-10 rounded-full hover:bg-destructive/5" onClick={() => handleDeleteSector(s.id)}>
@@ -377,6 +433,7 @@ export default function EventoMapaPage() {
           </div>
         </div>
       )}
+      </TooltipProvider>
     </div>
   )
 }

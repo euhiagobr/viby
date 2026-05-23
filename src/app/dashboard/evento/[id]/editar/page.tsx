@@ -67,7 +67,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { sendPartnerInvitationEmail } from "@/app/actions/email"
-import { generateMapData } from "@/lib/ticketing-service"
 
 interface TicketType {
   id: string
@@ -89,17 +88,6 @@ interface Batch {
   endDate: string
   ticketTypes: TicketType[]
 }
-
-const TICKET_CATEGORIES = [
-  { name: "Inteira", isLegalHalf: false, requiresProof: false },
-  { name: "Meia Estudante", isLegalHalf: true, requiresProof: true },
-  { name: "Meia PCD", isLegalHalf: true, requiresProof: true },
-  { name: "Meia Idoso", isLegalHalf: true, requiresProof: true },
-  { name: "Meia ID Jovem", isLegalHalf: true, requiresProof: true },
-  { name: "Ingresso Social", isLegalHalf: false, requiresProof: true },
-  { name: "Cortesia", isLegalHalf: false, requiresProof: false },
-  { name: "Promocional", isLegalHalf: false, requiresProof: false },
-]
 
 export default function EditarEventoPage() {
   const params = useParams()
@@ -355,6 +343,7 @@ export default function EditarEventoPage() {
               {!noTickets && (
                 <div className="bg-white p-1 rounded-xl border flex gap-1">
                   <Button type="button" variant={ticketMode === 'free' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('free')}>Grátis</Button>
+                  <Button type="button" variant={ticketMode === 'paid_single' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('paid_single')}>Único</Button>
                   <Button type="button" variant={ticketMode === 'batches' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('batches')}>Lotes</Button>
                   <Button type="button" variant={ticketMode === 'map' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('map')}>Mapa</Button>
                 </div>
@@ -397,7 +386,7 @@ export default function EditarEventoPage() {
                       </div>
                    </div>
                  ))}
-                 {ticketMode === 'batches' && <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>}
+                 {(ticketMode === 'batches' || ticketMode === 'paid_single' || ticketMode === 'free') && <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>}
                </React.Fragment>
              )}
           </CardContent>

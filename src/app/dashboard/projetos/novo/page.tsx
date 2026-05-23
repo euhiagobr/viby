@@ -43,7 +43,8 @@ import {
   Armchair,
   Grid3X3,
   Layout,
-  Save
+  Save,
+  ImageIcon
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -222,6 +223,13 @@ export default function NovoEventoPage() {
     setMapSectors(newSectors)
   }
 
+  const addBatch = () => setBatches([...batches, { id: crypto.randomUUID(), name: `Lote ${batches.length + 1}`, description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }])
+  const removeBatch = (i: number) => setBatches(batches.filter((_, idx) => idx !== i))
+  const updateBatchField = (i: number, f: keyof Batch, v: any) => { const n = [...batches]; n[i] = { ...n[i], [f]: v }; setBatches(n); }
+  const addTicketType = (bi: number) => { const n = [...batches]; n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }); setBatches(n); }
+  const removeTicketType = (bi: number, ti: number) => { const n = [...batches]; if(n[bi].ticketTypes.length > 1) { n[bi].ticketTypes.splice(ti, 1); setBatches(n); } }
+  const updateTicketTypeField = (bi: number, ti: number, f: string, v: any) => { const n = [...batches]; n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; setBatches(n); }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!db || !user || !currentOrg || !isAtLeastEditor) return
@@ -287,7 +295,7 @@ export default function NovoEventoPage() {
       toast({ title: "Evento Publicado!" })
       router.push("/dashboard/organizacoes")
     } catch (error: any) { 
-      toast({ variant: "destructive", title: "Erro ao publicar" }) 
+      toast({ variant: "destructive", title: "Erro ao publicar", description: error.message }) 
     } finally { 
       setLoading(false) 
     }
@@ -355,6 +363,7 @@ export default function NovoEventoPage() {
               </div>
               <div className="bg-white p-1 rounded-xl border flex gap-1">
                 <Button type="button" variant={ticketMode === 'free' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('free')}>Grátis</Button>
+                <Button type="button" variant={ticketMode === 'paid_single' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('paid_single')}>Único</Button>
                 <Button type="button" variant={ticketMode === 'batches' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('batches')}>Lotes</Button>
                 <Button type="button" variant={ticketMode === 'map' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('map')}>Mapa</Button>
               </div>
@@ -408,7 +417,7 @@ export default function NovoEventoPage() {
                <React.Fragment>
                  {batches.map((batch, bi) => (
                    <div key={batch.id} className="p-6 rounded-[1.5rem] border-2 bg-muted/10 space-y-6">
-                      <div className="flex justify-between items-center"><h3 className="font-black italic uppercase text-secondary text-xl">{batch.name}</h3></div>
+                      <div className="flex justify-between items-center"><h3 className="font-black italic uppercase text-secondary text-xl">{batch.name}</h3><Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)}><Trash2 className="w-4 h-4" /></Button></div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" /></div>
                          <div className="grid grid-cols-2 gap-4">
@@ -419,7 +428,7 @@ export default function NovoEventoPage() {
                       <div className="space-y-4">
                          {batch.ticketTypes.map((t, ti) => (
                            <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm grid grid-cols-12 gap-4 items-end">
-                              <div className="col-span-4 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40">Nome</Label><Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" /></div>
+                              <div className="col-span-4 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40">Tipo</Label><Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" /></div>
                               <div className="col-span-3 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40">Qtd</Label><Input type="number" value={t.quantity} onChange={e => updateTicketTypeField(bi, ti, 'quantity', e.target.value)} className="rounded-xl h-10 font-black" /></div>
                               <div className="col-span-3 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40">Valor (R$)</Label><Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} className="rounded-xl h-10 font-black text-secondary" disabled={ticketMode === 'free'} /></div>
                               <div className="col-span-2 flex justify-end pb-1"><Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTicketType(bi, ti)} disabled={batch.ticketTypes.length === 1}><Trash2 className="w-4 h-4" /></Button></div>
@@ -429,7 +438,7 @@ export default function NovoEventoPage() {
                       </div>
                    </div>
                  ))}
-                 {ticketMode === 'batches' && <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>}
+                 {(ticketMode === 'batches' || ticketMode === 'paid_single' || ticketMode === 'free') && <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>}
                </React.Fragment>
              )}
           </CardContent>
