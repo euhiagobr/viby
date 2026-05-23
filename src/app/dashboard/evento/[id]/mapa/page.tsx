@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useFirestore, useDoc, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
+import { useDoc, useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
 import { doc, collection, addDoc, serverTimestamp, updateDoc, deleteDoc, query, orderBy, writeBatch, getDocs } from "firebase/firestore"
 import { 
   Map as MapIcon, 
@@ -26,7 +26,8 @@ import {
   ArrowUp,
   ArrowDown,
   MoveHorizontal,
-  BoxSelect
+  BoxSelect,
+  X
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -80,6 +81,15 @@ export default function EventoMapaPage() {
   
   const [selectedSeatForEdit, setSelectedSeatForEdit] = React.useState<any>(null)
   const [isSeatEditorOpen, setIsSeatEditorOpen] = React.useState(false)
+  
+  const [palcoNome, setPalcoNome] = React.useState("PALCO PRINCIPAL")
+
+  // Sincroniza o nome do palco com o banco
+  React.useEffect(() => {
+    if (event?.palcoNome) {
+      setPalcoNome(event.palcoNome)
+    }
+  }, [event?.palcoNome])
 
   const handleCreateSector = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -322,7 +332,6 @@ export default function EventoMapaPage() {
                </CardHeader>
                
                <CardContent className="p-10 flex-1 overflow-x-auto bg-[#fafafa]">
-                  {/* GRID VISUALIZER OVERLAY EM BACKGROUND */}
                   <div className="relative w-full min-w-[800px] min-h-[800px]">
                      <div className="absolute inset-0 grid grid-cols-12 gap-8 pointer-events-none opacity-[0.03]">
                         {Array.from({ length: 12 }).map((_, i) => (
@@ -373,7 +382,6 @@ export default function EventoMapaPage() {
          </div>
       </div>
 
-      {/* DIALOG EDITOR DE ASSENTO */}
       <Dialog open={isSeatEditorOpen} onOpenChange={(o) => !o && (setIsSeatEditorOpen(false), setSelectedSeatForEdit(null))}>
          <DialogContent className="max-w-sm rounded-[2.5rem]">
             <DialogHeader>
@@ -421,7 +429,6 @@ function SectorEditGrid({ setor, eventoId, onSeatClick }: { setor: any, eventoId
 
   if (loading) return <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground opacity-20" /></div>
 
-  // Ajustar colunas dinamicamente baseado na largura do bloco para o preview ficar proporcional
   const gridCols = setor.larguraGrade >= 8 ? "grid-cols-10" : setor.larguraGrade >= 4 ? "grid-cols-6" : "grid-cols-3";
 
   return (
