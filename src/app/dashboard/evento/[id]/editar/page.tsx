@@ -36,7 +36,11 @@ import {
   X,
   CheckCircle2,
   Camera,
-  XCircle
+  XCircle,
+  Map as MapIcon,
+  Armchair,
+  Grid3X3,
+  Layout
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -63,6 +67,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { sendPartnerInvitationEmail } from "@/app/actions/email"
+import { generateMapData } from "@/lib/ticketing-service"
 
 interface TicketType {
   id: string
@@ -120,19 +125,16 @@ export default function EditarEventoPage() {
   
   const [selectedCategory, setSelectedCategory] = useState("")
   const [noTickets, setNoTickets] = useState(false)
-  const [ticketMode, setTicketMode] = useState<'free' | 'paid_single' | 'batches'>('free')
+  const [ticketMode, setTicketMode] = useState<'free' | 'paid_single' | 'batches' | 'map'>('free')
   const [batches, setBatches] = useState<Batch[]>([])
-
+  
+  const [palcoNome, setPalcoNome] = useState("PALCO PRINCIPAL")
   const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
   
   const [coOrganizers, setCoOrganizers] = useState<any[]>([])
   const [searchUsername, setSearchUsername] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [orgToDelete, setOrgToDelete] = useState<any | null>(null)
-
-  const [isDistributeOpen, setIsDistributeOpen] = useState(false)
-  const [distributeBatchIdx, setDistributeBatchIdx] = useState<number | null>(null)
-  const [totalToDistribute, setTotalToDistribute] = useState("")
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
 
@@ -149,7 +151,6 @@ export default function EditarEventoPage() {
 
   useEffect(() => {
     if (event && categories && categories.length > 0) {
-      // Tenta mapear a categoria pelo ID ou pelo Nome (Legacy)
       if (event.categoryId && categories.some(c => c.id === event.categoryId)) {
         setSelectedCategory(event.categoryId);
       } else {
@@ -161,8 +162,9 @@ export default function EditarEventoPage() {
       }
 
       setNoTickets(event.noTickets || false)
-      setTicketMode(event.ticketMode || (event.isFree ? 'free' : 'batches'))
+      setTicketMode(event.ticketMode || (event.possuiMapa ? 'map' : (event.isFree ? 'free' : 'batches')))
       setBatches(event.batches || [])
+      setPalcoNome(event.palcoNome || "PALCO PRINCIPAL")
       setAddress(event.address || { street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
       setImagePreview(event.image || null)
       setUploadedImageUrl(event.image || null)
@@ -210,74 +212,28 @@ export default function EditarEventoPage() {
   const handleSearchOrg = async () => {
     if (!db || !searchUsername || !currentOrg) return
     const usernameInput = searchUsername.toLowerCase().replace('@', '').trim()
-    
-    if (usernameInput === currentOrg.username) {
-      toast({ variant: "destructive", title: "Operação inválida", description: "Você já é o organizador principal." })
-      return
-    }
-
+    if (usernameInput === currentOrg.username) return
     setIsSearching(true)
     try {
       const usernameRef = doc(db, 'usernames', usernameInput)
       const usernameSnap = await getDoc(usernameRef)
-
-      if (!usernameSnap.exists() || usernameSnap.data().type !== 'organization') {
-        throw new Error("Organização não encontrada.")
-      }
-
-      const orgId = usernameSnap.data().uid
-      if (coOrganizers.find(o => o.id === orgId)) {
-        throw new Error("Esta organização já foi adicionada.")
-      }
-
-      const orgSnap = await getDoc(doc(db, 'organizations', orgId))
-      if (orgSnap.exists()) {
-        const orgData = orgSnap.data()
-        setCoOrganizers(prev => [...prev, { id: orgSnap.id, ...orgData, _isNew: true }])
-        setSearchUsername("")
-      }
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Busca falhou", description: error.message })
-    } finally {
-      setIsSearching(false)
-    }
+      if (!usernameSnap.exists() || usernameSnap.data().type !== 'organization') throw new Error("Não encontrado")
+      const orgSnap = await getDoc(doc(db, 'organizations', usernameSnap.data().uid))
+      if (orgSnap.exists()) setCoOrganizers(prev => [...prev, { id: orgSnap.id, ...orgSnap.data(), _isNew: true }])
+      setSearchUsername("")
+    } catch (error: any) { toast({ variant: "destructive", title: "Busca falhou" }) }
+    finally { setIsSearching(false) }
   }
 
   const handleRemoveOrganizer = async () => {
     if (!orgToDelete) return
     const orgId = orgToDelete.id
-
     if (!orgToDelete._isNew && db && eventId) {
       try {
         await deleteDoc(doc(db, 'events', eventId, 'partners', orgId))
-        toast({ title: "Parceria removida" })
-      } catch (e) {
-        toast({ variant: "destructive", title: "Erro ao remover", description: "Verifique suas permissões." })
-        return;
-      }
+      } catch (e) { return; }
     }
-    setCoOrganizers(coOrganizers.filter(o => o.id !== orgId))
-    setOrgToDelete(null)
-  }
-
-  const handleDistribute = () => {
-    if (distributeBatchIdx === null || !totalToDistribute) return
-    const total = parseInt(totalToDistribute)
-    if (isNaN(total)) return
-
-    const meiaPoolId = crypto.randomUUID()
-    const meiaQuantity = Math.floor(total * 0.4)
-    const inteiraQuantity = total - meiaQuantity
-
-    const newTypes: TicketType[] = [
-      { id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: inteiraQuantity, requiresProof: false, isLegalHalf: false, description: "" },
-      { id: crypto.randomUUID(), name: "Meia Estudante", price: 50, quantity: meiaQuantity, poolId: meiaPoolId, poolName: "Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
-      { id: crypto.randomUUID(), name: "Meia PCD", price: 50, quantity: meiaQuantity, poolId: meiaPoolId, poolName: "Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
-      { id: crypto.randomUUID(), name: "Meia Idoso", price: 50, quantity: meiaQuantity, poolId: meiaPoolId, poolName: "Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" }
-    ]
-
-    const n = [...batches]; n[distributeBatchIdx].ticketTypes = newTypes; setBatches(n); setIsDistributeOpen(false); setTotalToDistribute("");
-    toast({ title: "Distribuído!", description: "Meia-entrada configurada como estoque compartilhado (40%)." })
+    setCoOrganizers(coOrganizers.filter(o => o.id !== orgId)); setOrgToDelete(null);
   }
 
   const addBatch = () => setBatches([...batches, { id: crypto.randomUUID(), name: `Lote ${batches.length + 1}`, description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 50, requiresProof: false, isLegalHalf: false, description: "" }] }])
@@ -285,42 +241,16 @@ export default function EditarEventoPage() {
   const updateBatchField = (i: number, f: keyof Batch, v: any) => { const n = [...batches]; n[i] = { ...n[i], [f]: v }; setBatches(n); }
   const addTicketType = (bi: number) => { const n = [...batches]; n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 50, requiresProof: false, isLegalHalf: false, description: "" }); setBatches(n); }
   const removeTicketType = (bi: number, ti: number) => { const n = [...batches]; if(n[bi].ticketTypes.length > 1) { n[bi].ticketTypes.splice(ti, 1); setBatches(n); } }
-  
-  const updateTicketTypeField = (bi: number, ti: number, f: keyof TicketType, v: any) => { 
-    const n = [...batches]; n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; setBatches(n); 
-  }
-
-  const calculateHalfPriceStats = (batch: Batch) => {
-    const poolQuantities: Record<string, number> = {}
-    const individualTotal = batch.ticketTypes.reduce((acc, t) => {
-      if (t.poolId) {
-        poolQuantities[t.poolId] = t.quantity
-        return acc
-      }
-      return acc + (parseInt(t.quantity as any) || 0)
-    }, 0)
-    
-    const poolTotal = Object.values(poolQuantities).reduce((acc, q) => acc + q, 0)
-    const total = individualTotal + poolTotal
-
-    const legalHalfTypes = batch.ticketTypes.filter(t => t.isLegalHalf)
-    const legalPoolIds = new Set(legalHalfTypes.filter(t => t.poolId).map(t => t.poolId!))
-    const individualLegalHalf = legalHalfTypes.filter(t => !t.poolId).reduce((acc, t) => acc + (parseInt(t.quantity as any) || 0), 0)
-    const poolLegalHalf = Array.from(legalPoolIds).reduce((acc, pid) => acc + (poolQuantities[pid] || 0), 0)
-    const legalHalf = individualLegalHalf + poolLegalHalf
-    const percentage = total > 0 ? (legalHalf / total) * 100 : 0
-    return { total, legalHalf, percentage }
-  }
+  const updateTicketTypeField = (bi: number, ti: number, f: keyof TicketType, v: any) => { const n = [...batches]; n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; setBatches(n); }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!db || !user || !eventRef || !isAtLeastEditor || !currentOrg) return
-
     setSaving(true)
     const formData = new FormData(e.currentTarget)
     try {
       const cat = categories?.find(c => c.id === selectedCategory)
-      const eventData = {
+      const eventData: any = {
         title: formData.get("title") as string,
         description: formData.get("description") as string,
         date: formData.get("startDate") as string, 
@@ -330,49 +260,28 @@ export default function EditarEventoPage() {
         noTickets,
         ticketMode: noTickets ? 'none' : ticketMode,
         isFree: noTickets ? true : (ticketMode === 'free'),
-        batches: noTickets ? [] : batches.map(b => ({ ...b, ticketTypes: b.ticketTypes.map(t => ({ ...t, price: parseFloat(t.price as any) || 0, quantity: parseInt(t.quantity as any) || 0 })) })),
+        possuiMapa: ticketMode === 'map',
+        palcoNome: ticketMode === 'map' ? palcoNome : null,
         address, image: uploadedImageUrl || event.image || "", city: address.city, 
         updatedAt: serverTimestamp(),
         organizationId: currentOrg.id,
         organizer: {
-          id: currentOrg.id,
-          name: currentOrg.name,
-          username: currentOrg.username,
-          avatar: currentOrg.avatar || "",
-          isVerified: currentOrg.verified || false
+          id: currentOrg.id, name: currentOrg.name, username: currentOrg.username, avatar: currentOrg.avatar || "", isVerified: currentOrg.verified || false
         }
+      }
+
+      if (ticketMode !== 'map') {
+        eventData.batches = noTickets ? [] : batches.map(b => ({ ...b, ticketTypes: b.ticketTypes.map(t => ({ ...t, price: parseFloat(t.price as any) || 0, quantity: parseInt(t.quantity as any) || 0 })) }));
       }
       
       await updateDoc(eventRef, eventData)
 
-      // Criar novas parcerias
-      const newPartners = coOrganizers.filter(o => o._isNew)
-      for (const org of newPartners) {
-        const expiresAt = new Date()
-        expiresAt.setHours(expiresAt.getHours() + 24)
-
-        const partnerRef = doc(db, 'events', eventId, 'partners', org.id)
-        await setDoc(partnerRef, {
-          orgId: org.id,
-          orgName: org.name,
-          orgUsername: org.username,
-          orgAvatar: org.avatar || "",
-          orgType: org.type || "Marca",
-          orgVerified: org.verified || false,
-          status: 'pending',
-          createdAt: serverTimestamp(),
-          expiresAt: expiresAt.toISOString(),
-          eventTitle: eventData.title,
-          inviterOrgName: currentOrg?.name || "Organização"
-        })
-
-        if (org.contactEmail) {
-          await sendPartnerInvitationEmail({
-            to: org.contactEmail,
-            inviterOrgName: currentOrg?.name || "Organização",
-            eventTitle: eventData.title
-          })
-        }
+      for (const org of coOrganizers.filter(o => o._isNew)) {
+        const expiresAt = new Date(); expiresAt.setHours(expiresAt.getHours() + 24);
+        await setDoc(doc(db, 'events', eventId, 'partners', org.id), {
+          orgId: org.id, orgName: org.name, orgUsername: org.username, orgAvatar: org.avatar || "", orgType: org.type || "Marca", orgVerified: org.verified || false, status: 'pending', createdAt: serverTimestamp(), expiresAt: expiresAt.toISOString(), eventTitle: eventData.title, inviterOrgName: currentOrg.name
+        });
+        if (org.contactEmail) await sendPartnerInvitationEmail({ to: org.contactEmail, inviterOrgName: currentOrg.name, eventTitle: eventData.title });
       }
 
       toast({ title: "Salvo!" }); router.push("/dashboard/projetos")
@@ -391,7 +300,7 @@ export default function EditarEventoPage() {
 
       <form onSubmit={handleSubmit} className="space-y-8">
          <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
-            <CardHeader><CardTitle className="text-lg">Capa</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5 text-secondary" /> Capa</CardTitle></CardHeader>
             <CardContent>
                <div className="relative aspect-video rounded-2xl bg-muted overflow-hidden cursor-pointer" onClick={() => document.getElementById('img-up')?.click()}>
                   {imagePreview ? <Image src={imagePreview} alt="Capa" fill className="object-cover" unoptimized /> : null}
@@ -401,21 +310,15 @@ export default function EditarEventoPage() {
          </Card>
 
          <Card className="border-none shadow-sm rounded-[2rem]">
-            <CardHeader><CardTitle className="text-lg">Dados Gerais</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Calendar className="w-5 h-5 text-secondary" /> Dados Gerais</CardTitle></CardHeader>
             <CardContent className="space-y-6">
                <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2"><Label>Nome</Label><Input name="title" defaultValue={event.title} required className="rounded-xl h-11" /></div>
                   <div className="space-y-2">
                     <Label>Categoria</Label>
                     <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger className="rounded-xl">
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                        {categories?.map((c: any) => (
-                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                        ))}
-                      </SelectContent>
+                      <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent className="rounded-xl">{categories?.map((c: any) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}</SelectContent>
                     </Select>
                   </div>
                </div>
@@ -423,13 +326,7 @@ export default function EditarEventoPage() {
                   <div className="space-y-2"><Label>Início</Label><Input name="startDate" type="datetime-local" defaultValue={event.date} className="rounded-xl" /></div>
                   <div className="space-y-2"><Label>Término</Label><Input name="endDate" type="datetime-local" defaultValue={event.endDate} className="rounded-xl" /></div>
                </div>
-               <div className="space-y-2">
-                 <Label className="flex justify-between items-center">
-                   <span>Descrição</span>
-                   <span className="text-[9px] font-black uppercase opacity-40">**texto** para negrito • emojis permitidos</span>
-                 </Label>
-                 <Textarea name="description" defaultValue={event.description} className="min-h-[150px] rounded-xl border-dashed border-secondary/30" />
-               </div>
+               <div className="space-y-2"><Label>Descrição</Label><Textarea name="description" defaultValue={event.description} className="min-h-[150px] rounded-xl border-dashed border-secondary/30" /></div>
             </CardContent>
          </Card>
 
@@ -437,291 +334,80 @@ export default function EditarEventoPage() {
           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle></CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">CEP</Label>
-                  <Input 
-                    value={address.cep || ""} 
-                    onChange={e => setAddress(prev => ({ ...prev, cep: e.target.value.replace(/\D/g, "").substring(0, 8) }))}
-                    onBlur={handleCepBlur}
-                    placeholder="00000-000" 
-                    className="rounded-xl"
-                  />
-                </div>
-                <div className="md:col-span-3 space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Logradouro</Label>
-                  <Input value={address.street || ""} onChange={e => setAddress(prev => ({ ...prev, street: e.target.value }))} className="rounded-xl" />
-                </div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">CEP</Label><Input value={address.cep} onChange={e => setAddress(prev => ({ ...prev, cep: e.target.value.replace(/\D/g, "").substring(0, 8) }))} onBlur={handleCepBlur} className="rounded-xl h-11" /></div>
+                <div className="md:col-span-3 space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Logradouro</Label><Input value={address.street} onChange={e => setAddress(prev => ({ ...prev, street: e.target.value }))} className="rounded-xl h-11" /></div>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Número</Label>
-                  <Input value={address.number || ""} onChange={e => setAddress(prev => ({ ...prev, number: e.target.value }))} className="rounded-xl" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label>
-                  <Input value={address.complement || ""} onChange={e => setAddress(prev => ({ ...prev, complement: e.target.value }))} className="rounded-xl" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label>
-                  <Input id="neighborhood" value={address.neighborhood || ""} onChange={e => setAddress(prev => ({ ...prev, neighborhood: e.target.value }))} className="rounded-xl" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label>
-                  <div className="flex gap-2">
-                    <Input value={address.city || ""} readOnly className="rounded-xl h-11 bg-muted/30" />
-                    <Input value={address.state || ""} readOnly className="rounded-xl h-11 bg-muted/30 w-16" />
-                  </div>
-                </div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Número</Label><Input value={address.number} onChange={e => setAddress(prev => ({ ...prev, number: e.target.value }))} className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={address.neighborhood} onChange={e => setAddress(prev => ({ ...prev, neighborhood: e.target.value }))} className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label><div className="flex gap-2"><Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" /><Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30 w-16" /></div></div>
              </div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
-            <CardTitle className="text-lg flex items-center gap-2"><Users className="w-5 h-5 text-secondary" /> Outros Organizadores (Parcerias)</CardTitle>
-          </CardHeader>
-          <CardContent className="p-6 space-y-6">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Buscar marca pelo @username..." 
-                  value={searchUsername}
-                  onChange={(e) => setSearchUsername(e.target.value)}
-                  className="pl-9 h-12 rounded-xl"
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleSearchOrg())}
-                />
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle>
+                <div className="flex items-center gap-2"><Switch checked={noTickets} onCheckedChange={setNoTickets} /><Label className="text-xs font-bold text-muted-foreground uppercase">Sem Ingressos</Label></div>
               </div>
-              <Button 
-                type="button" 
-                onClick={handleSearchOrg} 
-                disabled={isSearching || !searchUsername}
-                className="h-12 rounded-xl bg-secondary text-white font-bold px-6"
-              >
-                {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                Adicionar
-              </Button>
+              {!noTickets && (
+                <div className="bg-white p-1 rounded-xl border flex gap-1">
+                  <Button type="button" variant={ticketMode === 'free' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('free')}>Grátis</Button>
+                  <Button type="button" variant={ticketMode === 'batches' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('batches')}>Lotes</Button>
+                  <Button type="button" variant={ticketMode === 'map' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('map')}>Mapa</Button>
+                </div>
+              )}
             </div>
-
-            {coOrganizers.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {coOrganizers.map((org) => (
-                  <div key={org.id} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-border shadow-sm group">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 border">
-                        <AvatarImage src={org.avatar || org.orgAvatar} className="object-cover" />
-                        <AvatarFallback className="font-bold">{(org.name || org.orgName)?.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-1.5">
-                           <span className="font-bold text-sm">{org.name || org.orgName}</span>
-                           {(org.verified || org.orgVerified) && <CheckCircle2 className="w-3.5 h-3.5 text-secondary fill-secondary text-white" />}
-                        </div>
-                        <div className="flex items-center gap-2">
-                           <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{org.type || org.orgType || "Marca"}</span>
-                           {org.status === 'pending' && <Badge variant="outline" className="text-[7px] h-3 uppercase">Pendente</Badge>}
-                        </div>
-                      </div>
-                    </div>
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 text-destructive rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => setOrgToDelete(org)}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
+          </CardHeader>
+          <CardContent className="p-6 space-y-8">
+             {noTickets ? <div className="py-12 text-center opacity-30"><XCircle className="w-10 h-10 mx-auto mb-2" /><p className="text-sm font-bold uppercase tracking-widest">Vendas Desativadas</p></div> : 
+             ticketMode === 'map' ? (
+               <div className="space-y-4 text-center py-8">
+                  <MapIcon className="w-12 h-12 mx-auto text-secondary" />
+                  <div className="space-y-2">
+                     <p className="font-bold text-sm">Este evento utiliza Mapa de Ingressos.</p>
+                     <p className="text-xs text-muted-foreground">Utilize o painel dedicado para gerenciar setores, assentos e mesas.</p>
                   </div>
-                ))}
-              </div>
-            ) : null}
+                  <Button variant="outline" asChild className="rounded-xl border-secondary text-secondary"><Link href={`/dashboard/evento/${eventId}/mapa`}>Gerenciar Mapa de Ingressos</Link></Button>
+               </div>
+             ) : (
+               <React.Fragment>
+                 {batches.map((batch, bi) => (
+                   <div key={batch.id} className="p-6 rounded-[1.5rem] border-2 bg-muted/10 space-y-6">
+                      <div className="flex justify-between items-center"><h3 className="font-black italic uppercase text-secondary text-xl">{batch.name}</h3><Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)}><Trash2 className="w-4 h-4" /></Button></div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Lote</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" /></div>
+                         <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Início</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                            <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Fim</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                         </div>
+                      </div>
+                      <div className="space-y-4">
+                         {batch.ticketTypes.map((t, ti) => (
+                           <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm grid grid-cols-12 gap-4 items-end">
+                              <div className="col-span-4 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40">Tipo</Label><Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" /></div>
+                              <div className="col-span-3 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40">Qtd</Label><Input type="number" value={t.quantity} onChange={e => updateTicketTypeField(bi, ti, 'quantity', e.target.value)} className="rounded-xl h-10 font-black" /></div>
+                              <div className="col-span-3 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40">R$</Label><Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} className="rounded-xl h-10 font-black text-secondary" disabled={ticketMode === 'free'} /></div>
+                              <div className="col-span-2 flex justify-end pb-1"><Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTicketType(bi, ti)} disabled={batch.ticketTypes.length === 1}><Trash2 className="w-4 h-4" /></Button></div>
+                           </div>
+                         ))}
+                         <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[9px] font-black uppercase" onClick={() => addTicketType(bi)}>Adicionar Tipo</Button>
+                      </div>
+                   </div>
+                 ))}
+                 {ticketMode === 'batches' && <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>}
+               </React.Fragment>
+             )}
           </CardContent>
         </Card>
 
-         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
-            <CardHeader className="bg-muted/30 border-b">
-               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <CardTitle className="text-lg">Ingressos</CardTitle>
-                    <div className="flex items-center gap-2">
-                      <Switch checked={noTickets} onCheckedChange={setNoTickets} />
-                      <Label className="text-xs font-bold text-muted-foreground uppercase">Este evento não possui ingressos</Label>
-                    </div>
-                  </div>
-                  {!noTickets && (
-                    <div className="bg-white p-1 rounded-xl border flex gap-1">
-                      <Button type="button" variant={ticketMode === 'free' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('free'); setBatches([{ id: crypto.randomUUID(), name: "Grátis", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Entrada Franca", price: 0, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Grátis</Button>
-                      <Button type="button" variant={ticketMode === 'paid_single' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('paid_single'); setBatches([{ id: crypto.randomUUID(), name: "Único", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Único</Button>
-                      <Button type="button" variant={ticketMode === 'batches' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('batches')}>Lotes</Button>
-                    </div>
-                  )}
-               </div>
-            </CardHeader>
-            <CardContent className="p-6 space-y-8">
-               {noTickets ? (
-                 <div className="py-12 text-center space-y-3">
-                   <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto opacity-30">
-                     <XCircle className="w-8 h-8" />
-                   </div>
-                   <p className="text-sm font-medium text-muted-foreground">A bilheteria está desativada para este evento.</p>
-                 </div>
-               ) : (
-                 <React.Fragment>
-                   {batches.map((batch, bi) => {
-                     const stats = calculateHalfPriceStats(batch);
-                     const isFreeMode = ticketMode === 'free';
-                     return (
-                       <div key={batch.id} className="p-6 rounded-[1.5rem] border-2 bg-muted/10 space-y-6">
-                          <div className="flex justify-between items-center">
-                            <h3 className="font-black italic uppercase text-secondary text-xl">{isFreeMode ? "Grátis" : batch.name}</h3>
-                            <div className="flex gap-2">
-                               {!isFreeMode && <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setDistributeBatchIdx(bi); setIsDistributeOpen(true); }}><Sparkles className="w-3 h-3" /> Distribuir por Tipo</Button>}
-                               {ticketMode === 'batches' && batches.length > 1 && <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)}><Trash2 className="w-4 h-4" /></Button>}
-                            </div>
-                          </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" disabled={isFreeMode} /></div>
-                             <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Início das Vendas</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
-                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Fim das Vendas</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
-                             </div>
-                          </div>
-
-                          <div className="space-y-4">
-                             <div className="flex items-center justify-between border-b pb-2"><h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Tipos de Ingresso</h4>{!isFreeMode && <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase" onClick={() => addTicketType(bi)}>Adicionar Tipo</Button>}</div>
-                             <div className="space-y-3">
-                                {batch.ticketTypes.map((t, ti) => (
-                                  <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm space-y-4">
-                                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                                        <div className="md:col-span-3 space-y-2">
-                                           <Label className="text-[10px] font-black uppercase opacity-40">Nome</Label>
-                                           <div className="flex flex-col gap-1">
-                                              <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" disabled={isFreeMode} />
-                                              {t.poolName && <span className="text-[8px] font-black text-secondary uppercase flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> Pool: {t.poolName}</span>}
-                                           </div>
-                                        </div>
-                                        <div className="md:col-span-3 space-y-2">
-                                           <Label className="text-[10px] font-black uppercase opacity-40">Tipo/Categoria</Label>
-                                           <Select 
-                                             value={TICKET_CATEGORIES.find(c => c.name === t.name)?.name || "Personalizado"} 
-                                             onValueChange={(val) => {
-                                                const cat = TICKET_CATEGORIES.find(c => c.name === val);
-                                                if (cat) {
-                                                  updateTicketTypeField(bi, ti, 'name', cat.name);
-                                                  updateTicketTypeField(bi, ti, 'isLegalHalf', cat.isLegalHalf);
-                                                  updateTicketTypeField(bi, ti, 'requiresProof', cat.requiresProof);
-                                                }
-                                             }}
-                                             disabled={isFreeMode}
-                                           >
-                                              <SelectTrigger className="h-10 rounded-xl">
-                                                 <SelectValue />
-                                              </SelectTrigger>
-                                              <SelectContent className="rounded-xl">
-                                                 {TICKET_CATEGORIES.map(c => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
-                                                 <SelectItem value="Personalizado">Personalizado</SelectItem>
-                                              </SelectContent>
-                                           </Select>
-                                        </div>
-                                        <div className="md:col-span-2 space-y-2">
-                                           <Label className="text-[10px] font-black uppercase opacity-40">Qtd {t.poolId && "(Pool)"}</Label>
-                                           <div className="flex flex-col gap-1">
-                                              <Input type="number" value={t.quantity} onChange={e => { const val = e.target.value; if(t.poolId) { const n = [...batches]; n[bi].ticketTypes.forEach((item, idx) => { if(item.poolId === t.poolId) n[bi].ticketTypes[idx].quantity = parseInt(val as any) || 0 }); setBatches(n); } else { updateTicketTypeField(bi, ti, 'quantity', val); } }} className="rounded-xl h-10 font-black" />
-                                              {t.poolId && <span className="text-[7px] font-bold text-muted-foreground uppercase text-center">Compartilhado</span>}
-                                           </div>
-                                        </div>
-                                        <div className="md:col-span-2 space-y-2">
-                                           <Label className="text-[10px] font-black uppercase opacity-40">Valor (R$)</Label>
-                                           <Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} className="rounded-xl h-10 font-black text-secondary" disabled={isFreeMode} />
-                                        </div>
-                                        <div className="md:col-span-2 flex items-center justify-end pb-1 gap-2">
-                                           <div className="flex flex-col items-center gap-1">
-                                              <Switch checked={t.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} />
-                                              <span className="text-[8px] font-black uppercase">Doc.</span>
-                                           </div>
-                                           {!isFreeMode && batch.ticketTypes.length > 1 && (
-                                             <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => removeTicketType(bi, ti)}>
-                                                <Trash2 className="w-4 h-4" />
-                                             </Button>
-                                           )}
-                                        </div>
-                                     </div>
-                                  </div>
-                                ))}
-                             </div>
-                          </div>
-
-                          <div className={cn("p-5 bg-white rounded-3xl border space-y-4", stats.percentage < 40 ? "border-orange-200" : "border-green-200")}>
-                             <div className="flex justify-between items-center">
-                                <div className="space-y-1">
-                                   <div className="flex items-center gap-2"><Info className="w-4 h-4 text-secondary" /><h5 className="text-[10px] font-black uppercase tracking-widest text-primary">Conformidade Legal</h5></div>
-                                   <p className="text-[9px] text-muted-foreground font-medium">Recomenda-se 40% para Meia-Entrada Legal.</p>
-                                </div>
-                                <div className="text-right">
-                                   <p className="text-[9px] font-black uppercase opacity-40">Percentual</p>
-                                   <p className={cn("text-xl font-black italic", stats.percentage < 40 ? "text-orange-500" : "text-green-600")}>{stats.percentage.toFixed(1)}%</p>
-                                </div>
-                             </div>
-                          </div>
-                       </div>
-                     );
-                   })}
-                   {!noTickets && ticketMode === 'batches' && (
-                     <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic tracking-widest gap-2" onClick={addBatch}>
-                       <Plus className="w-5 h-5" /> Adicionar Lote
-                     </Button>
-                   )}
-                 </React.Fragment>
-               )}
-            </CardContent>
-         </Card>
-
-         <Button type="submit" disabled={saving} className="w-full h-16 rounded-[2rem] bg-secondary text-white font-black text-xl shadow-xl uppercase italic">
+         <Button type="submit" disabled={saving} className="w-full h-16 rounded-[2rem] bg-secondary text-white font-black text-xl shadow-xl uppercase italic hover:scale-[1.02] transition-transform">
             {saving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />}
-            Salvar Alterações
+            Salvar Evento
          </Button>
       </form>
-
-      <Dialog open={isDistributeOpen} onOpenChange={setIsDistributeOpen}>
-        <DialogContent className="rounded-[2.5rem] max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Distribuir Ingressos</DialogTitle>
-            <DialogDescription>Defina a quantidade total deste lote. Dividiremos em Inteira (60%) e Meias Compartilhadas (40%).</DialogDescription>
-          </DialogHeader>
-          <div className="py-6 space-y-4">
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Quantidade Total do Lote</Label>
-              <Input type="number" placeholder="Ex: 200" value={totalToDistribute} onChange={e => setTotalToDistribute(e.target.value)} className="h-14 text-2xl font-black rounded-xl text-center" />
-            </div>
-            <p className="text-[10px] text-muted-foreground text-center font-medium italic">
-              Ao distribuir 200 ingressos: 120 serão Inteiras e 80 serão divididos entre as Meias (Estudante, PCD, Idoso).
-            </p>
-          </div>
-          <DialogFooter><Button onClick={handleDistribute} className="w-full bg-secondary text-white font-black h-12 rounded-xl shadow-lg uppercase italic">Confirmar Distribuição</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={!!orgToDelete} onOpenChange={(open) => !open && setOrgToDelete(null)}>
-        <AlertDialogContent className="rounded-[2rem]">
-           <AlertDialogHeader>
-              <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Remover Co-organizador?</AlertDialogTitle>
-              <AlertDialogDescription>
-                 A organização <strong>{orgToDelete?.name || orgToDelete?.orgName}</strong> deixará de figurar como parceira deste evento. Convites pendentes serão invalidados.
-              </AlertDialogDescription>
-           </AlertDialogHeader>
-           <AlertDialogFooter>
-              <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px] tracking-widest">Cancelar</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={handleRemoveOrganizer}
-                className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-destructive/90"
-              >
-                Confirmar Remoção
-              </AlertDialogAction>
-           </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }
