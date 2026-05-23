@@ -424,7 +424,7 @@ function SectorPublicGrid({ setor, eventoId, onSelect, selectedSeat }: { setor: 
     if (!db) return null
     return query(collection(db, "events", eventoId, "setores", setor.id, "assentos"), orderBy("codigo", "asc"))
   }, [db, setor.id])
-  const { data: assentos, loading } = useCollection<any>(assentosQuery)
+  const { data: assentos, loading: loading } = useCollection<any>(assentosQuery)
   
   if (loading) return <div className="py-2 text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto text-primary" /></div>
   

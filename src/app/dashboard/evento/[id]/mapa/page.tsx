@@ -122,6 +122,7 @@ export default function EventoMapaPage() {
     const names = new Set<string>()
     event.batches.forEach((b: any) => {
       b.ticketTypes.forEach((t: any) => {
+        // Pega o nome base do ingresso para vincular ao setor
         names.add(t.name)
       })
     })
@@ -139,10 +140,11 @@ export default function EventoMapaPage() {
     let capacidadeBase = parseInt(formData.get("capacidade") as string) || 0
 
     if (linkedTicketName !== 'none') {
-       const exemplar = event.batches[0]?.ticketTypes.find((t: any) => t.name === linkedTicketName)
+       // Busca o exemplar para preenchimento inicial
+       const exemplar = event.batches?.[0]?.ticketTypes.find((t: any) => t.name === linkedTicketName)
        if (exemplar) {
           precoBase = exemplar.price
-          capacidadeBase = exemplar.quantity
+          capacidadeBase = exemplar.quantity || event.batches[0].capacidadeInicial
        }
     }
 
@@ -160,7 +162,7 @@ export default function EventoMapaPage() {
       width: 250,
       height: 150,
       zIndex: (setores?.length || 0) + 1,
-      formatoVisual: 'retangulo',
+      formatoVisual: 'arredondado',
       ativo: true,
       criadoEm: serverTimestamp()
     } as any
@@ -296,8 +298,10 @@ export default function EventoMapaPage() {
 
                     <div className="space-y-2">
                        <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Ticket className="w-3 h-3" /> Vincular Carga Bilheteria</Label>
-                       <Select value={linkedTicketName} onValueChange={setLinkedTicketName}>
-                          <SelectTrigger className="rounded-xl"><SelectValue placeholder="Escolha um ingresso" /></SelectTrigger>
+                       <Select value={linkedTicketName} onValueChange={(val) => {
+                         setLinkedTicketName(val);
+                       }}>
+                          <SelectTrigger className="rounded-xl"><SelectValue placeholder="Escolha a categoria do ingresso" /></SelectTrigger>
                           <SelectContent className="rounded-xl">
                              <SelectItem value="none" className="text-xs font-bold">Preço Manual (Sem Vínculo)</SelectItem>
                              {uniqueTicketNames.map(name => (
@@ -305,6 +309,7 @@ export default function EventoMapaPage() {
                              ))}
                           </SelectContent>
                        </Select>
+                       <p className="text-[8px] text-muted-foreground uppercase font-medium">O setor seguirá automaticamente a virada de lotes para este ingresso.</p>
                     </div>
 
                     <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome Exibição</Label><Input name="nome" placeholder="Pista, VIP, etc" required className="rounded-xl" defaultValue={linkedTicketName !== 'none' ? linkedTicketName : ""} /></div>
@@ -391,7 +396,7 @@ export default function EventoMapaPage() {
                           </div>
                           {s.linkedTicketName && (
                             <Badge variant="secondary" className="mt-2 text-[7px] font-black uppercase h-4 gap-1">
-                               <Layers className="w-2 h-2" /> Vínculo Lote
+                               <Layers className="w-2 h-2" /> Vínculo Sequencial
                             </Badge>
                           )}
                        </div>
