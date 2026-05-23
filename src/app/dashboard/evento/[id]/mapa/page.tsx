@@ -101,7 +101,12 @@ export default function EventoMapaPage() {
     const tickets: any[] = []
     event.batches.forEach((b: any) => {
       b.ticketTypes.forEach((t: any) => {
-        tickets.push({ ...t, batchId: b.id, batchName: b.name })
+        tickets.push({ 
+          ...t, 
+          batchId: b.id, 
+          batchName: b.name,
+          label: `${b.name}: ${t.name} (R$ ${t.price})`
+        })
       })
     })
     return tickets
@@ -122,6 +127,8 @@ export default function EventoMapaPage() {
       preco: linkedTicket ? linkedTicket.price : (parseFloat(formData.get("preco") as string) || 0),
       capacidade: linkedTicket ? linkedTicket.quantity : (parseInt(formData.get("capacidade") as string) || 0),
       linkedTicketId: linkedTicketId === 'none' ? null : linkedTicketId,
+      batchId: linkedTicket ? linkedTicket.batchId : null,
+      batchName: linkedTicket ? linkedTicket.batchName : null,
       cor: formData.get("cor") as string || "#2C52EE",
       descricao: formData.get("descricao") as string || "",
       ordem: (setores?.length || 0) + 1,
@@ -266,24 +273,24 @@ export default function EventoMapaPage() {
                     </div>
 
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Ticket className="w-3 h-3" /> Vincular a Ingresso Definido (Opcional)</Label>
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Ticket className="w-3 h-3" /> Vincular a Ingresso Pré-definido</Label>
                        <Select value={linkedTicketId} onValueChange={setLinkedTicketId}>
                           <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecione um ingresso" /></SelectTrigger>
                           <SelectContent className="rounded-xl">
-                             <SelectItem value="none" className="text-xs font-bold">Sem vínculo direto</SelectItem>
+                             <SelectItem value="none" className="text-xs font-bold">Sem vínculo direto (Manual)</SelectItem>
                              {allTickets.map(t => (
-                               <SelectItem key={t.id} value={t.id} className="text-xs">
-                                  {t.batchName}: {t.name} (R$ {t.price})
+                               <SelectItem key={t.id} value={t.id} className="text-xs font-bold uppercase">
+                                  {t.label}
                                </SelectItem>
                              ))}
                           </SelectContent>
                        </Select>
                     </div>
 
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Setor</Label><Input name="nome" placeholder="Ex: Pista Premium" required className="rounded-xl" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Setor</Label><Input name="nome" placeholder="Ex: Pista Premium" required className="rounded-xl" defaultValue={allTickets.find(t => t.id === linkedTicketId)?.name || ""} /></div>
                     <div className="grid grid-cols-2 gap-4">
-                       <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Preço (R$)</Label><Input name="preco" type="number" step="0.01" required disabled={linkedTicketId !== 'none'} className="rounded-xl" /></div>
-                       {selectedType === 'livre' && <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Capacidade</Label><Input name="capacidade" type="number" required disabled={linkedTicketId !== 'none'} className="rounded-xl" /></div>}
+                       <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Preço (R$)</Label><Input name="preco" type="number" step="0.01" required disabled={linkedTicketId !== 'none'} className={cn("rounded-xl", linkedTicketId !== 'none' && "bg-muted/50")} value={allTickets.find(t => t.id === linkedTicketId)?.price || ""} /></div>
+                       {selectedType === 'livre' && <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Capacidade</Label><Input name="capacidade" type="number" required disabled={linkedTicketId !== 'none'} className={cn("rounded-xl", linkedTicketId !== 'none' && "bg-muted/50")} value={allTickets.find(t => t.id === linkedTicketId)?.quantity || ""} /></div>}
                     </div>
                     {selectedType === 'assentos' && (
                       <div className="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
@@ -373,6 +380,7 @@ export default function EventoMapaPage() {
                              <p className="text-[10px] font-black">{s.capacidade} LUG.</p>
                              <p className="text-[9px] font-bold uppercase">{s.tipo}</p>
                           </div>
+                          {s.linkedTicketId && <Badge variant="outline" className="mt-2 text-[6px] font-black uppercase h-3 border-current">Vínculo Ativo</Badge>}
                        </div>
                        <Button 
                          variant="ghost" 
@@ -421,7 +429,7 @@ export default function EventoMapaPage() {
                          <div>
                             <h4 className="text-lg font-black uppercase italic tracking-tighter text-primary">{s.nome}</h4>
                             <p className="text-xs font-bold text-muted-foreground uppercase">{s.tipo} • {s.capacidade} Lugares • {s.preco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
-                            {s.linkedTicketId && <Badge variant="outline" className="text-[8px] uppercase mt-1">Vinculado a Ingresso</Badge>}
+                            {s.linkedTicketId && <Badge variant="outline" className="text-[8px] uppercase mt-1 border-secondary text-secondary">Vinculado a: {allTickets.find(t => t.id === s.linkedTicketId)?.name}</Badge>}
                          </div>
                       </div>
                       <Button variant="ghost" size="icon" className="text-destructive h-10 w-10 rounded-full hover:bg-destructive/5" onClick={() => handleDeleteSector(s.id)}>

@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -63,10 +64,10 @@ import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import { reserveSeat } from "@/lib/ticketing-service"
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch"
+import Link from "next/link"
 
 export default function EventoDetalhesPage() {
   const params = useParams()
-  const searchParams = useSearchParams()
   const router = useRouter()
   const db = useFirestore()
   const auth = useAuth()
@@ -78,14 +79,10 @@ export default function EventoDetalhesPage() {
 
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile } = useDoc<any>(userDocRef)
-  const isAdmin = profile?.role === 'admin'
 
   const eventRef = React.useMemo(() => db ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
   
-  const organizationRef = React.useMemo(() => (db && event?.organizationId) ? doc(db, "organizations", event.organizationId) : null, [db, event?.organizationId])
-  const { data: organizationProfile } = useDoc<any>(organizationRef)
-
   const feesRef = React.useMemo(() => db ? doc(db, 'settings', 'fees') : null, [db])
   const { data: globalFees } = useDoc<any>(feesRef)
 
@@ -125,8 +122,13 @@ export default function EventoDetalhesPage() {
       return;
     }
 
+    // Identifica o ID do ingresso vinculado
+    const ticketTypeId = selectedSector.linkedTicketId || selectedSector.id;
+    const batchId = selectedSector.batchId || "map";
+    const batchName = selectedSector.batchName || selectedSector.nome;
+
     addItem({
-      id: isNumbered ? `${event.id}_${selectedSector.id}_${selectedSeat.id}` : `${event.id}_${selectedSector.id}`,
+      id: isNumbered ? `${event.id}_${ticketTypeId}_${selectedSeat.id}` : `${event.id}_${ticketTypeId}`,
       eventId: event.id,
       eventTitle: event.title,
       eventImage: event.image || "",
@@ -135,10 +137,10 @@ export default function EventoDetalhesPage() {
       organizationId: event.organizationId,
       organizerId: event.organizerId,
       organizerUsername: usernameFromUrl,
-      ticketTypeId: selectedSector.id,
+      ticketTypeId: ticketTypeId,
       ticketTypeName: `${selectedSector.nome}${selectedSeat ? ` (${selectedSeat.codigo})` : ''}`,
-      batchId: "map",
-      batchName: selectedSector.nome,
+      batchId: batchId,
+      batchName: batchName,
       price: selectedSector.preco,
       quantity: 1,
       requiresProof: selectedSeat?.categoria && selectedSeat.categoria !== 'comum',
@@ -146,6 +148,7 @@ export default function EventoDetalhesPage() {
       seatCode: selectedSeat?.codigo,
       sectorId: selectedSector.id
     });
+
     toast({ title: "Adicionado ao carrinho!" });
     if (isNumbered) setSelectedSeat(null);
   }
