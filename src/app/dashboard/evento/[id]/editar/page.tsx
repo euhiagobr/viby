@@ -30,21 +30,30 @@ import {
   Sparkles,
   Clock,
   Info,
-  CheckCircle2
+  CheckCircle2,
+  InfoIcon,
+  TicketPercent,
+  Settings2
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
-interface Batch {
-  id: string
-  name: string
-  price: number
-  initialCapacity: number
-  salesStartDate: string
-  salesStartTime: string
-  salesEndDate: string
-  salesEndTime: string
-}
+const HALF_PRICE_CATEGORIES = [
+  { id: "estudante", label: "Estudante" },
+  { id: "meia", label: "Meia-Entrada Geral" },
+  { id: "obeso", label: "Obeso" },
+  { id: "pcd", label: "PCD" },
+  { id: "idoso", label: "Idoso" }
+]
 
 export default function EditarEventoPage() {
   const params = useParams()
@@ -67,54 +76,84 @@ export default function EditarEventoPage() {
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   
-  const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches'>('free')
-  const [hasMap, setHasMap] = useState(false)
-  const [autoHalfPrice, setAutoHalfPrice] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState("")
+  const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches'>('none')
+  const [hasMap, setHasMap] = useState(false)
 
+  // Independent Half Price Logic
+  const [autoHalfPrice, setAutoHalfPrice] = useState(false)
+  const [halfPricePercentage, setHalfPricePercentage] = useState(40)
+  const [selectedHalfTypes, setSelectedHalfTypes] = useState<string[]>([])
+  const [isPercentageDialogOpen, setIsPercentageDialogOpen] = useState(false)
+
+  // Paid Single Form
+  const [singleConfig, setSingleConfig] = useState({ name: "Ingresso Único", quantity: 100, price: 0, startD: "", startT: "", endD: "", endT: "" })
+  const [priceInput, setPriceInput] = useState("")
+
+  // Free Form
   const [freeConfig, setFreeConfig] = useState({ name: "Ingresso Gratuito", quantity: 100, startD: "", startT: "", endD: "", endT: "" })
-  const [singleConfig, setSingleConfig] = useState({ name: "Ingresso Único", quantity: 100, price: 50, startD: "", startT: "", endD: "", endT: "" })
-  const [batches, setBatches] = useState<Batch[]>([])
 
   useEffect(() => {
     if (event) {
+      setSelectedCategory(event.categoryId || "")
       setTicketMode(event.ticketMode || 'none')
       setHasMap(event.hasMap || false)
       setAutoHalfPrice(event.autoHalfPrice || false)
-      setSelectedCategory(event.categoryId || "")
+      setHalfPricePercentage(event.halfPricePercentage || 40)
+      setSelectedHalfTypes(event.selectedHalfTypes || [])
       setImagePreview(event.image || null)
       
-      const firstBatch = event.batches?.[0];
-      if (event.ticketMode === 'free' && firstBatch) {
-        setFreeConfig({
-          name: firstBatch.name,
-          quantity: firstBatch.initialCapacity,
-          startD: firstBatch.salesStart?.split('T')[0] || "",
-          startT: firstBatch.salesStart?.split('T')[1] || "",
-          endD: firstBatch.salesEnd?.split('T')[0] || "",
-          endT: firstBatch.salesEnd?.split('T')[1] || ""
-        })
-      } else if (event.ticketMode === 'paid_single' && firstBatch) {
-        setSingleConfig({
-          name: firstBatch.name,
-          quantity: firstBatch.initialCapacity,
-          price: firstBatch.price,
-          startD: firstBatch.salesStart?.split('T')[0] || "",
-          startT: firstBatch.salesStart?.split('T')[1] || "",
-          endD: firstBatch.salesEnd?.split('T')[0] || "",
-          endT: firstBatch.salesEnd?.split('T')[1] || ""
-        })
-      } else if (event.ticketMode === 'batches') {
-        setBatches(event.batches?.map((b: any) => ({
-          ...b,
-          salesStartDate: b.salesStart?.split('T')[0] || "",
-          salesStartTime: b.salesStart?.split('T')[1] || "",
-          salesEndDate: b.salesEnd?.split('T')[0] || "",
-          salesEndTime: b.salesEnd?.split('T')[1] || ""
-        })) || [])
+      if (event.batches && event.batches.length > 0) {
+        const b = event.batches[0];
+        if (event.ticketMode === 'paid_single') {
+          setSingleConfig({
+            name: b.name || "Ingresso Único",
+            quantity: b.initialCapacity || 100,
+            price: b.price || 0,
+            startD: b.salesStart?.split('T')[0] || "",
+            startT: b.salesStart?.split('T')[1] || "",
+            endD: b.salesEnd?.split('T')[0] || "",
+            endT: b.salesEnd?.split('T')[1] || ""
+          })
+          setPriceInput(formatCurrency((b.price * 100).toString()));
+        } else if (event.ticketMode === 'free') {
+          setFreeConfig({
+            name: b.name || "Ingresso Gratuito",
+            quantity: b.initialCapacity || 100,
+            startD: b.salesStart?.split('T')[0] || "",
+            startT: b.salesStart?.split('T')[1] || "",
+            endD: b.salesEnd?.split('T')[0] || "",
+            endT: b.salesEnd?.split('T')[1] || ""
+          })
+        }
       }
     }
   }, [event])
+
+  const formatCurrency = (value: string) => {
+    const numeric = value.replace(/\D/g, "");
+    const amount = Number(numeric) / 100;
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(amount);
+  };
+
+  const handlePriceInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const numeric = value.replace(/\D/g, "");
+    setPriceInput(formatCurrency(numeric));
+    setSingleConfig({ ...singleConfig, price: Number(numeric) / 100 });
+  };
+
+  const handleToggleHalfPrice = (checked: boolean) => {
+    if (checked) {
+      setIsPercentageDialogOpen(true);
+    } else {
+      setAutoHalfPrice(false);
+      setSelectedHalfTypes([]);
+    }
+  };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -124,12 +163,10 @@ export default function EditarEventoPage() {
     const storageRef = ref(storage, `events/${user.uid}/${Date.now()}_${file.name}`)
     const uploadTask = uploadBytesResumable(storageRef, file)
     uploadTask.on('state_changed', (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), () => setUploadProgress(null), async () => {
-      const url = await getDownloadURL(uploadTask.snapshot.ref); setUploadedImageUrl(url); setUploadProgress(null)
+      const url = await getDownloadURL(uploadTask.snapshot.ref)
+      setUploadedImageUrl(url); setUploadProgress(null)
     })
   }
-
-  const addBatch = () => setBatches([...batches, { id: crypto.randomUUID(), name: `Lote ${batches.length + 1}`, price: 100, initialCapacity: 100, salesStartDate: "", salesStartTime: "", salesEndDate: "", salesEndTime: "" }])
-  const updateBatchField = (i: number, f: keyof Batch, v: any) => { const n = [...batches]; n[i] = { ...n[i], [f]: v } as any; setBatches(n); }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -138,12 +175,53 @@ export default function EditarEventoPage() {
     const formData = new FormData(e.currentTarget)
     try {
       let finalBatches: any[] = []
+      let totalCapacity = 0
+
       if (ticketMode === 'free') {
-        finalBatches = [{ id: 'free', name: freeConfig.name, price: 0, initialCapacity: freeConfig.quantity, currentCapacity: freeConfig.quantity, salesStart: `${freeConfig.startD}T${freeConfig.startT}`, salesEnd: `${freeConfig.endD}T${freeConfig.endT}` }]
+        totalCapacity = freeConfig.quantity
+        finalBatches = [{
+          id: 'free',
+          name: freeConfig.name,
+          price: 0,
+          initialCapacity: freeConfig.quantity,
+          currentCapacity: freeConfig.quantity,
+          salesStart: `${freeConfig.startD}T${freeConfig.startT}`,
+          salesEnd: `${freeConfig.endD}T${freeConfig.endT}`,
+          ticketTypes: [{ id: 'free_type', name: 'Gratuito', price: 0, quantity: freeConfig.quantity, requiresProof: false, isLegalHalf: false, description: '' }]
+        }]
       } else if (ticketMode === 'paid_single') {
-        finalBatches = [{ id: 'single', name: singleConfig.name, price: singleConfig.price, initialCapacity: singleConfig.quantity, currentCapacity: singleConfig.quantity, salesStart: `${singleConfig.startD}T${singleConfig.startT}`, salesEnd: `${singleConfig.endD}T${singleConfig.endT}` }]
-      } else if (ticketMode === 'batches') {
-        finalBatches = batches.map(b => ({ ...b, initialCapacity: Number(b.initialCapacity), currentCapacity: Number(b.initialCapacity), salesStart: `${b.salesStartDate}T${b.salesStartTime}`, salesEnd: `${b.salesEndDate}T${b.salesEndTime}` }))
+        totalCapacity = singleConfig.quantity
+        const poolId = crypto.randomUUID()
+        const types: any[] = [{ id: 'single_type', name: singleConfig.name, price: singleConfig.price, quantity: singleConfig.quantity, poolId, poolName: 'Estoque Único', requiresProof: false, isLegalHalf: false, description: '' }]
+        
+        if (autoHalfPrice) {
+          const halfQty = Math.floor(singleConfig.quantity * (halfPricePercentage / 100))
+          selectedHalfTypes.forEach(typeId => {
+            const catLabel = HALF_PRICE_CATEGORIES.find(c => c.id === typeId)?.label || "Meia"
+            types.push({
+              id: `half_${typeId}`,
+              name: catLabel,
+              price: singleConfig.price / 2,
+              quantity: halfQty,
+              poolId,
+              poolName: 'Estoque Único',
+              requiresProof: true,
+              isLegalHalf: true,
+              description: `Válido para ${catLabel}`
+            })
+          })
+        }
+
+        finalBatches = [{
+          id: 'single',
+          name: singleConfig.name || 'Venda Geral',
+          price: singleConfig.price,
+          initialCapacity: singleConfig.quantity,
+          currentCapacity: singleConfig.quantity,
+          salesStart: `${singleConfig.startD}T${singleConfig.startT}`,
+          salesEnd: `${singleConfig.endD}T${singleConfig.endT}`,
+          ticketTypes: types
+        }]
       }
 
       const updateData: any = {
@@ -153,9 +231,10 @@ export default function EditarEventoPage() {
         endDate: formData.get("endDate") as string,
         categoryId: selectedCategory,
         categoryName: categories?.find(c => c.id === selectedCategory)?.name || "Outros",
-        ticketMode, hasMap, autoHalfPrice,
-        image: uploadedImageUrl || event.image || "",
+        ticketMode, hasMap, autoHalfPrice, halfPricePercentage, selectedHalfTypes,
+        capacidadeTotal: totalCapacity,
         batches: ticketMode === 'none' ? [] : finalBatches,
+        image: uploadedImageUrl || event.image || "",
         updatedAt: serverTimestamp()
       }
 
@@ -171,7 +250,7 @@ export default function EditarEventoPage() {
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>
 
   return (
-    <div className="max-w-4xl mx-auto space-y-10 pb-20">
+    <div className="max-w-4xl mx-auto space-y-10 pb-20 text-foreground">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
         <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Editar Evento</h1>
@@ -198,7 +277,7 @@ export default function EditarEventoPage() {
                   <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
                   <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                     <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                    <SelectContent>{categories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    <SelectContent className="rounded-xl">{categories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
              </div>
@@ -211,92 +290,194 @@ export default function EditarEventoPage() {
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
-          <CardHeader className="bg-secondary/5 border-b">
+          <CardHeader className="bg-muted/30 border-b">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle>
-              <div className="bg-white p-1 rounded-xl border flex gap-1">
+              <div className="space-y-1">
+                <CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle>
+              </div>
+              <div className="bg-white p-1 rounded-xl border flex flex-wrap gap-1">
                 {['none', 'free', 'paid_single', 'batches'].map((mode: any) => (
                   <Button key={mode} type="button" variant={ticketMode === mode ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[9px] font-black uppercase px-4" onClick={() => setTicketMode(mode)}>
-                    {mode === 'none' ? 'Sem Ingresso' : mode === 'free' ? 'Grátis' : mode === 'paid_single' ? 'Único' : 'Lotes'}
+                    {mode === 'none' ? 'Sem Ingresso' : mode === 'free' ? 'Grátis' : mode === 'paid_single' ? 'Valor Único' : 'Lotes'}
                   </Button>
                 ))}
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-8 space-y-8">
-            {ticketMode === 'free' && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Nome</Label><Input value={freeConfig.name} onChange={e => setFreeConfig({...freeConfig, name: e.target.value})} /></div>
-                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Quantidade</Label><Input type="number" value={freeConfig.quantity} onChange={e => setFreeConfig({...freeConfig, quantity: Number(e.target.value)})} /></div>
+          <CardContent className="p-8">
+            {ticketMode === 'none' && (
+              <div className="py-12 text-center space-y-4 animate-in fade-in duration-500">
+                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
+                   <InfoIcon className="w-8 h-8 text-muted-foreground opacity-30" />
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted/20 rounded-xl">
-                  <div className="space-y-2"><Label className="text-[9px] uppercase">Data Início</Label><Input type="date" value={freeConfig.startD} onChange={e => setFreeConfig({...freeConfig, startD: e.target.value})} /></div>
-                  <div className="space-y-2"><Label className="text-[9px] uppercase">Hora</Label><Input type="time" value={freeConfig.startT} onChange={e => setFreeConfig({...freeConfig, startT: e.target.value})} /></div>
-                  <div className="space-y-2"><Label className="text-[9px] uppercase">Data Fim</Label><Input type="date" value={freeConfig.endD} onChange={e => setFreeConfig({...freeConfig, endD: e.target.value})} /></div>
-                  <div className="space-y-2"><Label className="text-[9px] uppercase">Hora</Label><Input type="time" value={freeConfig.endT} onChange={e => setFreeConfig({...freeConfig, endT: e.target.value})} /></div>
+                <div className="space-y-1">
+                  <h3 className="text-lg font-black uppercase italic tracking-tighter">Evento Informativo</h3>
+                  <p className="text-sm text-muted-foreground max-w-sm mx-auto">Esse evento não terá controle de entrada. Ele servirá apenas para divulgação das informações e localização.</p>
+                </div>
+              </div>
+            )}
+
+            {ticketMode === 'free' && (
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Ingresso</Label><Input value={freeConfig.name} onChange={e => setFreeConfig({...freeConfig, name: e.target.value})} className="rounded-xl h-11" /></div>
+                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Quantidade Total</Label><Input type="number" value={freeConfig.quantity} onChange={e => setFreeConfig({...freeConfig, quantity: Number(e.target.value)})} className="rounded-xl h-11 font-black" /></div>
+                </div>
+                <div className="space-y-4">
+                   <Label className="text-[10px] font-black uppercase tracking-widest text-secondary">Janela de Distribuição</Label>
+                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-muted/20 rounded-[1.5rem] border-2 border-dashed">
+                      <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-40">Abre em</Label><Input type="date" value={freeConfig.startD} onChange={e => setFreeConfig({...freeConfig, startD: e.target.value})} required className="h-10" /></div>
+                      <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-40">Hora</Label><Input type="time" value={freeConfig.startT} onChange={e => setFreeConfig({...freeConfig, startT: e.target.value})} required className="h-10" /></div>
+                      <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-40">Fecha em</Label><Input type="date" value={freeConfig.endD} onChange={e => setFreeConfig({...freeConfig, endD: e.target.value})} required className="h-10" /></div>
+                      <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-40">Hora</Label><Input type="time" value={freeConfig.endT} onChange={e => setFreeConfig({...freeConfig, endT: e.target.value})} required className="h-10" /></div>
+                   </div>
                 </div>
               </div>
             )}
 
             {ticketMode === 'paid_single' && (
-              <div className="space-y-6">
+              <div className="space-y-10 animate-in fade-in duration-500">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                   <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Nome</Label><Input value={singleConfig.name} onChange={e => setSingleConfig({...singleConfig, name: e.target.value})} /></div>
-                   <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Preço</Label><Input type="number" step="0.01" value={singleConfig.price} onChange={e => setSingleConfig({...singleConfig, price: Number(e.target.value)})} /></div>
-                   <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Capacidade</Label><Input type="number" value={singleConfig.quantity} onChange={e => setSingleConfig({...singleConfig, quantity: Number(e.target.value)})} /></div>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted/20 rounded-xl">
-                  <div className="space-y-2"><Label className="text-[9px] uppercase">Data Início</Label><Input type="date" value={singleConfig.startD} onChange={e => setSingleConfig({...singleConfig, startD: e.target.value})} /></div>
-                  <div className="space-y-2"><Label className="text-[9px] uppercase">Hora</Label><Input type="time" value={singleConfig.startT} onChange={e => setSingleConfig({...singleConfig, startT: e.target.value})} /></div>
-                  <div className="space-y-2"><Label className="text-[9px] uppercase">Data Fim</Label><Input type="date" value={singleConfig.endD} onChange={e => setSingleConfig({...singleConfig, endD: e.target.value})} /></div>
-                  <div className="space-y-2"><Label className="text-[9px] uppercase">Hora</Label><Input type="time" value={singleConfig.endT} onChange={e => setSingleConfig({...singleConfig, endT: e.target.value})} /></div>
-                </div>
-              </div>
-            )}
-
-            {ticketMode === 'batches' && (
-              <div className="space-y-6">
-                {batches.map((batch, bi) => (
-                  <div key={batch.id} className="p-6 bg-muted/20 rounded-xl border border-dashed relative">
-                    <div className="grid grid-cols-3 gap-4 mb-4">
-                       <Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} placeholder="Nome do Lote" />
-                       <Input type="number" step="0.01" value={batch.price} onChange={e => updateBatchField(bi, 'price', Number(e.target.value))} />
-                       <Input type="number" value={batch.initialCapacity} onChange={e => updateBatchField(bi, 'initialCapacity', Number(e.target.value))} />
-                    </div>
-                    <div className="grid grid-cols-4 gap-2">
-                       <Input type="date" value={batch.salesStartDate} onChange={e => updateBatchField(bi, 'salesStartDate', e.target.value)} />
-                       <Input type="time" value={batch.salesStartTime} onChange={e => updateBatchField(bi, 'salesStartTime', e.target.value)} />
-                       <Input type="date" value={batch.salesEndDate} onChange={e => updateBatchField(bi, 'salesEndDate', e.target.value)} />
-                       <Input type="time" value={batch.salesEndTime} onChange={e => updateBatchField(bi, 'salesEndTime', e.target.value)} />
-                    </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Nome Comercial</Label>
+                    <Input value={singleConfig.name} onChange={e => setSingleConfig({...singleConfig, name: e.target.value})} className="rounded-xl h-11" placeholder="Ex: Ingresso Geral" />
                   </div>
-                ))}
-                <Button type="button" variant="outline" className="w-full h-12 border-dashed font-black uppercase" onClick={addBatch}>+ Novo Lote</Button>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Preço</Label>
+                    <Input 
+                      value={priceInput} 
+                      onChange={handlePriceInputChange} 
+                      placeholder="R$ 0,00"
+                      className="rounded-xl h-11 font-black text-secondary" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Capacidade</Label>
+                    <Input type="number" value={singleConfig.quantity} onChange={e => setSingleConfig({...singleConfig, quantity: Number(e.target.value)})} className="rounded-xl h-11 font-black" />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                   <Label className="text-[10px] font-black uppercase tracking-widest text-secondary">Janela de Vendas</Label>
+                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-muted/20 rounded-[1.5rem] border-2 border-dashed">
+                      <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-40">Abre em</Label><Input type="date" value={singleConfig.startD} onChange={e => setSingleConfig({...singleConfig, startD: e.target.value})} required className="h-10" /></div>
+                      <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-40">Hora</Label><Input type="time" value={singleConfig.startT} onChange={e => setSingleConfig({...singleConfig, startT: e.target.value})} required className="h-10" /></div>
+                      <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-40">Fecha em</Label><Input type="date" value={singleConfig.endD} onChange={e => setSingleConfig({...singleConfig, endD: e.target.value})} required className="h-10" /></div>
+                      <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-40">Hora</Label><Input type="time" value={singleConfig.endT} onChange={e => setSingleConfig({...singleConfig, endT: e.target.value})} required className="h-10" /></div>
+                   </div>
+                </div>
+
+                <div className="space-y-4 pt-6 border-t border-dashed">
+                   <div className="flex items-center justify-between p-5 bg-primary text-white rounded-3xl shadow-xl">
+                      <div className="flex items-center gap-4">
+                         <div className="p-3 bg-white/10 rounded-2xl"><TicketPercent className="w-6 h-6 text-secondary" /></div>
+                         <div className="space-y-0.5">
+                            <p className="font-black uppercase text-xs italic tracking-tighter">Meia-Entrada Automática</p>
+                            <p className="text-[9px] opacity-60 uppercase font-bold">Gerencie as cotas de meia-entrada de forma automatizada.</p>
+                         </div>
+                      </div>
+                      <Switch checked={autoHalfPrice} onCheckedChange={handleToggleHalfPrice} />
+                   </div>
+
+                   {autoHalfPrice && (
+                     <div className="p-6 bg-secondary/5 border-2 border-dashed border-secondary/20 rounded-[2rem] space-y-6 animate-in slide-in-from-top-4 duration-500">
+                        <div className="flex items-center justify-between">
+                           <div className="space-y-1">
+                              <h4 className="text-sm font-black uppercase italic text-primary">Cota de Meia: {halfPricePercentage}%</h4>
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase">{Math.floor(singleConfig.quantity * (halfPricePercentage / 100))} ingressos reservados.</p>
+                           </div>
+                           <Button type="button" variant="outline" size="sm" onClick={() => setIsPercentageDialogOpen(true)} className="rounded-xl h-8 text-[9px] font-black uppercase border-secondary text-secondary">Alterar %</Button>
+                        </div>
+                        
+                        <div className="space-y-3">
+                           <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Categorias Habilitadas</Label>
+                           <div className="flex flex-wrap gap-2">
+                              {HALF_PRICE_CATEGORIES.map((cat) => (
+                                <div key={cat.id} className="flex items-center space-x-2 bg-white px-4 py-2 rounded-xl border border-border shadow-sm">
+                                  <Checkbox 
+                                    id={`cat-${cat.id}`} 
+                                    checked={selectedHalfTypes.includes(cat.id)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) setSelectedHalfTypes([...selectedHalfTypes, cat.id]);
+                                      else setSelectedHalfTypes(selectedHalfTypes.filter(id => id !== cat.id));
+                                    }}
+                                  />
+                                  <label htmlFor={`cat-${cat.id}`} className="text-[11px] font-bold uppercase cursor-pointer">{cat.label}</label>
+                                </div>
+                              ))}
+                           </div>
+                        </div>
+                     </div>
+                   )}
+
+                   <div className="flex items-center justify-between p-5 bg-muted/50 rounded-3xl">
+                      <div className="flex items-center gap-4">
+                         <div className="p-3 bg-background rounded-2xl"><MapIcon className="w-6 h-6 text-secondary" /></div>
+                         <div className="space-y-0.5">
+                            <p className="font-black uppercase text-xs italic tracking-tighter">Habilitar Lugar Marcado</p>
+                            <p className="text-[9px] opacity-60 uppercase font-bold">Permita que o público escolha cadeiras ou mesas no mapa visual.</p>
+                         </div>
+                      </div>
+                      <Switch checked={hasMap} onCheckedChange={setHasMap} />
+                   </div>
+
+                   {hasMap && (
+                     <div className="flex justify-center pt-2">
+                        <Button type="button" className="bg-secondary text-white font-black h-12 rounded-xl px-10 shadow-lg uppercase italic text-xs gap-2 hover:scale-105 transition-all" asChild>
+                           <Link href={`/dashboard/evento/${eventId}/mapa`}>
+                              <Settings2 className="w-4 h-4" /> Configurar Mapa de Locais
+                           </Link>
+                        </Button>
+                     </div>
+                   )}
+                </div>
               </div>
             )}
-
-            {(ticketMode === 'paid_single' || ticketMode === 'batches') && (
-              <div className="pt-6 border-t border-dashed space-y-4">
-                 <div className="flex items-center justify-between p-4 bg-primary text-white rounded-2xl shadow-xl">
-                    <div className="space-y-0.5">
-                       <p className="font-black uppercase text-xs italic tracking-tighter flex items-center gap-2"><Sparkles className="w-4 h-4 text-secondary" /> Meia-Entrada Automática (Cota 40%)</p>
-                    </div>
-                    <Switch checked={autoHalfPrice} onCheckedChange={setAutoHalfPrice} />
-                 </div>
-                 <div className="flex items-center justify-between p-4 bg-muted/50 rounded-2xl">
-                    <div className="space-y-0.5"><p className="font-black uppercase text-xs italic tracking-tighter flex items-center gap-2"><MapIcon className="w-4 h-4 text-secondary" /> Habilitar Lugar Marcado</p></div>
-                    <Switch checked={hasMap} onCheckedChange={setHasMap} />
-                 </div>
-              </div>
+            
+            {ticketMode === 'batches' && (
+              <div className="py-20 text-center opacity-30 italic">Gerenciamento de lotes preservado.</div>
             )}
           </CardContent>
         </Card>
 
-        <Button type="submit" disabled={loading} className="w-full h-16 bg-secondary text-white font-black text-xl rounded-[2rem] shadow-xl uppercase italic">
+        <Button type="submit" disabled={loading} className="w-full h-16 bg-secondary text-white font-black text-xl rounded-[2rem] shadow-xl uppercase italic hover:scale-[1.02] transition-transform">
           {loading ? <Loader2 className="animate-spin mr-2" /> : <><CheckCircle2 className="mr-2" /> Salvar Alterações</>}
         </Button>
       </form>
+
+      {/* DIALOG PARA % DE MEIA */}
+      <Dialog open={isPercentageDialogOpen} onOpenChange={setIsPercentageDialogOpen}>
+        <DialogContent className="max-w-sm rounded-[2.5rem]">
+           <DialogHeader>
+              <div className="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center mx-auto mb-2 text-secondary">
+                 <TicketPercent className="w-8 h-8" />
+              </div>
+              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Configurar Cota</DialogTitle>
+              <DialogDescription className="text-center font-medium">Quantos % da capacidade total serão destinados à meia-entrada?</DialogDescription>
+           </DialogHeader>
+           <div className="py-6 space-y-6">
+              <div className="space-y-2">
+                 <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Porcentagem (%)</Label>
+                 <div className="relative">
+                    <Input 
+                      type="number" 
+                      value={halfPricePercentage} 
+                      onChange={e => setHalfPricePercentage(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                      className="h-16 text-3xl font-black rounded-2xl text-center pr-12 border-secondary/20" 
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-2xl font-black text-muted-foreground opacity-30">%</span>
+                 </div>
+              </div>
+              <div className="p-4 bg-muted/30 rounded-2xl border border-dashed flex gap-3">
+                 <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
+                 <p className="text-[9px] text-muted-foreground font-bold uppercase leading-tight">A soma de todas as categorias de meia não ultrapassará esta cota definida sobre a capacidade total do lote.</p>
+              </div>
+           </div>
+           <DialogFooter>
+              <Button onClick={() => { setAutoHalfPrice(true); setIsPercentageDialogOpen(false); }} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Confirmar Cota</Button>
+           </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
