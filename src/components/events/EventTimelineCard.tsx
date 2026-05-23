@@ -74,9 +74,12 @@ function CommentItem({ comment, eventId, isAdmin, onDelete }: { comment: any, ev
       </Avatar>
       <div className="flex-1 space-y-1">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-black uppercase tracking-tight text-primary">
-            {author?.name || "Usuário"}
-          </span>
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] font-black uppercase tracking-tight text-primary">
+              {author?.name || "Usuário"}
+            </span>
+            {author?.isVerified && <BadgeCheck className="w-3 h-3 fill-blue-500 text-white" />}
+          </div>
           {canDelete && (
             <button onClick={(e) => { e.stopPropagation(); onDelete(comment.id); }} className="opacity-0 group-hover:opacity-100 text-destructive hover:scale-110 transition-all">
               <Trash2 className="w-3 h-3" />

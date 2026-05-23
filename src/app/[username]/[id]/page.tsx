@@ -35,7 +35,8 @@ import {
   MessageCircle,
   Send,
   Trash2,
-  Heart
+  Heart,
+  BadgeCheck
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -74,7 +75,10 @@ function CommentItem({ comment, eventId, isAdmin, onDelete }: { comment: any, ev
       </Avatar>
       <div className="flex-1 space-y-1">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-black uppercase tracking-tight text-primary">{author?.name || "Usuário"}</span>
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-black uppercase tracking-tight text-primary">{author?.name || "Usuário"}</span>
+            {author?.isVerified && <BadgeCheck className="w-3.5 h-3.5 fill-blue-500 text-white" />}
+          </div>
           {isAdmin && (
             <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => onDelete(comment.id)}>
               <Trash2 className="w-3.5 h-3.5" />
@@ -265,20 +269,6 @@ export default function EventoDetalhesPage() {
       .finally(() => setIsSubmittingComment(false))
   }
 
-  const renderFormattedText = (text: string) => {
-    if (!text) return "";
-    const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@\w+)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
-      if (part.startsWith('+') && part.endsWith('+')) return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
-      if (part.startsWith('@')) {
-        const username = part.slice(1);
-        return <Link key={i} href={`/${username}`} className="text-secondary font-black hover:underline">{part}</Link>;
-      }
-      return part;
-    });
-  }
-
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
   if (!event) return <div className="flex flex-col items-center py-20"><h2 className="text-2xl font-bold">Evento não encontrado</h2></div>
 
@@ -330,7 +320,7 @@ export default function EventoDetalhesPage() {
                  <CardHeader className="bg-muted/30 pb-4"><CardTitle className="flex items-center gap-2 text-xl font-bold"><Info className="w-5 h-5 text-secondary" /> Sobre o Evento</CardTitle></CardHeader>
                  <CardContent className="pt-6">
                     <p className="text-muted-foreground leading-relaxed whitespace-pre-line text-lg font-medium">
-                      {renderFormattedText(event.description)}
+                      {event.description}
                     </p>
                  </CardContent>
               </Card>
@@ -348,7 +338,7 @@ export default function EventoDetalhesPage() {
                              key={comment.id} 
                              comment={comment} 
                              eventId={eventId} 
-                             isAdmin={isAdmin || (event.organizationId && organizationProfile?.members?.[user?.uid || ''])}
+                             isAdmin={event.organizationId && organizationProfile?.members?.[user?.uid || '']}
                              onDelete={(id) => deleteDoc(doc(db!, "events", eventId, "comments", id))}
                            />
                          ))
