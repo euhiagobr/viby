@@ -37,7 +37,8 @@ import {
   Map as MapIcon,
   Layout,
   Armchair,
-  Grid3X3
+  Grid3X3,
+  X
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
