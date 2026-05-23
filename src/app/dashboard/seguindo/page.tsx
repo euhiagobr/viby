@@ -4,8 +4,8 @@
 import * as React from "react"
 import { useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, where, limit } from "firebase/firestore"
-import { EventCard } from "@/components/events/EventCard"
-import { Loader2, Heart, Users } from "lucide-react"
+import { EventTimelineCard } from "@/components/events/EventTimelineCard"
+import { Loader2, Heart, Users, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
@@ -24,12 +24,10 @@ export default function TenhoInteressePage() {
 
   const followedIds = React.useMemo(() => {
     if (!follows) return []
-    // Filtramos apenas as IDs seguidas
     return follows.map((f: any) => f.followingId)
   }, [follows])
 
   // 2. Buscar eventos dessas organizações
-  // Simplificado removendo orderBy para evitar necessidade de índices compostos em ambiente de dev
   const eventsQuery = useMemoFirebase(() => {
     if (!db || followedIds.length === 0) return null
     
@@ -40,13 +38,12 @@ export default function TenhoInteressePage() {
       collection(db, "events"), 
       where("organizationId", "in", slicedIds),
       where("status", "==", "Ativo"),
-      limit(100) // Buscamos um volume maior para ordenar em memória
+      limit(50)
     )
   }, [db, followedIds])
 
   const { data: rawEvents, loading: eventsLoading } = useCollection<any>(eventsQuery)
 
-  // Ordenação manual em memória para garantir funcionamento imediato sem índices
   const events = React.useMemo(() => {
     if (!rawEvents) return []
     return [...rawEvents].sort((a, b) => {
@@ -65,29 +62,31 @@ export default function TenhoInteressePage() {
   }
 
   return (
-    <div className="space-y-8 pb-20">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
-          <Heart className="w-8 h-8 text-secondary fill-secondary" />
-          Feed de Seguindo
-        </h1>
-        <p className="text-muted-foreground font-medium">
-          Confira as novidades e publicações das marcas que você acompanha.
-        </p>
+    <div className="space-y-12 pb-20 max-w-2xl mx-auto">
+      <div className="flex flex-col gap-3 text-center md:text-left md:flex-row md:items-end md:justify-between px-4">
+        <div className="space-y-1">
+          <h1 className="text-4xl font-black tracking-tight uppercase italic text-primary flex items-center justify-center md:justify-start gap-3">
+            <Sparkles className="w-10 h-10 text-secondary fill-secondary" />
+            Feed Cultural
+          </h1>
+          <p className="text-muted-foreground font-medium">
+            As melhores experiências das marcas que você escolheu acompanhar.
+          </p>
+        </div>
       </div>
 
       {followedIds.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[2.5rem] border-2 border-dashed border-border gap-6 shadow-sm">
+        <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[3rem] border-2 border-dashed border-border gap-6 shadow-sm mx-4">
           <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center">
             <Users className="w-10 h-10 text-muted-foreground opacity-30" />
           </div>
           <div className="text-center space-y-2">
-            <p className="text-xl font-bold">Você ainda não segue ninguém.</p>
+            <p className="text-xl font-bold">Seu feed está vazio.</p>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-              Siga seus produtores favoritos para ver as publicações deles aqui primeiro.
+              Siga seus produtores favoritos para ver as publicações deles aqui no estilo timeline.
             </p>
           </div>
-          <Button asChild className="bg-secondary text-white font-black px-10 h-12 rounded-full shadow-lg hover:scale-105 transition-transform">
+          <Button asChild className="bg-secondary text-white font-black px-10 h-12 rounded-full shadow-lg hover:scale-105 transition-transform uppercase italic">
             <Link href="/dashboard">Explorar Marcas</Link>
           </Button>
         </div>
@@ -96,18 +95,18 @@ export default function TenhoInteressePage() {
           <Loader2 className="w-8 h-8 animate-spin text-secondary" />
         </div>
       ) : !events || events.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[2.5rem] border-2 border-dashed border-border gap-6 shadow-sm">
+        <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[3rem] border-2 border-dashed border-border gap-6 shadow-sm mx-4">
           <div className="text-center space-y-2">
-            <p className="text-xl font-bold">Sem publicações recentes.</p>
+            <p className="text-xl font-bold">Tudo em dia!</p>
             <p className="text-sm text-muted-foreground">
               As marcas que você segue ainda não publicaram eventos novos.
             </p>
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="flex flex-col gap-10 px-4">
           {events.map((event: any) => (
-            <EventCard key={event.id} event={event} />
+            <EventTimelineCard key={event.id} event={event} />
           ))}
         </div>
       )}
