@@ -36,12 +36,22 @@ import {
   Layout,
   Armchair,
   Grid3X3,
-  Map as MapIcon
+  Map as MapIcon,
+  Percent,
+  Info
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 interface TicketType {
   id: string
@@ -62,6 +72,9 @@ interface Batch {
   endDate: string
   capacidadeInicial: number
   capacidadeAtual: number
+  vendidos: number
+  restantes: number
+  migradosDoLoteAnterior: number
   ticketTypes: TicketType[]
 }
 
@@ -90,46 +103,30 @@ export default function EditarEventoPage() {
   const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches'>('none')
   const [mapMode, setMapMode] = useState<'none' | 'setores' | 'assentos' | 'mesas'>('none')
   
-  const [globalCapacity, setGlobalCapacity] = useState<number>(0)
-  const [batches, setBatches] = useState<Batch[]>([])
   const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
 
-  // --- Valor Único State ---
-  const [singlePriceInput, setSinglePriceInput] = useState("")
-  const [singleHalfPriceInput, setSingleHalfPriceInput] = useState("")
-  const [hasHalfPriceSingle, setHasHalfPriceSingle] = useState(false)
-  const [singleHalfTypes, setSingleHalfTypes] = useState<string[]>(["Estudante", "PCD", "Idoso"])
+  // --- Valor Único ---
+  const [singleCapacity, setSingleCapacity] = useState<number>(100)
   const [singleSalesStart, setSingleSalesStart] = useState("")
   const [singleSalesEnd, setSingleSalesEnd] = useState("")
+  const [isHalfPriceEnabled, setIsHalfPriceEnabled] = useState(false)
+  const [halfPricePercent, setHalfPricePercent] = useState(40)
+  const [isPercentDialogOpen, setIsPercentDialogOpen] = useState(false)
+  const [singleTicketTypes, setSingleTicketTypes] = useState<TicketType[]>([
+    { id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }
+  ])
 
-  // --- Gratuito State ---
-  const [freeSalesStart, setFreeSalesStart] = useState("")
-  const [freeSalesEnd, setFreeSalesEnd] = useState("")
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
-  }
-
-  const handlePriceMask = (value: string, setter: (v: string) => void) => {
-    const numeric = value.replace(/\D/g, "");
-    const amount = Number(numeric) / 100;
-    setter(new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(amount));
-  }
-
-  const parseCurrencyToNumber = (value: string) => {
-    const numeric = value.replace(/\D/g, "");
-    return Number(numeric) / 100;
-  }
+  // --- Lotes ---
+  const [batches, setBatches] = useState<Batch[]>([])
+  
+  // --- Gratuito ---
+  const [freeCapacity, setFreeCapacity] = useState<number>(100)
 
   useEffect(() => {
     if (event) {
       setSelectedCategory(event.categoryId || "")
       setTicketMode(event.ticketMode || 'none')
       setMapMode(event.mapMode || 'none')
-      setGlobalCapacity(event.capacidadeTotal || 0)
       setImagePreview(event.image || null)
       if (event.address) setAddress({ ...address, ...event.address })
 
@@ -137,22 +134,55 @@ export default function EditarEventoPage() {
         setBatches(event.batches || [])
       } else if (event.ticketMode === 'paid_single' && event.batches?.length > 0) {
         const b = event.batches[0];
-        setSinglePriceInput(formatCurrency(b.price));
+        setSingleCapacity(b.capacidadeInicial || 100);
         setSingleSalesStart(b.startDate || "");
         setSingleSalesEnd(b.endDate || "");
-        const halfs = b.ticketTypes?.filter((t: any) => t.isLegalHalf);
-        if (halfs?.length > 0) {
-          setHasHalfPriceSingle(true);
-          setSingleHalfPriceInput(formatCurrency(halfs[0].price));
-          setSingleHalfTypes(halfs.map((t: any) => t.name.replace("Meia ", "")));
+        setSingleTicketTypes(b.ticketTypes || []);
+        if (b.ticketTypes?.length > 1) {
+          setIsHalfPriceEnabled(true);
         }
       } else if (event.ticketMode === 'free' && event.batches?.length > 0) {
         const b = event.batches[0];
-        setFreeSalesStart(b.startDate || "");
-        setFreeSalesEnd(b.endDate || "");
+        setFreeCapacity(b.capacidadeInicial || 100);
       }
     }
   }, [event])
+
+  useEffect(() => {
+    if (ticketMode === 'paid_single') {
+      const halfQty = Math.floor(singleCapacity * (halfPricePercent / 100));
+      const inteiraQty = singleCapacity - (isHalfPriceEnabled ? halfQty : 0);
+      
+      const n = [...singleTicketTypes];
+      if (n[0]) n[0].quantity = inteiraQty;
+      if (isHalfPriceEnabled) {
+        for (let i = 1; i < n.length; i++) {
+          n[i].quantity = halfQty;
+        }
+      }
+      setSingleTicketTypes(n);
+    }
+  }, [singleCapacity, halfPricePercent, isHalfPriceEnabled]);
+
+  const handleEnableHalfPrice = (percent: number) => {
+    setHalfPricePercent(percent);
+    setIsHalfPriceEnabled(true);
+    const poolId = crypto.randomUUID();
+    const halfQty = Math.floor(singleCapacity * (percent / 100));
+    const inteiraQty = singleCapacity - halfQty;
+
+    const defaultMeias: TicketType[] = [
+      { id: crypto.randomUUID(), name: "Meia Estudante", price: singleTicketTypes[0].price / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
+      { id: crypto.randomUUID(), name: "Meia PCD", price: singleTicketTypes[0].price / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
+      { id: crypto.randomUUID(), name: "Meia Idoso", price: singleTicketTypes[0].price / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" }
+    ];
+
+    setSingleTicketTypes([
+      { ...singleTicketTypes[0], quantity: inteiraQty },
+      ...defaultMeias
+    ]);
+    setIsPercentDialogOpen(false);
+  }
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -201,6 +231,9 @@ export default function EditarEventoPage() {
       endDate: "",
       capacidadeInicial: 100,
       capacidadeAtual: 100,
+      vendidos: 0,
+      restantes: 100,
+      migradosDoLoteAnterior: 0,
       ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }]
     }
     setBatches([...batches, newB])
@@ -219,40 +252,27 @@ export default function EditarEventoPage() {
       const cat = categories?.find(c => c.id === selectedCategory)
       
       let finalBatches: any[] = []
-      let totalCapacity = globalCapacity
+      let totalCapacity = 0
 
       if (ticketMode === 'free') {
+        totalCapacity = freeCapacity
         finalBatches = [{
           id: 'free',
           name: 'Ingresso Gratuito',
-          startDate: freeSalesStart,
-          endDate: freeSalesEnd,
-          price: 0,
-          initialCapacity: globalCapacity,
-          currentCapacity: globalCapacity,
-          ticketTypes: [{ id: 'free_type', name: 'Gratuito', price: 0, quantity: globalCapacity, requiresProof: false, isLegalHalf: false, description: '' }]
+          capacidadeInicial: freeCapacity,
+          capacidadeAtual: freeCapacity,
+          ticketTypes: [{ id: 'free_type', name: 'Gratuito', price: 0, quantity: freeCapacity, requiresProof: false, isLegalHalf: false, description: '' }]
         }]
       } else if (ticketMode === 'paid_single') {
-        const poolId = crypto.randomUUID();
-        const mainPrice = parseCurrencyToNumber(singlePriceInput);
-        const types = [{ id: crypto.randomUUID(), name: 'Inteira', price: mainPrice, quantity: globalCapacity, poolId, poolName: 'Lote Único', requiresProof: false, isLegalHalf: false, description: '' }];
-        
-        if (hasHalfPriceSingle) {
-          const hp = parseCurrencyToNumber(singleHalfPriceInput);
-          singleHalfTypes.forEach(t => {
-            types.push({ id: crypto.randomUUID(), name: `Meia ${t}`, price: hp, quantity: globalCapacity, poolId, poolName: 'Lote Único', requiresProof: true, isLegalHalf: true, description: '' });
-          });
-        }
-
+        totalCapacity = singleCapacity
         finalBatches = [{
           id: 'single',
           name: 'Valor Único',
           startDate: singleSalesStart,
           endDate: singleSalesEnd,
-          price: mainPrice,
-          initialCapacity: globalCapacity,
-          currentCapacity: globalCapacity,
-          ticketTypes: types
+          capacidadeInicial: singleCapacity,
+          capacidadeAtual: singleCapacity,
+          ticketTypes: singleTicketTypes
         }]
       } else if (ticketMode === 'batches') {
         finalBatches = batches;
@@ -330,7 +350,7 @@ export default function EditarEventoPage() {
           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle></CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label><Input value={address.cep} onChange={e => setAddress({...address, cep: e.target.value})} placeholder="00000-000" className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label htmlFor="cep" className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label><Input value={address.cep} onChange={e => setAddress({...address, cep: e.target.value})} placeholder="00000-000" className="rounded-xl h-11" /></div>
                 <div className="md:col-span-3 space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Rua</Label><Input value={address.street} onChange={e => setAddress({...address, street: e.target.value})} className="rounded-xl h-11" /></div>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -342,16 +362,14 @@ export default function EditarEventoPage() {
           </CardContent>
         </Card>
 
-        {/* ESTRUTURA DO EVENTO (MAPA) */}
         <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
            <CardHeader className="bg-primary/5">
               <CardTitle className="text-lg flex items-center gap-2"><MapIcon className="w-5 h-5 text-primary" /> Estrutura do Evento (Mapa)</CardTitle>
-              <CardDescription>O mapa visual é opcional e independente do tipo de ingresso.</CardDescription>
            </CardHeader>
            <CardContent className="p-8 space-y-6">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                  {[
-                   { id: 'none', label: 'Sem Mapa', icon: XCircle, desc: 'Lista simples' },
+                   { id: 'none', label: 'Sem Mapa', icon: X, desc: 'Lista simples' },
                    { id: 'setores', label: 'Setores', icon: Layout, desc: 'Áreas livres' },
                    { id: 'assentos', label: 'Assentos', icon: Armchair, desc: 'Cadeiras' },
                    { id: 'mesas', label: 'Mesas', icon: Grid3X3, desc: 'Numeradas' }
@@ -374,7 +392,7 @@ export default function EditarEventoPage() {
            </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
+        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1"><CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle></div>
@@ -391,93 +409,142 @@ export default function EditarEventoPage() {
             {ticketMode === 'none' && (
               <div className="py-12 text-center space-y-4">
                 <InfoIcon className="w-12 h-12 mx-auto text-muted-foreground opacity-20" />
-                <h3 className="text-lg font-black uppercase italic">Evento Informativo</h3>
-                <p className="text-sm text-muted-foreground font-bold">Esse evento não terá controle de entrada.</p>
+                <p className="text-sm font-bold text-muted-foreground uppercase">Esse evento não terá controle de entrada</p>
               </div>
             )}
 
             {ticketMode === 'free' && (
-               <div className="space-y-8 animate-in fade-in duration-500">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Início das Vendas</Label><Input type="datetime-local" value={freeSalesStart} onChange={e => setFreeSalesStart(e.target.value)} required className="rounded-xl h-11" /></div>
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Fim das Vendas</Label><Input type="datetime-local" value={freeSalesEnd} onChange={e => setFreeSalesEnd(e.target.value)} required className="rounded-xl h-11" /></div>
+               <div className="space-y-6 animate-in fade-in duration-300">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Início das Vendas</Label><Input type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Fim das Vendas</Label><Input type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
                   </div>
-                  <div className="p-6 bg-muted/20 rounded-[1.5rem] border-2 border-dashed flex flex-col items-center gap-3">
-                     <Label className="text-[10px] font-black uppercase tracking-widest text-secondary">Quantidade de Ingressos</Label>
-                     <Input type="number" value={globalCapacity} onChange={e => setGlobalCapacity(Number(e.target.value))} className="h-14 text-2xl font-black rounded-2xl w-32 text-center border-secondary/20" />
+                  <div className="p-6 bg-muted/20 rounded-2xl border-2 border-dashed border-border flex flex-col items-center gap-4">
+                     <Label className="text-xs font-black uppercase tracking-widest">Quantidade de Ingressos Gratuitos</Label>
+                     <Input type="number" value={freeCapacity} onChange={e => setFreeCapacity(parseInt(e.target.value) || 0)} className="h-14 text-2xl font-black rounded-xl text-center border-secondary/20 max-w-[200px]" />
                   </div>
                </div>
             )}
 
             {ticketMode === 'paid_single' && (
-               <div className="space-y-8 animate-in fade-in duration-500">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-dashed">
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Início das Vendas</Label><Input type="datetime-local" value={singleSalesStart} onChange={e => setSingleSalesStart(e.target.value)} required className="rounded-xl h-11" /></div>
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Fim das Vendas</Label><Input type="datetime-local" value={singleSalesEnd} onChange={e => setSingleSalesEnd(e.target.value)} required className="rounded-xl h-11" /></div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                     <div className="space-y-4">
-                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Valor do Ingresso (Inteira)</Label>
-                        <div className="relative">
-                           <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-secondary">R$</span>
-                           <Input value={singlePriceInput} onChange={e => handlePriceMask(e.target.value, setSinglePriceInput)} placeholder="R$ 0,00" className="h-14 text-2xl font-black rounded-2xl pl-12 border-secondary/20" />
+               <div className="space-y-8 animate-in fade-in duration-300">
+                  <div className="p-8 bg-muted/20 rounded-[2rem] border-2 border-dashed border-border space-y-6">
+                     <div className="flex flex-col items-center gap-2">
+                        <Label className="text-xs font-black uppercase tracking-widest text-secondary">Capacidade do Evento</Label>
+                        <Input 
+                          type="number" 
+                          value={singleCapacity} 
+                          onChange={e => setSingleCapacity(parseInt(e.target.value) || 0)} 
+                          className="h-14 text-3xl font-black rounded-xl text-center border-secondary/20 max-w-[200px] bg-white" 
+                        />
+                     </div>
+                     
+                     <div className="grid grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                           <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Início das Vendas</Label>
+                           <Input type="datetime-local" value={singleSalesStart} onChange={e => setSingleSalesStart(e.target.value)} className="rounded-xl h-11 text-xs bg-white" />
+                        </div>
+                        <div className="space-y-2">
+                           <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Fim das Vendas</Label>
+                           <Input type="datetime-local" value={singleSalesEnd} onChange={e => setSingleSalesEnd(e.target.value)} className="rounded-xl h-11 text-xs bg-white" />
                         </div>
                      </div>
-                     <div className="space-y-4">
-                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Capacidade Total</Label>
-                        <Input type="number" value={globalCapacity} onChange={e => setGlobalCapacity(Number(e.target.value))} className="h-14 text-2xl font-black rounded-2xl border-secondary/20" />
+                  </div>
+
+                  <div className="space-y-4">
+                     <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-2">Ingresso Principal</h3>
+                     <div className="p-6 bg-white rounded-3xl border shadow-sm grid grid-cols-12 gap-6 items-end">
+                        <div className="col-span-5 space-y-2">
+                           <Label className="text-[9px] uppercase font-black opacity-40 ml-1">Nome do Ingresso</Label>
+                           <Input value={singleTicketTypes[0]?.name || ""} onChange={e => { const n = [...singleTicketTypes]; n[0].name = e.target.value; setSingleTicketTypes(n); }} className="rounded-xl h-12 font-bold" />
+                        </div>
+                        <div className="col-span-3 space-y-2">
+                           <Label className="text-[9px] uppercase font-black opacity-40 ml-1">Quantidade</Label>
+                           <Input value={singleTicketTypes[0]?.quantity || 0} readOnly className="rounded-xl h-12 font-black bg-muted/30" />
+                        </div>
+                        <div className="col-span-4 space-y-2">
+                           <Label className="text-[9px] uppercase font-black opacity-40 ml-1">Valor (R$)</Label>
+                           <Input type="number" step="0.01" value={singleTicketTypes[0]?.price || 0} onChange={e => { const n = [...singleTicketTypes]; n[0].price = parseFloat(e.target.value) || 0; setSingleTicketTypes(n); }} className="rounded-xl h-12 font-black text-secondary" />
+                        </div>
                      </div>
                   </div>
 
-                  <div className="p-6 bg-secondary/5 rounded-3xl border-2 border-dashed border-secondary/20 space-y-6">
-                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                           <Sparkles className="w-5 h-5 text-secondary" />
-                           <Label className="font-bold text-sm">Habilitar Meia-Entrada Automática</Label>
-                        </div>
-                        <Switch checked={hasHalfPriceSingle} onCheckedChange={setHasHalfPriceSingle} />
-                     </div>
+                  <div className="flex justify-center">
+                     <Button 
+                       type="button" 
+                       variant={isHalfPriceEnabled ? "secondary" : "outline"} 
+                       className="rounded-full px-8 h-12 font-black uppercase italic text-xs gap-2 transition-all"
+                       onClick={() => setIsPercentDialogOpen(true)}
+                     >
+                        <Sparkles className="w-4 h-4" />
+                        {isHalfPriceEnabled ? "Ajustar Meia-Entrada" : "Habilitar Meia-Entrada"}
+                     </Button>
+                  </div>
 
-                     {hasHalfPriceSingle && (
-                        <div className="space-y-6 animate-in slide-in-from-top-2">
-                           <div className="space-y-2">
-                              <Label className="text-[10px] font-black uppercase opacity-40">Valor da Meia-Entrada</Label>
-                              <div className="relative max-w-[200px]">
-                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-primary">R$</span>
-                                 <Input value={singleHalfPriceInput} onChange={e => handlePriceMask(e.target.value, setSingleHalfPriceInput)} className="h-10 pl-10 rounded-xl font-bold" />
+                  {isHalfPriceEnabled && (
+                    <div className="space-y-4 animate-in slide-in-from-top-4 duration-500">
+                       <div className="flex items-center justify-between px-2">
+                          <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Categorias de Meia-Entrada ({halfPricePercent}%)</h3>
+                          <Badge variant="outline" className="rounded-lg text-[10px] font-black uppercase border-secondary text-secondary">Cota: {singleCapacity - (singleTicketTypes[0]?.quantity || 0)} Ingressos</Badge>
+                       </div>
+                       
+                       <div className="space-y-3">
+                          {singleTicketTypes.slice(1).map((t, idx) => {
+                            const ti = idx + 1;
+                            return (
+                              <div key={t.id} className="p-5 bg-white rounded-[1.5rem] border shadow-sm grid grid-cols-12 gap-6 items-center hover:border-secondary/20 transition-all">
+                                 <div className="col-span-4 space-y-1">
+                                    <Label className="text-[9px] uppercase font-black opacity-40">Categoria</Label>
+                                    <Input value={t.name} onChange={e => { const n = [...singleTicketTypes]; n[ti].name = e.target.value; setSingleTicketTypes(n); }} className="rounded-xl h-10 font-bold border-none bg-muted/20" />
+                                 </div>
+                                 <div className="col-span-2 space-y-1">
+                                    <Label className="text-[9px] uppercase font-black opacity-40">Quantidade</Label>
+                                    <div className="h-10 flex items-center font-black text-xs px-3 bg-muted/20 rounded-xl">Pool: {t.quantity}</div>
+                                 </div>
+                                 <div className="col-span-3 space-y-1">
+                                    <Label className="text-[9px] uppercase font-black opacity-40">Valor (R$)</Label>
+                                    <Input type="number" step="0.01" value={t.price} onChange={e => { const n = [...singleTicketTypes]; n[ti].price = parseFloat(e.target.value) || 0; setSingleTicketTypes(n); }} className="rounded-xl h-10 font-black text-secondary" />
+                                 </div>
+                                 <div className="col-span-2 flex flex-col items-center gap-1">
+                                    <Label className="text-[8px] uppercase font-black opacity-40">Obrigatório</Label>
+                                    <Switch checked={t.requiresProof} onCheckedChange={v => { const n = [...singleTicketTypes]; n[ti].requiresProof = v; setSingleTicketTypes(n); }} />
+                                 </div>
+                                 <div className="col-span-1 flex justify-end">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-full hover:bg-destructive/10" onClick={() => setSingleTicketTypes(singleTicketTypes.filter((_, i) => i !== ti))}>
+                                       <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                 </div>
                               </div>
-                           </div>
-                           <div className="space-y-3">
-                              <Label className="text-[10px] font-black uppercase opacity-40">Categorias Disponíveis</Label>
-                              <div className="flex flex-wrap gap-4">
-                                 {["Estudante", "PCD", "Idoso", "Professor", "Meia Social"].map(t => (
-                                    <div key={t} className="flex items-center gap-2">
-                                       <Checkbox checked={singleHalfTypes.includes(t)} onCheckedChange={(c) => c ? setSingleHalfTypes([...singleHalfTypes, t]) : setSingleHalfTypes(singleHalfTypes.filter(x => x !== t))} />
-                                       <span className="text-xs font-medium">{t}</span>
-                                    </div>
-                                 ))}
-                              </div>
-                           </div>
-                        </div>
-                     )}
-                  </div>
+                            )
+                          })}
+                          <Button 
+                             type="button" 
+                             variant="ghost" 
+                             size="sm" 
+                             className="text-secondary font-black uppercase text-[10px] gap-2 ml-2"
+                             onClick={() => setSingleTicketTypes([...singleTicketTypes, { id: crypto.randomUUID(), name: "Nova Meia", price: singleTicketTypes[0].price / 2, quantity: singleCapacity - singleTicketTypes[0].quantity, poolId: singleTicketTypes[1]?.poolId || crypto.randomUUID(), poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" }])}
+                          >
+                             <Plus className="w-4 h-4" /> Adicionar Categoria
+                          </Button>
+                       </div>
+                    </div>
+                  )}
                </div>
             )}
 
             {ticketMode === 'batches' && (
               <div className="space-y-10 animate-in fade-in duration-500">
                 <div className="p-6 bg-primary/5 rounded-[2rem] border-2 border-dashed border-primary/10 flex flex-col items-center gap-3">
-                   <Label className="text-[10px] font-black uppercase tracking-widest text-primary">Capacidade Total do Local (Todos os Lotes)</Label>
-                   <Input type="number" value={globalCapacity} onChange={e => setGlobalCapacity(Number(e.target.value))} className="h-14 text-2xl font-black rounded-2xl w-32 text-center border-primary/20" />
+                   <Label className="text-[10px] font-black uppercase tracking-widest text-primary">Capacidade Total do Local</Label>
+                   <Input type="number" value={batches.reduce((acc, b) => acc + b.capacidadeInicial, 0)} readOnly className="h-14 text-2xl font-black rounded-2xl w-32 text-center border-primary/20 bg-white" />
                 </div>
 
                 {batches.map((batch, bi) => (
-                  <div key={batch.id} className="p-6 rounded-[2rem] border-2 bg-muted/10 space-y-6 relative">
-                     <div className="flex justify-between items-center">
+                  <div key={batch.id} className="p-6 rounded-[2rem] border-2 bg-muted/10 space-y-6 relative overflow-hidden">
+                     <div className="flex justify-between items-center relative z-10">
                         <div className="flex items-center gap-3">
                            <h3 className="font-black italic uppercase text-secondary text-xl">{batch.name}</h3>
-                           <Badge variant="outline" className="text-[10px] font-bold uppercase">{batch.capacidadeInicial} Lugares</Badge>
+                           <Badge variant="outline" className="text-[10px] font-bold uppercase">{batch.capacidadeAtual} Ingressos Disponíveis</Badge>
                         </div>
                         <div className="flex gap-2">
                            <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => generateHalfPriceTypes(bi)}>
@@ -487,36 +554,39 @@ export default function EditarEventoPage() {
                         </div>
                      </div>
 
+                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="space-y-2">
+                           <Label className="text-[10px] font-black uppercase opacity-60">Carga Inicial</Label>
+                           <Input type="number" value={batch.capacidadeInicial} onChange={e => { const n = [...batches]; n[bi].capacidadeInicial = parseInt(e.target.value) || 0; setBatches(n); }} className="rounded-xl h-11 font-black text-primary" />
+                         </div>
+                        <div className="md:col-span-2 space-y-2">
+                            <Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote</Label>
+                            <Input value={batch.name} onChange={e => { const n = [...batches]; n[bi].name = e.target.value; setBatches(n); }} className="rounded-xl h-11" />
+                         </div>
+                     </div>
+
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-60">Vigência Início</Label><Input type="datetime-local" value={batch.startDate} onChange={e => { const n = [...batches]; n[bi].startDate = e.target.value; setBatches(n); }} className="h-10 text-xs rounded-xl" /></div>
                         <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-60">Vigência Fim</Label><Input type="datetime-local" value={batch.endDate} onChange={e => { const n = [...batches]; n[bi].endDate = e.target.value; setBatches(n); }} className="h-10 text-xs rounded-xl" /></div>
                      </div>
 
                      <div className="space-y-4">
-                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Categorias e Valores Individuais</Label>
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Carga e Valores Individuais</Label>
                         {batch.ticketTypes.map((t, ti) => (
                            <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm grid grid-cols-12 gap-4 items-end">
                               <div className="col-span-6 space-y-2">
-                                 <Label className="text-[9px] uppercase font-black opacity-40">Título do Ingresso</Label>
+                                 <Label className="text-[9px] uppercase font-black opacity-40">Título</Label>
                                  <Input value={t.name} onChange={e => { const n = [...batches]; n[bi].ticketTypes[ti].name = e.target.value; setBatches(n); }} className="rounded-xl h-10 font-bold" />
                               </div>
                               <div className="col-span-4 space-y-2">
-                                 <Label className="text-[9px] uppercase font-black opacity-40">Preço (R$)</Label>
-                                 <Input 
-                                    value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(t.price)}
-                                    onChange={e => handleBatchTicketPriceChange(bi, ti, e.target.value)}
-                                    className="rounded-xl h-10 font-black text-secondary"
-                                 />
+                                <Label className="text-[9px] uppercase font-black opacity-40">Preço (R$)</Label>
+                                <Input type="number" step="0.01" value={t.price} onChange={e => handleBatchTicketPriceChange(bi, ti, e.target.value)} className="rounded-xl h-10 font-black text-secondary" />
                               </div>
-                              <div className="col-span-2 flex justify-end pb-1">
-                                 <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => { if(batch.ticketTypes.length > 1) { const n = [...batches]; n[bi].ticketTypes.splice(ti, 1); setBatches(n); } }}><Trash2 className="w-4 h-4" /></Button>
-                              </div>
+                              <div className="col-span-2 flex justify-end pb-1"><Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => { if(batch.ticketTypes.length > 1) { const n = [...batches]; n[bi].ticketTypes.splice(ti, 1); setBatches(n); } }}><Trash2 className="w-4 h-4" /></Button></div>
                            </div>
-                        ))}
-                        <Button type="button" variant="ghost" size="sm" className="text-secondary font-black uppercase text-[10px] gap-1" onClick={() => { const n = [...batches]; n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Nova Categoria", price: 100, quantity: batch.capacidadeInicial, requiresProof: false, isLegalHalf: false, description: "" }); setBatches(n); }}>
-                           <Plus className="w-3 h-3" /> Adicionar Categoria
-                        </Button>
-                     </div>
+                         ))}
+                         <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[9px] font-black uppercase gap-1.5" onClick={() => addTicketType(bi)}><Plus className="w-3 h-3" /> Adicionar Tipo</Button>
+                      </div>
                   </div>
                 ))}
                 <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>
@@ -529,6 +599,37 @@ export default function EditarEventoPage() {
           {loading ? <Loader2 className="animate-spin mr-2" /> : "Salvar Alterações"}
         </Button>
       </form>
+
+      {/* DIALOG DE PORCENTAGEM DE MEIA-ENTRADA */}
+      <Dialog open={isPercentDialogOpen} onOpenChange={setIsPercentDialogOpen}>
+         <DialogContent className="max-w-sm rounded-[2.5rem]">
+            <DialogHeader>
+               <div className="w-12 h-12 bg-secondary/10 rounded-xl flex items-center justify-center mb-2 mx-auto text-secondary">
+                  <Percent className="w-6 h-6" />
+               </div>
+               <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Meia-Entrada Automática</DialogTitle>
+               <DialogDescription className="text-center font-medium">Qual a porcentagem da capacidade total você deseja reservar para meia-entrada?</DialogDescription>
+            </DialogHeader>
+            <div className="py-6 space-y-6">
+               <div className="relative">
+                  <Input 
+                    type="number" 
+                    value={halfPricePercent} 
+                    onChange={e => setHalfPricePercent(parseInt(e.target.value) || 0)} 
+                    className="h-20 text-5xl font-black text-center rounded-[1.5rem] border-secondary/20" 
+                  />
+                  <span className="absolute right-6 top-1/2 -translate-y-1/2 text-2xl font-black text-muted-foreground opacity-30">%</span>
+               </div>
+               <div className="p-4 bg-muted/50 rounded-2xl border-2 border-dashed flex gap-3">
+                  <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-muted-foreground font-bold uppercase leading-tight">Legislação Brasileira: A cota recomendada é de no mínimo 40% da carga total de ingressos.</p>
+               </div>
+            </div>
+            <DialogFooter>
+               <Button onClick={() => handleEnableHalfPrice(halfPricePercent)} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Configurar Cota</Button>
+            </DialogFooter>
+         </DialogContent>
+      </Dialog>
     </div>
   )
 }
