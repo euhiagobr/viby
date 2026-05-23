@@ -52,6 +52,9 @@
         "preco": { "type": "number" },
         "capacidade": { "type": "number" },
         "cor": { "type": "string" },
+        "ordem": { "type": "number", "description": "Define a linha/profundidade no mapa" },
+        "posicaoGrade": { "type": "number", "description": "Coluna inicial (0-11)" },
+        "larguraGrade": { "type": "number", "description": "Quantas colunas ocupa (1-12)" },
         "fileiras": { "type": "number" },
         "assentosPorFileira": { "type": "number" },
         "quantidadeMesas": { "type": "number" },
@@ -65,40 +68,10 @@
       "type": "object",
       "properties": {
         "codigo": { "type": "string" },
+        "categoria": { "type": "string", "enum": ["comum", "pcd", "obeso", "acompanhante"] },
         "status": { "type": "string", "enum": ["disponivel", "reservado", "vendido", "bloqueado"] },
         "reservadoPor": { "type": "string" },
         "reservadoAte": { "type": "string", "format": "date-time" }
-      }
-    },
-    "UserGamification": {
-      "title": "Gamificação do Usuário",
-      "description": "Dados de progresso, XP e nível",
-      "type": "object",
-      "properties": {
-        "userId": { "type": "string" },
-        "currentXp": { "type": "number", "default": 0 },
-        "totalXp": { "type": "number", "default": 0 },
-        "level": { "type": "number", "default": 1 },
-        "levelName": { "type": "string" },
-        "nextLevelXp": { "type": "number" },
-        "lastActivityAt": { "type": "string", "format": "date-time" }
-      }
-    },
-    "CulturalStats": {
-      "title": "Estatísticas Culturais",
-      "description": "Perfil de consumo cultural do usuário",
-      "type": "object",
-      "properties": {
-        "userId": { "type": "string" },
-        "topCategory": { "type": "string" },
-        "topNeighborhood": { "type": "string" },
-        "topCity": { "type": "string" },
-        "totalEvents": { "type": "number" },
-        "totalCheckins": { "type": "number" },
-        "categoriesExplored": { "type": "array", "items": { "type": "string" } },
-        "neighborhoodsExplored": { "type": "array", "items": { "type": "string" } },
-        "citiesExplored": { "type": "array", "items": { "type": "string" } },
-        "favoriteOrganizers": { "type": "array", "items": { "type": "string" } }
       }
     }
   },
@@ -129,38 +102,6 @@
     "/cultural_stats/{userId}": {
       "schema": "CulturalStats",
       "description": "Perfil cultural e estatísticas por usuário"
-    },
-    "/levels/{levelId}": {
-      "schema": "object",
-      "description": "Configuração dos níveis de progressão"
-    },
-    "/badges/{badgeId}": {
-      "schema": "object",
-      "description": "Configuração de medalhas e conquistas"
-    },
-    "/user_badges/{userBadgeId}": {
-      "schema": "object",
-      "description": "Associação entre usuários e medalhas conquistadas"
-    },
-    "/xp_rules/{ruleId}": {
-      "schema": "object",
-      "description": "Regras automáticas de ganho de XP"
-    },
-    "/xp_logs/{logId}": {
-      "schema": "object",
-      "description": "Histórico detalhado de ganhos de XP"
-    },
-    "/tax_ads/{taxId}": {
-      "schema": "object",
-      "description": "Registros de impostos de anúncios"
-    },
-    "/tax_tickets/{taxId}": {
-      "schema": "object",
-      "description": "Registros de impostos de ingressos"
-    },
-    "/payout_requests/{requestId}": {
-      "schema": "object",
-      "description": "Solicitações de saque das organizações"
     }
   }
 }
