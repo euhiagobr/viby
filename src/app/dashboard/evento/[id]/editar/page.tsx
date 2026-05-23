@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -38,7 +37,8 @@ import {
   Camera,
   XCircle,
   Map as MapIcon,
-  Zap
+  Zap,
+  Users2
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -72,7 +72,7 @@ interface Batch {
   description: string
   startDate: string
   endDate: string
-  capacity?: number
+  capacity: number
   ticketTypes: TicketType[]
 }
 
@@ -162,7 +162,7 @@ export default function EditarEventoPage() {
     toast({ title: "Ingressos distribuídos!", description: "Carga do lote configurada com estoque compartilhado." })
   }
 
-  const addBatch = () => setBatches([...batches, { id: crypto.randomUUID(), name: `Lote ${batches.length + 1}`, description: "", startDate: "", endDate: "", capacity: 0, ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }])
+  const addBatch = () => setBatches([...batches, { id: crypto.randomUUID(), name: `Lote ${batches.length + 1}`, description: "", startDate: "", endDate: "", capacity: 100, ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }])
   const removeBatch = (i: number) => setBatches(batches.filter((_, idx) => idx !== i))
   const updateBatchField = (i: number, f: keyof Batch, v: any) => { const n = [...batches]; n[i] = { ...n[i], [f]: v }; setBatches(n); }
   const addTicketType = (bi: number) => { const n = [...batches]; n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }); setBatches(n); }
@@ -188,6 +188,7 @@ export default function EditarEventoPage() {
         isFree: noTickets ? true : (ticketMode === 'free'),
         batches: noTickets ? [] : batches.map(b => ({
           ...b,
+          capacity: parseInt(b.capacity as any) || 0,
           ticketTypes: b.ticketTypes.map(t => ({ ...t, price: parseFloat(t.price as any) || 0, quantity: parseInt(t.quantity as any) || 0 }))
         })),
         address, image: uploadedImageUrl || event.image || "", 
@@ -270,31 +271,45 @@ export default function EditarEventoPage() {
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-3">
                            <h3 className="font-black italic uppercase text-secondary text-xl">{batch.name}</h3>
-                           <Badge variant="outline" className="text-[10px] font-bold uppercase">{batch.capacity || 0} Ingressos</Badge>
+                           <Badge variant="outline" className="text-[10px] font-bold uppercase">{batch.capacity || 0} Ingressos Total</Badge>
                         </div>
                         <div className="flex gap-2">
-                           <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setDistributeBatchIdx(bi); setIsDistributeOpen(true); }}>
+                           <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setDistributeBatchIdx(bi); setTotalToDistribute(batch.capacity.toString()); setIsDistributeOpen(true); }}>
                               <Sparkles className="w-3 h-3" /> Gerar Meia-Entrada
                            </Button>
                            <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)} disabled={batches.length === 1}><Trash2 className="w-4 h-4" /></Button>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" /></div>
-                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
-                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fim</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                         <div className="md:col-span-2 space-y-2">
+                           <Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote</Label>
+                           <Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" />
+                         </div>
+                         <div className="md:col-span-2 space-y-2">
+                           <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Users2 className="w-3 h-3" /> Capacidade do Lote</Label>
+                           <Input type="number" value={batch.capacity} onChange={e => updateBatchField(bi, 'capacity', parseInt(e.target.value) || 0)} className="rounded-xl h-11 font-black text-primary" />
+                         </div>
                       </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início das Vendas</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fim das Vendas</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                      </div>
+
                       <div className="space-y-4">
-                         <div className="flex items-center justify-between"><Label className="text-[10px] font-black uppercase opacity-40">Tipos de Ingresso no Lote</Label></div>
+                         <div className="flex items-center justify-between">
+                           <Label className="text-[10px] font-black uppercase opacity-40">Tipos de Ingresso (Preços)</Label>
+                         </div>
                          {batch.ticketTypes.map((t, ti) => (
                            <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm grid grid-cols-12 gap-4 items-end">
                               <div className="col-span-4 space-y-2">
                                  <Label className="text-[9px] uppercase font-black opacity-40">Título do Ingresso</Label>
                                  <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" />
-                                 {t.poolId && <Badge variant="secondary" className="text-[7px] h-3.5 uppercase gap-1"><Layers className="w-2 h-2" /> {t.poolName}</Badge>}
+                                 {t.poolId && <Badge variant="secondary" className="text-[7px] h-3.5 uppercase gap-1"><Layers className="w-2 h-2" /> Estoque Compartilhado</Badge>}
                               </div>
                               <div className="col-span-3 space-y-2">
-                                 <Label className="text-[9px] uppercase font-black opacity-40">Quantidade</Label>
+                                 <Label className="text-[9px] uppercase font-black opacity-40">Limite Individual</Label>
                                  <Input type="number" value={t.quantity} onChange={e => updateTicketTypeField(bi, ti, 'quantity', e.target.value)} className="rounded-xl h-10 font-black" />
                               </div>
                               <div className="col-span-3 space-y-2">
