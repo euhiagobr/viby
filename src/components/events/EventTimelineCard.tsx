@@ -12,17 +12,27 @@ import {
   BadgeCheck,
   ArrowRight,
   Clock,
-  Ticket
+  Ticket,
+  Send,
+  Loader2,
+  Trash2,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Input } from "@/components/ui/input"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 import Link from "next/link"
+import { useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
+import { collection, query, orderBy, serverTimestamp, addDoc, doc, deleteDoc, getDocs, where, limit, writeBatch } from "firebase/firestore"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 interface EventTimelineCardProps {
   event: any
@@ -30,14 +40,28 @@ interface EventTimelineCardProps {
 
 export function EventTimelineCard({ event }: EventTimelineCardProps) {
   const router = useRouter()
-  const [isLiked, setIsLiked] = React.useState(false)
+  const db = useFirestore()
+  const auth = useAuth()
+  const { user } = useUser(auth)
   
+  const [isLiked, setIsLiked] = React.useState(false)
+  const [showComments, setShowComments] = React.useState(false)
+  const [newComment, setNewComment] = React.useState("")
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
+
   const eventDate = event.date?.toDate ? event.date.toDate() : new Date(event.date)
   const endDate = event.endDate?.toDate ? event.endDate.toDate() : (event.endDate ? new Date(event.endDate) : new Date(eventDate.getTime() + 4 * 60 * 60 * 1000))
   const isEnded = endDate < new Date()
 
   const username = event.organizer?.username || "evento"
   const eventLink = `/${username}/${event.id}`
+
+  // Consulta de comentários
+  const commentsQuery = useMemoFirebase(() => {
+    if (!db || !event.id) return null
+    return query(collection(db, "events", event.id, "comments"), orderBy("createdAt", "asc"))
+  }, [db, event.id])
+  const { data: comments, loading: commentsLoading } = useCollection<any>(commentsQuery)
 
   const handleShare = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -60,16 +84,82 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
     }
   }
 
-  const handleComment = (e: React.MouseEvent) => {
+  const toggleComments = (e: React.MouseEvent) => {
     e.stopPropagation()
-    router.push(`${eventLink}#comentarios`)
+    setShowComments(!showComments)
+  }
+
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!db || !user || !newComment.trim() || isSubmitting) return
+
+    setIsSubmitting(true)
+    const commentData = {
+      userId: user.uid,
+      userName: user.displayName || "Usuário",
+      userAvatar: user.photoURL || "",
+      text: newComment.trim(),
+      createdAt: serverTimestamp()
+    }
+
+    const commentsRef = collection(db, "events", event.id, "comments")
+    
+    addDoc(commentsRef, commentData)
+      .then(async (docRef) => {
+        // Lógica de Notificação de Menção no Comentário
+        const mentions = newComment.match(/@(\w+)/g)
+        if (mentions && mentions.length > 0) {
+           const batch = writeBatch(db)
+           for (const mention of mentions) {
+              const mUsername = mention.slice(1).toLowerCase()
+              const uSnap = await getDocs(query(collection(db, "usernames"), where("__name__", "==", mUsername), limit(1)))
+              if (!uSnap.empty) {
+                 const targetUid = uSnap.docs[0].data().uid
+                 if (targetUid !== user.uid) {
+                    const notifRef = doc(collection(db, "notifications"))
+                    batch.set(notifRef, {
+                       targetUid: targetUid,
+                       senderId: user.uid,
+                       senderName: user.displayName || "Alguém",
+                       type: 'mention',
+                       message: `${user.displayName || 'Alguém'} mencionou você em um comentário: ${event.title}`,
+                       link: eventLink,
+                       read: false,
+                       createdAt: serverTimestamp()
+                    })
+                 }
+              }
+           }
+           await batch.commit()
+        }
+
+        setNewComment("")
+        toast({ title: "Comentário enviado!" })
+      })
+      .catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: `events/${event.id}/comments`,
+          operation: 'create',
+          requestResourceData: commentData
+        })
+        errorEmitter.emit('permission-error', permissionError)
+      })
+      .finally(() => setIsSubmitting(false))
+  }
+
+  const handleDeleteComment = async (commentId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!db || !confirm("Remover este comentário?")) return
+    deleteDoc(doc(db, "events", event.id, "comments", commentId))
+      .catch(async () => {
+        toast({ variant: "destructive", title: "Erro ao remover" })
+      })
   }
 
   // Função para renderizar texto com suporte a negrito **, texto grande + e menções @
   const renderFormattedText = (text: string) => {
     if (!text) return "";
-    
-    // Divide o texto em partes baseadas em **, + ou @username
     const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@\w+)/g);
 
     return parts.map((part, i) => {
@@ -99,7 +189,6 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
       )}
       onClick={() => router.push(eventLink)}
     >
-      {/* Header do Organizador */}
       <CardHeader className="p-4 flex flex-row items-center justify-between space-y-0">
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10 border-2 border-secondary/10">
@@ -127,7 +216,6 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
         </Button>
       </CardHeader>
 
-      {/* Imagem do Evento */}
       <div className="relative aspect-square sm:aspect-[4/3] w-full bg-muted overflow-hidden">
         <Image
           src={event.image || `https://picsum.photos/seed/${event.id}/800/600`}
@@ -150,7 +238,6 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
         </div>
       </div>
 
-      {/* Ações Sociais */}
       <div className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button 
@@ -164,8 +251,8 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
           <Button 
             variant="ghost" 
             size="icon" 
-            className="h-10 w-10 rounded-full"
-            onClick={handleComment}
+            className={cn("h-10 w-10 rounded-full transition-colors", showComments && "text-secondary bg-secondary/10")}
+            onClick={toggleComments}
           >
             <MessageCircle className="w-6 h-6" />
           </Button>
@@ -183,7 +270,6 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
         </Badge>
       </div>
 
-      {/* Conteúdo do Card */}
       <CardContent className="px-6 pb-6 space-y-4">
         <div className="space-y-1">
           <h3 className={cn(
@@ -217,15 +303,74 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
            </div>
         </div>
 
-        <Button 
-          disabled={isEnded}
-          className={cn(
-            "w-full h-12 font-black rounded-2xl uppercase italic text-xs gap-2 group transition-colors",
-            isEnded ? "bg-muted text-muted-foreground" : "bg-primary text-white hover:bg-secondary"
-          )}
-        >
-          {isEnded ? "Evento Encerrado" : <><Ticket className="w-4 h-4" /> Garantir meu Ingresso <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></>}
-        </Button>
+        {/* SEÇÃO DE COMENTÁRIOS EXPANSÍVEL */}
+        {showComments && (
+          <div className="pt-4 space-y-6 animate-in slide-in-from-top-4 duration-300" onClick={(e) => e.stopPropagation()}>
+             <Separator className="border-dashed" />
+             
+             <div className="max-h-60 overflow-y-auto space-y-4 px-1 custom-scrollbar">
+                {commentsLoading ? (
+                   <div className="py-4 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-secondary" /></div>
+                ) : comments && comments.length > 0 ? (
+                   comments.map((comment: any) => (
+                     <div key={comment.id} className="flex gap-3 group">
+                        <Avatar className="h-8 w-8 shrink-0">
+                           <AvatarImage src={comment.userAvatar} />
+                           <AvatarFallback className="text-[10px] font-bold bg-muted">{comment.userName?.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 space-y-1">
+                           <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-black uppercase tracking-tight text-primary">{comment.userName}</span>
+                              {(comment.userId === user?.uid || isAdmin()) && (
+                                 <button onClick={(e) => handleDeleteComment(comment.id, e)} className="opacity-0 group-hover:opacity-100 text-destructive hover:scale-110 transition-all">
+                                    <Trash2 className="w-3 h-3" />
+                                 </button>
+                              )}
+                           </div>
+                           <p className="text-xs text-muted-foreground leading-relaxed">
+                              {renderFormattedText(comment.text)}
+                           </p>
+                        </div>
+                     </div>
+                   ))
+                ) : (
+                   <div className="py-4 text-center">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground opacity-40">Seja o primeiro a comentar</p>
+                   </div>
+                )}
+             </div>
+
+             <form onSubmit={handleAddComment} className="flex gap-2">
+                <Input 
+                   placeholder="Escreva um comentário..." 
+                   value={newComment}
+                   onChange={(e) => setNewComment(e.target.value)}
+                   className="rounded-xl h-10 text-xs border-dashed border-secondary/30 focus-visible:ring-secondary/30"
+                   disabled={isSubmitting}
+                />
+                <Button 
+                   type="submit" 
+                   size="icon" 
+                   disabled={isSubmitting || !newComment.trim()}
+                   className="h-10 w-10 shrink-0 bg-secondary text-white rounded-xl shadow-lg shadow-secondary/20 transition-all active:scale-90"
+                >
+                   {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                </Button>
+             </form>
+          </div>
+        )}
+
+        {!showComments && (
+          <Button 
+            disabled={isEnded}
+            className={cn(
+              "w-full h-12 font-black rounded-2xl uppercase italic text-xs gap-2 group transition-colors",
+              isEnded ? "bg-muted text-muted-foreground" : "bg-primary text-white hover:bg-secondary"
+            )}
+          >
+            {isEnded ? "Evento Encerrado" : <><Ticket className="w-4 h-4" /> Garantir meu Ingresso <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></>}
+          </Button>
+        )}
       </CardContent>
     </Card>
   )

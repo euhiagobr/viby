@@ -2,8 +2,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.21.0
-    // Adicionado suporte para notificações e correções de fluxos de interação
+    // REGRAS VIBY - Versão: 2.22.0
+    // Adicionado suporte para comentários em eventos
     
     function isSignedIn() {
       return request.auth != null;
@@ -46,13 +46,9 @@ service cloud.firestore {
 
     // Notificações
     match /notifications/{notificationId} {
-      // Permite que o destinatário ou o admin leiam
       allow read: if isSignedIn() && (request.auth.uid == resource.data.targetUid || isAdmin());
-      // Permite que qualquer usuário logado crie (para menções e follows)
       allow create: if isSignedIn();
-      // Permite que o destinatário marque como lido ou o admin altere
       allow update: if isSignedIn() && (request.auth.uid == resource.data.targetUid || isAdmin());
-      // Permite que o destinatário exclua a notificação
       allow delete: if isSignedIn() && (request.auth.uid == resource.data.targetUid || isAdmin());
     }
 
@@ -73,16 +69,15 @@ service cloud.firestore {
     // Gamificação e Estatísticas
     match /user_gamification/{userId} {
       allow read: if true;
-      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin() || request.resource.data.userId == request.auth.uid);
     }
 
     match /cultural_stats/{userId} {
       allow read: if true;
-      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin() || request.resource.data.userId == request.auth.uid);
     }
 
     match /xp_logs/{logId} {
-      // Permitir leitura por qualquer usuário logado para check de idempotência do motor de XP
       allow read: if isSignedIn();
       allow write: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
     }
@@ -92,10 +87,9 @@ service cloud.firestore {
       allow write: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
     }
 
-    // Configurações de Gamificação (Leitura pública para o motor de XP)
-    match /levels/{levelId} { allow read: if true; }
-    match /badges/{badgeId} { allow read: if true; }
-    match /xp_rules/{ruleId} { allow read: if true; }
+    match /levels/{levelId} { allow read: if true; allow write: if isAdmin(); }
+    match /badges/{badgeId} { allow read: if true; allow write: if isAdmin(); }
+    match /xp_rules/{ruleId} { allow read: if true; allow write: if isAdmin(); }
 
     // Unicidade de Nomes de Usuário
     match /usernames/{username} {
@@ -104,7 +98,7 @@ service cloud.firestore {
       allow delete: if (isSignedIn() && get(/databases/eventosviby/documents/usernames/$(username)).data.uid == request.auth.uid) || isAdmin();
     }
 
-    // Redefinição de Senha (Tokens temporários)
+    // Redefinição de Senha
     match /password_resets/{resetId} {
       allow read, create, update: if true; 
     }
@@ -135,7 +129,7 @@ service cloud.firestore {
       }
     }
 
-    // Eventos
+    // Eventos e Comentários
     match /events/{eventId} {
       allow read: if true;
       allow create: if hasOrgRole(request.resource.data.organizationId, ['owner', 'admin', 'editor']);
@@ -146,6 +140,12 @@ service cloud.firestore {
         allow read: if true;
         allow update: if hasOrgRole(partnerId, ['owner', 'admin', 'editor']) || hasOrgRole(get(/databases/eventosviby/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']);
         allow create, delete: if hasOrgRole(get(/databases/eventosviby/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']);
+      }
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       }
     }
     
@@ -207,7 +207,6 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
     }
 
-    // Solicitações de Saque
     match /payout_requests/{requestId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin());
       allow create: if isSignedIn() && hasOrgRole(request.resource.data.organizationId, ['owner', 'admin']);
@@ -215,7 +214,6 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Fiscal e Impostos (Admin Only)
     match /tax_ads/{taxId} {
       allow read, write: if isAdmin();
     }
