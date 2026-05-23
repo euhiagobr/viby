@@ -1,40 +1,65 @@
 
 {
   "database": "eventosviby",
-  "project": "ong-desafios-3942a",
   "collections": {
-    "users": {
-      "fields": ["uid", "name", "username", "email", "avatar", "bio", "cpf", "gender", "birthDate", "city", "state", "country", "plan", "createdAt"]
-    },
-    "organizations": {
-      "fields": ["id", "name", "username", "slug", "bio", "avatar", "banner", "type", "verified", "createdBy", "adBalance", "blockedBalance", "payoutSettings", "status", "createdAt"]
-    },
     "events": {
-      "fields": ["organizationId", "organizerId", "title", "description", "date", "endDate", "categoryId", "categoryName", "image", "address", "ticketMode", "isFree", "batches", "status", "createdAt", "organizer"]
+      "fields": {
+        "title": "string",
+        "description": "string",
+        "startDate": "timestamp",
+        "endDate": "timestamp",
+        "ticketMode": "none | free | paid_single | batches",
+        "hasMap": "boolean",
+        "mapMode": "none | setores | assentos | mesas",
+        "autoHalfPrice": "boolean (60/40 rule)",
+        "capacidadeTotal": "number",
+        "batches": [
+          {
+            "id": "string",
+            "name": "string",
+            "salesStart": "timestamp",
+            "salesEnd": "timestamp",
+            "price": "number",
+            "initialCapacity": "number",
+            "currentCapacity": "number",
+            "sold": "number",
+            "migratedFromPrevious": "number"
+          }
+        ]
+      }
     },
     "registrations": {
-      "fields": ["eventId", "userId", "organizationId", "organizerId", "ticketCode", "paymentStatus", "checkedIn", "price", "ticketBasePrice", "producerNetAmount", "timestamp", "financialSnapshot", "advanceRequested", "advanceRequestedAt", "advanceFee", "originalProducerNet"]
+      "fields": {
+        "eventId": "string",
+        "userId": "string",
+        "ticketCode": "string",
+        "ticketType": "inteira | meia",
+        "paymentStatus": "Pendente | Pago",
+        "checkedIn": "boolean",
+        "seatId": "string (opcional)",
+        "sectorId": "string (opcional)",
+        "batchId": "string"
+      }
     },
-    "user_gamification": {
-      "fields": ["userId", "currentXp", "totalXp", "level", "levelName", "lastActivityAt"]
+    "setores": {
+      "path": "events/{eventId}/setores/{sectorId}",
+      "fields": {
+        "nome": "string",
+        "tipo": "livre | assentos | mesas",
+        "capacidade": "number",
+        "linkedBatchIds": "array",
+        "posX": "number",
+        "posY": "number"
+      }
     },
-    "cultural_stats": {
-      "fields": ["userId", "topCategory", "topNeighborhood", "topCity", "totalEvents", "totalCheckins", "categoriesExplored", "neighborhoodsExplored", "favoriteOrganizers"]
-    },
-    "levels": {
-      "fields": ["id", "level", "name", "xpRequired", "icon", "color", "description"]
-    },
-    "badges": {
-      "fields": ["id", "name", "description", "category", "icon", "color", "rule"]
-    },
-    "user_badges": {
-      "fields": ["userId", "badgeId", "name", "icon", "unlockedAt"]
-    },
-    "xp_rules": {
-      "fields": ["id", "name", "event", "points", "category"]
-    },
-    "xp_logs": {
-      "fields": ["userId", "amount", "reason", "timestamp"]
+    "assentos": {
+      "path": "events/{eventId}/setores/{sectorId}/assentos/{seatId}",
+      "fields": {
+        "codigo": "string",
+        "status": "disponivel | reservado | vendido | bloqueado",
+        "reservadoPor": "string",
+        "reservadoAte": "timestamp"
+      }
     }
   }
 }
