@@ -31,12 +31,64 @@ import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 import Link from "next/link"
 import { useFirestore, useAuth, useUser, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { collection, query, orderBy, serverTimestamp, addDoc, doc, deleteDoc, getDocs, where, limit, writeBatch } from "firebase/firestore"
+import { collection, query, orderBy, serverTimestamp, addDoc, doc, deleteDoc, getDocs, where, limit, writeBatch, setDoc } from "firebase/firestore"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 
 interface EventTimelineCardProps {
   event: any
+}
+
+/**
+ * Componente interno para renderizar cada comentário com dados dinâmicos do autor.
+ */
+function CommentItem({ comment, eventId, isAdmin, onDelete }: { comment: any, eventId: string, isAdmin: boolean, onDelete: (id: string) => void }) {
+  const db = useFirestore()
+  const auth = useAuth()
+  const { user } = useUser(auth)
+  
+  const authorRef = React.useMemo(() => (db && comment.userId) ? doc(db, "users", comment.userId) : null, [db, comment.userId])
+  const { data: author } = useDoc<any>(authorRef)
+
+  const renderFormattedText = (text: string) => {
+    if (!text) return "";
+    const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@\w+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
+      if (part.startsWith('+') && part.endsWith('+')) return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
+      if (part.startsWith('@')) {
+        const usernameMention = part.slice(1);
+        return <Link key={i} href={`/${usernameMention}`} className="text-secondary font-black hover:underline" onClick={(e) => e.stopPropagation()}>{part}</Link>;
+      }
+      return part;
+    });
+  }
+
+  const canDelete = isAdmin || comment.userId === user?.uid;
+
+  return (
+    <div className="flex gap-3 group">
+      <Avatar className="h-8 w-8 shrink-0">
+        <AvatarImage src={author?.avatar} className="object-cover" />
+        <AvatarFallback className="text-[10px] font-bold bg-muted">{author?.name?.charAt(0) || "U"}</AvatarFallback>
+      </Avatar>
+      <div className="flex-1 space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-black uppercase tracking-tight text-primary">
+            {author?.name || "Usuário"}
+          </span>
+          {canDelete && (
+            <button onClick={(e) => { e.stopPropagation(); onDelete(comment.id); }} className="opacity-0 group-hover:opacity-100 text-destructive hover:scale-110 transition-all">
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          {renderFormattedText(comment.text)}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export function EventTimelineCard({ event }: EventTimelineCardProps) {
@@ -50,10 +102,14 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
   
   const isAdmin = profile?.role === 'admin'
 
-  const [isLiked, setIsLiked] = React.useState(false)
   const [showComments, setShowComments] = React.useState(false)
   const [newComment, setNewComment] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+
+  // Lógica de Persistência de Curtida
+  const likeRef = React.useMemo(() => (db && user && event.id) ? doc(db, "events", event.id, "likes", user.uid) : null, [db, user, event.id])
+  const { data: userLike } = useDoc<any>(likeRef)
+  const isLiked = !!userLike
 
   const eventDate = event.date?.toDate ? event.date.toDate() : new Date(event.date)
   const endDate = event.endDate?.toDate ? event.endDate.toDate() : (event.endDate ? new Date(event.endDate) : new Date(eventDate.getTime() + 4 * 60 * 60 * 1000))
@@ -79,14 +135,21 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
     })
   }
 
-  const handleLike = (e: React.MouseEvent) => {
+  const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    setIsLiked(!isLiked)
-    if (!isLiked) {
-      toast({
-        title: "Evento curtido!",
-        description: "Este evento foi salvo nos seus favoritos.",
-      })
+    if (!db || !user || !likeRef) return
+
+    if (isLiked) {
+      deleteDoc(likeRef).catch(() => toast({ variant: "destructive", title: "Erro ao descurtir" }))
+    } else {
+      setDoc(likeRef, { timestamp: serverTimestamp() })
+        .then(() => {
+          toast({
+            title: "Evento curtido!",
+            description: "Este evento foi salvo nos seus favoritos.",
+          })
+        })
+        .catch(() => toast({ variant: "destructive", title: "Erro ao curtir" }))
     }
   }
 
@@ -103,17 +166,12 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
     setIsSubmitting(true)
     const commentData = {
       userId: user.uid,
-      userName: user.displayName || "Usuário",
-      userAvatar: user.photoURL || "",
       text: newComment.trim(),
       createdAt: serverTimestamp()
     }
 
-    const commentsRef = collection(db, "events", event.id, "comments")
-    
-    addDoc(commentsRef, commentData)
+    addDoc(collection(db, "events", event.id, "comments"), commentData)
       .then(async (docRef) => {
-        // Lógica de Notificação de Menção no Comentário
         const mentions = newComment.match(/@(\w+)/g)
         if (mentions && mentions.length > 0) {
            const batch = writeBatch(db)
@@ -139,49 +197,35 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
            }
            await batch.commit()
         }
-
         setNewComment("")
         toast({ title: "Comentário enviado!" })
       })
       .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: `events/${event.id}/comments`,
           operation: 'create',
           requestResourceData: commentData
-        })
-        errorEmitter.emit('permission-error', permissionError)
+        }))
       })
       .finally(() => setIsSubmitting(false))
   }
 
-  const handleDeleteComment = async (commentId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!db || !confirm("Remover este comentário?")) return
+  const handleDeleteComment = async (commentId: string) => {
+    if (!db) return
     deleteDoc(doc(db, "events", event.id, "comments", commentId))
-      .catch(async () => {
-        toast({ variant: "destructive", title: "Erro ao remover" })
-      })
+      .catch(() => toast({ variant: "destructive", title: "Erro ao remover" }))
   }
 
-  // Função para renderizar texto com suporte a negrito **, texto grande + e menções @
   const renderFormattedText = (text: string) => {
     if (!text) return "";
     const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@\w+)/g);
 
     return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
-      }
-      if (part.startsWith('+') && part.endsWith('+')) {
-        return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
-      }
+      if (part.startsWith('**') && part.endsWith('**')) return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
+      if (part.startsWith('+') && part.endsWith('+')) return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
       if (part.startsWith('@')) {
         const usernameMention = part.slice(1);
-        return (
-          <Link key={i} href={`/${usernameMention}`} className="text-secondary font-black hover:underline" onClick={(e) => e.stopPropagation()}>
-            {part}
-          </Link>
-        );
+        return <Link key={i} href={`/${usernameMention}`} className="text-secondary font-black hover:underline" onClick={(e) => e.stopPropagation()}>{part}</Link>;
       }
       return part;
     });
@@ -208,18 +252,13 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
               <span className="text-sm font-black uppercase italic tracking-tighter text-primary">
                 {event.organizer?.name || "Organizador"}
               </span>
-              {event.organizer?.isVerified && (
-                <BadgeCheck className="w-3.5 h-3.5 fill-blue-500 text-white" />
-              )}
+              {event.organizer?.isVerified && <BadgeCheck className="w-3.5 h-3.5 fill-blue-500 text-white" />}
             </div>
             <span className="text-[10px] font-bold text-secondary uppercase tracking-widest">
               @{username}
             </span>
           </div>
         </div>
-        <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 text-muted-foreground opacity-40">
-          <MoreHorizontal className="w-4 h-4" />
-        </Button>
       </CardHeader>
 
       <div className="relative aspect-square sm:aspect-[4/3] w-full bg-muted overflow-hidden">
@@ -231,16 +270,8 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
           unoptimized
         />
         <div className="absolute top-4 left-4 flex flex-col gap-2">
-          {isEnded && (
-            <Badge className="bg-muted text-muted-foreground border-none shadow-lg text-[10px] font-black uppercase px-3 py-1">
-              Evento Encerrado
-            </Badge>
-          )}
-          {event.categoryName && (
-            <Badge className="bg-white/90 text-primary border-none shadow-lg text-[10px] font-black uppercase px-3 py-1">
-              {event.categoryName}
-            </Badge>
-          )}
+          {isEnded && <Badge className="bg-muted text-muted-foreground border-none shadow-lg text-[10px] font-black uppercase px-3 py-1">Evento Encerrado</Badge>}
+          {event.categoryName && <Badge className="bg-white/90 text-primary border-none shadow-lg text-[10px] font-black uppercase px-3 py-1">{event.categoryName}</Badge>}
         </div>
       </div>
 
@@ -249,7 +280,7 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
           <Button 
             variant="ghost" 
             size="icon" 
-            className={cn("h-10 w-10 rounded-full transition-transform active:scale-125", isLiked && "text-red-500")}
+            className={cn("h-10 w-10 rounded-full transition-all active:scale-125", isLiked && "text-red-500 bg-red-50")}
             onClick={handleLike}
           >
             <Heart className={cn("w-6 h-6", isLiked && "fill-current")} />
@@ -278,12 +309,7 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
 
       <CardContent className="px-6 pb-6 space-y-4">
         <div className="space-y-1">
-          <h3 className={cn(
-            "text-xl font-black uppercase italic tracking-tighter leading-tight text-primary",
-            isEnded && "text-muted-foreground"
-          )}>
-            {event.title}
-          </h3>
+          <h3 className={cn("text-xl font-black uppercase italic tracking-tighter leading-tight text-primary", isEnded && "text-muted-foreground")}>{event.title}</h3>
           <p className="text-sm text-muted-foreground line-clamp-2 font-medium leading-relaxed">
             {renderFormattedText(event.description || event.shortDescription)}
           </p>
@@ -309,7 +335,6 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
            </div>
         </div>
 
-        {/* SEÇÃO DE COMENTÁRIOS EXPANSÍVEL */}
         {showComments && (
           <div className="pt-4 space-y-6 animate-in slide-in-from-top-4 duration-300" onClick={(e) => e.stopPropagation()}>
              <Separator className="border-dashed" />
@@ -319,25 +344,13 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
                    <div className="py-4 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-secondary" /></div>
                 ) : comments && comments.length > 0 ? (
                    comments.map((comment: any) => (
-                     <div key={comment.id} className="flex gap-3 group">
-                        <Avatar className="h-8 w-8 shrink-0">
-                           <AvatarImage src={comment.userAvatar} />
-                           <AvatarFallback className="text-[10px] font-bold bg-muted">{comment.userName?.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 space-y-1">
-                           <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-black uppercase tracking-tight text-primary">{comment.userName}</span>
-                              {(comment.userId === user?.uid || isAdmin) && (
-                                 <button onClick={(e) => handleDeleteComment(comment.id, e)} className="opacity-0 group-hover:opacity-100 text-destructive hover:scale-110 transition-all">
-                                    <Trash2 className="w-3 h-3" />
-                                 </button>
-                              )}
-                           </div>
-                           <p className="text-xs text-muted-foreground leading-relaxed">
-                              {renderFormattedText(comment.text)}
-                           </p>
-                        </div>
-                     </div>
+                     <CommentItem 
+                       key={comment.id} 
+                       comment={comment} 
+                       eventId={event.id} 
+                       isAdmin={isAdmin} 
+                       onDelete={handleDeleteComment} 
+                     />
                    ))
                 ) : (
                    <div className="py-4 text-center">

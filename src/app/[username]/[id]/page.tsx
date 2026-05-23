@@ -4,7 +4,7 @@
 import * as React from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, collection, query, where, orderBy, addDoc, serverTimestamp, deleteDoc, writeBatch, getDocs, limit } from "firebase/firestore"
+import { doc, collection, query, where, orderBy, addDoc, serverTimestamp, deleteDoc, writeBatch, getDocs, limit, setDoc } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -34,7 +34,8 @@ import {
   TicketX,
   MessageCircle,
   Send,
-  Trash2
+  Trash2,
+  Heart
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -45,6 +46,51 @@ import { useCart } from "@/contexts/CartContext"
 import Footer from "@/components/layout/Footer"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+
+function CommentItem({ comment, eventId, isAdmin, onDelete }: { comment: any, eventId: string, isAdmin: boolean, onDelete: (id: string) => void }) {
+  const db = useFirestore()
+  const authorRef = React.useMemo(() => (db && comment.userId) ? doc(db, "users", comment.userId) : null, [db, comment.userId])
+  const { data: author } = useDoc<any>(authorRef)
+
+  const renderFormattedText = (text: string) => {
+    if (!text) return "";
+    const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@\w+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
+      if (part.startsWith('+') && part.endsWith('+')) return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
+      if (part.startsWith('@')) {
+        const usernameMention = part.slice(1);
+        return <Link key={i} href={`/${usernameMention}`} className="text-secondary font-black hover:underline">{part}</Link>;
+      }
+      return part;
+    });
+  }
+
+  return (
+    <div className="flex gap-4 group">
+      <Avatar className="h-10 w-10 border border-muted shrink-0">
+        <AvatarImage src={author?.avatar} className="object-cover" />
+        <AvatarFallback className="font-bold bg-muted">{author?.name?.charAt(0) || "U"}</AvatarFallback>
+      </Avatar>
+      <div className="flex-1 space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-black uppercase tracking-tight text-primary">{author?.name || "Usuário"}</span>
+          {isAdmin && (
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => onDelete(comment.id)}>
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          )}
+        </div>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          {renderFormattedText(comment.text)}
+        </p>
+        <span className="text-[9px] font-bold text-muted-foreground/50 uppercase">
+          {comment.createdAt?.toDate ? comment.createdAt.toDate().toLocaleString('pt-BR') : '---'}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function EventoDetalhesPage() {
   const params = useParams()
@@ -64,8 +110,9 @@ export default function EventoDetalhesPage() {
   const organizationRef = React.useMemo(() => (db && event?.organizationId) ? doc(db, "organizations", event.organizationId) : null, [db, event?.organizationId])
   const { data: organizationProfile } = useDoc<any>(organizationRef)
 
-  const mapsSettingsRef = React.useMemo(() => db ? doc(db, 'settings', 'maps') : null, [db])
-  const { data: mapsSettings } = useDoc<any>(mapsSettingsRef)
+  const likeRef = React.useMemo(() => (db && user && eventId) ? doc(db, "events", eventId, "likes", user.uid) : null, [db, user, eventId])
+  const { data: userLike } = useDoc<any>(likeRef)
+  const isLiked = !!userLike
 
   // Comentários
   const commentsQuery = useMemoFirebase(() => {
@@ -73,19 +120,6 @@ export default function EventoDetalhesPage() {
     return query(collection(db, "events", eventId, "comments"), orderBy("createdAt", "asc"))
   }, [db, eventId])
   const { data: comments, loading: commentsLoading } = useCollection<any>(commentsQuery)
-
-  // Outros Organizadores (Aceitos)
-  const partnersQuery = useMemoFirebase(() => {
-    if (!db || !eventId) return null
-    return query(collection(db, "events", eventId, "partners"), where("status", "==", "accepted"))
-  }, [db, eventId])
-  const { data: acceptedPartners } = useCollection<any>(partnersQuery)
-
-  const availabilityQuery = useMemoFirebase(() => {
-    if (!db || !eventId) return null
-    return query(collection(db, "registrations"), where("eventId", "==", eventId))
-  }, [db, eventId])
-  const { data: allRegistrations } = useCollection<any>(availabilityQuery)
 
   const [activeBatch, setActiveBatch] = React.useState<any>(null)
   const [selectedTicketType, setSelectedTicketType] = React.useState<any>(null)
@@ -120,20 +154,6 @@ export default function EventoDetalhesPage() {
     const checkAvailability = () => {
       const now = new Date()
       const batches = event.batches || []
-      
-      const salesPerType = (allRegistrations || []).reduce((acc: any, reg: any) => {
-        if (['Pago', 'Disponível'].includes(reg.paymentStatus)) {
-          const tKey = `${reg.batchId}_${reg.ticketTypeId}`
-          acc.types[tKey] = (acc.types[tKey] || 0) + 1
-          
-          if (reg.poolId) {
-            const pKey = `${reg.batchId}_${reg.poolId}`
-            acc.pools[pKey] = (acc.pools[pKey] || 0) + 1
-          }
-        }
-        return acc
-      }, { types: {}, pools: {} })
-
       let foundActiveBatch = null
       let status: 'open' | 'pending' | 'ended' | 'soldout' = 'ended'
       let hasUpcoming = false
@@ -145,25 +165,11 @@ export default function EventoDetalhesPage() {
         const isNotEnded = !end || now <= end
 
         if (!isStarted) {
-          hasUpcoming = true
-          continue
+          hasUpcoming = true; continue;
         }
 
         if (isStarted && isNotEnded) {
-          const typesWithStock = batch.ticketTypes.map((t: any) => {
-            const sold = t.poolId ? (salesPerType.pools[`${batch.id}_${t.poolId}`] || 0) : (salesPerType.types[`${batch.id}_${t.id}`] || 0)
-            const remaining = Math.max(0, (t.quantity || 0) - sold)
-            return { ...t, remaining }
-          }).filter((t: any) => t.remaining > 0)
-
-          if (typesWithStock.length > 0) {
-            foundActiveBatch = { ...batch, ticketTypes: typesWithStock }
-            status = 'open'
-            break
-          } else {
-            status = 'soldout'
-            continue
-          }
+          foundActiveBatch = batch; status = 'open'; break;
         }
       }
 
@@ -172,11 +178,21 @@ export default function EventoDetalhesPage() {
     }
 
     checkAvailability()
-  }, [event, allRegistrations, organizationProfile])
+  }, [event, organizationProfile])
+
+  const handleLike = async () => {
+    if (!db || !user || !likeRef) return
+    if (isLiked) {
+      deleteDoc(likeRef).catch(() => toast({ variant: "destructive", title: "Erro ao descurtir" }))
+    } else {
+      setDoc(likeRef, { timestamp: serverTimestamp() })
+        .then(() => toast({ title: "Evento curtido!" }))
+        .catch(() => toast({ variant: "destructive", title: "Erro ao curtir" }))
+    }
+  }
 
   const handleAddToCart = () => {
     if (!selectedTicketType || !event || !activeBatch) return
-
     addItem({
       id: `${event.id}_${selectedTicketType.id}`,
       eventId: event.id,
@@ -191,18 +207,11 @@ export default function EventoDetalhesPage() {
       ticketTypeName: selectedTicketType.name,
       batchId: activeBatch.id,
       batchName: activeBatch.name,
-      poolId: selectedTicketType.poolId,
-      poolName: selectedTicketType.poolName,
       price: selectedTicketType.price,
       quantity: quantity,
       requiresProof: selectedTicketType.requiresProof
     });
-
-    toast({ 
-      title: "Carrinho atualizado!", 
-      description: `${quantity}x ${selectedTicketType.name} adicionado.`,
-      action: <Button variant="secondary" size="sm" asChild><Link href="/dashboard/carrinho">Ver Carrinho</Link></Button>
-    });
+    toast({ title: "Carrinho atualizado!" });
   }
 
   const handleAddComment = async (e: React.FormEvent) => {
@@ -212,8 +221,6 @@ export default function EventoDetalhesPage() {
     setIsSubmittingComment(true)
     const commentData = {
       userId: user.uid,
-      userName: user.displayName || "Usuário",
-      userAvatar: user.photoURL || "",
       text: newComment.trim(),
       createdAt: serverTimestamp()
     }
@@ -258,30 +265,15 @@ export default function EventoDetalhesPage() {
       .finally(() => setIsSubmittingComment(false))
   }
 
-  const handleDeleteComment = async (commentId: string) => {
-    if (!db || !confirm("Remover este comentário?")) return
-    deleteDoc(doc(db, "events", eventId, "comments", commentId))
-      .catch(() => toast({ variant: "destructive", title: "Erro ao remover" }))
-  }
-
   const renderFormattedText = (text: string) => {
     if (!text) return "";
     const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@\w+)/g);
-
     return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
-      }
-      if (part.startsWith('+') && part.endsWith('+')) {
-        return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
-      }
+      if (part.startsWith('**') && part.endsWith('**')) return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
+      if (part.startsWith('+') && part.endsWith('+')) return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
       if (part.startsWith('@')) {
         const username = part.slice(1);
-        return (
-          <Link key={i} href={`/${username}`} className="text-secondary font-black hover:underline">
-            {part}
-          </Link>
-        );
+        return <Link key={i} href={`/${username}`} className="text-secondary font-black hover:underline">{part}</Link>;
       }
       return part;
     });
@@ -296,21 +288,6 @@ export default function EventoDetalhesPage() {
   };
   const isEnded = eventDates.end < new Date();
 
-  const orgName = organizationProfile?.name || event.organizer?.name || "Organizador";
-  const orgAvatar = organizationProfile?.avatar || event.organizer?.avatar;
-  const isVerified = organizationProfile?.verified ?? event.organizer?.isVerified;
-
-  const fullAddress = event.address ? 
-    `${event.address.street}, ${event.address.number}${event.address.complement ? ` - ${event.address.complement}` : ''} - ${event.address.neighborhood}, ${event.address.city} - ${event.address.state}` : 
-    event.location;
-
-  const mapQuery = encodeURIComponent(fullAddress);
-  
-  const mapsApiKey = mapsSettings?.apiKey;
-  const mapUrl = mapsApiKey 
-    ? `https://www.google.com/maps/embed/v1/place?key=${mapsApiKey}&q=${mapQuery}`
-    : `https://maps.google.com/maps?q=${mapQuery}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
-
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
       <div className="max-w-6xl mx-auto px-4 pt-10 space-y-8 flex-1 w-full">
@@ -319,7 +296,9 @@ export default function EventoDetalhesPage() {
               <ArrowLeft className="w-4 h-4" /> Voltar
            </Button>
            <div className="flex gap-2">
-              <Button variant="outline" size="icon" className="rounded-full h-10 w-10"><Share2 className="w-4 h-4" /></Button>
+              <Button variant="ghost" size="icon" className={cn("h-10 w-10 rounded-full", isLiked && "text-red-500 bg-red-50")} onClick={handleLike}>
+                <Heart className={cn("w-6 h-6", isLiked && "fill-current")} />
+              </Button>
               <Button variant="outline" size="icon" className="rounded-full h-10 w-10 relative" asChild>
                 <Link href="/dashboard/carrinho">
                   <ShoppingCart className="w-4 h-4" />
@@ -329,15 +308,12 @@ export default function EventoDetalhesPage() {
            </div>
         </div>
 
-        <div className={cn(
-          "relative h-[300px] md:h-[450px] w-full rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white transition-all",
-          isEnded && "grayscale opacity-80"
-        )}>
+        <div className={cn("relative h-[300px] md:h-[450px] w-full rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white transition-all", isEnded && "grayscale opacity-80")}>
           <Image src={event.image || "https://picsum.photos/seed/event/1200/800"} alt={event.title} fill className="object-cover" unoptimized />
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
           <div className="absolute bottom-10 left-10 text-white space-y-4 pr-10">
              <div className="flex flex-wrap gap-2">
-                {isEnded && <Badge className="bg-muted text-muted-foreground px-4 py-1 rounded-full uppercase font-black tracking-widest border-none">Evento Encerrado</Badge>}
+                {isEnded && <Badge className="bg-muted text-muted-foreground px-4 py-1 rounded-full uppercase font-black tracking-widest border-none">Encerrado</Badge>}
                 <Badge className="bg-secondary px-4 py-1 rounded-full uppercase font-black tracking-widest">{event.categoryName || "Geral"}</Badge>
              </div>
              <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-[0.9]">{event.title}</h1>
@@ -350,7 +326,7 @@ export default function EventoDetalhesPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 pb-20">
            <div className="lg:col-span-8 space-y-8">
-              <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
+              <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
                  <CardHeader className="bg-muted/30 pb-4"><CardTitle className="flex items-center gap-2 text-xl font-bold"><Info className="w-5 h-5 text-secondary" /> Sobre o Evento</CardTitle></CardHeader>
                  <CardContent className="pt-6">
                     <p className="text-muted-foreground leading-relaxed whitespace-pre-line text-lg font-medium">
@@ -359,41 +335,22 @@ export default function EventoDetalhesPage() {
                  </CardContent>
               </Card>
 
-              {/* SEÇÃO DE COMENTÁRIOS */}
+              {/* SEÇÃO DE COMENTÁRIOS DINÂMICOS */}
               <Card ref={commentsSectionRef} className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
-                 <CardHeader className="bg-muted/30 pb-4">
-                    <CardTitle className="flex items-center gap-2 text-xl font-bold">
-                       <MessageCircle className="w-5 h-5 text-secondary" /> Discussão
-                    </CardTitle>
-                 </CardHeader>
+                 <CardHeader className="bg-muted/30 pb-4"><CardTitle className="flex items-center gap-2 text-xl font-bold"><MessageCircle className="w-5 h-5 text-secondary" /> Discussão</CardTitle></CardHeader>
                  <CardContent className="pt-8 space-y-8">
                     <div className="space-y-6 max-h-[400px] overflow-y-auto px-1 custom-scrollbar">
                        {commentsLoading ? (
                          <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
                        ) : comments && comments.length > 0 ? (
                          comments.map((comment: any) => (
-                           <div key={comment.id} className="flex gap-4 group">
-                              <Avatar className="h-10 w-10 border border-muted shrink-0">
-                                 <AvatarImage src={comment.userAvatar} className="object-cover" />
-                                 <AvatarFallback className="font-bold bg-muted">{comment.userName?.charAt(0)}</AvatarFallback>
-                              </Avatar>
-                              <div className="flex-1 space-y-1">
-                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-black uppercase tracking-tight text-primary">{comment.userName}</span>
-                                    {(comment.userId === user?.uid || organizationProfile?.members?.[user?.uid || '']) && (
-                                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleDeleteComment(comment.id)}>
-                                         <Trash2 className="w-3.5 h-3.5" />
-                                      </Button>
-                                    )}
-                                 </div>
-                                 <p className="text-sm text-muted-foreground leading-relaxed">
-                                    {renderFormattedText(comment.text)}
-                                 </p>
-                                 <span className="text-[9px] font-bold text-muted-foreground/50 uppercase">
-                                    {comment.createdAt?.toDate ? comment.createdAt.toDate().toLocaleString('pt-BR') : '---'}
-                                 </span>
-                              </div>
-                           </div>
+                           <CommentItem 
+                             key={comment.id} 
+                             comment={comment} 
+                             eventId={eventId} 
+                             isAdmin={isAdmin || (event.organizationId && organizationProfile?.members?.[user?.uid || ''])}
+                             onDelete={(id) => deleteDoc(doc(db!, "events", eventId, "comments", id))}
+                           />
                          ))
                        ) : (
                          <div className="py-10 text-center space-y-3 opacity-30">
@@ -405,67 +362,16 @@ export default function EventoDetalhesPage() {
 
                     <form onSubmit={handleAddComment} className="flex gap-3 pt-6 border-t border-dashed">
                        <Input 
-                         placeholder={user ? "Escreva um comentário... Use @ para marcar alguém" : "Faça login para comentar"} 
+                         placeholder={user ? "Escreva um comentário... @marca alguém" : "Faça login para comentar"} 
                          value={newComment}
                          onChange={e => setNewComment(e.target.value)}
                          disabled={!user || isSubmittingComment}
                          className="rounded-xl h-12 border-dashed border-secondary/30"
                        />
-                       <Button 
-                         type="submit" 
-                         disabled={!user || !newComment.trim() || isSubmittingComment}
-                         className="h-12 w-12 shrink-0 bg-secondary text-white rounded-xl shadow-lg"
-                       >
+                       <Button type="submit" disabled={!user || !newComment.trim() || isSubmittingComment} className="h-12 w-12 shrink-0 bg-secondary text-white rounded-xl shadow-lg">
                           {isSubmittingComment ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                        </Button>
                     </form>
-                 </CardContent>
-              </Card>
-
-              <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
-                 <CardHeader className="bg-muted/30 pb-4">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <CardTitle className="flex items-center gap-2 text-xl font-bold">
-                        <MapIcon className="w-5 h-5 text-secondary" /> Localização
-                      </CardTitle>
-                      <div className="flex gap-2">
-                         <Button variant="outline" size="sm" className="rounded-xl font-bold gap-2 h-10 border-secondary text-secondary hover:bg-secondary/5" asChild>
-                           <a href={`https://www.google.com/maps/search/?api=1&query=${mapQuery}`} target="_blank" rel="noopener noreferrer">
-                             <MapIcon className="w-4 h-4" />
-                             Google Maps
-                           </a>
-                         </Button>
-                         <Button variant="outline" size="sm" className="rounded-xl font-bold gap-2 h-10 border-[#33ccff] text-[#33ccff] hover:bg-[#33ccff]/5" asChild>
-                           <a href={`https://waze.com/ul?q=${mapQuery}&navigate=yes`} target="_blank" rel="noopener noreferrer">
-                             <Navigation className="w-4 h-4 fill-current" />
-                             Waze
-                           </a>
-                         </Button>
-                      </div>
-                    </div>
-                 </CardHeader>
-                 <CardContent className="pt-6 space-y-6">
-                    <div className="flex items-start gap-3">
-                       <div className="p-2 bg-secondary/10 rounded-xl shrink-0">
-                          <MapPin className="w-5 h-5 text-secondary" />
-                       </div>
-                       <div className="space-y-1">
-                          <p className="font-bold text-lg leading-tight">{fullAddress}</p>
-                          <p className="text-sm text-muted-foreground uppercase font-black tracking-widest opacity-60">Endereço do Evento</p>
-                       </div>
-                    </div>
-
-                    <div className="h-[350px] w-full rounded-2xl overflow-hidden border bg-muted shadow-inner">
-                       <iframe 
-                         width="100%" 
-                         height="100%" 
-                         style={{ border: 0 }} 
-                         loading="lazy" 
-                         allowFullScreen 
-                         referrerPolicy="no-referrer-when-downgrade"
-                         src={mapUrl}
-                       ></iframe>
-                    </div>
                  </CardContent>
               </Card>
            </div>
@@ -476,129 +382,32 @@ export default function EventoDetalhesPage() {
                  <CardContent className="space-y-6">
                     {saleStatus === 'open' && activeBatch ? (
                        <div className="space-y-6">
-                          <div className="space-y-2">
-                             <Label className="text-[10px] font-black uppercase opacity-60">Escolha o seu Ingresso ({activeBatch.name})</Label>
-                             <div className="space-y-3">
-                                {activeBatch.ticketTypes.map((type: any) => (
-                                  <div 
-                                    key={type.id} 
-                                    onClick={() => setSelectedTicketType(type)}
-                                    className={cn(
-                                      "p-4 rounded-2xl border-2 transition-all cursor-pointer flex justify-between items-center",
-                                      selectedTicketType?.id === type.id ? "border-secondary bg-secondary/5 shadow-inner" : "border-muted hover:border-secondary/20"
-                                    )}
-                                  >
-                                     <div className="space-y-1">
-                                        <p className="font-bold text-sm uppercase">{type.name}</p>
-                                        <div className="flex flex-wrap gap-2">
-                                          {type.poolId && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase border-secondary/20 text-secondary gap-1"><Layers className="w-2.5 h-2.5" /> {type.poolName || 'Pool'}</Badge>}
-                                          {type.remaining <= 10 && <span className="text-[8px] font-black text-red-500 uppercase">Restam {type.remaining}</span>}
-                                          {type.requiresProof && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase border-orange-200 text-orange-600">Doc. Obrigatório</Badge>}
-                                        </div>
+                          <Label className="text-[10px] font-black uppercase opacity-60">Escolha o seu Ingresso ({activeBatch.name})</Label>
+                          <div className="space-y-3">
+                             {activeBatch.ticketTypes.map((type: any) => (
+                               <div key={type.id} onClick={() => setSelectedTicketType(type)} className={cn("p-4 rounded-2xl border-2 transition-all cursor-pointer flex justify-between items-center", selectedTicketType?.id === type.id ? "border-secondary bg-secondary/5 shadow-inner" : "border-muted hover:border-secondary/20")}>
+                                  <div className="space-y-1">
+                                     <p className="font-bold text-sm uppercase">{type.name}</p>
+                                     <div className="flex gap-2">
+                                       {type.requiresProof && <Badge variant="outline" className="text-[7px] h-4 uppercase border-orange-200 text-orange-600">Doc. Obrigatório</Badge>}
                                      </div>
-                                     <p className="font-black text-primary">{type.price === 0 ? 'GRÁTIS' : formatCurrency(type.price)}</p>
                                   </div>
-                                ))}
-                             </div>
+                                  <p className="font-black text-primary">{type.price === 0 ? 'GRÁTIS' : formatCurrency(type.price)}</p>
+                               </div>
+                             ))}
                           </div>
-
-                          {selectedTicketType && (
-                             <div className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border border-dashed border-border">
-                                <span className="text-[10px] font-black uppercase opacity-60">Quantidade</span>
-                                <div className="flex items-center gap-4">
-                                   <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setQuantity(Math.max(1, quantity - 1))}><Minus className="w-3 h-3" /></Button>
-                                   <span className="font-black text-lg">{quantity}</span>
-                                   <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setQuantity(Math.min(10, quantity + 1))}><Plus className="w-3 h-3" /></Button>
-                                </div>
-                             </div>
-                          )}
-
-                          <Button 
-                            disabled={!selectedTicketType} 
-                            onClick={handleAddToCart}
-                            className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform gap-3"
-                          >
+                          <Button disabled={!selectedTicketType} onClick={handleAddToCart} className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform gap-3">
                              <ShoppingCart className="w-6 h-6" /> Adicionar ao Carrinho
                           </Button>
                        </div>
                     ) : (
                       <div className="p-10 text-center space-y-2 bg-muted/20 rounded-2xl">
-                         {saleStatus === 'suspended' ? (
-                           <>
-                              <EyeOff className="w-8 h-8 text-orange-400 mx-auto mb-2" />
-                              <p className="font-black uppercase italic">Vendas Suspensas</p>
-                              <p className="text-[10px] font-medium text-muted-foreground leading-relaxed uppercase">O organizador ocultou esta página temporariamente.</p>
-                           </>
-                         ) : saleStatus === 'none' ? (
-                           <>
-                              <TicketX className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                              <p className="font-black uppercase italic">Sem Bilheteria</p>
-                              <p className="text-[10px] font-medium text-muted-foreground leading-relaxed uppercase">Este evento não possui reserva ou venda de ingressos online.</p>
-                           </>
-                         ) : (
-                           <>
-                              <AlertTriangle className="w-8 h-8 text-orange-400 mx-auto mb-2" />
-                              <p className="font-black uppercase italic">{saleStatus === 'soldout' ? 'Esgotado' : saleStatus === 'pending' ? 'Vendas em Breve' : 'Vendas Encerradas'}</p>
-                           </>
-                         )}
+                         <TicketX className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                         <p className="font-black uppercase italic">{saleStatus === 'none' ? 'Sem Bilheteria' : 'Vendas Encerradas'}</p>
                       </div>
                     )}
                  </CardContent>
               </Card>
-
-              {/* ORGANIZADOR PRINCIPAL */}
-              <Card className="border-none shadow-sm bg-white rounded-[2rem]">
-                 <CardHeader className="pb-2"><CardTitle className="text-xs uppercase font-black text-muted-foreground tracking-widest">Realização</CardTitle></CardHeader>
-                 <CardContent className="space-y-6">
-                    <div className="flex items-center gap-4">
-                       <Avatar className="h-14 w-14 border-2 border-secondary/20 p-0.5">
-                          <AvatarImage src={orgAvatar} className="rounded-full object-cover" />
-                          <AvatarFallback className="font-bold">{orgName.charAt(0)}</AvatarFallback>
-                       </Avatar>
-                       <div className="space-y-0.5">
-                          <div className="flex items-center gap-1.5">
-                             <h4 className="font-bold text-base leading-none">{orgName}</h4>
-                             {isVerified && <ShieldCheck className="w-4 h-4 text-secondary" />}
-                          </div>
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase">{organizationProfile?.type || "Organizador"}</p>
-                       </div>
-                       <Button variant="ghost" size="icon" className="ml-auto rounded-full" asChild>
-                          <Link href={`/${usernameFromUrl}`}><ExternalLink className="w-4 h-4 text-muted-foreground" /></Link>
-                       </Button>
-                    </div>
-                 </CardContent>
-              </Card>
-
-              {/* OUTROS ORGANIZADORES (PARCEIROS ACEITOS) */}
-              {acceptedPartners && acceptedPartners.length > 0 && (
-                <Card className="border-none shadow-sm bg-white rounded-[2rem]">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xs uppercase font-black text-muted-foreground tracking-widest flex items-center gap-2">
-                      <Users className="w-4 h-4 text-secondary" /> Outros Organizadores
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {acceptedPartners.map((partner: any) => (
-                      <div key={partner.id} className="flex items-center gap-3 p-3 bg-muted/20 rounded-2xl border border-transparent hover:border-secondary/20 transition-all group">
-                         <Avatar className="h-10 w-10 border border-muted">
-                            <AvatarImage src={partner.orgAvatar} className="object-cover" />
-                            <AvatarFallback className="font-bold">{partner.orgName.charAt(0)}</AvatarFallback>
-                         </Avatar>
-                         <div className="space-y-0.5 flex-1">
-                            <div className="flex items-center gap-1.5">
-                               <span className="font-bold text-sm leading-none">{partner.orgName}</span>
-                               {partner.orgVerified && <ShieldCheck className="w-3 h-3 text-secondary" />}
-                            </div>
-                            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-tighter">{partner.orgType}</p>
-                         </div>
-                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full opacity-40 group-hover:opacity-100" asChild>
-                            <Link href={`/${partner.orgUsername}`}><ExternalLink className="w-3.5 h-3.5" /></Link>
-                         </Button>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              )}
            </div>
         </div>
       </div>

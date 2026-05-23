@@ -2,8 +2,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 2.22.0
-    // Adicionado suporte para comentários em eventos
+    // REGRAS VIBY - Versão: 2.22.1
+    // Suporte para curtidas e comentários dinâmicos
     
     function isSignedIn() {
       return request.auth != null;
@@ -146,6 +146,11 @@ service cloud.firestore {
         allow read: if true;
         allow create: if isSignedIn();
         allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      }
+
+      match /likes/{userId} {
+        allow read: if true;
+        allow write: if isSignedIn() && request.auth.uid == userId;
       }
     }
     
