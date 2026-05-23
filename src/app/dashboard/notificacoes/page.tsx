@@ -40,6 +40,20 @@ export default function NotificacoesPage() {
 
   const { data: notifications, loading } = useCollection<any>(notificationsQuery)
 
+  // Marcar como lida automaticamente ao carregar
+  React.useEffect(() => {
+    if (!db || !notifications || notifications.length === 0) return
+
+    const unread = notifications.filter((n: any) => !n.read)
+    if (unread.length > 0) {
+      const batch = writeBatch(db)
+      unread.forEach((n: any) => {
+        batch.update(doc(db, "notifications", n.id), { read: true })
+      })
+      batch.commit().catch(e => console.error("Erro ao marcar lidas auto:", e))
+    }
+  }, [db, notifications])
+
   const handleMarkAllAsRead = async () => {
     if (!db || !notifications || notifications.length === 0) return
     const batch = writeBatch(db)
