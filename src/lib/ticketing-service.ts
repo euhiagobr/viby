@@ -6,9 +6,15 @@ import {
   serverTimestamp, 
   Timestamp, 
   collection, 
-  writeBatch 
+  writeBatch,
+  query,
+  where,
+  getDocs
 } from "firebase/firestore";
 
+/**
+ * Lógica de Reserva de Assento com timeout de 10 minutos.
+ */
 export async function reserveSeat(
   db: Firestore, 
   eventoId: string, 
@@ -31,11 +37,11 @@ export async function reserveSeat(
     if (data.status === 'reservado') {
       const expiration = data.reservadoAte?.toDate ? data.reservadoAte.toDate() : new Date(data.reservadoAte);
       if (now < expiration && data.reservadoPor !== userId) {
-        throw new Error("Assento reservado por outro usuário.");
+        throw new Error("Este lugar já está em reserva por outro usuário.");
       }
     }
 
-    const reservadoAte = new Date(now.getTime() + 10 * 60 * 1000); // 10 minutos
+    const reservadoAte = new Date(now.getTime() + 10 * 60 * 1000); 
 
     transaction.update(assentoRef, {
       status: 'reservado',
@@ -46,31 +52,41 @@ export async function reserveSeat(
   });
 }
 
-export async function releaseSeat(
-  db: Firestore, 
-  eventoId: string, 
-  setorId: string, 
-  assentoId: string, 
-  userId: string
-) {
-  const assentoRef = doc(db, "events", eventoId, "setores", setorId, "assentos", assentoId);
-
-  return runTransaction(db, async (transaction) => {
-    const assentoSnap = await transaction.get(assentoRef);
-    if (!assentoSnap.exists()) return;
-
-    const data = assentoSnap.data();
-    if (data.status === 'reservado' && data.reservadoPor === userId) {
-      transaction.update(assentoRef, {
+/**
+ * Libera assentos expirados em massa.
+ */
+export async function releaseExpiredSeats(db: Firestore, eventoId: string) {
+  const now = new Date();
+  const q = query(
+    collection(db, "events", eventoId, "setores"),
+  );
+  
+  const setoresSnap = await getDocs(q);
+  const batch = writeBatch(db);
+  
+  for (const setorDoc of setoresSnap.docs) {
+    const assentosQ = query(
+      collection(db, "events", eventoId, "setores", setorDoc.id, "assentos"),
+      where("status", "==", "reservado"),
+      where("reservadoAte", "<=", Timestamp.fromDate(now))
+    );
+    const snap = await getDocs(assentosQ);
+    snap.forEach(d => {
+      batch.update(d.ref, {
         status: 'disponivel',
         reservadoPor: null,
         reservadoAte: null,
         updatedAt: serverTimestamp()
       });
-    }
-  });
+    });
+  }
+  
+  await batch.commit();
 }
 
+/**
+ * Gera assentos físicos baseados na configuração do setor.
+ */
 export async function generateMapData(
   db: Firestore, 
   eventoId: string, 
