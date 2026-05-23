@@ -4,10 +4,19 @@
   "collections": {
     "events": {
       "fields": {
+        "ticketMode": "string ('none' | 'free' | 'paid_single' | 'batches')",
+        "mapMode": "string ('none' | 'setores' | 'assentos' | 'mesas')",
         "possuiMapa": "boolean",
-        "modoMapa": "string ('setores' | 'numerado')",
         "palcoNome": "string",
-        "mapaPublicado": "boolean"
+        "palcoPosX": "number",
+        "palcoPosY": "number",
+        "palcoWidth": "number",
+        "palcoHeight": "number",
+        "capacidadeTotal": "number",
+        "loteAtual": "number",
+        "batches": "array (com migração de sobras)",
+        "address": "object",
+        "status": "string"
       },
       "subcollections": {
         "setores": {
@@ -17,32 +26,22 @@
             "tipo": "string ('livre' | 'assentos' | 'mesas')",
             "preco": "number",
             "capacidade": "number",
-            "descricao": "string",
-            "cor": "string (hex)",
-            "ativo": "boolean",
-            "ordem": "number",
-            "posicaoGrade": "number (0-11)",
-            "larguraGrade": "number (1-12)",
-            "fileiras": "number",
-            "assentosPorFileira": "number",
-            "quantidadeMesas": "number",
-            "lugaresPorMesa": "number",
-            "formatoMesa": "string ('circular' | 'quadrada')",
-            "criadoEm": "serverTimestamp"
+            "linkedTicketName": "string (vínculo dinâmico)",
+            "posX": "number",
+            "posY": "number",
+            "width": "number",
+            "height": "number",
+            "zIndex": "number",
+            "cor": "string",
+            "formatoVisual": "string"
           },
           "subcollections": {
             "assentos": {
-              "id": "auto-id",
               "fields": {
                 "codigo": "string",
-                "fileira": "string",
-                "numero": "number",
-                "categoria": "string ('comum' | 'pcd' | 'obeso' | 'acompanhante')",
-                "status": "string ('disponivel' | 'reservado' | 'vendido' | 'bloqueado')",
-                "reservadoPor": "string (uid)",
-                "reservadoAte": "timestamp",
-                "setorId": "string",
-                "eventoId": "string"
+                "status": "string",
+                "reservadoPor": "string",
+                "reservadoAte": "timestamp"
               }
             }
           }

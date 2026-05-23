@@ -182,7 +182,7 @@ export default function EventoMapaPage() {
         await generateMapData(db, eventId, docRef.id, sectorData)
       }
       if (!event.possuiMapa) {
-        await updateDoc(eventRef!, { possuiMapa: true, mapaConfigurado: true, ticketMode: 'map' })
+        await updateDoc(eventRef!, { possuiMapa: true, mapaConfigurado: true })
       }
       toast({ title: "Setor criado!" })
       setIsDialogOpen(false)
@@ -255,7 +255,7 @@ export default function EventoMapaPage() {
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
 
   return (
-    <div className="max-w-[1600px] mx-auto space-y-8 pb-20 px-4 h-screen flex flex-col overflow-hidden">
+    <div className="max-w-[1600px] mx-auto space-y-8 pb-20 px-4 h-screen flex flex-col overflow-hidden text-foreground">
       <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild><Link href={`/dashboard/evento/${eventId}/editar`}><ArrowLeft className="w-5 h-5" /></Link></Button>
@@ -295,7 +295,7 @@ export default function EventoMapaPage() {
                     </div>
 
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Ticket className="w-3 h-3" /> Vincular Carga Lote</Label>
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Ticket className="w-3 h-3" /> Vincular Carga Bilheteria</Label>
                        <Select value={linkedTicketName} onValueChange={setLinkedTicketName}>
                           <SelectTrigger className="rounded-xl"><SelectValue placeholder="Escolha um ingresso" /></SelectTrigger>
                           <SelectContent className="rounded-xl">

@@ -43,7 +43,11 @@ import {
   ImageIcon,
   Save,
   ArrowDown,
-  InfoIcon
+  InfoIcon,
+  Map as MapIcon,
+  Layout,
+  Armchair,
+  Grid3X3
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -89,7 +93,7 @@ export default function NovoEventoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const app = useFirebaseApp()
-  const { currentOrg, userRole, loading: orgLoading, refreshOrg } = useCurrentOrganization()
+  const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization()
 
   const storage = React.useMemo(() => {
     if (!app) return null;
@@ -105,7 +109,10 @@ export default function NovoEventoPage() {
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
   
   const [selectedCategory, setSelectedCategory] = useState("")
+  
+  // DUAS CONFIGURAÇÕES INDEPENDENTES
   const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches'>('free')
+  const [mapMode, setMapMode] = useState<'none' | 'setores' | 'assentos' | 'mesas'>('none')
   
   // Lotes (Modo Batches)
   const [batches, setBatches] = useState<Batch[]>([
@@ -173,24 +180,6 @@ export default function NovoEventoPage() {
     } catch (err) { setUploadProgress(null) }
   }
 
-  const handleCepBlur = async () => {
-    const cleanCep = address.cep.replace(/\D/g, "")
-    if (cleanCep.length !== 8) return
-    try {
-      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
-      const data = await response.json()
-      if (!data.erro) {
-        setAddress(prev => ({
-          ...prev,
-          street: data.logradouro || "",
-          neighborhood: data.bairro || "",
-          city: data.localidade || "",
-          state: data.uf || ""
-        }))
-      }
-    } catch (e) {}
-  }
-
   const handleDistribute = () => {
     if (distributeBatchIdx === null || !totalToDistribute) return
     const total = parseInt(totalToDistribute)
@@ -250,6 +239,26 @@ export default function NovoEventoPage() {
     if (f === 'capacidadeInicial') setBatches(recalculateBatches(n)); else setBatches(n);
   }
 
+  const updateTicketTypeField = (bi: number, ti: number, f: string, v: any) => { 
+    const n = [...batches]; 
+    n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; 
+    setBatches(n); 
+  }
+
+  const addTicketType = (bi: number) => { 
+    const n = [...batches]; 
+    n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }); 
+    setBatches(n); 
+  }
+
+  const removeTicketType = (bi: number, ti: number) => { 
+    const n = [...batches]; 
+    if(n[bi].ticketTypes.length > 1) { 
+      n[bi].ticketTypes.splice(ti, 1); 
+      setBatches(n); 
+    } 
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!db || !user || !currentOrg || !isAtLeastEditor) return
@@ -304,28 +313,41 @@ export default function NovoEventoPage() {
         categoryId: selectedCategory,
         categoryName: cat?.name || "Outros",
         ticketMode,
+        mapMode,
+        possuiMapa: mapMode !== 'none',
         isFree: ticketMode === 'free',
         capacidadeTotal: totalCapacity,
         batches: ticketMode === 'none' ? [] : finalBatches,
-        address, image: uploadedImageUrl || "",
+        address, 
+        image: uploadedImageUrl || "",
         organizationId: currentOrg.id, 
         organizerId: user.uid,
-        organizer: { id: currentOrg.id, name: currentOrg.name, username: currentOrg.username, avatar: currentOrg.avatar || "", isVerified: currentOrg.verified || false },
+        organizer: {
+          id: currentOrg.id,
+          name: currentOrg.name,
+          username: currentOrg.username,
+          avatar: currentOrg.avatar || "",
+          isVerified: currentOrg.verified || false
+        },
         status: "Ativo", city: address.city, createdAt: serverTimestamp()
       }
 
-      await addDoc(collection(db, "events"), eventData)
+      const docRef = await addDoc(collection(db, "events"), eventData)
+      
       toast({ title: "Evento Publicado!" })
       router.push("/dashboard/organizacoes")
-    } catch (error: any) { toast({ variant: "destructive", title: "Erro ao publicar", description: error.message }) }
-    finally { setLoading(false) }
+    } catch (error: any) { 
+      toast({ variant: "destructive", title: "Erro ao publicar", description: error.message }) 
+    } finally { 
+      setLoading(false) 
+    }
   }
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
-        <h1 className="text-3xl font-black italic tracking-tighter text-primary uppercase">Novo Evento</h1>
+        <h1 className="text-3xl font-black italic tracking-tighter text-primary uppercase">Publicar Novo Evento</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
@@ -336,7 +358,6 @@ export default function NovoEventoPage() {
               {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" /> : <div className="flex flex-col items-center justify-center h-full opacity-20"><Upload className="w-10 h-10 mb-2" /><p className="text-xs font-bold uppercase tracking-widest">Carregar Imagem</p></div>}
               <input id="img-up" type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
             </div>
-            {uploadProgress !== null && <Progress value={uploadProgress} className="h-1 mt-4" />}
           </CardContent>
         </Card>
 
@@ -361,11 +382,45 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
+        {/* ESTRUTURA DO EVENTO (MAPA) */}
+        <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
+           <CardHeader className="bg-primary/5">
+              <CardTitle className="text-lg flex items-center gap-2"><MapIcon className="w-5 h-5 text-primary" /> Estrutura do Evento (Mapa)</CardTitle>
+              <CardDescription>Defina se o evento terá uma planta visual independente do tipo de ingresso.</CardDescription>
+           </CardHeader>
+           <CardContent className="p-8 space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                 {[
+                   { id: 'none', label: 'Sem Mapa', icon: X, desc: 'Lista simples' },
+                   { id: 'setores', label: 'Setores', icon: Layout, desc: 'Áreas livres' },
+                   { id: 'assentos', label: 'Assentos', icon: Armchair, desc: 'Cadeiras' },
+                   { id: 'mesas', label: 'Mesas', icon: Grid3X3, desc: 'Numeradas' }
+                 ].map((mode) => (
+                   <Button 
+                     key={mode.id} 
+                     type="button"
+                     variant={mapMode === mode.id ? 'secondary' : 'outline'}
+                     className={cn("h-24 flex-col gap-2 rounded-2xl border-dashed", mapMode === mode.id && "border-solid ring-2 ring-secondary/20")}
+                     onClick={() => setMapMode(mode.id as any)}
+                   >
+                     <mode.icon className="w-6 h-6" />
+                     <div className="text-center">
+                        <p className="text-[10px] font-black uppercase">{mode.label}</p>
+                        <p className="text-[8px] font-bold opacity-50 uppercase">{mode.desc}</p>
+                     </div>
+                   </Button>
+                 ))}
+              </div>
+           </CardContent>
+        </Card>
+
+        {/* MODO DE BILHETERIA */}
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1">
-                <CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Gestão de Bilheteria</CardTitle>
+                <CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Configuração Comercial</CardTitle>
+                <CardDescription>Como você deseja cobrar pelos ingressos?</CardDescription>
               </div>
               <div className="bg-white p-1 rounded-xl border flex flex-wrap gap-1">
                 <Button type="button" variant={ticketMode === 'none' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-3" onClick={() => setTicketMode('none')}>Sem Ingresso</Button>
@@ -407,7 +462,7 @@ export default function NovoEventoPage() {
                     </div>
                     <div className="md:col-span-2">
                        <Button type="button" variant="outline" className="w-full rounded-xl h-11 border-dashed font-bold uppercase text-[10px] gap-2" onClick={() => { setDistributeBatchIdx(0); setTotalToDistribute(singleCapacity.toString()); setIsDistributeOpen(true); }}>
-                          <Sparkles className="w-4 h-4 text-secondary" /> Distribuir Meia-Entrada Legal
+                          <Sparkles className="w-4 h-4 text-secondary" /> Gerar Meias
                        </Button>
                     </div>
                   </div>
@@ -446,7 +501,7 @@ export default function NovoEventoPage() {
                         </div>
                         <div className="flex gap-2">
                            <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setDistributeBatchIdx(bi); setTotalToDistribute(batch.capacidadeInicial.toString()); setIsDistributeOpen(true); }}>
-                              <Sparkles className="w-3 h-3" /> Distribuir Meia
+                              <Sparkles className="w-3 h-3" /> Gerar Meia
                            </Button>
                            <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)} disabled={batches.length === 1}><Trash2 className="w-4 h-4" /></Button>
                         </div>
@@ -496,8 +551,8 @@ export default function NovoEventoPage() {
                       )}
                    </div>
                  ))}
-                 <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Próximo Lote</Button>
-
+                 <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>
+                 
                  <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
                     <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
                     <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">

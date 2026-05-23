@@ -33,7 +33,11 @@ import {
   Layers,
   ArrowDown,
   InfoIcon,
-  Camera
+  Camera,
+  Map as MapIcon,
+  Layout,
+  Armchair,
+  Grid3X3
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -83,7 +87,7 @@ export default function EditarEventoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const app = useFirebaseApp()
-  const { currentOrg, userRole, loading: orgLoading, refreshOrg } = useCurrentOrganization()
+  const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization()
 
   const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
@@ -102,7 +106,10 @@ export default function EditarEventoPage() {
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
   
   const [selectedCategory, setSelectedCategory] = useState("")
+  
+  // DUAS CONFIGURAÇÕES INDEPENDENTES
   const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches'>('free')
+  const [mapMode, setMapMode] = useState<'none' | 'setores' | 'assentos' | 'mesas'>('none')
   
   // Estados de Bilheteria
   const [batches, setBatches] = useState<Batch[]>([])
@@ -122,6 +129,7 @@ export default function EditarEventoPage() {
     if (event) {
       setSelectedCategory(event.categoryId || "");
       setTicketMode(event.ticketMode || 'free');
+      setMapMode(event.mapMode || (event.possuiMapa ? 'setores' : 'none'));
       setImagePreview(event.image || null);
       setAddress(event.address || { street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" });
       
@@ -224,6 +232,20 @@ export default function EditarEventoPage() {
     if (f === 'capacidadeInicial') setBatches(recalculateBatches(n)); else setBatches(n);
   }
 
+  const addTicketType = (bi: number) => { 
+    const n = [...batches]; 
+    n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Nova Categoria", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }); 
+    setBatches(n); 
+  }
+
+  const removeTicketType = (bi: number, ti: number) => { 
+    const n = [...batches]; 
+    if(n[bi].ticketTypes.length > 1) { 
+      n[bi].ticketTypes.splice(ti, 1); 
+      setBatches(n); 
+    } 
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!db || !user || !eventRef || !isAtLeastEditor) return
@@ -278,6 +300,8 @@ export default function EditarEventoPage() {
         categoryId: selectedCategory,
         categoryName: cat?.name || "Outros",
         ticketMode,
+        mapMode,
+        possuiMapa: mapMode !== 'none',
         isFree: ticketMode === 'free',
         capacidadeTotal: totalCapacity,
         batches: ticketMode === 'none' ? [] : finalBatches,
@@ -339,11 +363,60 @@ export default function EditarEventoPage() {
           </CardContent>
         </Card>
 
+        {/* ESTRUTURA DO EVENTO (MAPA) */}
+        <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
+           <CardHeader className="bg-primary/5">
+              <CardTitle className="text-lg flex items-center gap-2"><MapIcon className="w-5 h-5 text-primary" /> Estrutura do Evento (Mapa)</CardTitle>
+              <CardDescription>Defina se o evento terá setores ou assentos numerados independentemente da bilheteria.</CardDescription>
+           </CardHeader>
+           <CardContent className="p-8 space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                 {[
+                   { id: 'none', label: 'Sem Mapa', icon: X, desc: 'Lista simples' },
+                   { id: 'setores', label: 'Setores', icon: Layout, desc: 'Áreas livres' },
+                   { id: 'assentos', label: 'Assentos', icon: Armchair, desc: 'Cadeiras' },
+                   { id: 'mesas', label: 'Mesas', icon: Grid3X3, desc: 'Numeradas' }
+                 ].map((mode) => (
+                   <Button 
+                     key={mode.id} 
+                     type="button"
+                     variant={mapMode === mode.id ? 'secondary' : 'outline'}
+                     className={cn("h-24 flex-col gap-2 rounded-2xl border-dashed", mapMode === mode.id && "border-solid ring-2 ring-secondary/20")}
+                     onClick={() => setMapMode(mode.id as any)}
+                   >
+                     <mode.icon className="w-6 h-6" />
+                     <div className="text-center">
+                        <p className="text-[10px] font-black uppercase">{mode.label}</p>
+                        <p className="text-[8px] font-bold opacity-50 uppercase">{mode.desc}</p>
+                     </div>
+                   </Button>
+                 ))}
+              </div>
+              
+              {mapMode !== 'none' && (
+                <div className="p-6 bg-secondary/5 rounded-3xl border-2 border-dashed border-secondary/20 flex flex-col md:flex-row items-center justify-between gap-6 animate-in zoom-in-95">
+                   <div className="flex items-center gap-4 text-center md:text-left">
+                      <div className="p-4 bg-white rounded-2xl shadow-sm text-secondary"><MapIcon className="w-8 h-8" /></div>
+                      <div>
+                         <h4 className="font-black italic uppercase tracking-tighter text-primary">Planta Visual Habilitada</h4>
+                         <p className="text-xs font-medium text-muted-foreground">Agora você pode desenhar seu mapa visual no editor.</p>
+                      </div>
+                   </div>
+                   <Button asChild className="bg-primary text-white font-black rounded-xl h-12 px-8 uppercase italic shadow-lg">
+                      <Link href={`/dashboard/evento/${eventId}/mapa`}>Abrir Editor de Planta</Link>
+                   </Button>
+                </div>
+              )}
+           </CardContent>
+        </Card>
+
+        {/* MODO DE BILHETERIA */}
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1">
-                <CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle>
+                <CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Configuração Comercial</CardTitle>
+                <CardDescription>Como você deseja cobrar pelos ingressos?</CardDescription>
               </div>
               <div className="bg-white p-1 rounded-xl border flex flex-wrap gap-1">
                 <Button type="button" variant={ticketMode === 'none' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-3" onClick={() => setTicketMode('none')}>Sem Ingresso</Button>
@@ -495,6 +568,3 @@ export default function EditarEventoPage() {
     </div>
   )
 }
-
-function addTicketType(bi: number) { throw new Error("Function not implemented.") }
-function removeTicketType(bi: number, ti: number) { throw new Error("Function not implemented.") }

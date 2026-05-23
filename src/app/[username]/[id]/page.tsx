@@ -206,9 +206,11 @@ export default function EventoDetalhesPage() {
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
   if (!event) return null
 
+  const hasMap = event.possuiMapa || event.mapMode !== 'none';
+
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
-      <div className="max-w-7xl mx-auto px-4 pt-10 space-y-8 flex-1 w-full">
+      <div className="max-w-7xl mx-auto px-4 pt-10 space-y-8 flex-1 w-full text-foreground">
         <div className="flex items-center justify-between">
            <Button variant="ghost" onClick={() => router.back()} className="rounded-full font-bold text-xs uppercase gap-2">
               <ArrowLeft className="w-4 h-4" /> Voltar
@@ -242,19 +244,25 @@ export default function EventoDetalhesPage() {
                 </div>
               ) : (
                 <React.Fragment>
+                  {/* Informações de Lote apenas se o modo for batches */}
                   {activeBatchInfo && event.ticketMode === 'batches' && (
-                    <div className="flex items-center justify-between p-6 bg-white rounded-[2rem] shadow-sm border border-border/50">
+                    <div className="flex items-center justify-between p-6 bg-white rounded-[2rem] shadow-sm border border-border/50 animate-in slide-in-from-top-2">
                       <div className="flex items-center gap-4">
                          <div className="p-3 bg-secondary/10 rounded-2xl text-secondary"><Ticket className="w-6 h-6" /></div>
                          <div>
-                            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Janela Ativa</p>
+                            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Janela de Venda Ativa</p>
                             <h3 className="text-xl font-black italic uppercase text-primary tracking-tighter">{activeBatchInfo.name}</h3>
                          </div>
+                      </div>
+                      <div className="text-right">
+                         <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Restantes</p>
+                         <p className="text-xl font-black text-secondary">{activeBatchInfo.restantes}</p>
                       </div>
                     </div>
                   )}
 
-                  {event.possuiMapa && setores && (
+                  {/* MAPA VISUAL (SISTEMA HÍBRIDO) */}
+                  {hasMap && setores && (
                     <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
                        <CardHeader className="bg-muted/30 border-b flex flex-row items-center justify-between">
                           <CardTitle className="text-lg font-bold flex items-center gap-2"><MapIcon className="w-5 h-5 text-secondary" /> Mapa do Evento</CardTitle>
@@ -274,14 +282,42 @@ export default function EventoDetalhesPage() {
                                 </div>
                                 <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
                                   <div className="relative min-w-[2000px] min-h-[1500px]">
-                                     <div className="absolute bg-primary text-white flex flex-col items-center justify-center rounded-2xl shadow-2xl border-4 border-white/10" style={{ left: event.palcoPosX || 700, top: event.palcoPosY || 50, width: event.palcoWidth || 600, height: event.palcoHeight || 120 }}><span className="font-black italic uppercase tracking-[0.4em] text-lg">{event.palcoNome || "PALCO"}</span></div>
+                                     {/* Palco */}
+                                     <div className="absolute bg-primary text-white flex flex-col items-center justify-center rounded-2xl shadow-2xl border-4 border-white/10" style={{ left: event.palcoPosX || 700, top: event.palcoPosY || 50, width: event.palcoWidth || 600, height: event.palcoHeight || 120 }}>
+                                        <span className="font-black italic uppercase tracking-[0.4em] text-lg">{event.palcoNome || "PALCO"}</span>
+                                     </div>
+                                     
+                                     {/* Setores Arrastáveis do Editor agora Estáticos para o Usuário */}
                                      {setores.map((s: any) => (
-                                       <div key={s.id} onClick={() => s.tipo === 'livre' ? setSelectedSector(s) : null} className={cn("absolute transition-all cursor-pointer flex flex-col items-center justify-center border-2 group", selectedSector?.id === s.id ? "ring-4 ring-secondary/30" : "hover:scale-[1.01]")} style={{ left: s.posX || 0, top: s.posY || 0, width: s.width || 200, height: s.height || 120, backgroundColor: selectedSector?.id === s.id ? `${s.cor}40` : `${s.cor}20`, borderColor: s.cor, borderRadius: s.formatoVisual === 'circulo' ? '100%' : '2rem' }}>
+                                       <div 
+                                         key={s.id} 
+                                         onClick={() => s.tipo === 'livre' ? setSelectedSector(s) : null} 
+                                         className={cn(
+                                           "absolute transition-all cursor-pointer flex flex-col items-center justify-center border-2 group", 
+                                           selectedSector?.id === s.id ? "ring-4 ring-secondary/30" : "hover:scale-[1.01]"
+                                         )} 
+                                         style={{ 
+                                           left: s.posX || 0, 
+                                           top: s.posY || 0, 
+                                           width: s.width || 200, 
+                                           height: s.height || 120, 
+                                           backgroundColor: selectedSector?.id === s.id ? `${s.cor}40` : `${s.cor}20`, 
+                                           borderColor: s.cor, 
+                                           borderRadius: s.formatoVisual === 'circulo' ? '100%' : '2rem' 
+                                         }}
+                                       >
                                           <div className="text-center p-4">
                                              <h4 className="font-black uppercase italic text-[10px]" style={{ color: s.cor }}>{s.nome}</h4>
                                              {s.tipo === 'livre' && (<p className="text-[9px] font-black opacity-60" style={{ color: s.cor }}>A partir de {formatCurrency(s.preco)}</p>)}
                                           </div>
-                                          {s.tipo !== 'livre' && (<div className="absolute inset-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 flex flex-col items-center justify-center rounded-[inherit] overflow-hidden"><p className="text-[9px] font-black uppercase text-primary mb-3">Escolher Lugar</p><SectorPublicGrid setor={s} eventoId={eventId} onSelect={(seat) => handleSeatClick(seat, s)} selectedSeat={selectedSeat} /></div>)}
+                                          
+                                          {/* Se for numerado, mostra grid ao passar o mouse ou selecionar */}
+                                          {s.tipo !== 'livre' && (
+                                            <div className="absolute inset-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 flex flex-col items-center justify-center rounded-[inherit] overflow-hidden">
+                                               <p className="text-[9px] font-black uppercase text-primary mb-3">Escolher {s.tipo === 'assentos' ? 'Lugar' : 'Mesa'}</p>
+                                               <SectorPublicGrid setor={s} eventoId={eventId} onSelect={(seat) => handleSeatClick(seat, s)} selectedSeat={selectedSeat} />
+                                            </div>
+                                          )}
                                        </div>
                                      ))}
                                   </div>
@@ -292,10 +328,36 @@ export default function EventoDetalhesPage() {
                        </CardContent>
                     </Card>
                   )}
+
+                  {/* Se não tiver mapa, mostra lista simples de ingressos baseada no activeBatchInfo */}
+                  {!hasMap && activeBatchInfo && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       {activeBatchInfo.ticketTypes.map((type: any) => (
+                         <Card key={type.id} className="border-none shadow-sm hover:shadow-md transition-all rounded-2xl bg-white group border-l-4 border-secondary">
+                            <CardContent className="p-6 flex items-center justify-between">
+                               <div>
+                                  <h4 className="font-bold text-base uppercase">{type.name}</h4>
+                                  <p className="text-xs font-bold text-primary mt-1">{formatCurrency(type.price)}</p>
+                               </div>
+                               <Button 
+                                 onClick={() => {
+                                   setSelectedTicketType(type);
+                                   handleAddToCart();
+                                 }}
+                                 className="rounded-xl h-10 bg-secondary text-white font-black uppercase italic text-[10px]"
+                               >
+                                  Comprar
+                               </Button>
+                            </CardContent>
+                         </Card>
+                       ))}
+                    </div>
+                  )}
                 </React.Fragment>
               )}
            </div>
            
+           {/* Sidebar de Bilheteria/Carrinho */}
            {event.ticketMode !== 'none' && (
              <div className="lg:col-span-4 space-y-6">
                 <Card className="border-none shadow-xl rounded-[2.5rem] border-t-8 border-secondary overflow-hidden bg-white sticky top-24">
@@ -327,8 +389,11 @@ export default function EventoDetalhesPage() {
                          </div>
                       ) : (
                         <div className="p-10 text-center space-y-4 opacity-30">
-                           <MapIcon className="w-8 h-8 mx-auto" />
-                           <p className="text-[10px] font-black uppercase italic">Selecione uma área no mapa para ver ingressos</p>
+                           {hasMap ? (
+                             <><MapIcon className="w-8 h-8 mx-auto" /><p className="text-[10px] font-black uppercase italic">Selecione uma área no mapa para ver ingressos</p></>
+                           ) : (
+                             <p className="text-[10px] font-black uppercase italic">Selecione uma opção na lista</p>
+                           )}
                         </div>
                       )}
                    </CardContent>
