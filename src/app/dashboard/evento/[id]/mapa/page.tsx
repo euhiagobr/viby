@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -31,7 +32,8 @@ import {
   Minimize2,
   Move,
   GripHorizontal,
-  Ticket
+  Ticket,
+  Layers
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -95,7 +97,7 @@ export default function EventoMapaPage() {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [selectedType, setSelectedType] = React.useState<any>("livre")
-  const [linkedTicketId, setLinkedTicketId] = React.useState<string>("none")
+  const [linkedTicketName, setLinkedTicketName] = React.useState<string>("none")
   
   const [palcoNome, setPalcoNome] = React.useState("PALCO PRINCIPAL")
   const [editMode, setEditMode] = React.useState<'list' | 'visual'>('visual')
@@ -107,20 +109,17 @@ export default function EventoMapaPage() {
     }
   }, [event?.palcoNome])
 
-  const allTickets = React.useMemo(() => {
+  // Obtém nomes únicos de ingressos (ex: Plateia Baixa, VIP, Pista) para vincular ao setor
+  const uniqueTicketNames = React.useMemo(() => {
     if (!event?.batches) return []
-    const tickets: any[] = []
+    const names = new Set<string>()
     event.batches.forEach((b: any) => {
       b.ticketTypes.forEach((t: any) => {
-        tickets.push({ 
-          ...t, 
-          batchId: b.id, 
-          batchName: b.name,
-          label: `${b.name}: ${t.name} (R$ ${t.price})`
-        })
+        // Filtramos apenas os nomes base (sem variações de meia entrada se possível, ou listamos tudo)
+        names.add(t.name)
       })
     })
-    return tickets
+    return Array.from(names).sort()
   }, [event?.batches])
 
   const handleCreateSector = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -130,23 +129,31 @@ export default function EventoMapaPage() {
     setIsSubmitting(true)
     const formData = new FormData(e.currentTarget)
     
-    const linkedTicket = allTickets.find(t => t.id === linkedTicketId)
+    // Se estiver vinculado, pegamos os dados do primeiro exemplar desse ingresso encontrado nos lotes
+    let precoBase = parseFloat(formData.get("preco") as string) || 0
+    let capacidadeBase = parseInt(formData.get("capacidade") as string) || 0
+
+    if (linkedTicketName !== 'none') {
+       const exemplar = event.batches[0]?.ticketTypes.find((t: any) => t.name === linkedTicketName)
+       if (exemplar) {
+          precoBase = exemplar.price
+          capacidadeBase = exemplar.quantity
+       }
+    }
 
     const sectorData = {
       nome: formData.get("nome") as string,
       tipo: selectedType,
-      preco: linkedTicket ? linkedTicket.price : (parseFloat(formData.get("preco") as string) || 0),
-      capacidade: linkedTicket ? linkedTicket.quantity : (parseInt(formData.get("capacidade") as string) || 0),
-      linkedTicketId: linkedTicketId === 'none' ? null : linkedTicketId,
-      batchId: linkedTicket ? linkedTicket.batchId : null,
-      batchName: linkedTicket ? linkedTicket.batchName : null,
+      preco: precoBase,
+      capacidade: capacidadeBase,
+      linkedTicketName: linkedTicketName === 'none' ? null : linkedTicketName,
       cor: formData.get("cor") as string || "#2C52EE",
       descricao: formData.get("descricao") as string || "",
       ordem: (setores?.length || 0) + 1,
-      posX: 10,
-      posY: 30,
-      width: 200,
-      height: 120,
+      posX: 700,
+      posY: 300,
+      width: 250,
+      height: 150,
       zIndex: (setores?.length || 0) + 1,
       formatoVisual: 'retangulo',
       ativo: true,
@@ -174,7 +181,7 @@ export default function EventoMapaPage() {
       }
       toast({ title: "Setor criado!", description: `${sectorData.nome} adicionado ao mapa.` })
       setIsDialogOpen(false)
-      setLinkedTicketId("none")
+      setLinkedTicketName("none")
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao criar", description: error.message })
     } finally {
@@ -287,24 +294,24 @@ export default function EventoMapaPage() {
                     </div>
 
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Ticket className="w-3 h-3" /> Vincular a Ingresso Pré-definido</Label>
-                       <Select value={linkedTicketId} onValueChange={setLinkedTicketId}>
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Ticket className="w-3 h-3" /> Vincular a Categoria de Lote</Label>
+                       <Select value={linkedTicketName} onValueChange={setLinkedTicketName}>
                           <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecione um ingresso" /></SelectTrigger>
                           <SelectContent className="rounded-xl">
-                             <SelectItem value="none" className="text-xs font-bold">Sem vínculo direto (Manual)</SelectItem>
-                             {allTickets.map(t => (
-                               <SelectItem key={t.id} value={t.id} className="text-xs font-bold uppercase">
-                                  {t.label}
+                             <SelectItem value="none" className="text-xs font-bold">Sem vínculo (Preço Manual)</SelectItem>
+                             {uniqueTicketNames.map(name => (
+                               <SelectItem key={name} value={name} className="text-xs font-bold uppercase">
+                                  {name}
                                 </SelectItem>
                              ))}
                           </SelectContent>
                        </Select>
                     </div>
 
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Setor</Label><Input name="nome" placeholder="Ex: Pista Premium" required className="rounded-xl" defaultValue={allTickets.find(t => t.id === linkedTicketId)?.name || ""} /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Setor</Label><Input name="nome" placeholder="Ex: Pista Premium" required className="rounded-xl" defaultValue={linkedTicketName !== 'none' ? linkedTicketName : ""} /></div>
                     <div className="grid grid-cols-2 gap-4">
-                       <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Preço (R$)</Label><Input name="preco" type="number" step="0.01" required disabled={linkedTicketId !== 'none'} className={cn("rounded-xl", linkedTicketId !== 'none' && "bg-muted/50")} value={allTickets.find(t => t.id === linkedTicketId)?.price || ""} /></div>
-                       {selectedType === 'livre' && <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Capacidade</Label><Input name="capacidade" type="number" required disabled={linkedTicketId !== 'none'} className={cn("rounded-xl", linkedTicketId !== 'none' && "bg-muted/50")} value={allTickets.find(t => t.id === linkedTicketId)?.quantity || ""} /></div>}
+                       <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Preço Base (R$)</Label><Input name="preco" type="number" step="0.01" required disabled={linkedTicketName !== 'none'} className={cn("rounded-xl", linkedTicketName !== 'none' && "bg-muted/50")} /></div>
+                       {selectedType === 'livre' && <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Capacidade</Label><Input name="capacidade" type="number" required disabled={linkedTicketName !== 'none'} className={cn("rounded-xl", linkedTicketName !== 'none' && "bg-muted/50")} /></div>}
                     </div>
                     {selectedType === 'assentos' && (
                       <div className="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
@@ -332,7 +339,6 @@ export default function EventoMapaPage() {
       <TooltipProvider>
       {editMode === 'visual' ? (
         <div className="flex-1 relative bg-muted/20 border-2 border-dashed rounded-[2.5rem] overflow-hidden">
-           {/* Canvas Area */}
            <div className="absolute inset-0 overflow-auto custom-scrollbar">
               <div 
                 className="relative min-w-[2000px] min-h-[1500px] bg-white"
@@ -368,13 +374,13 @@ export default function EventoMapaPage() {
                   <Rnd
                     key={s.id}
                     bounds="parent"
-                    size={{ width: s.width || 200, height: s.height || 120 }}
+                    size={{ width: s.width || 250, height: s.height || 150 }}
                     position={{ x: s.posX || 0, y: s.posY || 0 }}
-                    onDragStop={(e, d) => updateVisualLayout(s.id, { x: d.x, y: d.y, width: s.width || 200, height: s.height || 120 })}
+                    onDragStop={(e, d) => updateVisualLayout(s.id, { x: d.x, y: d.y, width: s.width || 250, height: s.height || 150 })}
                     onResizeStop={(e, direction, ref, delta, position) => updateVisualLayout(s.id, { x: position.x, y: position.y, width: parseInt(ref.style.width), height: parseInt(ref.style.height) })}
                     dragHandleClassName="sector-handle"
-                    minWidth={100}
-                    minHeight={80}
+                    minWidth={120}
+                    minHeight={100}
                   >
                     <div 
                       className={cn(
@@ -394,7 +400,11 @@ export default function EventoMapaPage() {
                              <p className="text-[10px] font-black">{s.capacidade} LUG.</p>
                              <p className="text-[9px] font-bold uppercase">{s.tipo}</p>
                           </div>
-                          {s.linkedTicketId && <Badge variant="outline" className="mt-2 text-[6px] font-black uppercase h-3 border-current">Vínculo Ativo</Badge>}
+                          {s.linkedTicketName && (
+                            <Badge variant="secondary" className="mt-2 text-[7px] font-black uppercase h-4 gap-1">
+                               <Layers className="w-2 h-2" /> Vínculo Lote
+                            </Badge>
+                          )}
                        </div>
                        <Button 
                          variant="ghost" 
@@ -410,7 +420,6 @@ export default function EventoMapaPage() {
               </div>
            </div>
 
-           {/* Toolbar lateral flutuante */}
            <div className="absolute top-8 left-8 z-50 space-y-4">
               <Card className="p-2 border-none shadow-2xl rounded-2xl bg-white/90 backdrop-blur-md">
                  <div className="flex flex-col gap-2">
@@ -443,7 +452,7 @@ export default function EventoMapaPage() {
                          <div>
                             <h4 className="text-lg font-black uppercase italic tracking-tighter text-primary">{s.nome}</h4>
                             <p className="text-xs font-bold text-muted-foreground uppercase">{s.tipo} • {s.capacidade} Lugares • {s.preco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
-                            {s.linkedTicketId && <Badge variant="outline" className="text-[8px] uppercase mt-1 border-secondary text-secondary">Vinculado a: {allTickets.find(t => t.id === s.linkedTicketId)?.name}</Badge>}
+                            {s.linkedTicketName && <Badge variant="outline" className="text-[8px] uppercase mt-1 border-secondary text-secondary">Vínculo Dinâmico: {s.linkedTicketName}</Badge>}
                          </div>
                       </div>
                       <Button variant="ghost" size="icon" className="text-destructive h-10 w-10 rounded-full hover:bg-destructive/5" onClick={() => setSectorToDelete(s)}>
@@ -457,7 +466,6 @@ export default function EventoMapaPage() {
       )}
       </TooltipProvider>
 
-      {/* ALERT DIALOG DE EXCLUSÃO */}
       <AlertDialog open={!!sectorToDelete} onOpenChange={(open) => !open && setSectorToDelete(null)}>
         <AlertDialogContent className="rounded-[2rem]">
           <AlertDialogHeader>

@@ -94,7 +94,48 @@ export default function EventoDetalhesPage() {
 
   const [selectedSector, setSelectedSector] = React.useState<any>(null)
   const [selectedSeat, setSelectedSeat] = React.useState<any>(null)
+  const [selectedTicketType, setSelectedTicketType] = React.useState<any>(null)
   const [isReserving, setIsReserving] = React.useState(false)
+
+  // Determina os tipos de ingresso disponíveis para o setor selecionado no lote atual
+  const availableOptionsForSector = React.useMemo(() => {
+    if (!selectedSector || !event?.batches) return []
+    
+    // Encontrar o primeiro lote que está com data vigente e tem estoque
+    const now = new Date()
+    const activeBatch = event.batches.find((b: any) => {
+       const start = b.startDate ? new Date(b.startDate) : null
+       const end = b.endDate ? new Date(b.endDate) : null
+       const isStarted = !start || now >= start
+       const isEnded = end && now > end
+       return isStarted && !isEnded
+    }) || event.batches[0] // Fallback para o primeiro lote se nenhum estiver exatamente na data (ou estiver esgotado)
+
+    if (!activeBatch) return []
+
+    // Se o setor estiver vinculado dinamicamente, buscamos todas as variações desse nome no lote
+    if (selectedSector.linkedTicketName) {
+      return activeBatch.ticketTypes.filter((t: any) => t.name === selectedSector.linkedTicketName)
+    }
+
+    // Fallback: se não houver vínculo dinâmico, mostramos o que foi configurado manualmente no setor
+    return [{
+       id: selectedSector.id,
+       name: selectedSector.nome,
+       price: selectedSector.preco,
+       batchId: activeBatch.id,
+       batchName: activeBatch.name
+    }]
+  }, [selectedSector, event?.batches])
+
+  // Seleciona automaticamente o primeiro tipo (Inteira) ao escolher um setor
+  React.useEffect(() => {
+     if (availableOptionsForSector.length > 0) {
+        setSelectedTicketType(availableOptionsForSector[0])
+     } else {
+        setSelectedTicketType(null)
+     }
+  }, [availableOptionsForSector])
 
   const handleSeatClick = async (seat: any, sector: any) => {
     if (!user) { toast({ title: "Ação necessária", description: "Faça login para selecionar assentos." }); router.push("/login"); return; }
@@ -114,7 +155,7 @@ export default function EventoDetalhesPage() {
   }
 
   const handleAddToCart = () => {
-    if (!selectedSector || !event || !globalFees) return
+    if (!selectedSector || !event || !selectedTicketType || !globalFees) return
     
     const isNumbered = selectedSector.tipo !== 'livre';
     if (isNumbered && !selectedSeat) {
@@ -122,13 +163,8 @@ export default function EventoDetalhesPage() {
       return;
     }
 
-    // Identifica o ID do ingresso vinculado
-    const ticketTypeId = selectedSector.linkedTicketId || selectedSector.id;
-    const batchId = selectedSector.batchId || "map";
-    const batchName = selectedSector.batchName || selectedSector.nome;
-
     addItem({
-      id: isNumbered ? `${event.id}_${ticketTypeId}_${selectedSeat.id}` : `${event.id}_${ticketTypeId}`,
+      id: isNumbered ? `${event.id}_${selectedTicketType.id}_${selectedSeat.id}` : `${event.id}_${selectedTicketType.id}`,
       eventId: event.id,
       eventTitle: event.title,
       eventImage: event.image || "",
@@ -137,13 +173,13 @@ export default function EventoDetalhesPage() {
       organizationId: event.organizationId,
       organizerId: event.organizerId,
       organizerUsername: usernameFromUrl,
-      ticketTypeId: ticketTypeId,
-      ticketTypeName: `${selectedSector.nome}${selectedSeat ? ` (${selectedSeat.codigo})` : ''}`,
-      batchId: batchId,
-      batchName: batchName,
-      price: selectedSector.preco,
+      ticketTypeId: selectedTicketType.id,
+      ticketTypeName: `${selectedTicketType.name}${selectedSeat ? ` (${selectedSeat.codigo})` : ''}`,
+      batchId: selectedTicketType.batchId || "map",
+      batchName: selectedTicketType.batchName || "Lote Atual",
+      price: selectedTicketType.price,
       quantity: 1,
-      requiresProof: selectedSeat?.categoria && selectedSeat.categoria !== 'comum',
+      requiresProof: selectedTicketType.requiresProof || (selectedSeat?.categoria && selectedSeat.categoria !== 'comum'),
       seatId: selectedSeat?.id,
       seatCode: selectedSeat?.codigo,
       sectorId: selectedSector.id
@@ -236,7 +272,9 @@ export default function EventoDetalhesPage() {
                                    >
                                       <div className="text-center p-4">
                                          <h4 className="font-black uppercase italic text-[10px]" style={{ color: s.cor }}>{s.nome}</h4>
-                                         <p className="text-[9px] font-black opacity-60" style={{ color: s.cor }}>{formatCurrency(s.preco)}</p>
+                                         {s.tipo === 'livre' && (
+                                            <p className="text-[9px] font-black opacity-60" style={{ color: s.cor }}>A partir de {formatCurrency(s.preco)}</p>
+                                         )}
                                       </div>
                                       {s.tipo !== 'livre' && (
                                          <div className="absolute inset-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 flex flex-col items-center justify-center rounded-[inherit] overflow-hidden">
@@ -262,7 +300,7 @@ export default function EventoDetalhesPage() {
                  <CardContent className="space-y-6">
                     {selectedSector ? (
                        <div className="space-y-6 animate-in slide-in-from-right-4">
-                          <div className="p-5 bg-muted/30 rounded-2xl space-y-3">
+                          <div className="p-5 bg-muted/30 rounded-2xl space-y-4">
                              <div className="flex justify-between"><span className="text-[10px] font-black uppercase opacity-40">Setor</span><span className="font-bold text-sm uppercase">{selectedSector.nome}</span></div>
                              {selectedSeat && (
                                <div className="flex justify-between items-center">
@@ -273,12 +311,37 @@ export default function EventoDetalhesPage() {
                                  </div>
                                </div>
                              )}
+                             
                              <Separator className="border-dashed" />
-                             <div className="flex justify-between items-center"><span className="text-[10px] font-black uppercase opacity-40">Valor</span><span className="text-xl font-black text-primary">{formatCurrency(selectedSector.preco)}</span></div>
+                             
+                             <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase opacity-40">Escolha o Tipo de Ingresso</Label>
+                                <div className="space-y-2">
+                                   {availableOptionsForSector.map((option: any) => (
+                                      <div 
+                                        key={option.id}
+                                        onClick={() => setSelectedTicketType(option)}
+                                        className={cn(
+                                          "p-3 rounded-xl border-2 cursor-pointer transition-all flex justify-between items-center",
+                                          selectedTicketType?.id === option.id ? "border-secondary bg-secondary/5" : "border-transparent bg-white hover:bg-muted"
+                                        )}
+                                      >
+                                         <div className="flex flex-col">
+                                            <span className="text-xs font-bold uppercase">{option.name}</span>
+                                            <span className="text-[8px] font-black opacity-40 uppercase tracking-widest">{option.batchName || "Lote Atual"}</span>
+                                         </div>
+                                         <span className="font-black text-sm text-primary">{formatCurrency(option.price)}</span>
+                                      </div>
+                                   ))}
+                                </div>
+                             </div>
+
+                             <Separator className="border-dashed" />
+                             <div className="flex justify-between items-center"><span className="text-[10px] font-black uppercase opacity-40">Valor Total</span><span className="text-xl font-black text-primary">{formatCurrency(selectedTicketType?.price || 0)}</span></div>
                           </div>
 
                           <Button 
-                            disabled={selectedSector.tipo !== 'livre' && !selectedSeat}
+                            disabled={(selectedSector.tipo !== 'livre' && !selectedSeat) || !selectedTicketType}
                             onClick={handleAddToCart} 
                             className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform gap-3"
                           >
