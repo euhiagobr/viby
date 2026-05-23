@@ -60,6 +60,7 @@ import { generateMapData } from "@/lib/ticketing-service"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Rnd } from "react-rnd"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export default function EventoMapaPage() {
   const params = useParams()
@@ -82,7 +83,6 @@ export default function EventoMapaPage() {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [selectedType, setSelectedType] = React.useState<any>("livre")
-  const [isSavingLayout, setIsSavingLayout] = React.useState(false)
   
   const [palcoNome, setPalcoNome] = React.useState("PALCO PRINCIPAL")
   const [editMode, setEditMode] = React.useState<'list' | 'visual'>('visual')
@@ -222,7 +222,7 @@ export default function EventoMapaPage() {
                     <div className="grid grid-cols-3 gap-2">
                        <Button type="button" variant={selectedType === 'livre' ? 'secondary' : 'outline'} className="flex-col h-20 gap-1 text-[10px] uppercase font-black" onClick={() => setSelectedType('livre')}><Layout className="w-5 h-5" /> Livre</Button>
                        <Button type="button" variant={selectedType === 'assentos' ? 'secondary' : 'outline'} className="flex-col h-20 gap-1 text-[10px] uppercase font-black" onClick={() => setSelectedType('assentos')}><Armchair className="w-5 h-5" /> Assentos</Button>
-                       <Button type="button" variant={selectedType === 'mesas' ? 'secondary' : 'outline'} className="flex-col h-20 gap-1 text-[10px] uppercase font-black" onClick={() => setSelectedType('mesas')}><Grid3X3 className="w-5 h-5" /> Mesas</Button>
+                       <Button type="button" variant={sector.tipo === 'mesas' ? 'secondary' : 'outline'} className="flex-col h-20 gap-1 text-[10px] uppercase font-black" onClick={() => setSelectedType('mesas')}><Grid3X3 className="w-5 h-5" /> Mesas</Button>
                     </div>
                     <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Setor</Label><Input name="nome" placeholder="Ex: Pista Premium" required className="rounded-xl" /></div>
                     <div className="grid grid-cols-2 gap-4">
