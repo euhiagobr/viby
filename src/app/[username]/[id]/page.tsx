@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -20,7 +19,10 @@ import {
   Clock,
   Lock,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Layers,
+  ChevronRight,
+  Map as MapIcon
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -42,35 +44,27 @@ export default function EventoPublicoPage() {
   const eventRef = React.useMemo(() => db ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
 
-  const setoresQuery = useMemoFirebase(() => {
-    if (!db || !eventId) return null
-    return query(collection(db, "events", eventId, "setores"), orderBy("zIndex", "asc"))
-  }, [db, eventId])
-  const { data: setores } = useCollection<any>(setoresQuery)
-
   const [selectedSector, setSelectedSector] = React.useState<any>(null)
-  const [selectedSeat, setSelectedSeat] = React.useState<any>(null)
-  const [selectedType, setSelectedType] = React.useState<'inteira' | 'meia'>('inteira')
+  const [selectedType, setSelectedType] = React.useState<string | null>(null)
   const [isReserving, setIsReserving] = React.useState(false)
 
-  // Lógica de Lote Ativo com Migração Automática
-  const saleStatus = React.useMemo(() => {
-    if (!event || !event.batches || event.batches.length === 0) return { active: false, message: "Indisponível", batch: null };
+  // Lógica de Lote Ativo com Migração Automática por Setor
+  const getSectorSaleStatus = (sector: any) => {
+    if (!sector || !sector.batches || sector.batches.length === 0) return { active: false, message: "Indisponível", batch: null };
     
     const now = new Date();
-    
-    // Processar migração de sobras e janelas
     let carryOver = 0;
-    const processedBatches = event.batches.map((b: any) => {
-      const start = b.salesStart ? new Date(b.salesStart) : null;
-      const end = b.salesEnd ? new Date(b.salesEnd) : null;
+    
+    const processedBatches = sector.batches.map((b: any) => {
+      const start = b.startDate ? new Date(b.startDate) : null;
+      const end = b.endDate ? new Date(b.endDate) : null;
       
       const isOpen = (!start || now >= start) && (!end || now <= end);
       const isPast = end && now > end;
       const isFuture = start && now < start;
 
-      const currentCap = b.initialCapacity + carryOver;
-      const sold = b.sold || 0;
+      const currentCap = b.capacidadeInicial + carryOver;
+      const sold = b.vendidos || 0;
       const remaining = currentCap - sold;
       
       if (isPast) carryOver = Math.max(0, remaining);
@@ -80,45 +74,28 @@ export default function EventoPublicoPage() {
     });
 
     const activeBatch = processedBatches.find((b: any) => b.isOpen && b.remaining > 0);
-
-    if (activeBatch) {
-      return { active: true, message: null, batch: activeBatch };
-    }
+    if (activeBatch) return { active: true, message: null, batch: activeBatch };
 
     const nextBatch = processedBatches.find((b: any) => b.isFuture);
-    if (nextBatch) {
-      return { active: false, message: `Abre em ${new Date(nextBatch.salesStart).toLocaleString('pt-BR')}`, batch: null };
-    }
+    if (nextBatch) return { active: false, message: `Abre em ${new Date(nextBatch.startDate).toLocaleString('pt-BR')}`, batch: null };
 
-    return { active: false, message: "Vendas encerradas", batch: null };
+    return { active: false, message: "Encerrado", batch: null };
+  };
+
+  const globalSaleStatus = React.useMemo(() => {
+    if (!event) return { active: false, message: "Indisponível", batch: null };
+    if (event.ticketMode === 'sector_batches') return { active: true, message: "Selecione um setor", isSectorMode: true };
+    
+    // Reutiliza lógica para modo batches global (sem setor)
+    const mockSector = { batches: event.batches || [] };
+    return getSectorSaleStatus(mockSector);
   }, [event]);
 
-  const handleSeatClick = async (seat: any, sector: any) => {
-    if (!user) { toast({ title: "Login necessário" }); router.push("/login"); return; }
-    if (!db || isReserving || seat.status !== 'disponivel') return;
-    if (!saleStatus.active) { toast({ variant: "destructive", title: "Bilheteria fechada" }); return; }
-
-    setIsReserving(true);
-    try {
-      await reserveSeat(db, eventId, sector.id, seat.id, user.uid);
-      setSelectedSector(sector);
-      setSelectedSeat(seat);
-      toast({ title: "Lugar reservado!", description: "Você tem 10 minutos para concluir." });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro", description: e.message });
-    } finally {
-      setIsReserving(false);
-    }
-  }
-
-  const handleAddToCart = () => {
-    if (!event || !saleStatus.batch) return;
+  const handleAddToCart = (type: any, batch: any, sector?: any) => {
+    if (!event) return;
     
-    const batch = saleStatus.batch;
-    const finalPrice = selectedType === 'inteira' ? batch.price : batch.price / 2;
-
     addItem({
-      id: `${event.id}_${batch.id}_${selectedSeat?.id || 'gen'}_${selectedType}`,
+      id: `${event.id}_${batch.id}_${type.id}_${sector?.id || 'gen'}`,
       eventId: event.id,
       eventTitle: event.title,
       eventImage: event.image || "",
@@ -127,19 +104,20 @@ export default function EventoPublicoPage() {
       organizationId: event.organizationId,
       organizerId: event.organizerId,
       organizerUsername: params.username as string,
-      ticketTypeId: selectedType,
-      ticketTypeName: selectedType === 'inteira' ? "Inteira" : "Meia-Entrada (40%)",
+      ticketTypeId: type.id,
+      ticketTypeName: type.name,
       batchId: batch.id,
       batchName: batch.name,
-      price: finalPrice,
+      price: type.price,
       quantity: 1,
-      requiresProof: selectedType === 'meia',
-      seatId: selectedSeat?.id,
-      sectorId: selectedSector?.id
+      requiresProof: type.requiresProof || false,
+      sectorId: sector?.id,
+      sectorName: sector?.name,
+      poolId: type.poolId,
+      poolName: type.poolName
     });
     
     toast({ title: "No carrinho!" });
-    setSelectedSeat(null);
   }
 
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>
@@ -171,102 +149,115 @@ export default function EventoPublicoPage() {
                 </div>
               </div>
 
-              {!saleStatus.active && (
-                <div className="p-6 bg-orange-50 border-2 border-dashed border-orange-200 rounded-[2rem] flex items-center gap-4 text-orange-800">
-                   <Lock className="w-8 h-8 opacity-40" />
-                   <div>
-                      <p className="font-black uppercase italic text-sm">Vendas Suspensas</p>
-                      <p className="text-xs font-bold opacity-60 uppercase">{saleStatus.message}</p>
+              {event.ticketMode === 'sector_batches' && (
+                <div className="space-y-6">
+                   <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-secondary" /> Escolha o Setor
+                   </h2>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {event.sectors?.map((sector: any) => {
+                        const status = getSectorSaleStatus(sector);
+                        return (
+                          <Card 
+                            key={sector.id} 
+                            className={cn(
+                              "border-none shadow-sm rounded-3xl cursor-pointer transition-all hover:scale-[1.02]",
+                              selectedSector?.id === sector.id ? "ring-4 ring-secondary/20 bg-secondary/5" : "bg-white"
+                            )}
+                            onClick={() => setSelectedSector(sector)}
+                          >
+                             <CardContent className="p-6 flex items-center justify-between">
+                                <div>
+                                   <p className="text-lg font-black uppercase italic">{sector.name}</p>
+                                   <p className="text-[10px] font-bold text-muted-foreground uppercase">{sector.capacity} lugares totais</p>
+                                </div>
+                                <div className="text-right">
+                                   {status.active ? (
+                                     <p className="text-[10px] font-black text-green-600 uppercase">Disponível</p>
+                                   ) : (
+                                     <p className="text-[10px] font-black text-orange-500 uppercase">{status.message}</p>
+                                   )}
+                                   <ChevronRight className="w-5 h-5 ml-auto opacity-20" />
+                                </div>
+                             </CardContent>
+                          </Card>
+                        )
+                      })}
                    </div>
                 </div>
               )}
 
-              {event.hasMap && setores ? (
-                <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
-                   <CardHeader className="bg-muted/30 border-b flex flex-row items-center justify-between">
-                      <CardTitle className="text-lg font-bold flex items-center gap-2"><MapIcon className="w-5 h-5 text-secondary" /> Planta Visual</CardTitle>
-                   </CardHeader>
-                   <CardContent className="p-10 bg-[#fafafa] relative overflow-auto min-h-[400px]">
-                      <div className="relative mx-auto w-full max-w-4xl h-[400px] border-2 border-dashed border-muted flex items-center justify-center">
-                        <div className="absolute top-10 bg-primary text-white p-4 rounded-xl font-black uppercase italic tracking-widest text-xs">PALCO</div>
-                        {setores.map((s: any) => (
-                           <div 
-                             key={s.id} 
-                             onClick={() => saleStatus.active && setSelectedSector(s)}
-                             className={cn(
-                               "absolute p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col items-center justify-center",
-                               selectedSector?.id === s.id ? "border-secondary bg-secondary/5 ring-4 ring-secondary/10" : "border-muted hover:border-secondary/20 bg-white"
-                             )}
-                             style={{ left: s.posX || 0, top: s.posY || 0, width: s.width || 120, height: s.height || 120 }}
-                           >
-                              <span className="text-[8px] font-black uppercase text-muted-foreground">{s.nome}</span>
-                              <Armchair className="w-6 h-6 text-secondary mt-1" />
-                           </div>
-                        ))}
-                      </div>
-                   </CardContent>
-                </Card>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   {saleStatus.batch && (
-                     <Card className="border-none shadow-sm rounded-3xl bg-white p-8 space-y-6">
-                        <div className="space-y-1">
-                           <Badge className="bg-secondary text-white uppercase text-[8px] font-black">{saleStatus.batch.name}</Badge>
-                           <h4 className="text-2xl font-black uppercase italic tracking-tighter">Escolha seu tipo</h4>
-                        </div>
-                        <div className="space-y-3">
-                           <button onClick={() => setSelectedType('inteira')} className={cn("w-full p-4 rounded-2xl border-2 transition-all flex justify-between items-center", selectedType === 'inteira' ? "border-secondary bg-secondary/5" : "border-muted")}>
-                              <span className="font-bold text-sm uppercase">Inteira</span>
-                              <span className="font-black text-primary">{formatCurrency(saleStatus.batch.price)}</span>
-                           </button>
-                           {event.autoHalfPrice && (
-                             <button onClick={() => setSelectedType('meia')} className={cn("w-full p-4 rounded-2xl border-2 transition-all flex justify-between items-center", selectedType === 'meia' ? "border-secondary bg-secondary/5" : "border-muted")}>
-                                <span className="font-bold text-sm uppercase">Meia-Entrada (40%)</span>
-                                <span className="font-black text-primary">{formatCurrency(saleStatus.batch.price / 2)}</span>
-                             </button>
-                           )}
-                        </div>
-                        <Button onClick={handleAddToCart} className="w-full h-14 bg-primary text-white font-black rounded-xl uppercase italic">Comprar Agora</Button>
-                     </Card>
-                   )}
+              {/* Detalhes do Setor Selecionado */}
+              {selectedSector && (
+                <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
+                   <Card className="border-none shadow-xl rounded-[2rem] bg-white overflow-hidden">
+                      <CardHeader className="bg-primary text-white flex flex-row items-center justify-between">
+                         <div>
+                            <CardTitle className="text-xl font-black uppercase italic">{selectedSector.name}</CardTitle>
+                            <CardDescription className="text-white/60 font-bold uppercase text-[10px]">Bilheteria do Setor</CardDescription>
+                         </div>
+                         <Button variant="ghost" size="icon" onClick={() => setSelectedSector(null)} className="text-white hover:bg-white/10"><X className="w-4 h-4" /></Button>
+                      </CardHeader>
+                      <CardContent className="p-8">
+                         {(() => {
+                           const status = getSectorSaleStatus(selectedSector);
+                           if (!status.active) return <div className="py-12 text-center text-muted-foreground font-bold italic">{status.message}</div>;
+                           
+                           return (
+                             <div className="space-y-6">
+                                <div className="flex justify-between items-center px-2">
+                                   <Badge variant="outline" className="text-[10px] font-black uppercase">{status.batch.name}</Badge>
+                                   <p className="text-[10px] font-bold text-muted-foreground uppercase">{status.batch.remaining} un. restantes</p>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                   {status.batch.ticketTypes.map((type: any) => (
+                                     <div key={type.id} className="p-5 rounded-2xl border-2 border-muted hover:border-secondary transition-all bg-white flex flex-col gap-4">
+                                        <div className="flex justify-between items-start">
+                                           <div className="space-y-1">
+                                              <p className="font-bold text-sm uppercase">{type.name}</p>
+                                              {type.poolName && <p className="text-[8px] font-black text-secondary uppercase flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> {type.poolName}</p>}
+                                           </div>
+                                           <p className="font-black text-primary">{formatCurrency(type.price)}</p>
+                                        </div>
+                                        <Button className="w-full rounded-xl font-black uppercase italic text-[10px] h-10" onClick={() => handleAddToCart(type, status.batch, selectedSector)}>Comprar</Button>
+                                     </div>
+                                   ))}
+                                </div>
+                             </div>
+                           )
+                         })()}
+                      </CardContent>
+                   </Card>
                 </div>
               )}
            </div>
 
            <div className="lg:col-span-4 space-y-6">
               <Card className="border-none shadow-xl rounded-[2.5rem] border-t-8 border-secondary overflow-hidden bg-white sticky top-24">
-                 <CardHeader><CardTitle className="text-xl font-black italic uppercase text-primary flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle></CardHeader>
+                 <CardHeader><CardTitle className="text-xl font-black italic uppercase text-primary flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria Geral</CardTitle></CardHeader>
                  <CardContent className="space-y-6">
-                    {saleStatus.batch ? (
+                    {globalSaleStatus.isSectorMode ? (
+                      <div className="py-10 text-center space-y-4">
+                         <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto"><MapIcon className="w-6 h-6 text-muted-foreground opacity-30" /></div>
+                         <p className="text-[10px] font-black text-muted-foreground uppercase leading-tight">Selecione um setor no mapa ou na lista ao lado para ver os preços.</p>
+                      </div>
+                    ) : globalSaleStatus.batch ? (
                       <div className="space-y-6 animate-in slide-in-from-right-4">
-                         <div className="p-5 bg-muted/30 rounded-2xl space-y-4">
-                            <div className="flex justify-between text-[10px] font-black uppercase opacity-40"><span>Fase Ativa</span><span className="text-secondary">{saleStatus.batch.name}</span></div>
-                            <div className="flex justify-between text-[10px] font-black uppercase opacity-40"><span>Disponível</span><span>{saleStatus.batch.remaining} un.</span></div>
-                            <Separator className="border-dashed" />
-                            <div className="space-y-4">
-                               <p className="text-[9px] font-black uppercase opacity-40">Selecione a Modalidade</p>
-                               <div className="grid grid-cols-1 gap-2">
-                                  <button onClick={() => setSelectedType('inteira')} className={cn("flex justify-between p-4 rounded-xl border-2 text-xs font-bold", selectedType === 'inteira' ? "border-secondary bg-secondary/5" : "border-muted")}>
-                                     <span>INTEIRA</span>
-                                     <span>{formatCurrency(saleStatus.batch.price)}</span>
-                                  </button>
-                                  {event.autoHalfPrice && (
-                                    <button onClick={() => setSelectedType('meia')} className={cn("flex justify-between p-4 rounded-xl border-2 text-xs font-bold", selectedType === 'meia' ? "border-secondary bg-secondary/5" : "border-muted")}>
-                                       <span>MEIA-ENTRADA</span>
-                                       <span>{formatCurrency(saleStatus.batch.price / 2)}</span>
-                                    </button>
-                                  )}
-                               </div>
-                            </div>
-                            <Separator className="border-dashed" />
-                            <div className="flex justify-between items-center">
-                               <span className="text-xs font-black uppercase italic">Total</span>
-                               <span className="text-2xl font-black text-primary">{formatCurrency(selectedType === 'inteira' ? saleStatus.batch.price : saleStatus.batch.price / 2)}</span>
+                         <div className="p-5 bg-muted/30 rounded-2xl space-y-6">
+                            <div className="flex justify-between text-[10px] font-black uppercase opacity-40"><span>Fase Ativa</span><span className="text-secondary">{globalSaleStatus.batch.name}</span></div>
+                            
+                            <div className="space-y-3">
+                               {globalSaleStatus.batch.ticketTypes.map((type: any) => (
+                                 <div key={type.id} className="flex justify-between items-center p-4 bg-white rounded-xl border shadow-sm">
+                                    <div className="space-y-0.5">
+                                       <p className="font-bold text-xs uppercase">{type.name}</p>
+                                       <p className="text-[10px] font-black text-primary">{formatCurrency(type.price)}</p>
+                                    </div>
+                                    <Button size="sm" variant="secondary" className="h-8 rounded-lg font-black uppercase text-[10px]" onClick={() => handleAddToCart(type, globalSaleStatus.batch)}>Comprar</Button>
+                                 </div>
+                               ))}
                             </div>
                          </div>
-                         <Button onClick={handleAddToCart} disabled={isReserving} className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform">
-                            {isReserving ? <Loader2 className="animate-spin" /> : "Adicionar ao Carrinho"}
-                         </Button>
                       </div>
                     ) : (
                       <div className="py-20 text-center opacity-30 italic uppercase text-[10px] font-black">Bilheteria Indisponível</div>

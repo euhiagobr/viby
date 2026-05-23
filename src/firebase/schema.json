@@ -1,4 +1,3 @@
-
 {
   "collections": {
     "users": {
@@ -39,11 +38,12 @@
         "organizationId": "string (ref:organizations)",
         "title": "string",
         "description": "string",
-        "ticketMode": "none | free | paid_single | batches",
+        "ticketMode": "none | free | paid_single | batches | sector_batches",
         "mapMode": "none | setores | assentos | mesas",
         "possuiMapa": "boolean",
         "capacidadeTotal": "number",
-        "batches": "array of objects { id, name, startDate, endDate, capacity, ticketTypes: [{ id, name, price, quantity, poolId }] }",
+        "batches": "array of objects { id, name, startDate, endDate, capacity, ticketTypes: [{ id, name, price, quantity, poolId, requiresProof }] }",
+        "sectors": "array of objects { id, name, capacity, batches: [...] }",
         "palcoNome": "string",
         "palcoPosX": "number",
         "palcoPosY": "number",
@@ -91,6 +91,7 @@
         "checkedIn": "boolean",
         "seatId": "string",
         "sectorId": "string",
+        "sectorName": "string",
         "batchId": "string",
         "ticketTypeId": "string"
       }

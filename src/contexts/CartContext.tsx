@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -22,6 +21,8 @@ export interface CartItem {
   price: number; // Base price
   quantity: number;
   requiresProof: boolean;
+  sectorId?: string;
+  sectorName?: string;
 }
 
 interface CartContextType {
