@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -77,19 +78,23 @@
   transition: stroke-dashoffset 1s linear;
 }
 
-/* Supressão agressiva de indicadores de desenvolvimento do Next.js e Turbopack */
+/* Supressão total de indicadores de desenvolvimento do Next.js, Turbopack e Portals */
 nextjs-portal,
 #nextjs-portal,
 #nextjs-dev-indicator,
 .__next-dev-indicator,
 [data-nextjs-toast-wrapper],
 [data-nextjs-portal],
-#nextjs-build-activity {
+#nextjs-build-activity,
+div[id^="__next-dev-indicator"],
+div[id^="nextjs-portal"] {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
   opacity: 0 !important;
   width: 0 !important;
   height: 0 !important;
-  z-index: -9999 !important;
+  z-index: -99999 !important;
+  position: absolute !important;
+  left: -9999px !important;
 }

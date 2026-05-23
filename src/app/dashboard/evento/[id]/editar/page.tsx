@@ -39,6 +39,7 @@ import {
   XCircle
 } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -403,7 +404,7 @@ export default function EditarEventoPage() {
             <CardHeader><CardTitle className="text-lg">Dados Gerais</CardTitle></CardHeader>
             <CardContent className="space-y-6">
                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2"><Label>Nome</Label><Input name="title" defaultValue={event.title} required className="rounded-xl" /></div>
+                  <div className="space-y-2"><Label>Nome</Label><Input name="title" defaultValue={event.title} required className="rounded-xl h-11" /></div>
                   <div className="space-y-2">
                     <Label>Categoria</Label>
                     <Select value={selectedCategory} onValueChange={setSelectedCategory}>
@@ -467,8 +468,8 @@ export default function EditarEventoPage() {
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label>
                   <div className="flex gap-2">
-                    <Input value={address.city || ""} readOnly className="rounded-xl bg-muted/30" />
-                    <Input value={address.state || ""} readOnly className="rounded-xl bg-muted/30 w-16" />
+                    <Input value={address.city || ""} readOnly className="rounded-xl h-11 bg-muted/30" />
+                    <Input value={address.state || ""} readOnly className="rounded-xl h-11 bg-muted/30 w-16" />
                   </div>
                 </div>
              </div>
