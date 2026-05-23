@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
@@ -26,21 +26,16 @@ import {
   Ticket, 
   ImageIcon,
   Save,
-  Map as MapIcon,
+  MapPin,
   X,
   Sparkles,
   Layers,
-  Clock,
-  Info,
-  CheckCircle2,
-  InfoIcon,
-  TicketPercent,
-  Settings2,
-  MapPin,
   Trash2,
   ArrowDown,
-  Coins,
-  Users2
+  Users2,
+  InfoIcon,
+  CheckCircle2,
+  AlertCircle
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -53,6 +48,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface TicketType {
   id: string
@@ -97,6 +93,9 @@ export default function NovoEventoPage() {
   const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches'>('free')
   
   const [globalCapacity, setGlobalCapacity] = useState<number>(500)
+  const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
+
+  // --- Lotes State ---
   const [batches, setBatches] = useState<Batch[]>([
     { 
       id: crypto.randomUUID(),
@@ -111,12 +110,17 @@ export default function NovoEventoPage() {
     }
   ])
 
-  // Valor Único
-  const [singleConfig, setSingleConfig] = useState({ name: "Ingresso Único", quantity: 100, price: 0, halfPrice: 0 })
-  const [priceInput, setPriceInput] = useState("")
-  const [halfPriceInput, setHalfPriceInput] = useState("")
+  // --- Valor Único State ---
+  const [singlePriceInput, setSinglePriceInput] = useState("")
+  const [singleHalfPriceInput, setSingleHalfPriceInput] = useState("")
+  const [hasHalfPriceSingle, setHasHalfPriceSingle] = useState(false)
+  const [singleHalfTypes, setSingleHalfTypes] = useState<string[]>(["Estudante", "PCD", "Idoso"])
+  const [singleSalesStart, setSingleSalesStart] = useState("")
+  const [singleSalesEnd, setSingleSalesEnd] = useState("")
 
-  const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
+  // --- Gratuito State ---
+  const [freeSalesStart, setFreeSalesStart] = useState("")
+  const [freeSalesEnd, setFreeSalesEnd] = useState("")
 
   const formatCurrency = (value: string) => {
     const numeric = value.replace(/\D/g, "");
@@ -127,11 +131,14 @@ export default function NovoEventoPage() {
     }).format(amount);
   }
 
-  const handlePriceInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const handlePriceMask = (value: string, setter: (v: string) => void) => {
     const numeric = value.replace(/\D/g, "");
-    setPriceInput(formatCurrency(numeric));
-    setSingleConfig({ ...singleConfig, price: Number(numeric) / 100 });
+    setter(formatCurrency(numeric));
+  }
+
+  const parseCurrencyToNumber = (value: string) => {
+    const numeric = value.replace(/\D/g, "");
+    return Number(numeric) / 100;
   }
 
   const handleBatchTicketPriceChange = (bi: number, ti: number, value: string) => {
@@ -150,8 +157,8 @@ export default function NovoEventoPage() {
     const storageRef = ref(storage, `events/${user.uid}/${Date.now()}_${file.name}`)
     const uploadTask = uploadBytesResumable(storageRef, file)
     uploadTask.on('state_changed', (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), () => setUploadProgress(null), async () => {
-      const url = await getDownloadURL(uploadTask.snapshot.ref)
-      setUploadedImageUrl(url); setUploadProgress(null)
+      const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+      setUploadedImageUrl(downloadURL); setUploadProgress(null)
     })
   }
 
@@ -173,6 +180,24 @@ export default function NovoEventoPage() {
     } catch (e) {}
   }
 
+  const generateHalfPriceTypes = (bi: number) => {
+    const n = [...batches];
+    const batch = n[bi];
+    const poolId = crypto.randomUUID();
+    const currentInteiraPrice = batch.ticketTypes.find(t => t.name === "Inteira")?.price || 100;
+    
+    const types: TicketType[] = [
+      { id: crypto.randomUUID(), name: "Inteira", price: currentInteiraPrice, quantity: batch.capacidadeInicial, poolId, poolName: "Estoque Lote", requiresProof: false, isLegalHalf: false, description: "" },
+      { id: crypto.randomUUID(), name: "Meia Estudante", price: currentInteiraPrice / 2, quantity: batch.capacidadeInicial, poolId, poolName: "Estoque Lote", requiresProof: true, isLegalHalf: true, description: "" },
+      { id: crypto.randomUUID(), name: "Meia PCD", price: currentInteiraPrice / 2, quantity: batch.capacidadeInicial, poolId, poolName: "Estoque Lote", requiresProof: true, isLegalHalf: true, description: "" },
+      { id: crypto.randomUUID(), name: "Meia Idoso", price: currentInteiraPrice / 2, quantity: batch.capacidadeInicial, poolId, poolName: "Estoque Lote", requiresProof: true, isLegalHalf: true, description: "" }
+    ];
+    
+    n[bi].ticketTypes = types;
+    setBatches(n);
+    toast({ title: "Categorias de meia geradas!" });
+  }
+
   const addBatch = () => {
     const newB: Batch = {
       id: crypto.randomUUID(),
@@ -186,22 +211,8 @@ export default function NovoEventoPage() {
     setBatches([...batches, newB])
   }
 
-  const generateHalfPriceTypes = (bi: number) => {
-    const n = [...batches];
-    const batch = n[bi];
-    const poolId = crypto.randomUUID();
-    const halfQty = Math.floor(batch.capacidadeInicial * 0.4);
-    
-    const types: TicketType[] = [
-      { id: crypto.randomUUID(), name: "Inteira", price: batch.ticketTypes[0].price, quantity: batch.capacidadeInicial, poolId, poolName: "Estoque Lote", requiresProof: false, isLegalHalf: false, description: "" },
-      { id: crypto.randomUUID(), name: "Meia Estudante", price: batch.ticketTypes[0].price / 2, quantity: halfQty, poolId, poolName: "Estoque Lote", requiresProof: true, isLegalHalf: true, description: "" },
-      { id: crypto.randomUUID(), name: "Meia PCD", price: batch.ticketTypes[0].price / 2, quantity: halfQty, poolId, poolName: "Estoque Lote", requiresProof: true, isLegalHalf: true, description: "" },
-      { id: crypto.randomUUID(), name: "Meia Idoso", price: batch.ticketTypes[0].price / 2, quantity: halfQty, poolId, poolName: "Estoque Lote", requiresProof: true, isLegalHalf: true, description: "" }
-    ];
-    
-    n[bi].ticketTypes = types;
-    setBatches(n);
-    toast({ title: "Categorias de meia geradas!" });
+  const removeBatch = (i: number) => {
+    if(batches.length > 1) setBatches(batches.filter((_, idx) => idx !== i))
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -219,19 +230,34 @@ export default function NovoEventoPage() {
         finalBatches = [{
           id: 'free',
           name: 'Ingresso Gratuito',
+          startDate: freeSalesStart,
+          endDate: freeSalesEnd,
           price: 0,
           initialCapacity: globalCapacity,
           currentCapacity: globalCapacity,
           ticketTypes: [{ id: 'free_type', name: 'Gratuito', price: 0, quantity: globalCapacity, requiresProof: false, isLegalHalf: false, description: '' }]
         }]
       } else if (ticketMode === 'paid_single') {
+        const poolId = crypto.randomUUID();
+        const mainPrice = parseCurrencyToNumber(singlePriceInput);
+        const types = [{ id: crypto.randomUUID(), name: 'Inteira', price: mainPrice, quantity: globalCapacity, poolId, poolName: 'Lote Único', requiresProof: false, isLegalHalf: false, description: '' }];
+        
+        if (hasHalfPriceSingle) {
+          const hp = parseCurrencyToNumber(singleHalfPriceInput);
+          singleHalfTypes.forEach(t => {
+            types.push({ id: crypto.randomUUID(), name: `Meia ${t}`, price: hp, quantity: globalCapacity, poolId, poolName: 'Lote Único', requiresProof: true, isLegalHalf: true, description: '' });
+          });
+        }
+
         finalBatches = [{
           id: 'single',
           name: 'Valor Único',
-          price: singleConfig.price,
-          initialCapacity: singleConfig.quantity,
-          currentCapacity: singleConfig.quantity,
-          ticketTypes: [{ id: 'single_type', name: 'Inteira', price: singleConfig.price, quantity: singleConfig.quantity, requiresProof: false, isLegalHalf: false, description: '' }]
+          startDate: singleSalesStart,
+          endDate: singleSalesEnd,
+          price: mainPrice,
+          initialCapacity: globalCapacity,
+          currentCapacity: globalCapacity,
+          ticketTypes: types
         }]
       } else if (ticketMode === 'batches') {
         finalBatches = batches.map(b => ({
@@ -240,6 +266,7 @@ export default function NovoEventoPage() {
           restantes: b.capacidadeInicial,
           vendidos: 0
         }))
+        totalCapacity = batches.reduce((acc, b) => acc + (b.capacidadeInicial || 0), 0)
       }
 
       const eventData = {
@@ -251,7 +278,7 @@ export default function NovoEventoPage() {
         categoryName: cat?.name || "Outros",
         ticketMode,
         capacidadeTotal: totalCapacity,
-        batches: finalBatches,
+        batches: ticketMode === 'none' ? [] : finalBatches,
         address,
         image: uploadedImageUrl || "",
         organizationId: currentOrg.id,
@@ -315,8 +342,8 @@ export default function NovoEventoPage() {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input name="startDate" type="datetime-local" required className="rounded-xl h-11" /></div>
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fim</Label><Input name="endDate" type="datetime-local" required className="rounded-xl h-11" /></div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início do Evento</Label><Input name="startDate" type="datetime-local" required className="rounded-xl h-11" /></div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Término do Evento</Label><Input name="endDate" type="datetime-local" required className="rounded-xl h-11" /></div>
             </div>
             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Descrição</Label><Textarea name="description" className="min-h-[120px] rounded-xl" required /></div>
           </CardContent>
@@ -336,12 +363,12 @@ export default function NovoEventoPage() {
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Número</Label><Input value={address.number} onChange={e => setAddress({...address, number: e.target.value})} required className="rounded-xl h-11" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} required className="rounded-xl h-11" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">UF</Label><Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">UF</Label><Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30 w-16" /></div>
              </div>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
+        <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1"><CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle></div>
@@ -357,30 +384,88 @@ export default function NovoEventoPage() {
           <CardContent className="p-8 space-y-8">
             {ticketMode === 'none' && (
               <div className="py-12 text-center space-y-4">
-                <InfoIcon className="w-12 h-12 text-muted-foreground mx-auto opacity-20" />
+                <InfoIcon className="w-12 h-12 mx-auto text-muted-foreground opacity-20" />
                 <h3 className="text-lg font-black uppercase italic">Evento Informativo</h3>
-                <p className="text-sm text-muted-foreground">Esse evento não terá controle de entrada.</p>
+                <p className="text-sm text-muted-foreground font-bold">Esse evento não terá controle de entrada.</p>
               </div>
             )}
 
-            {(ticketMode === 'free' || ticketMode === 'paid_single' || ticketMode === 'batches') && (
-               <div className="space-y-4 pb-6 border-b border-dashed">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-secondary">Capacidade Total do Local</Label>
-                  <div className="flex items-center gap-4">
-                     <Users2 className="w-8 h-8 text-muted-foreground opacity-20" />
-                     <Input 
-                        type="number" 
-                        value={globalCapacity} 
-                        onChange={e => setGlobalCapacity(Number(e.target.value))}
-                        className="h-14 text-2xl font-black rounded-2xl w-32 text-center border-secondary/20"
-                     />
-                     <p className="text-xs text-muted-foreground font-medium">O total de ingressos em todos os lotes não ultrapassará este limite.</p>
+            {ticketMode === 'free' && (
+               <div className="space-y-8 animate-in fade-in duration-500">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Início das Vendas</Label><Input type="datetime-local" value={freeSalesStart} onChange={e => setFreeSalesStart(e.target.value)} required className="rounded-xl h-11" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Fim das Vendas</Label><Input type="datetime-local" value={freeSalesEnd} onChange={e => setFreeSalesEnd(e.target.value)} required className="rounded-xl h-11" /></div>
+                  </div>
+                  <div className="p-6 bg-muted/20 rounded-[1.5rem] border-2 border-dashed flex flex-col items-center gap-3">
+                     <Label className="text-[10px] font-black uppercase tracking-widest text-secondary">Quantidade de Ingressos</Label>
+                     <Input type="number" value={globalCapacity} onChange={e => setGlobalCapacity(Number(e.target.value))} className="h-14 text-2xl font-black rounded-2xl w-32 text-center border-secondary/20" />
+                  </div>
+               </div>
+            )}
+
+            {ticketMode === 'paid_single' && (
+               <div className="space-y-8 animate-in fade-in duration-500">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-dashed">
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Início das Vendas</Label><Input type="datetime-local" value={singleSalesStart} onChange={e => setSingleSalesStart(e.target.value)} required className="rounded-xl h-11" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-40">Fim das Vendas</Label><Input type="datetime-local" value={singleSalesEnd} onChange={e => setSingleSalesEnd(e.target.value)} required className="rounded-xl h-11" /></div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <div className="space-y-4">
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Valor do Ingresso (Inteira)</Label>
+                        <div className="relative">
+                           <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-secondary">R$</span>
+                           <Input value={singlePriceInput} onChange={e => handlePriceMask(e.target.value, setSinglePriceInput)} placeholder="R$ 0,00" className="h-14 text-2xl font-black rounded-2xl pl-12 border-secondary/20" />
+                        </div>
+                     </div>
+                     <div className="space-y-4">
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Capacidade Total</Label>
+                        <Input type="number" value={globalCapacity} onChange={e => setGlobalCapacity(Number(e.target.value))} className="h-14 text-2xl font-black rounded-2xl border-secondary/20" />
+                     </div>
+                  </div>
+
+                  <div className="p-6 bg-secondary/5 rounded-3xl border-2 border-dashed border-secondary/20 space-y-6">
+                     <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                           <Sparkles className="w-5 h-5 text-secondary" />
+                           <Label className="font-bold text-sm">Habilitar Meia-Entrada Automática</Label>
+                        </div>
+                        <Switch checked={hasHalfPriceSingle} onCheckedChange={setHasHalfPriceSingle} />
+                     </div>
+
+                     {hasHalfPriceSingle && (
+                        <div className="space-y-6 animate-in slide-in-from-top-2">
+                           <div className="space-y-2">
+                              <Label className="text-[10px] font-black uppercase opacity-40">Valor da Meia-Entrada</Label>
+                              <div className="relative max-w-[200px]">
+                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-primary">R$</span>
+                                 <Input value={singleHalfPriceInput} onChange={e => handlePriceMask(e.target.value, setSingleHalfPriceInput)} className="h-10 pl-10 rounded-xl font-bold" />
+                              </div>
+                           </div>
+                           <div className="space-y-3">
+                              <Label className="text-[10px] font-black uppercase opacity-40">Categorias Disponíveis</Label>
+                              <div className="flex flex-wrap gap-4">
+                                 {["Estudante", "PCD", "Idoso", "Professor", "Meia Social"].map(t => (
+                                    <div key={t} className="flex items-center gap-2">
+                                       <Checkbox checked={singleHalfTypes.includes(t)} onCheckedChange={(c) => c ? setSingleHalfTypes([...singleHalfTypes, t]) : setSingleHalfTypes(singleHalfTypes.filter(x => x !== t))} />
+                                       <span className="text-xs font-medium">{t}</span>
+                                    </div>
+                                 ))}
+                              </div>
+                           </div>
+                        </div>
+                     )}
                   </div>
                </div>
             )}
 
             {ticketMode === 'batches' && (
               <div className="space-y-10 animate-in fade-in duration-500">
+                <div className="p-6 bg-primary/5 rounded-[2rem] border-2 border-dashed border-primary/10 flex flex-col items-center gap-3">
+                   <Label className="text-[10px] font-black uppercase tracking-widest text-primary">Capacidade Total do Local (Todos os Lotes)</Label>
+                   <Input type="number" value={globalCapacity} onChange={e => setGlobalCapacity(Number(e.target.value))} className="h-14 text-2xl font-black rounded-2xl w-32 text-center border-primary/20" />
+                </div>
+
                 {batches.map((batch, bi) => (
                   <div key={batch.id} className="p-6 rounded-[2rem] border-2 bg-muted/10 space-y-6 relative">
                      <div className="flex justify-between items-center">
@@ -392,17 +477,17 @@ export default function NovoEventoPage() {
                            <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => generateHalfPriceTypes(bi)}>
                               <Sparkles className="w-3 h-3" /> Gerar Categorias de Meia
                            </Button>
-                           <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)} disabled={batches.length === 1}><X className="w-4 h-4" /></Button>
+                           <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)} disabled={batches.length === 1}><Trash2 className="w-4 h-4" /></Button>
                         </div>
                      </div>
 
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-60">Vigência Início</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="h-10 text-xs rounded-xl" /></div>
-                        <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-60">Vigência Fim</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="h-10 text-xs rounded-xl" /></div>
+                        <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-60">Vigência Início</Label><Input type="datetime-local" value={batch.startDate} onChange={e => { const n = [...batches]; n[bi].startDate = e.target.value; setBatches(n); }} className="h-10 text-xs rounded-xl" /></div>
+                        <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-60">Vigência Fim</Label><Input type="datetime-local" value={batch.endDate} onChange={e => { const n = [...batches]; n[bi].endDate = e.target.value; setBatches(n); }} className="h-10 text-xs rounded-xl" /></div>
                      </div>
 
                      <div className="space-y-4">
-                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Categorias e Valores</Label>
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Carga e Valores Individuais</Label>
                         {batch.ticketTypes.map((t, ti) => (
                            <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm grid grid-cols-12 gap-4 items-end">
                               <div className="col-span-6 space-y-2">
@@ -426,7 +511,6 @@ export default function NovoEventoPage() {
                            <Plus className="w-3 h-3" /> Adicionar Categoria
                         </Button>
                      </div>
-                     {bi < batches.length - 1 && <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 z-10 bg-secondary text-white p-1 rounded-full shadow-lg"><ArrowDown className="w-4 h-4" /></div>}
                   </div>
                 ))}
                 <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>
