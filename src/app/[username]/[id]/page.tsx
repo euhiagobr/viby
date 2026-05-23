@@ -13,6 +13,12 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { 
   Calendar, 
   MapPin, 
   Share2, 
@@ -118,6 +124,10 @@ export default function EventoDetalhesPage() {
   
   const eventId = params.id as string
   const usernameFromUrl = params.username as string
+
+  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
+  const { data: profile } = useDoc<any>(userDocRef)
+  const isAdmin = profile?.role === 'admin'
 
   const eventRef = React.useMemo(() => db ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
@@ -345,7 +355,7 @@ export default function EventoDetalhesPage() {
                       <div className="w-full h-12 bg-primary rounded-xl flex items-center justify-center text-white font-black italic uppercase tracking-[0.4em] shadow-lg">{event.palcoNome || "PALCO"}</div>
                       
                       <div className="space-y-12">
-                         {setores.map((setor) => (
+                         {setores.map((setor: any) => (
                            <div key={setor.id} className="space-y-6">
                               <div className="flex justify-between items-center border-b pb-2">
                                  <h4 className="font-black uppercase italic text-primary">{setor.nome}</h4>

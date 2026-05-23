@@ -28,6 +28,48 @@
       },
       "required": ["uid", "username", "email", "plan"]
     },
+    "Event": {
+      "title": "Evento",
+      "description": "Dados principais de um evento",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "possuiMapa": { "type": "boolean" },
+        "palcoNome": { "type": "string" },
+        "organizationId": { "type": "string" }
+      }
+    },
+    "Sector": {
+      "title": "Setor do Mapa",
+      "description": "Configuração de um setor no mapa de ingressos",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string" },
+        "tipo": { "type": "string", "enum": ["livre", "assentos", "mesas"] },
+        "preco": { "type": "number" },
+        "capacidade": { "type": "number" },
+        "cor": { "type": "string" },
+        "fileiras": { "type": "number" },
+        "assentosPorFileira": { "type": "number" },
+        "quantidadeMesas": { "type": "number" },
+        "lugaresPorMesa": { "type": "number" },
+        "formatoMesa": { "type": "string", "enum": ["circular", "quadrada"] }
+      }
+    },
+    "Seat": {
+      "title": "Assento/Lugar",
+      "description": "Unidade individual de lugar marcado",
+      "type": "object",
+      "properties": {
+        "codigo": { "type": "string" },
+        "status": { "type": "string", "enum": ["disponivel", "reservado", "vendido", "bloqueado"] },
+        "reservadoPor": { "type": "string" },
+        "reservadoAte": { "type": "string", "format": "date-time" }
+      }
+    },
     "UserGamification": {
       "title": "Gamificação do Usuário",
       "description": "Dados de progresso, XP e nível",
@@ -68,6 +110,18 @@
       "schema": "User",
       "description": "Identidade pessoal e configurações"
     },
+    "/events/{eventId}": {
+      "schema": "Event",
+      "description": "Publicações de eventos"
+    },
+    "/events/{eventId}/setores/{sectorId}": {
+      "schema": "Sector",
+      "description": "Setores do mapa de um evento"
+    },
+    "/events/{eventId}/setores/{sectorId}/assentos/{seatId}": {
+      "schema": "Seat",
+      "description": "Lugares individuais de um setor"
+    },
     "/user_gamification/{userId}": {
       "schema": "UserGamification",
       "description": "Progresso de gamificação por usuário"
@@ -97,15 +151,15 @@
       "description": "Histórico detalhado de ganhos de XP"
     },
     "/tax_ads/{taxId}": {
-      "schema": "TaxAd",
+      "schema": "object",
       "description": "Registros de impostos de anúncios"
     },
     "/tax_tickets/{taxId}": {
-      "schema": "TaxTicket",
+      "schema": "object",
       "description": "Registros de impostos de ingressos"
     },
     "/payout_requests/{requestId}": {
-      "schema": "PayoutRequest",
+      "schema": "object",
       "description": "Solicitações de saque das organizações"
     }
   }

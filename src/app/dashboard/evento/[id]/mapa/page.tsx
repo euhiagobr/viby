@@ -19,7 +19,8 @@ import {
   Save,
   Palmtree,
   Square,
-  Circle
+  Circle,
+  Info
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -137,10 +138,10 @@ export default function EventoMapaPage() {
     <div className="max-w-6xl mx-auto space-y-8 pb-20">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild><Link href="/dashboard/projetos"><ArrowLeft className="w-5 h-5" /></Link></Button>
+          <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
           <div>
             <h1 className="text-3xl font-black italic tracking-tighter text-primary uppercase">Mapa de Ingressos</h1>
-            <p className="text-muted-foreground font-medium">{event.title}</p>
+            <p className="text-muted-foreground font-medium">{event?.title}</p>
           </div>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -209,7 +210,7 @@ export default function EventoMapaPage() {
             <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
                <CardHeader className="bg-muted/30 border-b"><CardTitle className="text-sm font-black uppercase tracking-widest text-primary">Configuração Global</CardTitle></CardHeader>
                <CardContent className="p-6 space-y-6">
-                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Palco / Foco</Label><Input value={event.palcoNome || ""} onChange={e => updateDoc(eventRef!, { palcoNome: e.target.value })} placeholder="Ex: Palco Principal" className="rounded-xl" /></div>
+                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Palco / Foco</Label><Input value={event?.palcoNome || ""} onChange={e => updateDoc(eventRef!, { palcoNome: e.target.value })} placeholder="Ex: Palco Principal" className="rounded-xl" /></div>
                   <div className="p-4 bg-muted/20 rounded-2xl border-2 border-dashed border-border flex gap-3"><Info className="w-5 h-5 text-secondary shrink-0" /><p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">O palco serve como orientação visual para os usuários no topo do mapa.</p></div>
                </CardContent>
             </Card>
@@ -242,7 +243,7 @@ export default function EventoMapaPage() {
          <div className="md:col-span-8 space-y-6">
             <Card className="border-none shadow-xl rounded-[2.5rem] bg-white min-h-[600px] flex flex-col overflow-hidden">
                <CardHeader className="bg-muted/30 border-b py-8">
-                  <div className="w-full h-12 bg-primary rounded-xl flex items-center justify-center text-white font-black italic uppercase tracking-[0.3em] shadow-lg mb-4">{event.palcoNome || "PALCO"}</div>
+                  <div className="w-full h-12 bg-primary rounded-xl flex items-center justify-center text-white font-black italic uppercase tracking-[0.3em] shadow-lg mb-4">{event?.palcoNome || "PALCO"}</div>
                   <p className="text-center text-[10px] font-black uppercase opacity-30 tracking-widest">Vista Superior do Mapa</p>
                </CardHeader>
                <CardContent className="p-10 flex-1 flex flex-col items-center justify-center gap-12">
