@@ -33,7 +33,10 @@ import {
   Move,
   GripHorizontal,
   Ticket,
-  Layers
+  Layers,
+  ZoomIn,
+  ZoomOut,
+  Maximize
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -66,6 +69,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
 import Link from "next/link"
@@ -74,7 +83,6 @@ import { generateMapData } from "@/lib/ticketing-service"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Rnd } from "react-rnd"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export default function EventoMapaPage() {
   const params = useParams()
@@ -109,13 +117,11 @@ export default function EventoMapaPage() {
     }
   }, [event?.palcoNome])
 
-  // Obtém nomes únicos de ingressos (ex: Plateia Baixa, VIP, Pista) para vincular ao setor
   const uniqueTicketNames = React.useMemo(() => {
     if (!event?.batches) return []
     const names = new Set<string>()
     event.batches.forEach((b: any) => {
       b.ticketTypes.forEach((t: any) => {
-        // Filtramos apenas os nomes base (sem variações de meia entrada se possível, ou listamos tudo)
         names.add(t.name)
       })
     })
@@ -129,7 +135,6 @@ export default function EventoMapaPage() {
     setIsSubmitting(true)
     const formData = new FormData(e.currentTarget)
     
-    // Se estiver vinculado, pegamos os dados do primeiro exemplar desse ingresso encontrado nos lotes
     let precoBase = parseFloat(formData.get("preco") as string) || 0
     let capacidadeBase = parseInt(formData.get("capacidade") as string) || 0
 
@@ -179,7 +184,7 @@ export default function EventoMapaPage() {
       if (!event.possuiMapa) {
         await updateDoc(eventRef!, { possuiMapa: true, mapaConfigurado: true, ticketMode: 'map' })
       }
-      toast({ title: "Setor criado!", description: `${sectorData.nome} adicionado ao mapa.` })
+      toast({ title: "Setor criado!" })
       setIsDialogOpen(false)
       setLinkedTicketName("none")
     } catch (error: any) {
@@ -217,7 +222,7 @@ export default function EventoMapaPage() {
         mapaConfigurado: true,
         updatedAt: serverTimestamp() 
       })
-      toast({ title: "Mapa salvo com sucesso!" })
+      toast({ title: "Mapa salvo!" })
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao salvar" })
     } finally {
@@ -227,28 +232,24 @@ export default function EventoMapaPage() {
 
   const updateVisualLayout = async (sectorId: string, d: any) => {
     if (!db || !eventId) return
-    try {
-      await updateDoc(doc(db, "events", eventId, "setores", sectorId), {
-        posX: d.x,
-        posY: d.y,
-        width: d.width,
-        height: d.height,
-        updatedAt: serverTimestamp()
-      })
-    } catch (e) {}
+    updateDoc(doc(db, "events", eventId, "setores", sectorId), {
+      posX: d.x,
+      posY: d.y,
+      width: d.width,
+      height: d.height,
+      updatedAt: serverTimestamp()
+    })
   }
 
   const updatePalcoLayout = async (d: any) => {
     if (!db || !eventRef) return
-    try {
-      await updateDoc(eventRef, {
-        palcoPosX: d.x,
-        palcoPosY: d.y,
-        palcoWidth: d.width,
-        palcoHeight: d.height,
-        updatedAt: serverTimestamp()
-      })
-    } catch (e) {}
+    updateDoc(eventRef, {
+      palcoPosX: d.x,
+      palcoPosY: d.y,
+      palcoWidth: d.width,
+      palcoHeight: d.height,
+      updatedAt: serverTimestamp()
+    })
   }
 
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
@@ -259,24 +260,24 @@ export default function EventoMapaPage() {
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild><Link href={`/dashboard/evento/${eventId}/editar`}><ArrowLeft className="w-5 h-5" /></Link></Button>
           <div>
-            <h1 className="text-3xl font-black italic tracking-tighter text-primary uppercase">Editor de Planta Visual</h1>
+            <h1 className="text-3xl font-black italic tracking-tighter text-primary uppercase">Planta Visual do Evento</h1>
             <p className="text-muted-foreground font-medium">{event?.title}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
            <div className="bg-muted p-1 rounded-xl flex">
-              <Button variant={editMode === 'visual' ? 'secondary' : 'ghost'} size="sm" onClick={() => setEditMode('visual')} className="rounded-lg text-[10px] font-black uppercase">Editor Visual</Button>
-              <Button variant={editMode === 'list' ? 'secondary' : 'ghost'} size="sm" onClick={() => setEditMode('list')} className="rounded-lg text-[10px] font-black uppercase">Configurações</Button>
+              <Button variant={editMode === 'visual' ? 'secondary' : 'ghost'} size="sm" onClick={() => setEditMode('visual')} className="rounded-lg text-[10px] font-black uppercase">Visual</Button>
+              <Button variant={editMode === 'list' ? 'secondary' : 'ghost'} size="sm" onClick={() => setEditMode('list')} className="rounded-lg text-[10px] font-black uppercase">Config</Button>
            </div>
            
            <Button onClick={handleGlobalSave} disabled={isSubmitting} className="bg-primary text-white font-black rounded-xl h-11 px-6 shadow-lg gap-2 uppercase italic">
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Salvar Mapa
+              Salvar Planta
            </Button>
 
            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="rounded-xl font-bold gap-2 bg-secondary text-white shadow-lg h-11 px-6">
+                <Button className="rounded-xl font-bold gap-2 bg-secondary text-white shadow-lg h-11 px-6 uppercase italic">
                   <Plus className="w-4 h-4" /> Novo Setor
                 </Button>
               </DialogTrigger>
@@ -284,7 +285,7 @@ export default function EventoMapaPage() {
                 <form onSubmit={handleCreateSector} className="space-y-6">
                   <DialogHeader>
                     <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Novo Setor</DialogTitle>
-                    <DialogDescription>Configure um novo bloco de assentos ou área livre.</DialogDescription>
+                    <DialogDescription>Posicione áreas de venda no seu mapa visual.</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
                     <div className="grid grid-cols-3 gap-2">
@@ -294,41 +295,33 @@ export default function EventoMapaPage() {
                     </div>
 
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Ticket className="w-3 h-3" /> Vincular a Categoria de Lote</Label>
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Ticket className="w-3 h-3" /> Vincular Carga Lote</Label>
                        <Select value={linkedTicketName} onValueChange={setLinkedTicketName}>
-                          <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecione um ingresso" /></SelectTrigger>
+                          <SelectTrigger className="rounded-xl"><SelectValue placeholder="Escolha um ingresso" /></SelectTrigger>
                           <SelectContent className="rounded-xl">
-                             <SelectItem value="none" className="text-xs font-bold">Sem vínculo (Preço Manual)</SelectItem>
+                             <SelectItem value="none" className="text-xs font-bold">Preço Manual (Sem Vínculo)</SelectItem>
                              {uniqueTicketNames.map(name => (
-                               <SelectItem key={name} value={name} className="text-xs font-bold uppercase">
-                                  {name}
-                                </SelectItem>
+                               <SelectItem key={name} value={name} className="text-xs font-bold uppercase">{name}</SelectItem>
                              ))}
                           </SelectContent>
                        </Select>
                     </div>
 
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Setor</Label><Input name="nome" placeholder="Ex: Pista Premium" required className="rounded-xl" defaultValue={linkedTicketName !== 'none' ? linkedTicketName : ""} /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome Exibição</Label><Input name="nome" placeholder="Pista, VIP, etc" required className="rounded-xl" defaultValue={linkedTicketName !== 'none' ? linkedTicketName : ""} /></div>
                     <div className="grid grid-cols-2 gap-4">
-                       <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Preço Base (R$)</Label><Input name="preco" type="number" step="0.01" required disabled={linkedTicketName !== 'none'} className={cn("rounded-xl", linkedTicketName !== 'none' && "bg-muted/50")} /></div>
-                       {selectedType === 'livre' && <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Capacidade</Label><Input name="capacidade" type="number" required disabled={linkedTicketName !== 'none'} className={cn("rounded-xl", linkedTicketName !== 'none' && "bg-muted/50")} /></div>}
+                       <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">R$ Base</Label><Input name="preco" type="number" step="0.01" required disabled={linkedTicketName !== 'none'} className={cn("rounded-xl", linkedTicketName !== 'none' && "bg-muted/50")} /></div>
+                       {selectedType === 'livre' && <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Vagas</Label><Input name="capacidade" type="number" required disabled={linkedTicketName !== 'none'} className={cn("rounded-xl", linkedTicketName !== 'none' && "bg-muted/50")} /></div>}
                     </div>
                     {selectedType === 'assentos' && (
-                      <div className="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
+                      <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fileiras</Label><Input name="fileiras" type="number" required className="rounded-xl" /></div>
                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Assentos/Fila</Label><Input name="assentosPorFileira" type="number" required className="rounded-xl" /></div>
                       </div>
                     )}
-                    {selectedType === 'mesas' && (
-                      <div className="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
-                        <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Qtd. Mesas</Label><Input name="quantidadeMesas" type="number" required className="rounded-xl" /></div>
-                        <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Lugares/Mesa</Label><Input name="lugaresPorMesa" type="number" required className="rounded-xl" /></div>
-                      </div>
-                    )}
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cor Visual</Label><Input name="cor" type="color" defaultValue="#2C52EE" className="h-10 p-1 rounded-xl" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cor Planta</Label><Input name="cor" type="color" defaultValue="#2C52EE" className="h-10 p-1 rounded-xl" /></div>
                   </div>
                   <DialogFooter>
-                    <Button type="submit" disabled={isSubmitting} className="w-full bg-secondary text-white font-black h-14 rounded-2xl uppercase italic shadow-xl">{isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Criar Setor"}</Button>
+                    <Button type="submit" disabled={isSubmitting} className="w-full bg-secondary text-white font-black h-14 rounded-2xl uppercase italic shadow-xl">Criar Setor</Button>
                   </DialogFooter>
                 </form>
               </DialogContent>
@@ -364,7 +357,7 @@ export default function EventoMapaPage() {
                           onChange={e => setPalcoNome(e.target.value.toUpperCase())} 
                           className="bg-transparent border-none text-center font-black italic uppercase tracking-[0.5em] text-xl focus-visible:ring-0 p-0 h-auto w-full min-w-[200px]" 
                         />
-                        <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Arraste para posicionar o palco</p>
+                        <p className="text-[10px] font-black uppercase opacity-40">Arraste para posicionar o palco</p>
                      </div>
                   </div>
                 </Rnd>
@@ -387,11 +380,7 @@ export default function EventoMapaPage() {
                         "w-full h-full flex flex-col items-center justify-center shadow-lg border-2 transition-all group select-none relative",
                         s.formatoVisual === 'circulo' ? "rounded-full" : "rounded-3xl"
                       )}
-                      style={{ 
-                        backgroundColor: `${s.cor}20`, 
-                        borderColor: s.cor,
-                        color: s.cor
-                      }}
+                      style={{ backgroundColor: `${s.cor}20`, borderColor: s.cor, color: s.cor }}
                     >
                        <div className="sector-handle absolute inset-0 cursor-move" />
                        <div className="relative z-10 text-center p-4">
@@ -427,13 +416,13 @@ export default function EventoMapaPage() {
                         <TooltipTrigger asChild>
                            <Button variant="secondary" size="icon" className="rounded-xl"><Move className="w-4 h-4" /></Button>
                         </TooltipTrigger>
-                        <TooltipContent side="right">Arraste para mover</TooltipContent>
+                        <TooltipContent side="right">Mover Elementos</TooltipContent>
                     </Tooltip>
                     <Tooltip>
                         <TooltipTrigger asChild>
                            <Button variant="ghost" size="icon" className="rounded-xl"><Maximize2 className="w-4 h-4" /></Button>
                         </TooltipTrigger>
-                        <TooltipContent side="right">Redimensione pelos cantos</TooltipContent>
+                        <TooltipContent side="right">Redimensionar Cantos</TooltipContent>
                     </Tooltip>
                  </div>
               </Card>
@@ -451,11 +440,11 @@ export default function EventoMapaPage() {
                          </div>
                          <div>
                             <h4 className="text-lg font-black uppercase italic tracking-tighter text-primary">{s.nome}</h4>
-                            <p className="text-xs font-bold text-muted-foreground uppercase">{s.tipo} • {s.capacidade} Lugares • {s.preco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
-                            {s.linkedTicketName && <Badge variant="outline" className="text-[8px] uppercase mt-1 border-secondary text-secondary">Vínculo Dinâmico: {s.linkedTicketName}</Badge>}
+                            <p className="text-xs font-bold text-muted-foreground uppercase">{s.tipo} • {s.capacidade} Lugares</p>
+                            {s.linkedTicketName && <Badge variant="outline" className="text-[8px] uppercase mt-1 border-secondary text-secondary">Lotes: {s.linkedTicketName}</Badge>}
                          </div>
                       </div>
-                      <Button variant="ghost" size="icon" className="text-destructive h-10 w-10 rounded-full hover:bg-destructive/5" onClick={() => setSectorToDelete(s)}>
+                      <Button variant="ghost" size="icon" className="text-destructive h-10 w-10 rounded-full" onClick={() => setSectorToDelete(s)}>
                          <Trash2 className="w-5 h-5" />
                       </Button>
                    </CardContent>
@@ -470,26 +459,16 @@ export default function EventoMapaPage() {
         <AlertDialogContent className="rounded-[2rem]">
           <AlertDialogHeader>
             <div className="flex items-center gap-3 mb-2">
-               <div className="p-3 bg-destructive/10 rounded-2xl text-destructive">
-                  <Trash2 className="w-6 h-6" />
-               </div>
+               <div className="p-3 bg-destructive/10 rounded-2xl text-destructive"><Trash2 className="w-6 h-6" /></div>
                <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Remover Setor?</AlertDialogTitle>
             </div>
             <AlertDialogDescription className="font-medium text-foreground/80 leading-relaxed">
-              Você está prestes a excluir o setor <strong>{sectorToDelete?.nome}</strong>. 
-              Esta ação removerá permanentemente todos os assentos e configurações vinculadas a esta área do mapa.
+              Você está prestes a excluir o setor <strong>{sectorToDelete?.nome}</strong>. Esta ação removerá permanentemente os assentos vinculados.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-3 mt-4">
-            <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px] tracking-widest border-none bg-muted hover:bg-muted/80">Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDeleteSector}
-              disabled={isSubmitting}
-              className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-destructive/20 h-11 px-8"
-            >
-              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
-              Sim, Excluir Setor
-            </AlertDialogAction>
+            <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSector} disabled={isSubmitting} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] h-11 px-8">Confirmar Exclusão</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

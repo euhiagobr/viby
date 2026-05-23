@@ -37,7 +37,8 @@ import {
   CheckCircle2,
   Camera,
   XCircle,
-  Map as MapIcon
+  Map as MapIcon,
+  Zap
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -71,6 +72,7 @@ interface Batch {
   description: string
   startDate: string
   endDate: string
+  capacity?: number
   ticketTypes: TicketType[]
 }
 
@@ -145,21 +147,22 @@ export default function EditarEventoPage() {
     const meiaQuantity = Math.floor(total * 0.4)
 
     const newTypes: TicketType[] = [
-      { id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: total, poolId, poolName: "Lote Compartilhado", requiresProof: false, isLegalHalf: false, description: "" },
-      { id: crypto.randomUUID(), name: "Meia Estudante", price: 50, quantity: meiaQuantity, poolId, poolName: "Lote Compartilhado", requiresProof: true, isLegalHalf: true, description: "" },
-      { id: crypto.randomUUID(), name: "Meia PCD", price: 50, quantity: meiaQuantity, poolId, poolName: "Lote Compartilhado", requiresProof: true, isLegalHalf: true, description: "" },
-      { id: crypto.randomUUID(), name: "Meia Idoso", price: 50, quantity: meiaQuantity, poolId, poolName: "Lote Compartilhado", requiresProof: true, isLegalHalf: true, description: "" }
+      { id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: total, poolId, poolName: "Estoque Compartilhado", requiresProof: false, isLegalHalf: false, description: "" },
+      { id: crypto.randomUUID(), name: "Meia Estudante", price: 50, quantity: meiaQuantity, poolId, poolName: "Estoque Compartilhado", requiresProof: true, isLegalHalf: true, description: "" },
+      { id: crypto.randomUUID(), name: "Meia PCD", price: 50, quantity: meiaQuantity, poolId, poolName: "Estoque Compartilhado", requiresProof: true, isLegalHalf: true, description: "" },
+      { id: crypto.randomUUID(), name: "Meia Idoso", price: 50, quantity: meiaQuantity, poolId, poolName: "Estoque Compartilhado", requiresProof: true, isLegalHalf: true, description: "" }
     ]
 
     const newBatches = [...batches]
     newBatches[distributeBatchIdx].ticketTypes = newTypes
+    newBatches[distributeBatchIdx].capacity = total
     setBatches(newBatches)
     setIsDistributeOpen(false)
     setTotalToDistribute("")
-    toast({ title: "Ingressos distribuídos!" })
+    toast({ title: "Ingressos distribuídos!", description: "Carga do lote configurada com estoque compartilhado." })
   }
 
-  const addBatch = () => setBatches([...batches, { id: crypto.randomUUID(), name: `Lote ${batches.length + 1}`, description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }])
+  const addBatch = () => setBatches([...batches, { id: crypto.randomUUID(), name: `Lote ${batches.length + 1}`, description: "", startDate: "", endDate: "", capacity: 0, ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }])
   const removeBatch = (i: number) => setBatches(batches.filter((_, idx) => idx !== i))
   const updateBatchField = (i: number, f: keyof Batch, v: any) => { const n = [...batches]; n[i] = { ...n[i], [f]: v }; setBatches(n); }
   const addTicketType = (bi: number) => { const n = [...batches]; n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }); setBatches(n); }
@@ -208,17 +211,20 @@ export default function EditarEventoPage() {
 
       <form onSubmit={handleSubmit} className="space-y-8">
          <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
-            <CardHeader><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5 text-secondary" /> Capa</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5 text-secondary" /> Capa do Evento</CardTitle></CardHeader>
             <CardContent>
-               <div className="relative aspect-video rounded-2xl bg-muted overflow-hidden cursor-pointer" onClick={() => document.getElementById('img-up')?.click()}>
-                  {imagePreview ? <Image src={imagePreview} alt="Capa" fill className="object-cover" unoptimized /> : null}
+               <div className="relative aspect-video rounded-2xl bg-muted overflow-hidden cursor-pointer group" onClick={() => document.getElementById('img-up')?.click()}>
+                  {imagePreview ? <Image src={imagePreview} alt="Capa" fill className="object-cover" unoptimized /> : <div className="flex flex-col items-center justify-center h-full opacity-20"><Upload className="w-10 h-10 mb-2" /><p className="text-xs font-bold uppercase tracking-widest">Carregar Capa</p></div>}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                     <Camera className="text-white w-10 h-10" />
+                  </div>
                   <input id="img-up" type="file" className="hidden" onChange={handleImageChange} />
                </div>
             </CardContent>
          </Card>
 
          <Card className="border-none shadow-sm rounded-[2rem]">
-            <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Calendar className="w-5 h-5 text-secondary" /> Informações</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Calendar className="w-5 h-5 text-secondary" /> Informações Básicas</CardTitle></CardHeader>
             <CardContent className="space-y-6">
                <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2"><Label>Título</Label><Input name="title" defaultValue={event.title} required className="rounded-xl h-11" /></div>
@@ -242,8 +248,8 @@ export default function EditarEventoPage() {
           <CardHeader className="bg-muted/30 border-b">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1">
-                <CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle>
-                <div className="flex items-center gap-2"><Switch checked={noTickets} onCheckedChange={setNoTickets} /><Label className="text-xs font-bold text-muted-foreground uppercase">Sem Ingressos</Label></div>
+                <CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria e Lotes</CardTitle>
+                <div className="flex items-center gap-2"><Switch checked={noTickets} onCheckedChange={setNoTickets} /><Label className="text-xs font-bold text-muted-foreground uppercase">Desativar Ingressos</Label></div>
               </div>
               {!noTickets && (
                 <div className="bg-white p-1 rounded-xl border flex gap-1">
@@ -262,47 +268,61 @@ export default function EditarEventoPage() {
                  {batches.map((batch, bi) => (
                    <div key={batch.id} className="p-6 rounded-[1.5rem] border-2 bg-muted/10 space-y-6">
                       <div className="flex justify-between items-center">
-                        <h3 className="font-black italic uppercase text-secondary text-xl">{batch.name}</h3>
-                        {ticketMode === 'batches' && (
-                          <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setDistributeBatchIdx(bi); setIsDistributeOpen(true); }}>
-                             <Sparkles className="w-3 h-3" /> Gerenciar Carga Total
-                          </Button>
-                        )}
-                        <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)} disabled={batches.length === 1}><Trash2 className="w-4 h-4" /></Button>
+                        <div className="flex items-center gap-3">
+                           <h3 className="font-black italic uppercase text-secondary text-xl">{batch.name}</h3>
+                           <Badge variant="outline" className="text-[10px] font-bold uppercase">{batch.capacity || 0} Ingressos</Badge>
+                        </div>
+                        <div className="flex gap-2">
+                           <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setDistributeBatchIdx(bi); setIsDistributeOpen(true); }}>
+                              <Sparkles className="w-3 h-3" /> Gerar Meia-Entrada
+                           </Button>
+                           <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)} disabled={batches.length === 1}><Trash2 className="w-4 h-4" /></Button>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                         <div className="space-y-2"><Label>Lote</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" /></div>
-                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2"><Label>Início</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
-                            <div className="space-y-2"><Label>Fim</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
-                         </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" /></div>
+                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
+                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fim</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
                       </div>
                       <div className="space-y-4">
+                         <div className="flex items-center justify-between"><Label className="text-[10px] font-black uppercase opacity-40">Tipos de Ingresso no Lote</Label></div>
                          {batch.ticketTypes.map((t, ti) => (
                            <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm grid grid-cols-12 gap-4 items-end">
                               <div className="col-span-4 space-y-2">
-                                 <Label className="text-[9px] uppercase font-black opacity-40">Tipo</Label>
+                                 <Label className="text-[9px] uppercase font-black opacity-40">Título do Ingresso</Label>
                                  <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" />
-                                 {t.poolId && <Badge variant="secondary" className="text-[7px] h-3 uppercase">{t.poolName}</Badge>}
+                                 {t.poolId && <Badge variant="secondary" className="text-[7px] h-3.5 uppercase gap-1"><Layers className="w-2 h-2" /> {t.poolName}</Badge>}
                               </div>
-                              <div className="col-span-3 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40">Qtd</Label><Input type="number" value={t.quantity} onChange={e => updateTicketTypeField(bi, ti, 'quantity', e.target.value)} className="rounded-xl h-10 font-black" /></div>
-                              <div className="col-span-3 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40">R$</Label><Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} className="rounded-xl h-10 font-black text-secondary" disabled={ticketMode === 'free'} /></div>
-                              <div className="col-span-2 flex justify-end pb-1"><Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTicketType(bi, ti)} disabled={batch.ticketTypes.length === 1}><Trash2 className="w-4 h-4" /></Button></div>
+                              <div className="col-span-3 space-y-2">
+                                 <Label className="text-[9px] uppercase font-black opacity-40">Quantidade</Label>
+                                 <Input type="number" value={t.quantity} onChange={e => updateTicketTypeField(bi, ti, 'quantity', e.target.value)} className="rounded-xl h-10 font-black" />
+                              </div>
+                              <div className="col-span-3 space-y-2">
+                                 <Label className="text-[9px] uppercase font-black opacity-40">Valor (R$)</Label>
+                                 <Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} className="rounded-xl h-10 font-black text-secondary" disabled={ticketMode === 'free'} />
+                              </div>
+                              <div className="col-span-2 flex justify-end pb-1">
+                                 <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTicketType(bi, ti)} disabled={batch.ticketTypes.length === 1}><Trash2 className="w-4 h-4" /></Button>
+                              </div>
                            </div>
                          ))}
-                         <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[9px] font-black uppercase" onClick={() => addTicketType(bi)}>Adicionar Tipo</Button>
+                         <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[9px] font-black uppercase gap-1.5" onClick={() => addTicketType(bi)}><Plus className="w-3 h-3" /> Adicionar Tipo Manual</Button>
                       </div>
                    </div>
                  ))}
-                 {(ticketMode === 'batches' || ticketMode === 'paid_single' || ticketMode === 'free') && <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>}
+                 {(ticketMode === 'batches' || ticketMode === 'paid_single' || ticketMode === 'free') && (
+                   <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic text-muted-foreground hover:text-secondary hover:border-secondary transition-all" onClick={addBatch}>
+                     <Plus className="w-5 h-5 mr-2" /> Adicionar Novo Lote
+                   </Button>
+                 )}
                </React.Fragment>
              )}
           </CardContent>
         </Card>
 
          <Button type="submit" disabled={saving} className="w-full h-16 rounded-[2rem] bg-secondary text-white font-black text-xl shadow-xl uppercase italic hover:scale-[1.02] transition-transform">
-            {saving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />}
-            Salvar Evento
+            {saving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 w-6 h-6" />}
+            Salvar Alterações
          </Button>
       </form>
 
@@ -310,13 +330,13 @@ export default function EditarEventoPage() {
         <DialogContent className="rounded-[2.5rem] max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Carga do Lote</DialogTitle>
-            <DialogDescription>Defina a quantidade total de ingressos que este lote pode vender (somando todos os tipos).</DialogDescription>
+            <DialogDescription>Defina a quantidade total de ingressos que este lote pode vender.</DialogDescription>
           </DialogHeader>
           <div className="py-6 space-y-4">
-             <Label className="text-[10px] font-black uppercase opacity-60">Capacidade do Lote</Label>
+             <Label className="text-[10px] font-black uppercase opacity-60">Capacidade Total do Lote (Ex: 200)</Label>
              <Input 
                type="number" 
-               placeholder="Ex: 500"
+               placeholder="Ex: 200"
                value={totalToDistribute} 
                onChange={e => setTotalToDistribute(e.target.value)} 
                className="h-14 text-2xl font-black rounded-xl text-center border-secondary/20" 
@@ -324,7 +344,7 @@ export default function EditarEventoPage() {
              <div className="p-4 bg-muted/30 rounded-2xl flex gap-3">
                 <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
                 <p className="text-[9px] font-bold text-muted-foreground uppercase leading-tight">
-                  O sistema criará Inteira e Meias compartilhando este mesmo estoque total do lote.
+                  O sistema criará Inteira e Meias vinculadas a este estoque total. A soma de vendas não ultrapassará {totalToDistribute || 'o valor definido'}.
                 </p>
              </div>
           </div>
