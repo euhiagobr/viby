@@ -80,6 +80,8 @@ interface Batch {
   restantes: number
   migradosDoLoteAnterior: number
   ticketTypes: TicketType[]
+  isHalfPriceEnabled?: boolean
+  halfPricePercent?: number
 }
 
 export default function NovoEventoPage() {
@@ -136,12 +138,15 @@ export default function NovoEventoPage() {
       migradosDoLoteAnterior: 0,
       ticketTypes: [
         { id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }
-      ] 
+      ],
+      isHalfPriceEnabled: false,
+      halfPricePercent: 40
     }
   ])
   
   const [isBatchPercentDialogOpen, setIsBatchPercentDialogOpen] = useState(false)
   const [activeBatchIdx, setActiveBatchIdx] = useState<number | null>(null)
+  const [tempBatchPercent, setTempBatchPercent] = useState(40)
 
   // --- Gratuito ---
   const [freeCapacity, setFreeCapacity] = useState<number>(100)
@@ -182,8 +187,9 @@ export default function NovoEventoPage() {
     setIsPercentDialogOpen(false);
   }
 
-  const handleEnableBatchHalfPrice = (percent: number) => {
+  const handleEnableBatchHalfPrice = () => {
     if (activeBatchIdx === null) return;
+    const percent = tempBatchPercent;
     const n = [...batches];
     const batch = n[activeBatchIdx];
     const poolId = crypto.randomUUID();
@@ -202,6 +208,9 @@ export default function NovoEventoPage() {
       { ...batch.ticketTypes[0], quantity: inteiraQty },
       ...defaultMeias
     ];
+    n[activeBatchIdx].isHalfPriceEnabled = true;
+    n[activeBatchIdx].halfPricePercent = percent;
+    
     setBatches(n);
     setIsBatchPercentDialogOpen(false);
     setActiveBatchIdx(null);
@@ -223,24 +232,6 @@ export default function NovoEventoPage() {
     } catch (err) { setUploadProgress(null) }
   }
 
-  const handleCepBlur = async () => {
-    const cleanCep = address.cep.replace(/\D/g, "")
-    if (cleanCep.length !== 8) return
-    try {
-      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
-      const data = await response.json()
-      if (!data.erro) {
-        setAddress(prev => ({
-          ...prev,
-          street: data.logradouro || "",
-          neighborhood: data.bairro || "",
-          city: data.localidade || "",
-          state: data.uf || ""
-        }))
-      }
-    } catch (e) {}
-  }
-
   const addBatch = () => {
     const newB: Batch = { 
       id: crypto.randomUUID(), 
@@ -253,7 +244,9 @@ export default function NovoEventoPage() {
       vendidos: 0,
       restantes: 100,
       migradosDoLoteAnterior: 0,
-      ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] 
+      ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }],
+      isHalfPriceEnabled: false,
+      halfPricePercent: 40
     }
     setBatches([...batches, newB])
   }
@@ -265,6 +258,22 @@ export default function NovoEventoPage() {
   const updateBatchField = (i: number, f: keyof Batch, v: any) => { 
     const n = [...batches]; 
     n[i] = { ...n[i], [f]: v } as any; 
+
+    // Se mudar a carga inicial, recalcular as quantidades de inteira/meia
+    if (f === 'capacidadeInicial' && n[i].isHalfPriceEnabled) {
+      const cap = parseInt(v) || 0;
+      const hPercent = n[i].halfPricePercent || 40;
+      const hQty = Math.floor(cap * (hPercent / 100));
+      const iQty = cap - hQty;
+
+      if (n[i].ticketTypes[0]) n[i].ticketTypes[0].quantity = iQty;
+      for (let j = 1; j < n[i].ticketTypes.length; j++) {
+        n[i].ticketTypes[j].quantity = hQty;
+      }
+    } else if (f === 'capacidadeInicial') {
+      if (n[i].ticketTypes[0]) n[i].ticketTypes[0].quantity = parseInt(v) || 0;
+    }
+
     setBatches(n); 
   }
 
@@ -276,7 +285,21 @@ export default function NovoEventoPage() {
 
   const addTicketType = (bi: number) => { 
     const n = [...batches]; 
-    n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }); 
+    const poolId = n[bi].isHalfPriceEnabled ? (n[bi].ticketTypes[1]?.poolId || crypto.randomUUID()) : undefined;
+    const poolName = n[bi].isHalfPriceEnabled ? "Cota Lote" : undefined;
+    const qty = n[bi].isHalfPriceEnabled ? (n[bi].ticketTypes[1]?.quantity || 0) : n[bi].capacidadeInicial;
+
+    n[bi].ticketTypes.push({ 
+      id: crypto.randomUUID(), 
+      name: "Nova Meia", 
+      price: 50, 
+      quantity: qty, 
+      poolId,
+      poolName,
+      requiresProof: true, 
+      isLegalHalf: true, 
+      description: "" 
+    }); 
     setBatches(n); 
   }
 
@@ -358,6 +381,8 @@ export default function NovoEventoPage() {
       setLoading(false) 
     }
   }
+
+  const isAtLeastEditorCheck = ['owner', 'admin', 'editor'].includes(userRole || '');
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 text-foreground">
@@ -607,7 +632,7 @@ export default function NovoEventoPage() {
                            <Badge variant="outline" className="text-[10px] font-bold uppercase">{batch.capacidadeInicial} Ingressos Iniciais</Badge>
                         </div>
                         <div className="flex gap-2">
-                           <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setActiveBatchIdx(bi); setIsBatchPercentDialogOpen(true); }}>
+                           <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setActiveBatchIdx(bi); setTempBatchPercent(batch.halfPricePercent || 40); setIsBatchPercentDialogOpen(true); }}>
                               <Sparkles className="w-3 h-3" /> Gerar Meia
                            </Button>
                            <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)} disabled={batches.length === 1}><Trash2 className="w-4 h-4" /></Button>
@@ -638,21 +663,29 @@ export default function NovoEventoPage() {
 
                      <div className="space-y-4">
                         <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Ingressos deste Lote</Label>
-                        {batch.ticketTypes.map((t, ti) => (
-                           <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm grid grid-cols-12 gap-4 items-end">
-                              <div className="col-span-6 space-y-2">
-                                 <Label className="text-[9px] uppercase font-black opacity-40">Título</Label>
-                                 <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" />
-                                 {t.poolId && <Badge variant="secondary" className="text-[7px] h-3.5 uppercase gap-1"><Layers className="w-2 h-2" /> Estoque Compartilhado</Badge>}
+                        <div className="space-y-3">
+                           {batch.ticketTypes.map((t, ti) => (
+                              <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm grid grid-cols-12 gap-4 items-center">
+                                 <div className="col-span-5 space-y-2">
+                                    <Label className="text-[9px] uppercase font-black opacity-40">Título</Label>
+                                    <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" />
+                                    {t.poolId && <Badge variant="secondary" className="text-[7px] h-3.5 uppercase gap-1"><Layers className="w-2 h-2" /> Estoque Compartilhado</Badge>}
+                                 </div>
+                                 <div className="col-span-2 space-y-2 text-center">
+                                   <Label className="text-[9px] uppercase font-black opacity-40 block">Qtd</Label>
+                                   <span className="font-black text-sm">{t.quantity}</span>
+                                 </div>
+                                 <div className="col-span-3 space-y-2">
+                                   <Label className="text-[9px] uppercase font-black opacity-40">Preço (R$)</Label>
+                                   <Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', parseFloat(e.target.value) || 0)} className="rounded-xl h-10 font-black text-secondary" />
+                                 </div>
+                                 <div className="col-span-2 flex justify-end">
+                                    <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTicketType(bi, ti)} disabled={batch.ticketTypes.length === 1}><Trash2 className="w-4 h-4" /></Button>
+                                 </div>
                               </div>
-                              <div className="col-span-4 space-y-2">
-                                <Label className="text-[9px] uppercase font-black opacity-40">Preço (R$)</Label>
-                                <Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', parseFloat(e.target.value) || 0)} className="rounded-xl h-10 font-black text-secondary" />
-                              </div>
-                              <div className="col-span-2 flex justify-end pb-1"><Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTicketType(bi, ti)} disabled={batch.ticketTypes.length === 1}><Trash2 className="w-4 h-4" /></Button></div>
-                           </div>
-                         ))}
-                         <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[9px] font-black uppercase gap-1.5" onClick={() => addTicketType(bi)}><Plus className="w-3 h-3" /> Adicionar Categoria</Button>
+                            ))}
+                        </div>
+                        <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[9px] font-black uppercase gap-1.5" onClick={() => addTicketType(bi)}><Plus className="w-3 h-3" /> Adicionar Categoria</Button>
                       </div>
 
                       {bi < batches.length - 1 && (
@@ -725,15 +758,15 @@ export default function NovoEventoPage() {
                <div className="relative">
                   <Input 
                     type="number" 
-                    defaultValue={40}
-                    onChange={e => setHalfPricePercent(parseInt(e.target.value) || 0)} 
+                    value={tempBatchPercent}
+                    onChange={e => setTempBatchPercent(parseInt(e.target.value) || 0)} 
                     className="h-20 text-5xl font-black text-center rounded-[1.5rem] border-secondary/20" 
                   />
                   <span className="absolute right-6 top-1/2 -translate-y-1/2 text-2xl font-black text-muted-foreground opacity-30">%</span>
                </div>
             </div>
             <DialogFooter>
-               <Button onClick={() => handleEnableBatchHalfPrice(halfPricePercent)} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Confirmar Cota</Button>
+               <Button onClick={handleEnableBatchHalfPrice} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Confirmar Cota</Button>
             </DialogFooter>
          </DialogContent>
       </Dialog>
