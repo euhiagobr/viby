@@ -130,7 +130,7 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
                        senderName: user.displayName || "Alguém",
                        type: 'mention',
                        message: `${user.displayName || 'Alguém'} mencionou você em um comentário: ${event.title}`,
-                       link: eventLink,
+                       link: `${eventLink}?openComments=true`,
                        read: false,
                        createdAt: serverTimestamp()
                     })

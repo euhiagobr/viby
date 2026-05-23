@@ -2,14 +2,16 @@
 "use client"
 
 import * as React from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, collection, query, where } from "firebase/firestore"
+import { doc, collection, query, where, orderBy, addDoc, serverTimestamp, deleteDoc, writeBatch, getDocs, limit } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Separator } from "@/components/ui/separator"
 import { 
   Calendar, 
   MapPin, 
@@ -29,7 +31,10 @@ import {
   Navigation,
   Users,
   EyeOff,
-  TicketX
+  TicketX,
+  MessageCircle,
+  Send,
+  Trash2
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -38,9 +43,12 @@ import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/financial-utils"
 import { useCart } from "@/contexts/CartContext"
 import Footer from "@/components/layout/Footer"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 export default function EventoDetalhesPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const router = useRouter()
   const db = useFirestore()
   const auth = useAuth()
@@ -59,6 +67,13 @@ export default function EventoDetalhesPage() {
   const mapsSettingsRef = React.useMemo(() => db ? doc(db, 'settings', 'maps') : null, [db])
   const { data: mapsSettings } = useDoc<any>(mapsSettingsRef)
 
+  // Comentários
+  const commentsQuery = useMemoFirebase(() => {
+    if (!db || !eventId) return null
+    return query(collection(db, "events", eventId, "comments"), orderBy("createdAt", "asc"))
+  }, [db, eventId])
+  const { data: comments, loading: commentsLoading } = useCollection<any>(commentsQuery)
+
   // Outros Organizadores (Aceitos)
   const partnersQuery = useMemoFirebase(() => {
     if (!db || !eventId) return null
@@ -76,17 +91,27 @@ export default function EventoDetalhesPage() {
   const [selectedTicketType, setSelectedTicketType] = React.useState<any>(null)
   const [saleStatus, setSaleStatus] = React.useState<'open' | 'pending' | 'ended' | 'soldout' | 'suspended' | 'none'>('pending')
   const [quantity, setQuantity] = React.useState(1)
+  const [newComment, setNewComment] = React.useState("")
+  const [isSubmittingComment, setIsSubmittingComment] = React.useState(false)
+
+  const commentsSectionRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    if (searchParams.get('openComments') === 'true' && commentsSectionRef.current) {
+      setTimeout(() => {
+        commentsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 500)
+    }
+  }, [searchParams, commentsLoading])
 
   React.useEffect(() => {
     if (!event) return
 
-    // Caso o evento não possua ingressos configurados
     if (event.noTickets || event.ticketMode === 'none') {
       setSaleStatus('none')
       return
     }
 
-    // Se a organização não estiver ativa, suspende as vendas
     if (organizationProfile && organizationProfile.status !== 'Ativo') {
       setSaleStatus('suspended')
       return
@@ -180,11 +205,67 @@ export default function EventoDetalhesPage() {
     });
   }
 
-  // Função para renderizar texto com suporte a negrito **, texto grande + e menções @
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!db || !user || !newComment.trim() || isSubmittingComment) return
+
+    setIsSubmittingComment(true)
+    const commentData = {
+      userId: user.uid,
+      userName: user.displayName || "Usuário",
+      userAvatar: user.photoURL || "",
+      text: newComment.trim(),
+      createdAt: serverTimestamp()
+    }
+
+    addDoc(collection(db, "events", eventId, "comments"), commentData)
+      .then(async () => {
+        const mentions = newComment.match(/@(\w+)/g)
+        if (mentions && mentions.length > 0) {
+           const batch = writeBatch(db)
+           for (const mention of mentions) {
+              const mUsername = mention.slice(1).toLowerCase()
+              const uSnap = await getDocs(query(collection(db, "usernames"), where("__name__", "==", mUsername), limit(1)))
+              if (!uSnap.empty) {
+                 const targetUid = uSnap.docs[0].data().uid
+                 if (targetUid !== user.uid) {
+                    const notifRef = doc(collection(db, "notifications"))
+                    batch.set(notifRef, {
+                       targetUid: targetUid,
+                       senderId: user.uid,
+                       senderName: user.displayName || "Alguém",
+                       type: 'mention',
+                       message: `${user.displayName || 'Alguém'} mencionou você em um comentário: ${event.title}`,
+                       link: `/${usernameFromUrl}/${eventId}?openComments=true`,
+                       read: false,
+                       createdAt: serverTimestamp()
+                    })
+                 }
+              }
+           }
+           await batch.commit()
+        }
+        setNewComment("")
+        toast({ title: "Comentário enviado!" })
+      })
+      .catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: `events/${eventId}/comments`,
+          operation: 'create',
+          requestResourceData: commentData
+        }))
+      })
+      .finally(() => setIsSubmittingComment(false))
+  }
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!db || !confirm("Remover este comentário?")) return
+    deleteDoc(doc(db, "events", eventId, "comments", commentId))
+      .catch(() => toast({ variant: "destructive", title: "Erro ao remover" }))
+  }
+
   const renderFormattedText = (text: string) => {
     if (!text) return "";
-    
-    // Divide o texto em partes baseadas em **, + ou @username
     const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@\w+)/g);
 
     return parts.map((part, i) => {
@@ -275,6 +356,69 @@ export default function EventoDetalhesPage() {
                     <p className="text-muted-foreground leading-relaxed whitespace-pre-line text-lg font-medium">
                       {renderFormattedText(event.description)}
                     </p>
+                 </CardContent>
+              </Card>
+
+              {/* SEÇÃO DE COMENTÁRIOS */}
+              <Card ref={commentsSectionRef} className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+                 <CardHeader className="bg-muted/30 pb-4">
+                    <CardTitle className="flex items-center gap-2 text-xl font-bold">
+                       <MessageCircle className="w-5 h-5 text-secondary" /> Discussão
+                    </CardTitle>
+                 </CardHeader>
+                 <CardContent className="pt-8 space-y-8">
+                    <div className="space-y-6 max-h-[400px] overflow-y-auto px-1 custom-scrollbar">
+                       {commentsLoading ? (
+                         <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
+                       ) : comments && comments.length > 0 ? (
+                         comments.map((comment: any) => (
+                           <div key={comment.id} className="flex gap-4 group">
+                              <Avatar className="h-10 w-10 border border-muted shrink-0">
+                                 <AvatarImage src={comment.userAvatar} className="object-cover" />
+                                 <AvatarFallback className="font-bold bg-muted">{comment.userName?.charAt(0)}</AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 space-y-1">
+                                 <div className="flex items-center justify-between">
+                                    <span className="text-xs font-black uppercase tracking-tight text-primary">{comment.userName}</span>
+                                    {(comment.userId === user?.uid || organizationProfile?.members?.[user?.uid || '']) && (
+                                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleDeleteComment(comment.id)}>
+                                         <Trash2 className="w-3.5 h-3.5" />
+                                      </Button>
+                                    )}
+                                 </div>
+                                 <p className="text-sm text-muted-foreground leading-relaxed">
+                                    {renderFormattedText(comment.text)}
+                                 </p>
+                                 <span className="text-[9px] font-bold text-muted-foreground/50 uppercase">
+                                    {comment.createdAt?.toDate ? comment.createdAt.toDate().toLocaleString('pt-BR') : '---'}
+                                 </span>
+                              </div>
+                           </div>
+                         ))
+                       ) : (
+                         <div className="py-10 text-center space-y-3 opacity-30">
+                            <MessageCircle className="w-10 h-10 mx-auto" />
+                            <p className="text-xs font-black uppercase tracking-widest">Nenhuma mensagem ainda.</p>
+                         </div>
+                       )}
+                    </div>
+
+                    <form onSubmit={handleAddComment} className="flex gap-3 pt-6 border-t border-dashed">
+                       <Input 
+                         placeholder={user ? "Escreva um comentário... Use @ para marcar alguém" : "Faça login para comentar"} 
+                         value={newComment}
+                         onChange={e => setNewComment(e.target.value)}
+                         disabled={!user || isSubmittingComment}
+                         className="rounded-xl h-12 border-dashed border-secondary/30"
+                       />
+                       <Button 
+                         type="submit" 
+                         disabled={!user || !newComment.trim() || isSubmittingComment}
+                         className="h-12 w-12 shrink-0 bg-secondary text-white rounded-xl shadow-lg"
+                       >
+                          {isSubmittingComment ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                       </Button>
+                    </form>
                  </CardContent>
               </Card>
 
