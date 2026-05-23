@@ -393,7 +393,7 @@ export default function EditarEventoPage() {
             <CardHeader><CardTitle className="text-lg">Capa</CardTitle></CardHeader>
             <CardContent>
                <div className="relative aspect-video rounded-2xl bg-muted overflow-hidden cursor-pointer" onClick={() => document.getElementById('img-up')?.click()}>
-                  {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" /> : null}
+                  {imagePreview ? <Image src={imagePreview} alt="Capa" fill className="object-cover" unoptimized /> : null}
                   <input id="img-up" type="file" className="hidden" onChange={handleImageChange} />
                </div>
             </CardContent>
@@ -422,7 +422,13 @@ export default function EditarEventoPage() {
                   <div className="space-y-2"><Label>Início</Label><Input name="startDate" type="datetime-local" defaultValue={event.date} className="rounded-xl" /></div>
                   <div className="space-y-2"><Label>Término</Label><Input name="endDate" type="datetime-local" defaultValue={event.endDate} className="rounded-xl" /></div>
                </div>
-               <div className="space-y-2"><Label>Descrição</Label><Textarea name="description" defaultValue={event.description} className="min-h-[100px] rounded-xl" /></div>
+               <div className="space-y-2">
+                 <Label className="flex justify-between items-center">
+                   <span>Descrição</span>
+                   <span className="text-[9px] font-black uppercase opacity-40">**texto** para negrito • emojis permitidos</span>
+                 </Label>
+                 <Textarea name="description" defaultValue={event.description} className="min-h-[150px] rounded-xl border-dashed border-secondary/30" />
+               </div>
             </CardContent>
          </Card>
 

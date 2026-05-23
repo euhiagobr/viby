@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -94,6 +95,17 @@ export default function EventoDetalhesPage() {
       }
     }
     return result;
+  }
+
+  // Função para renderizar texto com suporte a negrito **
+  const renderFormattedText = (text: string) => {
+    if (!text) return "";
+    return text.split(/(\*\*.*?\*\*)/g).map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
   }
 
   const handleRegisterInterest = async () => {
@@ -242,7 +254,7 @@ export default function EventoDetalhesPage() {
             </CardHeader>
             <CardContent className="pt-6">
               <p className="text-muted-foreground leading-relaxed text-lg whitespace-pre-line font-medium">
-                {event.description || event.shortDescription}
+                {renderFormattedText(event.description || event.shortDescription)}
               </p>
             </CardContent>
           </Card>

@@ -180,6 +180,17 @@ export default function EventoDetalhesPage() {
     });
   }
 
+  // Função para renderizar texto com suporte a negrito **
+  const renderFormattedText = (text: string) => {
+    if (!text) return "";
+    return text.split(/(\*\*.*?\*\*)/g).map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
+  }
+
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
   if (!event) return <div className="flex flex-col items-center py-20"><h2 className="text-2xl font-bold">Evento não encontrado</h2></div>
 
@@ -236,7 +247,9 @@ export default function EventoDetalhesPage() {
               <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
                  <CardHeader className="bg-muted/30 pb-4"><CardTitle className="flex items-center gap-2 text-xl font-bold"><Info className="w-5 h-5 text-secondary" /> Sobre o Evento</CardTitle></CardHeader>
                  <CardContent className="pt-6">
-                    <p className="text-muted-foreground leading-relaxed whitespace-pre-line text-lg font-medium">{event.description}</p>
+                    <p className="text-muted-foreground leading-relaxed whitespace-pre-line text-lg font-medium">
+                      {renderFormattedText(event.description)}
+                    </p>
                  </CardContent>
               </Card>
 

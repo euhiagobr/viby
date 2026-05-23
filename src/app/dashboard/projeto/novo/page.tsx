@@ -19,14 +19,20 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { toast } from "@/hooks/use-toast"
 import { 
-  ArrowLeft, 
-  Upload, 
-  MapPin, 
-  Calendar, 
-  Plus, 
-  Trash2, 
   Loader2, 
-  ImageIcon,
+  ArrowLeft, 
+  Plus, 
+  Check, 
+  X, 
+  Upload, 
+  Building2,
+  Globe,
+  Camera,
+  MapPin,
+  Phone,
+  Mail,
+  Instagram,
+  Fingerprint,
   Info,
   Ticket,
   Sparkles,
@@ -132,7 +138,7 @@ export default function NovoEventoPage() {
   const [searchUsername, setSearchUsername] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [orgToDelete, setOrgToDelete] = useState<any | null>(null)
-  
+
   const [isDistributeOpen, setIsDistributeOpen] = useState(false)
   const [distributeBatchIdx, setDistributeBatchIdx] = useState<number | null>(null)
   const [totalToDistribute, setTotalToDistribute] = useState("")
@@ -349,7 +355,7 @@ export default function NovoEventoPage() {
       }
 
       toast({ title: "Evento Publicado!" })
-      router.push("/dashboard/projetos")
+      router.push("/dashboard/organizacoes")
     } catch (error: any) { 
       toast({ variant: "destructive", title: "Erro ao publicar", description: error.message }) 
     } finally { 
@@ -360,19 +366,59 @@ export default function NovoEventoPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild><Link href="/dashboard/projetos"><ArrowLeft className="w-5 h-5" /></Link></Button>
-        <h1 className="text-3xl font-black italic tracking-tighter text-primary uppercase">Novo Evento</h1>
+        <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
+        <div>
+          <h1 className="text-3xl font-black tracking-tight text-primary uppercase italic">Nova Organização</h1>
+          <p className="text-muted-foreground font-medium">Configure a identidade comercial da sua produtora ou marca.</p>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        <Card className="overflow-hidden border-none shadow-sm rounded-[2rem]">
-          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5 text-secondary" /> Capa do Evento</CardTitle></CardHeader>
-          <CardContent className="px-6 pb-6">
-            <div className="relative aspect-video rounded-[1.5rem] bg-muted overflow-hidden cursor-pointer" onClick={() => document.getElementById('img-up')?.click()}>
-              {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" /> : <div className="flex flex-col items-center justify-center h-full opacity-20"><Upload className="w-10 h-10 mb-2" /><p className="text-xs font-black uppercase tracking-widest">16:9 - Recomendado</p></div>}
-              <input id="img-up" type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+        <Card className="border-none shadow-sm overflow-hidden rounded-[2rem]">
+          <CardHeader className="bg-muted/30">
+            <CardTitle className="text-lg flex items-center gap-2">
+               <Camera className="w-5 h-5 text-secondary" /> Identidade Visual
+            </CardTitle>
+            <CardDescription>Carregue as imagens que representarão sua marca na plataforma.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="relative">
+              <div 
+                className="relative h-48 bg-muted border-b border-border group cursor-pointer overflow-hidden"
+                onClick={() => document.getElementById('org-banner')?.click()}
+              >
+                {formData.banner ? (
+                  <Image src={formData.banner} alt="Banner" fill className="object-cover" unoptimized />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground opacity-40">
+                    <Upload className="w-10 h-10 mb-2" />
+                    <p className="text-xs font-black uppercase tracking-widest">Carregar Foto de Capa</p>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Camera className="text-white w-8 h-8" />
+                </div>
+                {bannerUploadProgress !== null && <Progress value={bannerUploadProgress} className="absolute bottom-0 left-0 right-0 h-1 rounded-none" />}
+                <input id="org-banner" type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 'banner')} />
+              </div>
+
+              <div className="absolute -bottom-10 left-8">
+                <div className="relative group">
+                  <Avatar className="h-28 w-28 border-4 border-background shadow-xl">
+                    <AvatarImage src={formData.avatar} className="object-cover" />
+                    <AvatarFallback className="bg-muted">
+                      <Building2 className="w-10 h-10 text-muted-foreground opacity-20" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <label htmlFor="org-avatar" className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                    <Camera className="w-6 h-6" />
+                  </label>
+                  <input id="org-avatar" type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 'avatar')} />
+                  {avatarUploadProgress !== null && <Progress value={avatarUploadProgress} className="absolute -bottom-2 left-0 right-0 h-1" />}
+                </div>
+              </div>
             </div>
-            {uploadProgress !== null && <Progress value={uploadProgress} className="h-1 mt-4" />}
+            <div className="h-12" />
           </CardContent>
         </Card>
 
@@ -382,286 +428,277 @@ export default function NovoEventoPage() {
           </CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Título do Evento</Label><Input name="title" required className="rounded-xl h-11" placeholder="Ex: Festival Viby 2024" /></div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent className="rounded-xl">{categories?.map((c: any) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}</SelectContent>
-                  </Select>
+                  <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome Comercial</Label>
+                  <Input 
+                    id="name" 
+                    placeholder="Ex: Viby Entretenimento" 
+                    value={formData.name}
+                    onChange={handleNameChange}
+                    required 
+                    className="rounded-xl h-11"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="username" className="text-[10px] font-black uppercase tracking-widest opacity-60">Username exclusivo (@)</Label>
+                  <div className="relative">
+                    <Input 
+                      id="username" 
+                      placeholder="Somente letras e números" 
+                      value={formData.username}
+                      onChange={e => setFormData(prev => ({ ...prev, username: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "") }))}
+                      className={cn(
+                        "rounded-xl h-11",
+                        usernameStatus === 'valid' ? 'border-green-500 pr-10' : 
+                        usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-destructive pr-10' : 'pr-10'
+                      )}
+                      required
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /> : 
+                       usernameStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : 
+                       usernameStatus === 'taken' || usernameStatus === 'invalid' ? <X className="w-4 h-4 text-destructive" /> : null}
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-muted-foreground font-bold uppercase">Mínimo 5 caracteres. viby.club/{formData.username || '...'}</p>
                 </div>
              </div>
-             <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input name="startDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Término</Label><Input name="endDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
+
+             <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Tipo de Organização</Label>
+                <Select value={formData.type} onValueChange={val => setFormData(prev => ({ ...prev, type: val }))} required>
+                  <SelectTrigger className="rounded-xl h-11">
+                    <SelectValue placeholder="Selecione o segmento" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px] rounded-xl shadow-2xl border-none">
+                    {ORG_TYPES.map((group) => (
+                      <SelectGroup key={group.category}>
+                        <SelectLabel className="bg-muted/50 py-2 px-3 text-[10px] font-black uppercase text-muted-foreground">{group.category}</SelectLabel>
+                        {group.items.map((item) => (
+                          <SelectItem key={item} value={item} className="text-xs font-bold">{item}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
+                  </SelectContent>
+                </Select>
              </div>
-             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Descrição Detalhada</Label><Textarea name="description" className="min-h-[120px] rounded-xl border-dashed border-secondary/30" required placeholder="Fale sobre o que o público pode esperar..." /></div>
+
+             <div className="space-y-2">
+                <Label htmlFor="bio" className="text-[10px] font-black uppercase tracking-widest opacity-60">Bio / Descrição</Label>
+                <Textarea 
+                  id="bio" 
+                  placeholder="Conte um pouco sobre o que vocês fazem... (Use ** para negrito e emojis!)" 
+                  value={formData.bio}
+                  onChange={e => setFormData(prev => ({ ...prev, bio: e.target.value }))}
+                  className="min-h-[100px] resize-none rounded-xl border-dashed border-secondary/30"
+                />
+             </div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2rem]">
-          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle></CardHeader>
+          <CardHeader>
+             <CardTitle className="text-lg flex items-center gap-2"><Fingerprint className="w-5 h-5 text-secondary" /> Dados Jurídicos</CardTitle>
+             <CardDescription>O preenchimento do CNPJ e Razão Social é obrigatório para conformidade.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="legalName" className="text-[10px] font-black uppercase tracking-widest opacity-60">Razão Social (Obrigatório)</Label>
+                  <Input 
+                    id="legalName" 
+                    value={formData.legalName}
+                    onChange={e => setFormData(prev => ({ ...prev, legalName: e.target.value }))}
+                    placeholder="Nome oficial da empresa" 
+                    className="rounded-xl h-11"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cnpj" className="text-[10px] font-black uppercase tracking-widest opacity-60">CNPJ (Obrigatório)</Label>
+                  <Input 
+                    id="cnpj" 
+                    value={formData.cnpj}
+                    onChange={e => {
+                      const numbers = e.target.value.replace(/\D/g, "");
+                      let formatted = numbers;
+                      if (numbers.length > 2) formatted = numbers.substring(0, 2) + "." + numbers.substring(2);
+                      if (numbers.length > 5) formatted = formatted.substring(0, 6) + "." + numbers.substring(5);
+                      if (numbers.length > 8) formatted = formatted.substring(0, 10) + "/" + numbers.substring(8);
+                      if (numbers.length > 12) formatted = formatted.substring(0, 15) + "-" + numbers.substring(12);
+                      setFormData(prev => ({ ...prev, cnpj: formatted.substring(0, 18) }))
+                    }}
+                    placeholder="00.000.000/0000-00" 
+                    className="rounded-xl h-11"
+                    required
+                  />
+                </div>
+             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm rounded-[2rem]">
+          <CardHeader>
+             <CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Endereço Sede</CardTitle>
+             <CardDescription>O endereço é obrigatório. Use os controles para ocultar dados sensíveis no perfil público.</CardDescription>
+          </CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="cep" className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
                   <Input 
-                    value={address.cep} 
-                    onChange={e => setAddress(prev => ({ ...prev, cep: e.target.value.replace(/\D/g, "").substring(0, 8) }))}
+                    id="cep" 
+                    value={formData.cep}
+                    onChange={e => setFormData(prev => ({ ...prev, cep: e.target.value.replace(/\D/g, "").substring(0, 8) }))}
                     onBlur={handleCepBlur}
                     placeholder="00000-000" 
+                    required
                     className="rounded-xl h-11"
                   />
                 </div>
                 <div className="md:col-span-3 space-y-2">
-                  <Label htmlFor="street" className="text-[10px] font-black uppercase tracking-widest opacity-60">Logradouro</Label>
-                  <Input id="street" value={address.street} onChange={e => setAddress(prev => ({ ...prev, street: e.target.value }))} className="rounded-xl h-11" />
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="street" className="text-[10px] font-black uppercase tracking-widest opacity-60">Logradouro</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showAddress ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showAddress} onCheckedChange={v => setFormData({...formData, showAddress: v})} />
+                    </div>
+                  </div>
+                  <Input id="street" value={formData.street} onChange={e => setFormData(prev => ({ ...prev, street: e.target.value }))} required className="rounded-xl h-11" />
                 </div>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="number" className="text-[10px] font-black uppercase tracking-widest opacity-60">Número</Label>
-                  <Input id="number" value={address.number} onChange={e => setAddress(prev => ({ ...prev, number: e.target.value }))} className="rounded-xl h-11" />
+                  <Input id="number" value={formData.number} onChange={e => setFormData(prev => ({ ...prev, number: e.target.value }))} required className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="complement" className="text-[10px] font-black uppercase tracking-widest opacity-60">Complemento</Label>
-                  <Input id="complement" value={address.complement} onChange={e => setAddress(prev => ({ ...prev, complement: e.target.value }))} className="rounded-xl h-11" />
+                  <Input id="complement" value={formData.complement} onChange={e => setFormData(prev => ({ ...prev, complement: e.target.value }))} className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="neighborhood" className="text-[10px] font-black uppercase tracking-widest opacity-60">Bairro</Label>
-                  <Input id="neighborhood" value={address.neighborhood} onChange={e => setAddress(prev => ({ ...prev, neighborhood: e.target.value }))} className="rounded-xl h-11" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest opacity-60">Cidade / UF</Label>
-                  <div className="flex gap-2">
-                    <Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" />
-                    <Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30 w-16" />
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="neighborhood" className="text-[10px] font-black uppercase tracking-widest opacity-60">Bairro</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showNeighborhood ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showNeighborhood} onCheckedChange={v => setFormData({...formData, showNeighborhood: v})} />
+                    </div>
                   </div>
+                  <Input id="neighborhood" value={formData.neighborhood} onChange={e => setFormData(prev => ({ ...prev, neighborhood: e.target.value }))} required className="rounded-xl h-11" />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest opacity-60">Cidade / UF</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showState ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showState} onCheckedChange={v => setFormData({...formData, showState: v})} />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input id="city" value={formData.city} readOnly required className="rounded-xl h-11 bg-muted/30" />
+                    <Input id="state" value={formData.state} readOnly required className="rounded-xl h-11 bg-muted/30 w-16" />
+                  </div>
+                </div>
+             </div>
+             <p className="text-[10px] text-muted-foreground font-medium italic">Se ocultar o endereço, apenas a Cidade, Estado e País aparecerão no seu perfil público.</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm rounded-[2rem]">
+          <CardHeader>
+             <CardTitle className="text-lg flex items-center gap-2"><Globe className="w-5 h-5 text-secondary" /> Contato & Presença Digital</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp Comercial</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showPhone ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showPhone} onCheckedChange={checked => setFormData(prev => ({ ...prev, showPhone: checked }))} />
+                    </div>
+                  </div>
+                  <Input 
+                    id="phone" 
+                    value={formData.phone}
+                    onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="(00) 00000-0000" 
+                    className="rounded-xl h-11"
+                  />
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="contactEmail" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail para Contato</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showEmail ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showEmail} onCheckedChange={checked => setFormData(prev => ({ ...prev, showEmail: checked }))} />
+                    </div>
+                  </div>
+                  <Input 
+                    id="contactEmail" 
+                    type="email"
+                    value={formData.contactEmail}
+                    onChange={e => setFormData(prev => ({ ...prev, contactEmail: e.target.value }))}
+                    placeholder="contato@empresa.com" 
+                    className="rounded-xl h-11"
+                  />
+                </div>
+             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="website" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Site Oficial</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showWebsite ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showWebsite} onCheckedChange={checked => setFormData(prev => ({ ...prev, showWebsite: checked }))} />
+                    </div>
+                  </div>
+                  <Input 
+                    id="website" 
+                    value={formData.website}
+                    onChange={e => setFormData(prev => ({ ...prev, website: e.target.value }))}
+                    placeholder="https://www.empresa.com" 
+                    className="rounded-xl h-11"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="instagram" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram (@)</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showInstagram ? 'Público' : 'Oculto'}</span>
+                      <Switch checked={formData.showInstagram} onCheckedChange={checked => setFormData(prev => ({ ...prev, showInstagram: checked }))} />
+                    </div>
+                  </div>
+                  <Input 
+                    id="instagram" 
+                    value={formData.instagram}
+                    onChange={e => setFormData(prev => ({ ...prev, instagram: e.target.value.replace("@", "") }))}
+                    placeholder="usuario_da_marca" 
+                    className="rounded-xl h-11"
+                  />
                 </div>
              </div>
           </CardContent>
         </Card>
 
-        {/* CO-ORGANIZADORES */}
-        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
-          <CardHeader className="bg-muted/30 border-b">
-            <CardTitle className="text-lg flex items-center gap-2"><Users className="w-5 h-5 text-secondary" /> Outros Organizadores (Parcerias)</CardTitle>
-            <CardDescription>Adicione outras marcas para divulgarem este evento juntas. Elas precisarão aceitar o convite.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-6 space-y-6">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Buscar marca pelo @username..." 
-                  value={searchUsername}
-                  onChange={(e) => setSearchUsername(e.target.value)}
-                  className="pl-9 h-12 rounded-xl"
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleSearchOrg())}
-                />
-              </div>
-              <Button 
-                type="button" 
-                onClick={handleSearchOrg} 
-                disabled={isSearching || !searchUsername}
-                className="h-12 rounded-xl bg-secondary text-white font-bold px-6"
-              >
-                {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                Adicionar
-              </Button>
-            </div>
-
-            {coOrganizers.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {coOrganizers.map((org) => (
-                  <div key={org.id} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-border shadow-sm group">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 border">
-                        <AvatarImage src={org.avatar} className="object-cover" />
-                        <AvatarFallback className="font-bold">{org.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-1.5">
-                           <span className="font-bold text-sm">{org.name}</span>
-                           {org.verified && <CheckCircle2 className="w-3.5 h-3.5 text-secondary fill-secondary text-white" />}
-                        </div>
-                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{org.type || "Marca"}</span>
-                      </div>
-                    </div>
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 text-destructive rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => setOrgToDelete(org)}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
-          <CardHeader className="bg-muted/30 border-b">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Configuração de Ingressos</CardTitle>
-              <div className="bg-white p-1 rounded-xl border flex gap-1">
-                <Button type="button" variant={ticketMode === 'free' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('free'); setBatches([{ id: crypto.randomUUID(), name: "Grátis", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Entrada Franca", price: 0, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Grátis</Button>
-                <Button type="button" variant={ticketMode === 'paid_single' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => { setTicketMode('paid_single'); setBatches([{ id: crypto.randomUUID(), name: "Único", description: "", startDate: "", endDate: "", ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }] }]); }}>Único</Button>
-                <Button type="button" variant={ticketMode === 'batches' ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode('batches')}>Lotes</Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-6 space-y-8">
-             {batches.map((batch, bi) => {
-               const stats = calculateHalfPriceStats(batch)
-               const isFreeMode = ticketMode === 'free'
-               return (
-                 <div key={batch.id} className="p-6 rounded-[1.5rem] border-2 bg-muted/10 space-y-6">
-                    <div className="flex justify-between items-center">
-                       <h3 className="font-black italic uppercase text-secondary tracking-tighter text-xl">{isFreeMode ? "Grátis" : batch.name}</h3>
-                       <div className="flex gap-2">
-                          {!isFreeMode && (
-                            <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setDistributeBatchIdx(bi); setIsDistributeOpen(true); }}>
-                               <Sparkles className="w-3 h-3" /> Distribuir por Tipo
-                            </Button>
-                          )}
-                          {ticketMode === 'batches' && batches.length > 1 && <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)}><Trash2 className="w-4 h-4" /></Button>}
-                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                       <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome do Lote</Label><Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" disabled={isFreeMode} /></div>
-                       <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2"><Label className="text-[10px] uppercase font-black opacity-40">Início das Vendas</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
-                          <div className="space-y-2"><Label className="text-[10px] uppercase font-black opacity-40">Fim das Vendas</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
-                       </div>
-                    </div>
-
-                    <div className="space-y-4">
-                       <div className="flex items-center justify-between border-b pb-2">
-                          <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Tipos de Ingresso</h4>
-                          {!isFreeMode && <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase" onClick={() => addTicketType(bi)}>Adicionar Tipo</Button>}
-                       </div>
-                       <div className="space-y-3">
-                          {batch.ticketTypes.map((type, ti) => (
-                            <div key={type.id} className="p-4 bg-white rounded-2xl border shadow-sm space-y-4">
-                               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                                  <div className="md:col-span-3 space-y-2">
-                                     <Label className="text-[10px] font-black uppercase opacity-40">Nome</Label>
-                                     <div className="flex flex-col gap-1">
-                                        <Input value={type.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-10 font-bold" disabled={isFreeMode} />
-                                        {type.poolName && <span className="text-[8px] font-black text-secondary uppercase flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> Pool: {type.poolName}</span>}
-                                     </div>
-                                  </div>
-                                  <div className="md:col-span-3 space-y-2">
-                                     <Label className="text-[10px] font-black uppercase opacity-40">Tipo/Categoria</Label>
-                                     <Select 
-                                       value={TICKET_CATEGORIES.find(c => c.name === type.name)?.name || "Personalizado"} 
-                                       onValueChange={(val) => {
-                                          const cat = TICKET_CATEGORIES.find(c => c.name === val);
-                                          if (cat) {
-                                            updateTicketTypeField(bi, ti, 'name', cat.name);
-                                            updateTicketTypeField(bi, ti, 'isLegalHalf', cat.isLegalHalf);
-                                            updateTicketTypeField(bi, ti, 'requiresProof', cat.requiresProof);
-                                          }
-                                       }}
-                                       disabled={isFreeMode}
-                                     >
-                                        <SelectTrigger className="h-10 rounded-xl">
-                                           <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent className="rounded-xl">
-                                           {TICKET_CATEGORIES.map(c => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
-                                           <SelectItem value="Personalizado">Personalizado</SelectItem>
-                                        </SelectContent>
-                                     </Select>
-                                  </div>
-                                  <div className="md:col-span-2 space-y-2">
-                                     <Label className="text-[10px] font-black uppercase opacity-40">Quantidade</Label>
-                                     <div className="flex flex-col gap-1">
-                                        <Input type="number" value={type.quantity} onChange={e => {
-                                           const val = e.target.value;
-                                           if (type.poolId) {
-                                             const n = [...batches];
-                                             n[bi].ticketTypes.forEach((t, idx) => { if(t.poolId === type.poolId) n[bi].ticketTypes[idx].quantity = parseInt(val as any) || 0 });
-                                             setBatches(n);
-                                           } else {
-                                             updateTicketTypeField(bi, ti, 'quantity', val);
-                                           }
-                                        }} className="rounded-xl h-10 font-black" />
-                                        {type.poolId && <span className="text-[7px] font-bold text-muted-foreground uppercase text-center">Estoque Compartilhado</span>}
-                                     </div>
-                                  </div>
-                                  <div className="md:col-span-2 space-y-2">
-                                     <Label className="text-[10px] font-black uppercase opacity-40">Valor (R$)</Label>
-                                     <Input type="number" step="0.01" value={type.price} onChange={e => updateTicketTypeField(bi, ti, 'price', e.target.value)} className="rounded-xl h-10 font-black text-secondary" disabled={isFreeMode} />
-                                  </div>
-                                  <div className="md:col-span-2 flex items-center justify-end pb-1 gap-2">
-                                     <div className="flex flex-col items-center gap-1">
-                                        <Switch checked={type.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} />
-                                        <Label className="text-[8px] font-black uppercase">Doc.</Label>
-                                     </div>
-                                     {!isFreeMode && batch.ticketTypes.length > 1 && (
-                                       <Button type="button" variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => removeTicketType(bi, ti)}>
-                                          <Trash2 className="w-4 h-4" />
-                                       </Button>
-                                     )}
-                                  </div>
-                               </div>
-                            </div>
-                          ))}
-                       </div>
-                    </div>
-
-                    <div className={cn("p-5 bg-white rounded-3xl border space-y-4", stats.percentage < 40 ? "border-orange-200" : "border-green-200")}>
-                       <div className="flex justify-between items-center">
-                          <div className="space-y-1">
-                             <div className="flex items-center gap-2"><Info className="w-4 h-4 text-secondary" /><h5 className="text-[10px] font-black uppercase tracking-widest text-primary">Conformidade Legal</h5></div>
-                             <p className="text-[9px] text-muted-foreground font-medium">Recomenda-se 40% para Meia-Entrada Legal.</p>
-                          </div>
-                          <div className="text-right">
-                             <p className="text-[9px] font-black uppercase opacity-40">Percentual</p>
-                             <p className={cn("text-xl font-black italic", stats.percentage < 40 ? "text-orange-500" : "text-green-600")}>{stats.percentage.toFixed(1)}%</p>
-                          </div>
-                       </div>
-                    </div>
-                 </div>
-               )
-             })}
-             {ticketMode === 'batches' && <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic tracking-widest gap-2" onClick={addBatch}><Plus className="w-5 h-5" /> Adicionar Lote</Button>}
-          </CardContent>
-        </Card>
-
-        <Button type="submit" disabled={loading} className="w-full bg-secondary text-white h-16 rounded-[2rem] font-black text-xl shadow-xl uppercase italic">
-          {loading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Plus className="w-6 h-6 mr-2" />}
-          Publicar Evento
-        </Button>
+        <div className="flex justify-end gap-3 pt-4">
+          <Button type="button" variant="ghost" asChild className="rounded-xl px-8 font-bold text-muted-foreground">
+            <Link href="/dashboard/organizacoes">Cancelar</Link>
+          </Button>
+          <Button 
+            type="submit" 
+            className="bg-primary text-white hover:bg-primary/90 px-12 h-14 rounded-2xl font-black shadow-xl shadow-primary/20 uppercase italic transition-all hover:scale-[1.02]" 
+            disabled={loading || usernameStatus !== 'valid'}
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Plus className="w-5 h-5 mr-2" />}
+            Criar Organização
+          </Button>
+        </div>
       </form>
-
-      <Dialog open={isDistributeOpen} onOpenChange={setIsDistributeOpen}>
-        <DialogContent className="rounded-[2.5rem] max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Distribuir Ingressos</DialogTitle>
-            <DialogDescription>Defina a quantidade total deste lote. Dividiremos em Inteira (60%) e Meias Compartilhadas (40%).</DialogDescription>
-          </DialogHeader>
-          <div className="py-6 space-y-4">
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Quantidade Total do Lote</Label>
-              <Input type="number" placeholder="Ex: 200" value={totalToDistribute} onChange={e => setTotalToDistribute(e.target.value)} className="h-14 text-2xl font-black rounded-xl text-center" />
-            </div>
-            <p className="text-[10px] text-muted-foreground text-center font-medium italic">
-              Ao distribuir 200 ingressos: 120 serão Inteiras e 80 serão divididos entre as Meias (Estudante, PCD, Idoso).
-            </p>
-          </div>
-          <DialogFooter>
-            <Button onClick={handleDistribute} className="w-full bg-secondary text-white font-black h-12 rounded-xl shadow-lg uppercase italic">Confirmar Distribuição</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
