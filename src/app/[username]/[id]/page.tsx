@@ -48,24 +48,30 @@ import Footer from "@/components/layout/Footer"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 
+const renderFormattedText = (text: string) => {
+  if (!text) return "";
+  // Regex para: **negrito**, +grande+, @username
+  const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@[\w.]+)/g);
+
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('+') && part.endsWith('+')) {
+      return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
+    }
+    if (part.startsWith('@')) {
+      const usernameMention = part.slice(1).toLowerCase();
+      return <Link key={i} href={`/${usernameMention}`} className="text-secondary font-black hover:underline" onClick={(e) => e.stopPropagation()}>{part}</Link>;
+    }
+    return part;
+  });
+}
+
 function CommentItem({ comment, eventId, isAdmin, onDelete }: { comment: any, eventId: string, isAdmin: boolean, onDelete: (id: string) => void }) {
   const db = useFirestore()
   const authorRef = React.useMemo(() => (db && comment.userId) ? doc(db, "users", comment.userId) : null, [db, comment.userId])
   const { data: author } = useDoc<any>(authorRef)
-
-  const renderFormattedText = (text: string) => {
-    if (!text) return "";
-    const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@\w+)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
-      if (part.startsWith('+') && part.endsWith('+')) return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
-      if (part.startsWith('@')) {
-        const usernameMention = part.slice(1);
-        return <Link key={i} href={`/${usernameMention}`} className="text-secondary font-black hover:underline">{part}</Link>;
-      }
-      return part;
-    });
-  }
 
   return (
     <div className="flex gap-4 group">
@@ -85,9 +91,9 @@ function CommentItem({ comment, eventId, isAdmin, onDelete }: { comment: any, ev
             </Button>
           )}
         </div>
-        <p className="text-sm text-muted-foreground leading-relaxed">
+        <div className="text-sm text-muted-foreground leading-relaxed">
           {renderFormattedText(comment.text)}
-        </p>
+        </div>
         <span className="text-[9px] font-bold text-muted-foreground/50 uppercase">
           {comment.createdAt?.toDate ? comment.createdAt.toDate().toLocaleString('pt-BR') : '---'}
         </span>
@@ -319,9 +325,9 @@ export default function EventoDetalhesPage() {
               <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
                  <CardHeader className="bg-muted/30 pb-4"><CardTitle className="flex items-center gap-2 text-xl font-bold"><Info className="w-5 h-5 text-secondary" /> Sobre o Evento</CardTitle></CardHeader>
                  <CardContent className="pt-6">
-                    <p className="text-muted-foreground leading-relaxed whitespace-pre-line text-lg font-medium">
-                      {event.description}
-                    </p>
+                    <div className="text-muted-foreground leading-relaxed whitespace-pre-line text-lg font-medium">
+                      {renderFormattedText(event.description)}
+                    </div>
                  </CardContent>
               </Card>
 

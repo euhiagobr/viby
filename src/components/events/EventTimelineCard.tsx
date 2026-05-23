@@ -35,13 +35,26 @@ import { collection, query, orderBy, serverTimestamp, addDoc, doc, deleteDoc, ge
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 
-interface EventTimelineCardProps {
-  event: any
+const renderFormattedText = (text: string) => {
+  if (!text) return "";
+  // Regex para: **negrito**, +grande+, @username
+  const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@[\w.]+)/g);
+
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('+') && part.endsWith('+')) {
+      return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
+    }
+    if (part.startsWith('@')) {
+      const usernameMention = part.slice(1).toLowerCase();
+      return <Link key={i} href={`/${usernameMention}`} className="text-secondary font-black hover:underline" onClick={(e) => e.stopPropagation()}>{part}</Link>;
+    }
+    return part;
+  });
 }
 
-/**
- * Componente interno para renderizar cada comentário com dados dinâmicos do autor.
- */
 function CommentItem({ comment, eventId, isAdmin, onDelete }: { comment: any, eventId: string, isAdmin: boolean, onDelete: (id: string) => void }) {
   const db = useFirestore()
   const auth = useAuth()
@@ -49,20 +62,6 @@ function CommentItem({ comment, eventId, isAdmin, onDelete }: { comment: any, ev
   
   const authorRef = React.useMemo(() => (db && comment.userId) ? doc(db, "users", comment.userId) : null, [db, comment.userId])
   const { data: author } = useDoc<any>(authorRef)
-
-  const renderFormattedText = (text: string) => {
-    if (!text) return "";
-    const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@\w+)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
-      if (part.startsWith('+') && part.endsWith('+')) return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
-      if (part.startsWith('@')) {
-        const usernameMention = part.slice(1);
-        return <Link key={i} href={`/${usernameMention}`} className="text-secondary font-black hover:underline" onClick={(e) => e.stopPropagation()}>{part}</Link>;
-      }
-      return part;
-    });
-  }
 
   const canDelete = isAdmin || comment.userId === user?.uid;
 
@@ -86,9 +85,9 @@ function CommentItem({ comment, eventId, isAdmin, onDelete }: { comment: any, ev
             </button>
           )}
         </div>
-        <p className="text-xs text-muted-foreground leading-relaxed">
+        <div className="text-xs text-muted-foreground leading-relaxed">
           {renderFormattedText(comment.text)}
-        </p>
+        </div>
       </div>
     </div>
   );
@@ -109,7 +108,7 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
   const [newComment, setNewComment] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
-  // Lógica de Persistência de Curtida
+  // Curtida
   const likeRef = React.useMemo(() => (db && user && event.id) ? doc(db, "events", event.id, "likes", user.uid) : null, [db, user, event.id])
   const { data: userLike } = useDoc<any>(likeRef)
   const isLiked = !!userLike
@@ -121,7 +120,7 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
   const username = event.organizer?.username || "evento"
   const eventLink = `/${username}/${event.id}`
 
-  // Consulta de comentários
+  // Comentários
   const commentsQuery = useMemoFirebase(() => {
     if (!db || !event.id) return null
     return query(collection(db, "events", event.id, "comments"), orderBy("createdAt", "asc"))
@@ -132,26 +131,17 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
     e.stopPropagation()
     const url = `${window.location.origin}${eventLink}`
     navigator.clipboard.writeText(url)
-    toast({
-      title: "Link copiado!",
-      description: "O link do evento foi copiado para sua área de transferência.",
-    })
+    toast({ title: "Link copiado!" })
   }
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation()
     if (!db || !user || !likeRef) return
-
     if (isLiked) {
       deleteDoc(likeRef).catch(() => toast({ variant: "destructive", title: "Erro ao descurtir" }))
     } else {
       setDoc(likeRef, { timestamp: serverTimestamp() })
-        .then(() => {
-          toast({
-            title: "Evento curtido!",
-            description: "Este evento foi salvo nos seus favoritos.",
-          })
-        })
+        .then(() => toast({ title: "Evento curtido!" }))
         .catch(() => toast({ variant: "destructive", title: "Erro ao curtir" }))
     }
   }
@@ -174,7 +164,7 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
     }
 
     addDoc(collection(db, "events", event.id, "comments"), commentData)
-      .then(async (docRef) => {
+      .then(async () => {
         const mentions = newComment.match(/@(\w+)/g)
         if (mentions && mentions.length > 0) {
            const batch = writeBatch(db)
@@ -216,22 +206,6 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
   const handleDeleteComment = async (commentId: string) => {
     if (!db) return
     deleteDoc(doc(db, "events", event.id, "comments", commentId))
-      .catch(() => toast({ variant: "destructive", title: "Erro ao remover" }))
-  }
-
-  const renderFormattedText = (text: string) => {
-    if (!text) return "";
-    const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@\w+)/g);
-
-    return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
-      if (part.startsWith('+') && part.endsWith('+')) return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
-      if (part.startsWith('@')) {
-        const usernameMention = part.slice(1);
-        return <Link key={i} href={`/${usernameMention}`} className="text-secondary font-black hover:underline" onClick={(e) => e.stopPropagation()}>{part}</Link>;
-      }
-      return part;
-    });
   }
 
   return (
@@ -246,94 +220,62 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10 border-2 border-secondary/10">
             <AvatarImage src={event.organizer?.avatar} className="object-cover" />
-            <AvatarFallback className="font-bold bg-muted">
-              {event.organizer?.name?.charAt(0) || "O"}
-            </AvatarFallback>
+            <AvatarFallback className="font-bold bg-muted">{event.organizer?.name?.charAt(0) || "O"}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col">
             <div className="flex items-center gap-1">
-              <span className="text-sm font-black uppercase italic tracking-tighter text-primary">
-                {event.organizer?.name || "Organizador"}
-              </span>
+              <span className="text-sm font-black uppercase italic tracking-tighter text-primary">{event.organizer?.name || "Organizador"}</span>
               {event.organizer?.isVerified && <BadgeCheck className="w-3.5 h-3.5 fill-blue-500 text-white" />}
             </div>
-            <span className="text-[10px] font-bold text-secondary uppercase tracking-widest">
-              @{username}
-            </span>
+            <span className="text-[10px] font-bold text-secondary uppercase tracking-widest">@{username}</span>
           </div>
         </div>
       </CardHeader>
 
       <div className="relative aspect-square sm:aspect-[4/3] w-full bg-muted overflow-hidden">
-        <Image
-          src={event.image || `https://picsum.photos/seed/${event.id}/800/600`}
-          alt={event.title}
-          fill
-          className={cn("object-cover transition-transform group-hover:scale-105", isEnded && "grayscale")}
-          unoptimized
-        />
+        <Image src={event.image || `https://picsum.photos/seed/${event.id}/800/600`} alt={event.title} fill className={cn("object-cover transition-transform group-hover:scale-105", isEnded && "grayscale")} unoptimized />
         <div className="absolute top-4 left-4 flex flex-col gap-2">
-          {isEnded && <Badge className="bg-muted text-muted-foreground border-none shadow-lg text-[10px] font-black uppercase px-3 py-1">Evento Encerrado</Badge>}
+          {isEnded && <Badge className="bg-muted text-muted-foreground border-none shadow-lg text-[10px] font-black uppercase px-3 py-1">Encerrado</Badge>}
           {event.categoryName && <Badge className="bg-white/90 text-primary border-none shadow-lg text-[10px] font-black uppercase px-3 py-1">{event.categoryName}</Badge>}
         </div>
       </div>
 
       <div className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className={cn("h-10 w-10 rounded-full transition-all active:scale-125", isLiked && "text-red-500 bg-red-50")}
-            onClick={handleLike}
-          >
+          <Button variant="ghost" size="icon" className={cn("h-10 w-10 rounded-full transition-all active:scale-125", isLiked && "text-red-500 bg-red-50")} onClick={handleLike}>
             <Heart className={cn("w-6 h-6", isLiked && "fill-current")} />
           </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className={cn("h-10 w-10 rounded-full transition-colors", showComments && "text-secondary bg-secondary/10")}
-            onClick={toggleComments}
-          >
+          <Button variant="ghost" size="icon" className={cn("h-10 w-10 rounded-full transition-colors", showComments && "text-secondary bg-secondary/10")} onClick={toggleComments}>
             <MessageCircle className="w-6 h-6" />
           </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-10 w-10 rounded-full"
-            onClick={handleShare}
-          >
+          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full" onClick={handleShare}>
             <Share2 className="w-6 h-6" />
           </Button>
         </div>
-        <Badge variant="outline" className={cn("font-black uppercase text-[9px] h-6 px-3", isEnded ? "border-muted text-muted-foreground" : "border-secondary text-secondary")}>
-          {event.isFree ? "Grátis" : "Bilheteria"}
-        </Badge>
+        <Badge variant="outline" className={cn("font-black uppercase text-[9px] h-6 px-3", isEnded ? "border-muted text-muted-foreground" : "border-secondary text-secondary")}>{event.isFree ? "Grátis" : "Bilheteria"}</Badge>
       </div>
 
       <CardContent className="px-6 pb-6 space-y-4">
         <div className="space-y-1">
           <h3 className={cn("text-xl font-black uppercase italic tracking-tighter leading-tight text-primary", isEnded && "text-muted-foreground")}>{event.title}</h3>
-          <p className="text-sm text-muted-foreground line-clamp-2 font-medium leading-relaxed">
+          <div className="text-sm text-muted-foreground line-clamp-2 font-medium leading-relaxed">
             {renderFormattedText(event.description || event.shortDescription)}
-          </p>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4 py-4 border-y border-dashed border-border/60">
            <div className="space-y-1">
               <p className="text-[9px] font-black uppercase text-muted-foreground opacity-50 tracking-widest">Quando</p>
               <div className="flex items-center gap-1.5 text-xs font-bold text-primary">
-                 <Calendar className="w-3.5 h-3.5 text-secondary" />
-                 {eventDate.toLocaleDateString('pt-BR')}
+                 <Calendar className="w-3.5 h-3.5 text-secondary" /> {eventDate.toLocaleDateString('pt-BR')}
                  <span className="opacity-30 mx-1">|</span>
-                 <Clock className="w-3.5 h-3.5 text-secondary" />
-                 {eventDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                 <Clock className="w-3.5 h-3.5 text-secondary" /> {eventDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
               </div>
            </div>
            <div className="space-y-1">
               <p className="text-[9px] font-black uppercase text-muted-foreground opacity-50 tracking-widest">Onde</p>
               <div className="flex items-center gap-1.5 text-xs font-bold text-primary">
-                 <MapPin className="w-3.5 h-3.5 text-secondary" />
-                 <span className="truncate">{event.city}</span>
+                 <MapPin className="w-3.5 h-3.5 text-secondary" /> <span className="truncate">{event.city}</span>
               </div>
            </div>
         </div>
@@ -341,41 +283,21 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
         {showComments && (
           <div className="pt-4 space-y-6 animate-in slide-in-from-top-4 duration-300" onClick={(e) => e.stopPropagation()}>
              <Separator className="border-dashed" />
-             
              <div className="max-h-60 overflow-y-auto space-y-4 px-1 custom-scrollbar">
                 {commentsLoading ? (
                    <div className="py-4 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-secondary" /></div>
                 ) : comments && comments.length > 0 ? (
                    comments.map((comment: any) => (
-                     <CommentItem 
-                       key={comment.id} 
-                       comment={comment} 
-                       eventId={event.id} 
-                       isAdmin={isAdmin} 
-                       onDelete={handleDeleteComment} 
-                     />
+                     <CommentItem key={comment.id} comment={comment} eventId={event.id} isAdmin={isAdmin} onDelete={handleDeleteComment} />
                    ))
                 ) : (
-                   <div className="py-4 text-center">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground opacity-40">Seja o primeiro a comentar</p>
-                   </div>
+                   <div className="py-4 text-center"><p className="text-[10px] font-bold uppercase text-muted-foreground opacity-40">Seja o primeiro a comentar</p></div>
                 )}
              </div>
 
              <form onSubmit={handleAddComment} className="flex gap-2">
-                <Input 
-                   placeholder="Escreva um comentário..." 
-                   value={newComment}
-                   onChange={(e) => setNewComment(e.target.value)}
-                   className="rounded-xl h-10 text-xs border-dashed border-secondary/30 focus-visible:ring-secondary/30"
-                   disabled={isSubmitting}
-                />
-                <Button 
-                   type="submit" 
-                   size="icon" 
-                   disabled={isSubmitting || !newComment.trim()}
-                   className="h-10 w-10 shrink-0 bg-secondary text-white rounded-xl shadow-lg shadow-secondary/20 transition-all active:scale-90"
-                >
+                <Input placeholder="Escreva um comentário..." value={newComment} onChange={(e) => setNewComment(e.target.value)} className="rounded-xl h-10 text-xs border-dashed border-secondary/30 focus-visible:ring-secondary/30" disabled={isSubmitting} />
+                <Button type="submit" size="icon" disabled={isSubmitting || !newComment.trim()} className="h-10 w-10 shrink-0 bg-secondary text-white rounded-xl shadow-lg transition-all active:scale-90">
                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </Button>
              </form>
@@ -383,13 +305,7 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
         )}
 
         {!showComments && (
-          <Button 
-            disabled={isEnded}
-            className={cn(
-              "w-full h-12 font-black rounded-2xl uppercase italic text-xs gap-2 group transition-colors",
-              isEnded ? "bg-muted text-muted-foreground" : "bg-primary text-white hover:bg-secondary"
-            )}
-          >
+          <Button disabled={isEnded} className={cn("w-full h-12 font-black rounded-2xl uppercase italic text-xs gap-2 group transition-colors", isEnded ? "bg-muted text-muted-foreground" : "bg-primary text-white hover:bg-secondary")}>
             {isEnded ? "Evento Encerrado" : <><Ticket className="w-4 h-4" /> Garantir meu Ingresso <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></>}
           </Button>
         )}
