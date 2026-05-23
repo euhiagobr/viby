@@ -24,12 +24,13 @@ import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
+import { Separator } from "@/components/ui/separator"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 import Link from "next/link"
-import { useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useAuth, useUser, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { collection, query, orderBy, serverTimestamp, addDoc, doc, deleteDoc, getDocs, where, limit, writeBatch } from "firebase/firestore"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
@@ -44,6 +45,11 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
   const auth = useAuth()
   const { user } = useUser(auth)
   
+  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
+  const { data: profile } = useDoc<any>(userDocRef)
+  
+  const isAdmin = profile?.role === 'admin'
+
   const [isLiked, setIsLiked] = React.useState(false)
   const [showComments, setShowComments] = React.useState(false)
   const [newComment, setNewComment] = React.useState("")
@@ -321,7 +327,7 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
                         <div className="flex-1 space-y-1">
                            <div className="flex items-center justify-between">
                               <span className="text-[11px] font-black uppercase tracking-tight text-primary">{comment.userName}</span>
-                              {(comment.userId === user?.uid || isAdmin()) && (
+                              {(comment.userId === user?.uid || isAdmin) && (
                                  <button onClick={(e) => handleDeleteComment(comment.id, e)} className="opacity-0 group-hover:opacity-100 text-destructive hover:scale-110 transition-all">
                                     <Trash2 className="w-3 h-3" />
                                  </button>
