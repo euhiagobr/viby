@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
@@ -5,7 +6,7 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    // Regra genérica para facilitar acesso público de leitura em assets de branding
+    // Leitura pública para todos os assets da plataforma
     match /{allPaths=**} {
       allow read: if true;
     }
@@ -17,14 +18,16 @@ service firebase.storage {
 
     // Identidade de Marca
     match /organizations/{orgId}/{allPaths=**} {
-      // Permitir escrita se for membro owner ou admin
-      // Nota: Regras de storage não suportam get() no firestore de forma performática para coleções aninhadas sem firestore.get()
-      // Para o MVP, permitimos escrita se o usuário estiver logado e o caminho for coerente
       allow write: if isSignedIn();
     }
 
     // Conteúdo de Eventos
     match /events/{eventId}/{allPaths=**} {
+      allow write: if isSignedIn();
+    }
+    
+    // Anúncios
+    match /ads/{allPaths=**} {
       allow write: if isSignedIn();
     }
   }

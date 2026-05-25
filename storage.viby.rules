@@ -2,34 +2,31 @@
 rules_version = '2';
 service firebase.storage {
   match /b/viby/o {
-    // REGRAS VIBY - Versão: 2.0.0
-    // Isolamento para o bucket exclusivo 'viby'
+    // REGRAS VIBY - Versão: 3.0.0
     
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Assets globais da marca
-    match /site_assets/{allPaths=**} {
+    // Todo o conteúdo do bucket viby é de leitura pública
+    match /{allPaths=**} {
       allow read: if true;
+    }
+
+    // Escrita restrita
+    match /site_assets/{allPaths=**} {
       allow write: if isSignedIn();
     }
 
-    // Fotos de perfil
     match /profiles/{userId}/{allPaths=**} {
-      allow read: if true;
       allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // Fotos de eventos
     match /events/{userId}/{allPaths=**} {
-      allow read: if true;
       allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // Outros arquivos do sistema Viby
-    match /{allPaths=**} {
-      allow read: if true;
+    match /ads/{allPaths=**} {
       allow write: if isSignedIn();
     }
   }

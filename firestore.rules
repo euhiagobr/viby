@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/(default)/documents {
@@ -23,46 +24,46 @@ service cloud.firestore {
       return isSignedIn() && getRole(orgId) in roles;
     }
 
-    // Usuários
+    // Leitura pública global para descoberta
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /users/{userId} {
       allow read: if true;
       allow write: if isUser(userId) || isAdmin();
     }
 
-    // Namespace de Usernames
     match /usernames/{username} {
       allow read: if true;
       allow create: if isSignedIn();
       allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
     }
 
-    // Organizações
     match /organizations/{orgId} {
       allow read: if true;
       allow create: if isSignedIn();
       allow update: if hasRole(orgId, ['owner', 'admin']) || isAdmin();
       allow delete: if hasRole(orgId, ['owner']) || isAdmin();
 
-      // Membros (RBAC)
       match /members/{userId} {
-        allow read: if hasRole(orgId, ['owner', 'admin', 'editor', 'finance', 'checkin']) || isAdmin();
+        allow read: if true;
         allow write: if hasRole(orgId, ['owner', 'admin']) || isAdmin();
       }
     }
 
-    // Eventos
     match /events/{eventId} {
-      allow read: if resource.data.visibility == 'public' || hasRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin']) || isAdmin();
+      allow read: if true;
       allow create: if isSignedIn() && hasRole(request.resource.data.organizationId, ['owner', 'admin', 'editor']);
       allow update: if hasRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
       allow delete: if hasRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
     }
 
-    // Seguidores
     match /follows/{followId} {
       allow read: if true;
       allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
+      allow delete: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
     }
   }
 }
