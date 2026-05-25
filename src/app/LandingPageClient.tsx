@@ -59,8 +59,9 @@ export default function LandingPageClient() {
 
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: false, 
-    align: 'start',
-    slidesToScroll: 1
+    align: 'center', 
+    slidesToScroll: 1,
+    containScroll: 'trimSnaps'
   })
 
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-bg')?.imageUrl || "https://picsum.photos/seed/vibyhero-event/1920/1080"
@@ -286,7 +287,7 @@ export default function LandingPageClient() {
         <section className="bg-white border-b border-border py-6 sticky top-16 z-40 shadow-sm overflow-hidden">
           <div className="container mx-auto px-4 relative group">
             <div className="overflow-hidden" ref={emblaRef}>
-              <div className="flex gap-4">
+              <div className="flex gap-4 justify-center">
                 <div className="flex-[0_0_auto]">
                   <Button 
                     variant={selectedCategory === 'all' ? 'secondary' : 'ghost'} 
