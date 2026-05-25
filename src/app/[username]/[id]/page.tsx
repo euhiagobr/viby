@@ -53,11 +53,13 @@ import {
   RefreshCcw,
   Hand,
   MousePointer2,
-  Map as MapIcon
+  Map as MapIcon,
+  AlertCircle,
+  Timer
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 import { useCart } from '@/contexts/CartContext';
 import Link from 'next/link';
@@ -470,12 +472,22 @@ function TicketCard({
   orgSettings?: any;
 }) {
   const breakdown = React.useMemo(() => calculateFinancialBreakdown(type.price, globalFees, promotions, orgSettings), [type.price, globalFees, promotions, orgSettings]);
+  const now = new Date();
+  
+  const batch = type._batch;
+  const start = batch?.startDate ? new Date(batch.startDate) : null;
+  const end = batch?.endDate ? new Date(batch.endDate) : null;
+  
+  const isUpcoming = start && now < start;
+  const isExpired = end && now > end;
+  const isActive = (!start || now >= start) && (!end || now <= end);
 
   return (
     <Card
-      onClick={onSelect}
+      onClick={() => isActive && onSelect()}
       className={cn(
-        'cursor-pointer border-2 transition-all rounded-[1.5rem] overflow-hidden group relative',
+        'border-2 transition-all rounded-[1.5rem] overflow-hidden group relative',
+        isActive ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed grayscale-[0.5]',
         isSelected
           ? 'border-secondary bg-secondary/5 shadow-lg shadow-secondary/10'
           : 'border-border hover:border-secondary/30 bg-white'
@@ -484,11 +496,15 @@ function TicketCard({
       <CardContent className="p-6">
         <div className="flex justify-between items-start gap-4">
           <div className="space-y-1">
-            <h4 className="font-black text-lg uppercase italic tracking-tighter text-primary">
-              {type.name}
-            </h4>
+            <div className="flex items-center gap-2">
+               <h4 className="font-black text-lg uppercase italic tracking-tighter text-primary">
+                 {type.name}
+               </h4>
+               {isUpcoming && <Badge variant="outline" className="text-[7px] font-black uppercase text-orange-500 border-orange-200">Em Breve</Badge>}
+               {isExpired && <Badge variant="outline" className="text-[7px] font-black uppercase text-muted-foreground border-muted">Encerrado</Badge>}
+            </div>
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-              {type._batch?.name || "Lote Disponível"}
+              {batch?.name || "Lote Disponível"}
             </p>
           </div>
           <div className="text-right">
@@ -498,6 +514,21 @@ function TicketCard({
             </p>
           </div>
         </div>
+
+        {batch && (start || end) && (
+          <div className="mt-4 flex items-center gap-4 text-[9px] font-bold text-muted-foreground uppercase tracking-tighter">
+             {start && (
+               <div className="flex items-center gap-1">
+                  <Timer className="w-3 h-3 text-secondary" /> Início: {start.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+               </div>
+             )}
+             {end && (
+               <div className="flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-red-400" /> Fim: {end.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+               </div>
+             )}
+          </div>
+        )}
 
         <div className="mt-6 flex items-center justify-between border-t border-dashed border-border pt-4">
           <div className="flex items-center gap-2">
@@ -519,7 +550,7 @@ function TicketCard({
           </div>
           
           <div className="flex items-center gap-4">
-             {showQuantity && isSelected && onQuantityChange && (
+             {showQuantity && isSelected && onQuantityChange && isActive && (
                 <div className="flex items-center gap-3 bg-white p-1 rounded-lg border shadow-sm" onClick={e => e.stopPropagation()}>
                    <button className="h-7 w-7 rounded-md hover:bg-muted flex items-center justify-center transition-colors" onClick={() => onQuantityChange(Math.max(1, (quantity || 1) - 1))}>
                       <Minus className="w-3.5 h-3.5" />
@@ -531,13 +562,19 @@ function TicketCard({
                 </div>
              )}
 
-             {isSelected ? (
-                <div className="bg-secondary text-white rounded-full p-1.5 shadow-md animate-in zoom-in-50">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-              ) : (
-                <div className="w-6 h-6 rounded-full border-2 border-muted-foreground/20 group-hover:border-secondary/40 transition-colors" />
-              )}
+             {isActive ? (
+               isSelected ? (
+                 <div className="bg-secondary text-white rounded-full p-1.5 shadow-md animate-in zoom-in-50">
+                   <CheckCircle2 className="w-4 h-4" />
+                 </div>
+               ) : (
+                 <div className="w-6 h-6 rounded-full border-2 border-muted-foreground/20 group-hover:border-secondary/40 transition-colors" />
+               )
+             ) : (
+               <div className="w-6 h-6 rounded-full bg-muted border-2 border-border flex items-center justify-center">
+                  <X className="w-3 h-3 text-muted-foreground/40" />
+               </div>
+             )}
           </div>
         </div>
       </CardContent>
@@ -590,52 +627,39 @@ export default function EventoPublicoPage() {
   const [reportDescription, setReportDescription] = React.useState("");
   const [isSubmittingReport, setIsSubmittingReport] = React.useState(false);
 
-  const availableTickets = React.useMemo(() => {
+  const allAvailableTickets = React.useMemo(() => {
     if (!event) return [];
+
+    const extractFromBatches = (batchList: any[]) => {
+      const all: any[] = [];
+      batchList?.forEach(b => {
+        if (b.ticketTypes) {
+          b.ticketTypes.forEach((t: any) => {
+            all.push({ ...t, _batch: b });
+          });
+        }
+      });
+      return all;
+    };
 
     if (selectedSector) {
       if (event.ticketMode === 'sector_batches') {
         const sectorDef = event.sectors?.find((s: any) => s.id === selectedSector.ticketLinkId);
         if (!sectorDef) return [];
-
-        const activeBatch =
-          sectorDef.batches?.find((b: any) => {
-            if (!b.startDate || !b.endDate) return true;
-            const start = new Date(b.startDate);
-            const end = new Date(b.endDate);
-            return now >= start && now <= end;
-          }) || sectorDef.batches?.[0];
-
-        return activeBatch?.ticketTypes?.map((t: any) => ({ ...t, _batch: activeBatch })) || [];
+        return extractFromBatches(sectorDef.batches || []);
       }
       
       if (event.ticketMode === 'batches' || event.ticketMode === 'paid_single') {
-         const activeBatch =
-          event.batches?.find((b: any) => {
-            if (!b.startDate || !b.endDate) return true;
-            const start = new Date(b.startDate);
-            const end = new Date(b.endDate);
-            return now >= start && now <= end;
-          }) || event.batches?.[0];
-
-        return activeBatch?.ticketTypes?.map((t: any) => ({ ...t, _batch: activeBatch })) || [];
+        return extractFromBatches(event.batches || []);
       }
     }
 
     if (event.ticketMode === 'batches' || event.ticketMode === 'paid_single' || event.ticketMode === 'free') {
-      const activeBatch =
-        event.batches?.find((b: any) => {
-          if (!b.startDate || !b.endDate) return true;
-          const start = new Date(b.startDate);
-          const end = new Date(b.endDate);
-          return now >= start && now <= end;
-        }) || event.batches?.[0];
-
-      return activeBatch?.ticketTypes?.map((t: any) => ({ ...t, _batch: activeBatch })) || [];
+      return extractFromBatches(event.batches || []);
     }
 
     return [];
-  }, [event, selectedSector, now]);
+  }, [event, selectedSector]);
 
   const handleToggleSeat = (seat: any) => {
     setSelectedSeats(prev => {
@@ -643,9 +667,21 @@ export default function EventoPublicoPage() {
       if (next[seat.id]) {
         delete next[seat.id];
       } else {
+        const activeTickets = allAvailableTickets.filter(t => {
+           if (!t._batch.startDate || !t._batch.endDate) return true;
+           const start = new Date(t._batch.startDate);
+           const end = new Date(t._batch.endDate);
+           return now >= start && now <= end;
+        });
+
         const defaultType = seat.categoria === 'pcd' 
-            ? (availableTickets.find((t: any) => t.isLegalHalf) || availableTickets[0])
-            : availableTickets[0];
+            ? (activeTickets.find((t: any) => t.isLegalHalf) || activeTickets[0])
+            : (activeTickets[0] || allAvailableTickets[0]);
+
+        if (!defaultType) {
+           toast({ variant: 'destructive', title: 'Vendas encerradas ou não iniciadas' });
+           return prev;
+        }
 
         next[seat.id] = { seat, ticketType: defaultType };
       }
@@ -654,7 +690,7 @@ export default function EventoPublicoPage() {
   };
 
   const updateSeatTicketType = (seatId: string, ticketTypeId: string) => {
-    const type = availableTickets.find((t: any) => t.id === ticketTypeId);
+    const type = allAvailableTickets.find((t: any) => t.id === ticketTypeId);
     if (!type) return;
     setSelectedSeats(prev => ({
       ...prev,
@@ -886,117 +922,121 @@ export default function EventoPublicoPage() {
 
         <div className="max-w-7xl mx-auto px-4 py-12 md:py-24">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
-            <div className="lg:col-span-8 space-y-16">
-              {/* ORGANIZADORES */}
-              <div className="space-y-10">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-16 w-16 border-2 border-secondary/20 p-0.5">
-                    <AvatarImage src={event.organizer?.avatar} className="rounded-full object-cover" />
-                    <AvatarFallback className="font-bold text-xl">
-                      {event.organizer?.name?.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5">
-                      <h4 className="font-black text-lg uppercase italic tracking-tighter">
-                        {event.organizer?.name}
-                      </h4>
-                      {event.organizer?.isVerified && <VerifiedBadge />}
-                    </div>
-                    <Button
-                      variant="link"
-                      asChild
-                      className="p-0 h-auto text-[10px] font-black uppercase text-secondary tracking-widest"
-                    >
-                      <Link href={`/${event.organizer?.username}`}>
-                        Acessar Perfil Completo <ArrowRight className="w-3 h-3 ml-1" />
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-
-                {partners && partners.length > 0 && (
-                  <div className="space-y-4">
-                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 px-1">
-                      Co-realização
-                    </p>
-                    <div className="flex flex-wrap gap-4">
-                      {partners.map((p: any) => (
-                        <Link
-                          key={p.id}
-                          href={`/${p.username}`}
-                          className="flex items-center gap-2 bg-muted/30 p-2 pr-4 rounded-full hover:bg-muted transition-colors border"
-                        >
-                          <Avatar className="h-8 w-8 border border-white">
-                            <AvatarImage src={p.avatar} />
-                            <AvatarFallback className="text-[10px] font-bold">
-                              {p.orgName?.charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-[10px] font-black uppercase tracking-tight">
-                            {p.orgName}
-                          </span>
+            <div className="lg:col-span-8 space-y-12">
+              {/* CARD ORGANIZADOR */}
+              <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
+                <CardContent className="p-8 space-y-10">
+                  <div className="flex items-center gap-6">
+                    <Avatar className="h-20 w-20 border-2 border-secondary/20 p-0.5 shadow-sm">
+                      <AvatarImage src={event.organizer?.avatar} className="rounded-full object-cover" />
+                      <AvatarFallback className="font-bold text-2xl">
+                        {event.organizer?.name?.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-black text-xl uppercase italic tracking-tighter text-primary">
+                          {event.organizer?.name}
+                        </h4>
+                        {event.organizer?.isVerified && <VerifiedBadge />}
+                      </div>
+                      <Button
+                        variant="link"
+                        asChild
+                        className="p-0 h-auto text-[10px] font-black uppercase text-secondary tracking-widest"
+                      >
+                        <Link href={`/${event.organizer?.username}`}>
+                          Acessar Perfil Completo <ArrowRight className="w-3 h-3 ml-1" />
                         </Link>
-                      ))}
+                      </Button>
                     </div>
                   </div>
-                )}
-              </div>
 
-              <Separator className="opacity-40" />
+                  {partners && partners.length > 0 && (
+                    <div className="space-y-4 pt-6 border-t border-dashed">
+                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 px-1">
+                        Co-realização
+                      </p>
+                      <div className="flex flex-wrap gap-4">
+                        {partners.map((p: any) => (
+                          <Link
+                            key={p.id}
+                            href={`/${p.username}`}
+                            className="flex items-center gap-2 bg-muted/30 p-2 pr-4 rounded-full hover:bg-muted transition-colors border shadow-sm"
+                          >
+                            <Avatar className="h-8 w-8 border border-white">
+                              <AvatarImage src={p.avatar} />
+                              <AvatarFallback className="text-[10px] font-bold">
+                                {p.orgName?.charAt(0)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-[10px] font-black uppercase tracking-tight">
+                              {p.orgName}
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-              {/* DESCRIÇÃO */}
-              <section className="space-y-6">
-                <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-secondary flex items-center gap-3">
-                  <Info className="w-4 h-4" /> Sobre a Experiência
-                </h2>
-                <div className="text-muted-foreground font-medium text-lg leading-relaxed whitespace-pre-line prose prose-slate max-w-none">
-                  {renderFormattedText(event.description)}
-                </div>
-              </section>
+              {/* CARD DESCRIÇÃO */}
+              <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
+                <CardHeader className="bg-muted/30 pb-6 p-8 border-b">
+                   <CardTitle className="text-[11px] font-black uppercase tracking-[0.3em] text-secondary flex items-center gap-3">
+                    <Info className="w-4 h-4" /> Sobre a Experiência
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-8">
+                  <div className="text-muted-foreground font-medium text-lg leading-relaxed whitespace-pre-line prose prose-slate max-w-none">
+                    {renderFormattedText(event.description)}
+                  </div>
+                </CardContent>
+              </Card>
 
-              <Separator className="opacity-40" />
+              {/* CARD LOCALIZAÇÃO */}
+              <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
+                <CardHeader className="bg-muted/30 pb-6 p-8 border-b">
+                   <CardTitle className="text-[11px] font-black uppercase tracking-[0.3em] text-secondary flex items-center gap-3">
+                    <MapPin className="w-4 h-4" /> Localização
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-8 space-y-8">
+                  <div className="space-y-1">
+                    <p className="text-2xl font-black italic tracking-tighter uppercase text-primary">
+                      {event.address?.street}, {event.address?.number}
+                    </p>
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                      {event.address?.neighborhood}, {event.city} - {event.address?.state}
+                    </p>
+                  </div>
 
-              {/* LOCALIZAÇÃO */}
-              <section className="space-y-8">
-                <div className="space-y-1">
-                  <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-secondary">
-                    Localização
-                  </h2>
-                  <p className="text-2xl font-black italic tracking-tighter uppercase">
-                    {event.address?.street}, {event.address?.number}
-                  </p>
-                  <p className="text-sm font-bold text-muted-foreground uppercase">
-                    {event.address?.neighborhood}, {event.city} - {event.address?.state}
-                  </p>
-                </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <Button variant="outline" className="h-12 rounded-xl font-bold gap-2 border-secondary/20 text-secondary hover:bg-secondary hover:text-white transition-all shadow-sm" asChild>
+                        <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${event.address?.street}, ${event.address?.number} - ${event.city}`)}`} target="_blank">
+                           <Navigation className="w-4 h-4" /> Abrir no Google Maps
+                        </a>
+                     </Button>
+                     <Button variant="outline" className="h-12 rounded-xl font-bold gap-2 border-secondary/20 text-secondary hover:bg-secondary hover:text-white transition-all shadow-sm" asChild>
+                        <a href={`https://waze.com/ul?q=${encodeURIComponent(`${event.address?.street}, ${event.address?.number} - ${event.city}`)}`} target="_blank">
+                           <div className="w-4 h-4 bg-[#33CCFF] rounded-full flex items-center justify-center text-[10px] text-white font-black italic">W</div> Abrir no Waze
+                        </a>
+                     </Button>
+                  </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <Button variant="outline" className="h-12 rounded-xl font-bold gap-2" asChild>
-                      <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${event.address?.street}, ${event.address?.number} - ${event.city}`)}`} target="_blank">
-                         <Navigation className="w-4 h-4 text-blue-500" /> Abrir no Google Maps
-                      </a>
-                   </Button>
-                   <Button variant="outline" className="h-12 rounded-xl font-bold gap-2" asChild>
-                      <a href={`https://waze.com/ul?q=${encodeURIComponent(`${event.address?.street}, ${event.address?.number} - ${event.city}`)}`} target="_blank">
-                         <div className="w-4 h-4 bg-[#33CCFF] rounded-full flex items-center justify-center text-[10px] text-white font-black italic">W</div> Abrir no Waze
-                      </a>
-                   </Button>
-                </div>
-
-                <Card className="overflow-hidden border-none shadow-xl rounded-[2.5rem] bg-muted aspect-video relative group">
-                   <iframe
-                    width="100%"
-                    height="100%"
-                    style={{ border: 0 }}
-                    loading="lazy"
-                    allowFullScreen
-                    src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyDWOoEhxGwwTzEuCx5ire2ZaddlH3X4Vcw&q=${encodeURIComponent(`${event.address?.street}, ${event.address?.number} - ${event.city}`)}`}
-                  />
-                </Card>
-              </section>
-
-              <Separator className="opacity-40" />
+                  <div className="overflow-hidden border-none shadow-inner rounded-[1.5rem] bg-muted aspect-video relative ring-1 ring-border/40">
+                     <iframe
+                      width="100%"
+                      height="100%"
+                      style={{ border: 0 }}
+                      loading="lazy"
+                      allowFullScreen
+                      src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyDWOoEhxGwwTzEuCx5ire2ZaddlH3X4Vcw&q=${encodeURIComponent(`${event.address?.street}, ${event.address?.number} - ${event.city}`)}`}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* BILHETERIA */}
               <section id="tickets" className="space-y-10">
@@ -1004,7 +1044,7 @@ export default function EventoPublicoPage() {
                   <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-secondary">
                     Bilheteria
                   </h2>
-                  <p className="text-3xl font-black italic uppercase tracking-tighter uppercase">
+                  <p className="text-3xl font-black italic uppercase tracking-tighter">
                     Garanta seu Ingresso
                   </p>
                 </div>
@@ -1056,7 +1096,7 @@ export default function EventoPublicoPage() {
                               'cursor-pointer border-2 transition-all rounded-2xl p-6',
                               selectedSector?.id === setor.id
                                 ? 'border-secondary bg-secondary/5'
-                                : 'border-border hover:border-secondary/20'
+                                : 'border-border hover:border-secondary/20 shadow-sm bg-white'
                             )}
                           >
                             <div className="flex justify-between items-center">
@@ -1065,11 +1105,11 @@ export default function EventoPublicoPage() {
                                   className="w-3 h-3 rounded-full"
                                   style={{ backgroundColor: setor.cor }}
                                 />
-                                <span className="font-black text-sm uppercase italic tracking-tighter">
+                                <span className="font-black text-sm uppercase italic tracking-tighter text-primary">
                                   {setor.nome}
                                 </span>
                               </div>
-                              <Badge variant="outline" className="text-[8px] font-bold uppercase">
+                              <Badge variant="outline" className="text-[8px] font-bold uppercase text-muted-foreground">
                                 {setor.tipo}
                               </Badge>
                             </div>
@@ -1090,14 +1130,14 @@ export default function EventoPublicoPage() {
                                  <div className="grid grid-cols-1 gap-4">
                                     {Object.values(selectedSeats).map(({ seat, ticketType }) => {
                                       const validOptions = seat.categoria === 'pcd'
-                                        ? availableTickets.filter((t: any) => t.isLegalHalf)
-                                        : availableTickets;
+                                        ? allAvailableTickets.filter((t: any) => t.isLegalHalf)
+                                        : allAvailableTickets;
 
                                       return (
                                         <Card key={seat.id} className="border-none shadow-sm rounded-2xl p-6 bg-white flex flex-col sm:flex-row items-center justify-between gap-6 group hover:border-secondary/20 border transition-all">
                                            <div className="flex items-center gap-4">
                                               <div className={cn(
-                                                  "w-12 h-12 rounded-xl flex items-center justify-center font-black",
+                                                  "w-12 h-12 rounded-xl flex items-center justify-center font-black shadow-inner",
                                                   seat.categoria === 'pcd' ? "bg-blue-100 text-blue-600" :
                                                   seat.categoria === 'pcd_acompanhante' ? "bg-purple-100 text-purple-600" :
                                                   seat.categoria === 'obeso' ? "bg-orange-100 text-orange-600" :
@@ -1115,7 +1155,7 @@ export default function EventoPublicoPage() {
                                                      seat.categoria === 'obeso' ? "Assento Obeso" :
                                                      "Assento Selecionado"}
                                                  </p>
-                                                 <p className="font-bold text-sm uppercase italic tracking-tight">{selectedSector.nome}</p>
+                                                 <p className="font-bold text-sm uppercase italic tracking-tight text-primary">{selectedSector.nome}</p>
                                               </div>
                                            </div>
 
@@ -1125,11 +1165,14 @@ export default function EventoPublicoPage() {
                                                     <SelectValue placeholder="Tipo de ingresso" />
                                                  </SelectTrigger>
                                                  <SelectContent className="rounded-xl">
-                                                    {validOptions.map((t: any) => (
-                                                      <SelectItem key={t.id} value={t.id} className="font-bold uppercase text-[10px]">
-                                                         {t.name} - {formatCurrency(t.price)}
-                                                      </SelectItem>
-                                                    ))}
+                                                    {validOptions.map((t: any) => {
+                                                      const isInactive = t._batch.startDate && new Date(t._batch.startDate) > now;
+                                                      return (
+                                                        <SelectItem key={t.id} value={t.id} disabled={isInactive} className="font-bold uppercase text-[10px]">
+                                                           {t.name} - {formatCurrency(t.price)} {isInactive && "(EM BREVE)"}
+                                                        </SelectItem>
+                                                      );
+                                                    })}
                                                  </SelectContent>
                                               </Select>
                                               {seat.categoria === 'pcd' && (
@@ -1153,7 +1196,7 @@ export default function EventoPublicoPage() {
                               <Ticket className="w-4 h-4" /> 2. Escolha o Ingresso
                             </h3>
                             <div className="grid grid-cols-1 gap-4">
-                              {availableTickets.map((type: any) => (
+                              {allAvailableTickets.map((type: any) => (
                                 <TicketCard
                                   key={type.id}
                                   type={type}
@@ -1190,8 +1233,8 @@ export default function EventoPublicoPage() {
                            {selectedSector?.tipo === 'livre' ? (
                              <div className="p-4 bg-muted/30 rounded-2xl border border-dashed space-y-2">
                                 <div className="flex justify-between font-black text-sm uppercase italic">
-                                   <span>{selectedTicketType.name} {quantity > 1 && `x ${quantity}`}</span>
-                                   <span>{formatCurrency(selectedTicketType.price * quantity)}</span>
+                                   <span className="text-primary">{selectedTicketType.name} {quantity > 1 && `x ${quantity}`}</span>
+                                   <span className="text-primary">{formatCurrency(selectedTicketType.price * quantity)}</span>
                                 </div>
                                 <div className="text-[10px] font-bold text-secondary uppercase tracking-widest">
                                    Setor: {selectedSector.nome}
@@ -1200,7 +1243,7 @@ export default function EventoPublicoPage() {
                            ) : (
                              Object.values(selectedSeats).map(({ seat, ticketType }) => (
                                <div key={seat.id} className="p-4 bg-muted/30 rounded-2xl border border-dashed space-y-1">
-                                  <div className="flex justify-between font-black text-[10px] uppercase italic">
+                                  <div className="flex justify-between font-black text-[10px] uppercase italic text-primary">
                                      <span>{ticketType?.name || "Ingresso"} - Lug. {seat.codigo}</span>
                                      <span>{formatCurrency(ticketType?.price || 0)}</span>
                                   </div>
@@ -1220,10 +1263,10 @@ export default function EventoPublicoPage() {
                           </div>
                         </div>
 
-                        <Separator />
+                        <Separator className="border-dashed" />
 
                         <div className="flex justify-between items-center">
-                          <span className="text-lg font-black uppercase italic">Total</span>
+                          <span className="text-lg font-black uppercase italic text-primary">Total</span>
                           <span className="text-3xl font-black text-primary">
                             {formatCurrency(totals.total)}
                           </span>
