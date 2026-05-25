@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -20,7 +19,9 @@ import {
   X,
   Maximize2,
   Move,
-  RotateCw
+  RotateCw,
+  CheckCircle2,
+  Ticket
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -40,7 +41,9 @@ import {
   SelectContent, 
   SelectItem, 
   SelectTrigger, 
-  SelectValue 
+  SelectValue,
+  SelectGroup,
+  SelectLabel
 } from "@/components/ui/select"
 import { 
   AlertDialog,
@@ -80,14 +83,46 @@ export default function EventoMapaPage() {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [selectedType, setSelectedType] = React.useState<any>("livre")
-  const [linkedBatchIds, setLinkedBatchIds] = React.useState<string[]>([])
+  const [selectedTicketLink, setSelectedTicketLink] = React.useState<string>("")
   
   const [palcoNome, setPalcoNome] = React.useState("PALCO PRINCIPAL")
   const [sectorToDelete, setSectorToDelete] = React.useState<any>(null)
 
+  // Estado local para os campos do formulário (reatividade ao selecionar link)
+  const [formNome, setFormNome] = React.useState("")
+  const [formCapacidade, setFormCapacidade] = React.useState(0)
+
   React.useEffect(() => {
     if (event?.palcoNome) setPalcoNome(event.palcoNome)
   }, [event?.palcoNome])
+
+  const availableLinks = React.useMemo(() => {
+    if (!event) return []
+    if (event.ticketMode === 'paid_single') {
+      return [{ id: 'global', name: 'Bilheteria Global', capacity: event.capacidadeTotal }]
+    }
+    if (event.ticketMode === 'sector_batches') {
+      return (event.sectors || []).map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        capacity: s.capacity,
+        batches: s.batches
+      }))
+    }
+    if (event.ticketMode === 'batches') {
+      return [{ id: 'global_batches', name: 'Lotes Globais', capacity: event.capacidadeTotal }]
+    }
+    return []
+  }, [event])
+
+  const handleLinkChange = (linkId: string) => {
+    setSelectedTicketLink(linkId)
+    const link = availableLinks.find(l => l.id === linkId)
+    if (link) {
+      setFormNome(link.name)
+      setFormCapacidade(link.capacity)
+    }
+  }
 
   const handleCreateSector = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -97,10 +132,10 @@ export default function EventoMapaPage() {
     const formData = new FormData(e.currentTarget)
     
     const sectorData = {
-      nome: formData.get("nome") as string,
+      nome: formNome,
       tipo: selectedType,
-      capacidade: Number(formData.get("capacidade")),
-      linkedBatchIds,
+      capacidade: Number(formCapacidade),
+      ticketLinkId: selectedTicketLink,
       cor: formData.get("cor") as string || "#2C52EE",
       posX: 700,
       posY: 300,
@@ -127,9 +162,11 @@ export default function EventoMapaPage() {
       if (selectedType !== 'livre') {
         await generateMapData(db, eventId, docRef.id, sectorData)
       }
-      toast({ title: "Setor criado!" })
+      toast({ title: "Setor criado e vinculado!" })
       setIsDialogOpen(false)
-      setLinkedBatchIds([])
+      setSelectedTicketLink("")
+      setFormNome("")
+      setFormCapacidade(0)
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao criar", description: error.message })
     } finally {
@@ -171,7 +208,7 @@ export default function EventoMapaPage() {
     setIsSubmitting(true)
     try {
       await updateDoc(eventRef, { palcoNome, mapaConfigurado: true, updatedAt: serverTimestamp() })
-      toast({ title: "Planta salva!" })
+      toast({ title: "Planta salva com sucesso!" })
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao salvar" })
     } finally {
@@ -197,44 +234,83 @@ export default function EventoMapaPage() {
               Salvar Planta
            </Button>
 
-           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+           <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if(!open) setSelectedTicketLink(""); }}>
               <DialogTrigger asChild>
                 <Button className="rounded-xl font-bold gap-2 bg-secondary text-white shadow-lg h-11 px-6 uppercase italic">
-                  <Plus className="w-4 h-4" /> Novo Setor
+                  <Plus className="w-4 h-4" /> Novo Setor no Mapa
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-md rounded-[2.5rem] max-h-[90vh] overflow-y-auto">
                 <form onSubmit={handleCreateSector} className="space-y-6">
                   <DialogHeader>
-                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Novo Setor</DialogTitle>
-                    <DialogDescription>Defina o tipo e vincule aos lotes comerciais.</DialogDescription>
+                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Vincular Bilheteria</DialogTitle>
+                    <DialogDescription>Escolha uma definição de ingresso existente para representar no mapa.</DialogDescription>
                   </DialogHeader>
+                  
                   <div className="space-y-4">
-                    <div className="grid grid-cols-3 gap-2">
-                       <Button type="button" variant={selectedType === 'livre' ? 'secondary' : 'outline'} className="flex-col h-20 gap-1 text-[10px] uppercase font-black" onClick={() => setSelectedType('livre')}><Layout className="w-5 h-5" /> Livre</Button>
-                       <Button type="button" variant={selectedType === 'assentos' ? 'secondary' : 'outline'} className="flex-col h-20 gap-1 text-[10px] uppercase font-black" onClick={() => setSelectedType('assentos')}><Armchair className="w-5 h-5" /> Assentos</Button>
-                       <Button type="button" variant={selectedType === 'mesas' ? 'secondary' : 'outline'} className="flex-col h-20 gap-1 text-[10px] uppercase font-black" onClick={() => setSelectedType('mesas')}><Grid3X3 className="w-5 h-5" /> Mesas</Button>
-                    </div>
-
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Nome do Setor</Label>
-                       <Input name="nome" placeholder="Pista, VIP, etc" required className="rounded-xl" />
+                       <Label className="text-[10px] font-black uppercase opacity-60">Vincular a:</Label>
+                       <Select value={selectedTicketLink} onValueChange={handleLinkChange} required>
+                          <SelectTrigger className="rounded-xl h-12">
+                             <SelectValue placeholder="Selecione o ingresso/setor" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                             <SelectGroup>
+                                <SelectLabel className="text-[9px] font-black uppercase opacity-40">Definições Disponíveis</SelectLabel>
+                                {availableLinks.map(link => (
+                                  <SelectItem key={link.id} value={link.id} className="text-xs font-bold">
+                                     {link.name} ({link.capacity} un.)
+                                  </SelectItem>
+                                ))}
+                             </SelectGroup>
+                          </SelectContent>
+                       </Select>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                       <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cor</Label><Input name="cor" type="color" defaultValue="#2C52EE" className="h-10 p-1" /></div>
-                       <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Capacidade</Label><Input name="capacidade" type="number" required className="rounded-xl" /></div>
-                    </div>
+                    {selectedTicketLink && (
+                      <div className="animate-in slide-in-from-top-2 duration-300 space-y-6 border-t border-dashed pt-6">
+                         <div className="space-y-3">
+                            <Label className="text-[10px] font-black uppercase opacity-60">Tipo de Visualização</Label>
+                            <div className="grid grid-cols-3 gap-2">
+                               <Button type="button" variant={selectedType === 'livre' ? 'secondary' : 'outline'} className="flex-col h-20 gap-1 text-[10px] uppercase font-black" onClick={() => setSelectedType('livre')}><Layout className="w-5 h-5" /> Livre</Button>
+                               <Button type="button" variant={selectedType === 'assentos' ? 'secondary' : 'outline'} className="flex-col h-20 gap-1 text-[10px] uppercase font-black" onClick={() => setSelectedType('assentos')}><Armchair className="w-5 h-5" /> Assentos</Button>
+                               <Button type="button" variant={selectedType === 'mesas' ? 'secondary' : 'outline'} className="flex-col h-20 gap-1 text-[10px] uppercase font-black" onClick={() => setSelectedType('mesas')}><Grid3X3 className="w-5 h-5" /> Mesas</Button>
+                            </div>
+                         </div>
 
-                    {selectedType === 'assentos' && (
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fileiras</Label><Input name="fileiras" type="number" required /></div>
-                        <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Assentos/Fila</Label><Input name="assentosPorFileira" type="number" required /></div>
+                         <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase opacity-60">Nome no Mapa</Label>
+                            <Input value={formNome} onChange={e => setFormNome(e.target.value)} required className="rounded-xl h-11" />
+                         </div>
+
+                         <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cor do Setor</Label><Input name="cor" type="color" defaultValue="#2C52EE" className="h-10 p-1" /></div>
+                            <div className="space-y-2">
+                               <Label className="text-[10px] font-black uppercase opacity-60">Capacidade</Label>
+                               <Input type="number" value={formCapacidade} onChange={e => setFormCapacidade(Number(e.target.value))} required className="rounded-xl h-11 font-black" />
+                            </div>
+                         </div>
+
+                         {selectedType === 'assentos' && (
+                           <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-2xl border border-dashed">
+                             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fileiras</Label><Input name="fileiras" type="number" required defaultValue={Math.ceil(formCapacidade/10)} /></div>
+                             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Assentos/Fila</Label><Input name="assentosPorFileira" type="number" required defaultValue={10} /></div>
+                           </div>
+                         )}
+
+                         {selectedType === 'mesas' && (
+                           <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-2xl border border-dashed">
+                             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Qtd Mesas</Label><Input name="quantidadeMesas" type="number" required defaultValue={Math.ceil(formCapacidade/4)} /></div>
+                             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Lugares/Mesa</Label><Input name="lugaresPorMesa" type="number" required defaultValue={4} /></div>
+                           </div>
+                         )}
                       </div>
                     )}
                   </div>
                   <DialogFooter>
-                    <Button type="submit" disabled={isSubmitting} className="w-full bg-secondary text-white font-black h-12 rounded-xl">Criar Setor</Button>
+                    <Button type="submit" disabled={isSubmitting || !selectedTicketLink} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                       {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Vincular e Adicionar"}
+                    </Button>
                   </DialogFooter>
                 </form>
               </DialogContent>
@@ -263,15 +339,16 @@ export default function EventoMapaPage() {
                 onResizeStop={(e, direction, ref, delta, position) => updateVisualLayout(s.id, { x: position.x, y: position.y, width: parseInt(ref.style.width), height: parseInt(ref.style.height) })}
               >
                 <div 
-                  className="w-full h-full flex flex-col items-center justify-center shadow-lg border-2 transition-all group select-none relative rounded-3xl"
-                  style={{ backgroundColor: `${s.cor}20`, borderColor: s.cor, color: s.cor, transform: `rotate(${s.rotation || 0}deg)` }}
+                  className="w-full h-full flex flex-col items-center justify-center shadow-lg border-2 transition-all group select-none relative rounded-[2.5rem]"
+                  style={{ backgroundColor: `${s.cor}15`, borderColor: s.cor, color: s.cor, transform: `rotate(${s.rotation || 0}deg)` }}
                 >
                    <div className="text-center p-4">
-                      <h4 className="font-black uppercase italic text-xs mb-1">{s.nome}</h4>
-                      <p className="text-[10px] font-black opacity-60">{s.capacidade} LUG. ({s.tipo})</p>
+                      <h4 className="font-black uppercase italic text-sm mb-1">{s.nome}</h4>
+                      <Badge variant="outline" className="text-[8px] font-black uppercase border-current mb-2" style={{ color: s.cor }}>{s.tipo}</Badge>
+                      <p className="text-[10px] font-black opacity-60">{s.capacidade} LUGARES TOTAIS</p>
                    </div>
-                   <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6 text-destructive bg-white/80 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setSectorToDelete(s)}>
-                      <Trash2 className="w-3 h-3" />
+                   <Button variant="ghost" size="icon" className="absolute top-3 right-3 h-8 w-8 text-destructive bg-white/80 opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-white" onClick={() => setSectorToDelete(s)}>
+                      <Trash2 className="w-4 h-4" />
                    </Button>
                 </div>
               </Rnd>
@@ -284,7 +361,7 @@ export default function EventoMapaPage() {
         <AlertDialogContent className="rounded-[2rem]">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Remover Setor?</AlertDialogTitle>
-            <AlertDialogDescription>Esta ação apagará permanentemente o setor <strong>{sectorToDelete?.nome}</strong> e todos os assentos gerados nele.</AlertDialogDescription>
+            <AlertDialogDescription>Esta ação apagará permanentemente o setor <strong>{sectorToDelete?.nome}</strong> e todos os assentos vinculados a ele na planta visual.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Cancelar</AlertDialogCancel>
