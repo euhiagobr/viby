@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
-import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, limit, doc, getDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +16,10 @@ import {
   ArrowRight,
   Loader2,
   ShieldCheck,
-  LayoutGrid
+  LayoutGrid,
+  Eye,
+  Clock,
+  Wallet
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/financial-utils';
@@ -151,17 +154,18 @@ export default function OrganizationDashboardPage() {
                    return (
                      <div key={event.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
                         <div className="flex items-center gap-4">
-                           <div className="h-10 w-10 rounded-lg bg-muted overflow-hidden">
-                              {event.banner && <img src={event.banner} className="w-full h-full object-cover" />}
+                           <div className="h-10 w-10 rounded-lg bg-muted overflow-hidden relative">
+                              {event.image && <img src={event.image} className="w-full h-full object-cover" alt="Event" />}
                            </div>
                            <div>
                               <p className="font-bold text-sm leading-tight">{event.title}</p>
-                              <p className="text-[10px] text-muted-foreground font-bold uppercase">{new Date(event.startDate).toLocaleDateString('pt-BR')}</p>
+                              <p className="text-[10px] text-muted-foreground font-bold uppercase">{formattedDate}</p>
                            </div>
                         </div>
                         <Badge variant="outline" className="text-[9px] font-black uppercase">{event.status}</Badge>
                      </div>
-                   ))}
+                   );
+                 })}
                </div>
              ) : (
                <div className="p-12 text-center text-muted-foreground italic text-sm">Nenhum evento publicado ainda.</div>
@@ -184,9 +188,11 @@ export default function OrganizationDashboardPage() {
                <div className="flex justify-between items-end">
                   <div>
                      <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Seguidores da Marca</p>
-                     <p className="text-4xl font-black italic">0</p>
+                     <p className="text-4xl font-black italic">{(currentOrg.followersCount || 0).toLocaleString()}</p>
                   </div>
-                  <Button className="bg-secondary text-white font-black uppercase text-[10px] italic h-10 px-6 rounded-xl hover:scale-105 transition-transform shadow-xl">Impulsionar</Button>
+                  <Button className="bg-secondary text-white font-black uppercase text-[10px] italic h-10 px-6 rounded-xl hover:scale-105 transition-transform shadow-xl" asChild>
+                    <Link href={`/dashboard/organizacoes/${currentOrg.username}/anuncios`}>Impulsionar</Link>
+                  </Button>
                </div>
             </div>
           </CardContent>

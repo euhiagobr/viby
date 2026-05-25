@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, doc, updateDoc, serverTimestamp, getDocs, where, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { 
   Table, 
@@ -20,14 +20,7 @@ import {
   Building2, 
   Search, 
   ShieldCheck, 
-  AlertTriangle,
-  FileText,
-  DollarSign,
-  ArrowRight,
-  ChevronRight,
-  Filter,
-  Lock,
-  Wallet
+  ChevronRight
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
