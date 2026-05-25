@@ -348,7 +348,8 @@ function TicketCard({
   quantity,
   onQuantityChange,
   showQuantity,
-  promotions
+  promotions,
+  globalFees
 }: {
   type: any;
   isSelected: boolean;
@@ -357,10 +358,9 @@ function TicketCard({
   onQuantityChange?: (val: number) => void;
   showQuantity?: boolean;
   promotions: any;
+  globalFees: any;
 }) {
-  const feesRef = React.useMemo(() => null, []); // This is passed from parent usually
-  // For display on card, we use a simplified calc
-  const finalFee = (type.price * 0.15); // Default 15% fallback
+  const breakdown = React.useMemo(() => calculateFinancialBreakdown(type.price, globalFees, promotions), [type.price, globalFees, promotions]);
 
   return (
     <Card
@@ -385,7 +385,7 @@ function TicketCard({
           <div className="text-right">
             <p className="text-2xl font-black text-primary">{formatCurrency(type.price)}</p>
             <p className="text-[9px] font-bold text-muted-foreground uppercase">
-              + {formatCurrency(finalFee)} taxa
+              + {formatCurrency(breakdown.administrativeFeeAmount)} taxa
             </p>
           </div>
         </div>
@@ -450,6 +450,9 @@ export default function EventoPublicoPage() {
 
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db]);
   const { data: promotions } = useDoc<any>(promosRef);
+
+  const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db]);
+  const { data: globalFees } = useDoc<any>(feesRef);
 
   const setoresQuery = useMemoFirebase(() => {
     if (!db || !eventId) return null;
@@ -638,12 +641,25 @@ export default function EventoPublicoPage() {
     }
   };
 
-  const totalSelectedPrice = React.useMemo(() => {
+  const totals = React.useMemo(() => {
+    let subtotal = 0;
+    let fees = 0;
+
     if (selectedSector?.tipo !== 'livre') {
-      return Object.values(selectedSeats).reduce((acc, curr) => acc + (curr.ticketType?.price || 0), 0);
+      const items = Object.values(selectedSeats);
+      items.forEach(({ ticketType }) => {
+        const breakdown = calculateFinancialBreakdown(ticketType.price, globalFees, promotions);
+        subtotal += ticketType.price;
+        fees += breakdown.administrativeFeeAmount;
+      });
+    } else if (selectedTicketType) {
+      const breakdown = calculateFinancialBreakdown(selectedTicketType.price, globalFees, promotions);
+      subtotal = selectedTicketType.price * quantity;
+      fees = breakdown.administrativeFeeAmount * quantity;
     }
-    return (selectedTicketType?.price || 0) * quantity;
-  }, [selectedSector, selectedSeats, selectedTicketType, quantity]);
+
+    return { subtotal, fees, total: subtotal + fees };
+  }, [selectedSector, selectedSeats, selectedTicketType, quantity, globalFees, promotions]);
 
   if (eventLoading)
     return (
@@ -720,7 +736,7 @@ export default function EventoPublicoPage() {
                       </div>
                       <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Descrição</Label>
-                        <Textarea placeholder="Detalhes do ocorrido..." value={reportDescription} onChange={(e) => setReportDescription(e.target.value)} required className="rounded-xl min-h-[120px]" />
+                        <Textarea placeholder="Detalhes do ocorrido..." value={reportDescription} onChange={(e) => reportDescription(e.target.value)} required className="rounded-xl min-h-[120px]" />
                       </div>
                     </div>
                     <DialogFooter>
@@ -1012,6 +1028,7 @@ export default function EventoPublicoPage() {
                                   quantity={quantity}
                                   onQuantityChange={setQuantity}
                                   promotions={promotions}
+                                  globalFees={globalFees}
                                 />
                               ))}
                             </div>
@@ -1059,11 +1076,11 @@ export default function EventoPublicoPage() {
                         <div className="space-y-2 text-[10px] font-bold uppercase opacity-60">
                           <div className="flex justify-between">
                             <span>Subtotal</span>
-                            <span>{formatCurrency(totalSelectedPrice)}</span>
+                            <span>{formatCurrency(totals.subtotal)}</span>
                           </div>
                           <div className="flex justify-between">
                             <span>Taxa de Serviço</span>
-                            <span>{formatCurrency(totalSelectedPrice * 0.15)}</span>
+                            <span>{formatCurrency(totals.fees)}</span>
                           </div>
                         </div>
 
@@ -1072,7 +1089,7 @@ export default function EventoPublicoPage() {
                         <div className="flex justify-between items-center">
                           <span className="text-lg font-black uppercase italic">Total</span>
                           <span className="text-3xl font-black text-primary">
-                            {formatCurrency(totalSelectedPrice * 1.15)}
+                            {formatCurrency(totals.total)}
                           </span>
                         </div>
 
@@ -1103,11 +1120,11 @@ export default function EventoPublicoPage() {
           <div className="flex flex-col">
             <p className="text-[10px] font-black uppercase opacity-40">Total do Pedido</p>
             <p className="text-xl font-black text-primary">
-              {totalSelectedPrice > 0 ? formatCurrency(totalSelectedPrice * 1.15) : '---'}
+              {totals.total > 0 ? formatCurrency(totals.total) : '---'}
             </p>
           </div>
           <Button
-            disabled={totalSelectedPrice === 0}
+            disabled={totals.total === 0}
             onClick={handleAddToCart}
             className="bg-secondary text-white font-black px-8 h-12 rounded-xl shadow-lg uppercase italic text-xs grow sm:grow-0"
           >
