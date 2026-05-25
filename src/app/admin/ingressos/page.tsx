@@ -3,8 +3,8 @@
 
 import * as React from 'react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { collection, query, where, orderBy } from 'firebase/firestore';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +31,8 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
@@ -38,24 +40,32 @@ import { cn } from "@/lib/utils";
 export default function AdminIngressosDashboard() {
   const db = useFirestore();
   const [search, setSearch] = React.useState("");
-  const [selectedDate, setSelectedDate] = React.useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = React.useState<string>("");
   const [selectedCity, setSelectedCity] = React.useState("all");
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, "events"), where("status", "==", "Ativo"), orderBy("date", "desc"));
+    // Removido orderBy para evitar necessidade de índice composto inicial
+    return query(collection(db, "events"), where("status", "==", "Ativo"));
   }, [db]);
 
   const { data: events, loading } = useCollection<any>(eventsQuery);
 
   const filteredEvents = React.useMemo(() => {
     if (!events) return [];
-    return events.filter(e => {
+    let result = events.filter(e => {
       const eDate = e.date?.toDate ? e.date.toDate().toISOString().split('T')[0] : e.date?.split('T')[0];
       const matchesDate = !selectedDate || eDate === selectedDate;
       const matchesCity = selectedCity === 'all' || e.city === selectedCity;
       const matchesSearch = !search || e.title?.toLowerCase().includes(search.toLowerCase());
       return matchesDate && matchesCity && matchesSearch;
+    });
+
+    // Ordenar em memória para garantir funcionamento sem índice
+    return result.sort((a, b) => {
+      const dateA = a.date?.seconds || new Date(a.date).getTime();
+      const dateB = b.date?.seconds || new Date(b.date).getTime();
+      return dateB - dateA;
     });
   }, [events, selectedDate, selectedCity, search]);
 
@@ -76,17 +86,17 @@ export default function AdminIngressosDashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-         <KPICard title="Vendas Hoje" value={0} icon={TrendingUp} color="blue" />
-         <KPICard title="Check-ins Realizados" value={0} icon={CheckCircle2} color="green" />
-         <KPICard title="Ocupação Média" value="0%" icon={Users} color="orange" />
-         <KPICard title="Receita Prevista" value={formatCurrency(0)} icon={Building2} color="secondary" />
+         <KPICard title="Eventos Ativos" value={events?.length || 0} icon={LayoutGrid} color="blue" />
+         <KPICard title="Cidades Atendidas" value={cities.length} icon={MapPin} color="green" />
+         <KPICard title="Ocupação Geral" value="---" icon={Users} color="orange" />
+         <KPICard title="Status" value="Operacional" icon={CheckCircle2} color="secondary" />
       </div>
 
       <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
         <CardHeader className="p-8 border-b">
            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
               <div className="md:col-span-3 space-y-2">
-                <Label className="text-[10px] font-black uppercase opacity-40 ml-1">Data de Operação</Label>
+                <Label className="text-[10px] font-black uppercase opacity-40 ml-1">Filtrar por Data</Label>
                 <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="rounded-xl h-11" />
               </div>
               <div className="md:col-span-3 space-y-2">
@@ -139,9 +149,10 @@ function EventOpRow({ event }: { event: any }) {
   const stats = React.useMemo(() => {
     if (!regs) return { sold: 0, checkedIn: 0, revenue: 0 };
     return regs.reduce((acc: any, r: any) => {
+      // Consideramos Pago ou Disponível (grátis) como venda concluída
       if (['Pago', 'Disponível'].includes(r.paymentStatus)) {
         acc.sold++;
-        acc.revenue += (r.price || 0);
+        acc.revenue += (r.price || r.ticketBasePrice || 0);
         if (r.checkedIn) acc.checkedIn++;
       }
       return acc;
@@ -155,7 +166,7 @@ function EventOpRow({ event }: { event: any }) {
       <div className="px-8 py-6 grid grid-cols-12 gap-6 items-center">
         <div className="col-span-4 flex items-center gap-4">
            <div className="h-12 w-12 rounded-xl bg-muted overflow-hidden relative shrink-0">
-              {event.image && <img src={event.image} className="w-full h-full object-cover" />}
+              {event.image && <img src={event.image} className="w-full h-full object-cover" alt="Event" />}
            </div>
            <div className="space-y-1">
               <h4 className="font-black text-sm uppercase italic text-primary truncate leading-tight">{event.title}</h4>
@@ -167,11 +178,11 @@ function EventOpRow({ event }: { event: any }) {
         </div>
         <div className="col-span-2 text-center">
            <p className="text-[10px] font-black uppercase opacity-40 mb-1">Vendas</p>
-           <p className="text-sm font-black text-primary">{stats.sold} <span className="text-[10px] opacity-40 font-bold">/ {event.capacidadeTotal}</span></p>
+           <p className="text-sm font-black text-primary">{stats.sold} <span className="text-[10px] opacity-40 font-bold">/ {event.capacidadeTotal || '---'}</span></p>
         </div>
         <div className="col-span-2 text-center">
            <p className="text-[10px] font-black uppercase opacity-40 mb-1">Check-in</p>
-           <p className="text-sm font-black text-green-600">{stats.checkedIn} <span className="text-[10px] opacity-40 font-bold">({Math.round((stats.checkedIn / (stats.sold || 1)) * 100)}%)</span></p>
+           <p className="text-sm font-black text-green-600">{stats.checkedIn} <span className="text-[10px] opacity-40 font-bold">({stats.sold > 0 ? Math.round((stats.checkedIn / stats.sold) * 100) : 0}%)</span></p>
         </div>
         <div className="col-span-2 text-center">
            <p className="text-[10px] font-black uppercase opacity-40 mb-1">Ocupação</p>
@@ -193,7 +204,12 @@ function EventOpRow({ event }: { event: any }) {
 }
 
 function KPICard({ title, value, icon: Icon, color }: any) {
-  const colors: any = { blue: "text-blue-500 bg-blue-50", green: "text-green-600 bg-green-50", orange: "text-orange-500 bg-orange-50", secondary: "text-secondary bg-secondary/5" };
+  const colors: any = { 
+    blue: "text-blue-500 bg-blue-50", 
+    green: "text-green-600 bg-green-50", 
+    orange: "text-orange-500 bg-orange-50", 
+    secondary: "text-secondary bg-secondary/5" 
+  };
   return (
     <Card className="border-none shadow-sm rounded-3xl bg-white group">
        <CardContent className="p-6">
@@ -205,8 +221,4 @@ function KPICard({ title, value, icon: Icon, color }: any) {
        </CardContent>
     </Card>
   );
-}
-
-function Label({ className, children }: { className?: string, children: React.ReactNode }) {
-  return <label className={cn("text-sm font-medium leading-none", className)}>{children}</label>;
 }
