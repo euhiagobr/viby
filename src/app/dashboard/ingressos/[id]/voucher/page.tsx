@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -21,7 +20,6 @@ import {
   AlertCircle,
   CheckCircle2,
   Lock,
-  History,
   Armchair,
   Layers
 } from "lucide-react"
@@ -101,8 +99,6 @@ export default function VoucherPage() {
       </div>
 
       <div className="relative px-4">
-        <div className="absolute -top-4 -left-4 -right-4 h-32 bg-secondary/10 -z-10 blur-3xl rounded-full opacity-50" />
-        
         <Card className="overflow-hidden border-none shadow-2xl rounded-[2.5rem] bg-white print:shadow-none">
           <div className="relative h-48 bg-muted">
             <Image 
@@ -136,9 +132,6 @@ export default function VoucherPage() {
           </div>
 
           <CardContent className="p-8 space-y-8 relative">
-            <div className="absolute top-0 -left-4 w-8 h-8 bg-[#f8fafc] rounded-full -translate-y-1/2" />
-            <div className="absolute top-0 -right-4 w-8 h-8 bg-[#f8fafc] rounded-full -translate-y-1/2" />
-            
             <div className="grid grid-cols-2 gap-8">
               <div className="space-y-4">
                 <div className="space-y-1">
@@ -158,7 +151,7 @@ export default function VoucherPage() {
                   <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Acomodação</p>
                   <div className="flex items-center gap-2 font-bold text-xs text-primary">
                     <Layers className="w-3 h-3 text-secondary" />
-                    {registration.batchName || "Geral"}
+                    {registration.sectorName || 'Geral'}
                   </div>
                   {registration.seatCode && (
                     <div className="flex items-center gap-2 font-black text-sm text-secondary pl-5">
@@ -187,9 +180,9 @@ export default function VoucherPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Preço</p>
-                  <p className="font-black text-sm text-primary">
-                    {formatCurrency(registration.price || 0)}
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Categoria</p>
+                  <p className="font-black text-sm text-primary uppercase">
+                    {registration.ticketTypeName || 'Acesso'}
                   </p>
                 </div>
               </div>
@@ -203,10 +196,13 @@ export default function VoucherPage() {
                       {isCurrentActivePossessor && isPaid ? (
                         <QRCodeSVG 
                           value={JSON.stringify({
+                             v: "2.0",
                              ev: registration.eventId,
                              reg: registration.id,
+                             code: registration.ticketCode,
                              seat: registration.seatCode || null,
-                             code: registration.ticketCode
+                             sector: registration.sectorName || null,
+                             user: registration.attendeeName || registration.userName
                           })} 
                           size={192}
                           level="H"
@@ -224,7 +220,7 @@ export default function VoucherPage() {
                 </div>
                 
                 <div className="text-center space-y-1">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Voucher ID</p>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Código de Validação</p>
                   <p className={cn(
                     "text-xl font-mono font-black tracking-tighter",
                     isCurrentActivePossessor ? "text-secondary" : "text-muted-foreground/30"
@@ -236,18 +232,9 @@ export default function VoucherPage() {
             </div>
 
             <div className="pt-4 text-center">
-              {!isCurrentActivePossessor && registration.userId === user?.uid ? (
-                <div className="space-y-2">
-                   <p className="text-[10px] font-black text-orange-600 uppercase italic">Este ingresso foi transferido por você.</p>
-                   <p className="text-[9px] text-muted-foreground font-medium max-w-[200px] mx-auto uppercase">
-                     Você ainda pode acompanhar o rastro de posse no seu painel de ingressos.
-                   </p>
-                </div>
-              ) : (
-                <p className="text-[9px] text-muted-foreground font-medium max-w-[200px] mx-auto uppercase tracking-tighter">
-                  Apresente este voucher na entrada do evento para validação.
-                </p>
-              )}
+              <p className="text-[9px] text-muted-foreground font-medium max-w-[200px] mx-auto uppercase tracking-tighter">
+                Apresente este voucher na entrada do evento para validação via scanner.
+              </p>
             </div>
           </CardContent>
         </Card>

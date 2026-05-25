@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -47,7 +46,6 @@ export default function CheckoutSucessoPage() {
           return;
         }
 
-        // Pré-carregar dados do usuário para otimizar gamificação
         const userSnap = await getDoc(doc(db, "users", user.uid));
         const userData = userSnap.exists() ? userSnap.data() : null;
 
@@ -109,11 +107,12 @@ export default function CheckoutSucessoPage() {
                   financialSnapshot: breakdown
                 });
 
-                // Registrar para o fisco
                 const monthKey = new Date().toISOString().slice(0, 7);
                 const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toLocaleDateString('pt-BR');
 
                 await addDoc(collection(db, "tax_tickets"), {
+                   adId: null, // Legacy field
+                   registrationId: regId,
                    eventId: regData.eventId,
                    eventTitle: regData.eventTitle || "Evento",
                    organizationId: regData.organizationId,
@@ -129,8 +128,6 @@ export default function CheckoutSucessoPage() {
                    totalFacePrice: breakdown.totalFace,
                    buyerFeeAmount: breakdown.buyerFeeTotal,
                    organizerFeeAmount: breakdown.organizerFeeTotal,
-                   stripeFeePercentUsed: stripeSettings?.feePercent ?? 3.99,
-                   stripeFeeFixedUsed: stripeSettings?.feeFixed ?? 0.39,
                    stripeFeePercentAmount: breakdown.stripeFeePercentAmount,
                    stripeFeeFixedAmount: breakdown.stripeFeeFixedAmount,
                    stripeFeeAmount: breakdown.stripeFeeTotal,
@@ -145,7 +142,6 @@ export default function CheckoutSucessoPage() {
                    timestamp: serverTimestamp()
                 });
 
-                // Gatilho de Gamificação: Compra de Ingresso
                 await processGamificationEvent(db, user.uid, 'on_ticket_purchase', {
                   eventId: regData.eventId,
                   eventTitle: regData.eventTitle,
@@ -163,6 +159,10 @@ export default function CheckoutSucessoPage() {
                   ticketCode: regData.ticketCode,
                   eventDate: eventDate,
                   eventCity: regData.eventCity || "Local Confirmado",
+                  sectorName: regData.sectorName,
+                  seatCode: regData.seatCode,
+                  batchName: regData.batchName,
+                  ticketTypeName: regData.ticketTypeName,
                   voucherUrl: `https://viby.club/dashboard/ingressos/${regId}/voucher`,
                   eventUrl: `https://viby.club/${regData.organizerUsername || 'evento'}/${regData.eventId}`
                 });

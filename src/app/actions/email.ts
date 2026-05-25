@@ -101,12 +101,25 @@ export async function sendTicketEmail(data: any) {
       <div style="font-family: 'Poppins', sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 32px; overflow: hidden; border: 1px solid #e2e8f0; padding: 40px;">
         <h1 style="color: #2563eb; font-style: italic; text-transform: uppercase;">Viby Club</h1>
         <p>Seu ingresso para <strong>${data.eventTitle}</strong> chegou!</p>
-        <p>Data: ${data.eventDate} | Local: ${data.eventCity}</p>
+        <div style="background: #f8fafc; padding: 20px; border-radius: 16px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: bold;">Detalhes da Reserva</p>
+          <p style="margin: 5px 0 0 0; font-size: 14px; font-weight: bold;">Data: ${data.eventDate}</p>
+          <p style="margin: 2px 0 0 0; font-size: 14px;">Local: ${data.eventCity}</p>
+          <p style="margin: 10px 0 0 0; font-size: 14px; color: #2563eb; font-weight: bold;">
+            Setor: ${data.sectorName || 'Geral'} 
+            ${data.seatCode ? `| Lugar: ${data.seatCode}` : ''}
+          </p>
+          <p style="margin: 2px 0 0 0; font-size: 13px;">Lote: ${data.batchName || 'Único'}</p>
+          <p style="margin: 2px 0 0 0; font-size: 13px;">Tipo: ${data.ticketTypeName || 'Acesso'}</p>
+        </div>
         <div style="text-align: center; margin: 30px 0;">
           <img src="cid:ticket-qrcode" alt="Ticket QR Code" style="width: 200px; height: 200px;" />
-          <div style="font-family: monospace; font-size: 20px; font-weight: bold; color: #2563eb;">${data.ticketCode}</div>
+          <div style="font-family: monospace; font-size: 20px; font-weight: bold; color: #2563eb; margin-top: 10px;">${data.ticketCode}</div>
         </div>
-        <a href="${data.voucherUrl}" style="display: inline-block; background: #2563eb; color: white !important; padding: 18px 36px; text-decoration: none; border-radius: 16px; font-weight: bold;">Ver Voucher Completo</a>
+        <div style="text-align: center;">
+          <a href="${data.voucherUrl}" style="display: inline-block; background: #2563eb; color: white !important; padding: 18px 36px; text-decoration: none; border-radius: 16px; font-weight: bold; font-size: 16px;">Ver Voucher Completo</a>
+        </div>
+        <p style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 30px;">Apresente este QR Code na entrada do evento para validação.</p>
       </div>
     `;
 
@@ -194,8 +207,19 @@ export async function sendCartPendingEmail(data: any) {
 
     const htmlContent = `
       <div style="font-family: 'Poppins', sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 32px; overflow: hidden; border: 1px solid #e2e8f0; padding: 40px;">
-        <h2>Olá, ${data.userName}!</h2>
-        <p>Recebemos a sua intenção de compra no valor de ${formatBRL(data.totalAmount)}.</p>
+        <h1 style="color: #2563eb; font-style: italic; text-transform: uppercase;">Viby Club</h1>
+        <h2>Olá, ${data.userName}! 👋</h2>
+        <p>Recebemos a sua intenção de compra no valor de <strong>${formatBRL(data.totalAmount)}</strong>.</p>
+        <p>Se você já concluiu o pagamento na aba aberta pelo Stripe, seu ingresso aparecerá no painel em alguns instantes.</p>
+        <div style="margin-top: 30px;">
+          <p style="font-size: 12px; color: #64748b; font-weight: bold; text-transform: uppercase;">Itens no Pedido:</p>
+          ${data.items.map((item: any) => `
+            <div style="border-bottom: 1px dashed #e2e8f0; padding: 10px 0;">
+              <p style="margin: 0; font-weight: bold;">${item.eventTitle}</p>
+              <p style="margin: 0; font-size: 12px; color: #2563eb;">${item.ticketTypeName} | ${item.sectorName || 'Geral'} ${item.seatCode ? `| Lugar: ${item.seatCode}` : ''}</p>
+            </div>
+          `).join('')}
+        </div>
       </div>
     `;
 
@@ -234,8 +258,13 @@ export async function sendWelcomeEmail(data: any) {
 
     const htmlContent = `
       <div style="font-family: 'Poppins', sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 32px; overflow: hidden; border: 1px solid #e2e8f0; padding: 40px;">
+        <h1 style="color: #2563eb; font-style: italic; text-transform: uppercase;">Viby Club</h1>
         <h1>Olá, ${data.userName}! 👋</h1>
-        <p>Bem-vindo ao VIBY.CLUB!</p>
+        <p>Seja muito bem-vindo ao <strong>VIBY.CLUB</strong>!</p>
+        <p>Agora você faz parte de uma comunidade exclusiva focada em experiências culturais transformadoras.</p>
+        <div style="text-align: center; margin: 40px 0;">
+          <a href="https://viby.club/dashboard" style="display: inline-block; background: #2563eb; color: white !important; padding: 18px 36px; text-decoration: none; border-radius: 16px; font-weight: bold; font-size: 16px;">Explorar Painel</a>
+        </div>
       </div>
     `;
 
@@ -271,10 +300,32 @@ export async function sendWelcomeEmail(data: any) {
 export async function sendTeamInvitationEmail(data: any) {
   try {
     const { smtpUser, smtpPass } = await getEmailConfig();
-    const html = `<div>Convite para equipe ${data.orgName}</div>`;
+    const htmlContent = `
+      <div style="font-family: 'Poppins', sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 32px; overflow: hidden; border: 1px solid #e2e8f0; padding: 40px;">
+        <h1 style="color: #2563eb; font-style: italic; text-transform: uppercase;">Viby Club</h1>
+        <h2>Convite para Equipe 🤝</h2>
+        <p>Olá! <strong>${data.inviterName}</strong> convidou você para fazer parte da equipe de <strong>${data.orgName}</strong> como <strong>${data.role}</strong>.</p>
+        <div style="text-align: center; margin: 40px 0;">
+          <a href="https://viby.club/dashboard/solicitacoes" style="display: inline-block; background: #2563eb; color: white !important; padding: 18px 36px; text-decoration: none; border-radius: 16px; font-weight: bold; font-size: 16px;">Ver Solicitação</a>
+        </div>
+        <p style="font-size: 11px; color: #94a3b8;">Você tem 24 horas para aceitar este convite.</p>
+      </div>
+    `;
+
     if (!smtpUser || !smtpPass) return { success: false };
-    const transporter = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user: smtpUser, pass: smtpPass } });
-    await transporter.sendMail({ from: `"Viby.Club" <${smtpUser}>`, to: data.to, subject: `Convite Equipe: ${data.orgName}`, html });
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com', port: 465, secure: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    await transporter.sendMail({
+      from: `"Viby.Club" <${smtpUser}>`,
+      to: data.to,
+      subject: `🤝 Convite para Equipe: ${data.orgName}`,
+      html: htmlContent
+    });
+
     return { success: true };
   } catch (e) { return { success: false }; }
 }
