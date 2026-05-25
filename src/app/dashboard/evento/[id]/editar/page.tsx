@@ -39,7 +39,8 @@ import {
   Percent,
   Info,
   Clock,
-  Layers
+  Layers,
+  Settings2
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -174,8 +175,6 @@ export default function EditarEventoPage() {
     const poolId = crypto.randomUUID();
     const halfQty = Math.floor(singleCapacity * (percent / 100));
 
-    // Correção: Inteira pode consumir todo o estoque do evento
-    // Meias são limitadas pelo pool
     const defaultMeias: TicketType[] = [
       { id: crypto.randomUUID(), name: "Meia Estudante", price: singleTicketTypes[0].price / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
       { id: crypto.randomUUID(), name: "Meia PCD", price: singleTicketTypes[0].price / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
@@ -203,7 +202,6 @@ export default function EditarEventoPage() {
       const halfQty = Math.floor(batch.capacidadeInicial * (percent / 100));
       const currentInteiraPrice = batch.ticketTypes[0]?.price || 100;
 
-      // Correção: Inteira = 100% da carga do lote
       newSectors[sIdx].batches[bIdx].ticketTypes = [
         { ...batch.ticketTypes[0], quantity: batch.capacidadeInicial },
         { id: crypto.randomUUID(), name: "Meia Estudante", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Setor", requiresProof: true, isLegalHalf: true, description: "" },
@@ -220,7 +218,6 @@ export default function EditarEventoPage() {
       const halfQty = Math.floor(batch.capacidadeInicial * (percent / 100));
       const currentInteiraPrice = batch.ticketTypes[0]?.price || 100;
 
-      // Correção: Inteira = 100% da carga do lote
       n[bIdx].ticketTypes = [
         { ...batch.ticketTypes[0], quantity: batch.capacidadeInicial },
         { id: crypto.randomUUID(), name: "Meia Estudante", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Lote", requiresProof: true, isLegalHalf: true, description: "" },
@@ -248,7 +245,6 @@ export default function EditarEventoPage() {
     })
   }
 
-  // --- Sector Logic ---
   const addSector = () => {
     setSectorsWithBatches([...sectorsWithBatches, {
       id: crypto.randomUUID(),
@@ -314,7 +310,6 @@ export default function EditarEventoPage() {
     n[si].batches[bi] = { ...n[si].batches[bi], [f]: v } as any;
     if (f === 'capacidadeInicial') {
       const cap = parseInt(v) || 0;
-      // Correção: Inteira sempre 100% da carga
       if (n[si].batches[bi].ticketTypes[0]) n[si].batches[bi].ticketTypes[0].quantity = cap;
       
       if (n[si].batches[bi].isHalfPriceEnabled) {
@@ -334,7 +329,6 @@ export default function EditarEventoPage() {
     setSectorsWithBatches(n);
   }
 
-  // --- Global Batch Logic ---
   const addBatch = () => {
     const newB: Batch = {
       id: crypto.randomUUID(),
@@ -363,7 +357,6 @@ export default function EditarEventoPage() {
     
     if (f === 'capacidadeInicial') {
       const cap = parseInt(v) || 0;
-      // Correção: Inteira sempre 100% da carga
       if (n[i].ticketTypes[0]) n[i].ticketTypes[0].quantity = cap;
 
       if (n[i].isHalfPriceEnabled) {
@@ -461,8 +454,10 @@ export default function EditarEventoPage() {
 
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>
 
+  const supportsMap = ['paid_single', 'batches', 'sector_batches'].includes(ticketMode);
+
   return (
-    <div className="max-w-4xl mx-auto space-y-10 pb-20 text-foreground">
+    <div className="max-w-4xl mx-auto space-y-8 pb-20 text-foreground">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
         <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Editar Evento</h1>
@@ -517,35 +512,52 @@ export default function EditarEventoPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
-           <CardHeader className="bg-primary/5">
-              <CardTitle className="text-lg flex items-center gap-2"><MapIcon className="w-5 h-5 text-primary" /> Estrutura do Evento (Mapa)</CardTitle>
-           </CardHeader>
-           <CardContent className="p-8 space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                 {[
-                   { id: 'none', label: 'Sem Mapa', icon: X, desc: 'Lista simples' },
-                   { id: 'setores', label: 'Setores', icon: Layout, desc: 'Áreas livres' },
-                   { id: 'assentos', label: 'Assentos', icon: Armchair, desc: 'Cadeiras' },
-                   { id: 'mesas', label: 'Mesas', icon: Grid3X3, desc: 'Numeradas' }
-                 ].map((mode) => (
-                   <Button 
-                     key={mode.id} 
-                     type="button"
-                     variant={mapMode === mode.id ? 'secondary' : 'outline'}
-                     className={cn("h-24 flex-col gap-2 rounded-2xl border-dashed", mapMode === mode.id && "border-solid ring-2 ring-secondary/20")}
-                     onClick={() => setMapMode(mode.id as any)}
-                   >
-                     <mode.icon className="w-6 h-6" />
-                     <div className="text-center">
-                        <p className="text-[10px] font-black uppercase">{mode.label}</p>
-                        <p className="text-[8px] font-bold opacity-50 uppercase">{mode.desc}</p>
-                     </div>
-                   </Button>
-                 ))}
-              </div>
-           </CardContent>
-        </Card>
+        {supportsMap && (
+          <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
+            <CardHeader className="bg-primary/5">
+                <CardTitle className="text-lg flex items-center gap-2"><MapIcon className="w-5 h-5 text-primary" /> Estrutura do Evento (Mapa)</CardTitle>
+                <CardDescription>Habilite o mapa para permitir seleção de assentos ou visualização de setores.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8 space-y-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { id: 'none', label: 'Sem Mapa', icon: X, desc: 'Lista simples' },
+                    { id: 'setores', label: 'Setores', icon: Layout, desc: 'Áreas livres' },
+                    { id: 'assentos', label: 'Assentos', icon: Armchair, desc: 'Cadeiras' },
+                    { id: 'mesas', label: 'Mesas', icon: Grid3X3, desc: 'Numeradas' }
+                  ].map((mode) => (
+                    <Button 
+                      key={mode.id} 
+                      type="button"
+                      variant={mapMode === mode.id ? 'secondary' : 'outline'}
+                      className={cn("h-24 flex-col gap-2 rounded-2xl border-dashed", mapMode === mode.id && "border-solid ring-2 ring-secondary/20")}
+                      onClick={() => setMapMode(mode.id as any)}
+                    >
+                      <mode.icon className="w-6 h-6" />
+                      <div className="text-center">
+                          <p className="text-[10px] font-black uppercase">{mode.label}</p>
+                          <p className="text-[8px] font-bold opacity-50 uppercase">{mode.desc}</p>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+
+                {mapMode !== 'none' && (
+                  <div className="pt-4 animate-in fade-in zoom-in-95 duration-300">
+                    <Button asChild variant="outline" className="w-full h-16 rounded-2xl border-secondary text-secondary font-black uppercase italic gap-3 shadow-lg hover:bg-secondary hover:text-white transition-all">
+                      <Link href={`/dashboard/evento/${eventId}/mapa`}>
+                        <Settings2 className="w-5 h-5" />
+                        Editar Planta e Locais no Mapa
+                      </Link>
+                    </Button>
+                    <p className="text-[10px] text-center text-muted-foreground mt-3 uppercase font-bold tracking-widest opacity-60">
+                      Vincule seus lotes aos setores criados no editor de mapa.
+                    </p>
+                  </div>
+                )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
@@ -883,7 +895,7 @@ export default function EditarEventoPage() {
                                     </div>
                                  </div>
                                ))}
-                               <Button type="button" variant="ghost" size="sm" className="text-secondary font-black uppercase text-[9px] gap-2" onClick={() => { const n = [...sectorsWithBatches]; const b = n[si].batches[bi]; const poolId = b.isHalfPriceEnabled ? (b.ticketTypes[1]?.poolId || crypto.randomUUID()) : undefined; const hQty = Math.floor(b.capacidadeInicial * ((b.halfPricePercent || 40) / 100)); n[si].batches[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Nova Meia", price: 50, quantity: hQty, poolId, poolName: "Cota Setor", requiresProof: true, isLegalHalf: true, description: "" }); setSectorsWithBatches(n); }}><Plus className="w-3.5 h-3.5" /> Adicionar Categoria ao Lote</Button>
+                               <Button type="button" variant="ghost" size="sm" className="text-secondary font-black uppercase text-[9px] gap-2" onClick={() => addTicketTypeToSector(si, bi)}><Plus className="w-3.5 h-3.5" /> Adicionar Categoria ao Lote</Button>
                             </div>
                          </div>
                        ))}
