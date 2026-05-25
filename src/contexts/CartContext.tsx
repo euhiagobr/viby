@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export interface CartItem {
-  id: string; // Unique ID for the cart entry (eventId + ticketTypeId)
+  id: string; // Unique ID for the cart entry (eventId + batchId + typeId + sectorId + seatId)
   eventId: string;
   eventTitle: string;
   eventImage: string;
@@ -23,6 +23,8 @@ export interface CartItem {
   requiresProof: boolean;
   sectorId?: string;
   sectorName?: string;
+  seatId?: string;
+  seatCode?: string;
 }
 
 interface CartContextType {

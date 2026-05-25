@@ -4,7 +4,7 @@
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, collection, query, where, orderBy, getDocs } from "firebase/firestore"
+import { doc, collection, query, where, orderBy, getDocs, serverTimestamp, addDoc } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -27,7 +27,12 @@ import {
   Maximize2,
   Armchair,
   Grid3X3,
-  CheckCircle2
+  CheckCircle2,
+  Navigation,
+  Flag,
+  Share2,
+  ExternalLink,
+  AlertTriangle
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -36,6 +41,18 @@ import { formatCurrency } from "@/lib/financial-utils"
 import { useCart } from "@/contexts/CartContext"
 import Link from "next/link"
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function EventoPublicoPage() {
   const params = useParams()
@@ -56,10 +73,23 @@ export default function EventoPublicoPage() {
   }, [db, eventId])
   const { data: setores, loading: setoresLoading } = useCollection<any>(setoresQuery)
 
+  // Busca parceiros (Co-organizadores)
+  const partnersQuery = useMemoFirebase(() => {
+    if (!db || !eventId) return null
+    return query(collection(db, "events", eventId, "partners"), where("status", "==", "accepted"))
+  }, [db, eventId])
+  const { data: partners } = useCollection<any>(partnersQuery)
+
   const [selectedSector, setSelectedSector] = React.useState<any>(null)
   const [selectedSeat, setSelectedSeat] = React.useState<any>(null)
   const [seats, setSeats] = React.useState<any[]>([])
   const [loadingSeats, setLoadingSeats] = React.useState(false)
+
+  // Estado da Denúncia
+  const [isReportOpen, setIsReportOpen] = React.useState(false)
+  const [reportReason, setReportReason] = React.useState("")
+  const [reportDescription, setReportDescription] = React.useState("")
+  const [isSubmittingReport, setIsSubmittingReport] = React.useState(false)
 
   // Função para renderizar texto formatado
   const renderFormattedText = (text: string) => {
@@ -108,10 +138,17 @@ export default function EventoPublicoPage() {
   const getSaleStatus = (target: any) => {
     if (!target) return { active: false, message: "Indisponível", batch: null };
     
+    // Se o target for o evento e estiver no modo de setores, ele não vende diretamente
     if (target.ticketMode === 'sector_batches' && !target.batches) {
        return { active: true, message: "Selecione um setor", isSectorMode: true };
     }
 
+    // Se estivermos em um setor, mas o vínculo for global
+    if (target.ticketLinkId === 'global' || target.ticketLinkId === 'global_batches') {
+      return getSaleStatus(event);
+    }
+
+    // Se o target for um setor com lotes próprios
     const batches = target.batches || [];
     if (batches.length === 0) return { active: false, message: "Indisponível", batch: null };
     
@@ -150,8 +187,8 @@ export default function EventoPublicoPage() {
   const handleAddToCart = (type: any, batch: any, sector?: any) => {
     if (!event) return;
 
-    if (sector && sector.tipo !== 'livre' && !selectedSeat) {
-      toast({ variant: "destructive", title: "Selecione um lugar", description: "Para este setor é necessário escolher um assento ou mesa." });
+    if (sector && (sector.tipo === 'assentos' || sector.tipo === 'mesas') && !selectedSeat) {
+      toast({ variant: "destructive", title: "Selecione um lugar", description: "Para este setor é necessário escolher um assento ou mesa no mapa." });
       return;
     }
     
@@ -188,12 +225,39 @@ export default function EventoPublicoPage() {
     }
   }
 
+  const handleSendReport = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!db || !user || !event || !reportReason) return
+
+    setIsSubmittingReport(true)
+    try {
+      await addDoc(collection(db, "reports"), {
+        type: 'event',
+        targetId: eventId,
+        targetName: event.title,
+        reason: reportReason,
+        description: reportDescription,
+        reporterId: user.uid,
+        reporterName: user.displayName || "Usuário",
+        status: 'Pendente',
+        timestamp: serverTimestamp()
+      })
+      toast({ title: "Denúncia enviada!", description: "Analisaremos este evento em breve." })
+      setIsReportOpen(false)
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao enviar denúncia" })
+    } finally {
+      setIsSubmittingReport(false)
+    }
+  }
+
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>
   if (!event) return null
 
   const address = event.address || {};
   const isVerified = event.organizer?.isVerified || false;
   const hasMap = event.mapaConfigurado && setores && setores.length > 0;
+  const fullAddress = `${address.street || event.location}, ${address.number || ''}, ${address.city}`;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
@@ -202,12 +266,55 @@ export default function EventoPublicoPage() {
            <Button variant="ghost" onClick={() => router.back()} className="rounded-full font-bold text-xs uppercase gap-2">
               <ArrowLeft className="w-4 h-4" /> Voltar
            </Button>
-           <Button variant="outline" size="icon" className="relative h-10 w-10 bg-white" asChild>
-             <Link href="/dashboard/carrinho">
-               <ShoppingCart className="w-4 h-4" />
-               {cartItems.length > 0 && <span className="absolute -top-1 -right-1 bg-secondary text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold">{cartItems.length}</span>}
-             </Link>
-           </Button>
+           <div className="flex items-center gap-3">
+             <Button variant="outline" size="icon" className="relative h-10 w-10 bg-white" asChild>
+               <Link href="/dashboard/carrinho">
+                 <ShoppingCart className="w-4 h-4" />
+                 {cartItems.length > 0 && <span className="absolute -top-1 -right-1 bg-secondary text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold">{cartItems.length}</span>}
+               </Link>
+             </Button>
+
+             <Dialog open={isReportOpen} onOpenChange={setIsReportOpen}>
+                <DialogTrigger asChild>
+                   <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-destructive">
+                      <Flag className="w-4 h-4" />
+                   </Button>
+                </DialogTrigger>
+                <DialogContent className="rounded-[2rem]">
+                   <form onSubmit={handleSendReport} className="space-y-6">
+                      <DialogHeader>
+                        <DialogTitle className="text-xl font-black uppercase italic tracking-tighter flex items-center gap-2">
+                          <AlertTriangle className="w-5 h-5 text-destructive" /> Denunciar Evento
+                        </DialogTitle>
+                        <DialogDescription>Relate se este evento viola as diretrizes da plataforma.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                         <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase">Motivo</Label>
+                            <Select value={reportReason} onValueChange={setReportReason} required>
+                               <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                               <SelectContent>
+                                  <SelectItem value="Fraude">Fraude / Golpe</SelectItem>
+                                  <SelectItem value="Falso">Evento Inexistente</SelectItem>
+                                  <SelectItem value="Improprio">Conteúdo Impróprio</SelectItem>
+                                  <SelectItem value="Direitos">Violação de Direitos</SelectItem>
+                               </SelectContent>
+                            </Select>
+                         </div>
+                         <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase">Mais Detalhes</Label>
+                            <Textarea value={reportDescription} onChange={e => setReportDescription(e.target.value)} className="rounded-xl min-h-[100px]" placeholder="Opcional..." />
+                         </div>
+                      </div>
+                      <DialogFooter>
+                         <Button type="submit" disabled={isSubmittingReport} className="w-full bg-destructive text-white font-black h-12 rounded-xl">
+                           {isSubmittingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : "Enviar Denúncia"}
+                         </Button>
+                      </DialogFooter>
+                   </form>
+                </DialogContent>
+             </Dialog>
+           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 pb-20">
@@ -228,20 +335,45 @@ export default function EventoPublicoPage() {
 
               {/* Descrição e Organizador */}
               <div className="p-8 bg-white rounded-[2.5rem] shadow-sm space-y-6">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-14 w-14 border-2 border-secondary/20">
-                    <AvatarImage src={event.organizer?.avatar} className="object-cover" />
-                    <AvatarFallback className="font-bold">{event.organizer?.name?.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <p className="font-black uppercase italic tracking-tighter text-lg">{event.organizer?.name}</p>
-                      {isVerified && <BadgeCheck className="w-4 h-4 fill-blue-500 text-white" />}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-14 w-14 border-2 border-secondary/20">
+                      <AvatarImage src={event.organizer?.avatar} className="object-cover" />
+                      <AvatarFallback className="font-bold">{event.organizer?.name?.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-black uppercase italic tracking-tighter text-lg">{event.organizer?.name}</p>
+                        {isVerified && <BadgeCheck className="w-4 h-4 fill-blue-500 text-white" />}
+                      </div>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Organizador Oficial</p>
                     </div>
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Organizador Oficial</p>
                   </div>
+
+                  {partners && partners.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                       <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Em Parceria com</p>
+                       <div className="flex -space-x-2">
+                          {partners.map((p: any) => (
+                            <TooltipProvider key={p.id}>
+                               <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Avatar className="h-8 w-8 border-2 border-white ring-2 ring-primary/5 cursor-pointer">
+                                       <AvatarImage src={p.avatar} />
+                                       <AvatarFallback className="text-[8px] font-bold">{p.orgName?.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                  </TooltipTrigger>
+                                  <TooltipContent><p className="text-[10px] font-bold uppercase">{p.orgName}</p></TooltipContent>
+                               </Tooltip>
+                            </TooltipProvider>
+                          ))}
+                       </div>
+                    </div>
+                  )}
                 </div>
+                
                 <Separator className="border-dashed" />
+                
                 <div className="prose prose-sm max-w-none text-muted-foreground font-medium leading-relaxed whitespace-pre-line">
                   {renderFormattedText(event.description)}
                 </div>
@@ -295,21 +427,20 @@ export default function EventoPublicoPage() {
                         
                         <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-20">
                            <div className="bg-white/90 backdrop-blur-md p-3 rounded-2xl shadow-lg border border-border flex flex-col gap-2">
-                              <p className="text-[8px] font-black uppercase tracking-widest opacity-40">Controles</p>
+                              <p className="text-[8px] font-black uppercase tracking-widest opacity-40">Legenda</p>
                               <div className="flex items-center gap-3 text-[10px] font-bold">
                                  <div className="w-3 h-3 rounded-full bg-secondary" /> Selecionado
                                  <div className="w-3 h-3 rounded-full bg-border" /> Disponível
                               </div>
                            </div>
-                           <Button variant="secondary" size="icon" className="h-10 w-10 rounded-full shadow-xl"><Maximize2 className="w-4 h-4" /></Button>
                         </div>
                       </div>
                    </Card>
                 </div>
               )}
 
-              {/* LISTA DE SETORES (SE NÃO TIVER MAPA) */}
-              {!hasMap && event.ticketMode === 'sector_batches' && (
+              {/* LISTA DE SETORES (SE NÃO TIVER MAPA OU COMO ALTERNATIVA) */}
+              {event.ticketMode === 'sector_batches' && (
                 <div className="space-y-6">
                    <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary flex items-center gap-2">
                       <Layers className="w-5 h-5 text-secondary" /> Escolha o Setor
@@ -347,7 +478,7 @@ export default function EventoPublicoPage() {
                 </div>
               )}
 
-              {/* DETALHAMENTO DO SETOR SELECIONADO */}
+              {/* DETALHAMENTO DO SETOR SELECIONADO (ASSENTOS E BILHETERIA) */}
               {selectedSector && (
                 <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
                    <Card className="border-none shadow-xl rounded-[2.5rem] bg-white overflow-hidden border-t-8 border-secondary">
@@ -355,11 +486,11 @@ export default function EventoPublicoPage() {
                          <div className="space-y-1">
                             <div className="flex items-center gap-2">
                                {selectedSector.tipo === 'assentos' ? <Armchair className="w-4 h-4 text-secondary" /> : <Layers className="w-4 h-4 text-secondary" />}
-                               <CardTitle className="text-2xl font-black uppercase italic tracking-tighter">{selectedSector.name}</CardTitle>
+                               <CardTitle className="text-2xl font-black uppercase italic tracking-tighter">{selectedSector.nome}</CardTitle>
                             </div>
                             <CardDescription className="text-muted-foreground font-bold uppercase text-[10px] tracking-widest">Bilheteria do Setor Selecionado</CardDescription>
                          </div>
-                         <Button variant="ghost" size="icon" onClick={() => setSelectedSector(null)} className="rounded-full hover:bg-muted"><X className="w-4 h-4" /></Button>
+                         <Button variant="ghost" size="icon" onClick={() => {setSelectedSector(null); setSelectedSeat(null);}} className="rounded-full hover:bg-muted"><X className="w-4 h-4" /></Button>
                       </CardHeader>
                       <CardContent className="p-8 space-y-10">
                          {/* Se o setor tiver assentos, mostra a grade de seleção */}
@@ -419,34 +550,36 @@ export default function EventoPublicoPage() {
                            </div>
                          )}
 
+                         {/* Seleção de Tipo de Ingresso para o Setor */}
                          {(() => {
                            let targetForSale = selectedSector;
-                           if (selectedSector.ticketLinkId === 'global') targetForSale = event;
-                           if (selectedSector.ticketLinkId === 'global_batches') targetForSale = event;
+                           if (selectedSector.ticketLinkId === 'global' || selectedSector.ticketLinkId === 'global_batches') targetForSale = event;
                            
                            const status = getSaleStatus(targetForSale);
+                           const isLockedBySeat = ['assentos', 'mesas'].includes(selectedSector.tipo) && !selectedSeat;
+
                            if (!status.active) return <div className="py-20 text-center text-muted-foreground font-bold italic uppercase">{status.message}</div>;
                            
                            return (
-                             <div className={cn("space-y-8 transition-opacity", (['assentos', 'mesas'].includes(selectedSector.tipo) && !selectedSeat) ? "opacity-30 pointer-events-none" : "opacity-100")}>
+                             <div className={cn("space-y-8 transition-all", isLockedBySeat ? "opacity-30 pointer-events-none grayscale" : "opacity-100")}>
                                 <div className="flex justify-between items-center px-2 bg-muted/20 p-4 rounded-2xl">
                                    <div className="space-y-0.5">
-                                      <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Etapa de Venda</p>
+                                      <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Lote Vigente</p>
                                       <Badge className="bg-secondary text-white font-black uppercase text-[10px] h-6 px-3">{status.batch.name}</Badge>
                                    </div>
                                    <div className="text-right">
-                                      <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Saldo Restante</p>
-                                      <p className="text-xs font-black text-primary uppercase">{status.batch.remaining} un.</p>
+                                      <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Disponibilidade</p>
+                                      <p className="text-xs font-black text-primary uppercase">{status.batch.remaining} un. restantes</p>
                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                    {status.batch.ticketTypes.map((type: any) => (
-                                     <div key={type.id} className="p-6 rounded-[1.5rem] border-2 border-muted hover:border-secondary transition-all bg-white flex flex-col gap-4 shadow-sm">
+                                     <div key={type.id} className="p-6 rounded-[1.5rem] border-2 border-muted hover:border-secondary transition-all bg-white flex flex-col gap-4 shadow-sm group">
                                         <div className="flex justify-between items-start">
                                            <div className="space-y-1">
                                               <p className="font-black text-sm uppercase italic text-primary">{type.name}</p>
-                                              {type.poolId && <Badge variant="secondary" className="text-[7px] h-4 uppercase gap-1"><Layers className="w-2.5 h-2.5" /> Pool: {type.poolName || 'Geral'}</Badge>}
+                                              {type.poolId && <Badge variant="secondary" className="text-[7px] h-4 uppercase gap-1"><Layers className="w-2.5 h-2.5" /> Estoque Compartilhado</Badge>}
                                            </div>
                                            <p className="font-black text-secondary text-lg">{type.price === 0 ? "GRÁTIS" : formatCurrency(type.price)}</p>
                                         </div>
@@ -456,7 +589,7 @@ export default function EventoPublicoPage() {
                                               <p className="text-[8px] font-bold text-muted-foreground uppercase leading-tight">Documento de comprovação obrigatório no acesso.</p>
                                            </div>
                                         )}
-                                        <Button className="w-full rounded-xl font-black uppercase italic text-xs h-12 shadow-lg" onClick={() => handleAddToCart(type, status.batch, selectedSector)}>Comprar</Button>
+                                        <Button className="w-full rounded-xl font-black uppercase italic text-xs h-12 shadow-lg group-hover:scale-[1.02] transition-transform" onClick={() => handleAddToCart(type, status.batch, selectedSector)}>Comprar {type.name}</Button>
                                      </div>
                                    ))}
                                 </div>
@@ -469,8 +602,9 @@ export default function EventoPublicoPage() {
               )}
            </div>
 
+           {/* BARRA LATERAL */}
            <div className="lg:col-span-4 space-y-6">
-              {/* Carrinho Rápido / Lateral */}
+              {/* BILHETERIA GLOBAL (QUANDO NÃO TEM SETORES) */}
               <Card className="border-none shadow-xl rounded-[2.5rem] border-t-8 border-primary overflow-hidden bg-white sticky top-24">
                  <CardHeader className="p-8 pb-4">
                     <CardTitle className="text-xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-2">
@@ -481,7 +615,7 @@ export default function EventoPublicoPage() {
                     {event.ticketMode === 'sector_batches' || hasMap ? (
                       <div className="py-12 text-center space-y-4 bg-muted/10 rounded-[2rem] border-2 border-dashed border-border/50">
                          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm"><MapIcon className="w-8 h-8 text-muted-foreground opacity-20" /></div>
-                         <p className="text-[10px] font-black text-muted-foreground uppercase leading-tight px-6">Para continuar, escolha uma área do evento ao lado ou no mapa.</p>
+                         <p className="text-[10px] font-black text-muted-foreground uppercase leading-tight px-6">Escolha um setor no mapa ou na lista acima para ver os ingressos disponíveis.</p>
                       </div>
                     ) : globalSaleStatus.batch ? (
                       <div className="space-y-6 animate-in slide-in-from-right-4">
@@ -516,26 +650,50 @@ export default function EventoPublicoPage() {
                  </CardContent>
               </Card>
 
-              {/* Endereço */}
-              <Card className="border-none shadow-sm rounded-[2rem] bg-white">
-                <CardHeader>
+              {/* Endereço e Navegação */}
+              <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
+                <CardHeader className="bg-muted/30 pb-4">
                   <CardTitle className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-secondary" /> Local do Evento
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  <p className="text-xs font-bold text-foreground">
-                    {address.street}, {address.number}
-                    {address.complement && ` - ${address.complement}`}
-                  </p>
-                  <p className="text-[10px] font-medium text-muted-foreground uppercase">
-                    {address.neighborhood}, {address.city} - {address.state}
-                  </p>
-                  <p className="text-[10px] font-medium text-muted-foreground uppercase">
-                    CEP: {address.cep}
-                  </p>
+                <CardContent className="p-6 space-y-6">
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-foreground leading-relaxed">
+                      {address.street}, {address.number}
+                      {address.complement && ` - ${address.complement}`}
+                    </p>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase">
+                      {address.neighborhood}, {address.city} - {address.state}
+                    </p>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase">
+                      CEP: {address.cep}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                     <Button variant="outline" className="rounded-xl h-12 gap-2 text-[10px] font-black uppercase border-secondary/20 text-secondary hover:bg-secondary/5" asChild>
+                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`} target="_blank" rel="noopener noreferrer">
+                           <Image src="https://firebasestorage.googleapis.com/v0/b/ong-desafios-3942a.firebasestorage.app/o/site_assets%2Fgoogle-maps-icon.png?alt=media" width={16} height={16} alt="Google Maps" className="grayscale group-hover:grayscale-0" unoptimized />
+                           Maps
+                        </a>
+                     </Button>
+                     <Button variant="outline" className="rounded-xl h-12 gap-2 text-[10px] font-black uppercase border-secondary/20 text-secondary hover:bg-secondary/5" asChild>
+                        <a href={`https://waze.com/ul?q=${encodeURIComponent(fullAddress)}`} target="_blank" rel="noopener noreferrer">
+                           <Image src="https://firebasestorage.googleapis.com/v0/b/ong-desafios-3942a.firebasestorage.app/o/site_assets%2Fwaze-icon.png?alt=media" width={16} height={16} alt="Waze" unoptimized />
+                           Waze
+                        </a>
+                     </Button>
+                  </div>
                 </CardContent>
               </Card>
+
+              {/* Botão de Compartilhar secundário e Info */}
+              <div className="flex flex-col gap-3 px-4">
+                 <Button variant="ghost" className="w-full rounded-xl text-[10px] font-black uppercase tracking-widest gap-2 text-muted-foreground" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link copiado!" }); }}>
+                    <Share2 className="w-4 h-4" /> Compartilhar Experiência
+                 </Button>
+              </div>
            </div>
         </div>
       </div>

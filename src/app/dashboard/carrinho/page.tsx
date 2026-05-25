@@ -24,7 +24,9 @@ import {
   TicketPercent,
   CheckCircle2,
   X,
-  Layers
+  Layers,
+  Armchair,
+  Ticket
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -180,6 +182,10 @@ export default function CarrinhoPage() {
             poolName: item.poolName || null,
             sectorId: item.sectorId || null,
             sectorName: item.sectorName || null,
+            // @ts-ignore
+            seatId: item.seatId || null,
+            // @ts-ignore
+            seatCode: item.seatCode || null,
             couponId: isEligibleForDiscount ? appliedCoupon.id : null,
             quantity: 1,
             checkedIn: false,
@@ -220,6 +226,8 @@ export default function CarrinhoPage() {
                 name: `${item.eventTitle} - ${item.ticketTypeName}`,
                 description: [
                    item.sectorName ? `Setor: ${item.sectorName}` : null,
+                   // @ts-ignore
+                   item.seatCode ? `Lugar: ${item.seatCode}` : null,
                    item.batchName ? `Lote: ${item.batchName}` : null
                 ].filter(Boolean).join(" | "),
                 images: (item.eventImage && item.eventImage.startsWith('http')) ? [item.eventImage] : [],
@@ -245,6 +253,7 @@ export default function CarrinhoPage() {
           eventId: "multiple", eventTitle: "Ingressos Viby Club", eventImage: "",
           userId: user.uid, userName: user.displayName || "Usuário", userEmail: user.email!,
           totalAmount: Math.round(cartTotals.total * 100),
+          lineItems,
           metadata: { 
             type: "cart_checkout",
             registrationIds: registrationIds.join(","),
@@ -322,9 +331,11 @@ export default function CarrinhoPage() {
                         <div className="flex justify-between items-start gap-4">
                            <div className="space-y-1">
                               <h3 className="font-bold text-base leading-tight uppercase italic tracking-tight">{item.eventTitle}</h3>
-                              <div className="flex items-center gap-4 text-[10px] font-bold text-muted-foreground uppercase">
-                                 <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(item.eventDate).toLocaleDateString('pt-BR')}</span>
+                              <div className="flex items-center flex-wrap gap-4 text-[10px] font-bold text-muted-foreground uppercase">
+                                 <span className="flex items-center gap-1"><Calendar className="w-3 h-3 text-secondary" /> {new Date(item.eventDate).toLocaleDateString('pt-BR')}</span>
                                  {item.sectorName && <span className="flex items-center gap-1 text-secondary"><Layers className="w-3 h-3" /> {item.sectorName}</span>}
+                                 {/* @ts-ignore */}
+                                 {item.seatCode && <span className="flex items-center gap-1 text-green-600 font-black"><Armchair className="w-3 h-3" /> Lugar: {item.seatCode}</span>}
                                  {item.batchName && <span className="flex items-center gap-1 text-primary/40"><Ticket className="w-3 h-3" /> {item.batchName}</span>}
                               </div>
                            </div>
@@ -335,7 +346,9 @@ export default function CarrinhoPage() {
                               <Badge variant="outline" className="text-[9px] font-black uppercase border-secondary text-secondary w-fit">{item.ticketTypeName}</Badge>
                            </div>
                            <div className="flex items-center gap-6">
-                              <div className="flex items-center gap-3"><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => updateQuantity(item.id, item.quantity - 1)}><Minus className="w-3 h-3" /></Button><span className="font-black text-sm">{item.quantity}</span><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => updateQuantity(item.id, item.quantity + 1)}><Plus className="w-3 h-3" /></Button></div>
+                              {!item.seatId && (
+                                <div className="flex items-center gap-3"><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => updateQuantity(item.id, item.quantity - 1)}><Minus className="w-3 h-3" /></Button><span className="font-black text-sm">{item.quantity}</span><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => updateQuantity(item.id, item.quantity + 1)}><Plus className="w-3 h-3" /></Button></div>
+                              )}
                               <div className="text-right"><p className="text-lg font-black text-primary">{formatCurrency(res.customerFinalPrice * item.quantity)}</p><p className="text-[8px] font-bold text-muted-foreground uppercase">Taxa Adm: {formatCurrency(res.administrativeFeeAmount * item.quantity)} incl.</p></div>
                            </div>
                         </div>
