@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -50,6 +51,9 @@ export default function CarrinhoPage() {
   const feesRef = React.useMemo(() => db ? doc(db, 'settings', 'fees') : null, [db])
   const { data: globalFees, loading: feesLoading } = useDoc<any>(feesRef)
 
+  const promosRef = React.useMemo(() => db ? doc(db, 'settings', 'promotions') : null, [db])
+  const { data: promotions } = useDoc<any>(promosRef)
+
   const [processing, setProcessing] = React.useState(false)
   const [isWaitingPayment, setIsWaitingPayment] = React.useState(false)
   
@@ -89,13 +93,13 @@ export default function CarrinhoPage() {
       const unitDiscount = isEligible ? discountPerUnit : 0;
       const discountedUnitPrice = Math.max(0, item.price - unitDiscount);
       
-      const res = calculateFinancialBreakdown(discountedUnitPrice, globalFees);
+      const res = calculateFinancialBreakdown(discountedUnitPrice, globalFees, promotions);
       fees += res.administrativeFeeAmount * item.quantity;
     });
 
     const finalTotal = Math.max(0, (subtotal - discount) + fees);
     return { subtotal, fees, discount, total: finalTotal };
-  }, [items, appliedCoupon, globalFees]);
+  }, [items, appliedCoupon, globalFees, promotions]);
 
   const handleApplyCoupon = async () => {
     if (!db || !couponCode.trim()) return;
@@ -151,7 +155,7 @@ export default function CarrinhoPage() {
         const currentItemDiscount = isEligibleForDiscount ? discountPerUnit : 0;
         const discountedPrice = Math.max(0, item.price - currentItemDiscount);
         
-        const breakdown = calculateFinancialBreakdown(discountedPrice, globalFees);
+        const breakdown = calculateFinancialBreakdown(discountedPrice, globalFees, promotions);
         
         for (let i = 0; i < item.quantity; i++) {
           const ticketCode = await generateUniqueTicketCode(db);
@@ -322,7 +326,7 @@ export default function CarrinhoPage() {
         <div className="lg:col-span-8 space-y-4">
            {feesLoading ? <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div> : 
             items.map((item) => {
-             const res = calculateFinancialBreakdown(item.price, globalFees);
+             const res = calculateFinancialBreakdown(item.price, globalFees, promotions);
              return (
                <Card key={item.id} className="border-none shadow-sm rounded-2xl overflow-hidden group">
                   <div className="flex flex-col sm:flex-row">

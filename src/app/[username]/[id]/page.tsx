@@ -56,7 +56,7 @@ import { toast } from '@/hooks/use-toast';
 import { useCart } from '@/contexts/CartContext';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { formatCurrency } from '@/lib/financial-utils';
+import { formatCurrency, calculateFinancialBreakdown } from '@/lib/financial-utils';
 import Image from 'next/image';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import {
@@ -348,6 +348,7 @@ function TicketCard({
   quantity,
   onQuantityChange,
   showQuantity,
+  promotions
 }: {
   type: any;
   isSelected: boolean;
@@ -355,7 +356,12 @@ function TicketCard({
   quantity?: number;
   onQuantityChange?: (val: number) => void;
   showQuantity?: boolean;
+  promotions: any;
 }) {
+  const feesRef = React.useMemo(() => null, []); // This is passed from parent usually
+  // For display on card, we use a simplified calc
+  const finalFee = (type.price * 0.15); // Default 15% fallback
+
   return (
     <Card
       onClick={onSelect}
@@ -379,7 +385,7 @@ function TicketCard({
           <div className="text-right">
             <p className="text-2xl font-black text-primary">{formatCurrency(type.price)}</p>
             <p className="text-[9px] font-bold text-muted-foreground uppercase">
-              + {formatCurrency(type.price * 0.15)} taxa
+              + {formatCurrency(finalFee)} taxa
             </p>
           </div>
         </div>
@@ -441,6 +447,9 @@ export default function EventoPublicoPage() {
   const eventId = params.id as string;
   const eventRef = React.useMemo(() => (db ? doc(db, 'events', eventId) : null), [db, eventId]);
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef);
+
+  const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db]);
+  const { data: promotions } = useDoc<any>(promosRef);
 
   const setoresQuery = useMemoFirebase(() => {
     if (!db || !eventId) return null;
@@ -1002,6 +1011,7 @@ export default function EventoPublicoPage() {
                                   showQuantity
                                   quantity={quantity}
                                   onQuantityChange={setQuantity}
+                                  promotions={promotions}
                                 />
                               ))}
                             </div>
@@ -1052,7 +1062,7 @@ export default function EventoPublicoPage() {
                             <span>{formatCurrency(totalSelectedPrice)}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span>Taxa de Serviço (15%)</span>
+                            <span>Taxa de Serviço</span>
                             <span>{formatCurrency(totalSelectedPrice * 0.15)}</span>
                           </div>
                         </div>

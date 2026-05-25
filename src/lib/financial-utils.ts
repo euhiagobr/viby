@@ -31,6 +31,19 @@ export interface VibyFinancialSnapshot {
 }
 
 /**
+ * Verifica se uma promoção está ativa baseada em switch e datas.
+ */
+function isPromoActive(active: boolean, start: string, end: string) {
+  if (!active) return false;
+  const now = new Date();
+  const startDate = start ? new Date(start) : null;
+  const endDate = end ? new Date(end) : null;
+  if (startDate && now < startDate) return false;
+  if (endDate && now > endDate) return false;
+  return true;
+}
+
+/**
  * Calcula a quebra financeira completa de uma venda seguindo as regras de negócio da Viby.
  * O imposto de 11% é calculado apenas sobre o Lucro Bruto da Viby (Taxas - Stripe).
  */
@@ -39,7 +52,8 @@ export function calculateDetailedVibyBreakdown(
   qty: number, 
   globalFees: any, 
   stripeSettings: any,
-  isFirstInCharge: boolean = true // Para aplicar a taxa fixa da Stripe apenas uma vez por grupo
+  isFirstInCharge: boolean = true, // Para aplicar a taxa fixa da Stripe apenas uma vez por grupo
+  promotions: any = null
 ): VibyFinancialSnapshot {
   const impostoRate = 0.11;
   const totalFace = facePrice * qty;
@@ -63,19 +77,31 @@ export function calculateDetailedVibyBreakdown(
   }
 
   // 1. Taxa do Comprador (Buyer Fee)
-  const bPercent = (globalFees?.buyerFeePercent ?? 15) / 100;
+  let bPercentVal = globalFees?.buyerFeePercent ?? 15;
+  if (promotions && isPromoActive(promotions.buyerPromoActive, promotions.buyerPromoStart, promotions.buyerPromoEnd)) {
+    bPercentVal = promotions.buyerPromoPercent ?? bPercentVal;
+  }
+  const bPercent = bPercentVal / 100;
   const buyerFeeTotal = totalFace * bPercent;
   const customerPaid = totalFace + buyerFeeTotal;
 
   // 2. Taxa do Organizador (Seller Fee)
-  const oPercent = (globalFees?.organizerFeePercent ?? 10) / 100;
-  const oMin = (globalFees?.organizerMinFee ?? 9.99) * qty;
+  let oPercentVal = globalFees?.organizerFeePercent ?? 10;
+  let oMinVal = globalFees?.organizerMinFee ?? 9.99;
+  
+  if (promotions && isPromoActive(promotions.organizerPromoActive, promotions.organizerPromoStart, promotions.organizerPromoEnd)) {
+    oPercentVal = promotions.organizerPromoPercent ?? oPercentVal;
+    oMinVal = promotions.organizerPromoMinFee ?? oMinVal;
+  }
+
+  const oPercent = oPercentVal / 100;
+  const oMin = oMinVal * qty;
   const calculatedOrgFee = totalFace * oPercent;
   const organizerFeeTotal = Math.max(calculatedOrgFee, oMin);
 
   // 3. Taxa Stripe (Calculada sobre o total pago pelo cliente)
   const sPercent = (stripeSettings?.feePercent ?? 3.99) / 100;
-  const sFixed = isFirstInCharge ? (stripeSettings?.feeFixed ?? 0.39) : 0; // Taxa fixa por transação
+  const sFixed = isFirstInCharge ? (stripeSettings?.feeFixed ?? 0.39) : 0; 
   
   const stripeFeePercentAmount = customerPaid * sPercent;
   const stripeFeeFixedAmount = sFixed;
@@ -111,18 +137,42 @@ export function calculateDetailedVibyBreakdown(
 }
 
 /**
- * Legado: Mantido para compatibilidade em componentes que ainda não foram refatorados.
+ * Calcula a quebra financeira básica considerando promoções.
  */
-export function calculateFinancialBreakdown(facePrice: number, globalFees?: any) {
+export function calculateFinancialBreakdown(facePrice: number, globalFees?: any, promotions?: any) {
   const price = parseFloat(facePrice as any) || 0;
   if (price <= 0) return { ticketBasePrice: 0, customerFinalPrice: 0, administrativeFeeAmount: 0, producerFeeAmount: 0, producerNetAmount: 0, totalVibyRevenue: 0 };
-  const buyerFeePercent = (globalFees?.buyerFeePercent ?? 15) / 100;
+  
+  // Taxa Comprador
+  let bPercentVal = globalFees?.buyerFeePercent ?? 15;
+  if (promotions && isPromoActive(promotions.buyerPromoActive, promotions.buyerPromoStart, promotions.buyerPromoEnd)) {
+    bPercentVal = promotions.buyerPromoPercent ?? bPercentVal;
+  }
+  const buyerFeePercent = bPercentVal / 100;
   const administrativeFeeAmount = Number((price * buyerFeePercent).toFixed(2));
   const customerFinalPrice = Number((price + administrativeFeeAmount).toFixed(2));
-  const orgFeePercent = (globalFees?.organizerFeePercent ?? 10) / 100;
-  const orgMinFee = globalFees?.organizerMinFee ?? 9.99;
+  
+  // Taxa Organizador
+  let oPercentVal = globalFees?.organizerFeePercent ?? 10;
+  let oMinVal = globalFees?.organizerMinFee ?? 9.99;
+  
+  if (promotions && isPromoActive(promotions.organizerPromoActive, promotions.organizerPromoStart, promotions.organizerPromoEnd)) {
+    oPercentVal = promotions.organizerPromoPercent ?? oPercentVal;
+    oMinVal = promotions.organizerPromoMinFee ?? oMinVal;
+  }
+
+  const orgFeePercent = oPercentVal / 100;
+  const orgMinFee = oMinVal;
   const calculatedPercentFee = Number((price * orgFeePercent).toFixed(2));
   const producerFeeAmount = Math.max(calculatedPercentFee, orgMinFee);
   const producerNetAmount = Number((price - producerFeeAmount).toFixed(2));
-  return { ticketBasePrice: price, customerFinalPrice, administrativeFeeAmount, producerFeeAmount, producerNetAmount, totalVibyRevenue: Number((administrativeFeeAmount + producerFeeAmount).toFixed(2)) };
+  
+  return { 
+    ticketBasePrice: price, 
+    customerFinalPrice, 
+    administrativeFeeAmount, 
+    producerFeeAmount, 
+    producerNetAmount, 
+    totalVibyRevenue: Number((administrativeFeeAmount + producerFeeAmount).toFixed(2)) 
+  };
 }

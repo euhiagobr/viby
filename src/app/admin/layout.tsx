@@ -24,7 +24,8 @@ import {
   Mail,
   Scale,
   SendHorizontal,
-  UserCheck
+  UserCheck,
+  Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -98,6 +99,7 @@ export default function AdminLayout({
     { title: 'Painel', url: '/admin', icon: LayoutDashboard },
     { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays },
     { title: 'Anúncios', url: '/admin/anuncios', icon: Megaphone },
+    { title: 'Campanhas', url: '/admin/campanhas', icon: Zap },
     { title: 'Fiscal / Impostos', url: '/admin/imposto', icon: Scale },
     { title: 'Transferências', url: '/admin/transferencias', icon: SendHorizontal },
     { title: 'Financeiro (Contas)', url: '/admin/financeiro', icon: Landmark },

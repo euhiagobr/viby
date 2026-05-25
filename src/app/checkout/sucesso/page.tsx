@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -74,13 +75,15 @@ export default function CheckoutSucessoPage() {
             ? metadata.registrationIds.split(",") 
             : [metadata.registrationId];
           
-          const [stripeSettingsSnap, feesSettingsSnap] = await Promise.all([
+          const [stripeSettingsSnap, feesSettingsSnap, promosSnap] = await Promise.all([
             getDoc(doc(db, 'settings', 'stripe')),
-            getDoc(doc(db, 'settings', 'fees'))
+            getDoc(doc(db, 'settings', 'fees')),
+            getDoc(doc(db, 'settings', 'promotions'))
           ]);
 
           const stripeSettings = stripeSettingsSnap.data();
           const feesSettings = feesSettingsSnap.data();
+          const promotions = promosSnap.exists() ? promosSnap.data() : null;
 
           for (let i = 0; i < regIds.length; i++) {
             const regId = regIds[i];
@@ -96,7 +99,8 @@ export default function CheckoutSucessoPage() {
                   1,
                   feesSettings,
                   stripeSettings,
-                  isFirst
+                  isFirst,
+                  promotions
                 );
 
                 await updateDoc(regRef, {
@@ -111,7 +115,7 @@ export default function CheckoutSucessoPage() {
                 const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toLocaleDateString('pt-BR');
 
                 await addDoc(collection(db, "tax_tickets"), {
-                   adId: null, // Legacy field
+                   adId: null, 
                    registrationId: regId,
                    eventId: regData.eventId,
                    eventTitle: regData.eventTitle || "Evento",
