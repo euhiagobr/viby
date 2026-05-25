@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -18,7 +17,9 @@ import {
   Percent,
   CheckCircle2,
   AlertTriangle,
-  Scale
+  Scale,
+  Clock,
+  BarChart3
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/financial-utils';
 import { 
@@ -37,6 +38,7 @@ import {
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import { ERPMetrics, calculateRealProfit } from '@/lib/financial-erp-utils';
+import { Separator } from '@/components/ui/separator';
 
 export default function AdminERPDashboard() {
   const db = useFirestore();
