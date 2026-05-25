@@ -20,7 +20,8 @@ import {
   Map as MapIcon,
   X,
   Clock,
-  Info
+  Info,
+  BadgeCheck
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -43,9 +44,11 @@ export default function EventoPublicoPage() {
 
   const [selectedSector, setSelectedSector] = React.useState<any>(null)
 
-  // Lógica de Venda Ativa considerando data/hora
+  // Lógica de Venda Ativa considerando data/hora e migração de lotes
   const getSaleStatus = (target: any) => {
-    if (!target || !target.batches || target.batches.length === 0) return { active: false, message: "Indisponível", batch: null };
+    if (!target || !target.batches || target.batches.length === 0) {
+      return { active: false, message: "Indisponível", batch: null };
+    }
     
     const now = new Date();
     let carryOver = 0;
@@ -58,7 +61,7 @@ export default function EventoPublicoPage() {
       const isPast = end && now > end;
       const isFuture = start && now < start;
 
-      const currentCap = (b.capacidadeInicial || b.capacity) + carryOver;
+      const currentCap = (b.capacidadeInicial || b.quantity || 0) + carryOver;
       const sold = b.vendidos || 0;
       const remaining = Math.max(0, currentCap - sold);
       
@@ -93,7 +96,7 @@ export default function EventoPublicoPage() {
       eventTitle: event.title,
       eventImage: event.image || "",
       eventDate: event.date,
-      eventCity: event.city || "",
+      eventCity: event.city || address?.city || "",
       organizationId: event.organizationId,
       organizerId: event.organizerId || event.createdBy,
       organizerUsername: params.username as string,
@@ -115,6 +118,9 @@ export default function EventoPublicoPage() {
 
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>
   if (!event) return null
+
+  const address = event.address || {};
+  const isVerified = event.organizer?.isVerified || false;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
@@ -141,8 +147,28 @@ export default function EventoPublicoPage() {
                    <h1 className="text-4xl md:text-5xl font-black uppercase italic tracking-tighter leading-none">{event.title}</h1>
                    <div className="flex items-center gap-4 mt-4 text-white/80 font-bold text-xs uppercase">
                       <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4" /> {new Date(event.date).toLocaleDateString('pt-BR')}</span>
-                      <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4" /> {event.city}</span>
+                      <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4" /> {event.city || address.city}</span>
                    </div>
+                </div>
+              </div>
+
+              <div className="p-8 bg-white rounded-[2.5rem] shadow-sm space-y-6">
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-14 w-14 border-2 border-secondary/20">
+                    <AvatarImage src={event.organizer?.avatar} className="object-cover" />
+                    <AvatarFallback className="font-bold">{event.organizer?.name?.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-black uppercase italic tracking-tighter text-lg">{event.organizer?.name}</p>
+                      {isVerified && <BadgeCheck className="w-4 h-4 fill-blue-500 text-white" />}
+                    </div>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Organizador Oficial</p>
+                  </div>
+                </div>
+                <Separator className="border-dashed" />
+                <div className="prose prose-sm max-w-none text-muted-foreground font-medium leading-relaxed">
+                  {event.description}
                 </div>
               </div>
 
@@ -247,7 +273,7 @@ export default function EventoPublicoPage() {
            <div className="lg:col-span-4 space-y-6">
               <Card className="border-none shadow-xl rounded-[2.5rem] border-t-8 border-primary overflow-hidden bg-white sticky top-24">
                  <CardHeader className="p-8 pb-4">
-                    <CardTitle className="text-xl font-black italic uppercase text-primary flex items-center gap-2">
+                    <CardTitle className="text-xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-2">
                        <Ticket className="w-5 h-5 text-secondary" /> Bilheteria Geral
                     </CardTitle>
                  </CardHeader>
@@ -288,6 +314,26 @@ export default function EventoPublicoPage() {
                       </div>
                     )}
                  </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-sm rounded-[2rem] bg-white">
+                <CardHeader>
+                  <CardTitle className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-secondary" /> Local do Evento
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <p className="text-xs font-bold text-foreground">
+                    {address.street}, {address.number}
+                    {address.complement && ` - ${address.complement}`}
+                  </p>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase">
+                    {address.neighborhood}, {address.city} - {address.state}
+                  </p>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase">
+                    CEP: {address.cep}
+                  </p>
+                </CardContent>
               </Card>
            </div>
         </div>

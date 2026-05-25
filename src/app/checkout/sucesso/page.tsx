@@ -123,6 +123,7 @@ export default function CheckoutSucessoPage() {
                    buyerEmail: regData.userEmail || "",
                    ticketTypeName: regData.ticketTypeName || "Geral",
                    batchName: regData.batchName || "Único",
+                   sectorName: regData.sectorName || null,
                    quantity: 1,
                    unitPrice: breakdown.unitPrice,
                    totalFacePrice: breakdown.totalFace,

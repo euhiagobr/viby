@@ -218,7 +218,10 @@ export default function CarrinhoPage() {
               currency: 'brl',
               product_data: {
                 name: `${item.eventTitle} - ${item.ticketTypeName}`,
-                description: item.sectorName ? `Setor: ${item.sectorName}` : `Voucher individual`,
+                description: [
+                   item.sectorName ? `Setor: ${item.sectorName}` : null,
+                   item.batchName ? `Lote: ${item.batchName}` : null
+                ].filter(Boolean).join(" | "),
                 images: (item.eventImage && item.eventImage.startsWith('http')) ? [item.eventImage] : [],
               },
               unit_amount: Math.round(breakdown.customerFinalPrice * 100),
@@ -322,6 +325,7 @@ export default function CarrinhoPage() {
                               <div className="flex items-center gap-4 text-[10px] font-bold text-muted-foreground uppercase">
                                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(item.eventDate).toLocaleDateString('pt-BR')}</span>
                                  {item.sectorName && <span className="flex items-center gap-1 text-secondary"><Layers className="w-3 h-3" /> {item.sectorName}</span>}
+                                 {item.batchName && <span className="flex items-center gap-1 text-primary/40"><Ticket className="w-3 h-3" /> {item.batchName}</span>}
                               </div>
                            </div>
                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeItem(item.id)}><Trash2 className="w-4 h-4" /></Button>
@@ -329,7 +333,6 @@ export default function CarrinhoPage() {
                         <div className="flex flex-wrap items-end justify-between gap-4 pt-4 border-t border-dashed border-border/60">
                            <div className="flex flex-col gap-1">
                               <Badge variant="outline" className="text-[9px] font-black uppercase border-secondary text-secondary w-fit">{item.ticketTypeName}</Badge>
-                              <span className="text-[8px] font-bold text-muted-foreground uppercase">{item.batchName}</span>
                            </div>
                            <div className="flex items-center gap-6">
                               <div className="flex items-center gap-3"><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => updateQuantity(item.id, item.quantity - 1)}><Minus className="w-3 h-3" /></Button><span className="font-black text-sm">{item.quantity}</span><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => updateQuantity(item.id, item.quantity + 1)}><Plus className="w-3 h-3" /></Button></div>
