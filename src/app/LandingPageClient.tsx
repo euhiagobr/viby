@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -57,7 +58,7 @@ export default function LandingPageClient() {
   const { data: activeAds } = useCollection<any>(adsQuery)
 
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
-    loop: true, 
+    loop: false, 
     align: 'start',
     slidesToScroll: 1
   })
@@ -69,10 +70,47 @@ export default function LandingPageClient() {
       try {
         const loc = await getCurrentLocation()
         setUserLocation(loc)
+        // Se temos localização, priorizamos ordenação por distância por padrão
+        setSortBy('distance')
       } catch (err) {}
     }
     fetchLocation()
   }, [])
+
+  // Filtragem dos eventos em escopo (antes do filtro de categoria)
+  const eventsInScope = React.useMemo(() => {
+    if (!events) return []
+    const now = new Date()
+
+    return events.filter((e: any) => {
+      const matchesSearch = e.title?.toLowerCase().includes(searchName.toLowerCase())
+      const matchesCity = selectedCity === 'all' || e.city === selectedCity
+      
+      const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+      const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+      const isNotEnded = end >= now;
+
+      return matchesSearch && matchesCity && isNotEnded
+    })
+  }, [events, searchName, selectedCity])
+
+  // Categorias ativas baseadas nos eventos em escopo
+  const activeCategoryIds = React.useMemo(() => {
+    return new Set(eventsInScope.map((e: any) => e.categoryId).filter(Boolean))
+  }, [eventsInScope])
+
+  // Categorias filtradas para exibição no carrossel
+  const activeCategories = React.useMemo(() => {
+    if (!categories) return []
+    return categories.filter((cat: any) => activeCategoryIds.has(cat.id))
+  }, [categories, activeCategoryIds])
+
+  // Resetar categoria se ela não estiver mais em escopo
+  React.useEffect(() => {
+    if (selectedCategory !== 'all' && !activeCategoryIds.has(selectedCategory)) {
+      setSelectedCategory('all')
+    }
+  }, [activeCategoryIds, selectedCategory])
 
   const uniqueCities = React.useMemo(() => {
     if (!events) return []
@@ -83,19 +121,9 @@ export default function LandingPageClient() {
   }, [events])
 
   const filteredEvents = React.useMemo(() => {
-    if (!events) return []
-    const now = new Date()
-
-    let result = events.filter((e: any) => {
-      const matchesSearch = e.title?.toLowerCase().includes(searchName.toLowerCase())
-      const matchesCity = selectedCity === 'all' || e.city === selectedCity
+    let result = eventsInScope.filter((e: any) => {
       const matchesCategory = selectedCategory === 'all' || e.categoryId === selectedCategory
-      
-      const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
-      const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
-      const isNotEnded = end >= now;
-
-      return matchesSearch && matchesCity && matchesCategory && isNotEnded
+      return matchesCategory
     })
 
     if (sortBy === 'distance' && userLocation) {
@@ -112,7 +140,7 @@ export default function LandingPageClient() {
     }
 
     return result
-  }, [events, searchName, selectedCity, selectedCategory, sortBy, userLocation])
+  }, [eventsInScope, selectedCategory, sortBy, userLocation])
 
   const interleavedContent = React.useMemo(() => {
     if (filteredEvents.length === 0) return []
@@ -185,7 +213,6 @@ export default function LandingPageClient() {
         </div>
       </nav>
 
-      {/* Hero Section - Centralized */}
       <section className="relative min-h-[80vh] flex items-center justify-center overflow-hidden bg-primary text-white text-center">
         <div className="absolute inset-0 opacity-40 pointer-events-none">
           <Image 
@@ -254,43 +281,46 @@ export default function LandingPageClient() {
         </div>
       </section>
 
-      {/* Category Filter - Infinite Carousel */}
-      <section className="bg-white border-b border-border py-6 sticky top-16 z-40 shadow-sm overflow-hidden">
-        <div className="container mx-auto px-4 relative group">
-          <div className="overflow-hidden" ref={emblaRef}>
-            <div className="flex gap-4">
-              <div className="flex-[0_0_auto]">
-                <Button 
-                  variant={selectedCategory === 'all' ? 'secondary' : 'ghost'} 
-                  size="sm" 
-                  className={cn("rounded-full font-black uppercase text-[10px] tracking-widest px-6 h-10 shrink-0", selectedCategory === 'all' && "shadow-lg shadow-secondary/20")}
-                  onClick={() => setSelectedCategory('all')}
-                >
-                  Todos
-                </Button>
-              </div>
-              {categories?.map((cat: any) => (
-                <div key={cat.id} className="flex-[0_0_auto]">
+      {/* Category Filter - Somente categorias com eventos no escopo */}
+      {(activeCategories.length > 0) && (
+        <section className="bg-white border-b border-border py-6 sticky top-16 z-40 shadow-sm overflow-hidden">
+          <div className="container mx-auto px-4 relative group">
+            <div className="overflow-hidden" ref={emblaRef}>
+              <div className="flex gap-4">
+                <div className="flex-[0_0_auto]">
                   <Button 
-                    variant={selectedCategory === cat.id ? 'secondary' : 'ghost'} 
+                    variant={selectedCategory === 'all' ? 'secondary' : 'ghost'} 
                     size="sm" 
-                    className={cn("rounded-full font-black uppercase text-[10px] tracking-widest px-6 h-10 shrink-0", selectedCategory === cat.id && "shadow-lg shadow-secondary/20")}
-                    onClick={() => setSelectedCategory(cat.id)}
+                    className={cn("rounded-full font-black uppercase text-[10px] tracking-widest px-6 h-10 shrink-0", selectedCategory === 'all' && "shadow-lg shadow-secondary/20")}
+                    onClick={() => setSelectedCategory('all')}
                   >
-                    {cat.name}
+                    Todos
                   </Button>
                 </div>
-              ))}
+                {activeCategories.map((cat: any) => (
+                  <div key={cat.id} className="flex-[0_0_auto]">
+                    <Button 
+                      variant={selectedCategory === cat.id ? 'secondary' : 'ghost'} 
+                      size="sm" 
+                      className={cn("rounded-full font-black uppercase text-[10px] tracking-widest px-6 h-10 shrink-0", selectedCategory === cat.id && "shadow-lg shadow-secondary/20")}
+                      onClick={() => setSelectedCategory(cat.id)}
+                    >
+                      {cat.name}
+                    </Button>
+                  </div>
+                ))}
+              </div>
             </div>
+            {activeCategories.length > 5 && (
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-1 bg-gradient-to-l from-white via-white to-transparent pl-12 h-full items-center pointer-events-none group-hover:pointer-events-auto">
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-white shadow-md border" onClick={() => emblaApi?.scrollPrev()}><ChevronLeft className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-white shadow-md border" onClick={() => emblaApi?.scrollNext()}><ChevronRight className="w-4 h-4" /></Button>
+              </div>
+            )}
           </div>
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-1 bg-gradient-to-l from-white via-white to-transparent pl-12 h-full items-center pointer-events-none group-hover:pointer-events-auto">
-             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-white shadow-md border" onClick={() => emblaApi?.scrollPrev()}><ChevronLeft className="w-4 h-4" /></Button>
-             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-white shadow-md border" onClick={() => emblaApi?.scrollNext()}><ChevronRight className="w-4 h-4" /></Button>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      {/* Content Section */}
       <section className="py-16 container mx-auto px-4 flex-1">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div className="space-y-1">
