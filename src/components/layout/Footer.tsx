@@ -20,18 +20,18 @@ export default function Footer() {
           <div className="md:col-span-2 space-y-6">
             <Link href="/" className="flex items-center gap-2">
               {settings?.logoUrl ? (
-                <img src={settings.logoUrl} alt={siteName} className="h-8 object-contain" />
+                <img src={settings.logoUrl} alt={siteName} className="h-10 object-contain" />
               ) : (
                 <>
-                  <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
-                    <span className="text-white font-bold text-lg">{siteName.charAt(0)}</span>
+                  <div className="w-10 h-10 bg-secondary rounded-lg flex items-center justify-center">
+                    <span className="text-white font-bold text-xl">{siteName.charAt(0)}</span>
                   </div>
                   <span className="font-bold text-2xl tracking-tighter">{siteName}</span>
                 </>
               )}
             </Link>
             <p className="text-muted-foreground text-sm max-w-sm font-medium leading-relaxed">
-              Transformando a descoberta de eventos no Brasil através de tecnologia e experiências inteligentes. Encontre o seu próximo destino aqui.
+              Transformando a forma como as pessoas descobrem eventos e experiências no Brasil.
             </p>
           </div>
           <div className="space-y-4">
@@ -66,8 +66,8 @@ export default function Footer() {
           </div>
         </div>
         <div className="pt-8 border-t border-muted text-center flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
-            {siteName} © 2024 - Todos os direitos reservados.
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+            {siteName} © 2026 - Todos os direitos reservados.
           </p>
           <div className="flex items-center gap-4 opacity-30">
              <Globe className="w-4 h-4" />

@@ -36,8 +36,8 @@ import { FirestorePermissionError } from "@/firebase/errors"
 
 const renderFormattedText = (text: string) => {
   if (!text) return "";
-  // Regex para: **negrito**, @username
-  const parts = text.split(/(\*\*.*?\*\*|@[\w.]+)/g);
+  // Regex para: **negrito**, @username, +texto+
+  const parts = text.split(/(\*\*.*?\*\*|@[\w.]+|\+.*?\+)/g);
 
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
@@ -46,6 +46,9 @@ const renderFormattedText = (text: string) => {
     if (part.startsWith('@')) {
       const usernameMention = part.slice(1).toLowerCase();
       return <Link key={i} href={`/${usernameMention}`} className="text-secondary font-black hover:underline" onClick={(e) => e.stopPropagation()}>{part}</Link>;
+    }
+    if (part.startsWith('+') && part.endsWith('+')) {
+       return part.slice(1, -1);
     }
     return part;
   });
@@ -308,7 +311,7 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
 
         {!showComments && (
           <Button disabled={isEnded} className={cn("w-full h-12 font-black rounded-2xl uppercase italic text-xs gap-2 group transition-colors", isEnded ? "bg-muted text-muted-foreground" : "bg-primary text-white hover:bg-secondary")}>
-            {isEnded ? "Evento Encerrado" : <><Ticket className="w-4 h-4" /> Garantir meu Ingresso <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></>}
+            {isEnded ? "Evento Encerrado" : <><Ticket className="w-4 h-4" /> Garantir meu Ingresso <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
           </Button>
         )}
       </CardContent>

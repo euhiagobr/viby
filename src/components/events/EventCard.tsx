@@ -21,13 +21,16 @@ function VerifiedBadge({ className }: { className?: string }) {
 
 const renderFormattedText = (text: string) => {
   if (!text) return "";
-  const parts = text.split(/(\*\*.*?\*\*|@[\w.]+)/g);
+  const parts = text.split(/(\*\*.*?\*\*|@[\w.]+|\+.*?\+)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
     }
     if (part.startsWith('@')) {
        return <span key={i} className="text-secondary font-black">{part}</span>
+    }
+    if (part.startsWith('+') && part.endsWith('+')) {
+       return part.slice(1, -1);
     }
     return part;
   });
@@ -338,9 +341,9 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         </div>
       </CardHeader>
       <CardContent className="p-4 pt-0 space-y-3">
-        <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2.5rem] font-medium leading-relaxed">
+        <div className="text-xs text-muted-foreground line-clamp-2 min-h-[2.5rem] font-medium leading-relaxed">
           {renderFormattedText(event.shortDescription || event.description)}
-        </p>
+        </div>
         <div className="space-y-2">
           <div className="flex items-center gap-4 text-[10px] text-muted-foreground font-black uppercase tracking-tight">
             <span className="flex items-center gap-1.5">

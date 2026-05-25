@@ -136,7 +136,7 @@ function AvatarFallback({
 
 const renderFormattedText = (text: string) => {
   if (!text) return '';
-  const parts = text.split(/(\*\*.*?\*\*|@[\w.]+)/g);
+  const parts = text.split(/(\*\*.*?\*\*|@[\w.]+|\+.*?\+)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**'))
       return (
@@ -154,6 +154,9 @@ const renderFormattedText = (text: string) => {
           {part}
         </Link>
       );
+    if (part.startsWith('+') && part.endsWith('+')) {
+       return part.slice(1, -1);
+    }
     return part;
   });
 };
@@ -180,7 +183,7 @@ function EventHero({ event }: { event: any }) {
           src={event.image || 'https://picsum.photos/seed/event/1200/800'}
           alt={event.title}
           fill
-          className="object-cover"
+          className='object-cover'
           priority
           unoptimized
         />
@@ -718,7 +721,7 @@ export default function EventoPublicoPage() {
       setSelectedSeats({});
     } else {
       if (!selectedTicketType) {
-        toast({ variant: 'destructive', title: 'Selecione um tipo de ingresso' });
+        toast({ variant: 'destructive', title: 'Seletione um tipo de ingresso' });
         return;
       }
       const batch = selectedTicketType._batch;
