@@ -329,6 +329,17 @@ export default function EditarEventoPage() {
     setSectorsWithBatches(n);
   }
 
+  const addTicketTypeToSector = (si: number, bi: number) => {
+    const n = [...sectorsWithBatches];
+    const b = n[si].batches[bi];
+    const poolId = b.isHalfPriceEnabled ? (b.ticketTypes[1]?.poolId || crypto.randomUUID()) : undefined;
+    const poolName = b.isHalfPriceEnabled ? "Cota Setor" : undefined;
+    const qty = b.isHalfPriceEnabled ? (b.ticketTypes[1]?.quantity || 0) : b.capacidadeInicial;
+
+    n[si].batches[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Nova Meia", price: 50, quantity: qty, poolId, poolName, requiresProof: true, isLegalHalf: true, description: "" }); 
+    setSectorsWithBatches(n);
+  }
+
   const addBatch = () => {
     const newB: Batch = {
       id: crypto.randomUUID(),
@@ -505,59 +516,13 @@ export default function EditarEventoPage() {
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Número</Label><Input value={address.number} onChange={e => setAddress({...address, number: e.target.value})} className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label><Input value={address.complement} onChange={e => setAddress({...address, complement: e.target.value})} className="rounded-xl h-11" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} className="rounded-xl h-11" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">UF</Label><Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30 w-16" /></div>
              </div>
           </CardContent>
         </Card>
-
-        {supportsMap && (
-          <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
-            <CardHeader className="bg-primary/5">
-                <CardTitle className="text-lg flex items-center gap-2"><MapIcon className="w-5 h-5 text-primary" /> Estrutura do Evento (Mapa)</CardTitle>
-                <CardDescription>Habilite o mapa para permitir seleção de assentos ou visualização de setores.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-8 space-y-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {[
-                    { id: 'none', label: 'Sem Mapa', icon: X, desc: 'Lista simples' },
-                    { id: 'setores', label: 'Setores', icon: Layout, desc: 'Áreas livres' },
-                    { id: 'assentos', label: 'Assentos', icon: Armchair, desc: 'Cadeiras' },
-                    { id: 'mesas', label: 'Mesas', icon: Grid3X3, desc: 'Numeradas' }
-                  ].map((mode) => (
-                    <Button 
-                      key={mode.id} 
-                      type="button"
-                      variant={mapMode === mode.id ? 'secondary' : 'outline'}
-                      className={cn("h-24 flex-col gap-2 rounded-2xl border-dashed", mapMode === mode.id && "border-solid ring-2 ring-secondary/20")}
-                      onClick={() => setMapMode(mode.id as any)}
-                    >
-                      <mode.icon className="w-6 h-6" />
-                      <div className="text-center">
-                          <p className="text-[10px] font-black uppercase">{mode.label}</p>
-                          <p className="text-[8px] font-bold opacity-50 uppercase">{mode.desc}</p>
-                      </div>
-                    </Button>
-                  ))}
-                </div>
-
-                {mapMode !== 'none' && (
-                  <div className="pt-4 animate-in fade-in zoom-in-95 duration-300">
-                    <Button asChild variant="outline" className="w-full h-16 rounded-2xl border-secondary text-secondary font-black uppercase italic gap-3 shadow-lg hover:bg-secondary hover:text-white transition-all">
-                      <Link href={`/dashboard/evento/${eventId}/mapa`}>
-                        <Settings2 className="w-5 h-5" />
-                        Editar Planta e Locais no Mapa
-                      </Link>
-                    </Button>
-                    <p className="text-[10px] text-center text-muted-foreground mt-3 uppercase font-bold tracking-widest opacity-60">
-                      Vincule seus lotes aos setores criados no editor de mapa.
-                    </p>
-                  </div>
-                )}
-            </CardContent>
-          </Card>
-        )}
 
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
@@ -587,6 +552,52 @@ export default function EditarEventoPage() {
                      <Input type="number" value={freeCapacity} onChange={e => setFreeCapacity(parseInt(e.target.value) || 0)} className="h-14 text-2xl font-black rounded-xl text-center border-secondary/20 max-w-[200px]" />
                   </div>
                </div>
+            )}
+
+            {/* Configuração de Mapa - Integrada dentro dos ingressos suportados */}
+            {supportsMap && (
+              <div className="animate-in fade-in slide-in-from-top-4 duration-500 space-y-6 border-b border-dashed pb-8 mb-8">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                    <MapIcon className="w-4 h-4 text-secondary" /> Estrutura do Evento (Mapa)
+                  </h3>
+                  <p className="text-[10px] text-muted-foreground font-bold uppercase">Habilite o mapa para permitir seleção de assentos ou visualização de setores.</p>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { id: 'none', label: 'Sem Mapa', icon: X, desc: 'Lista simples' },
+                    { id: 'setores', label: 'Setores', icon: Layout, desc: 'Áreas livres' },
+                    { id: 'assentos', label: 'Assentos', icon: Armchair, desc: 'Cadeiras' },
+                    { id: 'mesas', label: 'Mesas', icon: Grid3X3, desc: 'Numeradas' }
+                  ].map((mode) => (
+                    <Button 
+                      key={mode.id} 
+                      type="button"
+                      variant={mapMode === mode.id ? 'secondary' : 'outline'}
+                      className={cn("h-24 flex-col gap-2 rounded-2xl border-dashed", mapMode === mode.id && "border-solid ring-2 ring-secondary/20")}
+                      onClick={() => setMapMode(mode.id as any)}
+                    >
+                      <mode.icon className="w-6 h-6" />
+                      <div className="text-center">
+                          <p className="text-[10px] font-black uppercase">{mode.label}</p>
+                          <p className="text-[8px] font-bold opacity-50 uppercase">{mode.desc}</p>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+
+                {mapMode !== 'none' && (
+                  <div className="pt-2 animate-in zoom-in-95 duration-300">
+                    <Button asChild variant="outline" className="w-full h-12 rounded-xl border-secondary text-secondary font-black uppercase italic gap-3 shadow-lg hover:bg-secondary hover:text-white transition-all">
+                      <Link href={`/dashboard/evento/${eventId}/mapa`}>
+                        <Settings2 className="w-4 h-4" />
+                        Editar Planta e Locais no Mapa
+                      </Link>
+                    </Button>
+                  </div>
+                )}
+              </div>
             )}
 
             {ticketMode === 'paid_single' && (

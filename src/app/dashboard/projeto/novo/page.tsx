@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -41,7 +42,8 @@ import {
   Layout,
   Armchair,
   Grid3X3,
-  Clock
+  Clock,
+  Settings2
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -381,6 +383,8 @@ export default function NovoEventoPage() {
     }
   }
 
+  const supportsMap = ['paid_single', 'batches', 'sector_batches'].includes(ticketMode);
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 text-foreground">
       <div className="flex items-center gap-4">
@@ -435,40 +439,10 @@ export default function NovoEventoPage() {
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Número</Label><Input value={address.number} onChange={e => setAddress({...address, number: e.target.value})} required className="rounded-xl h-11" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label><Input value={address.complement} onChange={e => setAddress({...address, complement: e.target.value})} className="rounded-xl h-11" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} required className="rounded-xl h-11" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">UF</Label><Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30 w-16" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={address.city} readOnly required className="rounded-xl h-11 bg-muted/30" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">UF</Label><Input value={address.state} readOnly required className="rounded-xl h-11 bg-muted/30 w-16" /></div>
              </div>
           </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
-           <CardHeader className="bg-primary/5">
-              <CardTitle className="text-lg flex items-center gap-2"><MapIcon className="w-5 h-5 text-primary" /> Estrutura do Evento (Mapa)</CardTitle>
-           </CardHeader>
-           <CardContent className="p-8 space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                 {[
-                   { id: 'none', label: 'Sem Mapa', icon: X, desc: 'Lista simples' },
-                   { id: 'setores', label: 'Setores', icon: Layout, desc: 'Áreas livres' },
-                   { id: 'assentos', label: 'Assentos', icon: Armchair, desc: 'Cadeiras' },
-                   { id: 'mesas', label: 'Mesas', icon: Grid3X3, desc: 'Numeradas' }
-                 ].map((mode) => (
-                   <Button 
-                     key={mode.id} 
-                     type="button"
-                     variant={mapMode === mode.id ? 'secondary' : 'outline'}
-                     className={cn("h-24 flex-col gap-2 rounded-2xl border-dashed", mapMode === mode.id && "border-solid ring-2 ring-secondary/20")}
-                     onClick={() => setMapMode(mode.id as any)}
-                   >
-                     <mode.icon className="w-6 h-6" />
-                     <div className="text-center">
-                        <p className="text-[10px] font-black uppercase">{mode.label}</p>
-                        <p className="text-[8px] font-bold opacity-50 uppercase">{mode.desc}</p>
-                     </div>
-                   </Button>
-                 ))}
-              </div>
-           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
@@ -480,7 +454,7 @@ export default function NovoEventoPage() {
               <div className="bg-white p-1 rounded-xl border flex flex-wrap gap-1">
                 {['none', 'free', 'paid_single', 'batches'].map((mode: any) => (
                   <Button key={mode} type="button" variant={ticketMode === mode ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode(mode)}>
-                    {mode === 'none' ? 'Sem Ingresso' : mode === 'free' ? 'Grátis' : mode === 'paid_single' ? 'Valor Único' : 'Lotes'}
+                    {mode === 'none' ? 'Sem Ingresso' : mode === 'free' ? 'Grátis' : mode === 'paid_single' ? 'Valor Único' : mode === 'batches'}
                   </Button>
                 ))}
               </div>
@@ -501,6 +475,40 @@ export default function NovoEventoPage() {
                      <Input type="number" value={freeCapacity} onChange={e => setFreeCapacity(parseInt(e.target.value) || 0)} className="h-14 text-2xl font-black rounded-xl text-center border-secondary/20 max-w-[200px]" />
                   </div>
                </div>
+            )}
+
+            {supportsMap && (
+              <div className="animate-in fade-in slide-in-from-top-4 duration-500 space-y-6 border-b border-dashed pb-8 mb-8">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                    <MapIcon className="w-4 h-4 text-secondary" /> Estrutura do Evento (Mapa)
+                  </h3>
+                  <p className="text-[10px] text-muted-foreground font-bold uppercase">Habilite o mapa para permitir seleção de assentos ou visualização de setores.</p>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { id: 'none', label: 'Sem Mapa', icon: X, desc: 'Lista simples' },
+                    { id: 'setores', label: 'Setores', icon: Layout, desc: 'Áreas livres' },
+                    { id: 'assentos', label: 'Assentos', icon: Armchair, desc: 'Cadeiras' },
+                    { id: 'mesas', label: 'Mesas', icon: Grid3X3, desc: 'Numeradas' }
+                  ].map((mode) => (
+                    <Button 
+                      key={mode.id} 
+                      type="button"
+                      variant={mapMode === mode.id ? 'secondary' : 'outline'}
+                      className={cn("h-24 flex-col gap-2 rounded-2xl border-dashed", mapMode === mode.id && "border-solid ring-2 ring-secondary/20")}
+                      onClick={() => setMapMode(mode.id as any)}
+                    >
+                      <mode.icon className="w-6 h-6" />
+                      <div className="text-center">
+                          <p className="text-[10px] font-black uppercase">{mode.label}</p>
+                          <p className="text-[8px] font-bold opacity-50 uppercase">{mode.desc}</p>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              </div>
             )}
 
             {ticketMode === 'paid_single' && (
@@ -632,33 +640,32 @@ export default function NovoEventoPage() {
                            <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setActiveBatchIdx(bi); setTempBatchPercent(batch.halfPricePercent || 40); setIsBatchPercentDialogOpen(true); }}>
                               <Sparkles className="w-3 h-3" /> Gerar Meia
                            </Button>
-                           <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)} disabled={batches.length === 1}><Trash2 className="w-4 h-4" /></Button>
+                           <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeGlobalBatch(bi)} disabled={batches.length === 1}><Trash2 className="w-4 h-4" /></Button>
                         </div>
                      </div>
 
                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="space-y-2">
                            <Label className="text-[10px] font-black uppercase opacity-60">Carga da Etapa</Label>
-                           <Input type="number" value={batch.capacidadeInicial} onChange={e => updateBatchField(bi, 'capacidadeInicial', parseInt(e.target.value) || 0)} className="rounded-xl h-11 font-black text-primary" />
+                           <Input type="number" value={batch.capacidadeInicial} onChange={e => updateGlobalBatchField(bi, 'capacidadeInicial', parseInt(e.target.value) || 0)} className="rounded-xl h-11 font-black text-primary" />
                          </div>
                         <div className="md:col-span-3 space-y-2">
                             <Label className="text-[10px] font-black uppercase opacity-60">Nome da Janela de Venda</Label>
-                            <Input value={batch.name} onChange={e => updateBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" />
+                            <Input value={batch.name} onChange={e => updateGlobalBatchField(bi, 'name', e.target.value)} className="rounded-xl h-11" />
                          </div>
                      </div>
 
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                            <Label className="text-[9px] font-black uppercase opacity-60 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Início das Vendas</Label>
-                           <Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchField(bi, 'startDate', e.target.value)} className="h-10 text-xs rounded-xl" />
+                           <Input type="datetime-local" value={batch.startDate} onChange={e => updateGlobalBatchField(bi, 'startDate', e.target.value)} className="h-10 text-xs rounded-xl" />
                         </div>
                         <div className="space-y-2">
                            <Label className="text-[9px] font-black uppercase opacity-60 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Fim das Vendas</Label>
-                           <Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchField(bi, 'endDate', e.target.value)} className="h-10 text-xs rounded-xl" />
+                           <Input type="datetime-local" value={batch.endDate} onChange={e => updateGlobalBatchField(bi, 'endDate', e.target.value)} className="h-10 text-xs rounded-xl" />
                         </div>
                      </div>
 
-                     {/* PADRÃO IGUAL AO INGRESSO ÚNICO DENTRO DO LOTE */}
                      <div className="space-y-6 pt-4 border-t border-dashed border-border/40">
                         <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-1">
                            <Ticket className="w-3.5 h-3.5" /> Ingressos do Lote
@@ -667,8 +674,7 @@ export default function NovoEventoPage() {
                         <div className="p-6 bg-white rounded-3xl border shadow-sm grid grid-cols-12 gap-6 items-end">
                            <div className="col-span-5 space-y-2">
                               <Label className="text-[9px] uppercase font-black opacity-40 ml-1">Ingresso Principal</Label>
-                              <Input value={batch.ticketTypes[0]?.name || ""} onChange={e => updateTicketTypeField(bi, 0, 'name', e.target.value)} className="rounded-xl h-11 font-bold" />
-                              {batch.isHalfPriceEnabled && <Badge variant="secondary" className="text-[7px] h-3.5 uppercase gap-1"><Layers className="w-2 h-2" /> Estoque Compartilhado</Badge>}
+                              <Input value={batch.ticketTypes[0]?.name || ""} onChange={e => updateGlobalTicketTypeField(bi, 0, 'name', e.target.value)} className="rounded-xl h-11 font-bold" />
                            </div>
                            <div className="col-span-3 space-y-2">
                               <Label className="text-[9px] uppercase font-black opacity-40 ml-1">Quantidade</Label>
@@ -676,7 +682,7 @@ export default function NovoEventoPage() {
                            </div>
                            <div className="col-span-4 space-y-2">
                               <Label className="text-[9px] uppercase font-black opacity-40 ml-1">Valor (R$)</Label>
-                              <Input type="number" step="0.01" value={batch.ticketTypes[0]?.price || 0} onChange={e => updateTicketTypeField(bi, 0, 'price', parseFloat(e.target.value) || 0)} className="rounded-xl h-11 font-black text-secondary" />
+                              <Input type="number" step="0.01" value={batch.ticketTypes[0]?.price || 0} onChange={e => updateGlobalTicketTypeField(bi, 0, 'price', parseFloat(e.target.value) || 0)} className="rounded-xl h-11 font-black text-secondary" />
                            </div>
                         </div>
 
@@ -694,7 +700,7 @@ export default function NovoEventoPage() {
                                        <div key={t.id} className="p-5 bg-white rounded-[1.5rem] border shadow-sm grid grid-cols-12 gap-4 items-center hover:border-secondary/20 transition-all">
                                           <div className="col-span-4 space-y-1">
                                              <Label className="text-[8px] uppercase font-black opacity-40">Categoria</Label>
-                                             <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-9 font-bold border-none bg-muted/20" />
+                                             <Input value={t.name} onChange={e => updateGlobalTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-9 font-bold border-none bg-muted/20" />
                                           </div>
                                           <div className="col-span-2 space-y-1">
                                              <Label className="text-[8px] uppercase font-black opacity-40">Qtd</Label>
@@ -702,11 +708,11 @@ export default function NovoEventoPage() {
                                           </div>
                                           <div className="col-span-3 space-y-1">
                                              <Label className="text-[8px] uppercase font-black opacity-40">Valor (R$)</Label>
-                                             <Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeField(bi, ti, 'price', parseFloat(e.target.value) || 0)} className="rounded-xl h-9 font-black text-secondary" />
+                                             <Input type="number" step="0.01" value={t.price} onChange={e => updateGlobalTicketTypeField(bi, ti, 'price', parseFloat(e.target.value) || 0)} className="rounded-xl h-9 font-black text-secondary" />
                                           </div>
                                           <div className="col-span-2 flex flex-col items-center gap-1">
                                              <Label className="text-[7px] uppercase font-black opacity-40">Doc.</Label>
-                                             <Switch checked={t.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} />
+                                             <Switch checked={t.requiresProof} onCheckedChange={v => updateGlobalTicketTypeField(bi, ti, 'requiresProof', v)} />
                                           </div>
                                           <div className="col-span-1 flex justify-end">
                                              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive rounded-full" onClick={() => removeTicketType(bi, ti)}>
@@ -721,7 +727,7 @@ export default function NovoEventoPage() {
                                     variant="ghost" 
                                     size="sm" 
                                     className="text-secondary font-black uppercase text-[9px] gap-2 ml-1"
-                                    onClick={() => addTicketType(bi)}
+                                    onClick={() => addGlobalTicketType(bi)}
                                  >
                                     <Plus className="w-3.5 h-3.5" /> Adicionar Meia
                                  </Button>
@@ -744,7 +750,7 @@ export default function NovoEventoPage() {
         </Card>
 
         <Button type="submit" disabled={loading} className="w-full h-16 bg-secondary text-white font-black text-xl rounded-[2rem] shadow-xl uppercase italic">
-          {loading ? <Loader2 className="animate-spin mr-2" /> : "Criar Evento"}
+          {loading ? <Loader2 className="animate-spin mr-2" /> : "Publicar Evento"}
         </Button>
       </form>
 
