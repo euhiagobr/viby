@@ -94,7 +94,7 @@ import Footer from '@/components/layout/Footer';
 
 function VerifiedBadge() {
   return (
-    <BadgeCheck className="w-4 h-4 fill-blue-500 text-white" />
+    <BadgeCheck className="w-5 h-5 fill-blue-500 text-white" />
   );
 }
 
@@ -820,6 +820,8 @@ export default function EventoPublicoPage() {
     );
   if (!event) return null;
 
+  const isOrgVerified = organizationProfile?.verified || event.organizer?.isVerified;
+
   return (
     <div className="min-h-screen bg-background font-body selection:bg-secondary/20 selection:text-secondary pb-32">
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/40">
@@ -932,24 +934,24 @@ export default function EventoPublicoPage() {
                 <CardContent className="p-8 space-y-10">
                   <div className="flex items-center gap-6">
                     <Avatar className="h-20 w-20 border-2 border-secondary/20 p-0.5 shadow-sm">
-                      <AvatarImage src={event.organizer?.avatar} className="rounded-full object-cover" />
+                      <AvatarImage src={organizationProfile?.avatar || event.organizer?.avatar} className="rounded-full object-cover" />
                       <AvatarFallback className="font-bold text-2xl">
-                        {event.organizer?.name?.charAt(0)}
+                        {(organizationProfile?.name || event.organizer?.name)?.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <h4 className="font-black text-xl uppercase italic tracking-tighter text-primary">
-                          {event.organizer?.name}
+                          {organizationProfile?.name || event.organizer?.name}
                         </h4>
-                        {event.organizer?.isVerified && <VerifiedBadge />}
+                        {isOrgVerified && <VerifiedBadge />}
                       </div>
                       <Button
                         variant="link"
                         asChild
                         className="p-0 h-auto text-[10px] font-black uppercase text-secondary tracking-widest"
                       >
-                        <Link href={`/${event.organizer?.username}`}>
+                        <Link href={`/${organizationProfile?.username || event.organizer?.username}`}>
                           Acessar Perfil Completo <ArrowRight className="w-3 h-3 ml-1" />
                         </Link>
                       </Button>
@@ -1011,7 +1013,7 @@ export default function EventoPublicoPage() {
                     <p className="text-2xl font-black italic tracking-tighter uppercase text-primary">
                       {event.address?.street}, {event.address?.number}
                     </p>
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                       {event.address?.neighborhood}, {event.city} - {event.address?.state}
                     </p>
                   </div>
