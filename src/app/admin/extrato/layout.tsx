@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -10,9 +9,7 @@ import {
   ListOrdered, 
   ArrowDownCircle, 
   SendHorizontal, 
-  BarChart3,
-  ShieldCheck,
-  Receipt
+  BarChart3
 } from 'lucide-react';
 
 export default function ExtratoERPLayout({ children }: { children: React.ReactNode }) {
@@ -28,13 +25,13 @@ export default function ExtratoERPLayout({ children }: { children: React.ReactNo
 
   return (
     <div className="space-y-6">
-      <nav className="flex items-center gap-2 p-1 bg-muted/50 rounded-2xl w-fit border border-border/40">
+      <nav className="flex items-center gap-2 p-1 bg-muted/50 rounded-2xl w-fit border border-border/40 relative z-50">
         {navItems.map((item) => (
           <Link 
             key={item.url} 
             href={item.url}
             className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-tight transition-all",
+              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-tight transition-all cursor-pointer",
               pathname === item.url 
                 ? "bg-white text-primary shadow-sm ring-1 ring-border/50" 
                 : "text-muted-foreground hover:text-primary hover:bg-white/50"
@@ -45,7 +42,7 @@ export default function ExtratoERPLayout({ children }: { children: React.ReactNo
           </Link>
         ))}
       </nav>
-      <div className="animate-in fade-in slide-in-from-top-2 duration-500">
+      <div className="animate-in fade-in slide-in-from-top-2 duration-500 relative z-10">
         {children}
       </div>
     </div>

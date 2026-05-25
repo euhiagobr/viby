@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "User": {
@@ -12,76 +11,51 @@
         "email": { "type": "string" },
         "avatar": { "type": "string" },
         "bio": { "type": "string" },
-        "cpf": { "type": "string", "description": "Criptografado deterministicamente" },
+        "cpf": { "type": "string", "description": "Criptografado" },
         "gender": { "type": "string", "enum": ["masculino", "feminino", "homem trans", "mulher trans", "agênero", "outro"] },
         "birthDate": { "type": "string", "format": "date" },
         "city": { "type": "string" },
         "state": { "type": "string" },
         "country": { "type": "string" },
-        "instagram": { "type": "string" },
-        "whatsapp": { "type": "string" },
-        "website": { "type": "string" },
-        "showEmail": { "type": "boolean" },
         "plan": { "type": "string", "enum": ["free", "pro", "top"] },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "username", "email", "plan"]
     },
-    "Event": {
-      "title": "Evento",
-      "description": "Dados principais de um evento",
+    "InternalExpense": {
+      "title": "Despesa Interna",
+      "description": "Registro de saída financeira da plataforma",
       "type": "object",
       "properties": {
         "title": { "type": "string" },
-        "description": { "type": "string" },
+        "amount": { "type": "number" },
+        "category": { "type": "string" },
         "date": { "type": "string", "format": "date-time" },
-        "endDate": { "type": "string", "format": "date-time" },
-        "possuiMapa": { "type": "boolean" },
-        "palcoNome": { "type": "string" },
-        "palcoPosX": { "type": "number" },
-        "palcoPosY": { "type": "number" },
-        "palcoWidth": { "type": "number" },
-        "palcoHeight": { "type": "number" },
-        "mapaConfigurado": { "type": "boolean" },
-        "organizationId": { "type": "string" },
-        "capacidadeTotal": { "type": "number", "description": "Capacidade máxima do evento" },
-        "loteAtual": { "type": "number", "description": "Índice do lote ativo" },
-        "batches": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": { "type": "string" },
-              "name": { "type": "string" },
-              "startDate": { "type": "string", "format": "date-time" },
-              "endDate": { "type": "string", "format": "date-time" },
-              "capacidadeInicial": { "type": "number", "description": "Carga inicial de venda deste lote" },
-              "capacidadeAtual": { "type": "number", "description": "Carga inicial + sobras de lotes anteriores" },
-              "vendidos": { "type": "number" },
-              "restantes": { "type": "number" },
-              "migradosDoLoteAnterior": { "type": "number" }
-            }
-          }
-        }
+        "status": { "type": "string" },
+        "proofUrl": { "type": "string" }
       }
     },
-    "Sector": {
-      "title": "Setor do Mapa",
-      "description": "Configuração de um setor no mapa de ingressos",
+    "PayoutRequest": {
+      "title": "Solicitação de Repasse",
+      "description": "Pedido de saque de um organizador",
       "type": "object",
       "properties": {
-        "nome": { "type": "string" },
-        "tipo": { "type": "string", "enum": ["livre", "assentos", "mesas"] },
-        "preco": { "type": "number" },
-        "capacidadeTotal": { "type": "number" },
-        "cor": { "type": "string" },
-        "posX": { "type": "number" },
-        "posY": { "type": "number" },
-        "width": { "type": "number" },
-        "height": { "type": "number" },
-        "zIndex": { "type": "number" },
-        "formatoVisual": { "type": "string", "enum": ["retangulo", "circulo", "arena", "arredondado"] }
+        "organizationId": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["Pendente", "Concluído", "Bloqueado"] },
+        "bankDetails": { "type": "object" }
+      }
+    },
+    "TaxTicket": {
+      "title": "Lançamento Fiscal de Ingresso",
+      "description": "Registro detalhado de impostos e taxas por venda",
+      "type": "object",
+      "properties": {
+        "eventTitle": { "type": "string" },
+        "totalFacePrice": { "type": "number" },
+        "vibyNetProfit": { "type": "number" },
+        "taxAmount": { "type": "number" },
+        "status": { "type": "string" }
       }
     }
   },
@@ -91,19 +65,23 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
-      "description": "Identidade pessoal e configurações"
+      "description": "Perfis de usuários"
     },
-    "/events/{eventId}": {
-      "schema": "Event",
-      "description": "Publicações de eventos"
+    "/internal_expenses/{expenseId}": {
+      "schema": "InternalExpense",
+      "description": "Despesas operacionais da Viby"
     },
-    "/events/{eventId}/setores/{sectorId}": {
-      "schema": "Sector",
-      "description": "Setores do mapa de um evento"
+    "/payout_requests/{payoutId}": {
+      "schema": "PayoutRequest",
+      "description": "Gestão de saques dos produtores"
     },
-    "/events/{eventId}/setores/{sectorId}/assentos/{seatId}": {
-      "schema": "Seat",
-      "description": "Lugares individuais de um setor"
+    "/tax_tickets/{taxId}": {
+      "schema": "TaxTicket",
+      "description": "Livro fiscal de ingressos"
+    },
+    "/tax_ads/{adTaxId}": {
+      "schema": "TaxAd",
+      "description": "Livro fiscal de anúncios"
     }
   }
 }

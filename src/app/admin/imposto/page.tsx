@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -28,6 +27,7 @@ import {
   User,
   Clock,
   ArrowRight,
+  ArrowLeft,
   Scale,
   Inbox,
   RefreshCw,
@@ -57,6 +57,7 @@ import { cn } from "@/lib/utils"
 import { formatCurrency, calculateDetailedVibyBreakdown } from "@/lib/financial-utils"
 import * as XLSX from 'xlsx'
 import { useSearchParams, useRouter } from "next/navigation"
+import Link from "next/link"
 
 export default function AdminImpostoPage() {
   const db = useFirestore()
@@ -96,7 +97,6 @@ export default function AdminImpostoPage() {
     return () => clearTimeout(timer)
   }, [searchName, selectedMonth, activeTab, updateFilters])
 
-  // Lógica de Sincronização de Vendas Antigas
   const handleSyncLegacySales = async () => {
     if (!db) return
     setIsSyncing(true)
@@ -158,9 +158,9 @@ export default function AdminImpostoPage() {
 
       if (count > 0) {
         await batch.commit()
-        toast({ title: "Sincronização Concluída!", description: `${count} vendas foram processadas fisicamente.` })
+        toast({ title: "Sincronização Concluída!", description: `${count} vendas processadas.` })
       } else {
-        toast({ title: "Tudo em dia!", description: "Não há vendas pendentes de processamento fiscal." })
+        toast({ title: "Tudo em dia!" })
       }
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na sincronização" })
@@ -234,56 +234,17 @@ export default function AdminImpostoPage() {
   }, [filteredTickets])
 
   const handleExport = (format: 'csv' | 'xlsx') => {
-    const type = activeTab
-    const data = type === 'ads' ? filteredAds : filteredTickets
-    const fileName = `viby_tax_${type}_${new Date().toISOString().split('T')[0]}`
-    
-    const exportData = data.map(item => {
-      if (type === 'ads') {
-        return {
-          'Mês': item.monthKey,
-          'Empresa': item.advertiserName,
-          'CNPJ': item.advertiserCnpj,
-          'Anúncio': item.adTitle,
-          'Valor Bruto (Pago)': item.grossValue,
-          'Imposto (11%)': item.taxValue,
-          'Valor Líquido (Consumo)': item.netValue,
-          'Status NF': item.nfStatus
-        }
-      }
-      return {
-        'Data': item.timestamp ? (item.timestamp.toDate ? item.timestamp.toDate().toLocaleString() : new Date(item.timestamp).toLocaleString()) : '---',
-        'Evento': item.eventTitle,
-        'Produtor': item.orgName,
-        'Comprador': item.buyerName,
-        'E-mail': item.buyerEmail,
-        'Lote': item.batchName,
-        'Tipo': item.ticketTypeName,
-        'Qtd': item.quantity || 1,
-        'Face Unit.': item.unitPrice,
-        'Total Face': item.totalFacePrice,
-        'Taxa Comprador': item.buyerFeeAmount,
-        'Taxa Organizador': item.organizerFeeAmount,
-        'Stripe Total': item.stripeFeeAmount,
-        'Lucro Bruto Viby': item.vibyGrossProfit,
-        'Imposto (11%)': item.taxAmount,
-        'Lucro Líquido Viby': item.vibyNetProfit,
-        'Repasse Produtor': item.payoutToProducer
-      }
-    })
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData)
-    if (format === 'csv') {
+    const data = activeTab === 'ads' ? filteredAds : filteredTickets
+    const worksheet = XLSX.utils.json_to_sheet(data)
+    if (format === 'xlsx') {
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Impostos")
+      XLSX.writeFile(workbook, `viby_tax_${activeTab}.xlsx`)
+    } else {
       const csv = XLSX.utils.sheet_to_csv(worksheet)
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
       const link = document.createElement("a")
-      link.href = URL.createObjectURL(blob)
-      link.download = `${fileName}.csv`
-      link.click()
-    } else {
-      const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Impostos")
-      XLSX.writeFile(workbook, `${fileName}.xlsx`)
+      link.href = URL.createObjectURL(blob); link.download = `viby_tax_${activeTab}.csv`; link.click()
     }
   }
 
@@ -340,26 +301,24 @@ export default function AdminImpostoPage() {
              disabled={isSyncing}
            >
              {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-             Sincronizar Vendas Legadas
+             Sincronizar Vendas
            </Button>
         </div>
       </div>
 
       {activeTab === 'tickets' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-           <StatCard title="Total Vendido (Face)" value={formatCurrency(ticketStats.totalSold)} icon={TrendingUp} color="blue" />
+           <StatCard title="Total Vendido" value={formatCurrency(ticketStats.totalSold)} icon={TrendingUp} color="blue" />
            <StatCard title="Repasse Produtores" value={formatCurrency(ticketStats.payouts)} icon={ArrowDownRight} color="orange" />
-           <StatCard title="Custos Stripe" value={formatCurrency(ticketStats.stripeTotal)} icon={CreditCard} color="red" subtitle="% + Fixo" />
-           <StatCard title="Lucro Bruto Viby" value={formatCurrency(ticketStats.vibyGross)} icon={ArrowUpRight} color="secondary" subtitle="Taxas - Stripe" />
-           <StatCard title="Imposto (11%)" value={formatCurrency(ticketStats.imposto)} icon={Receipt} color="orange" subtitle="Sobre Lucro Bruto" />
-           <StatCard title="Lucro Líquido Viby" value={formatCurrency(ticketStats.vibyNet)} icon={CheckCircle2} color="green" subtitle="Pós Imposto" />
-           <StatCard title="Tickets Vendidos" value={ticketStats.qty} icon={Ticket} color="secondary" />
+           <StatCard title="Custos Stripe" value={formatCurrency(ticketStats.stripeTotal)} icon={CreditCard} color="red" />
+           <StatCard title="Lucro Bruto" value={formatCurrency(ticketStats.vibyGross)} icon={ArrowUpRight} color="secondary" />
+           <StatCard title="Lucro Líquido" value={formatCurrency(ticketStats.vibyNet)} icon={CheckCircle2} color="green" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-           <StatCard title="Total Bruto Ads" value={formatCurrency(adStats.gross)} icon={ArrowUpRight} color="blue" subtitle="Total Pago Clientes" />
-           <StatCard title="Imposto Ads (11%)" value={formatCurrency(adStats.tax)} icon={Receipt} color="orange" subtitle="Recolhimento Fiscal" />
-           <StatCard title="Total Líquido Ads" value={formatCurrency(adStats.net)} icon={CheckCircle2} color="green" subtitle="Orçamento para Consumo" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+           <StatCard title="Total Bruto Ads" value={formatCurrency(adStats.gross)} icon={ArrowUpRight} color="blue" />
+           <StatCard title="Imposto Ads (11%)" value={formatCurrency(adStats.tax)} icon={Receipt} color="orange" />
+           <StatCard title="Total Líquido Ads" value={formatCurrency(adStats.net)} icon={CheckCircle2} color="green" />
         </div>
       )}
 
@@ -367,7 +326,7 @@ export default function AdminImpostoPage() {
         <CardHeader className="p-8 border-b">
            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
               <div className="md:col-span-3">
-                <Label className="text-[10px] font-black uppercase opacity-40 mb-1 block">Filtrar Mês</Label>
+                <Label className="text-[10px] font-black uppercase opacity-40 mb-1 block">Mês</Label>
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                   <SelectTrigger className="rounded-xl h-11 border-dashed border-secondary/20">
                     <SelectValue placeholder="Selecione o mês" />
@@ -389,22 +348,15 @@ export default function AdminImpostoPage() {
                  <Button variant="outline" className="flex-1 h-11 rounded-xl border-dashed" onClick={() => { setSearchName(""); setSelectedMonth("all") }}>
                     <FilterX className="w-4 h-4 mr-2" /> Limpar
                  </Button>
-                 <div className="flex gap-1">
-                    <Button variant="secondary" size="icon" className="h-11 w-11 rounded-xl" onClick={() => handleExport('csv')} title="Exportar CSV"><FileText className="w-4 h-4" /></Button>
-                    <Button variant="secondary" size="icon" className="h-11 w-11 rounded-xl" onClick={() => handleExport('xlsx')} title="Exportar Excel"><FileSpreadsheet className="w-4 h-4" /></Button>
-                 </div>
+                 <Button variant="secondary" size="icon" className="h-11 w-11 rounded-xl" onClick={() => handleExport('xlsx')}><FileSpreadsheet className="w-4 h-4" /></Button>
               </div>
            </div>
         </CardHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
            <TabsList className="bg-muted/30 w-full h-14 rounded-none border-b p-0 gap-0">
-              <TabsTrigger value="ads" className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-white font-black uppercase text-[10px] tracking-widest gap-2">
-                <Megaphone className="w-4 h-4" /> Anúncios
-              </TabsTrigger>
-              <TabsTrigger value="tickets" className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-white font-black uppercase text-[10px] tracking-widest gap-2">
-                <Ticket className="w-4 h-4" /> Ingressos
-              </TabsTrigger>
+              <TabsTrigger value="ads" className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-white font-black uppercase text-[10px] tracking-widest gap-2">Anúncios</TabsTrigger>
+              <TabsTrigger value="tickets" className="flex-1 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-white font-black uppercase text-[10px] tracking-widest gap-2">Ingressos</TabsTrigger>
            </TabsList>
 
            <TabsContent value="ads" className="m-0">
@@ -413,39 +365,27 @@ export default function AdminImpostoPage() {
                   <TableHeader className="bg-muted/20">
                     <TableRow>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest py-6 px-8">Mês / Anunciante</TableHead>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest">Anúncio</TableHead>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Bruto (Pago)</TableHead>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Imposto (11%)</TableHead>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Líquido (Consumo)</TableHead>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Status NF</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Bruto</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Líquido</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">NF</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredAds.length > 0 ? filteredAds.map((ad) => (
-                      <TableRow key={ad.id} className="hover:bg-muted/5">
+                    {filteredAds.map((ad) => (
+                      <TableRow key={ad.id}>
                         <TableCell className="py-6 px-8">
-                           <div className="flex flex-col">
-                              <span className="text-[10px] font-black text-secondary uppercase">{ad.monthKey}</span>
-                              <span className="font-bold text-sm uppercase">{ad.advertiserName}</span>
-                           </div>
+                           <div className="flex flex-col"><span className="text-[10px] font-black text-secondary uppercase">{ad.monthKey}</span><span className="font-bold text-sm uppercase">{ad.advertiserName}</span></div>
                         </TableCell>
-                        <TableCell><span className="font-bold text-xs uppercase">{ad.adTitle}</span></TableCell>
                         <TableCell className="text-right font-black text-sm">{formatCurrency(ad.grossValue)}</TableCell>
-                        <TableCell className="text-right text-orange-600 font-bold">{formatCurrency(ad.taxValue)}</TableCell>
                         <TableCell className="text-right text-green-600 font-black">{formatCurrency(ad.netValue)}</TableCell>
                         <TableCell className="text-center">
                            <Select value={ad.nfStatus || 'pendente'} onValueChange={(v) => handleUpdateNF('tax_ads', ad.id, v)}>
-                              <SelectTrigger className="h-8 rounded-lg text-[9px] font-black uppercase w-24 mx-auto">
-                                 <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="rounded-xl">
-                                 <SelectItem value="pendente">Pendente</SelectItem>
-                                 <SelectItem value="emitida">Emitida</SelectItem>
-                              </SelectContent>
+                              <SelectTrigger className="h-8 rounded-lg text-[9px] font-black uppercase w-24 mx-auto"><SelectValue /></SelectTrigger>
+                              <SelectContent><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="emitida">Emitida</SelectItem></SelectContent>
                            </Select>
                         </TableCell>
                       </TableRow>
-                    )) : <TableRow><TableCell colSpan={6} className="py-20 text-center italic opacity-30">Nenhum registro.</TableCell></TableRow>}
+                    ))}
                   </TableBody>
                 </Table>
               )}
@@ -454,94 +394,19 @@ export default function AdminImpostoPage() {
            <TabsContent value="tickets" className="m-0">
               {ticketsLoading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div> : (
                 <div className="divide-y">
-                   {groupedTickets.length > 0 ? groupedTickets.map((group) => (
+                   {groupedTickets.map((group) => (
                      <div key={group.id} className="bg-white">
-                        <div 
-                          className="px-8 py-6 grid grid-cols-12 gap-4 items-center hover:bg-muted/10 cursor-pointer transition-colors"
-                          onClick={() => toggleEvent(group.id)}
-                        >
+                        <div className="px-8 py-6 grid grid-cols-12 gap-4 items-center hover:bg-muted/10 cursor-pointer" onClick={() => toggleEvent(group.id)}>
                            <div className="col-span-4 flex items-center gap-3">
-                              <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
-                                 {expandedEvents.has(group.id) ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                              </div>
-                              <div className="flex flex-col">
-                                 <span className="font-black text-sm uppercase italic text-primary">{group.eventTitle}</span>
-                                 <span className="text-[10px] font-bold text-muted-foreground uppercase">{group.orgName}</span>
-                              </div>
+                              <div className="p-2 bg-secondary/10 rounded-lg text-secondary">{expandedEvents.has(group.id) ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</div>
+                              <div className="flex flex-col"><span className="font-black text-sm uppercase italic text-primary">{group.eventTitle}</span><span className="text-[10px] font-bold text-muted-foreground uppercase">{group.orgName}</span></div>
                            </div>
-                           <div className="col-span-1 text-center">
-                              <p className="text-[9px] font-black uppercase opacity-40">Vendas</p>
-                              <p className="font-black text-sm">{group.salesQty}</p>
-                           </div>
-                           <div className="col-span-2 text-right">
-                              <p className="text-[9px] font-black uppercase opacity-40">Lucro Bruto Viby</p>
-                              <p className="font-black text-sm text-primary">{formatCurrency(group.grossViby)}</p>
-                           </div>
-                           <div className="col-span-2 text-right">
-                              <p className="text-[9px] font-black uppercase opacity-40">Total Imposto</p>
-                              <p className="font-black text-sm text-orange-600">{formatCurrency(group.totalTax)}</p>
-                           </div>
-                           <div className="col-span-2 text-right">
-                              <p className="text-[9px] font-black uppercase opacity-40">Lucro Líquido Viby</p>
-                              <p className="font-black text-sm text-green-600">{formatCurrency(group.netViby)}</p>
-                           </div>
-                           <div className="col-span-1 text-right">
-                              <Button variant="ghost" size="icon" className="rounded-full"><ArrowRight className="w-4 h-4 opacity-20" /></Button>
-                           </div>
+                           <div className="col-span-2 text-right"><p className="text-[9px] font-black uppercase opacity-40">Bruto Viby</p><p className="font-black text-sm text-primary">{formatCurrency(group.grossViby)}</p></div>
+                           <div className="col-span-2 text-right"><p className="text-[9px] font-black uppercase opacity-40">Imposto</p><p className="font-black text-sm text-orange-600">{formatCurrency(group.totalTax)}</p></div>
+                           <div className="col-span-2 text-right"><p className="text-[9px] font-black uppercase opacity-40">Líquido Viby</p><p className="font-black text-sm text-green-600">{formatCurrency(group.netViby)}</p></div>
                         </div>
-
-                        {expandedEvents.has(group.id) && (
-                          <div className="bg-muted/5 border-y border-dashed p-4 animate-in slide-in-from-top-2 duration-300 overflow-x-auto">
-                             <Table className="min-w-[1200px]">
-                                <TableHeader className="bg-muted/10">
-                                   <TableRow className="hover:bg-transparent">
-                                      <TableHead className="text-[8px] font-black uppercase py-3">Tipo / Lote</TableHead>
-                                      <TableHead className="text-[8px] font-black uppercase">Comprador</TableHead>
-                                      <TableHead className="text-[8px] font-black uppercase text-center">Qtd</TableHead>
-                                      <TableHead className="text-[8px] font-black uppercase text-right">Face Total</TableHead>
-                                      <TableHead className="text-[8px] font-black uppercase text-right">T. Comprador</TableHead>
-                                      <TableHead className="text-[8px] font-black uppercase text-right">Com. Produtor</TableHead>
-                                      <TableHead className="text-[8px] font-black uppercase text-right">Stripe Total</TableHead>
-                                      <TableHead className="text-[8px] font-black uppercase text-right">Imposto (11%)</TableHead>
-                                      <TableHead className="text-[8px] font-black uppercase text-right">Lucro Líquido</TableHead>
-                                   </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                   {group.details.map((t: any) => (
-                                     <TableRow key={t.id} className="hover:bg-muted/20">
-                                        <TableCell>
-                                           <div className="flex flex-col">
-                                              <span className="text-[10px] font-bold uppercase">{t.ticketTypeName}</span>
-                                              <span className="text-[8px] font-medium text-muted-foreground uppercase">{t.batchName}</span>
-                                           </div>
-                                        </TableCell>
-                                        <TableCell>
-                                           <div className="flex flex-col">
-                                              <span className="text-[10px] font-bold">{t.buyerName}</span>
-                                              <span className="text-[8px] text-muted-foreground">{t.buyerEmail}</span>
-                                           </div>
-                                        </TableCell>
-                                        <TableCell className="text-center font-bold text-[10px]">{t.quantity || 1}</TableCell>
-                                        <TableCell className="text-right font-bold text-[10px]">{formatCurrency(t.totalFacePrice)}</TableCell>
-                                        <TableCell className="text-right text-[10px] text-primary">{formatCurrency(t.buyerFeeAmount)}</TableCell>
-                                        <TableCell className="text-right text-[10px] text-primary">{formatCurrency(t.organizerFeeAmount)}</TableCell>
-                                        <TableCell className="text-right text-[10px] text-red-500 font-bold">-{formatCurrency(t.stripeFeeAmount)}</TableCell>
-                                        <TableCell className="text-right text-[10px] text-orange-600 font-bold">-{formatCurrency(t.taxAmount)}</TableCell>
-                                        <TableCell className="text-right font-black text-[10px] text-green-600">{formatCurrency(t.vibyNetProfit)}</TableCell>
-                                     </TableRow>
-                                   ))}
-                                </TableBody>
-                             </Table>
-                          </div>
-                        )}
                      </div>
-                   )) : (
-                    <div className="py-24 text-center">
-                       <Inbox className="w-12 h-12 text-muted-foreground opacity-10 mx-auto mb-4" />
-                       <p className="text-muted-foreground font-bold italic">Nenhuma venda encontrada para os filtros aplicados.</p>
-                       <p className="text-[10px] text-muted-foreground uppercase font-black mt-2">Dica: Utilize o botão de sincronização acima para carregar vendas legadas.</p>
-                    </div>
-                   )}
+                   ))}
                 </div>
               )}
            </TabsContent>
@@ -561,16 +426,8 @@ function StatCard({ title, value, icon: Icon, color, subtitle }: { title: string
   }
   return (
     <Card className={cn("border-none shadow-sm overflow-hidden border-l-4", colorMap[color])}>
-       <CardHeader className="pb-2 p-5">
-          <CardTitle className="text-[9px] font-black uppercase opacity-60 tracking-widest flex justify-between">
-            {title}
-            <Icon className="w-3 h-3" />
-          </CardTitle>
-       </CardHeader>
-       <CardContent className="px-5 pb-5 pt-0">
-          <div className="text-lg font-black">{value}</div>
-          {subtitle && <p className="text-[8px] font-bold uppercase opacity-40 mt-0.5">{subtitle}</p>}
-       </CardContent>
+       <CardHeader className="pb-2 p-5"><CardTitle className="text-[9px] font-black uppercase opacity-60 flex justify-between">{title}<Icon className="w-3 h-3" /></CardTitle></CardHeader>
+       <CardContent className="px-5 pb-5 pt-0"><div className="text-lg font-black">{value}</div></CardContent>
     </Card>
   )
 }
