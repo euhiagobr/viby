@@ -224,6 +224,13 @@ export default function EventoMapaPage() {
     }
   }
 
+  const handleGridClick = (e: React.MouseEvent) => {
+    // Se o alvo do clique for o próprio grid de fundo, desmarca o setor
+    if ((e.target as HTMLElement).id === "grid-canvas") {
+       setSelectedSectorId(null);
+    }
+  }
+
   return (
     <div className="max-w-[1600px] mx-auto space-y-8 pb-20 px-4 h-screen flex flex-col overflow-hidden text-foreground">
       <div className="flex items-center justify-between shrink-0">
@@ -236,8 +243,8 @@ export default function EventoMapaPage() {
         </div>
         <div className="flex items-center gap-3">
            {selectedSectorId && (
-             <Button variant="outline" className="rounded-xl h-11 px-4 gap-2 font-bold" onClick={() => setSelectedSectorId(null)}>
-                <ArrowLeft className="w-4 h-4" /> Voltar para Setores
+             <Button variant="outline" className="rounded-xl h-11 px-4 gap-2 font-bold bg-white shadow-sm border-secondary text-secondary hover:bg-secondary/5" onClick={() => setSelectedSectorId(null)}>
+                <CheckCircle2 className="w-4 h-4" /> Concluir Edição do Setor
              </Button>
            )}
            <Button onClick={handleGlobalSave} disabled={isSubmitting} className="bg-primary text-white font-black rounded-xl h-11 px-6 shadow-lg gap-2 uppercase italic">
@@ -300,10 +307,17 @@ export default function EventoMapaPage() {
         </div>
       </div>
 
-      <div className="flex-1 relative bg-muted/10 border-2 border-dashed rounded-[2.5rem] overflow-hidden">
-        <div className="absolute inset-0 overflow-auto">
-          <div className="relative min-w-[2000px] min-h-[1500px] bg-white" style={{ backgroundImage: 'radial-gradient(#e5e7eb 1.5px, transparent 0)', backgroundSize: '40px 40px' }}>
-            
+      <div className="flex-1 relative bg-muted/10 border-2 border-dashed border-border/60 rounded-[2.5rem] overflow-hidden group/canvas">
+        {selectedSectorId && (
+           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-4">
+              <Badge className="bg-secondary text-white font-black uppercase italic text-xs px-6 py-2 shadow-2xl rounded-full">Modo de Edição Individual: {setores?.find(s => s.id === selectedSectorId)?.nome}</Badge>
+           </div>
+        )}
+
+        <div className="absolute inset-0 overflow-auto" id="grid-canvas" onClick={handleGridClick}>
+          <div className="relative min-w-[2000px] min-h-[1500px] bg-white pointer-events-none" style={{ backgroundImage: 'radial-gradient(#e5e7eb 1.5px, transparent 0)', backgroundSize: '40px 40px' }} />
+          
+          <div className="absolute inset-0 min-w-[2000px] min-h-[1500px]">
             {/* PALCO */}
             <Rnd bounds="parent" default={{ x: 700, y: 50, width: 600, height: 120 }}>
               <div className="w-full h-full bg-primary text-white flex flex-col items-center justify-center rounded-2xl shadow-2xl border-4 border-white/20 select-none">
@@ -326,20 +340,32 @@ export default function EventoMapaPage() {
                 <div 
                   className={cn(
                     "w-full h-full border-2 transition-all group relative rounded-[2rem]",
-                    selectedSectorId === s.id ? "ring-4 ring-secondary/50 border-secondary bg-white shadow-2xl" : "shadow-lg bg-white/40"
+                    selectedSectorId === s.id ? "ring-4 ring-secondary/50 border-secondary bg-white shadow-2xl z-40" : "shadow-lg bg-white/40 hover:bg-white/60 cursor-pointer"
                   )}
                   style={{ borderColor: s.cor }}
                   onClick={(e) => { e.stopPropagation(); setSelectedSectorId(s.id); }}
                 >
                    {/* Cabeçalho do Setor */}
-                   <div className="absolute -top-10 left-0 flex items-center gap-2">
+                   <div className="absolute -top-10 left-0 flex items-center gap-2 pointer-events-none">
                       <Badge style={{ backgroundColor: s.cor }} className="text-[10px] font-black uppercase text-white shadow-md">{s.nome}</Badge>
                       {s.tipo !== 'livre' && <Badge variant="secondary" className="text-[10px] font-black uppercase shadow-sm">Editar Assentos</Badge>}
                    </div>
 
-                   {/* Renderização de Assentos Individuais (Somente se selecionado e for tipo assentos/mesas) */}
+                   {/* Botão de Fechar Edição se selecionado */}
+                   {selectedSectorId === s.id && (
+                      <Button 
+                        variant="destructive" 
+                        size="icon" 
+                        className="absolute -top-4 -right-4 h-10 w-10 rounded-full shadow-2xl z-50 border-2 border-white"
+                        onClick={(e) => { e.stopPropagation(); setSelectedSectorId(null); }}
+                      >
+                         <X className="w-5 h-5" />
+                      </Button>
+                   )}
+
+                   {/* Renderização de Assentos Individuais */}
                    {selectedSectorId === s.id && (s.tipo === 'assentos' || s.tipo === 'mesas') ? (
-                     <div className="w-full h-full relative p-10 overflow-auto">
+                     <div className="w-full h-full relative p-10 overflow-auto cursor-default" onClick={(e) => e.stopPropagation()}>
                         {seatsLoading ? <div className="flex justify-center pt-20"><Loader2 className="animate-spin" /></div> : (
                           seats?.map((seat: any) => (
                             <Rnd
@@ -375,15 +401,17 @@ export default function EventoMapaPage() {
                         )}
                      </div>
                    ) : (
-                     <div className="flex flex-col items-center justify-center h-full opacity-40 select-none">
+                     <div className="flex flex-col items-center justify-center h-full opacity-40 select-none pointer-events-none">
                         <h4 className="font-black uppercase italic text-sm mb-1">{s.nome}</h4>
                         <p className="text-[10px] font-black">{s.capacidade} LUGARES {s.tipo.toUpperCase()}</p>
                      </div>
                    )}
 
-                   <Button variant="ghost" size="icon" className="absolute top-4 right-4 h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity rounded-full bg-white shadow" onClick={(e) => { e.stopPropagation(); setSectorToDelete(s); }}>
-                      <Trash2 className="w-4 h-4" />
-                   </Button>
+                   {selectedSectorId !== s.id && (
+                     <Button variant="ghost" size="icon" className="absolute top-4 right-4 h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity rounded-full bg-white shadow" onClick={(e) => { e.stopPropagation(); setSectorToDelete(s); }}>
+                        <Trash2 className="w-4 h-4" />
+                     </Button>
+                   )}
                 </div>
               </Rnd>
             ))}
