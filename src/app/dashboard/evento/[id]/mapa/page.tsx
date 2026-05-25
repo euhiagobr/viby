@@ -26,7 +26,12 @@ import {
   ChevronRight,
   Accessibility,
   Users2,
-  UserCircle
+  UserCircle,
+  ZoomIn,
+  ZoomOut,
+  RefreshCcw,
+  Hand,
+  MousePointer2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -61,11 +66,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
 import { toast } from "@/hooks/use-toast"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Rnd } from "react-rnd"
 import { generateMapData } from "@/lib/ticketing-service"
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
 export default function EventoMapaPage() {
   const params = useParams()
@@ -103,6 +110,10 @@ export default function EventoMapaPage() {
 
   const [formNome, setFormNome] = React.useState("")
   const [formCapacidade, setFormCapacidade] = React.useState(0)
+
+  // Zoom e Pan Control
+  const [isPanningEnabled, setIsPanningEnabled] = React.useState(false)
+  const [scale, setScale] = React.useState(0.8)
 
   React.useEffect(() => {
     if (event?.palcoNome) setPalcoNome(event.palcoNome)
@@ -225,7 +236,6 @@ export default function EventoMapaPage() {
   }
 
   const handleGridClick = (e: React.MouseEvent) => {
-    // Se o alvo do clique for o próprio grid de fundo, desmarca o setor
     if ((e.target as HTMLElement).id === "grid-canvas") {
        setSelectedSectorId(null);
     }
@@ -308,115 +318,156 @@ export default function EventoMapaPage() {
       </div>
 
       <div className="flex-1 relative bg-muted/10 border-2 border-dashed border-border/60 rounded-[2.5rem] overflow-hidden group/canvas">
-        {selectedSectorId && (
-           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-4">
-              <Badge className="bg-secondary text-white font-black uppercase italic text-xs px-6 py-2 shadow-2xl rounded-full">Modo de Edição Individual: {setores?.find(s => s.id === selectedSectorId)?.nome}</Badge>
-           </div>
-        )}
-
-        <div className="absolute inset-0 overflow-auto" id="grid-canvas" onClick={handleGridClick}>
-          <div className="relative min-w-[2000px] min-h-[1500px] bg-white pointer-events-none" style={{ backgroundImage: 'radial-gradient(#e5e7eb 1.5px, transparent 0)', backgroundSize: '40px 40px' }} />
-          
-          <div className="absolute inset-0 min-w-[2000px] min-h-[1500px]">
-            {/* PALCO */}
-            <Rnd bounds="parent" default={{ x: 700, y: 50, width: 600, height: 120 }}>
-              <div className="w-full h-full bg-primary text-white flex flex-col items-center justify-center rounded-2xl shadow-2xl border-4 border-white/20 select-none">
-                <span className="font-black italic uppercase tracking-[0.5em] text-xl">{palcoNome}</span>
-              </div>
-            </Rnd>
-
-            {/* SETORES */}
-            {setores?.map((s: any) => (
-              <Rnd
-                key={s.id}
-                bounds="parent"
-                size={{ width: s.width || 400, height: s.height || 300 }}
-                position={{ x: s.posX || 0, y: s.posY || 0 }}
-                onDragStop={(e, d) => updateDoc(doc(db!, "events", eventId, "setores", s.id), { posX: d.x, posY: d.y })}
-                onResizeStop={(e, dir, ref, delta, pos) => updateDoc(doc(db!, "events", eventId, "setores", s.id), { posX: pos.x, posY: pos.y, width: parseInt(ref.style.width), height: parseInt(ref.style.height) })}
-                enableResizing={!selectedSectorId || selectedSectorId !== s.id}
-                disableDragging={selectedSectorId === s.id}
-              >
-                <div 
-                  className={cn(
-                    "w-full h-full border-2 transition-all group relative rounded-[2rem]",
-                    selectedSectorId === s.id ? "ring-4 ring-secondary/50 border-secondary bg-white shadow-2xl z-40" : "shadow-lg bg-white/40 hover:bg-white/60 cursor-pointer"
-                  )}
-                  style={{ borderColor: s.cor }}
-                  onClick={(e) => { e.stopPropagation(); setSelectedSectorId(s.id); }}
+        <TransformWrapper 
+          initialScale={0.8} 
+          minScale={0.1} 
+          maxScale={3} 
+          centerOnInit
+          limitToBounds={false}
+          panning={{ disabled: !isPanningEnabled }}
+          onTransformed={(ref) => setScale(ref.state.scale)}
+        >
+          {({ zoomIn, zoomOut, resetTransform }) => (
+            <>
+              {/* Floating Zoom Toolbar */}
+              <div className="absolute bottom-6 right-6 z-50 flex flex-col gap-2 bg-white/80 backdrop-blur-md p-2 rounded-2xl shadow-2xl border border-border">
+                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl" onClick={() => zoomIn()} title="Aumentar Zoom"><ZoomIn className="w-5 h-5" /></Button>
+                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl" onClick={() => zoomOut()} title="Diminuir Zoom"><ZoomOut className="w-5 h-5" /></Button>
+                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl" onClick={() => resetTransform()} title="Resetar Visualização"><RefreshCcw className="w-5 h-5" /></Button>
+                <Separator />
+                <Button 
+                  variant={isPanningEnabled ? 'secondary' : 'ghost'} 
+                  size="icon" 
+                  className={cn("h-10 w-10 rounded-xl", isPanningEnabled ? "bg-secondary text-white" : "text-muted-foreground")}
+                  onClick={() => setIsPanningEnabled(!isPanningEnabled)}
+                  title={isPanningEnabled ? "Modo Edição" : "Modo Pan (Mover Tela)"}
                 >
-                   {/* Cabeçalho do Setor */}
-                   <div className="absolute -top-10 left-0 flex items-center gap-2 pointer-events-none">
-                      <Badge style={{ backgroundColor: s.cor }} className="text-[10px] font-black uppercase text-white shadow-md">{s.nome}</Badge>
-                      {s.tipo !== 'livre' && <Badge variant="secondary" className="text-[10px] font-black uppercase shadow-sm">Editar Assentos</Badge>}
-                   </div>
+                   {isPanningEnabled ? <Hand className="w-5 h-5" /> : <MousePointer2 className="w-5 h-5" />}
+                </Button>
+              </div>
 
-                   {/* Botão de Fechar Edição se selecionado */}
-                   {selectedSectorId === s.id && (
-                      <Button 
-                        variant="destructive" 
-                        size="icon" 
-                        className="absolute -top-4 -right-4 h-10 w-10 rounded-full shadow-2xl z-50 border-2 border-white"
-                        onClick={(e) => { e.stopPropagation(); setSelectedSectorId(null); }}
+              {selectedSectorId && (
+                 <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-4">
+                    <Badge className="bg-secondary text-white font-black uppercase italic text-xs px-6 py-2 shadow-2xl rounded-full">Modo de Edição Individual: {setores?.find(s => s.id === selectedSectorId)?.nome}</Badge>
+                 </div>
+              )}
+
+              <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
+                <div className="relative min-w-[2000px] min-h-[1500px]" id="grid-canvas" onClick={handleGridClick}>
+                  <div className="absolute inset-0 bg-white pointer-events-none" style={{ backgroundImage: 'radial-gradient(#e5e7eb 1.5px, transparent 0)', backgroundSize: '40px 40px' }} />
+                  
+                  <div className="absolute inset-0">
+                    {/* PALCO */}
+                    <Rnd 
+                      bounds="parent" 
+                      default={{ x: 700, y: 50, width: 600, height: 120 }}
+                      scale={scale}
+                      disableDragging={isPanningEnabled}
+                    >
+                      <div className="w-full h-full bg-primary text-white flex flex-col items-center justify-center rounded-2xl shadow-2xl border-4 border-white/20 select-none">
+                        <span className="font-black italic uppercase tracking-[0.5em] text-xl">{palcoNome}</span>
+                      </div>
+                    </Rnd>
+
+                    {/* SETORES */}
+                    {setores?.map((s: any) => (
+                      <Rnd
+                        key={s.id}
+                        bounds="parent"
+                        size={{ width: s.width || 400, height: s.height || 300 }}
+                        position={{ x: s.posX || 0, y: s.posY || 0 }}
+                        scale={scale}
+                        onDragStop={(e, d) => updateDoc(doc(db!, "events", eventId, "setores", s.id), { posX: d.x, posY: d.y })}
+                        onResizeStop={(e, dir, ref, delta, pos) => updateDoc(doc(db!, "events", eventId, "setores", s.id), { posX: pos.x, posY: pos.y, width: parseInt(ref.style.width), height: parseInt(ref.style.height) })}
+                        enableResizing={!isPanningEnabled && (!selectedSectorId || selectedSectorId !== s.id)}
+                        disableDragging={isPanningEnabled || selectedSectorId === s.id}
                       >
-                         <X className="w-5 h-5" />
-                      </Button>
-                   )}
+                        <div 
+                          className={cn(
+                            "w-full h-full border-2 transition-all group relative rounded-[2rem]",
+                            selectedSectorId === s.id ? "ring-4 ring-secondary/50 border-secondary bg-white shadow-2xl z-40" : "shadow-lg bg-white/40 hover:bg-white/60 cursor-pointer"
+                          )}
+                          style={{ borderColor: s.cor }}
+                          onClick={(e) => { e.stopPropagation(); if(!isPanningEnabled) setSelectedSectorId(s.id); }}
+                        >
+                           {/* Cabeçalho do Setor */}
+                           <div className="absolute -top-10 left-0 flex items-center gap-2 pointer-events-none">
+                              <Badge style={{ backgroundColor: s.cor }} className="text-[10px] font-black uppercase text-white shadow-md">{s.nome}</Badge>
+                              {s.tipo !== 'livre' && <Badge variant="secondary" className="text-[10px] font-black uppercase shadow-sm">Editar Assentos</Badge>}
+                           </div>
 
-                   {/* Renderização de Assentos Individuais */}
-                   {selectedSectorId === s.id && (s.tipo === 'assentos' || s.tipo === 'mesas') ? (
-                     <div className="w-full h-full relative p-10 overflow-auto cursor-default" onClick={(e) => e.stopPropagation()}>
-                        {seatsLoading ? <div className="flex justify-center pt-20"><Loader2 className="animate-spin" /></div> : (
-                          seats?.map((seat: any) => (
-                            <Rnd
-                              key={seat.id}
-                              bounds="parent"
-                              position={{ x: seat.posX || 0, y: seat.posY || 0 }}
-                              onDragStop={(e, d) => handleUpdateSeat(seat.id, { posX: d.x, posY: d.y })}
-                              enableResizing={false}
-                            >
-                               <div className="group/seat relative">
-                                  <button 
-                                    className={cn(
-                                      "w-10 h-10 rounded-lg flex items-center justify-center text-[10px] font-black border-2 transition-all shadow-sm",
-                                      seat.categoria === 'pcd' ? "bg-blue-500 text-white border-blue-600" :
-                                      seat.categoria === 'pcd_acompanhante' ? "bg-purple-500 text-white border-purple-600" :
-                                      "bg-white border-muted-foreground/20 text-primary hover:border-secondary"
-                                    )}
-                                  >
-                                    {seat.categoria === 'pcd' ? <Accessibility className="w-4 h-4" /> : 
-                                     seat.categoria === 'pcd_acompanhante' ? <Users2 className="w-4 h-4" /> : 
-                                     seat.codigo}
-                                  </button>
-                                  
-                                  {/* Menu de Categoria do Assento */}
-                                  <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-white rounded-xl shadow-2xl border p-1 hidden group-hover/seat:flex gap-1 z-50">
-                                     <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" onClick={() => handleUpdateSeat(seat.id, { categoria: 'comum' })} title="Comum"><UserCircle className="w-4 h-4" /></Button>
-                                     <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-blue-600" onClick={() => handleUpdateSeat(seat.id, { categoria: 'pcd' })} title="PCD"><Accessibility className="w-4 h-4" /></Button>
-                                     <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-purple-600" onClick={() => handleUpdateSeat(seat.id, { categoria: 'pcd_acompanhante' })} title="Acompanhante"><Users2 className="w-4 h-4" /></Button>
-                                  </div>
-                               </div>
-                            </Rnd>
-                          ))
-                        )}
-                     </div>
-                   ) : (
-                     <div className="flex flex-col items-center justify-center h-full opacity-40 select-none pointer-events-none">
-                        <h4 className="font-black uppercase italic text-sm mb-1">{s.nome}</h4>
-                        <p className="text-[10px] font-black">{s.capacidade} LUGARES {s.tipo.toUpperCase()}</p>
-                     </div>
-                   )}
+                           {/* Botão de Fechar Edição se selecionado */}
+                           {selectedSectorId === s.id && (
+                              <Button 
+                                variant="destructive" 
+                                size="icon" 
+                                className="absolute -top-4 -right-4 h-10 w-10 rounded-full shadow-2xl z-50 border-2 border-white"
+                                onClick={(e) => { e.stopPropagation(); setSelectedSectorId(null); }}
+                              >
+                                 <X className="w-5 h-5" />
+                              </Button>
+                           )}
 
-                   {selectedSectorId !== s.id && (
-                     <Button variant="ghost" size="icon" className="absolute top-4 right-4 h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity rounded-full bg-white shadow" onClick={(e) => { e.stopPropagation(); setSectorToDelete(s); }}>
-                        <Trash2 className="w-4 h-4" />
-                     </Button>
-                   )}
+                           {/* Renderização de Assentos Individuais */}
+                           {selectedSectorId === s.id && (s.tipo === 'assentos' || s.tipo === 'mesas') ? (
+                             <div className="w-full h-full relative p-10 overflow-auto cursor-default" onClick={(e) => e.stopPropagation()}>
+                                {seatsLoading ? <div className="flex justify-center pt-20"><Loader2 className="animate-spin" /></div> : (
+                                  seats?.map((seat: any) => (
+                                    <Rnd
+                                      key={seat.id}
+                                      bounds="parent"
+                                      position={{ x: seat.posX || 0, y: seat.posY || 0 }}
+                                      scale={scale}
+                                      onDragStop={(e, d) => handleUpdateSeat(seat.id, { posX: d.x, posY: d.y })}
+                                      enableResizing={false}
+                                      disableDragging={isPanningEnabled}
+                                    >
+                                       <div className="group/seat relative">
+                                          <button 
+                                            className={cn(
+                                              "w-10 h-10 rounded-lg flex items-center justify-center text-[10px] font-black border-2 transition-all shadow-sm",
+                                              seat.categoria === 'pcd' ? "bg-blue-500 text-white border-blue-600" :
+                                              seat.categoria === 'pcd_acompanhante' ? "bg-purple-500 text-white border-purple-600" :
+                                              "bg-white border-muted-foreground/20 text-primary hover:border-secondary"
+                                            )}
+                                          >
+                                            {seat.categoria === 'pcd' ? <Accessibility className="w-4 h-4" /> : 
+                                             seat.categoria === 'pcd_acompanhante' ? <Users2 className="w-4 h-4" /> : 
+                                             seat.codigo}
+                                          </button>
+                                          
+                                          {/* Menu de Categoria do Assento */}
+                                          <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-white rounded-xl shadow-2xl border p-1 hidden group-hover/seat:flex gap-1 z-50">
+                                             <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" onClick={() => handleUpdateSeat(seat.id, { categoria: 'comum' })} title="Comum"><UserCircle className="w-4 h-4" /></Button>
+                                             <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-blue-600" onClick={() => handleUpdateSeat(seat.id, { categoria: 'pcd' })} title="PCD"><Accessibility className="w-4 h-4" /></Button>
+                                             <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-purple-600" onClick={() => handleUpdateSeat(seat.id, { categoria: 'pcd_acompanhante' })} title="Acompanhante"><Users2 className="w-4 h-4" /></Button>
+                                          </div>
+                                       </div>
+                                    </Rnd>
+                                  ))
+                                )}
+                             </div>
+                           ) : (
+                             <div className="flex flex-col items-center justify-center h-full opacity-40 select-none pointer-events-none">
+                                <h4 className="font-black uppercase italic text-sm mb-1">{s.nome}</h4>
+                                <p className="text-[10px] font-black">{s.capacidade} LUGARES {s.tipo.toUpperCase()}</p>
+                             </div>
+                           )}
+
+                           {selectedSectorId !== s.id && !isPanningEnabled && (
+                             <Button variant="ghost" size="icon" className="absolute top-4 right-4 h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity rounded-full bg-white shadow" onClick={(e) => { e.stopPropagation(); setSectorToDelete(s); }}>
+                                <Trash2 className="w-4 h-4" />
+                             </Button>
+                           )}
+                        </div>
+                      </Rnd>
+                    ))}
+                  </div>
                 </div>
-              </Rnd>
-            ))}
-          </div>
-        </div>
+              </TransformComponent>
+            </>
+          )}
+        </TransformWrapper>
       </div>
 
       <AlertDialog open={!!sectorToDelete} onOpenChange={() => setSectorToDelete(null)}>
