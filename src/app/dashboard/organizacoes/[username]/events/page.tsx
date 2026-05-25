@@ -25,7 +25,9 @@ import {
   CheckCircle2,
   Clock,
   ArrowRight,
-  Map as MapIcon
+  Map as MapIcon,
+  History,
+  Inbox
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
@@ -46,6 +48,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
@@ -57,6 +60,12 @@ export default function OrganizationEventsPage() {
   const [search, setSearch] = React.useState("");
   const [eventToDelete, setEventToDelete] = React.useState<{id: string, title: string} | null>(null);
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [now, setNow] = React.useState<Date>(new Date());
+
+  // Atualiza o "agora" para garantir categorização correta sem erros de hidratação
+  React.useEffect(() => {
+    setNow(new Date());
+  }, []);
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null;
@@ -68,22 +77,44 @@ export default function OrganizationEventsPage() {
 
   const { data: rawEvents, loading } = useCollection<any>(eventsQuery);
 
-  const events = React.useMemo(() => {
+  const allEvents = React.useMemo(() => {
     if (!rawEvents) return [];
-    return [...rawEvents]
-      .filter(e => e.status !== 'Excluído')
-      .sort((a, b) => {
-        const tA = a.createdAt?.seconds || 0;
-        const tB = b.createdAt?.seconds || 0;
-        return tB - tA;
-      });
+    return [...rawEvents].filter(e => e.status !== 'Excluído');
   }, [rawEvents]);
 
   const filteredEvents = React.useMemo(() => {
-    return events.filter(e => 
+    return allEvents.filter(e => 
       e.title?.toLowerCase().includes(search.toLowerCase())
     );
-  }, [events, search]);
+  }, [allEvents, search]);
+
+  const upcomingEvents = React.useMemo(() => {
+    return filteredEvents
+      .filter(e => {
+        const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+        const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+        return end >= now;
+      })
+      .sort((a, b) => {
+        const dateA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime();
+        const dateB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
+        return dateA - dateB; // Próximos primeiro
+      });
+  }, [filteredEvents, now]);
+
+  const pastEvents = React.useMemo(() => {
+    return filteredEvents
+      .filter(e => {
+        const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+        const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+        return end < now;
+      })
+      .sort((a, b) => {
+        const dateA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime();
+        const dateB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
+        return dateB - dateA; // Mais recentes primeiro
+      });
+  }, [filteredEvents, now]);
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
   const canCheckIn = ['owner', 'admin', 'editor', 'checkin'].includes(userRole || '');
@@ -176,144 +207,72 @@ export default function OrganizationEventsPage() {
         </Button>
       </div>
 
-      {loading ? (
-        <div className="py-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
-      ) : filteredEvents.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEvents.map((event) => {
-            const dateValue = event.startDate || event.date;
-            const eventDate = dateValue ? (dateValue.toDate ? dateValue.toDate() : new Date(dateValue)) : null;
-            const isToday = eventDate && eventDate.toDateString() === new Date().toDateString();
-            const time = formatTime(dateValue);
-            const eventLink = `/${currentOrg?.username}/${event.id}`;
+      <Tabs defaultValue="upcoming" className="w-full space-y-8">
+        <TabsList className="bg-muted/50 p-1 rounded-xl h-12">
+          <TabsTrigger value="upcoming" className="rounded-lg px-8 font-bold gap-2 data-[state=active]:bg-white">
+            <Calendar className="w-4 h-4" />
+            Próximos Eventos ({upcomingEvents.length})
+          </TabsTrigger>
+          <TabsTrigger value="past" className="rounded-lg px-8 font-bold gap-2 data-[state=active]:bg-white">
+            <History className="w-4 h-4" />
+            Eventos Passados ({pastEvents.length})
+          </TabsTrigger>
+        </TabsList>
 
-            return (
-              <Card key={event.id} className="overflow-hidden border-none shadow-sm hover:shadow-md transition-all rounded-[1.5rem] bg-white group">
-                <div className="relative h-40 bg-muted">
-                  {event.image ? (
-                    <img src={event.image} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  ) : (
-                    <div className="flex items-center justify-center h-full opacity-20"><Megaphone className="w-12 h-12" /></div>
-                  )}
-                  <div className="absolute top-3 right-3">
-                     <Badge className={cn(
-                       "uppercase text-[9px] font-black px-2.5 h-6 shadow-sm border-none",
-                       event.status === 'Ativo' ? 'bg-white/90 text-primary' : 'bg-muted text-muted-foreground'
-                     )}>
-                       {event.status || 'Pendente'}
-                     </Badge>
-                  </div>
-                </div>
-                <div className="p-5 space-y-4">
-                  <div className="flex justify-between items-start gap-2">
-                    <h4 className="font-bold text-base leading-tight line-clamp-1">{event.title}</h4>
-                    {isAtLeastEditor && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full shrink-0">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-xl w-48">
-                          <DropdownMenuItem asChild>
-                             <Link href={`/dashboard/evento/${event.id}/editar`} className="flex items-center gap-2 py-2 cursor-pointer">
-                                <Edit className="w-4 h-4" /> Editar Evento
-                             </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                             <Link href={`/dashboard/evento/${event.id}/mapa`} className="flex items-center gap-2 py-2 cursor-pointer text-secondary">
-                                <MapIcon className="w-4 h-4" /> Mapa de Ingressos
-                             </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                             <Link href={eventLink} target="_blank" className="flex items-center gap-2 py-2 cursor-pointer">
-                                <Eye className="w-4 h-4" /> Ver Anúncio
-                             </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                             <Link href={`/dashboard/evento/${event.id}/cupons`} className="flex items-center gap-2 py-2 cursor-pointer">
-                                <TicketPercent className="w-4 h-4 text-secondary" /> Cupons
-                             </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                             <Link href={`/dashboard/anuncios`} className="flex items-center gap-2 py-2 cursor-pointer text-secondary">
-                                <Megaphone className="w-4 h-4" /> Impulsionar (Ads)
-                             </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {userRole === 'owner' || userRole === 'admin' ? (
-                            <DropdownMenuItem 
-                              className="flex items-center gap-2 text-destructive focus:text-destructive py-2 cursor-pointer"
-                              onSelect={() => setEventToDelete({ id: event.id, title: event.title })}
-                            >
-                              <Trash2 className="w-4 h-4" /> Excluir Evento
-                            </DropdownMenuItem>
-                          ) : null}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5 pt-3 border-t border-dashed">
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
-                      <Calendar className="w-3.5 h-3.5 text-secondary" />
-                      <span>{formatDate(dateValue)}</span>
-                      {time && (
-                        <><span className="mx-1 opacity-30">|</span><Clock className="w-3.5 h-3.5 text-secondary" /><span>{time}</span></>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
-                      <MapPin className="w-3.5 h-3.5 text-secondary" />
-                      <span className="line-clamp-1">{event.city || event.location || "Local não definido"}</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <Button variant="outline" size="sm" className="text-[10px] font-black uppercase h-9 rounded-xl gap-1.5 border-secondary text-secondary hover:bg-secondary/5" asChild>
-                      <Link href={eventLink} target="_blank">Visualizar</Link>
-                    </Button>
-                    <Button 
-                      variant={isToday ? "default" : "secondary"} 
-                      size="sm" 
-                      disabled={!canCheckIn}
-                      className={cn(
-                        "text-[10px] font-black uppercase h-9 rounded-xl gap-1.5",
-                        isToday && canCheckIn && "bg-green-600 text-white hover:bg-green-700 shadow-md animate-pulse"
-                      )} 
-                      asChild
-                    >
-                      <Link href={`/dashboard/evento/${event.id}/publico`}>
-                        {isToday ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Users className="w-3.5 h-3.5" />}
-                        {isToday ? "Portaria Aberta" : "Público"}
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-          
-          {isAtLeastEditor && (
-            <Link 
-              href="/dashboard/projetos/novo"
-              className="border-2 border-dashed border-secondary/20 rounded-[1.5rem] p-8 flex flex-col items-center justify-center gap-3 text-muted-foreground hover:border-secondary/50 hover:text-secondary hover:bg-secondary/5 transition-all min-h-[250px] group"
-            >
-              <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center group-hover:bg-secondary group-hover:text-white transition-colors"><Plus className="w-6 h-6" /></div>
-              <span className="font-black uppercase text-xs tracking-widest italic text-center">Publicar Novo Evento</span>
-            </Link>
+        <TabsContent value="upcoming" className="m-0">
+          {loading ? (
+            <div className="py-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
+          ) : upcomingEvents.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {upcomingEvents.map((event) => (
+                <EventRow 
+                  key={event.id} 
+                  event={event} 
+                  currentOrg={currentOrg} 
+                  isAtLeastEditor={isAtLeastEditor} 
+                  canCheckIn={canCheckIn} 
+                  formatDate={formatDate}
+                  formatTime={formatTime}
+                  setEventToDelete={setEventToDelete}
+                />
+              ))}
+            </div>
+          ) : (
+            <NoEventsPlaceholder 
+              message={search ? "Nenhum evento futuro para esta busca." : "Nenhum evento agendado."} 
+              isAtLeastEditor={isAtLeastEditor}
+            />
           )}
-        </div>
-      ) : (
-        <div className="py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed flex flex-col items-center justify-center gap-4 shadow-inner">
-           <Megaphone className="w-12 h-12 text-muted-foreground opacity-10" />
-           <p className="text-muted-foreground font-bold italic">Nenhum evento encontrado para esta marca.</p>
-           {isAtLeastEditor && (
-             <Button asChild variant="outline" className="rounded-full font-bold h-10 border-secondary text-secondary">
-               <Link href="/dashboard/projetos/novo">Criar Primeiro Evento</Link>
-             </Button>
-           )}
-        </div>
-      )}
+        </TabsContent>
+
+        <TabsContent value="past" className="m-0">
+          {loading ? (
+            <div className="py-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
+          ) : pastEvents.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {pastEvents.map((event) => (
+                <EventRow 
+                  key={event.id} 
+                  event={event} 
+                  currentOrg={currentOrg} 
+                  isAtLeastEditor={isAtLeastEditor} 
+                  canCheckIn={canCheckIn} 
+                  formatDate={formatDate}
+                  formatTime={formatTime}
+                  setEventToDelete={setEventToDelete}
+                  isPast
+                />
+              ))}
+            </div>
+          ) : (
+            <NoEventsPlaceholder 
+              message={search ? "Nenhum evento passado para esta busca." : "Nenhum evento no histórico."} 
+              isAtLeastEditor={false}
+              icon={History}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
 
       <AlertDialog open={!!eventToDelete} onOpenChange={(open) => !open && setEventToDelete(null)}>
         <AlertDialogContent className="rounded-[2rem]">
@@ -338,4 +297,136 @@ export default function OrganizationEventsPage() {
       </AlertDialog>
     </div>
   );
+}
+
+function EventRow({ 
+  event, 
+  currentOrg, 
+  isAtLeastEditor, 
+  canCheckIn, 
+  formatDate, 
+  formatTime, 
+  setEventToDelete,
+  isPast = false 
+}: any) {
+  const dateValue = event.startDate || event.date;
+  const eventDate = dateValue ? (dateValue.toDate ? dateValue.toDate() : new Date(dateValue)) : null;
+  const isToday = eventDate && eventDate.toDateString() === new Date().toDateString();
+  const time = formatTime(dateValue);
+  const eventLink = `/${currentOrg?.username}/${event.id}`;
+
+  return (
+    <Card className={cn(
+      "overflow-hidden border-none shadow-sm hover:shadow-md transition-all rounded-[1.5rem] bg-white group",
+      isPast && "opacity-75 grayscale-[0.3]"
+    )}>
+      <div className="relative h-40 bg-muted">
+        {event.image ? (
+          <img src={event.image} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        ) : (
+          <div className="flex items-center justify-center h-full opacity-20"><Megaphone className="w-12 h-12" /></div>
+        )}
+        <div className="absolute top-3 right-3">
+           <Badge className={cn(
+             "uppercase text-[9px] font-black px-2.5 h-6 shadow-sm border-none",
+             event.status === 'Ativo' ? 'bg-white/90 text-primary' : 'bg-muted text-muted-foreground'
+           )}>
+             {event.status || 'Pendente'}
+           </Badge>
+        </div>
+      </div>
+      <div className="p-5 space-y-4">
+        <div className="flex justify-between items-start gap-2">
+          <h4 className="font-bold text-base leading-tight line-clamp-1">{event.title}</h4>
+          {isAtLeastEditor && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full shrink-0">
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="rounded-xl w-48">
+                <DropdownMenuItem asChild>
+                   <Link href={`/dashboard/evento/${event.id}/editar`} className="flex items-center gap-2 py-2 cursor-pointer">
+                      <Edit className="w-4 h-4" /> Editar Evento
+                   </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                   <Link href={`/dashboard/evento/${event.id}/mapa`} className="flex items-center gap-2 py-2 cursor-pointer text-secondary">
+                      <MapIcon className="w-4 h-4" /> Mapa de Ingressos
+                   </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                   <Link href={eventLink} target="_blank" className="flex items-center gap-2 py-2 cursor-pointer">
+                      <Eye className="w-4 h-4" /> Ver Anúncio
+                   </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                   <Link href={`/dashboard/evento/${event.id}/cupons`} className="flex items-center gap-2 py-2 cursor-pointer">
+                      <TicketPercent className="w-4 h-4 text-secondary" /> Cupons
+                   </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  className="flex items-center gap-2 text-destructive focus:text-destructive py-2 cursor-pointer"
+                  onSelect={() => setEventToDelete({ id: event.id, title: event.title })}
+                >
+                  <Trash2 className="w-4 h-4" /> Excluir Evento
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+
+        <div className="space-y-1.5 pt-3 border-t border-dashed">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
+            <Calendar className="w-3.5 h-3.5 text-secondary" />
+            <span>{formatDate(dateValue)}</span>
+            {time && (
+              <><span className="mx-1 opacity-30">|</span><Clock className="w-3.5 h-3.5 text-secondary" /><span>{time}</span></>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
+            <MapPin className="w-3.5 h-3.5 text-secondary" />
+            <span className="line-clamp-1">{event.city || event.location || "Local não definido"}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <Button variant="outline" size="sm" className="text-[10px] font-black uppercase h-9 rounded-xl gap-1.5 border-secondary text-secondary hover:bg-secondary/5" asChild>
+            <Link href={eventLink} target="_blank">Visualizar</Link>
+          </Button>
+          <Button 
+            variant={isToday ? "default" : "secondary"} 
+            size="sm" 
+            disabled={!canCheckIn}
+            className={cn(
+              "text-[10px] font-black uppercase h-9 rounded-xl gap-1.5",
+              isToday && canCheckIn && "bg-green-600 text-white hover:bg-green-700 shadow-md animate-pulse"
+            )} 
+            asChild
+          >
+            <Link href={`/dashboard/evento/${event.id}/publico`}>
+              {isToday ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Users className="w-3.5 h-3.5" />}
+              {isToday ? "Portaria Aberta" : "Público"}
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+function NoEventsPlaceholder({ message, isAtLeastEditor, icon: Icon = Megaphone }: any) {
+  return (
+    <div className="py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed flex flex-col items-center justify-center gap-4 shadow-inner">
+       <Icon className="w-12 h-12 text-muted-foreground opacity-10" />
+       <p className="text-muted-foreground font-bold italic">{message}</p>
+       {isAtLeastEditor && (
+         <Button asChild variant="outline" className="rounded-full font-bold h-10 border-secondary text-secondary">
+           <Link href="/dashboard/projetos/novo">Criar Primeiro Evento</Link>
+         </Button>
+       )}
+    </div>
+  )
 }
