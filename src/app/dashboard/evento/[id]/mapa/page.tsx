@@ -31,7 +31,8 @@ import {
   ZoomOut,
   RefreshCcw,
   Hand,
-  MousePointer2
+  MousePointer2,
+  Edit
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -114,6 +115,10 @@ export default function EventoMapaPage() {
   // Zoom e Pan Control
   const [isPanningEnabled, setIsPanningEnabled] = React.useState(false)
   const [scale, setScale] = React.useState(0.8)
+
+  // Estado para renomeação rápida
+  const [editingSeatId, setEditingSeatId] = React.useState<string | null>(null)
+  const [tempCode, setTempCode] = React.useState("")
 
   React.useEffect(() => {
     if (event?.palcoNome) setPalcoNome(event.palcoNome)
@@ -201,6 +206,13 @@ export default function EventoMapaPage() {
       ...data,
       updatedAt: serverTimestamp()
     })
+  }
+
+  const handleDeleteSeat = async (seatId: string) => {
+    if (!db || !eventId || !selectedSectorId) return
+    if (!confirm("Remover este assento?")) return
+    deleteDoc(doc(db, "events", eventId, "setores", selectedSectorId, "assentos", seatId))
+      .then(() => toast({ title: "Assento removido" }))
   }
 
   const handleDeleteSector = async () => {
@@ -428,19 +440,44 @@ export default function EventoMapaPage() {
                                               "w-10 h-10 rounded-lg flex items-center justify-center text-[10px] font-black border-2 transition-all shadow-sm",
                                               seat.categoria === 'pcd' ? "bg-blue-500 text-white border-blue-600" :
                                               seat.categoria === 'pcd_acompanhante' ? "bg-purple-500 text-white border-purple-600" :
+                                              seat.categoria === 'obeso' ? "bg-orange-500 text-white border-orange-600" :
                                               "bg-white border-muted-foreground/20 text-primary hover:border-secondary"
                                             )}
                                           >
                                             {seat.categoria === 'pcd' ? <Accessibility className="w-4 h-4" /> : 
                                              seat.categoria === 'pcd_acompanhante' ? <Users2 className="w-4 h-4" /> : 
+                                             seat.categoria === 'obeso' ? <Maximize2 className="w-4 h-4" /> :
                                              seat.codigo}
                                           </button>
                                           
-                                          {/* Menu de Categoria do Assento */}
-                                          <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-white rounded-xl shadow-2xl border p-1 hidden group-hover/seat:flex gap-1 z-50">
-                                             <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" onClick={() => handleUpdateSeat(seat.id, { categoria: 'comum' })} title="Comum"><UserCircle className="w-4 h-4" /></Button>
-                                             <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-blue-600" onClick={() => handleUpdateSeat(seat.id, { categoria: 'pcd' })} title="PCD"><Accessibility className="w-4 h-4" /></Button>
-                                             <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-purple-600" onClick={() => handleUpdateSeat(seat.id, { categoria: 'pcd_acompanhante' })} title="Acompanhante"><Users2 className="w-4 h-4" /></Button>
+                                          {/* Menu de Categoria do Assento e Ações */}
+                                          <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-white rounded-xl shadow-2xl border p-1.5 hidden group-hover/seat:flex flex-col gap-2 z-50 min-w-[140px]">
+                                             <div className="flex gap-1">
+                                                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg" onClick={() => handleUpdateSeat(seat.id, { categoria: 'comum' })} title="Comum"><UserCircle className="w-3.5 h-3.5" /></Button>
+                                                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-blue-600" onClick={() => handleUpdateSeat(seat.id, { categoria: 'pcd' })} title="PCD"><Accessibility className="w-3.5 h-3.5" /></Button>
+                                                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-purple-600" onClick={() => handleUpdateSeat(seat.id, { categoria: 'pcd_acompanhante' })} title="Acompanhante"><Users2 className="w-3.5 h-3.5" /></Button>
+                                                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-orange-600" onClick={() => handleUpdateSeat(seat.id, { categoria: 'obeso' })} title="Obeso"><Maximize2 className="w-3.5 h-3.5" /></Button>
+                                             </div>
+                                             <div className="flex gap-1 border-t pt-1.5">
+                                                {editingSeatId === seat.id ? (
+                                                  <div className="flex gap-1 w-full">
+                                                    <Input 
+                                                      value={tempCode} 
+                                                      onChange={e => setTempCode(e.target.value.toUpperCase())} 
+                                                      className="h-7 text-[10px] font-black uppercase p-1 w-full"
+                                                      autoFocus
+                                                    />
+                                                    <Button size="icon" className="h-7 w-7 rounded-lg bg-green-500 text-white" onClick={() => { handleUpdateSeat(seat.id, { codigo: tempCode }); setEditingSeatId(null); }}><CheckCircle2 className="w-3.5 h-3.5" /></Button>
+                                                  </div>
+                                                ) : (
+                                                  <Button variant="ghost" className="h-7 w-full text-[8px] font-black uppercase gap-1" onClick={() => { setEditingSeatId(seat.id); setTempCode(seat.codigo); }}>
+                                                    <Edit className="w-3 h-3" /> Renomear
+                                                  </Button>
+                                                )}
+                                             </div>
+                                             <Button variant="ghost" className="h-7 w-full text-[8px] font-black uppercase gap-1 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteSeat(seat.id)}>
+                                                <Trash2 className="w-3 h-3" /> Excluir
+                                             </Button>
                                           </div>
                                        </div>
                                     </Rnd>

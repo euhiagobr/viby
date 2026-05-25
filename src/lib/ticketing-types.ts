@@ -1,7 +1,6 @@
-
 export type SectorType = 'livre' | 'assentos' | 'mesas';
 export type SeatStatus = 'disponivel' | 'reservado' | 'vendido' | 'bloqueado';
-export type SeatCategory = 'comum' | 'pcd' | 'pcd_acompanhante';
+export type SeatCategory = 'comum' | 'pcd' | 'pcd_acompanhante' | 'obeso';
 
 export interface Sector {
   id: string;

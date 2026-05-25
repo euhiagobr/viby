@@ -46,7 +46,8 @@ import {
   ShoppingCart,
   Send,
   Accessibility,
-  UserCircle
+  UserCircle,
+  Maximize2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -297,11 +298,14 @@ function SeatMap({
                             ? 'bg-blue-50 border-blue-500 text-blue-600'
                             : seat.categoria === 'pcd_acompanhante'
                                ? 'bg-purple-50 border-purple-500 text-purple-600'
-                               : 'bg-white border-secondary/20 text-secondary hover:border-secondary hover:bg-secondary/5'
+                               : seat.categoria === 'obeso'
+                                  ? 'bg-orange-50 border-orange-500 text-orange-600'
+                                  : 'bg-white border-secondary/20 text-secondary hover:border-secondary hover:bg-secondary/5'
                     )}
                   >
                     {seat.categoria === 'pcd' ? <Accessibility className="w-4 h-4" /> : 
                      seat.categoria === 'pcd_acompanhante' ? <Users2 className="w-4 h-4" /> :
+                     seat.categoria === 'obeso' ? <Maximize2 className="w-4 h-4" /> :
                      seat.codigo}
                   </button>
                 );
@@ -322,6 +326,10 @@ function SeatMap({
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-purple-500 rounded" />
             <span className="text-[10px] font-black uppercase opacity-60">Acompanhante</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-orange-500 rounded" />
+            <span className="text-[10px] font-black uppercase opacity-60">Obeso</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-green-500 rounded" />
@@ -932,16 +940,19 @@ export default function EventoPublicoPage() {
                                                   "w-12 h-12 rounded-xl flex items-center justify-center font-black",
                                                   seat.categoria === 'pcd' ? "bg-blue-100 text-blue-600" :
                                                   seat.categoria === 'pcd_acompanhante' ? "bg-purple-100 text-purple-600" :
+                                                  seat.categoria === 'obeso' ? "bg-orange-100 text-orange-600" :
                                                   "bg-secondary/10 text-secondary"
                                               )}>
                                                  {seat.categoria === 'pcd' ? <Accessibility className="w-6 h-6" /> : 
                                                   seat.categoria === 'pcd_acompanhante' ? <Users2 className="w-6 h-6" /> :
+                                                  seat.categoria === 'obeso' ? <Maximize2 className="w-6 h-6" /> :
                                                   seat.codigo}
                                               </div>
                                               <div>
                                                  <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">
                                                     {seat.categoria === 'pcd' ? "Assento PCD" : 
                                                      seat.categoria === 'pcd_acompanhante' ? "Acompanhante PCD" : 
+                                                     seat.categoria === 'obeso' ? "Assento Obeso" :
                                                      "Assento Selecionado"}
                                                  </p>
                                                  <p className="font-bold text-sm uppercase italic tracking-tight">{selectedSector.nome}</p>
