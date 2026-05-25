@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -172,8 +173,9 @@ export default function EditarEventoPage() {
     setIsHalfPriceEnabled(true);
     const poolId = crypto.randomUUID();
     const halfQty = Math.floor(singleCapacity * (percent / 100));
-    const inteiraQty = singleCapacity - halfQty;
 
+    // Correção: Inteira pode consumir todo o estoque do evento
+    // Meias são limitadas pelo pool
     const defaultMeias: TicketType[] = [
       { id: crypto.randomUUID(), name: "Meia Estudante", price: singleTicketTypes[0].price / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
       { id: crypto.randomUUID(), name: "Meia PCD", price: singleTicketTypes[0].price / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
@@ -181,7 +183,7 @@ export default function EditarEventoPage() {
     ];
 
     setSingleTicketTypes([
-      { ...singleTicketTypes[0], quantity: inteiraQty },
+      { ...singleTicketTypes[0], quantity: singleCapacity },
       ...defaultMeias
     ]);
     setIsPercentDialogOpen(false);
@@ -199,11 +201,11 @@ export default function EditarEventoPage() {
       const batch = sector.batches[bIdx];
       const poolId = crypto.randomUUID();
       const halfQty = Math.floor(batch.capacidadeInicial * (percent / 100));
-      const inteiraQty = batch.capacidadeInicial - halfQty;
       const currentInteiraPrice = batch.ticketTypes[0]?.price || 100;
 
+      // Correção: Inteira = 100% da carga do lote
       newSectors[sIdx].batches[bIdx].ticketTypes = [
-        { ...batch.ticketTypes[0], quantity: inteiraQty },
+        { ...batch.ticketTypes[0], quantity: batch.capacidadeInicial },
         { id: crypto.randomUUID(), name: "Meia Estudante", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Setor", requiresProof: true, isLegalHalf: true, description: "" },
         { id: crypto.randomUUID(), name: "Meia PCD", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Setor", requiresProof: true, isLegalHalf: true, description: "" }
       ];
@@ -216,11 +218,11 @@ export default function EditarEventoPage() {
       const batch = n[bIdx];
       const poolId = crypto.randomUUID();
       const halfQty = Math.floor(batch.capacidadeInicial * (percent / 100));
-      const inteiraQty = batch.capacidadeInicial - halfQty;
       const currentInteiraPrice = batch.ticketTypes[0]?.price || 100;
 
+      // Correção: Inteira = 100% da carga do lote
       n[bIdx].ticketTypes = [
-        { ...batch.ticketTypes[0], quantity: inteiraQty },
+        { ...batch.ticketTypes[0], quantity: batch.capacidadeInicial },
         { id: crypto.randomUUID(), name: "Meia Estudante", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Lote", requiresProof: true, isLegalHalf: true, description: "" },
         { id: crypto.randomUUID(), name: "Meia PCD", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Lote", requiresProof: true, isLegalHalf: true, description: "" }
       ];
@@ -312,14 +314,15 @@ export default function EditarEventoPage() {
     n[si].batches[bi] = { ...n[si].batches[bi], [f]: v } as any;
     if (f === 'capacidadeInicial') {
       const cap = parseInt(v) || 0;
+      // Correção: Inteira sempre 100% da carga
+      if (n[si].batches[bi].ticketTypes[0]) n[si].batches[bi].ticketTypes[0].quantity = cap;
+      
       if (n[si].batches[bi].isHalfPriceEnabled) {
         const hPercent = n[si].batches[bi].halfPricePercent || 40;
         const hQty = Math.floor(cap * (hPercent / 100));
-        const iQty = cap - hQty;
-        if (n[si].batches[bi].ticketTypes[0]) n[si].batches[bi].ticketTypes[0].quantity = iQty;
-        for (let j = 1; j < n[si].batches[bi].ticketTypes.length; j++) { n[si].batches[bi].ticketTypes[j].quantity = hQty; }
-      } else {
-        if (n[si].batches[bi].ticketTypes[0]) n[si].batches[bi].ticketTypes[0].quantity = cap;
+        for (let j = 1; j < n[si].batches[bi].ticketTypes.length; j++) { 
+          n[si].batches[bi].ticketTypes[j].quantity = hQty; 
+        }
       }
     }
     setSectorsWithBatches(n);
@@ -360,14 +363,15 @@ export default function EditarEventoPage() {
     
     if (f === 'capacidadeInicial') {
       const cap = parseInt(v) || 0;
+      // Correção: Inteira sempre 100% da carga
+      if (n[i].ticketTypes[0]) n[i].ticketTypes[0].quantity = cap;
+
       if (n[i].isHalfPriceEnabled) {
         const hPercent = n[i].halfPricePercent || 40;
         const hQty = Math.floor(cap * (hPercent / 100));
-        const iQty = cap - hQty;
-        if (n[i].ticketTypes[0]) n[i].ticketTypes[0].quantity = iQty;
-        for (let j = 1; j < n[i].ticketTypes.length; j++) { n[i].ticketTypes[j].quantity = hQty; }
-      } else {
-        if (n[i].ticketTypes[0]) n[i].ticketTypes[0].quantity = cap;
+        for (let j = 1; j < n[i].ticketTypes.length; j++) { 
+          n[i].ticketTypes[j].quantity = hQty; 
+        }
       }
     }
     setBatches(n); 
@@ -632,7 +636,7 @@ export default function EditarEventoPage() {
                     <div className="space-y-4 animate-in slide-in-from-top-4 duration-500">
                        <div className="flex items-center justify-between px-2">
                           <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Categorias de Meia-Entrada ({halfPricePercent}%)</h3>
-                          <Badge variant="outline" className="rounded-lg text-[10px] font-black uppercase border-secondary text-secondary">Cota: {singleCapacity - (singleTicketTypes[0]?.quantity || 0)} Ingressos</Badge>
+                          <Badge variant="outline" className="rounded-lg text-[10px] font-black uppercase border-secondary text-secondary">Cota: {Math.floor(singleCapacity * (halfPricePercent / 100))} Ingressos</Badge>
                        </div>
                        
                        <div className="space-y-3">
@@ -643,6 +647,7 @@ export default function EditarEventoPage() {
                                  <div className="col-span-4 space-y-1">
                                     <Label className="text-[9px] uppercase font-black opacity-40">Categoria</Label>
                                     <Input value={t.name} onChange={e => { const n = [...singleTicketTypes]; n[ti].name = e.target.value; setSingleTicketTypes(n); }} className="rounded-xl h-10 font-bold border-none bg-muted/20" />
+                                    <Badge variant="secondary" className="text-[7px] h-3.5 uppercase gap-1"><Layers className="w-2 h-2" /> Estoque Compartilhado</Badge>
                                  </div>
                                  <div className="col-span-2 space-y-1">
                                     <Label className="text-[9px] uppercase font-black opacity-40">Quantidade</Label>
@@ -669,7 +674,7 @@ export default function EditarEventoPage() {
                              variant="ghost" 
                              size="sm" 
                              className="text-secondary font-black uppercase text-[10px] gap-2 ml-2"
-                             onClick={() => setSingleTicketTypes([...singleTicketTypes, { id: crypto.randomUUID(), name: "Nova Meia", price: singleTicketTypes[0].price / 2, quantity: singleCapacity - singleTicketTypes[0].quantity, poolId: singleTicketTypes[1]?.poolId || crypto.randomUUID(), poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" }])}
+                             onClick={() => setSingleTicketTypes([...singleTicketTypes, { id: crypto.randomUUID(), name: "Nova Meia", price: singleTicketTypes[0].price / 2, quantity: Math.floor(singleCapacity * (halfPricePercent / 100)), poolId: singleTicketTypes[1]?.poolId || crypto.randomUUID(), poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" }])}
                           >
                              <Plus className="w-4 h-4" /> Adicionar Categoria
                           </Button>
@@ -737,6 +742,7 @@ export default function EditarEventoPage() {
                            <div className="col-span-5 space-y-2">
                               <Label className="text-[9px] uppercase font-black opacity-40 ml-1">Ingresso Principal</Label>
                               <Input value={batch.ticketTypes[0]?.name || ""} onChange={e => updateTicketTypeField(bi, 0, 'name', e.target.value)} className="rounded-xl h-11 font-bold" />
+                              {batch.isHalfPriceEnabled && <Badge variant="secondary" className="text-[7px] h-3.5 uppercase gap-1"><Layers className="w-2 h-2" /> Estoque Compartilhado</Badge>}
                            </div>
                            <div className="col-span-3 space-y-2">
                               <Label className="text-[9px] uppercase font-black opacity-40 ml-1">Quantidade</Label>
@@ -752,7 +758,7 @@ export default function EditarEventoPage() {
                            <div className="space-y-4 animate-in slide-in-from-top-4 duration-500">
                               <div className="flex items-center justify-between px-2">
                                  <h3 className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Categorias de Meia ({batch.halfPricePercent}%)</h3>
-                                 <Badge variant="outline" className="rounded-lg text-[8px] font-black uppercase border-secondary text-secondary">Cota Lote: {batch.capacidadeInicial - batch.ticketTypes[0].quantity} un.</Badge>
+                                 <Badge variant="outline" className="rounded-lg text-[8px] font-black uppercase border-secondary text-secondary">Cota Lote: {Math.floor(batch.capacidadeInicial * ((batch.halfPricePercent || 40) / 100))} un.</Badge>
                               </div>
                               
                               <div className="space-y-3">
@@ -763,6 +769,7 @@ export default function EditarEventoPage() {
                                           <div className="col-span-4 space-y-1">
                                              <Label className="text-[8px] uppercase font-black opacity-40">Categoria</Label>
                                              <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-9 font-bold border-none bg-muted/20" />
+                                             <Badge variant="secondary" className="text-[7px] h-3.5 uppercase gap-1"><Layers className="w-2 h-2" /> Estoque Compartilhado</Badge>
                                           </div>
                                           <div className="col-span-2 space-y-1">
                                              <Label className="text-[8px] uppercase font-black opacity-40">Qtd</Label>
@@ -876,7 +883,7 @@ export default function EditarEventoPage() {
                                     </div>
                                  </div>
                                ))}
-                               <Button type="button" variant="ghost" size="sm" className="text-secondary font-black uppercase text-[9px] gap-2" onClick={() => { const n = [...sectorsWithBatches]; const b = n[si].batches[bi]; const poolId = b.isHalfPriceEnabled ? (b.ticketTypes[1]?.poolId || crypto.randomUUID()) : undefined; n[si].batches[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Nova Meia", price: 50, quantity: b.capacidadeInicial, poolId, poolName: "Cota Setor", requiresProof: true, isLegalHalf: true, description: "" }); setSectorsWithBatches(n); }}><Plus className="w-3.5 h-3.5" /> Adicionar Categoria ao Lote</Button>
+                               <Button type="button" variant="ghost" size="sm" className="text-secondary font-black uppercase text-[9px] gap-2" onClick={() => { const n = [...sectorsWithBatches]; const b = n[si].batches[bi]; const poolId = b.isHalfPriceEnabled ? (b.ticketTypes[1]?.poolId || crypto.randomUUID()) : undefined; const hQty = Math.floor(b.capacidadeInicial * ((b.halfPricePercent || 40) / 100)); n[si].batches[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Nova Meia", price: 50, quantity: hQty, poolId, poolName: "Cota Setor", requiresProof: true, isLegalHalf: true, description: "" }); setSectorsWithBatches(n); }}><Plus className="w-3.5 h-3.5" /> Adicionar Categoria ao Lote</Button>
                             </div>
                          </div>
                        ))}

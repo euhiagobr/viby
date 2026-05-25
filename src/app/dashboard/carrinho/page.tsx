@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Input } from "@/components/ui/input"
 import { 
   ShoppingCart, 
   Trash2, 
@@ -22,20 +21,19 @@ import {
   Info,
   Loader2,
   RefreshCw,
-  ShieldCheck,
   TicketPercent,
   CheckCircle2,
-  X
+  X,
+  Layers
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { formatCurrency, calculateFinancialBreakdown } from "@/lib/financial-utils"
 import { createCheckoutSession } from "@/app/actions/stripe"
 import { toast } from "@/hooks/use-toast"
-import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, limit, getDoc } from "firebase/firestore"
+import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, limit } from "firebase/firestore"
 import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 import { sendCartPendingEmail, sendTicketEmail } from "@/app/actions/email"
-import { cn } from "@/lib/utils"
 
 export default function CarrinhoPage() {
   const { items, removeItem, updateQuantity, clearCart } = useCart()
@@ -180,6 +178,8 @@ export default function CarrinhoPage() {
             ticketTypeName: item.ticketTypeName,
             poolId: item.poolId || null,
             poolName: item.poolName || null,
+            sectorId: item.sectorId || null,
+            sectorName: item.sectorName || null,
             couponId: isEligibleForDiscount ? appliedCoupon.id : null,
             quantity: 1,
             checkedIn: false,
@@ -194,7 +194,6 @@ export default function CarrinhoPage() {
           registrationIds.push(docRef.id);
 
           if (isFreeOrder) {
-            // Disparar e-mail para ingresso gratuito imediatamente
             const eventDate = item.eventDate?.toDate ? item.eventDate.toDate().toLocaleString('pt-BR') : new Date(item.eventDate).toLocaleString('pt-BR');
             await sendTicketEmail({
               to: user.email!,
@@ -219,7 +218,7 @@ export default function CarrinhoPage() {
               currency: 'brl',
               product_data: {
                 name: `${item.eventTitle} - ${item.ticketTypeName}`,
-                description: `Voucher individual`,
+                description: item.sectorName ? `Setor: ${item.sectorName}` : `Voucher individual`,
                 images: (item.eventImage && item.eventImage.startsWith('http')) ? [item.eventImage] : [],
               },
               unit_amount: Math.round(breakdown.customerFinalPrice * 100),
@@ -318,11 +317,20 @@ export default function CarrinhoPage() {
                      <div className="relative w-full sm:w-48 h-32 sm:h-auto bg-muted"><Image src={item.eventImage || "https://picsum.photos/seed/event/400/300"} alt={item.eventTitle} fill className="object-cover" unoptimized /></div>
                      <CardContent className="p-6 flex-1 flex flex-col justify-between gap-4">
                         <div className="flex justify-between items-start gap-4">
-                           <div className="space-y-1"><h3 className="font-bold text-base leading-tight uppercase italic tracking-tight">{item.eventTitle}</h3><div className="flex items-center gap-4 text-[10px] font-bold text-muted-foreground uppercase"><span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(item.eventDate).toLocaleDateString('pt-BR')}</span></div></div>
+                           <div className="space-y-1">
+                              <h3 className="font-bold text-base leading-tight uppercase italic tracking-tight">{item.eventTitle}</h3>
+                              <div className="flex items-center gap-4 text-[10px] font-bold text-muted-foreground uppercase">
+                                 <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(item.eventDate).toLocaleDateString('pt-BR')}</span>
+                                 {item.sectorName && <span className="flex items-center gap-1 text-secondary"><Layers className="w-3 h-3" /> {item.sectorName}</span>}
+                              </div>
+                           </div>
                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeItem(item.id)}><Trash2 className="w-4 h-4" /></Button>
                         </div>
                         <div className="flex flex-wrap items-end justify-between gap-4 pt-4 border-t border-dashed border-border/60">
-                           <div><Badge variant="outline" className="text-[9px] font-black uppercase border-secondary text-secondary">{item.ticketTypeName}</Badge></div>
+                           <div className="flex flex-col gap-1">
+                              <Badge variant="outline" className="text-[9px] font-black uppercase border-secondary text-secondary w-fit">{item.ticketTypeName}</Badge>
+                              <span className="text-[8px] font-bold text-muted-foreground uppercase">{item.batchName}</span>
+                           </div>
                            <div className="flex items-center gap-6">
                               <div className="flex items-center gap-3"><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => updateQuantity(item.id, item.quantity - 1)}><Minus className="w-3 h-3" /></Button><span className="font-black text-sm">{item.quantity}</span><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => updateQuantity(item.id, item.quantity + 1)}><Plus className="w-3 h-3" /></Button></div>
                               <div className="text-right"><p className="text-lg font-black text-primary">{formatCurrency(res.customerFinalPrice * item.quantity)}</p><p className="text-[8px] font-bold text-muted-foreground uppercase">Taxa Adm: {formatCurrency(res.administrativeFeeAmount * item.quantity)} incl.</p></div>
