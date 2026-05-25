@@ -1,0 +1,13 @@
+
+{
+  "seo_optimization": {
+    "dynamic_og": {
+      "endpoint": "/api/og",
+      "features": ["Geração de imagem server-side", "Cache Edge", "Logo Viby automática", "Gradientes premium"]
+    },
+    "metadata": {
+      "types": ["OpenGraph", "Twitter Cards", "JSON-LD (Schema.org)"],
+      "dynamic_pages": ["Eventos", "Perfis (User/Org)", "Home", "Explorar"]
+    }
+  }
+}
