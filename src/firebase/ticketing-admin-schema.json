@@ -1,0 +1,74 @@
+
+{
+  "database": "eventosviby",
+  "collections": {
+    "ticket_logs": {
+      "description": "Log de auditoria para ações manuais em ingressos",
+      "fields": {
+        "registrationId": "string",
+        "eventId": "string",
+        "adminId": "string",
+        "adminName": "string",
+        "action": "cancel | reactivate | change_seat | change_name | resend_qr | checkin_manual",
+        "previousData": "map",
+        "newData": "map",
+        "timestamp": "timestamp",
+        "ip": "string",
+        "reason": "string"
+      }
+    },
+    "ticket_refunds": {
+      "description": "Controle de estornos e cancelamentos",
+      "fields": {
+        "registrationId": "string",
+        "eventId": "string",
+        "amount": "number",
+        "type": "total | partial",
+        "status": "pending | processed | failed",
+        "reason": "string",
+        "requestedBy": "string",
+        "processedBy": "string",
+        "stripeRefundId": "string",
+        "timestamp": "timestamp"
+      }
+    },
+    "ticket_scans": {
+      "description": "Histórico de tentativas de acesso",
+      "fields": {
+        "ticketCode": "string",
+        "eventId": "string",
+        "status": "success | duplicate | invalid | expired",
+        "gate": "string",
+        "operatorId": "string",
+        "timestamp": "timestamp",
+        "deviceInfo": "string"
+      }
+    },
+    "ticket_support": {
+      "description": "Suporte operacional dentro do evento",
+      "fields": {
+        "registrationId": "string",
+        "eventId": "string",
+        "userId": "string",
+        "subject": "string",
+        "description": "string",
+        "status": "open | waiting | resolved | closed",
+        "priority": "low | medium | high | urgent",
+        "assignedTo": "string",
+        "protocol": "string",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      }
+    },
+    "ticket_blocklist": {
+      "description": "Usuários banidos de eventos específicos",
+      "fields": {
+        "userId": "string",
+        "eventId": "string",
+        "reason": "string",
+        "blockedBy": "string",
+        "timestamp": "timestamp"
+      }
+    }
+  }
+}

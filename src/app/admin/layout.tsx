@@ -25,7 +25,8 @@ import {
   Scale,
   SendHorizontal,
   UserCheck,
-  Zap
+  Zap,
+  Ticket
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -98,6 +99,7 @@ export default function AdminLayout({
   const navItems = [
     { title: 'Painel', url: '/admin', icon: LayoutDashboard },
     { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays },
+    { title: 'Operação Ingressos', url: '/admin/ingressos', icon: Ticket },
     { title: 'Anúncios', url: '/admin/anuncios', icon: Megaphone },
     { title: 'Campanhas', url: '/admin/campanhas', icon: Zap },
     { title: 'Fiscal / Impostos', url: '/admin/imposto', icon: Scale },
@@ -115,7 +117,7 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex">
-      <aside className="w-64 bg-primary text-white hidden lg:flex flex-col sticky top-0 h-screen">
+      <aside className="w-64 bg-primary text-white hidden lg:flex flex-col sticky top-0 h-screen shrink-0">
         <div className="p-8">
           <Link href="/admin" className="flex items-center gap-3">
             {settings?.logoUrl ? (
@@ -138,7 +140,7 @@ export default function AdminLayout({
           </Link>
         </div>
 
-        <nav className="flex-1 px-4 space-y-2">
+        <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
           <p className="px-4 text-[10px] font-black uppercase text-white/40 tracking-widest mb-4">Gestão do Sistema</p>
           {navItems.map((item) => (
             <Link 
