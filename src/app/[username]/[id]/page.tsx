@@ -8,6 +8,8 @@ import { doc } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Separator } from "@/components/ui/separator"
 import { 
   Calendar, 
   MapPin, 
@@ -96,7 +98,7 @@ export default function EventoPublicoPage() {
       eventTitle: event.title,
       eventImage: event.image || "",
       eventDate: event.date,
-      eventCity: event.city || address?.city || "",
+      eventCity: event.city || "",
       organizationId: event.organizationId,
       organizerId: event.organizerId || event.createdBy,
       organizerUsername: params.username as string,
