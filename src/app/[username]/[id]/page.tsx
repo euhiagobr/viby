@@ -17,6 +17,8 @@ import {
   where,
   orderBy,
   onSnapshot,
+  addDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
 import {
   Loader2,
@@ -40,10 +42,12 @@ import {
   Plus,
   Minus,
   X,
+  ShoppingCart,
+  Send,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 import { useCart } from '@/contexts/CartContext';
 import Link from 'next/link';
@@ -58,6 +62,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { ToastAction } from "@/components/ui/toast";
 
 // --- COMPONENTES AUXILIARES ---
 
@@ -399,7 +415,7 @@ export default function EventoPublicoPage() {
   const db = useFirestore();
   const auth = useAuth();
   const { user } = useUser(auth);
-  const { addItem } = useCart();
+  const { addItem, totalCount } = useCart();
 
   const eventId = params.id as string;
   const eventRef = React.useMemo(() => (db ? doc(db, 'events', eventId) : null), [db, eventId]);
@@ -422,6 +438,12 @@ export default function EventoPublicoPage() {
   const [selectedTicketType, setSelectedTicketType] = React.useState<any>(null);
   const [quantity, setQuantity] = React.useState(1);
   const [now] = React.useState(new Date());
+
+  // Denúncia
+  const [isReportOpen, setIsReportOpen] = React.useState(false);
+  const [reportReason, setReportReason] = React.useState("");
+  const [reportDescription, setReportDescription] = React.useState("");
+  const [isSubmittingReport, setIsSubmittingReport] = React.useState(false);
 
   const availableTickets = React.useMemo(() => {
     if (!event || !selectedSector) return [];
@@ -460,7 +482,6 @@ export default function EventoPublicoPage() {
       if (next[seat.id]) {
         delete next[seat.id];
       } else {
-        // Por padrão, atribui o primeiro tipo de ingresso disponível
         next[seat.id] = { seat, ticketType: availableTickets[0] };
       }
       return next;
@@ -545,7 +566,41 @@ export default function EventoPublicoPage() {
       setQuantity(1);
     }
 
-    toast({ title: 'Adicionado ao carrinho!' });
+    toast({ 
+      title: 'Adicionado ao carrinho!',
+      action: (
+        <ToastAction altText="Ir para o carrinho" onClick={() => router.push('/dashboard/carrinho')}>
+          Ir para o Carrinho
+        </ToastAction>
+      ),
+    });
+  };
+
+  const handleSendReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!db || !user || !event || !reportReason) return;
+    setIsSubmittingReport(true);
+    try {
+      await addDoc(collection(db, "reports"), {
+        type: 'event',
+        targetId: event.id,
+        targetName: event.title,
+        reason: reportReason,
+        description: reportDescription,
+        reporterId: user.uid,
+        reporterName: user.displayName || user.email || "Usuário",
+        status: 'Pendente',
+        timestamp: serverTimestamp()
+      });
+      toast({ title: "Denúncia enviada!", description: "Analisaremos o caso em breve." });
+      setIsReportOpen(false);
+      setReportReason("");
+      setReportDescription("");
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao enviar denúncia" });
+    } finally {
+      setIsSubmittingReport(false);
+    }
   };
 
   const totalSelectedPrice = React.useMemo(() => {
@@ -579,6 +634,21 @@ export default function EventoPublicoPage() {
             <Button
               variant="ghost"
               size="icon"
+              className="rounded-full relative"
+              asChild
+            >
+              <Link href="/dashboard/carrinho">
+                <ShoppingCart className="w-4 h-4" />
+                {totalCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-secondary text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-background">
+                    {totalCount}
+                  </span>
+                )}
+              </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
               className="rounded-full"
               onClick={() => {
                 navigator.clipboard.writeText(window.location.href);
@@ -587,6 +657,46 @@ export default function EventoPublicoPage() {
             >
               <Share2 className="w-4 h-4" />
             </Button>
+            {user && (
+              <Dialog open={isReportOpen} onOpenChange={setIsReportOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-full text-destructive hover:bg-destructive/10">
+                    <Flag className="w-4 h-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md rounded-[2rem]">
+                  <form onSubmit={handleSendReport} className="space-y-6">
+                    <DialogHeader>
+                      <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Denunciar Evento</DialogTitle>
+                      <DialogDescription>Relate irregularidades ou suspeitas de fraude.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Motivo</Label>
+                        <Select value={reportReason} onValueChange={setReportReason} required>
+                          <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione o motivo" /></SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            <SelectItem value="Fraude ou Golpe">Fraude ou Golpe</SelectItem>
+                            <SelectItem value="Evento Inexistente">Evento Inexistente</SelectItem>
+                            <SelectItem value="Conteúdo Impróprio">Conteúdo Impróprio</SelectItem>
+                            <SelectItem value="Outro">Outro motivo</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Descrição</Label>
+                        <Textarea placeholder="Detalhes do ocorrido..." value={reportDescription} onChange={(e) => setReportDescription(e.target.value)} required className="rounded-xl min-h-[120px]" />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button type="submit" disabled={isSubmittingReport} className="w-full bg-destructive text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                        {isSubmittingReport ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Enviar Denúncia"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
         </div>
       </nav>
@@ -679,6 +789,19 @@ export default function EventoPublicoPage() {
                   <p className="text-sm font-bold text-muted-foreground uppercase">
                     {event.address?.neighborhood}, {event.city} - {event.address?.state}
                   </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <Button variant="outline" className="h-12 rounded-xl font-bold gap-2" asChild>
+                      <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${event.address?.street}, ${event.address?.number} - ${event.city}`)}`} target="_blank">
+                         <Navigation className="w-4 h-4 text-blue-500" /> Abrir no Google Maps
+                      </a>
+                   </Button>
+                   <Button variant="outline" className="h-12 rounded-xl font-bold gap-2" asChild>
+                      <a href={`https://waze.com/ul?q=${encodeURIComponent(`${event.address?.street}, ${event.address?.number} - ${event.city}`)}`} target="_blank">
+                         <div className="w-4 h-4 bg-[#33CCFF] rounded-full flex items-center justify-center text-[10px] text-white font-black italic">W</div> Abrir no Waze
+                      </a>
+                   </Button>
                 </div>
 
                 <Card className="overflow-hidden border-none shadow-xl rounded-[2.5rem] bg-muted aspect-video relative group">

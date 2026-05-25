@@ -1,15 +1,15 @@
-
 "use client"
 
 import * as React from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
-import { Bell, Loader2, Plus, Building2 } from "lucide-react"
+import { Bell, Loader2, Plus, Building2, ShoppingCart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, where } from "firebase/firestore"
 import { OrganizationProvider, useCurrentOrganization } from "@/contexts/OrganizationContext"
+import { useCart } from "@/contexts/CartContext"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +27,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useUser(auth)
   const db = useFirestore()
   const router = useRouter()
+  const { totalCount } = useCart()
 
   const unreadQuery = useMemoFirebase(() => {
     if (!db || !user) return null
@@ -84,6 +85,16 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             </div>
             
             <div className="flex items-center gap-3 ml-auto">
+              <Button variant="ghost" size="icon" className="relative h-9 w-9" asChild>
+                <Link href="/dashboard/carrinho">
+                  <ShoppingCart className="h-5 w-5" />
+                  {totalCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-secondary text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-background">
+                      {totalCount}
+                    </span>
+                  )}
+                </Link>
+              </Button>
               <Button variant="ghost" size="icon" className="relative h-9 w-9" asChild>
                 <Link href="/dashboard/notificacoes">
                   <Bell className="h-5 w-5" />
