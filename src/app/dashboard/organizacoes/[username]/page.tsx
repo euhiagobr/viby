@@ -1,30 +1,110 @@
-'use client';
 
-import * as React from 'react';
-import { useCurrentOrganization } from '@/contexts/OrganizationContext';
-import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, query, where, limit, doc, getDoc } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+"use client"
+
+import * as React from "react"
+import { useParams, useRouter } from "next/navigation"
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useFirebaseApp, useDoc } from "@/firebase"
 import { 
-  Users, 
-  Megaphone, 
-  TrendingUp, 
-  DollarSign, 
-  ArrowRight,
-  Loader2,
-  ShieldCheck,
+  doc, 
+  getDoc, 
+  collection, 
+  query, 
+  where, 
+  limit, 
+  getDocs, 
+  setDoc, 
+  deleteDoc, 
+  serverTimestamp, 
+  collectionGroup,
+  increment,
+  updateDoc,
+  addDoc
+} from "firebase/firestore"
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
+import { 
+  Loader2, 
+  AlertTriangle, 
+  MapPin, 
+  Globe, 
+  Instagram, 
+  Calendar,
+  Users,
+  Grid,
+  Heart,
+  Share2,
+  ExternalLink,
+  Building2,
+  Bell,
+  Plus,
+  Check,
+  Handshake,
+  Info,
+  BadgeCheck,
+  Phone,
+  Flag,
+  Camera,
+  Paperclip,
+  X,
+  Send,
+  ShieldAlert,
+  EyeOff,
+  Trophy,
+  Zap,
+  Award,
+  Sparkles,
+  TrendingUp,
+  BarChart3,
+  Map as MapIcon,
+  ChevronRight,
+  Target,
+  Navigation,
+  Search,
   LayoutGrid,
   Lock,
   Eye,
-  Calendar,
   Clock,
-  Wallet
-} from 'lucide-react';
-import Link from 'next/link';
-import { formatCurrency } from '@/lib/financial-utils';
-import { cn } from "@/lib/utils";
+  Wallet,
+  ArrowRight
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Separator } from "@/components/ui/separator"
+import { EventCard } from "@/components/events/EventCard"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import Link from "next/link"
+import { cn } from "@/lib/utils"
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+import { AppSidebar } from "@/components/layout/AppSidebar"
+import { OrganizationProvider, useCurrentOrganization } from "@/contexts/OrganizationContext"
+import Footer from "@/components/layout/Footer"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Progress } from "@/components/ui/progress"
+import { toast } from "@/hooks/use-toast"
+import { calculateLevel, DEFAULT_LEVELS } from "@/lib/gamification"
+import { processGamificationEvent } from "@/lib/gamification-service"
+import { formatCurrency } from '@/lib/financial-utils'
 
 const roleTranslations: Record<string, string> = {
   owner: 'Proprietário',
@@ -33,6 +113,12 @@ const roleTranslations: Record<string, string> = {
   finance: 'Financeiro',
   checkin: 'Check-in'
 };
+
+function VerifiedBadge({ className }: { className?: string }) {
+  return (
+    <BadgeCheck className={cn("w-5 h-5 fill-blue-500 text-white", className)} />
+  )
+}
 
 export default function OrganizationDashboardPage() {
   const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization();
@@ -54,8 +140,19 @@ export default function OrganizationDashboardPage() {
 
   const events = React.useMemo(() => {
     if (!rawEvents) return [];
+    const now = new Date();
+    
     return [...rawEvents]
-      .filter(e => e.status === 'Ativo')
+      .filter(e => {
+        // Filtrar por status ativo
+        if (e.status !== 'Ativo') return false;
+        
+        // Filtrar para remover eventos que já terminaram
+        const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+        const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+        
+        return end >= now;
+      })
       .sort((a, b) => {
         const tA = a.createdAt?.seconds || 0;
         const tB = b.createdAt?.seconds || 0;
@@ -255,8 +352,8 @@ export default function OrganizationDashboardPage() {
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
              <div>
-                <CardTitle className="text-lg font-bold">Eventos Recentes</CardTitle>
-                <CardDescription>Últimas publicações da marca.</CardDescription>
+                <CardTitle className="text-lg font-bold">Eventos Ativos</CardTitle>
+                <CardDescription>Próximas publicações no ar.</CardDescription>
              </div>
              <Button variant="ghost" size="sm" asChild className="rounded-xl font-bold uppercase text-[10px] gap-2">
                <Link href={`/dashboard/organizacoes/${currentOrg.username}/events`}>Ver Todos <ArrowRight className="w-3 h-3" /></Link>
@@ -288,7 +385,7 @@ export default function OrganizationDashboardPage() {
                  })}
                </div>
              ) : (
-               <div className="p-12 text-center text-muted-foreground italic text-sm">Nenhum evento publicado ainda.</div>
+               <div className="p-12 text-center text-muted-foreground italic text-sm">Nenhum evento ativo no momento.</div>
              )}
           </CardContent>
         </Card>
