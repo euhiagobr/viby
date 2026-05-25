@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -166,6 +167,20 @@ export default function AdminEventTicketingDetails() {
     }
   }
 
+  const formatDateTime = (dateValue: any) => {
+    if (!dateValue) return { date: "---", time: "---" };
+    try {
+      const d = dateValue.toDate ? dateValue.toDate() : new Date(dateValue);
+      if (isNaN(d.getTime())) return { date: "---", time: "---" };
+      return {
+        date: d.toLocaleDateString('pt-BR'),
+        time: d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      };
+    } catch (e) {
+      return { date: "---", time: "---" };
+    }
+  };
+
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>;
   if (!event) return null;
 
@@ -173,18 +188,20 @@ export default function AdminEventTicketingDetails() {
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-4">
-           <Button variant="ghost" size="icon" asChild><Link href="/admin/ingressos"><ArrowLeft className="w-5 h-5" /></Link></Button>
+           <Button variant="ghost" size="icon" onClick={() => router.push('/admin/ingressos')} className="rounded-full">
+             <ArrowLeft className="w-5 h-5" />
+           </Button>
            <div>
               <h1 className="text-2xl font-black italic uppercase tracking-tighter text-primary truncate max-w-md">{event.title}</h1>
               <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-2">
-                 <Calendar className="w-3 h-3 text-secondary" /> {event.date?.toDate ? event.date.toDate().toLocaleDateString('pt-BR') : event.date}
+                 <Calendar className="w-3 h-3 text-secondary" /> {formatDateTime(event.date).date}
                  <span className="opacity-20">|</span>
                  <MapPin className="w-3 h-3 text-secondary" /> {event.city}
               </p>
            </div>
         </div>
         <div className="flex gap-2">
-           <Button variant="outline" className="rounded-xl h-11 px-6 font-bold uppercase text-[10px] gap-2">
+           <Button variant="outline" className="rounded-xl h-11 px-6 font-bold uppercase text-[10px] gap-2 border-border">
               <Download className="w-4 h-4" /> Exportar Dados
            </Button>
         </div>
@@ -234,7 +251,7 @@ export default function AdminEventTicketingDetails() {
                       </TableHeader>
                       <TableBody>
                          {sortedRegistrations.filter(r => !search || r.userName?.toLowerCase().includes(search.toLowerCase()) || r.ticketCode?.includes(search.toUpperCase())).map((reg: any) => {
-                           const saleDate = reg.timestamp?.toDate ? reg.timestamp.toDate() : new Date(reg.timestamp);
+                           const saleDateTime = formatDateTime(reg.timestamp || reg.createdAt);
                            return (
                              <TableRow key={reg.id} className="hover:bg-muted/5 transition-colors">
                                 <TableCell className="p-6">
@@ -248,8 +265,8 @@ export default function AdminEventTicketingDetails() {
                                 </TableCell>
                                 <TableCell>
                                    <div className="flex flex-col">
-                                      <span className="text-xs font-bold text-primary">{saleDate.toLocaleDateString('pt-BR')}</span>
-                                      <span className="text-[9px] font-black text-muted-foreground uppercase">{saleDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                      <span className="text-xs font-bold text-primary">{saleDateTime.date}</span>
+                                      <span className="text-[9px] font-black text-muted-foreground uppercase">{saleDateTime.time}</span>
                                    </div>
                                 </TableCell>
                                 <TableCell>
@@ -268,9 +285,9 @@ export default function AdminEventTicketingDetails() {
                                    <Badge className={cn(
                                      "uppercase text-[8px] font-black h-5 px-2", 
                                      reg.status === 'Cancelado' || reg.paymentStatus === 'Cancelado' ? "bg-destructive text-white" :
-                                     reg.checkedIn ? "bg-green-500" : 
-                                     reg.paymentStatus === 'Pago' ? "bg-blue-500" : 
-                                     reg.paymentStatus === 'Pendente' ? "bg-orange-500" : "bg-muted"
+                                     reg.checkedIn ? "bg-green-500 text-white" : 
+                                     reg.paymentStatus === 'Pago' ? "bg-blue-500 text-white" : 
+                                     reg.paymentStatus === 'Pendente' ? "bg-orange-500 text-white" : "bg-muted"
                                    )}>
                                      {reg.status === 'Cancelado' || reg.paymentStatus === 'Cancelado' ? 'Cancelado' :
                                       reg.checkedIn ? 'Utilizado' : (reg.paymentStatus || 'Pendente')}
