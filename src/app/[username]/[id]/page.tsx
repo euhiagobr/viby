@@ -47,7 +47,8 @@ import {
   Send,
   Accessibility,
   UserCircle,
-  Maximize2
+  Maximize2,
+  Megaphone
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -381,7 +382,7 @@ function TicketCard({
               {type.name}
             </h4>
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-              {type._batch.name}
+              {type._batch?.name || "Lote Disponível"}
             </p>
           </div>
           <div className="text-right">
@@ -484,27 +485,46 @@ export default function EventoPublicoPage() {
   const [isSubmittingReport, setIsSubmittingReport] = React.useState(false);
 
   const availableTickets = React.useMemo(() => {
-    if (!event || !selectedSector) return [];
+    if (!event) return [];
 
-    if (event.ticketMode === 'sector_batches') {
-      const sectorDef = event.sectors?.find((s: any) => s.id === selectedSector.ticketLinkId);
-      if (!sectorDef) return [];
+    // Lógica para quando um setor está selecionado
+    if (selectedSector) {
+      if (event.ticketMode === 'sector_batches') {
+        const sectorDef = event.sectors?.find((s: any) => s.id === selectedSector.ticketLinkId);
+        if (!sectorDef) return [];
 
-      const activeBatch =
-        sectorDef.batches?.find((b: any) => {
-          const start = b.startDate ? new Date(b.startDate) : new Date(0);
-          const end = b.endDate ? new Date(b.endDate) : new Date(8640000000000000);
-          return now >= start && now <= end;
-        }) || sectorDef.batches?.[0];
+        const activeBatch =
+          sectorDef.batches?.find((b: any) => {
+            if (!b.startDate || !b.endDate) return true;
+            const start = new Date(b.startDate);
+            const end = new Date(b.endDate);
+            return now >= start && now <= end;
+          }) || sectorDef.batches?.[0];
 
-      return activeBatch?.ticketTypes?.map((t: any) => ({ ...t, _batch: activeBatch })) || [];
+        return activeBatch?.ticketTypes?.map((t: any) => ({ ...t, _batch: activeBatch })) || [];
+      }
+      
+      // Se o evento é de lotes globais mas usa mapa de setores
+      if (event.ticketMode === 'batches' || event.ticketMode === 'paid_single') {
+         const activeBatch =
+          event.batches?.find((b: any) => {
+            if (!b.startDate || !b.endDate) return true;
+            const start = new Date(b.startDate);
+            const end = new Date(b.endDate);
+            return now >= start && now <= end;
+          }) || event.batches?.[0];
+
+        return activeBatch?.ticketTypes?.map((t: any) => ({ ...t, _batch: activeBatch })) || [];
+      }
     }
 
-    if (event.ticketMode === 'batches' || event.ticketMode === 'paid_single') {
+    // Lógica padrão sem setor (ex: ingresso livre direto)
+    if (event.ticketMode === 'batches' || event.ticketMode === 'paid_single' || event.ticketMode === 'free') {
       const activeBatch =
         event.batches?.find((b: any) => {
-          const start = b.startDate ? new Date(b.startDate) : new Date(0);
-          const end = b.endDate ? new Date(b.endDate) : new Date(8640000000000000);
+          if (!b.startDate || !b.endDate) return true;
+          const start = new Date(b.startDate);
+          const end = new Date(b.endDate);
           return now >= start && now <= end;
         }) || event.batches?.[0];
 
@@ -541,6 +561,8 @@ export default function EventoPublicoPage() {
   };
 
   const handleAddToCart = () => {
+    if (!event || !selectedSector) return;
+
     if (selectedSector.tipo !== 'livre') {
       const seatEntries = Object.values(selectedSeats);
       if (seatEntries.length === 0) {

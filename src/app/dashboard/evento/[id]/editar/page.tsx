@@ -5,7 +5,7 @@ import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
-import { updateDoc, doc, collection, serverTimestamp, deleteField } from "firebase/firestore"
+import { updateDoc, doc, collection, serverTimestamp, deleteField, query, where, getDocs, setDoc, deleteDoc } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -40,7 +40,11 @@ import {
   Info,
   Clock,
   Layers,
-  Settings2
+  Settings2,
+  Handshake,
+  Search,
+  CheckCircle2,
+  AtSign
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -52,7 +56,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 interface TicketType {
   id: string
@@ -101,8 +107,15 @@ export default function EditarEventoPage() {
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
 
   const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
-  const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
+  
+  const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
+
+  const partnersQuery = useMemoFirebase(() => {
+    if (!db || !eventId) return null;
+    return collection(db, 'events', eventId, 'partners');
+  }, [db, eventId]);
+  const { data: partners } = useCollection<any>(partnersQuery);
 
   const [loading, setLoading] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -114,6 +127,11 @@ export default function EditarEventoPage() {
   const [mapMode, setMapMode] = useState<'none' | 'setores' | 'assentos' | 'mesas'>('none')
   
   const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
+
+  // --- Parcerias ---
+  const [searchPartner, setSearchPartner] = useState("")
+  const [isSearchingPartner, setIsSearchingPartner] = useState(false)
+  const [foundPartner, setFoundPartner] = useState<any>(null)
 
   // --- Valor Único ---
   const [singleCapacity, setSingleCapacity] = useState<number>(100)
@@ -168,6 +186,64 @@ export default function EditarEventoPage() {
       }
     }
   }, [event])
+
+  const handleLookupPartner = async () => {
+    if (!db || !searchPartner) return
+    setIsSearchingPartner(true)
+    setFoundPartner(null)
+    try {
+      const usernameRef = doc(db, "usernames", searchPartner.toLowerCase().replace('@', '').trim())
+      const usernameSnap = await getDoc(usernameRef)
+      if (usernameSnap.exists()) {
+        const { uid, type } = usernameSnap.data()
+        if (type === 'organization') {
+          const orgSnap = await getDoc(doc(db, "organizations", uid))
+          if (orgSnap.exists()) {
+            setFoundPartner({ id: orgSnap.id, ...orgSnap.data() })
+          }
+        }
+      } else {
+        toast({ variant: "destructive", title: "Organização não encontrada" })
+      }
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro na busca" })
+    } finally {
+      setIsSearchingPartner(false)
+    }
+  }
+
+  const handleInvitePartner = async () => {
+    if (!db || !foundPartner || !eventId || !event) return
+    try {
+      const partnerRef = doc(db, "events", eventId, "partners", foundPartner.id)
+      await setDoc(partnerRef, {
+        orgId: foundPartner.id,
+        orgName: foundPartner.name,
+        username: foundPartner.username,
+        avatar: foundPartner.avatar || "",
+        status: "pending",
+        invitedAt: serverTimestamp(),
+        inviterOrgId: event.organizationId,
+        inviterOrgName: event.organizer?.name || "Organizador",
+        eventTitle: event.title
+      })
+      toast({ title: "Convite enviado!", description: `Aguardando aceite de ${foundPartner.name}.` })
+      setFoundPartner(null)
+      setSearchPartner("")
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao convidar" })
+    }
+  }
+
+  const handleRemovePartner = async (partnerId: string) => {
+    if (!db || !eventId) return
+    try {
+      await deleteDoc(doc(db, "events", eventId, "partners", partnerId))
+      toast({ title: "Parceria removida" })
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao remover" })
+    }
+  }
 
   const handleEnableHalfPrice = (percent: number) => {
     setHalfPricePercent(percent);
@@ -494,8 +570,14 @@ export default function EditarEventoPage() {
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
                   <Select value={selectedCategory} onValueChange={setSelectedCategory} required>
-                    <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent className="rounded-xl">{categories?.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    <SelectTrigger className="rounded-xl h-11">
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {categories?.map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
                   </Select>
                 </div>
              </div>
@@ -511,7 +593,7 @@ export default function EditarEventoPage() {
           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle></CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="space-y-2"><Label htmlFor="cep" className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label><Input value={address.cep} onChange={e => setAddress({...address, cep: e.target.value})} placeholder="00000-000" className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label htmlFor="cep" className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label><Input value={address.cep} onChange={e => setAddress({...address, cep: e.target.value})} onBlur={handleCepBlur} placeholder="00000-000" className="rounded-xl h-11" /></div>
                 <div className="md:col-span-3 space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Rua</Label><Input value={address.street} onChange={e => setAddress({...address, street: e.target.value})} className="rounded-xl h-11" /></div>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -521,6 +603,91 @@ export default function EditarEventoPage() {
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">UF</Label><Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30 w-16" /></div>
              </div>
+          </CardContent>
+        </Card>
+
+        {/* --- CO-PRODUTORES (PARCERIAS) --- */}
+        <Card className="border-none shadow-sm rounded-[2rem]">
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-lg flex items-center gap-2"><Handshake className="w-5 h-5 text-secondary" /> Co-realização</CardTitle>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="rounded-xl font-bold gap-1.5 uppercase text-[10px] h-9 border-dashed">
+                    <Plus className="w-3.5 h-3.5" /> Convidar Parceiro
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md rounded-[2.5rem]">
+                  <DialogHeader>
+                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Buscar Organização</DialogTitle>
+                    <DialogDescription>Convide outra marca para figurar como produtora deste evento.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-6 py-4">
+                    <div className="flex gap-2">
+                       <div className="relative flex-1">
+                          <Input 
+                            placeholder="username da marca" 
+                            value={searchPartner} 
+                            onChange={e => setSearchPartner(e.target.value.toLowerCase())}
+                            className="rounded-xl pl-9 h-12"
+                          />
+                          <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                       </div>
+                       <Button onClick={handleLookupPartner} disabled={isSearchingPartner} className="h-12 rounded-xl px-6 bg-secondary text-white font-bold">
+                          {isSearchingPartner ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                       </Button>
+                    </div>
+
+                    {foundPartner && (
+                      <div className="p-6 bg-muted/30 rounded-3xl border border-dashed flex items-center justify-between animate-in zoom-in-95">
+                         <div className="flex items-center gap-4">
+                            <Avatar className="h-12 w-12 border-2 border-background shadow-sm">
+                               <AvatarImage src={foundPartner.avatar} />
+                               <AvatarFallback>{foundPartner.name?.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div className="space-y-0.5">
+                               <p className="font-black text-sm uppercase italic tracking-tight">{foundPartner.name}</p>
+                               <p className="text-[10px] text-secondary font-bold uppercase tracking-widest">@{foundPartner.username}</p>
+                            </div>
+                         </div>
+                         <Button onClick={handleInvitePartner} className="bg-primary text-white font-black uppercase text-[10px] italic rounded-xl px-6">Convidar</Button>
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+            <CardDescription>Organizações convidadas que figurarão como organizadoras.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+             {partners && partners.length > 0 ? (
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                 {partners.map((p: any) => (
+                   <div key={p.id} className="p-4 bg-muted/20 rounded-2xl border border-border/50 flex items-center justify-between group">
+                      <div className="flex items-center gap-3">
+                         <Avatar className="h-8 w-8">
+                            <AvatarImage src={p.avatar} />
+                            <AvatarFallback>{p.orgName?.charAt(0)}</AvatarFallback>
+                         </Avatar>
+                         <div className="flex flex-col">
+                            <span className="font-bold text-xs">{p.orgName}</span>
+                            <Badge variant="ghost" className="h-4 p-0 text-[8px] font-black uppercase text-secondary">
+                               {p.status === 'accepted' ? 'Aceito' : 'Pendente'}
+                            </Badge>
+                         </div>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleRemovePartner(p.id)}>
+                         <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                   </div>
+                 ))}
+               </div>
+             ) : (
+               <div className="py-10 text-center border-2 border-dashed border-border/40 rounded-[1.5rem] opacity-30">
+                  <Handshake className="w-8 h-8 mx-auto mb-2" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">Sem parceiros vinculados</p>
+               </div>
+             )}
           </CardContent>
         </Card>
 
@@ -554,7 +721,7 @@ export default function EditarEventoPage() {
                </div>
             )}
 
-            {/* Configuração de Mapa - Integrada dentro dos ingressos suportados */}
+            {/* Configuração de Mapa */}
             {supportsMap && (
               <div className="animate-in fade-in slide-in-from-top-4 duration-500 space-y-6 border-b border-dashed pb-8 mb-8">
                 <div className="space-y-1">
@@ -670,7 +837,6 @@ export default function EditarEventoPage() {
                                  <div className="col-span-4 space-y-1">
                                     <Label className="text-[9px] uppercase font-black opacity-40">Categoria</Label>
                                     <Input value={t.name} onChange={e => { const n = [...singleTicketTypes]; n[ti].name = e.target.value; setSingleTicketTypes(n); }} className="rounded-xl h-10 font-bold border-none bg-muted/20" />
-                                    <Badge variant="secondary" className="text-[7px] h-3.5 uppercase gap-1"><Layers className="w-2 h-2" /> Estoque Compartilhado</Badge>
                                  </div>
                                  <div className="col-span-2 space-y-1">
                                     <Label className="text-[9px] uppercase font-black opacity-40">Quantidade</Label>
@@ -758,14 +924,12 @@ export default function EditarEventoPage() {
 
                      <div className="space-y-6 pt-4 border-t border-dashed border-border/40">
                         <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-1">
-                           <Ticket className="w-3.5 h-3.5" /> Ingressos do Lote
-                        </h4>
+                           <Ticket className="w-3.5 h-3.5" /> Ingressos do Lote</h4>
                         
                         <div className="p-6 bg-white rounded-3xl border shadow-sm grid grid-cols-12 gap-6 items-end">
                            <div className="col-span-5 space-y-2">
                               <Label className="text-[9px] uppercase font-black opacity-40 ml-1">Ingresso Principal</Label>
                               <Input value={batch.ticketTypes[0]?.name || ""} onChange={e => updateTicketTypeField(bi, 0, 'name', e.target.value)} className="rounded-xl h-11 font-bold" />
-                              {batch.isHalfPriceEnabled && <Badge variant="secondary" className="text-[7px] h-3.5 uppercase gap-1"><Layers className="w-2 h-2" /> Estoque Compartilhado</Badge>}
                            </div>
                            <div className="col-span-3 space-y-2">
                               <Label className="text-[9px] uppercase font-black opacity-40 ml-1">Quantidade</Label>
@@ -792,7 +956,6 @@ export default function EditarEventoPage() {
                                           <div className="col-span-4 space-y-1">
                                              <Label className="text-[8px] uppercase font-black opacity-40">Categoria</Label>
                                              <Input value={t.name} onChange={e => updateTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-9 font-bold border-none bg-muted/20" />
-                                             <Badge variant="secondary" className="text-[7px] h-3.5 uppercase gap-1"><Layers className="w-2 h-2" /> Estoque Compartilhado</Badge>
                                           </div>
                                           <div className="col-span-2 space-y-1">
                                              <Label className="text-[8px] uppercase font-black opacity-40">Qtd</Label>
@@ -807,7 +970,7 @@ export default function EditarEventoPage() {
                                              <Switch checked={t.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} />
                                           </div>
                                           <div className="col-span-1 flex justify-end">
-                                             <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive rounded-full" onClick={() => removeBatch(bi)}>
+                                             <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive rounded-full" onClick={() => { const n = [...batches]; n[bi].ticketTypes.splice(ti,1); setBatches(n); }}>
                                                 <Trash2 className="w-3.5 h-3.5" />
                                              </Button>
                                           </div>
@@ -827,12 +990,6 @@ export default function EditarEventoPage() {
                            </div>
                         )}
                      </div>
-
-                      {bi < batches.length - 1 && (
-                         <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-20">
-                            <div className="bg-secondary text-white p-1 rounded-full shadow-lg border-2 border-white"><ArrowDown className="w-4 h-4" /></div>
-                         </div>
-                      )}
                   </div>
                 ))}
                 <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>
@@ -856,10 +1013,6 @@ export default function EditarEventoPage() {
                     </div>
 
                     <div className="space-y-6">
-                       <div className="flex items-center justify-between px-2">
-                          <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Lotes do Setor {sector.name}</h4>
-                       </div>
-                       
                        {sector.batches.map((batch, bi) => (
                          <div key={batch.id} className="p-6 rounded-[2rem] border-2 bg-muted/5 space-y-6 relative">
                             <div className="flex justify-between items-center">
@@ -874,28 +1027,16 @@ export default function EditarEventoPage() {
                                   <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatchFromSector(si, bi)} disabled={sector.batches.length === 1}><Trash2 className="w-4 h-4" /></Button>
                                </div>
                             </div>
-
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-60">Nome da Janela</Label><Input value={batch.name} onChange={e => updateBatchInSectorField(si, bi, 'name', e.target.value)} className="rounded-xl h-10" /></div>
                                <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-60">Carga do Lote</Label><Input type="number" value={batch.capacidadeInicial} onChange={e => updateBatchInSectorField(si, bi, 'capacidadeInicial', parseInt(e.target.value) || 0)} className="rounded-xl h-10 font-bold" /></div>
                             </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                               <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-60">Início</Label><Input type="datetime-local" value={batch.startDate} onChange={e => updateBatchInSectorField(si, bi, 'startDate', e.target.value)} className="h-9 text-[10px] rounded-lg" /></div>
-                               <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-60">Fim</Label><Input type="datetime-local" value={batch.endDate} onChange={e => updateBatchInSectorField(si, bi, 'endDate', e.target.value)} className="h-9 text-[10px] rounded-lg" /></div>
-                            </div>
-
                             <div className="space-y-4 pt-4 border-t border-dashed">
                                {batch.ticketTypes.map((t, ti) => (
                                  <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm grid grid-cols-12 gap-4 items-center">
                                     <div className="col-span-5 space-y-1">
                                        <Label className="text-[8px] font-black uppercase opacity-40">Ingresso</Label>
                                        <Input value={t.name} onChange={e => updateTicketTypeInSectorField(si, bi, ti, 'name', e.target.value)} className="rounded-lg h-9 font-bold" />
-                                       {t.poolId && <Badge variant="secondary" className="text-[7px] h-3.5 uppercase gap-1"><Layers className="w-2 h-2" /> Estoque Compartilhado</Badge>}
-                                    </div>
-                                    <div className="col-span-2 space-y-1">
-                                       <Label className="text-[8px] font-black uppercase opacity-40">Qtd</Label>
-                                       <div className="h-9 flex items-center font-black text-[10px] px-2 bg-muted/20 rounded-lg">{t.quantity}</div>
                                     </div>
                                     <div className="col-span-3 space-y-1">
                                        <Label className="text-[8px] font-black uppercase opacity-40">Valor (R$)</Label>
