@@ -88,6 +88,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ToastAction } from "@/components/ui/toast";
 import { Separator } from '@/components/ui/separator';
+import Footer from '@/components/layout/Footer';
 
 // --- COMPONENTES AUXILIARES ---
 
@@ -578,6 +579,10 @@ export default function EventoPublicoPage() {
   const organizationRef = React.useMemo(() => (db && event?.organizationId) ? doc(db, 'organizations', event.organizationId) : null, [db, event?.organizationId]);
   const { data: organizationProfile } = useDoc<any>(organizationRef);
 
+  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db]);
+  const { data: settings } = useDoc<any>(settingsRef);
+  const siteName = settings?.siteName || "Viby";
+
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db]);
   const { data: promotions } = useDoc<any>(promosRef);
 
@@ -819,14 +824,32 @@ export default function EventoPublicoPage() {
     <div className="min-h-screen bg-background font-body selection:bg-secondary/20 selection:text-secondary pb-32">
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/40">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.back()}
-            className="rounded-full hover:bg-muted font-black text-[10px] uppercase tracking-widest gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" /> Voltar
-          </Button>
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.back()}
+              className="rounded-full hover:bg-muted font-black text-[10px] uppercase tracking-widest gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" /> Voltar
+            </Button>
+            
+            <Link href="/" className="flex items-center gap-2">
+              {settings?.logoUrl ? (
+                <Image 
+                  src={settings.logoUrl} 
+                  alt={siteName} 
+                  width={100} 
+                  height={32} 
+                  className="h-7 w-auto object-contain" 
+                  priority 
+                />
+              ) : (
+                <span className="font-black italic uppercase tracking-tighter text-primary">{siteName}</span>
+              )}
+            </Link>
+          </div>
+
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
@@ -1296,6 +1319,8 @@ export default function EventoPublicoPage() {
           </Button>
         </div>
       </div>
+      
+      <Footer />
     </div>
   );
 }
