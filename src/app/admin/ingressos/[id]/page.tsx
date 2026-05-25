@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useDoc, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useDoc, useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from '@/firebase';
 import { 
   doc, 
   collection, 
@@ -69,6 +69,16 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 
@@ -77,12 +87,14 @@ export default function AdminEventTicketingDetails() {
   const router = useRouter();
   const eventId = params.id as string;
   const db = useFirestore();
+  const auth = useAuth();
+  const { user } = useUser(auth);
 
   const eventRef = React.useMemo(() => db ? doc(db, "events", eventId) : null, [db, eventId]);
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef);
 
   const regsQuery = useMemoFirebase(() => {
-    if (!db) return null;
+    if (!db || !eventId) return null;
     return query(collection(db, "registrations"), where("eventId", "==", eventId));
   }, [db, eventId]);
 
@@ -90,6 +102,8 @@ export default function AdminEventTicketingDetails() {
 
   const [activeTab, setActiveTab] = React.useState("tickets");
   const [search, setSearch] = React.useState("");
+  const [ticketToCancel, setTicketToCancel] = React.useState<any>(null);
+  const [isCancelling, setIsCancelling] = React.useState(false);
 
   const sortedRegistrations = React.useMemo(() => {
     if (!registrations) return [];
@@ -103,7 +117,7 @@ export default function AdminEventTicketingDetails() {
   const stats = React.useMemo(() => {
     if (!registrations) return { sold: 0, checkedIn: 0, revenue: 0, cancelled: 0 };
     return registrations.reduce((acc: any, r: any) => {
-      if (r.status === 'Excluído' || r.status === 'Cancelado') {
+      if (r.status === 'Excluído' || r.status === 'Cancelado' || r.paymentStatus === 'Cancelado') {
         acc.cancelled++;
         return acc;
       }
@@ -115,6 +129,42 @@ export default function AdminEventTicketingDetails() {
       return acc;
     }, { sold: 0, checkedIn: 0, revenue: 0, cancelled: 0 });
   }, [registrations]);
+
+  const handleCancelTicket = async () => {
+    if (!db || !ticketToCancel || !user) return;
+    setIsCancelling(true);
+    try {
+      const regRef = doc(db, "registrations", ticketToCancel.id);
+      const updateData = {
+        status: 'Cancelado',
+        paymentStatus: 'Cancelado',
+        updatedAt: serverTimestamp(),
+        cancelledAt: serverTimestamp(),
+        cancelledBy: user.uid
+      };
+      
+      await updateDoc(regRef, updateData);
+
+      // Registrar Log de Auditoria
+      await addDoc(collection(db, "ticket_logs"), {
+        registrationId: ticketToCancel.id,
+        eventId: eventId,
+        adminId: user.uid,
+        adminName: user.displayName || "Admin",
+        action: "cancel",
+        timestamp: serverTimestamp(),
+        reason: "Cancelamento manual via painel admin",
+        previousStatus: ticketToCancel.status || 'Ativo'
+      });
+
+      toast({ title: "Ingresso cancelado com sucesso" });
+      setTicketToCancel(null);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao cancelar", description: e.message });
+    } finally {
+      setIsCancelling(false);
+    }
+  }
 
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>;
   if (!event) return null;
@@ -175,6 +225,7 @@ export default function AdminEventTicketingDetails() {
                       <TableHeader className="bg-muted/30">
                          <TableRow>
                             <TableHead className="p-6 font-black uppercase text-[10px] tracking-widest">Ingresso / QR</TableHead>
+                            <TableHead className="font-black uppercase text-[10px] tracking-widest">Data / Hora Venda</TableHead>
                             <TableHead className="font-black uppercase text-[10px] tracking-widest">Participante</TableHead>
                             <TableHead className="font-black uppercase text-[10px] tracking-widest">Tipo / Lote</TableHead>
                             <TableHead className="font-black uppercase text-[10px] tracking-widest text-center">Status</TableHead>
@@ -182,55 +233,72 @@ export default function AdminEventTicketingDetails() {
                          </TableRow>
                       </TableHeader>
                       <TableBody>
-                         {sortedRegistrations.filter(r => !search || r.userName?.toLowerCase().includes(search.toLowerCase()) || r.ticketCode?.includes(search.toUpperCase())).map((reg: any) => (
-                           <TableRow key={reg.id} className="hover:bg-muted/5 transition-colors">
-                              <TableCell className="p-6">
-                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><QrCode className="w-5 h-5" /></div>
-                                    <div className="flex flex-col">
-                                       <span className="font-mono font-black text-xs text-primary">{reg.ticketCode}</span>
-                                       <span className="text-[8px] font-bold text-muted-foreground uppercase">{reg.timestamp?.toDate ? reg.timestamp.toDate().toLocaleDateString('pt-BR') : 'Sem data'}</span>
-                                    </div>
-                                 </div>
-                              </TableCell>
-                              <TableCell>
-                                 <div className="flex flex-col">
-                                    <span className="font-bold text-sm text-primary">{reg.attendeeName || reg.userName || "Pendente"}</span>
-                                    <span className="text-[10px] text-muted-foreground">{reg.userEmail}</span>
-                                 </div>
-                              </TableCell>
-                              <TableCell>
-                                 <div className="flex flex-col">
-                                    <span className="text-xs font-bold">{reg.ticketTypeName || 'Acesso'}</span>
-                                    <span className="text-[9px] font-black uppercase text-secondary">{reg.batchName || 'Único'}</span>
-                                 </div>
-                              </TableCell>
-                              <TableCell className="text-center">
-                                 <Badge className={cn(
-                                   "uppercase text-[8px] font-black h-5 px-2", 
-                                   reg.checkedIn ? "bg-green-500" : 
-                                   reg.paymentStatus === 'Pago' ? "bg-blue-500" : 
-                                   reg.paymentStatus === 'Pendente' ? "bg-orange-500" : "bg-muted"
-                                 )}>
-                                   {reg.checkedIn ? 'Utilizado' : (reg.paymentStatus || 'Pendente')}
-                                 </Badge>
-                              </TableCell>
-                              <TableCell className="p-6 text-right">
-                                 <DropdownMenu>
-                                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="rounded-full"><MoreHorizontal className="w-4 h-4" /></Button></DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="rounded-xl w-56">
-                                       <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => toast({ title: "Funcionalidade em desenvolvimento" })}><Mail className="w-4 h-4" /> Reenviar Voucher</DropdownMenuItem>
-                                       <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => toast({ title: "Funcionalidade em desenvolvimento" })}><Edit2 className="w-4 h-4" /> Alterar Dados</DropdownMenuItem>
-                                       <DropdownMenuSeparator />
-                                       <DropdownMenuItem className="gap-2 text-destructive cursor-pointer focus:text-destructive" onClick={() => toast({ title: "Funcionalidade em desenvolvimento" })}><XCircle className="w-4 h-4" /> Cancelar Ingresso</DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                 </DropdownMenu>
-                              </TableCell>
-                           </TableRow>
-                         ))}
+                         {sortedRegistrations.filter(r => !search || r.userName?.toLowerCase().includes(search.toLowerCase()) || r.ticketCode?.includes(search.toUpperCase())).map((reg: any) => {
+                           const saleDate = reg.timestamp?.toDate ? reg.timestamp.toDate() : new Date(reg.timestamp);
+                           return (
+                             <TableRow key={reg.id} className="hover:bg-muted/5 transition-colors">
+                                <TableCell className="p-6">
+                                   <div className="flex items-center gap-3">
+                                      <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><QrCode className="w-5 h-5" /></div>
+                                      <div className="flex flex-col">
+                                         <span className="font-mono font-black text-xs text-primary">{reg.ticketCode}</span>
+                                         {reg.seatCode && <span className="text-[8px] font-black text-secondary uppercase">Lugar: {reg.seatCode}</span>}
+                                      </div>
+                                   </div>
+                                </TableCell>
+                                <TableCell>
+                                   <div className="flex flex-col">
+                                      <span className="text-xs font-bold text-primary">{saleDate.toLocaleDateString('pt-BR')}</span>
+                                      <span className="text-[9px] font-black text-muted-foreground uppercase">{saleDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                   </div>
+                                </TableCell>
+                                <TableCell>
+                                   <div className="flex flex-col">
+                                      <span className="font-bold text-sm text-primary">{reg.attendeeName || reg.userName || "Pendente"}</span>
+                                      <span className="text-[10px] text-muted-foreground">{reg.userEmail}</span>
+                                   </div>
+                                </TableCell>
+                                <TableCell>
+                                   <div className="flex flex-col">
+                                      <span className="text-xs font-bold">{reg.ticketTypeName || 'Acesso'}</span>
+                                      <span className="text-[9px] font-black uppercase text-secondary">{reg.batchName || 'Único'}</span>
+                                   </div>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                   <Badge className={cn(
+                                     "uppercase text-[8px] font-black h-5 px-2", 
+                                     reg.status === 'Cancelado' || reg.paymentStatus === 'Cancelado' ? "bg-destructive text-white" :
+                                     reg.checkedIn ? "bg-green-500" : 
+                                     reg.paymentStatus === 'Pago' ? "bg-blue-500" : 
+                                     reg.paymentStatus === 'Pendente' ? "bg-orange-500" : "bg-muted"
+                                   )}>
+                                     {reg.status === 'Cancelado' || reg.paymentStatus === 'Cancelado' ? 'Cancelado' :
+                                      reg.checkedIn ? 'Utilizado' : (reg.paymentStatus || 'Pendente')}
+                                   </Badge>
+                                </TableCell>
+                                <TableCell className="p-6 text-right">
+                                   <DropdownMenu>
+                                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="rounded-full"><MoreHorizontal className="w-4 h-4" /></Button></DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end" className="rounded-xl w-56">
+                                         <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => toast({ title: "Funcionalidade em desenvolvimento" })}><Mail className="w-4 h-4" /> Reenviar Voucher</DropdownMenuItem>
+                                         <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => toast({ title: "Funcionalidade em desenvolvimento" })}><Edit2 className="w-4 h-4" /> Alterar Dados</DropdownMenuItem>
+                                         <DropdownMenuSeparator />
+                                         <DropdownMenuItem 
+                                           disabled={reg.status === 'Cancelado'}
+                                           className="gap-2 text-destructive cursor-pointer focus:text-destructive" 
+                                           onSelect={() => setTicketToCancel(reg)}
+                                         >
+                                           <XCircle className="w-4 h-4" /> Cancelar Ingresso
+                                         </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                   </DropdownMenu>
+                                </TableCell>
+                             </TableRow>
+                           );
+                         })}
                          {sortedRegistrations.length === 0 && (
                            <TableRow>
-                             <TableCell colSpan={5} className="py-20 text-center text-muted-foreground italic">Nenhum ingresso localizado para este evento.</TableCell>
+                             <TableCell colSpan={6} className="py-20 text-center text-muted-foreground italic">Nenhum ingresso localizado para este evento.</TableCell>
                            </TableRow>
                          )}
                       </TableBody>
@@ -293,6 +361,32 @@ export default function AdminEventTicketingDetails() {
            </div>
         </TabsContent>
       </Tabs>
+
+      {/* ALERT DIALOG DE CANCELAMENTO */}
+      <AlertDialog open={!!ticketToCancel} onOpenChange={(o) => !o && setTicketToCancel(null)}>
+        <AlertDialogContent className="rounded-[2rem]">
+          <AlertDialogHeader>
+            <div className="w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mb-4 text-destructive">
+               <AlertTriangle className="w-6 h-6" />
+            </div>
+            <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Confirmar Cancelamento?</AlertDialogTitle>
+            <AlertDialogDescription className="font-medium text-foreground/70">
+              Você está prestes a cancelar o ingresso de <strong>{ticketToCancel?.userName}</strong>. O QR Code será invalidado permanentemente e a vaga voltará ao estoque do lote <strong>{ticketToCancel?.batchName}</strong>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3 mt-4">
+            <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px] tracking-widest">Não, Manter</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleCancelTicket}
+              disabled={isCancelling}
+              className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-destructive/20 h-11 px-8"
+            >
+              {isCancelling ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <XCircle className="w-4 h-4 mr-2" />}
+              Sim, Cancelar Ingresso
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
