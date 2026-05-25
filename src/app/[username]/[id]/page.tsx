@@ -1,8 +1,7 @@
-
 "use client"
 
 import * as React from "react"
-import { useParams, useRouter, useSearchParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
 import { doc, collection, query, where, orderBy } from "firebase/firestore"
 import { Loader2, ArrowLeft, Share2, Flag } from "lucide-react"
