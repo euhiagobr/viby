@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -40,7 +39,7 @@ export default function LandingPage() {
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
-    return query(collection(db, "events"), limit(100))
+    return query(collection(db, "events"), where("status", "==", "Ativo"), limit(100))
   }, [db])
 
   const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
@@ -79,7 +78,7 @@ export default function LandingPage() {
   const uniqueCities = React.useMemo(() => {
     if (!events) return []
     const cities = events
-      .filter((e: any) => e.city && e.status !== 'Excluído')
+      .filter((e: any) => e.city && e.status === 'Ativo')
       .map((e: any) => e.city)
     return Array.from(new Set(cities)).sort() as string[]
   }, [events])
@@ -91,6 +90,7 @@ export default function LandingPage() {
     
     let result = events.filter((e: any) => {
       const isNotDeleted = e.status !== 'Excluído';
+      const isAtivo = e.status === 'Ativo';
       
       // Filtra eventos de marcas inativas
       if (inactiveOrgIds.has(e.organizationId)) return false;
@@ -105,7 +105,7 @@ export default function LandingPage() {
       const matchesCity = selectedCity === 'all' || e.city === selectedCity;
       const matchesCategory = selectedCategory === 'all' || e.categoryId === selectedCategory;
       
-      return isNotDeleted && !isEnded && matchesSearch && matchesCity && matchesCategory;
+      return isNotDeleted && isAtivo && !isEnded && matchesSearch && matchesCity && matchesCategory;
     })
 
     if (userLocation) {
@@ -153,7 +153,7 @@ export default function LandingPage() {
 
         if (ad.type === 'evento') {
           const fullEvent = events?.find((e: any) => e.id === ad.eventId)
-          if (!fullEvent) return null;
+          if (!fullEvent || fullEvent.status !== 'Ativo') return null;
           
           const evStart = fullEvent.date?.toDate ? fullEvent.date.toDate() : new Date(fullEvent.date);
           const evEnd = fullEvent.endDate?.toDate ? fullEvent.endDate.toDate() : (fullEvent.endDate ? new Date(fullEvent.endDate) : new Date(evStart.getTime() + 4 * 60 * 60 * 1000));

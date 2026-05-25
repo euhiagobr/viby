@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -18,7 +17,7 @@ import {
   ChevronRight,
   Users 
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -38,9 +37,6 @@ function VerifiedBadge({ className }: { className?: string }) {
   )
 }
 
-/**
- * Componente de Card de Organizador que busca dados em tempo real da coleção 'organizations'
- */
 function OrgCard({ orgId, usernameFallback }: { orgId: string, usernameFallback: string }) {
   const db = useFirestore()
   const router = useRouter()
@@ -100,7 +96,7 @@ export default function ExplorarPage() {
 
   const eventsQuery = React.useMemo(() => {
     if (!db) return null
-    return query(collection(db, "events"), limit(100))
+    return query(collection(db, "events"), where("status", "==", "Ativo"), limit(100))
   }, [db])
 
   const { data: events, loading } = useCollection<any>(eventsQuery)
@@ -111,13 +107,14 @@ export default function ExplorarPage() {
   }, [db])
   const { data: activeAds } = useCollection<any>(adsQuery)
 
-  React.useEffect(() => {
-    if ((filter === 'nearby' || filter === 'organizadores') && !userLocation) {
-      getCurrentLocation()
-        .then(setUserLocation)
-        .catch(() => setFilter('all'))
-    }
-  }, [filter, userLocation])
+  useEffect(() => {
+    // Solicita localização proativamente no mount
+    getCurrentLocation()
+      .then(setUserLocation)
+      .catch(() => {
+        console.log("Acesso à localização negado ou indisponível.");
+      });
+  }, []);
 
   const filteredEvents = React.useMemo(() => {
     if (!events) return []
@@ -126,6 +123,7 @@ export default function ExplorarPage() {
 
     let result = events.filter((e: any) => {
       const isNotDeleted = e.status !== 'Excluído';
+      const isAtivo = e.status === 'Ativo';
       
       const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
       const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
@@ -133,7 +131,7 @@ export default function ExplorarPage() {
 
       const matchesSearch = e.title?.toLowerCase().includes(search.toLowerCase()) ||
                           e.description?.toLowerCase().includes(search.toLowerCase());
-      return isNotDeleted && !isEnded && matchesSearch;
+      return isNotDeleted && isAtivo && !isEnded && matchesSearch;
     })
 
     if (filter === 'nearby' && userLocation) {
@@ -156,7 +154,7 @@ export default function ExplorarPage() {
     if (!events || !userLocation) return []
     
     const eventsWithDistance = events
-      .filter((e: any) => e.status !== 'Excluído' && e.latitude && e.longitude)
+      .filter((e: any) => e.status === 'Ativo' && e.latitude && e.longitude)
       .map((e: any) => ({
         ...e,
         _dist: calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude })
@@ -200,7 +198,7 @@ export default function ExplorarPage() {
 
         if (ad.type === 'evento') {
           const fullEvent = events?.find((e: any) => e.id === ad.eventId)
-          if (!fullEvent) return null;
+          if (!fullEvent || fullEvent.status !== 'Ativo') return null;
 
           const evStart = fullEvent.date?.toDate ? fullEvent.date.toDate() : new Date(fullEvent.date);
           const evEnd = fullEvent.endDate?.toDate ? fullEvent.endDate.toDate() : (fullEvent.endDate ? new Date(fullEvent.endDate) : new Date(evStart.getTime() + 4 * 60 * 60 * 1000));
@@ -311,7 +309,7 @@ export default function ExplorarPage() {
 
       {filter === 'organizadores' && nearbyOrganizerIds.length === 0 && !loading && (
         <div className="py-24 text-center border-2 border-dashed rounded-[3rem] bg-white/20">
-          <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">Habilite sua localização para ver organizadores próximos.</p>
+          <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">Ative sua localização para ver organizadores próximos.</p>
         </div>
       )}
 

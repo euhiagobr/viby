@@ -19,12 +19,16 @@ export interface Event {
   description: string;
   shortDescription?: string;
   date: Date;
+  endDate?: Date;
   location: string;
   city: string;
+  latitude?: number;
+  longitude?: number;
   type: 'Público' | 'Privado' | 'Governo';
   categoryName?: string;
+  categoryId?: string;
   batches: EventBatch[];
-  status: 'A fazer' | 'Em progresso' | 'Concluído';
+  status: 'Ativo' | 'Pendente' | 'Excluído';
   image: string;
   organizer: Organizer;
   isFree?: boolean;
@@ -37,11 +41,15 @@ export const MOCK_EVENTS: Event[] = [
     description: 'Um festival de música e arte no coração da cidade.',
     shortDescription: 'O maior festival da temporada.',
     date: new Date(),
+    endDate: new Date(Date.now() + 4 * 60 * 60 * 1000),
     location: 'Praça Central',
     city: 'São Paulo',
+    latitude: -23.55052,
+    longitude: -46.633308,
     type: 'Público',
     categoryName: 'Música',
-    status: 'Em progresso',
+    categoryId: 'musica',
+    status: 'Ativo',
     image: 'https://picsum.photos/seed/event1/600/400',
     batches: [
       { id: 'b1', name: 'Primeiro Lote', price: 50, available: 100 },
@@ -61,11 +69,15 @@ export const MOCK_EVENTS: Event[] = [
     description: 'A maior conferência de tecnologia da América Latina.',
     shortDescription: 'Conectando mentes brilhantes.',
     date: new Date(Date.now() + 86400000),
+    endDate: new Date(Date.now() + 86400000 + 8 * 60 * 60 * 1000),
     location: 'Expo Center',
     city: 'Curitiba',
+    latitude: -25.4296,
+    longitude: -49.2719,
     type: 'Privado',
     categoryName: 'Tecnologia',
-    status: 'A fazer',
+    categoryId: 'tech',
+    status: 'Ativo',
     image: 'https://picsum.photos/seed/event2/600/400',
     batches: [
       { id: 'b3', name: 'VIP', price: 500, available: 50 },
@@ -87,9 +99,11 @@ export const MOCK_EVENTS: Event[] = [
     date: new Date(Date.now() + 86400000 * 2),
     location: 'Parque das Águas',
     city: 'Rio de Janeiro',
+    latitude: -22.9068,
+    longitude: -43.1729,
     type: 'Governo',
     categoryName: 'Meio Ambiente',
-    status: 'Concluído',
+    status: 'Ativo',
     isFree: true,
     image: 'https://picsum.photos/seed/event3/600/400',
     batches: [
