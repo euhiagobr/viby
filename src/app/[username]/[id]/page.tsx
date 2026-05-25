@@ -52,7 +52,8 @@ import {
   ZoomOut,
   RefreshCcw,
   Hand,
-  MousePointer2
+  MousePointer2,
+  Map as MapIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -1270,4 +1271,3 @@ export default function EventoPublicoPage() {
     </div>
   );
 }
-
