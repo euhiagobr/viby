@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -43,7 +44,11 @@ import {
   RefreshCcw,
   CheckCircle2,
   ShieldCheck,
-  Globe
+  Globe,
+  Coins,
+  Percent,
+  TrendingUp,
+  ArrowDown
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -53,6 +58,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
+import { Separator } from "@/components/ui/separator"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -350,11 +356,12 @@ export default function AdminUsuariosPage() {
 
       {/* DIALOG EDITAR PÁGINA / ORGANIZAÇÃO */}
       <Dialog open={isEditOrgOpen} onOpenChange={setIsEditOrgOpen}>
-        <DialogContent className="max-w-xl rounded-[2.5rem]">
-           <DialogHeader>
+        <DialogContent className="max-w-xl h-[90vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
+           <DialogHeader className="p-8 border-b bg-muted/30">
               <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Editar Página Comercial</DialogTitle>
+              <DialogDescription>Ajuste dados e configure taxas personalizadas para esta marca.</DialogDescription>
            </DialogHeader>
-           <form onSubmit={handleUpdateOrg} className="space-y-6">
+           <form onSubmit={handleUpdateOrg} className="flex-1 overflow-y-auto p-8 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60">Nome da Marca</Label>
@@ -399,13 +406,72 @@ export default function AdminUsuariosPage() {
                  />
               </div>
 
-              <DialogFooter>
-                 <Button type="submit" disabled={isSaving || (usernameStatus === 'taken')} className="w-full bg-secondary text-white font-black h-12 rounded-xl uppercase italic">
-                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-                    Salvar Alterações da Página
-                 </Button>
-              </DialogFooter>
+              <Separator className="border-dashed" />
+
+              {/* SEÇÃO DE TAXAS PERSONALIZADAS */}
+              <div className="space-y-6">
+                 <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                       <h3 className="font-black italic uppercase tracking-tighter text-secondary flex items-center gap-2">
+                          <Coins className="w-5 h-5" /> Taxas Personalizadas
+                       </h3>
+                       <p className="text-[10px] font-bold text-muted-foreground uppercase">Sobrescreve taxas globais e campanhas para esta marca.</p>
+                    </div>
+                    <Switch 
+                       checked={editingOrg?.customFeeActive || false} 
+                       onCheckedChange={v => setEditingOrg({...editingOrg, customFeeActive: v})} 
+                    />
+                 </div>
+
+                 {editingOrg?.customFeeActive && (
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in slide-in-from-top-2 duration-300">
+                      <div className="space-y-2">
+                         <Label className="text-[9px] font-black uppercase opacity-60 flex items-center gap-1.5"><Percent className="w-3 h-3" /> Taxa Produtor (%)</Label>
+                         <div className="relative">
+                            <Input 
+                               type="number" step="0.1" 
+                               value={editingOrg?.customFeePercent ?? 10} 
+                               onChange={e => setEditingOrg({...editingOrg, customFeePercent: parseFloat(e.target.value) || 0})}
+                               className="rounded-xl h-10 font-black text-secondary pr-8" 
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] opacity-40">%</span>
+                         </div>
+                      </div>
+                      <div className="space-y-2">
+                         <Label className="text-[9px] font-black uppercase opacity-60 flex items-center gap-1.5"><TrendingUp className="w-3 h-3" /> Valor Mínimo (R$)</Label>
+                         <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] opacity-40">R$</span>
+                            <Input 
+                               type="number" step="0.01" 
+                               value={editingOrg?.customMinFee ?? 9.99} 
+                               onChange={e => setEditingOrg({...editingOrg, customMinFee: parseFloat(e.target.value) || 0})}
+                               className="rounded-xl h-10 font-black text-secondary pl-8" 
+                            />
+                         </div>
+                      </div>
+                      <div className="space-y-2">
+                         <Label className="text-[9px] font-black uppercase opacity-60 flex items-center gap-1.5"><ArrowDown className="w-3 h-3" /> Valor Máximo (R$)</Label>
+                         <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] opacity-40">R$</span>
+                            <Input 
+                               type="number" step="0.01" 
+                               value={editingOrg?.customMaxFee ?? 0} 
+                               onChange={e => setEditingOrg({...editingOrg, customMaxFee: parseFloat(e.target.value) || 0})}
+                               className="rounded-xl h-10 font-black text-secondary pl-8" 
+                            />
+                         </div>
+                         <p className="text-[7px] font-bold text-muted-foreground uppercase mt-1">0 = Sem Teto</p>
+                      </div>
+                   </div>
+                 )}
+              </div>
            </form>
+           <DialogFooter className="p-8 border-t bg-muted/30">
+              <Button onClick={handleUpdateOrg} disabled={isSaving || (usernameStatus === 'taken')} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                 {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
+                 Salvar Configurações da Página
+              </Button>
+           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -34,7 +34,7 @@ import Link from "next/link"
 import { formatCurrency, calculateFinancialBreakdown } from "@/lib/financial-utils"
 import { createCheckoutSession } from "@/app/actions/stripe"
 import { toast } from "@/hooks/use-toast"
-import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, limit } from "firebase/firestore"
+import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, limit, getDoc } from "firebase/firestore"
 import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 import { sendCartPendingEmail, sendTicketEmail } from "@/app/actions/email"
 
@@ -54,12 +54,35 @@ export default function CarrinhoPage() {
   const promosRef = React.useMemo(() => db ? doc(db, 'settings', 'promotions') : null, [db])
   const { data: promotions } = useDoc<any>(promosRef)
 
+  const [orgsData, setOrgsData] = React.useState<Record<string, any>>({})
+  const [loadingOrgs, setLoadingOrgs] = React.useState(true)
+
   const [processing, setProcessing] = React.useState(false)
   const [isWaitingPayment, setIsWaitingPayment] = React.useState(false)
   
   const [couponCode, setCouponCode] = React.useState("")
   const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null)
   const [isApplyingCoupon, setIsApplyingCoupon] = React.useState(false)
+
+  // Carregar dados das organizações dos itens no carrinho
+  React.useEffect(() => {
+    if (!db || items.length === 0) {
+      setLoadingOrgs(false)
+      return
+    }
+
+    const fetchOrgs = async () => {
+      const orgIds = Array.from(new Set(items.map(i => i.organizationId)))
+      const results: Record<string, any> = {}
+      for (const id of orgIds) {
+        const snap = await getDoc(doc(db, "organizations", id))
+        if (snap.exists()) results[id] = snap.data()
+      }
+      setOrgsData(results)
+      setLoadingOrgs(false)
+    }
+    fetchOrgs()
+  }, [db, items])
 
   const cartTotals = React.useMemo(() => {
     let subtotal = 0;
@@ -93,13 +116,14 @@ export default function CarrinhoPage() {
       const unitDiscount = isEligible ? discountPerUnit : 0;
       const discountedUnitPrice = Math.max(0, item.price - unitDiscount);
       
-      const res = calculateFinancialBreakdown(discountedUnitPrice, globalFees, promotions);
+      const orgSettings = orgsData[item.organizationId]
+      const res = calculateFinancialBreakdown(discountedUnitPrice, globalFees, promotions, orgSettings);
       fees += res.administrativeFeeAmount * item.quantity;
     });
 
     const finalTotal = Math.max(0, (subtotal - discount) + fees);
     return { subtotal, fees, discount, total: finalTotal };
-  }, [items, appliedCoupon, globalFees, promotions]);
+  }, [items, appliedCoupon, globalFees, promotions, orgsData]);
 
   const handleApplyCoupon = async () => {
     if (!db || !couponCode.trim()) return;
@@ -139,7 +163,7 @@ export default function CarrinhoPage() {
 
   const handleCheckout = async () => {
     if (!user) return router.push("/login")
-    if (!db || items.length === 0 || processing || feesLoading) return
+    if (!db || items.length === 0 || processing || feesLoading || loadingOrgs) return
 
     setProcessing(true)
     try {
@@ -155,7 +179,8 @@ export default function CarrinhoPage() {
         const currentItemDiscount = isEligibleForDiscount ? discountPerUnit : 0;
         const discountedPrice = Math.max(0, item.price - currentItemDiscount);
         
-        const breakdown = calculateFinancialBreakdown(discountedPrice, globalFees, promotions);
+        const orgSettings = orgsData[item.organizationId]
+        const breakdown = calculateFinancialBreakdown(discountedPrice, globalFees, promotions, orgSettings);
         
         for (let i = 0; i < item.quantity; i++) {
           const ticketCode = await generateUniqueTicketCode(db);
@@ -324,9 +349,10 @@ export default function CarrinhoPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-4">
-           {feesLoading ? <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div> : 
+           {feesLoading || loadingOrgs ? <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div> : 
             items.map((item) => {
-             const res = calculateFinancialBreakdown(item.price, globalFees, promotions);
+             const orgSettings = orgsData[item.organizationId]
+             const res = calculateFinancialBreakdown(item.price, globalFees, promotions, orgSettings);
              return (
                <Card key={item.id} className="border-none shadow-sm rounded-2xl overflow-hidden group">
                   <div className="flex flex-col sm:flex-row">
@@ -385,7 +411,7 @@ export default function CarrinhoPage() {
                     <Separator className="bg-border/60" />
                     <div className="flex justify-between items-center"><span className="text-lg font-black uppercase italic">Total</span><span className="text-2xl font-black text-primary">{formatCurrency(cartTotals.total)}</span></div>
                  </div>
-                 <Button onClick={handleCheckout} disabled={processing || feesLoading} className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform gap-3">{processing ? <Loader2 className="w-6 h-6 animate-spin" /> : (cartTotals.total > 0 ? <><CreditCard className="w-6 h-6" /> Pagar via Stripe</> : "Confirmar Reserva")}</Button>
+                 <Button onClick={handleCheckout} disabled={processing || feesLoading || loadingOrgs} className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform gap-3">{processing ? <Loader2 className="w-6 h-6 animate-spin" /> : (cartTotals.total > 0 ? <><CreditCard className="w-6 h-6" /> Pagar via Stripe</> : "Confirmar Reserva")}</Button>
                  <Button variant="ghost" asChild className="w-full font-bold text-muted-foreground uppercase text-xs tracking-widest"><Link href="/dashboard">Continuar Comprando</Link></Button>
               </CardContent>
            </Card>

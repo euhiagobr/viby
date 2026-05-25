@@ -211,7 +211,7 @@ function EventHero({ event }: { event: any }) {
           </Badge>
           {event.isSponsored && (
             <Badge className="bg-primary text-white border-none text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
-              <Zap className="w-3 h-3 text-secondary fill-current" /> Destaque
+              <Megaphone className="w-3 h-3 text-secondary fill-current" /> Destaque
             </Badge>
           )}
         </div>
@@ -349,7 +349,8 @@ function TicketCard({
   onQuantityChange,
   showQuantity,
   promotions,
-  globalFees
+  globalFees,
+  orgSettings
 }: {
   type: any;
   isSelected: boolean;
@@ -359,8 +360,9 @@ function TicketCard({
   showQuantity?: boolean;
   promotions: any;
   globalFees: any;
+  orgSettings?: any;
 }) {
-  const breakdown = React.useMemo(() => calculateFinancialBreakdown(type.price, globalFees, promotions), [type.price, globalFees, promotions]);
+  const breakdown = React.useMemo(() => calculateFinancialBreakdown(type.price, globalFees, promotions, orgSettings), [type.price, globalFees, promotions, orgSettings]);
 
   return (
     <Card
@@ -447,6 +449,9 @@ export default function EventoPublicoPage() {
   const eventId = params.id as string;
   const eventRef = React.useMemo(() => (db ? doc(db, 'events', eventId) : null), [db, eventId]);
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef);
+
+  const organizationRef = React.useMemo(() => (db && event?.organizationId) ? doc(db, 'organizations', event.organizationId) : null, [db, event?.organizationId]);
+  const { data: organizationProfile } = useDoc<any>(organizationRef);
 
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db]);
   const { data: promotions } = useDoc<any>(promosRef);
@@ -648,18 +653,18 @@ export default function EventoPublicoPage() {
     if (selectedSector?.tipo !== 'livre') {
       const items = Object.values(selectedSeats);
       items.forEach(({ ticketType }) => {
-        const breakdown = calculateFinancialBreakdown(ticketType.price, globalFees, promotions);
+        const breakdown = calculateFinancialBreakdown(ticketType.price, globalFees, promotions, organizationProfile);
         subtotal += ticketType.price;
         fees += breakdown.administrativeFeeAmount;
       });
     } else if (selectedTicketType) {
-      const breakdown = calculateFinancialBreakdown(selectedTicketType.price, globalFees, promotions);
+      const breakdown = calculateFinancialBreakdown(selectedTicketType.price, globalFees, promotions, organizationProfile);
       subtotal = selectedTicketType.price * quantity;
       fees = breakdown.administrativeFeeAmount * quantity;
     }
 
     return { subtotal, fees, total: subtotal + fees };
-  }, [selectedSector, selectedSeats, selectedTicketType, quantity, globalFees, promotions]);
+  }, [selectedSector, selectedSeats, selectedTicketType, quantity, globalFees, promotions, organizationProfile]);
 
   if (eventLoading)
     return (
@@ -736,7 +741,7 @@ export default function EventoPublicoPage() {
                       </div>
                       <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Descrição</Label>
-                        <Textarea placeholder="Detalhes do ocorrido..." value={reportDescription} onChange={(e) => reportDescription(e.target.value)} required className="rounded-xl min-h-[120px]" />
+                        <Textarea placeholder="Detalhes do ocorrido..." value={reportDescription} onChange={(e) => setReportDescription(e.target.value)} required className="rounded-xl min-h-[120px]" />
                       </div>
                     </div>
                     <DialogFooter>
@@ -1029,6 +1034,7 @@ export default function EventoPublicoPage() {
                                   onQuantityChange={setQuantity}
                                   promotions={promotions}
                                   globalFees={globalFees}
+                                  orgSettings={organizationProfile}
                                 />
                               ))}
                             </div>
