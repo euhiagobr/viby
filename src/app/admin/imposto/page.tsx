@@ -324,12 +324,15 @@ export default function AdminImpostoPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
-            <Receipt className="w-8 h-8 text-secondary" />
+            <Scale className="w-8 h-8 text-secondary" />
             Gestão Fiscal e Notas
           </h1>
           <p className="text-muted-foreground font-medium">Controle de faturamento, impostos e lucro real operacional.</p>
         </div>
         <div className="flex gap-2">
+           <Button variant="ghost" asChild className="rounded-full h-11 px-6 font-black uppercase text-[10px] gap-2">
+              <Link href="/admin/extrato"><ArrowLeft className="w-4 h-4" /> Voltar ao ERP</Link>
+           </Button>
            <Button 
              variant="outline" 
              className="rounded-full h-11 px-6 font-black uppercase text-[10px] gap-2 border-secondary text-secondary hover:bg-secondary/5"

@@ -1,344 +1,261 @@
 
-"use client"
+'use client';
 
-import * as React from "react"
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, where } from "firebase/firestore"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import * as React from 'react';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { 
-  Receipt, 
-  Loader2, 
   TrendingUp, 
   ArrowUpRight, 
   ArrowDownRight, 
-  DollarSign,
+  DollarSign, 
+  Wallet, 
+  Coins, 
+  Receipt,
+  Loader2,
   Calendar,
-  Building2,
-  Ticket,
-  CreditCard,
   Percent,
-  Download,
-  Megaphone
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
+  CheckCircle2,
+  AlertTriangle,
+  Scale
+} from 'lucide-react';
+import { formatCurrency } from '@/lib/financial-utils';
 import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table"
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select"
-import { formatCurrency } from "@/lib/financial-utils"
-import { cn } from "@/lib/utils"
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  AreaChart, 
+  Area,
+  Cell,
+  PieChart,
+  Pie
+} from 'recharts';
+import { cn } from '@/lib/utils';
+import { ERPMetrics, calculateRealProfit } from '@/lib/financial-erp-utils';
 
-export default function AdminExtratoPage() {
-  const db = useFirestore()
-  const [dateFilter, setDateFilter] = React.useState<string>("all")
+export default function AdminERPDashboard() {
+  const db = useFirestore();
 
-  // Consulta de Ingressos (Registrations)
-  const regsQuery = useMemoFirebase(() => {
-    if (!db) return null
-    return query(
-      collection(db, "registrations"), 
-      where("paymentStatus", "in", ["Pago", "Disponível"])
-    )
-  }, [db])
+  // Queries para consolidação
+  const ticketsQuery = useMemoFirebase(() => db ? query(collection(db, "tax_tickets")) : null, [db]);
+  const adsQuery = useMemoFirebase(() => db ? query(collection(db, "tax_ads")) : null, [db]);
+  const expensesQuery = useMemoFirebase(() => db ? query(collection(db, "internal_expenses")) : null, [db]);
+  const payoutRequestsQuery = useMemoFirebase(() => db ? query(collection(db, "payout_requests")) : null, [db]);
 
-  const { data: registrations, loading: regsLoading } = useCollection<any>(regsQuery)
+  const { data: tickets, loading: loadingTickets } = useCollection<any>(ticketsQuery);
+  const { data: ads, loading: loadingAds } = useCollection<any>(adsQuery);
+  const { data: expenses, loading: loadingExpenses } = useCollection<any>(expensesQuery);
+  const { data: payouts, loading: loadingPayouts } = useCollection<any>(payoutRequestsQuery);
 
-  // Consulta de Usuários para Planos
-  const usersQuery = useMemoFirebase(() => {
-    if (!db) return null
-    return query(
-      collection(db, "users"), 
-      where("plan", "in", ["PRO", "TOP"])
-    )
-  }, [db])
+  const metrics = React.useMemo((): ERPMetrics => {
+    const m: ERPMetrics = {
+      grossRevenue: 0,
+      netRevenue: 0,
+      totalStripeFees: 0,
+      totalTaxes: 0,
+      totalPayouts: 0,
+      totalAdsRevenue: 0,
+      internalExpenses: 0,
+      realProfit: 0,
+      pendingPayouts: 0,
+      totalRefunds: 0
+    };
 
-  const { data: users, loading: usersLoading } = useCollection<any>(usersQuery)
-
-  // Consulta de Anúncios (Ads)
-  const adsQuery = useMemoFirebase(() => {
-    if (!db) return null
-    return query(
-      collection(db, "ads"),
-      where("status", "in", ["Ativo", "Pausado", "Finalizado"])
-    )
-  }, [db])
-
-  const { data: ads, loading: adsLoading } = useCollection<any>(adsQuery)
-
-  const financialData = React.useMemo(() => {
-    const now = new Date()
-    const filterDate = (date: any) => {
-      if (dateFilter === "all") return true
-      const d = date?.toDate ? date.toDate() : new Date(date)
-      const diffTime = Math.abs(now.getTime() - d.getTime())
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-      if (dateFilter === "today") return diffDays <= 1
-      if (dateFilter === "week") return diffDays <= 7
-      if (dateFilter === "month") return diffDays <= 30
-      return true
+    if (tickets) {
+      tickets.forEach(t => {
+        m.grossRevenue += (t.totalFacePrice || 0);
+        m.netRevenue += (t.vibyGrossProfit || 0);
+        m.totalStripeFees += (t.stripeFeeAmount || 0);
+        m.totalTaxes += (t.taxAmount || 0);
+        m.totalPayouts += (t.payoutToProducer || 0);
+        if (t.status === 'cancelado') m.totalRefunds += (t.totalFacePrice || 0);
+      });
     }
 
-    const getMs = (date: any) => {
-      if (date?.toMillis) return date.toMillis()
-      if (date?.seconds) return date.seconds * 1000
-      return new Date(date).getTime()
+    if (ads) {
+      ads.forEach(ad => {
+        m.totalAdsRevenue += (ad.grossValue || 0);
+        m.totalTaxes += (ad.taxValue || 0);
+        m.netRevenue += (ad.netValue || 0);
+      });
     }
 
-    // Processar Vendas de Ingressos
-    const ticketTransactions = (registrations || [])
-      .filter(reg => filterDate(reg.timestamp))
-      .map(reg => ({
-        id: reg.id,
-        type: 'ticket',
-        title: reg.eventTitle || 'Venda de Ingresso',
-        description: `Participante: ${reg.userName}`,
-        date: reg.timestamp,
-        gross: reg.price || 0, // Total pago pelo cliente
-        fee: reg.administrativeFeeAmount || 0, // Taxa que fica com a Viby
-        net: reg.producerNetAmount || 0, // Valor que o produtor recebe
-        status: 'Concluído'
-      }))
+    if (expenses) {
+      expenses.forEach(e => {
+        m.internalExpenses += (e.amount || 0);
+      });
+    }
 
-    // Processar Planos (Receita 100% Viby)
-    const planTransactions = (users || [])
-      .filter(u => u.lastPlanPaymentAt && filterDate(u.lastPlanPaymentAt))
-      .map(u => ({
-        id: u.id,
-        type: 'plan',
-        title: `Plano Viby ${u.plan}`,
-        description: `Assinante: @${u.username}`,
-        date: u.lastPlanPaymentAt,
-        gross: u.lastPlanAmount || 0,
-        fee: u.lastPlanAmount || 0, 
-        net: 0,
-        status: 'Pago'
-      }))
+    if (payouts) {
+      payouts.forEach(p => {
+        if (p.status === 'Pendente') m.pendingPayouts += (p.amount || 0);
+      });
+    }
 
-    // Processar Anúncios (Receita 100% Viby)
-    const adTransactions = (ads || [])
-      .filter(ad => ad.paymentConfirmedAt && filterDate(ad.paymentConfirmedAt))
-      .map(ad => ({
-        id: ad.id,
-        type: 'ad',
-        title: `Ads: ${ad.eventTitle}`,
-        description: `Impulsionamento (${ad.type})`,
-        date: ad.paymentConfirmedAt || ad.createdAt,
-        gross: ad.budget || 0,
-        fee: ad.budget || 0,
-        net: 0,
-        status: 'Pago'
-      }))
+    m.realProfit = calculateRealProfit(m);
+    return m;
+  }, [tickets, ads, expenses, payouts]);
 
-    const allTransactions = [...ticketTransactions, ...planTransactions, ...adTransactions].sort((a, b) => {
-      return getMs(b.date) - getMs(a.date)
-    })
+  const chartData = [
+    { name: 'Bruto', value: metrics.grossRevenue, color: 'hsl(var(--primary))' },
+    { name: 'Repasses', value: metrics.totalPayouts, color: 'hsl(var(--secondary))' },
+    { name: 'Custos/Taxas', value: metrics.totalStripeFees + metrics.totalTaxes + metrics.internalExpenses, color: '#ef4444' },
+    { name: 'Lucro Real', value: metrics.realProfit, color: '#10b981' },
+  ];
 
-    const stats = allTransactions.reduce((acc, t) => {
-      if (t.type === 'ticket') {
-        acc.gross += t.gross
-        acc.payouts += t.net
-        acc.fees += t.fee
-      } else if (t.type === 'plan') {
-        acc.plans += t.gross
-      } else if (t.type === 'ad') {
-        acc.ads += t.gross
-      }
-      return acc
-    }, { gross: 0, payouts: 0, fees: 0, plans: 0, ads: 0 })
-
-    // Lucro Real = Taxas de Ingressos + Valor Integral dos Planos + Valor Integral dos Ads
-    const totalPlatformRevenue = stats.fees + stats.plans + stats.ads
-
-    return { transactions: allTransactions, stats: { ...stats, totalPlatformRevenue } }
-  }, [registrations, users, ads, dateFilter])
-
-  const formatTimestamp = (ts: any) => {
-    if (!ts) return "---";
-    try {
-      const d = ts.toDate ? ts.toDate() : new Date(ts);
-      return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-    } catch (e) { return "---"; }
-  }
-
-  if (regsLoading || usersLoading || adsLoading) {
-    return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
+  if (loadingTickets || loadingAds) {
+    return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
-            <Receipt className="w-8 h-8 text-secondary" />
-            Extrato Financeiro Global
-          </h1>
-          <p className="text-muted-foreground font-medium">Gestão completa de entradas, repasses e lucro operacional.</p>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger className="w-[180px] rounded-xl border-secondary/20 h-10 font-bold">
-              <Calendar className="w-4 h-4 mr-2 text-secondary" />
-              <SelectValue placeholder="Filtrar Período" />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl">
-              <SelectItem value="all">Todo o período</SelectItem>
-              <SelectItem value="today">Hoje</SelectItem>
-              <SelectItem value="week">Últimos 7 dias</SelectItem>
-              <SelectItem value="month">Últimos 30 dias</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline" className="rounded-xl font-bold h-10 gap-2 border-secondary text-secondary">
-            <Download className="w-4 h-4" />
-            Exportar
-          </Button>
-        </div>
-      </div>
-
+    <div className="space-y-8 pb-20">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="border-none shadow-sm bg-white border-l-4 border-primary">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
-              Faturamento Bruto Total
-              <ArrowUpRight className="w-3 h-3 text-green-500" />
+        <KPI CardTitle="Faturamento Bruto" value={metrics.grossRevenue + metrics.totalAdsRevenue} icon={TrendingUp} trend="+12.4%" />
+        <KPI CardTitle="Lucro Líquido Real" value={metrics.realProfit} icon={CheckCircle2} color="green" />
+        <KPI CardTitle="Pendência de Repasse" value={metrics.pendingPayouts} icon={Clock} color="orange" />
+        <KPI CardTitle="Despesas Operacionais" value={metrics.internalExpenses} icon={ArrowDownRight} color="red" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <Card className="lg:col-span-8 border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
+          <CardHeader className="p-8 border-b">
+            <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+               <BarChart3 className="w-5 h-5 text-secondary" /> Fluxo de Caixa Consolidado
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black text-primary">{formatCurrency(financialData.stats.gross + financialData.stats.plans + financialData.stats.ads)}</div>
-            <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">Soma de ingressos, planos e ads</p>
+          <CardContent className="p-8 h-[400px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} className="text-[10px] font-black uppercase" />
+                <YAxis hide />
+                <Tooltip 
+                  cursor={{fill: 'transparent'}}
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div className="bg-primary text-white p-3 rounded-xl shadow-2xl border-none">
+                          <p className="text-[10px] font-black uppercase opacity-60 mb-1">{payload[0].payload.name}</p>
+                          <p className="text-sm font-black">{formatCurrency(Number(payload[0].value))}</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Bar dataKey="value" radius={[12, 12, 0, 0]}>
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-secondary text-white border-l-4 border-secondary">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black uppercase text-white/60 tracking-widest flex justify-between">
-              Lucro Líquido Viby
-              <Percent className="w-3 h-3" />
-            </CardTitle>
+        <Card className="lg:col-span-4 border-none shadow-sm rounded-[2.5rem] bg-primary text-white relative overflow-hidden">
+          <CardHeader className="p-8">
+             <CardTitle className="text-lg font-black uppercase italic tracking-tighter flex items-center gap-2">
+               <Scale className="w-5 h-5 text-secondary" /> Saúde Financeira
+             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black">{formatCurrency(financialData.stats.totalPlatformRevenue)}</div>
-            <p className="text-[9px] font-bold opacity-60 uppercase mt-1">Taxas Ingressos + 100% Planos & Ads</p>
-          </CardContent>
-        </Card>
+          <CardContent className="p-8 pt-0 space-y-8 relative z-10">
+             <div className="space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-50">Margem de Lucro</p>
+                <div className="flex items-baseline gap-2">
+                   <p className="text-5xl font-black italic tracking-tighter">
+                     {metrics.grossRevenue > 0 ? ((metrics.realProfit / (metrics.grossRevenue + metrics.totalAdsRevenue)) * 100).toFixed(1) : 0}%
+                   </p>
+                </div>
+             </div>
+             
+             <Separator className="bg-white/10" />
 
-        <Card className="border-none shadow-sm bg-white border-l-4 border-orange-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
-              Repasse aos Produtores
-              <ArrowDownRight className="w-3 h-3 text-orange-500" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black text-orange-600">{formatCurrency(financialData.stats.payouts)}</div>
-            <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">Líquido de ingressos apenas</p>
-          </CardContent>
-        </Card>
+             <div className="space-y-4">
+                <MetricLine label="Impostos Totais" value={metrics.totalTaxes} />
+                <MetricLine label="Taxas Gateway (Stripe)" value={metrics.totalStripeFees} />
+                <MetricLine label="Comissões Viby (Líquidas)" value={metrics.netRevenue - metrics.totalAdsRevenue} />
+             </div>
 
-        <Card className="border-none shadow-sm bg-black text-white border-l-4 border-black">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black uppercase text-white/60 tracking-widest flex justify-between">
-              Receita Anúncios
-              <Megaphone className="w-3 h-3 text-secondary" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black text-secondary">{formatCurrency(financialData.stats.ads)}</div>
-            <p className="text-[9px] font-bold opacity-60 uppercase mt-1">Investimento dos produtores</p>
+             <div className="p-4 bg-white/10 rounded-2xl border border-white/10">
+                <div className="flex items-center gap-3">
+                   <AlertTriangle className="w-5 h-5 text-secondary" />
+                   <p className="text-[10px] font-medium leading-relaxed uppercase">
+                     Considere as projeções de repasses futuros no saldo em custódia para evitar quebras de caixa.
+                   </p>
+                </div>
+             </div>
           </CardContent>
+          <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-secondary/10 rounded-full blur-3xl" />
         </Card>
       </div>
 
-      <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
-        <CardHeader className="bg-white border-b pb-6">
-          <div className="flex items-center justify-between">
-             <div>
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-secondary" />
-                  Livro de Transações
-                </CardTitle>
-                <CardDescription>Mostrando {financialData.transactions.length} movimentações no período selecionado.</CardDescription>
-             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader className="bg-muted/30">
-              <TableRow>
-                <TableHead className="font-bold">Data / Hora</TableHead>
-                <TableHead className="font-bold">Tipo</TableHead>
-                <TableHead className="font-bold">Descrição / Origem</TableHead>
-                <TableHead className="font-bold text-right">Pago (Cliente)</TableHead>
-                <TableHead className="font-bold text-right">Taxas (Viby)</TableHead>
-                <TableHead className="font-bold text-right">Repasse (Produtor)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {financialData.transactions.length > 0 ? (
-                financialData.transactions.map((t) => (
-                  <TableRow key={t.id} className="hover:bg-muted/20">
-                    <TableCell className="text-[11px] font-bold text-muted-foreground">
-                      {formatTimestamp(t.date)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={cn(
-                        "text-[9px] font-black uppercase",
-                        t.type === 'ticket' ? "bg-blue-50 text-blue-600 border-blue-200" : 
-                        t.type === 'plan' ? "bg-purple-50 text-purple-600 border-purple-200" :
-                        "bg-orange-50 text-orange-600 border-orange-200"
-                      )} variant="outline">
-                        {t.type === 'ticket' ? <Ticket className="w-2.5 h-2.5 mr-1" /> : 
-                         t.type === 'plan' ? <CreditCard className="w-2.5 h-2.5 mr-1" /> :
-                         <Megaphone className="w-2.5 h-2.5 mr-1" />}
-                        {t.type === 'ticket' ? 'Ingresso' : t.type === 'plan' ? 'Assinatura' : 'Anúncio'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-bold text-sm truncate max-w-[200px]">{t.title}</span>
-                        <span className="text-[10px] text-muted-foreground">{t.description}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-black text-sm">
-                      {formatCurrency(t.gross)}
-                    </TableCell>
-                    <TableCell className="text-right font-bold text-xs text-secondary">
-                      {t.fee > 0 ? `+${formatCurrency(t.fee)}` : '---'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                       <span className={cn(
-                         "font-black text-sm",
-                         (t.type === 'plan' || t.type === 'ad') ? "text-muted-foreground/30 italic" : "text-primary"
-                       )}>
-                         {t.net > 0 ? formatCurrency(t.net) : '---'}
-                       </span>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground italic">
-                    Nenhuma transação encontrada para este filtro.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+         <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-4">
+            <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+               <Coins className="w-4 h-4 text-secondary" /> Receita de Anúncios
+            </h3>
+            <div className="space-y-1">
+               <p className="text-3xl font-black text-primary">{formatCurrency(metrics.totalAdsRevenue)}</p>
+               <p className="text-[10px] font-bold text-green-600 uppercase">100% de margem operacional</p>
+            </div>
+         </Card>
+         <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-4">
+            <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+               <Receipt className="w-4 h-4 text-secondary" /> Taxas Administrativas
+            </h3>
+            <div className="space-y-1">
+               <p className="text-3xl font-black text-primary">{formatCurrency(metrics.netRevenue - metrics.totalAdsRevenue)}</p>
+               <p className="text-[10px] font-bold text-muted-foreground uppercase">Proveniente de ingressos</p>
+            </div>
+         </Card>
+         <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-4">
+            <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+               <ArrowDownRight className="w-4 h-4 text-red-500" /> Estornos Totais
+            </h3>
+            <div className="space-y-1">
+               <p className="text-3xl font-black text-red-500">{formatCurrency(metrics.totalRefunds)}</p>
+               <p className="text-[10px] font-bold text-muted-foreground uppercase">Vendas canceladas / Chargebacks</p>
+            </div>
+         </Card>
+      </div>
     </div>
-  )
+  );
+}
+
+function KPI({ CardTitle, value, icon: Icon, trend, color = "blue" }: any) {
+  const colors: any = {
+    blue: "text-blue-500 bg-blue-50",
+    green: "text-green-600 bg-green-50",
+    orange: "text-orange-500 bg-orange-50",
+    red: "text-red-500 bg-red-50"
+  };
+  return (
+    <Card className="border-none shadow-sm rounded-3xl bg-white group">
+       <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-4">
+             <div className={cn("p-2.5 rounded-2xl transition-transform group-hover:scale-110", colors[color])}>
+                <Icon className="w-5 h-5" />
+             </div>
+             {trend && <Badge variant="secondary" className="text-[9px] font-black">{trend}</Badge>}
+          </div>
+          <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">{CardTitle}</p>
+          <p className="text-2xl font-black text-primary">{formatCurrency(value)}</p>
+       </CardContent>
+    </Card>
+  );
+}
+
+function MetricLine({ label, value }: { label: string, value: number }) {
+  return (
+    <div className="flex justify-between items-center py-2 border-b border-white/5 last:border-none">
+       <span className="text-[10px] font-bold uppercase opacity-60">{label}</span>
+       <span className="text-xs font-black">{formatCurrency(value)}</span>
+    </div>
+  );
 }

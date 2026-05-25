@@ -1,0 +1,54 @@
+
+{
+  "database": "eventosviby",
+  "collections": {
+    "internal_expenses": {
+      "description": "Controle de despesas operacionais da plataforma Viby",
+      "fields": {
+        "title": "string",
+        "description": "string",
+        "amount": "number",
+        "category": "marketing | anuncios | servidores | funcionarios | juridico | financeiro | ferramentas | impostos | reembolsos | operacional | outros",
+        "date": "timestamp",
+        "isRecurrent": "boolean",
+        "proofUrl": "url string",
+        "creatorId": "string (UID)",
+        "creatorName": "string",
+        "status": "pago | pendente",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      }
+    },
+    "financial_logs": {
+      "description": "Trilha de auditoria para ações financeiras críticas",
+      "fields": {
+        "action": "string",
+        "category": "payout | expense | entry | settings",
+        "userId": "string (UID)",
+        "userName": "string",
+        "targetId": "string (doc ID)",
+        "description": "string",
+        "oldValue": "any",
+        "newValue": "any",
+        "timestamp": "timestamp"
+      }
+    },
+    "payout_requests": {
+      "description": "Solicitações de saque das organizações (Expandido)",
+      "fields": {
+        "organizationId": "string",
+        "organizationName": "string",
+        "amount": "number",
+        "status": "Pendente | Em Processamento | Concluído | Recusado | Bloqueado",
+        "requestedAt": "timestamp",
+        "processedAt": "timestamp",
+        "scheduledAt": "timestamp",
+        "proofUrl": "url string",
+        "internalNotes": "string",
+        "userId": "string (UID do solicitante)",
+        "bankDetails": "object",
+        "auditLog": "array of objects { action, timestamp, userId }"
+      }
+    }
+  }
+}
