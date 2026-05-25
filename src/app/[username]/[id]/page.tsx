@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -1012,7 +1011,7 @@ export default function EventoPublicoPage() {
                                            </div>
 
                                            <div className="w-full sm:w-64">
-                                              <Select value={ticketType.id} onValueChange={(val) => updateSeatTicketType(seat.id, val)}>
+                                              <Select value={ticketType?.id || ""} onValueChange={(val) => updateSeatTicketType(seat.id, val)}>
                                                  <SelectTrigger className="rounded-xl h-11 border-secondary/20">
                                                     <SelectValue placeholder="Tipo de ingresso" />
                                                  </SelectTrigger>
@@ -1093,8 +1092,8 @@ export default function EventoPublicoPage() {
                              Object.values(selectedSeats).map(({ seat, ticketType }) => (
                                <div key={seat.id} className="p-4 bg-muted/30 rounded-2xl border border-dashed space-y-1">
                                   <div className="flex justify-between font-black text-[10px] uppercase italic">
-                                     <span>{ticketType.name} - Lug. {seat.codigo}</span>
-                                     <span>{formatCurrency(ticketType.price)}</span>
+                                     <span>{ticketType?.name || "Ingresso"} - Lug. {seat.codigo}</span>
+                                     <span>{formatCurrency(ticketType?.price || 0)}</span>
                                   </div>
                                </div>
                              ))

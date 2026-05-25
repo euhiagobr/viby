@@ -1,11 +1,23 @@
-
 "use client"
 
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
-import { updateDoc, doc, collection, serverTimestamp, deleteField, query, where, getDocs, setDoc, deleteDoc } from "firebase/firestore"
+import { 
+  updateDoc, 
+  doc, 
+  collection, 
+  serverTimestamp, 
+  deleteField, 
+  query, 
+  where, 
+  getDocs, 
+  setDoc, 
+  deleteDoc,
+  orderBy,
+  getDoc
+} from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -30,16 +42,13 @@ import {
   Sparkles,
   Trash2,
   ArrowDown,
-  Users2,
   InfoIcon,
   Layout,
   Armchair,
   Grid3X3,
   Map as MapIcon,
   Percent,
-  Info,
   Clock,
-  Layers,
   Settings2,
   Handshake,
   Search,
@@ -252,9 +261,9 @@ export default function EditarEventoPage() {
     const halfQty = Math.floor(singleCapacity * (percent / 100));
 
     const defaultMeias: TicketType[] = [
-      { id: crypto.randomUUID(), name: "Meia Estudante", price: singleTicketTypes[0].price / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
-      { id: crypto.randomUUID(), name: "Meia PCD", price: singleTicketTypes[0].price / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
-      { id: crypto.randomUUID(), name: "Meia Idoso", price: singleTicketTypes[0].price / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" }
+      { id: crypto.randomUUID(), name: "Meia Estudante", price: (singleTicketTypes[0]?.price || 0) / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
+      { id: crypto.randomUUID(), name: "Meia PCD", price: (singleTicketTypes[0]?.price || 0) / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
+      { id: crypto.randomUUID(), name: "Meia Idoso", price: (singleTicketTypes[0]?.price || 0) / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" }
     ];
 
     setSingleTicketTypes([
@@ -313,12 +322,31 @@ export default function EditarEventoPage() {
     if (!file || !storage || !user) return
     setImagePreview(URL.createObjectURL(file))
     setUploadProgress(0)
-    const storageRef = ref(storage, `events/${user.uid}/${Date.now()}_${file.name}`)
+    const storageRef = ref(storage, `events/${user.uid}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`)
     const uploadTask = uploadBytesResumable(storageRef, file)
     uploadTask.on('state_changed', (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), () => setUploadProgress(null), async () => {
       const url = await getDownloadURL(uploadTask.snapshot.ref)
       setUploadedImageUrl(url); setUploadProgress(null)
     })
+  }
+
+  const handleCepBlur = async () => {
+    if (!address.cep) return;
+    const cleanCep = address.cep.replace(/\D/g, "")
+    if (cleanCep.length !== 8) return
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
+      const data = await response.json()
+      if (!data.erro) {
+        setAddress(prev => ({
+          ...prev,
+          street: data.logradouro || prev.street,
+          neighborhood: data.bairro || prev.neighborhood,
+          city: data.localidade || prev.city,
+          state: data.uf || prev.state
+        }))
+      }
+    } catch (e) {}
   }
 
   const addSector = () => {
@@ -777,7 +805,7 @@ export default function EditarEventoPage() {
                           value={singleCapacity} 
                           onChange={e => setSingleCapacity(parseInt(e.target.value) || 0)} 
                           className="h-14 text-3xl font-black rounded-xl text-center border-secondary/20 max-w-[200px] bg-white" 
-                        />
+                     />
                      </div>
                      
                      <div className="grid grid-cols-2 gap-6">
@@ -863,7 +891,7 @@ export default function EditarEventoPage() {
                              variant="ghost" 
                              size="sm" 
                              className="text-secondary font-black uppercase text-[10px] gap-2 ml-2"
-                             onClick={() => setSingleTicketTypes([...singleTicketTypes, { id: crypto.randomUUID(), name: "Nova Meia", price: singleTicketTypes[0].price / 2, quantity: Math.floor(singleCapacity * (halfPricePercent / 100)), poolId: singleTicketTypes[1]?.poolId || crypto.randomUUID(), poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" }])}
+                             onClick={() => setSingleTicketTypes([...singleTicketTypes, { id: crypto.randomUUID(), name: "Nova Meia", price: (singleTicketTypes[0]?.price || 0) / 2, quantity: Math.floor(singleCapacity * (halfPricePercent / 100)), poolId: singleTicketTypes[1]?.poolId || crypto.randomUUID(), poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" }])}
                           >
                              <Plus className="w-4 h-4" /> Adicionar Categoria
                           </Button>
