@@ -201,8 +201,13 @@ export default function LandingPageClient() {
         </div>
         <div className="container mx-auto px-4 relative z-10 py-20">
           <div className="max-w-4xl mx-auto space-y-8 flex flex-col items-center">
-            <Badge className="bg-secondary text-white border-none px-4 py-1.5 rounded-full font-black uppercase text-[10px] tracking-widest w-fit">
-              <Settings className="w-3 h-3 mr-2" /> Descubra sua próxima experiência
+            <Badge className="bg-secondary text-white border-none px-4 py-1.5 rounded-full font-black uppercase text-[10px] tracking-widest w-fit flex items-center gap-2">
+              {settings?.iconUrl ? (
+                <img src={settings.iconUrl} alt="" className="w-3 h-3 object-contain" />
+              ) : (
+                <Settings className="w-3 h-3" />
+              )} 
+              Descubra sua próxima experiência
             </Badge>
             <h1 className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter leading-[0.85]">
               VIVA O <span className="text-secondary">AGORA.</span>
