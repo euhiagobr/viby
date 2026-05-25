@@ -26,7 +26,8 @@ import {
   BadgeCheck,
   Maximize2,
   Armchair,
-  Grid3X3
+  Grid3X3,
+  CheckCircle2
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -60,6 +61,26 @@ export default function EventoPublicoPage() {
   const [seats, setSeats] = React.useState<any[]>([])
   const [loadingSeats, setLoadingSeats] = React.useState(false)
 
+  // Função para renderizar texto formatado
+  const renderFormattedText = (text: string) => {
+    if (!text) return "";
+    const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@[\w.]+)/g);
+
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith('+') && part.endsWith('+')) {
+        return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
+      }
+      if (part.startsWith('@')) {
+        const usernameMention = part.slice(1).toLowerCase();
+        return <Link key={i} href={`/${usernameMention}`} className="text-secondary font-black hover:underline" onClick={(e) => e.stopPropagation()}>{part}</Link>;
+      }
+      return part;
+    });
+  }
+
   // Busca assentos quando um setor é selecionado
   React.useEffect(() => {
     if (!db || !eventId || !selectedSector || selectedSector.tipo === 'livre') {
@@ -87,7 +108,6 @@ export default function EventoPublicoPage() {
   const getSaleStatus = (target: any) => {
     if (!target) return { active: false, message: "Indisponível", batch: null };
     
-    // Se o target for o evento e estiver no modo setor, a venda depende do setor
     if (target.ticketMode === 'sector_batches' && !target.batches) {
        return { active: true, message: "Selecione um setor", isSectorMode: true };
     }
@@ -156,7 +176,7 @@ export default function EventoPublicoPage() {
       sectorName: sector?.name,
       poolId: type.poolId,
       poolName: type.poolName,
-      // @ts-ignore - Estendendo a interface do carrinho para suportar assentos
+      // @ts-ignore
       seatId: selectedSeat?.id,
       seatCode: selectedSeat?.codigo
     });
@@ -223,7 +243,7 @@ export default function EventoPublicoPage() {
                 </div>
                 <Separator className="border-dashed" />
                 <div className="prose prose-sm max-w-none text-muted-foreground font-medium leading-relaxed">
-                  {event.description}
+                  {renderFormattedText(event.description)}
                 </div>
               </div>
 
@@ -400,11 +420,9 @@ export default function EventoPublicoPage() {
                          )}
 
                          {(() => {
-                           // Obtém o lote ativo baseado na bilheteria vinculada
                            let targetForSale = selectedSector;
                            if (selectedSector.ticketLinkId === 'global') targetForSale = event;
                            if (selectedSector.ticketLinkId === 'global_batches') targetForSale = event;
-                           // Se for vínculo específico de setor, o target é o objeto do lote dentro do setor (tratado em getSaleStatus)
                            
                            const status = getSaleStatus(targetForSale);
                            if (!status.active) return <div className="py-20 text-center text-muted-foreground font-bold italic uppercase">{status.message}</div>;
