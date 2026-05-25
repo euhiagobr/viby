@@ -2,133 +2,85 @@
 "use client"
 
 import * as React from "react"
-import { ShoppingCart, Ticket, Calendar, MapPin, Layers, Armchair, ArrowRight, ShieldCheck, Clock, Info } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Ticket, ArrowRight, Layers, Armchair, Wallet, CheckCircle2 } from "lucide-react"
+import { formatCurrency } from "@/lib/financial-utils"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { formatCurrency, calculateFinancialBreakdown } from "@/lib/financial-utils"
-import { useDoc, useFirestore } from "@/firebase"
-import { doc } from "firebase/firestore"
-import { cn } from "@/lib/utils"
 
 export function CheckoutSidebar({ event, selectedTicketType, quantity, selectedSector, selectedSeat, onConfirm }: any) {
-  const db = useFirestore()
-  const feesRef = React.useMemo(() => db ? doc(db, 'settings', 'fees') : null, [db])
-  const { data: globalFees } = useDoc<any>(feesRef)
-
-  const breakdown = React.useMemo(() => {
-    if (!selectedTicketType) return null;
-    return calculateFinancialBreakdown(selectedTicketType.price, globalFees);
-  }, [selectedTicketType, globalFees]);
-
-  const formatDate = (dateValue: any) => {
-    if (!dateValue) return "A definir";
-    const d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
-    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-  };
-
-  const formatTime = (dateValue: any) => {
-    if (!dateValue) return "";
-    const d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
-    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  };
+  const hasSelection = !!selectedTicketType;
 
   return (
     <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white border-t-8 border-secondary overflow-hidden">
-      <CardHeader className="bg-primary/5 p-8 border-b pb-6">
-        <CardTitle className="text-xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-2">
-           <ShoppingCart className="w-5 h-5 text-secondary" /> Bilheteria
+      <CardHeader className="p-8 pb-4">
+        <CardTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-2">
+           <Wallet className="w-6 h-6 text-secondary" /> Bilheteria
         </CardTitle>
-        <CardDescription className="font-bold text-[10px] uppercase tracking-widest">Resumo da Seleção</CardDescription>
       </CardHeader>
-
+      
       <CardContent className="p-8 space-y-8">
-        {!selectedTicketType ? (
-          <div className="py-12 text-center space-y-4">
-             <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto opacity-20">
-                <Ticket className="w-8 h-8" />
-             </div>
-             <p className="text-[10px] font-black uppercase text-muted-foreground/60 leading-tight">Escolha um ingresso na lista ao lado para continuar.</p>
-          </div>
-        ) : (
-          <div className="space-y-6 animate-in fade-in duration-300">
-             {/* DETALHES DO ITEM SELECIONADO */}
-             <div className="space-y-4">
-                <div className="flex justify-between items-start">
-                   <div className="space-y-1">
-                      <p className="text-[10px] font-black uppercase text-muted-foreground/60">Evento</p>
-                      <h4 className="font-bold text-sm uppercase leading-tight line-clamp-2">{event.title}</h4>
-                   </div>
-                   <Badge variant="outline" className="text-[9px] font-black uppercase h-5">{selectedTicketType.name}</Badge>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 py-4 bg-muted/20 rounded-2xl border border-dashed px-4">
-                   <div className="space-y-0.5">
-                      <p className="text-[8px] font-black uppercase text-muted-foreground/60 flex items-center gap-1"><Calendar className="w-2.5 h-2.5" /> Data</p>
-                      <p className="text-[10px] font-bold uppercase">{formatDate(event.date)} às {formatTime(event.date)}</p>
-                   </div>
-                   <div className="space-y-0.5 text-right">
-                      <p className="text-[8px] font-black uppercase text-muted-foreground/60 flex items-center gap-1 justify-end"><MapPin className="w-2.5 h-2.5" /> Local</p>
-                      <p className="text-[10px] font-bold uppercase truncate">{event.city}</p>
-                   </div>
-                </div>
-
-                {(selectedSector || selectedSeat) && (
-                   <div className="flex items-center gap-4 p-4 bg-secondary/5 rounded-2xl border border-secondary/10">
+         {hasSelection ? (
+           <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
+              <div className="p-6 bg-muted/30 rounded-[1.5rem] border border-border/40 space-y-4">
+                 <div className="flex justify-between items-start gap-4">
+                    <div className="space-y-1">
+                       <h4 className="font-black text-lg uppercase italic tracking-tighter text-primary leading-tight">{selectedTicketType.name}</h4>
+                       <Badge variant="secondary" className="text-[8px] font-black uppercase">{selectedTicketType._batch?.name}</Badge>
+                    </div>
+                    <span className="font-black text-primary">{formatCurrency(selectedTicketType.price)}</span>
+                 </div>
+                 
+                 {(selectedSector || selectedSeat) && (
+                   <div className="pt-4 border-t border-dashed border-border/60 space-y-2">
                       {selectedSector && (
-                        <div className="flex-1 space-y-0.5">
-                           <p className="text-[8px] font-black uppercase text-secondary/60 flex items-center gap-1"><Layers className="w-2.5 h-2.5" /> Setor</p>
-                           <p className="text-[10px] font-black uppercase text-primary">{selectedSector.nome || selectedSector.name}</p>
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase">
+                           <Layers className="w-3.5 h-3.5 text-secondary" /> {selectedSector.name}
                         </div>
                       )}
                       {selectedSeat && (
-                        <div className="flex-1 space-y-0.5 text-right">
-                           <p className="text-[8px] font-black uppercase text-secondary/60 flex items-center gap-1 justify-end"><Armchair className="w-2.5 h-2.5" /> Lugar</p>
-                           <p className="text-sm font-black text-secondary uppercase italic">{selectedSeat.codigo}</p>
+                        <div className="flex items-center gap-2 text-[10px] font-black text-secondary uppercase">
+                           <Armchair className="w-3.5 h-3.5" /> Lugar: {selectedSeat.codigo}
                         </div>
                       )}
                    </div>
-                )}
-             </div>
+                 )}
+              </div>
 
-             <Separator className="border-dashed" />
-
-             {/* TOTALIZAÇÃO */}
-             <div className="space-y-3">
-                <div className="flex justify-between items-center text-xs font-bold uppercase opacity-60">
-                   <span>Ingresso (x{quantity})</span>
-                   <span>{formatCurrency(selectedTicketType.price * quantity)}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs font-bold uppercase opacity-60">
-                   <span>Taxa de Serviço</span>
-                   <span>{formatCurrency(breakdown!.administrativeFeeAmount * quantity)}</span>
-                </div>
-                <div className="flex justify-between items-center pt-2">
-                   <span className="text-sm font-black uppercase italic tracking-widest text-primary">Total Final</span>
-                   <span className="text-2xl font-black text-primary">{formatCurrency(breakdown!.customerFinalPrice * quantity)}</span>
-                </div>
-             </div>
-
-             <div className="p-4 bg-muted/30 rounded-2xl flex gap-3">
-                <ShieldCheck className="w-5 h-5 text-green-600 shrink-0" />
-                <p className="text-[10px] font-medium text-muted-foreground leading-tight uppercase">Pagamento processado em ambiente seguro via Stripe.</p>
-             </div>
-          </div>
-        )}
+              <div className="space-y-4">
+                 <div className="flex justify-between text-[11px] font-bold uppercase opacity-50">
+                    <span>Subtotal</span>
+                    <span>{formatCurrency(selectedTicketType.price * quantity)}</span>
+                 </div>
+                 <div className="flex justify-between text-[11px] font-bold uppercase opacity-50">
+                    <span>Taxas Administrativas</span>
+                    <span className="text-secondary">+ {formatCurrency((selectedTicketType.price * 0.15) * quantity)}</span>
+                 </div>
+                 <div className="flex justify-between items-center pt-2 border-t border-dashed">
+                    <span className="text-lg font-black uppercase italic text-primary">Total</span>
+                    <span className="text-3xl font-black text-secondary">{formatCurrency((selectedTicketType.price * 1.15) * quantity)}</span>
+                 </div>
+              </div>
+           </div>
+         ) : (
+           <div className="py-12 text-center space-y-4">
+              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
+                 <Ticket className="w-8 h-8 text-muted-foreground opacity-20" />
+              </div>
+              <p className="text-xs font-bold text-muted-foreground uppercase leading-relaxed max-w-[180px] mx-auto">Selecione um setor e ingresso para continuar.</p>
+           </div>
+         )}
       </CardContent>
 
       <CardFooter className="p-8 pt-0">
-        <Button 
-          disabled={!selectedTicketType} 
-          onClick={onConfirm}
-          className={cn(
-            "w-full h-16 rounded-2xl font-black uppercase italic text-lg shadow-2xl transition-all gap-3",
-            selectedTicketType ? "bg-secondary text-white hover:scale-[1.02]" : "bg-muted text-muted-foreground/30"
-          )}
-        >
-          {selectedTicketType ? <><ArrowRight className="w-6 h-6" /> Adicionar ao Carrinho</> : "Selecione um Ingresso"}
-        </Button>
+         <Button 
+           onClick={onConfirm} 
+           disabled={!hasSelection}
+           className="w-full h-16 bg-secondary text-white font-black text-lg rounded-2xl shadow-xl uppercase italic group transition-all hover:scale-[1.02]"
+         >
+           Comprar agora
+           <ArrowRight className="ml-2 w-6 h-6 group-hover:translate-x-1 transition-transform" />
+         </Button>
       </CardFooter>
     </Card>
   )

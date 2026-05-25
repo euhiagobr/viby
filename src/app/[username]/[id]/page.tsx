@@ -4,11 +4,13 @@
 import * as React from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, collection, query, where, orderBy, getDocs, serverTimestamp, addDoc } from "firebase/firestore"
+import { doc, collection, query, where, orderBy } from "firebase/firestore"
 import { Loader2, ArrowLeft, Share2, Flag } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
 import { useCart } from "@/contexts/CartContext"
+import Link from "next/link"
+import { cn } from "@/lib/utils"
 
 // Componentes da Refatoração
 import { EventHero } from "@/components/events/public/EventHero"
@@ -23,11 +25,10 @@ import { ReportDialog } from "@/components/events/public/ReportDialog"
 export default function EventoPublicoPage() {
   const params = useParams()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
-  const { addItem, items: cartItems } = useCart()
+  const { addItem } = useCart()
   
   const eventId = params.id as string
   const eventRef = React.useMemo(() => db ? doc(db, "events", eventId) : null, [db, eventId])
@@ -52,8 +53,6 @@ export default function EventoPublicoPage() {
   const [selectedSeat, setSelectedSeat] = React.useState<any>(null)
   const [selectedTicketType, setSelectedTicketType] = React.useState<any>(null)
   const [quantity, setQuantity] = React.useState(1)
-
-  // Abrir comentários ou denúncia via URL
   const [isReportOpen, setIsReportOpen] = React.useState(false)
 
   if (eventLoading) {
@@ -106,15 +105,11 @@ export default function EventoPublicoPage() {
     });
 
     toast({ title: "Adicionado ao carrinho!" });
-    // Reset temporário para permitir nova seleção se houver mapa
-    if (selectedSeat) {
-      setSelectedSeat(null);
-    }
+    if (selectedSeat) setSelectedSeat(null);
   }
 
   return (
     <div className="min-h-screen bg-background flex flex-col font-body antialiased selection:bg-secondary/20 selection:text-secondary">
-      {/* HEADER FIXO DE NAVEGAÇÃO */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/40">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <Button variant="ghost" size="sm" onClick={() => router.back()} className="rounded-full hover:bg-muted font-bold text-[10px] uppercase tracking-widest gap-2">
@@ -131,17 +126,12 @@ export default function EventoPublicoPage() {
         </div>
       </nav>
 
-      {/* CONTEÚDO PRINCIPAL */}
       <main className="flex-1 w-full pt-16">
         <EventHero event={event} />
 
         <div className="max-w-7xl mx-auto px-4 py-12 lg:py-20">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 xl:gap-20">
-            
-            {/* COLUNA DA ESQUERDA: INFORMAÇÕES */}
             <div className="lg:col-span-8 space-y-16">
-              
-              {/* ORGANIZADOR E PARCEIROS */}
               <div className="space-y-10">
                 <OrganizerInfo organizer={event.organizer} />
                 {partners && partners.length > 0 && (
@@ -163,16 +153,10 @@ export default function EventoPublicoPage() {
               </div>
 
               <Separator className="opacity-50" />
-
-              {/* DESCRIÇÃO DO EVENTO */}
               <EventDescription description={event.description} />
-
               <Separator className="opacity-50" />
-
-              {/* LOCALIZAÇÃO E MAPA */}
               <EventLocation address={event.address} location={event.location} city={event.city} eventId={event.id} />
 
-              {/* ÁREA DE INGRESSOS (ÂNCORA) */}
               <section id="tickets" className="pt-8">
                  <TicketSection 
                    event={event} 
@@ -187,10 +171,8 @@ export default function EventoPublicoPage() {
                    setQuantity={setQuantity}
                  />
               </section>
-
             </div>
 
-            {/* COLUNA DA DIREITA: BILHETERIA STICKY (DESKTOP) */}
             <aside className="hidden lg:block lg:col-span-4">
                <div className="sticky top-24 space-y-6">
                   <CheckoutSidebar 
@@ -203,12 +185,10 @@ export default function EventoPublicoPage() {
                   />
                </div>
             </aside>
-
           </div>
         </div>
       </main>
 
-      {/* BILHETERIA MOBILE FLUTUANTE */}
       <MobileCheckout 
         event={event}
         selectedTicketType={selectedTicketType}
@@ -216,7 +196,6 @@ export default function EventoPublicoPage() {
         onConfirm={handleAddToCart}
       />
 
-      {/* DIALOG DE DENÚNCIA */}
       <ReportDialog 
         isOpen={isReportOpen} 
         onOpenChange={setIsReportOpen} 
@@ -224,7 +203,6 @@ export default function EventoPublicoPage() {
         eventTitle={event.title}
         userId={user?.uid}
       />
-
     </div>
   )
 }

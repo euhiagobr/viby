@@ -6,92 +6,56 @@ import Image from "next/image"
 import { Calendar, MapPin, BadgeCheck, Star } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
-interface EventHeroProps {
-  event: any
-}
-
-export function EventHero({ event }: EventHeroProps) {
-  const formatDate = (dateValue: any) => {
-    if (!dateValue) return "A definir";
-    const d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
-    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-  };
-
-  const isVerified = event.organizer?.isVerified || false;
+export function EventHero({ event }: { event: any }) {
+  const dateValue = event.date;
+  const d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
+  const formattedDate = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const formattedTime = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
   return (
-    <section className="relative w-full h-[60vh] min-h-[400px] max-h-[700px] overflow-hidden">
-      {/* Imagem de Fundo com Blur */}
-      <div className="absolute inset-0 z-0">
-        <Image 
-          src={event.image || "https://picsum.photos/seed/event/1200/800"} 
-          alt={event.title} 
-          fill 
-          className="object-cover scale-110 blur-2xl opacity-20"
-          unoptimized
-        />
-      </div>
-
-      {/* Capa do Evento */}
-      <div className="container mx-auto px-4 h-full relative z-10 flex flex-col justify-end pb-12 lg:pb-20">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
-          <div className="lg:col-span-8 space-y-6">
-             <div className="flex flex-wrap gap-2">
-                <Badge className="bg-secondary text-white font-black uppercase text-[10px] tracking-wider h-6 px-4 border-none">
-                  {event.categoryName || "Geral"}
-                </Badge>
-                {event.isFeatured && (
-                  <Badge className="bg-primary text-white font-black uppercase text-[10px] tracking-wider h-6 px-4 border-none flex items-center gap-1.5">
-                    <Star className="w-3 h-3 fill-current" /> Destaque
-                  </Badge>
-                )}
-             </div>
-
-             <h1 className="text-4xl md:text-6xl lg:text-7xl font-black uppercase italic tracking-tighter leading-[0.9] text-primary">
-               {event.title}
-             </h1>
-
-             <div className="flex flex-wrap gap-x-8 gap-y-3 pt-2">
-                <div className="flex items-center gap-2.5">
-                   <div className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center border border-border/40">
-                      <Calendar className="w-5 h-5 text-secondary" />
-                   </div>
-                   <div className="flex flex-col">
-                      <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Quando</span>
-                      <span className="text-sm font-bold">{formatDate(event.date)}</span>
-                   </div>
-                </div>
-
-                <div className="flex items-center gap-2.5">
-                   <div className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center border border-border/40">
-                      <MapPin className="w-5 h-5 text-secondary" />
-                   </div>
-                   <div className="flex flex-col">
-                      <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Onde</span>
-                      <span className="text-sm font-bold">{event.city || event.address?.city}</span>
-                   </div>
-                </div>
-             </div>
+    <div className="relative w-full h-[40vh] md:h-[60vh] bg-black overflow-hidden">
+      <Image 
+        src={event.image || "https://picsum.photos/seed/event/1200/800"} 
+        alt={event.title} 
+        fill 
+        className="object-cover opacity-60"
+        priority
+        unoptimized
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+      
+      <div className="absolute bottom-0 left-0 right-0 p-6 md:p-12 lg:p-20 max-w-7xl mx-auto w-full">
+        <div className="flex flex-col gap-4 md:gap-6">
+          <div className="flex flex-wrap gap-2">
+            <Badge className="bg-secondary text-white font-black uppercase text-[10px] tracking-widest px-4 py-1.5 rounded-full border-none shadow-xl">
+              {event.categoryName || "Evento"}
+            </Badge>
+            {event.featured && (
+              <Badge className="bg-yellow-400 text-black font-black uppercase text-[10px] tracking-widest px-4 py-1.5 rounded-full border-none shadow-xl flex items-center gap-1">
+                <Star className="w-3 h-3 fill-current" /> Destaque
+              </Badge>
+            )}
           </div>
 
-          <div className="hidden lg:block lg:col-span-4">
-             <div className="relative aspect-[4/5] w-full rounded-[2.5rem] overflow-hidden shadow-2xl border-[12px] border-white/80 backdrop-blur-xl group cursor-zoom-in">
-                <Image 
-                  src={event.image || "https://picsum.photos/seed/event/800/1000"} 
-                  alt={event.title} 
-                  fill 
-                  className="object-cover transition-transform duration-700 group-hover:scale-110"
-                  unoptimized
-                />
-                {isVerified && (
-                  <div className="absolute top-6 right-6 bg-white/90 backdrop-blur-md p-2 rounded-2xl shadow-xl">
-                    <BadgeCheck className="w-6 h-6 fill-blue-500 text-white" />
-                  </div>
-                )}
-             </div>
+          <h1 className="text-4xl md:text-6xl lg:text-7xl font-black text-white tracking-tighter uppercase italic leading-[0.9]">
+            {event.title}
+          </h1>
+
+          <div className="flex flex-wrap items-center gap-6 md:gap-10 text-white/90 text-xs md:text-sm font-bold uppercase tracking-widest">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-white/10 backdrop-blur-md rounded-lg"><Calendar className="w-4 h-4 text-secondary" /></div>
+              <div className="flex flex-col">
+                <span>{formattedDate}</span>
+                <span className="opacity-50 text-[10px]">{formattedTime}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-white/10 backdrop-blur-md rounded-lg"><MapPin className="w-4 h-4 text-secondary" /></div>
+              <span>{event.city}</span>
+            </div>
           </div>
         </div>
       </div>
-    </section>
+    </div>
   )
 }
