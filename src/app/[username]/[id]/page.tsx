@@ -2,61 +2,28 @@
 "use client"
 
 import * as React from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
 import { doc, collection, query, where, orderBy, getDocs, serverTimestamp, addDoc } from "firebase/firestore"
-import { Badge } from "@/components/ui/badge"
+import { Loader2, ArrowLeft, Share2, Flag } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
-import { 
-  Calendar, 
-  MapPin, 
-  Ticket, 
-  Loader2, 
-  ArrowLeft, 
-  ShoppingCart,
-  Layers,
-  ChevronRight,
-  Map as MapIcon,
-  X,
-  Clock,
-  Info,
-  BadgeCheck,
-  Maximize2,
-  Armchair,
-  Grid3X3,
-  CheckCircle2,
-  Navigation,
-  Flag,
-  Share2,
-  ExternalLink,
-  AlertTriangle
-} from "lucide-react"
-import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
-import { cn } from "@/lib/utils"
-import { formatCurrency } from "@/lib/financial-utils"
 import { useCart } from "@/contexts/CartContext"
-import Link from "next/link"
-import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+// Componentes da Refatoração
+import { EventHero } from "@/components/events/public/EventHero"
+import { OrganizerInfo } from "@/components/events/public/OrganizerInfo"
+import { EventDescription } from "@/components/events/public/EventDescription"
+import { EventLocation } from "@/components/events/public/EventLocation"
+import { TicketSection } from "@/components/events/public/TicketSection"
+import { CheckoutSidebar } from "@/components/events/public/CheckoutSidebar"
+import { MobileCheckout } from "@/components/events/public/MobileCheckout"
+import { ReportDialog } from "@/components/events/public/ReportDialog"
 
 export default function EventoPublicoPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
@@ -80,120 +47,40 @@ export default function EventoPublicoPage() {
   }, [db, eventId])
   const { data: partners } = useCollection<any>(partnersQuery)
 
+  // Estado de Seleção
   const [selectedSector, setSelectedSector] = React.useState<any>(null)
   const [selectedSeat, setSelectedSeat] = React.useState<any>(null)
-  const [seats, setSeats] = React.useState<any[]>([])
-  const [loadingSeats, setLoadingSeats] = React.useState(false)
+  const [selectedTicketType, setSelectedTicketType] = React.useState<any>(null)
+  const [quantity, setQuantity] = React.useState(1)
 
-  // Estado da Denúncia
+  // Abrir comentários ou denúncia via URL
   const [isReportOpen, setIsReportOpen] = React.useState(false)
-  const [reportReason, setReportReason] = React.useState("")
-  const [reportDescription, setReportDescription] = React.useState("")
-  const [isSubmittingReport, setIsSubmittingReport] = React.useState(false)
 
-  // Função para renderizar texto formatado
-  const renderFormattedText = (text: string) => {
-    if (!text) return "";
-    const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@[\w.]+)/g);
-
-    return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
-      }
-      if (part.startsWith('+') && part.endsWith('+')) {
-        return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
-      }
-      if (part.startsWith('@')) {
-        const usernameMention = part.slice(1).toLowerCase();
-        return <Link key={i} href={`/${usernameMention}`} className="text-secondary font-black hover:underline" onClick={(e) => e.stopPropagation()}>{part}</Link>;
-      }
-      return part;
-    });
+  if (eventLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+      </div>
+    )
   }
 
-  // Busca assentos quando um setor é selecionado
-  React.useEffect(() => {
-    if (!db || !eventId || !selectedSector || selectedSector.tipo === 'livre') {
-      setSeats([])
-      return
-    }
+  if (!event) return null
 
-    const fetchSeats = async () => {
-      setLoadingSeats(true)
-      try {
-        const q = query(collection(db, "events", eventId, "setores", selectedSector.id, "assentos"), orderBy("codigo", "asc"))
-        const snap = await getDocs(q)
-        setSeats(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-      } catch (e) {
-        console.error("Erro ao carregar assentos:", e)
-      } finally {
-        setLoadingSeats(false)
-      }
-    }
-
-    fetchSeats()
-  }, [db, eventId, selectedSector])
-
-  // Lógica de Venda Ativa
-  const getSaleStatus = (target: any) => {
-    if (!target) return { active: false, message: "Indisponível", batch: null };
-    
-    // Se o target for o evento e estiver no modo de setores, ele não vende diretamente
-    if (target.ticketMode === 'sector_batches' && !target.batches) {
-       return { active: true, message: "Selecione um setor", isSectorMode: true };
-    }
-
-    // Se estivermos em um setor, mas o vínculo for global
-    if (target.ticketLinkId === 'global' || target.ticketLinkId === 'global_batches') {
-      return getSaleStatus(event);
-    }
-
-    // Se o target for um setor com lotes próprios
-    const batches = target.batches || [];
-    if (batches.length === 0) return { active: false, message: "Indisponível", batch: null };
-    
-    const now = new Date();
-    let carryOver = 0;
-    
-    const processedBatches = batches.map((b: any) => {
-      const start = b.startDate ? new Date(b.startDate) : null;
-      const end = b.endDate ? new Date(b.endDate) : null;
-      
-      const isOpen = (!start || now >= start) && (!end || now <= end);
-      const isPast = end && now > end;
-      const isFuture = start && now < start;
-
-      const currentCap = (b.capacidadeInicial || b.quantity || 0) + carryOver;
-      const sold = b.vendidos || 0;
-      const remaining = Math.max(0, currentCap - sold);
-      
-      if (isPast) carryOver = remaining;
-      else carryOver = 0;
-
-      return { ...b, isOpen, isPast, isFuture, currentCap, remaining, sold };
-    });
-
-    const activeBatch = processedBatches.find((b: any) => b.isOpen && b.remaining > 0);
-    if (activeBatch) return { active: true, message: null, batch: activeBatch };
-
-    const nextBatch = processedBatches.find((b: any) => b.isFuture);
-    if (nextBatch) return { active: false, message: `Abre em ${new Date(nextBatch.startDate).toLocaleString('pt-BR')}`, batch: null };
-
-    return { active: false, message: "Esgotado", batch: null };
-  };
-
-  const globalSaleStatus = React.useMemo(() => getSaleStatus(event), [event]);
-
-  const handleAddToCart = (type: any, batch: any, sector?: any) => {
-    if (!event) return;
-
-    if (sector && (sector.tipo === 'assentos' || sector.tipo === 'mesas') && !selectedSeat) {
-      toast({ variant: "destructive", title: "Selecione um lugar", description: "Para este setor é necessário escolher um assento ou mesa no mapa." });
+  const handleAddToCart = () => {
+    if (!selectedTicketType) {
+      toast({ variant: "destructive", title: "Selecione um ingresso" });
       return;
     }
-    
+
+    if (selectedSector && (selectedSector.tipo === 'assentos' || selectedSector.tipo === 'mesas') && !selectedSeat) {
+      toast({ variant: "destructive", title: "Selecione um lugar no mapa" });
+      return;
+    }
+
+    const batch = selectedTicketType._batch;
+
     addItem({
-      id: `${event.id}_${batch.id}_${type.id}_${sector?.id || 'gen'}_${selectedSeat?.id || 'any'}`,
+      id: `${event.id}_${batch.id}_${selectedTicketType.id}_${selectedSector?.id || 'global'}_${selectedSeat?.id || 'any'}`,
       eventId: event.id,
       eventTitle: event.title,
       eventImage: event.image || "",
@@ -202,501 +89,158 @@ export default function EventoPublicoPage() {
       organizationId: event.organizationId,
       organizerId: event.organizerId || event.createdBy,
       organizerUsername: params.username as string,
-      ticketTypeId: type.id,
-      ticketTypeName: type.name,
+      ticketTypeId: selectedTicketType.id,
+      ticketTypeName: selectedTicketType.name,
       batchId: batch.id,
       batchName: batch.name,
-      price: type.price,
-      quantity: 1,
-      requiresProof: type.requiresProof || false,
-      sectorId: sector?.id,
-      sectorName: sector?.name,
-      poolId: type.poolId,
-      poolName: type.poolName,
+      price: selectedTicketType.price,
+      quantity: quantity,
+      requiresProof: selectedTicketType.requiresProof || false,
+      sectorId: selectedSector?.id,
+      sectorName: selectedSector?.nome || selectedSector?.name,
+      poolId: selectedTicketType.poolId,
+      poolName: selectedTicketType.poolName,
       // @ts-ignore
       seatId: selectedSeat?.id,
       seatCode: selectedSeat?.codigo
     });
-    
+
     toast({ title: "Adicionado ao carrinho!" });
+    // Reset temporário para permitir nova seleção se houver mapa
     if (selectedSeat) {
       setSelectedSeat(null);
-      setSelectedSector(null);
     }
   }
-
-  const handleSendReport = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!db || !user || !event || !reportReason) return
-
-    setIsSubmittingReport(true)
-    try {
-      await addDoc(collection(db, "reports"), {
-        type: 'event',
-        targetId: eventId,
-        targetName: event.title,
-        reason: reportReason,
-        description: reportDescription,
-        reporterId: user.uid,
-        reporterName: user.displayName || "Usuário",
-        status: 'Pendente',
-        timestamp: serverTimestamp()
-      })
-      toast({ title: "Denúncia enviada!", description: "Analisaremos este evento em breve." })
-      setIsReportOpen(false)
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao enviar denúncia" })
-    } finally {
-      setIsSubmittingReport(false)
-    }
-  }
-
-  if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>
-  if (!event) return null
-
-  const address = event.address || {};
-  const isVerified = event.organizer?.isVerified || false;
-  const hasMap = event.mapaConfigurado && setores && setores.length > 0;
-  const fullAddress = `${address.street || event.location}, ${address.number || ''}, ${address.city}`;
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col">
-      <div className="max-w-7xl mx-auto px-4 pt-10 space-y-8 flex-1 w-full">
-        <div className="flex items-center justify-between">
-           <Button variant="ghost" onClick={() => router.back()} className="rounded-full font-bold text-xs uppercase gap-2">
-              <ArrowLeft className="w-4 h-4" /> Voltar
-           </Button>
-           <div className="flex items-center gap-3">
-             <Button variant="outline" size="icon" className="relative h-10 w-10 bg-white" asChild>
-               <Link href="/dashboard/carrinho">
-                 <ShoppingCart className="w-4 h-4" />
-                 {cartItems.length > 0 && <span className="absolute -top-1 -right-1 bg-secondary text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold">{cartItems.length}</span>}
-               </Link>
-             </Button>
-
-             <Dialog open={isReportOpen} onOpenChange={setIsReportOpen}>
-                <DialogTrigger asChild>
-                   <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-destructive">
-                      <Flag className="w-4 h-4" />
-                   </Button>
-                </DialogTrigger>
-                <DialogContent className="rounded-[2rem]">
-                   <form onSubmit={handleSendReport} className="space-y-6">
-                      <DialogHeader>
-                        <DialogTitle className="text-xl font-black uppercase italic tracking-tighter flex items-center gap-2">
-                          <AlertTriangle className="w-5 h-5 text-destructive" /> Denunciar Evento
-                        </DialogTitle>
-                        <DialogDescription>Relate se este evento viola as diretrizes da plataforma.</DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                         <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase">Motivo</Label>
-                            <Select value={reportReason} onValueChange={setReportReason} required>
-                               <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                               <SelectContent>
-                                  <SelectItem value="Fraude">Fraude / Golpe</SelectItem>
-                                  <SelectItem value="Falso">Evento Inexistente</SelectItem>
-                                  <SelectItem value="Improprio">Conteúdo Impróprio</SelectItem>
-                                  <SelectItem value="Direitos">Violação de Direitos</SelectItem>
-                               </SelectContent>
-                            </Select>
-                         </div>
-                         <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase">Mais Detalhes</Label>
-                            <Textarea value={reportDescription} onChange={e => setReportDescription(e.target.value)} className="rounded-xl min-h-[100px]" placeholder="Opcional..." />
-                         </div>
-                      </div>
-                      <DialogFooter>
-                         <Button type="submit" disabled={isSubmittingReport} className="w-full bg-destructive text-white font-black h-12 rounded-xl">
-                           {isSubmittingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : "Enviar Denúncia"}
-                         </Button>
-                      </DialogFooter>
-                   </form>
-                </DialogContent>
-             </Dialog>
-           </div>
+    <div className="min-h-screen bg-background flex flex-col font-body antialiased selection:bg-secondary/20 selection:text-secondary">
+      {/* HEADER FIXO DE NAVEGAÇÃO */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/40">
+        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+          <Button variant="ghost" size="sm" onClick={() => router.back()} className="rounded-full hover:bg-muted font-bold text-[10px] uppercase tracking-widest gap-2">
+            <ArrowLeft className="w-4 h-4" /> Voltar
+          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link copiado!" }); }}>
+              <Share2 className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-destructive" onClick={() => setIsReportOpen(true)}>
+              <Flag className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
+      </nav>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 pb-20">
-           <div className="lg:col-span-8 space-y-8">
-              {/* Header do Evento */}
-              <div className="relative h-64 md:h-96 w-full rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white">
-                <Image src={event.image || "https://picsum.photos/seed/event/1200/800"} alt={event.title} fill className="object-cover" unoptimized />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                <div className="absolute bottom-10 left-10 text-white">
-                   <Badge className="bg-secondary mb-3 uppercase font-black text-[10px] h-6 px-4">{event.categoryName || "Geral"}</Badge>
-                   <h1 className="text-4xl md:text-5xl font-black uppercase italic tracking-tighter leading-none">{event.title}</h1>
-                   <div className="flex items-center gap-4 mt-4 text-white/80 font-bold text-xs uppercase">
-                      <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4" /> {new Date(event.date).toLocaleDateString('pt-BR')}</span>
-                      <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4" /> {event.city || address.city}</span>
-                   </div>
-                </div>
-              </div>
+      {/* CONTEÚDO PRINCIPAL */}
+      <main className="flex-1 w-full pt-16">
+        <EventHero event={event} />
 
-              {/* Descrição e Organizador */}
-              <div className="p-8 bg-white rounded-[2.5rem] shadow-sm space-y-6">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div className="flex items-center gap-4">
-                    <Avatar className="h-14 w-14 border-2 border-secondary/20">
-                      <AvatarImage src={event.organizer?.avatar} className="object-cover" />
-                      <AvatarFallback className="font-bold">{event.organizer?.name?.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <p className="font-black uppercase italic tracking-tighter text-lg">{event.organizer?.name}</p>
-                        {isVerified && <BadgeCheck className="w-4 h-4 fill-blue-500 text-white" />}
-                      </div>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Organizador Oficial</p>
+        <div className="max-w-7xl mx-auto px-4 py-12 lg:py-20">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 xl:gap-20">
+            
+            {/* COLUNA DA ESQUERDA: INFORMAÇÕES */}
+            <div className="lg:col-span-8 space-y-16">
+              
+              {/* ORGANIZADOR E PARCEIROS */}
+              <div className="space-y-10">
+                <OrganizerInfo organizer={event.organizer} />
+                {partners && partners.length > 0 && (
+                  <div className="space-y-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 px-1">Co-realização</p>
+                    <div className="flex flex-wrap gap-4">
+                      {partners.map((p: any) => (
+                        <Link key={p.id} href={`/${p.username || p.uid}`} className="flex items-center gap-2 bg-muted/30 p-2 pr-4 rounded-full hover:bg-muted transition-colors border border-border/40">
+                          <Avatar className="h-8 w-8 border border-white">
+                            <AvatarImage src={p.avatar} />
+                            <AvatarFallback className="text-[10px] font-bold">{p.orgName?.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <span className="text-xs font-bold uppercase tracking-tight">{p.orgName}</span>
+                        </Link>
+                      ))}
                     </div>
                   </div>
-
-                  {partners && partners.length > 0 && (
-                    <div className="flex flex-col gap-2">
-                       <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Em Parceria com</p>
-                       <div className="flex -space-x-2">
-                          {partners.map((p: any) => (
-                            <TooltipProvider key={p.id}>
-                               <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Avatar className="h-8 w-8 border-2 border-white ring-2 ring-primary/5 cursor-pointer">
-                                       <AvatarImage src={p.avatar} />
-                                       <AvatarFallback className="text-[8px] font-bold">{p.orgName?.charAt(0)}</AvatarFallback>
-                                    </Avatar>
-                                  </TooltipTrigger>
-                                  <TooltipContent><p className="text-[10px] font-bold uppercase">{p.orgName}</p></TooltipContent>
-                               </Tooltip>
-                            </TooltipProvider>
-                          ))}
-                       </div>
-                    </div>
-                  )}
-                </div>
-                
-                <Separator className="border-dashed" />
-                
-                <div className="prose prose-sm max-w-none text-muted-foreground font-medium leading-relaxed whitespace-pre-line">
-                  {renderFormattedText(event.description)}
-                </div>
+                )}
               </div>
 
-              {/* MAPA VISUAL DO EVENTO */}
-              {hasMap && (
-                <div className="space-y-6">
-                   <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary flex items-center gap-2 px-2">
-                      <MapIcon className="w-5 h-5 text-secondary" /> Planta do Evento
-                   </h2>
-                   <Card className="border-none shadow-xl rounded-[2.5rem] bg-white overflow-hidden p-0 relative">
-                      <div className="h-[400px] md:h-[600px] w-full bg-[#f8fafc] relative">
-                        <TransformWrapper minScale={0.5} maxScale={3} initialScale={1}>
-                          <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
-                            <div className="relative min-w-[1200px] min-h-[800px] bg-white" style={{ backgroundImage: 'radial-gradient(#e5e7eb 1px, transparent 0)', backgroundSize: '30px 30px' }}>
-                               {/* Palco */}
-                               <div className="absolute left-[300px] top-[50px] w-[600px] h-[100px] bg-primary text-white flex items-center justify-center rounded-xl shadow-lg border-2 border-white/20">
-                                  <span className="font-black italic uppercase tracking-[0.4em] text-sm">{event.palcoNome || "PALCO"}</span>
-                               </div>
+              <Separator className="opacity-50" />
 
-                               {/* Setores Interativos */}
-                               {setores.map((s: any) => (
-                                 <div 
-                                   key={s.id}
-                                   className={cn(
-                                     "absolute flex flex-col items-center justify-center shadow-lg border-2 transition-all cursor-pointer hover:scale-105 rounded-[2rem]",
-                                     selectedSector?.id === s.id ? "ring-4 ring-secondary ring-offset-2" : ""
-                                   )}
-                                   style={{ 
-                                     left: s.posX, 
-                                     top: s.posY, 
-                                     width: s.width, 
-                                     height: s.height, 
-                                     backgroundColor: `${s.cor}20`, 
-                                     borderColor: s.cor, 
-                                     color: s.cor,
-                                     zIndex: s.zIndex 
-                                   }}
-                                   onClick={() => setSelectedSector(s)}
-                                 >
-                                    <div className="text-center p-2">
-                                       <p className="font-black uppercase italic text-[10px] leading-tight">{s.nome}</p>
-                                       <Badge variant="outline" className="text-[7px] font-black uppercase h-3.5 border-current mt-1" style={{ color: s.cor }}>{s.tipo}</Badge>
-                                    </div>
-                                 </div>
-                               ))}
-                            </div>
-                          </TransformComponent>
-                        </TransformWrapper>
-                        
-                        <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-20">
-                           <div className="bg-white/90 backdrop-blur-md p-3 rounded-2xl shadow-lg border border-border flex flex-col gap-2">
-                              <p className="text-[8px] font-black uppercase tracking-widest opacity-40">Legenda</p>
-                              <div className="flex items-center gap-3 text-[10px] font-bold">
-                                 <div className="w-3 h-3 rounded-full bg-secondary" /> Selecionado
-                                 <div className="w-3 h-3 rounded-full bg-border" /> Disponível
-                              </div>
-                           </div>
-                        </div>
-                      </div>
-                   </Card>
-                </div>
-              )}
+              {/* DESCRIÇÃO DO EVENTO */}
+              <EventDescription description={event.description} />
 
-              {/* LISTA DE SETORES (SE NÃO TIVER MAPA OU COMO ALTERNATIVA) */}
-              {event.ticketMode === 'sector_batches' && (
-                <div className="space-y-6">
-                   <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary flex items-center gap-2">
-                      <Layers className="w-5 h-5 text-secondary" /> Escolha o Setor
-                   </h2>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {event.sectors?.map((sector: any) => {
-                        const status = getSaleStatus(sector);
-                        return (
-                          <Card 
-                            key={sector.id} 
-                            className={cn(
-                              "border-none shadow-sm rounded-[2rem] cursor-pointer transition-all hover:scale-[1.02]",
-                              selectedSector?.id === sector.id ? "ring-4 ring-secondary/20 bg-secondary/5" : "bg-white"
-                            )}
-                            onClick={() => setSelectedSector(sector)}
-                          >
-                             <CardContent className="p-6 flex items-center justify-between">
-                                <div>
-                                   <p className="text-lg font-black uppercase italic text-primary">{sector.name}</p>
-                                   <p className="text-[10px] font-bold text-muted-foreground uppercase">{sector.capacity} lugares totais</p>
-                                </div>
-                                <div className="text-right">
-                                   {status.active ? (
-                                     <p className="text-[10px] font-black text-green-600 uppercase bg-green-50 px-2 py-1 rounded-full border border-green-200">Disponível</p>
-                                   ) : (
-                                     <p className="text-[10px] font-black text-orange-500 uppercase">{status.message}</p>
-                                   )}
-                                   <ChevronRight className="w-5 h-5 ml-auto opacity-20 mt-1" />
-                                </div>
-                             </CardContent>
-                          </Card>
-                        )
-                      })}
-                   </div>
-                </div>
-              )}
+              <Separator className="opacity-50" />
 
-              {/* DETALHAMENTO DO SETOR SELECIONADO (ASSENTOS E BILHETERIA) */}
-              {selectedSector && (
-                <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
-                   <Card className="border-none shadow-xl rounded-[2.5rem] bg-white overflow-hidden border-t-8 border-secondary">
-                      <CardHeader className="bg-primary/5 p-8 flex flex-row items-center justify-between">
-                         <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                               {selectedSector.tipo === 'assentos' ? <Armchair className="w-4 h-4 text-secondary" /> : <Layers className="w-4 h-4 text-secondary" />}
-                               <CardTitle className="text-2xl font-black uppercase italic tracking-tighter">{selectedSector.nome}</CardTitle>
-                            </div>
-                            <CardDescription className="text-muted-foreground font-bold uppercase text-[10px] tracking-widest">Bilheteria do Setor Selecionado</CardDescription>
-                         </div>
-                         <Button variant="ghost" size="icon" onClick={() => {setSelectedSector(null); setSelectedSeat(null);}} className="rounded-full hover:bg-muted"><X className="w-4 h-4" /></Button>
-                      </CardHeader>
-                      <CardContent className="p-8 space-y-10">
-                         {/* Se o setor tiver assentos, mostra a grade de seleção */}
-                         {['assentos', 'mesas'].includes(selectedSector.tipo) && (
-                           <div className="space-y-6">
-                              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                                 {selectedSector.tipo === 'mesas' ? <Grid3X3 className="w-4 h-4" /> : <Armchair className="w-4 h-4" />}
-                                 {selectedSector.tipo === 'mesas' ? 'Selecione a Mesa' : 'Selecione o seu Lugar'}
-                              </h3>
-                              
-                              <div className="p-8 bg-muted/10 rounded-[2rem] border-2 border-dashed border-border/50">
-                                 {loadingSeats ? (
-                                   <div className="py-10 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-secondary" /></div>
-                                 ) : seats.length > 0 ? (
-                                   <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3">
-                                      {seats.map((seat) => {
-                                        const isOccupied = ['vendido', 'bloqueado'].includes(seat.status);
-                                        const isSelected = selectedSeat?.id === seat.id;
-                                        
-                                        return (
-                                          <button
-                                            key={seat.id}
-                                            disabled={isOccupied}
-                                            onClick={() => setSelectedSeat(seat)}
-                                            className={cn(
-                                              "h-10 rounded-xl flex items-center justify-center font-black text-[10px] transition-all relative overflow-hidden",
-                                              isOccupied ? "bg-muted text-muted-foreground/30 cursor-not-allowed" :
-                                              isSelected ? "bg-secondary text-white shadow-lg scale-110 ring-2 ring-secondary ring-offset-1" :
-                                              "bg-white border-2 border-border text-primary hover:border-secondary/50"
-                                            )}
-                                          >
-                                             {seat.codigo}
-                                             {isSelected && <div className="absolute top-0 right-0 p-0.5"><CheckCircle2 className="w-2.5 h-2.5" /></div>}
-                                          </button>
-                                        )
-                                      })}
-                                   </div>
-                                 ) : (
-                                   <div className="py-10 text-center text-muted-foreground italic text-xs uppercase">Mapa de assentos indisponível.</div>
-                                 )}
-                              </div>
-                              
-                              {selectedSeat && (
-                                <div className="p-5 bg-green-50 rounded-2xl border-2 border-dashed border-green-200 flex items-center justify-between animate-in zoom-in-95">
-                                   <div className="flex items-center gap-3">
-                                      <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white">
-                                         {selectedSector.tipo === 'mesas' ? <Grid3X3 className="w-5 h-5" /> : <Armchair className="w-5 h-5" />}
-                                      </div>
-                                      <div>
-                                         <p className="text-[8px] font-black uppercase text-green-700 opacity-60">Lugar Escolhido</p>
-                                         <p className="font-black text-green-900 uppercase italic">{selectedSector.name} • {selectedSeat.codigo}</p>
-                                      </div>
-                                   </div>
-                                   <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase text-green-700" onClick={() => setSelectedSeat(null)}>Trocar</Button>
-                                </div>
-                              )}
-                           </div>
-                         )}
+              {/* LOCALIZAÇÃO E MAPA */}
+              <EventLocation address={event.address} location={event.location} city={event.city} eventId={event.id} />
 
-                         {/* Seleção de Tipo de Ingresso para o Setor */}
-                         {(() => {
-                           let targetForSale = selectedSector;
-                           if (selectedSector.ticketLinkId === 'global' || selectedSector.ticketLinkId === 'global_batches') targetForSale = event;
-                           
-                           const status = getSaleStatus(targetForSale);
-                           const isLockedBySeat = ['assentos', 'mesas'].includes(selectedSector.tipo) && !selectedSeat;
+              {/* ÁREA DE INGRESSOS (ÂNCORA) */}
+              <section id="tickets" className="pt-8">
+                 <TicketSection 
+                   event={event} 
+                   setores={setores} 
+                   selectedSector={selectedSector}
+                   setSelectedSector={setSelectedSector}
+                   selectedSeat={selectedSeat}
+                   setSelectedSeat={setSelectedSeat}
+                   selectedTicketType={selectedTicketType}
+                   setSelectedTicketType={setSelectedTicketType}
+                   quantity={quantity}
+                   setQuantity={setQuantity}
+                 />
+              </section>
 
-                           if (!status.active) return <div className="py-20 text-center text-muted-foreground font-bold italic uppercase">{status.message}</div>;
-                           
-                           return (
-                             <div className={cn("space-y-8 transition-all", isLockedBySeat ? "opacity-30 pointer-events-none grayscale" : "opacity-100")}>
-                                <div className="flex justify-between items-center px-2 bg-muted/20 p-4 rounded-2xl">
-                                   <div className="space-y-0.5">
-                                      <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Lote Vigente</p>
-                                      <Badge className="bg-secondary text-white font-black uppercase text-[10px] h-6 px-3">{status.batch.name}</Badge>
-                                   </div>
-                                   <div className="text-right">
-                                      <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Disponibilidade</p>
-                                      <p className="text-xs font-black text-primary uppercase">{status.batch.remaining} un. restantes</p>
-                                   </div>
-                                </div>
+            </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                   {status.batch.ticketTypes.map((type: any) => (
-                                     <div key={type.id} className="p-6 rounded-[1.5rem] border-2 border-muted hover:border-secondary transition-all bg-white flex flex-col gap-4 shadow-sm group">
-                                        <div className="flex justify-between items-start">
-                                           <div className="space-y-1">
-                                              <p className="font-black text-sm uppercase italic text-primary">{type.name}</p>
-                                              {type.poolId && <Badge variant="secondary" className="text-[7px] h-4 uppercase gap-1"><Layers className="w-2.5 h-2.5" /> Estoque Compartilhado</Badge>}
-                                           </div>
-                                           <p className="font-black text-secondary text-lg">{type.price === 0 ? "GRÁTIS" : formatCurrency(type.price)}</p>
-                                        </div>
-                                        {type.requiresProof && (
-                                           <div className="flex gap-2 p-2 bg-muted/30 rounded-lg">
-                                              <Info className="w-3 h-3 text-secondary shrink-0 mt-0.5" />
-                                              <p className="text-[8px] font-bold text-muted-foreground uppercase leading-tight">Documento de comprovação obrigatório no acesso.</p>
-                                           </div>
-                                        )}
-                                        <Button className="w-full rounded-xl font-black uppercase italic text-xs h-12 shadow-lg group-hover:scale-[1.02] transition-transform" onClick={() => handleAddToCart(type, status.batch, selectedSector)}>Comprar {type.name}</Button>
-                                     </div>
-                                   ))}
-                                </div>
-                             </div>
-                           )
-                         })()}
-                      </CardContent>
-                   </Card>
-                </div>
-              )}
-           </div>
+            {/* COLUNA DA DIREITA: BILHETERIA STICKY (DESKTOP) */}
+            <aside className="hidden lg:block lg:col-span-4">
+               <div className="sticky top-24 space-y-6">
+                  <CheckoutSidebar 
+                    event={event} 
+                    selectedTicketType={selectedTicketType}
+                    quantity={quantity}
+                    selectedSector={selectedSector}
+                    selectedSeat={selectedSeat}
+                    onConfirm={handleAddToCart}
+                  />
+               </div>
+            </aside>
 
-           {/* BARRA LATERAL */}
-           <div className="lg:col-span-4 space-y-6">
-              {/* BILHETERIA GLOBAL (QUANDO NÃO TEM SETORES) */}
-              <Card className="border-none shadow-xl rounded-[2.5rem] border-t-8 border-primary overflow-hidden bg-white sticky top-24">
-                 <CardHeader className="p-8 pb-4">
-                    <CardTitle className="text-xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-2">
-                       <Ticket className="w-5 h-5 text-secondary" /> Bilheteria
-                    </CardTitle>
-                 </CardHeader>
-                 <CardContent className="p-8 pt-0 space-y-6">
-                    {event.ticketMode === 'sector_batches' || hasMap ? (
-                      <div className="py-12 text-center space-y-4 bg-muted/10 rounded-[2rem] border-2 border-dashed border-border/50">
-                         <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm"><MapIcon className="w-8 h-8 text-muted-foreground opacity-20" /></div>
-                         <p className="text-[10px] font-black text-muted-foreground uppercase leading-tight px-6">Escolha um setor no mapa ou na lista acima para ver os ingressos disponíveis.</p>
-                      </div>
-                    ) : globalSaleStatus.batch ? (
-                      <div className="space-y-6 animate-in slide-in-from-right-4">
-                         <div className="flex items-center justify-between px-2">
-                            <Badge className="bg-secondary text-white font-black uppercase text-[9px] h-6 px-3">{globalSaleStatus.batch.name}</Badge>
-                            <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">{globalSaleStatus.batch.remaining} UN. RESTANTES</p>
-                         </div>
-                         
-                         <div className="space-y-3">
-                            {globalSaleStatus.batch.ticketTypes.map((type: any) => (
-                              <div key={type.id} className="flex justify-between items-center p-5 bg-white rounded-2xl border-2 border-muted hover:border-secondary/20 transition-all shadow-sm">
-                                 <div className="space-y-0.5">
-                                    <p className="font-black text-sm uppercase italic text-primary">{type.name}</p>
-                                    <p className="text-xs font-black text-secondary">{type.price === 0 ? "Grátis" : formatCurrency(type.price)}</p>
-                                 </div>
-                                 <Button size="sm" variant="secondary" className="h-10 rounded-xl font-black uppercase italic text-[10px] px-6 shadow-md" onClick={() => handleAddToCart(type, globalSaleStatus.batch)}>Comprar</Button>
-                              </div>
-                            ))}
-                         </div>
-
-                         <div className="p-4 bg-muted/20 rounded-2xl flex gap-3">
-                            <Clock className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
-                            <p className="text-[9px] font-bold text-muted-foreground uppercase leading-tight">Vendas abertas até {new Date(globalSaleStatus.batch.endDate || event.date).toLocaleDateString('pt-BR')} às {new Date(globalSaleStatus.batch.endDate || event.date).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}.</p>
-                         </div>
-                      </div>
-                    ) : (
-                      <div className="py-24 text-center bg-muted/20 rounded-[2rem] border-2 border-dashed border-border/50">
-                         <X className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-10" />
-                         <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{globalSaleStatus.message}</p>
-                      </div>
-                    )}
-                 </CardContent>
-              </Card>
-
-              {/* Endereço e Navegação */}
-              <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
-                <CardHeader className="bg-muted/30 pb-4">
-                  <CardTitle className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-secondary" /> Local do Evento
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6 space-y-6">
-                  <div className="space-y-2">
-                    <p className="text-xs font-bold text-foreground leading-relaxed">
-                      {address.street}, {address.number}
-                      {address.complement && ` - ${address.complement}`}
-                    </p>
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase">
-                      {address.neighborhood}, {address.city} - {address.state}
-                    </p>
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase">
-                      CEP: {address.cep}
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 pt-2">
-                     <Button variant="outline" className="rounded-xl h-12 gap-2 text-[10px] font-black uppercase border-secondary/20 text-secondary hover:bg-secondary/5" asChild>
-                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`} target="_blank" rel="noopener noreferrer">
-                           <Image src="https://firebasestorage.googleapis.com/v0/b/ong-desafios-3942a.firebasestorage.app/o/site_assets%2Fgoogle-maps-icon.png?alt=media" width={16} height={16} alt="Google Maps" className="grayscale group-hover:grayscale-0" unoptimized />
-                           Maps
-                        </a>
-                     </Button>
-                     <Button variant="outline" className="rounded-xl h-12 gap-2 text-[10px] font-black uppercase border-secondary/20 text-secondary hover:bg-secondary/5" asChild>
-                        <a href={`https://waze.com/ul?q=${encodeURIComponent(fullAddress)}`} target="_blank" rel="noopener noreferrer">
-                           <Image src="https://firebasestorage.googleapis.com/v0/b/ong-desafios-3942a.firebasestorage.app/o/site_assets%2Fwaze-icon.png?alt=media" width={16} height={16} alt="Waze" unoptimized />
-                           Waze
-                        </a>
-                     </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Botão de Compartilhar secundário e Info */}
-              <div className="flex flex-col gap-3 px-4">
-                 <Button variant="ghost" className="w-full rounded-xl text-[10px] font-black uppercase tracking-widest gap-2 text-muted-foreground" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link copiado!" }); }}>
-                    <Share2 className="w-4 h-4" /> Compartilhar Experiência
-                 </Button>
-              </div>
-           </div>
+          </div>
         </div>
-      </div>
+      </main>
+
+      {/* BILHETERIA MOBILE FLUTUANTE */}
+      <MobileCheckout 
+        event={event}
+        selectedTicketType={selectedTicketType}
+        quantity={quantity}
+        onConfirm={handleAddToCart}
+      />
+
+      {/* DIALOG DE DENÚNCIA */}
+      <ReportDialog 
+        isOpen={isReportOpen} 
+        onOpenChange={setIsReportOpen} 
+        eventId={eventId} 
+        eventTitle={event.title}
+        userId={user?.uid}
+      />
+
     </div>
   )
+}
+
+function Separator({ className }: { className?: string }) {
+  return <div className={cn("h-px w-full bg-border", className)} />
+}
+
+function Avatar({ className, children }: { className?: string, children: React.ReactNode }) {
+  return <div className={cn("relative flex shrink-0 overflow-hidden rounded-full", className)}>{children}</div>
+}
+
+function AvatarImage({ src, className }: { src?: string, className?: string }) {
+  return <img src={src} className={cn("aspect-square h-full w-full object-cover", className)} />
+}
+
+function AvatarFallback({ className, children }: { className?: string, children: React.ReactNode }) {
+  return <div className={cn("flex h-full w-full items-center justify-center rounded-full bg-muted text-muted-foreground", className)}>{children}</div>
 }
