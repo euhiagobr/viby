@@ -7,7 +7,7 @@ import { EventCard } from "@/components/events/EventCard"
 import { AdCard } from "@/components/ads/AdCard"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, MapPin, FilterX, Sparkles, Navigation, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
+import { Search, MapPin, FilterX, Settings, Navigation, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
@@ -202,7 +202,7 @@ export default function LandingPageClient() {
         <div className="container mx-auto px-4 relative z-10 py-20">
           <div className="max-w-4xl mx-auto space-y-8 flex flex-col items-center">
             <Badge className="bg-secondary text-white border-none px-4 py-1.5 rounded-full font-black uppercase text-[10px] tracking-widest w-fit">
-              <Sparkles className="w-3 h-3 mr-2 fill-current" /> Descubra sua próxima experiência
+              <Settings className="w-3 h-3 mr-2" /> Descubra sua próxima experiência
             </Badge>
             <h1 className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter leading-[0.85]">
               VIVA O <span className="text-secondary">AGORA.</span>
