@@ -39,6 +39,7 @@ import {
   Navigation,
   Plus,
   Minus,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -50,6 +51,13 @@ import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/financial-utils';
 import Image from 'next/image';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // --- COMPONENTES AUXILIARES ---
 
@@ -214,13 +222,13 @@ function EventHero({ event }: { event: any }) {
 function SeatMap({
   eventId,
   sectorId,
-  onSelectSeat,
-  selectedSeatId,
+  onToggleSeat,
+  selectedSeatIds,
 }: {
   eventId: string;
   sectorId: string;
-  onSelectSeat: (seat: any) => void;
-  selectedSeatId?: string;
+  onToggleSeat: (seat: any) => void;
+  selectedSeatIds: string[];
 }) {
   const db = useFirestore();
   const seatsQuery = useMemoFirebase(() => {
@@ -247,19 +255,19 @@ function SeatMap({
             <div
               className="p-10 grid gap-3 place-content-center"
               style={{ 
-                gridTemplateColumns: 'repeat(10, 40px)', // Mantendo uma estrutura fixa de 10 colunas para parecer um mapa
+                gridTemplateColumns: 'repeat(10, 40px)',
                 width: 'fit-content',
                 margin: '0 auto'
               }}
             >
               {seats?.map((seat) => {
                 const isSold = seat.status === 'vendido';
-                const isSelected = selectedSeatId === seat.id;
+                const isSelected = selectedSeatIds.includes(seat.id);
                 return (
                   <button
                     key={seat.id}
                     disabled={isSold}
-                    onClick={() => onSelectSeat(seat)}
+                    onClick={() => onToggleSeat(seat)}
                     className={cn(
                       'w-10 h-10 rounded-lg flex items-center justify-center text-[10px] font-black transition-all',
                       isSold
@@ -277,7 +285,7 @@ function SeatMap({
           </TransformComponent>
         </TransformWrapper>
 
-        <div className="mt-8 flex flex-wrap justify-center gap-6 px-4">
+        <div className="mt-8 flex flex-wrap justify-center gap-6 px-4 text-center">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-white border-2 border-secondary/20 rounded" />
             <span className="text-[10px] font-black uppercase opacity-60">Livre</span>
@@ -339,12 +347,6 @@ function TicketCard({
           </div>
         </div>
 
-        {type.description && (
-          <p className="mt-3 text-xs text-muted-foreground leading-relaxed line-clamp-2">
-            {type.description}
-          </p>
-        )}
-
         <div className="mt-6 flex items-center justify-between border-t border-dashed border-border pt-4">
           <div className="flex items-center gap-2">
             {type.requiresProof ? (
@@ -367,13 +369,13 @@ function TicketCard({
           <div className="flex items-center gap-4">
              {showQuantity && isSelected && onQuantityChange && (
                 <div className="flex items-center gap-3 bg-white p-1 rounded-lg border shadow-sm" onClick={e => e.stopPropagation()}>
-                   <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md" onClick={() => onQuantityChange(Math.max(1, (quantity || 1) - 1))}>
+                   <button className="h-7 w-7 rounded-md hover:bg-muted flex items-center justify-center transition-colors" onClick={() => onQuantityChange(Math.max(1, (quantity || 1) - 1))}>
                       <Minus className="w-3.5 h-3.5" />
-                   </Button>
+                   </button>
                    <span className="font-black text-sm w-4 text-center">{quantity}</span>
-                   <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md" onClick={() => onQuantityChange((quantity || 1) + 1)}>
+                   <button className="h-7 w-7 rounded-md hover:bg-muted flex items-center justify-center transition-colors" onClick={() => onQuantityChange((quantity || 1) + 1)}>
                       <Plus className="w-3.5 h-3.5" />
-                   </Button>
+                   </button>
                 </div>
              )}
 
@@ -416,7 +418,7 @@ export default function EventoPublicoPage() {
   const { data: partners } = useCollection<any>(partnersQuery);
 
   const [selectedSector, setSelectedSector] = React.useState<any>(null);
-  const [selectedSeat, setSelectedSeat] = React.useState<any>(null);
+  const [selectedSeats, setSelectedSeats] = React.useState<Record<string, { seat: any, ticketType: any }>>({});
   const [selectedTicketType, setSelectedTicketType] = React.useState<any>(null);
   const [quantity, setQuantity] = React.useState(1);
   const [now] = React.useState(new Date());
@@ -424,7 +426,6 @@ export default function EventoPublicoPage() {
   const availableTickets = React.useMemo(() => {
     if (!event || !selectedSector) return [];
 
-    // 1. Localizar Definição de Lote/Ingresso baseada no ticketMode
     if (event.ticketMode === 'sector_batches') {
       const sectorDef = event.sectors?.find((s: any) => s.id === selectedSector.ticketLinkId);
       if (!sectorDef) return [];
@@ -453,50 +454,106 @@ export default function EventoPublicoPage() {
     return [];
   }, [event, selectedSector, now]);
 
-  const handleAddToCart = () => {
-    if (!selectedTicketType) {
-      toast({ variant: 'destructive', title: 'Selecione um tipo de ingresso' });
-      return;
-    }
-
-    if ((selectedSector.tipo === 'assentos' || selectedSector.tipo === 'mesas') && !selectedSeat) {
-      toast({ variant: 'destructive', title: 'Escolha um lugar no mapa' });
-      return;
-    }
-
-    const batch = selectedTicketType._batch;
-
-    addItem({
-      id: `${event.id}_${batch.id}_${selectedTicketType.id}_${selectedSector.id}_${selectedSeat?.id || 'any'}`,
-      eventId: event.id,
-      eventTitle: event.title,
-      eventImage: event.image || '',
-      eventDate: event.date,
-      eventCity: event.city || '',
-      organizationId: event.organizationId,
-      organizerId: event.organizerId,
-      organizerUsername: params.username as string,
-      ticketTypeId: selectedTicketType.id,
-      ticketTypeName: selectedTicketType.name,
-      batchId: batch.id,
-      batchName: batch.name,
-      price: selectedTicketType.price,
-      quantity: selectedSeat ? 1 : quantity,
-      requiresProof: selectedTicketType.requiresProof || false,
-      sectorId: selectedSector.id,
-      sectorName: selectedSector.nome,
-      poolId: selectedTicketType.poolId,
-      poolName: selectedTicketType.poolName,
-      // @ts-ignore
-      seatId: selectedSeat?.id,
-      // @ts-ignore
-      seatCode: selectedSeat?.codigo,
+  const handleToggleSeat = (seat: any) => {
+    setSelectedSeats(prev => {
+      const next = { ...prev };
+      if (next[seat.id]) {
+        delete next[seat.id];
+      } else {
+        // Por padrão, atribui o primeiro tipo de ingresso disponível
+        next[seat.id] = { seat, ticketType: availableTickets[0] };
+      }
+      return next;
     });
+  };
+
+  const updateSeatTicketType = (seatId: string, ticketTypeId: string) => {
+    const type = availableTickets.find((t: any) => t.id === ticketTypeId);
+    if (!type) return;
+    setSelectedSeats(prev => ({
+      ...prev,
+      [seatId]: { ...prev[seatId], ticketType: type }
+    }));
+  };
+
+  const handleAddToCart = () => {
+    if (selectedSector.tipo !== 'livre') {
+      const seatEntries = Object.values(selectedSeats);
+      if (seatEntries.length === 0) {
+        toast({ variant: 'destructive', title: 'Escolha ao menos um lugar no mapa' });
+        return;
+      }
+
+      seatEntries.forEach(({ seat, ticketType }) => {
+        const batch = ticketType._batch;
+        addItem({
+          id: `${event.id}_${batch.id}_${ticketType.id}_${selectedSector.id}_${seat.id}`,
+          eventId: event.id,
+          eventTitle: event.title,
+          eventImage: event.image || '',
+          eventDate: event.date,
+          eventCity: event.city || '',
+          organizationId: event.organizationId,
+          organizerId: event.organizerId,
+          organizerUsername: params.username as string,
+          ticketTypeId: ticketType.id,
+          ticketTypeName: ticketType.name,
+          batchId: batch.id,
+          batchName: batch.name,
+          price: ticketType.price,
+          quantity: 1,
+          requiresProof: ticketType.requiresProof || false,
+          sectorId: selectedSector.id,
+          sectorName: selectedSector.nome,
+          poolId: ticketType.poolId,
+          poolName: ticketType.poolName,
+          // @ts-ignore
+          seatId: seat.id,
+          // @ts-ignore
+          seatCode: seat.codigo,
+        });
+      });
+      setSelectedSeats({});
+    } else {
+      if (!selectedTicketType) {
+        toast({ variant: 'destructive', title: 'Selecione um tipo de ingresso' });
+        return;
+      }
+      const batch = selectedTicketType._batch;
+      addItem({
+        id: `${event.id}_${batch.id}_${selectedTicketType.id}_${selectedSector.id}_any`,
+        eventId: event.id,
+        eventTitle: event.title,
+        eventImage: event.image || '',
+        eventDate: event.date,
+        eventCity: event.city || '',
+        organizationId: event.organizationId,
+        organizerId: event.organizerId,
+        organizerUsername: params.username as string,
+        ticketTypeId: selectedTicketType.id,
+        ticketTypeName: selectedTicketType.name,
+        batchId: batch.id,
+        batchName: batch.name,
+        price: selectedTicketType.price,
+        quantity: quantity,
+        requiresProof: selectedTicketType.requiresProof || false,
+        sectorId: selectedSector.id,
+        sectorName: selectedSector.nome,
+        poolId: selectedTicketType.poolId,
+        poolName: selectedTicketType.poolName,
+      });
+      setQuantity(1);
+    }
 
     toast({ title: 'Adicionado ao carrinho!' });
-    if (selectedSeat) setSelectedSeat(null);
-    setQuantity(1);
   };
+
+  const totalSelectedPrice = React.useMemo(() => {
+    if (selectedSector?.tipo !== 'livre') {
+      return Object.values(selectedSeats).reduce((acc, curr) => acc + (curr.ticketType?.price || 0), 0);
+    }
+    return (selectedTicketType?.price || 0) * quantity;
+  }, [selectedSector, selectedSeats, selectedTicketType, quantity]);
 
   if (eventLoading)
     return (
@@ -530,13 +587,6 @@ export default function EventoPublicoPage() {
             >
               <Share2 className="w-4 h-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-full text-muted-foreground hover:text-destructive"
-            >
-              <Flag className="w-4 h-4" />
-            </Button>
           </div>
         </div>
       </nav>
@@ -546,7 +596,6 @@ export default function EventoPublicoPage() {
 
         <div className="max-w-7xl mx-auto px-4 py-12 md:py-24">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
-            {/* LADO ESQUERDO: CONTEÚDO */}
             <div className="lg:col-span-8 space-y-16">
               {/* ORGANIZADORES */}
               <div className="space-y-10">
@@ -633,7 +682,7 @@ export default function EventoPublicoPage() {
                 </div>
 
                 <Card className="overflow-hidden border-none shadow-xl rounded-[2.5rem] bg-muted aspect-video relative group">
-                  <iframe
+                   <iframe
                     width="100%"
                     height="100%"
                     style={{ border: 0 }}
@@ -641,32 +690,6 @@ export default function EventoPublicoPage() {
                     allowFullScreen
                     src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyDWOoEhxGwwTzEuCx5ire2ZaddlH3X4Vcw&q=${encodeURIComponent(`${event.address?.street}, ${event.address?.number} - ${event.city}`)}`}
                   />
-                  <div className="absolute bottom-6 left-6 flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      size="sm"
-                      className="rounded-xl font-black uppercase text-[10px] bg-white text-primary shadow-2xl gap-2"
-                      asChild
-                    >
-                      <a
-                        href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${event.address?.street}, ${event.address?.number} - ${event.city}`)}`}
-                        target="_blank"
-                      >
-                        <Navigation className="w-3.5 h-3.5" /> Google Maps
-                      </a>
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="rounded-xl font-black uppercase text-[10px] bg-[#33CCFF] text-white shadow-2xl gap-2"
-                      asChild
-                    >
-                      <a
-                        href={`https://waze.com/ul?q=${encodeURIComponent(`${event.address?.street}, ${event.address?.number} - ${event.city}`)}&navigate=yes`}
-                        target="_blank"
-                      >
-                        Abrir no Waze
-                      </a>
-                    </Button>
-                  </div>
                 </Card>
               </section>
 
@@ -692,7 +715,6 @@ export default function EventoPublicoPage() {
                   </div>
                 ) : (
                   <div className="space-y-12">
-                    {/* PASSO 1: SELECIONAR SETOR */}
                     <div className="space-y-6">
                       <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                         <Layers className="w-4 h-4" /> 1. Escolha o Setor
@@ -703,7 +725,7 @@ export default function EventoPublicoPage() {
                             key={setor.id}
                             onClick={() => {
                               setSelectedSector(setor);
-                              setSelectedSeat(null);
+                              setSelectedSeats({});
                               setSelectedTicketType(null);
                               setQuantity(1);
                             }}
@@ -733,37 +755,61 @@ export default function EventoPublicoPage() {
                       </div>
                     </div>
 
-                    {/* PASSO 2: SELECIONAR LUGAR OU TIPO */}
                     {selectedSector && (
                       <div className="space-y-8 animate-in slide-in-from-top-4 duration-500 pt-4 border-t border-dashed">
                         {selectedSector.tipo !== 'livre' ? (
-                          <div className="space-y-6">
-                            <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                              <Armchair className="w-4 h-4" /> 2. Escolha seu Lugar
-                            </h3>
-                            <SeatMap
-                              eventId={event.id}
-                              sectorId={selectedSector.id}
-                              onSelectSeat={setSelectedSeat}
-                              selectedSeatId={selectedSeat?.id}
-                            />
+                          <div className="space-y-10">
+                            <div className="space-y-6">
+                               <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                  <Armchair className="w-4 h-4" /> 2. Escolha seus Lugares
+                               </h3>
+                               <SeatMap
+                                 eventId={event.id}
+                                 sectorId={selectedSector.id}
+                                 onToggleSeat={handleToggleSeat}
+                                 selectedSeatIds={Object.keys(selectedSeats)}
+                               />
+                            </div>
 
-                            {selectedSeat && (
+                            {Object.keys(selectedSeats).length > 0 && (
                               <div className="space-y-6 animate-in zoom-in-95 duration-300">
-                                <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                                  <Ticket className="w-4 h-4" /> 3. Escolha a Categoria para{' '}
-                                  {selectedSeat.codigo}
-                                </h3>
-                                <div className="grid grid-cols-1 gap-4">
-                                  {availableTickets.map((type: any) => (
-                                    <TicketCard
-                                      key={type.id}
-                                      type={type}
-                                      isSelected={selectedTicketType?.id === type.id}
-                                      onSelect={() => setSelectedTicketType(type)}
-                                    />
-                                  ))}
-                                </div>
+                                 <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                    <Ticket className="w-4 h-4" /> 3. Atribua os Ingressos
+                                 </h3>
+                                 <div className="grid grid-cols-1 gap-4">
+                                    {Object.values(selectedSeats).map(({ seat, ticketType }) => (
+                                      <Card key={seat.id} className="border-none shadow-sm rounded-2xl p-6 bg-white flex flex-col sm:flex-row items-center justify-between gap-6 group hover:border-secondary/20 border transition-all">
+                                         <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center text-secondary font-black">
+                                               {seat.codigo}
+                                            </div>
+                                            <div>
+                                               <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Assento Selecionado</p>
+                                               <p className="font-bold text-sm uppercase italic tracking-tight">{selectedSector.nome}</p>
+                                            </div>
+                                         </div>
+
+                                         <div className="w-full sm:w-64">
+                                            <Select value={ticketType.id} onValueChange={(val) => updateSeatTicketType(seat.id, val)}>
+                                               <SelectTrigger className="rounded-xl h-11 border-secondary/20">
+                                                  <SelectValue placeholder="Tipo de ingresso" />
+                                               </SelectTrigger>
+                                               <SelectContent className="rounded-xl">
+                                                  {availableTickets.map((t: any) => (
+                                                    <SelectItem key={t.id} value={t.id} className="font-bold uppercase text-[10px]">
+                                                       {t.name} - {formatCurrency(t.price)}
+                                                    </SelectItem>
+                                                  ))}
+                                               </SelectContent>
+                                            </Select>
+                                         </div>
+
+                                         <button onClick={() => handleToggleSeat(seat)} className="text-muted-foreground/30 hover:text-destructive transition-colors">
+                                            <X className="w-5 h-5" />
+                                         </button>
+                                      </Card>
+                                    ))}
+                                 </div>
                               </div>
                             )}
                           </div>
@@ -794,37 +840,46 @@ export default function EventoPublicoPage() {
               </section>
             </div>
 
-            {/* LADO DIREITO: CHECKOUT (DESKTOP) */}
             <aside className="hidden lg:block lg:col-span-4">
               <div className="sticky top-24">
                 <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white overflow-hidden border-t-8 border-secondary">
                   <div className="p-8 pb-4">
-                    <h2 className="text-xl font-black italic uppercase tracking-tighter">
-                      Resumo do Pedido
-                    </h2>
+                    <h2 className="text-xl font-black italic uppercase tracking-tighter text-primary">Resumo do Pedido</h2>
                   </div>
                   <CardContent className="space-y-6">
-                    {selectedTicketType ? (
-                      <div className="space-y-4 animate-in fade-in">
-                        <div className="p-4 bg-muted/30 rounded-2xl border border-dashed space-y-2">
-                          <div className="flex justify-between font-black text-sm uppercase italic">
-                            <span>{selectedTicketType.name} {quantity > 1 && `x ${quantity}`}</span>
-                            <span>{formatCurrency(selectedTicketType.price * quantity)}</span>
-                          </div>
-                          <div className="flex flex-col text-[10px] font-bold text-secondary uppercase tracking-widest">
-                            <span>Setor: {selectedSector.nome}</span>
-                            {selectedSeat && <span>Lugar: {selectedSeat.codigo}</span>}
-                          </div>
+                    {(selectedTicketType || Object.keys(selectedSeats).length > 0) ? (
+                      <div className="space-y-6 animate-in fade-in">
+                        <div className="space-y-3">
+                           {selectedSector?.tipo === 'livre' ? (
+                             <div className="p-4 bg-muted/30 rounded-2xl border border-dashed space-y-2">
+                                <div className="flex justify-between font-black text-sm uppercase italic">
+                                   <span>{selectedTicketType.name} {quantity > 1 && `x ${quantity}`}</span>
+                                   <span>{formatCurrency(selectedTicketType.price * quantity)}</span>
+                                </div>
+                                <div className="text-[10px] font-bold text-secondary uppercase tracking-widest">
+                                   Setor: {selectedSector.nome}
+                                </div>
+                             </div>
+                           ) : (
+                             Object.values(selectedSeats).map(({ seat, ticketType }) => (
+                               <div key={seat.id} className="p-4 bg-muted/30 rounded-2xl border border-dashed space-y-1">
+                                  <div className="flex justify-between font-black text-[10px] uppercase italic">
+                                     <span>{ticketType.name} - Lug. {seat.codigo}</span>
+                                     <span>{formatCurrency(ticketType.price)}</span>
+                                  </div>
+                               </div>
+                             ))
+                           )}
                         </div>
 
                         <div className="space-y-2 text-[10px] font-bold uppercase opacity-60">
                           <div className="flex justify-between">
                             <span>Subtotal</span>
-                            <span>{formatCurrency(selectedTicketType.price * quantity)}</span>
+                            <span>{formatCurrency(totalSelectedPrice)}</span>
                           </div>
                           <div className="flex justify-between">
                             <span>Taxa de Serviço (15%)</span>
-                            <span>{formatCurrency(selectedTicketType.price * quantity * 0.15)}</span>
+                            <span>{formatCurrency(totalSelectedPrice * 0.15)}</span>
                           </div>
                         </div>
 
@@ -833,7 +888,7 @@ export default function EventoPublicoPage() {
                         <div className="flex justify-between items-center">
                           <span className="text-lg font-black uppercase italic">Total</span>
                           <span className="text-3xl font-black text-primary">
-                            {formatCurrency(selectedTicketType.price * quantity * 1.15)}
+                            {formatCurrency(totalSelectedPrice * 1.15)}
                           </span>
                         </div>
 
@@ -847,15 +902,9 @@ export default function EventoPublicoPage() {
                     ) : (
                       <div className="py-10 text-center space-y-4 opacity-30">
                         <Ticket className="w-10 h-10 mx-auto" />
-                        <p className="text-xs font-black uppercase tracking-widest">
-                          Selecione um ingresso para continuar
-                        </p>
+                        <p className="text-xs font-black uppercase tracking-widest">Selecione um lugar ou ingresso</p>
                       </div>
                     )}
-                    <p className="text-[9px] text-muted-foreground text-center font-medium uppercase tracking-tighter">
-                      Ao continuar, você concorda com os termos de uso e política de cancelamento da
-                      Viby.
-                    </p>
                   </CardContent>
                 </Card>
               </div>
@@ -870,11 +919,11 @@ export default function EventoPublicoPage() {
           <div className="flex flex-col">
             <p className="text-[10px] font-black uppercase opacity-40">Total do Pedido</p>
             <p className="text-xl font-black text-primary">
-              {selectedTicketType ? formatCurrency(selectedTicketType.price * quantity * 1.15) : '---'}
+              {totalSelectedPrice > 0 ? formatCurrency(totalSelectedPrice * 1.15) : '---'}
             </p>
           </div>
           <Button
-            disabled={!selectedTicketType}
+            disabled={totalSelectedPrice === 0}
             onClick={handleAddToCart}
             className="bg-secondary text-white font-black px-8 h-12 rounded-xl shadow-lg uppercase italic text-xs grow sm:grow-0"
           >
