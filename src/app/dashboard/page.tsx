@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
-import { collection, doc, query, where, limit, orderBy, getDoc } from "firebase/firestore"
+import { collection, doc, query, where, limit } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { AdCard } from "@/components/ads/AdCard"
 import { Button } from "@/components/ui/button"
@@ -14,22 +15,19 @@ import {
   Navigation, 
   Building2, 
   BadgeCheck, 
-  ChevronRight,
-  Users 
+  ChevronRight
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { getCurrentLocation, calculateDistance, type Coordinates } from "@/lib/location-utils"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 import { cn } from "@/lib/utils"
 import Footer from "@/components/layout/Footer"
-import Image from "next/image"
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (
@@ -108,30 +106,24 @@ export default function ExplorarPage() {
   const { data: activeAds } = useCollection<any>(adsQuery)
 
   useEffect(() => {
-    // Solicita localização proativamente no mount
     getCurrentLocation()
       .then(setUserLocation)
-      .catch(() => {
-        console.log("Acesso à localização negado ou indisponível.");
-      });
+      .catch(() => {});
   }, []);
 
   const filteredEvents = React.useMemo(() => {
     if (!events) return []
-    
     const now = new Date();
 
     let result = events.filter((e: any) => {
-      const isNotDeleted = e.status !== 'Excluído';
-      const isAtivo = e.status === 'Ativo';
-      
       const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
       const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
-      const isEnded = end < now;
+      const isNotEnded = end >= now;
 
       const matchesSearch = e.title?.toLowerCase().includes(search.toLowerCase()) ||
                           e.description?.toLowerCase().includes(search.toLowerCase());
-      return isNotDeleted && isAtivo && !isEnded && matchesSearch;
+      
+      return e.status === 'Ativo' && isNotEnded && matchesSearch;
     })
 
     if (filter === 'nearby' && userLocation) {
@@ -139,43 +131,10 @@ export default function ExplorarPage() {
          ...e,
          _dist: e.latitude && e.longitude ? calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude }) : Infinity
        })).sort((a, b) => a._dist - b._dist);
-    } else if (filter === 'new') {
-       result.sort((a, b) => {
-          const tA = a.createdAt?.seconds || 0;
-          const tB = b.createdAt?.seconds || 0;
-          return tB - tA;
-       });
     }
 
     return result;
   }, [events, search, filter, userLocation])
-
-  const nearbyOrganizerIds = React.useMemo(() => {
-    if (!events || !userLocation) return []
-    
-    const eventsWithDistance = events
-      .filter((e: any) => e.status === 'Ativo' && e.latitude && e.longitude)
-      .map((e: any) => ({
-        ...e,
-        _dist: calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude })
-      }))
-      .sort((a, b) => a._dist - b._dist);
-
-    const uniqueOrgs: any[] = [];
-    const seenIds = new Set();
-
-    eventsWithDistance.forEach((event: any) => {
-      if (event.organizationId && !seenIds.has(event.organizationId)) {
-        seenIds.add(event.organizationId);
-        uniqueOrgs.push({
-          id: event.organizationId,
-          username: event.organizer?.username || "marca"
-        });
-      }
-    });
-
-    return uniqueOrgs;
-  }, [events, userLocation]);
 
   const interleavedContent = React.useMemo(() => {
     const now = new Date()
@@ -190,61 +149,50 @@ export default function ExplorarPage() {
       .map((ad: any) => {
         const start = parseAdDate(ad.startDate);
         const end = parseAdDate(ad.endDate);
-        
-        const isDateValid = (!start || now >= start) && (!end || now <= end)
-        const hasBudget = (ad.remainingBudget || 0) > 0
+        const isDateValid = (!start || now >= start) && (!end || now <= end);
+        const hasBudget = (ad.remainingBudget || 0) > 0;
 
-        if (!isDateValid || !hasBudget) return null
+        if (!isDateValid || !hasBudget) return null;
 
         if (ad.type === 'evento') {
-          const fullEvent = events?.find((e: any) => e.id === ad.eventId)
+          const fullEvent = events?.find((e: any) => e.id === ad.eventId);
           if (!fullEvent || fullEvent.status !== 'Ativo') return null;
-
+          
           const evStart = fullEvent.date?.toDate ? fullEvent.date.toDate() : new Date(fullEvent.date);
           const evEnd = fullEvent.endDate?.toDate ? fullEvent.endDate.toDate() : (fullEvent.endDate ? new Date(fullEvent.endDate) : new Date(evStart.getTime() + 4 * 60 * 60 * 1000));
           if (evEnd < now) return null;
 
-          return { ...fullEvent, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: false }
+          return { ...fullEvent, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: false };
         }
-
-        return { ...ad, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: true }
+        return { ...ad, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: true };
       })
       .filter(Boolean)
-      .sort((a: any, b: any) => (b._remainingBudget || 0) - (a._remainingBudget || 0))
+      .sort((a: any, b: any) => (b._remainingBudget || 0) - (a._remainingBudget || 0));
 
-    const organic = (filteredEvents || []).map(e => ({ ...e, isSponsored: false, _isAdObject: false }))
+    const organic = (filteredEvents || []).map(e => ({ ...e, isSponsored: false, _isAdObject: false }));
+    if (organic.length === 0) return sponsoredPool;
+    if (sponsoredPool.length === 0) return organic;
 
-    if (organic.length === 0) return sponsoredPool
-    if (sponsoredPool.length === 0) return organic
-
-    const result = []
+    const result = [];
     const sponsoredEventIds = new Set(sponsoredPool.filter(s => !s._isAdObject).map(s => s.id));
     const filteredOrganic = organic.filter(e => !sponsoredEventIds.has(e.id));
 
-    let organicIdx = 0
-    let adIdx = 0
+    let organicIdx = 0;
+    let adIdx = 0;
 
     while (organicIdx < filteredOrganic.length || adIdx < sponsoredPool.length) {
-      const interval = Math.floor(Math.random() * 3) + 3
-      const chunk = filteredOrganic.slice(organicIdx, organicIdx + interval)
-      result.push(...chunk)
-      organicIdx += interval
+      const interval = 4;
+      const chunk = filteredOrganic.slice(organicIdx, organicIdx + interval);
+      result.push(...chunk);
+      organicIdx += interval;
 
       if (adIdx < sponsoredPool.length) {
-        result.push(sponsoredPool[adIdx])
-        adIdx++
-      } else if (sponsoredPool.length > 0 && organicIdx < filteredOrganic.length) {
-        const topWeightedIdx = Math.floor(Math.random() * Math.min(3, sponsoredPool.length))
-        result.push(sponsoredPool[topWeightedIdx])
+        result.push(sponsoredPool[adIdx]);
+        adIdx++;
       }
     }
-
-    return result
+    return result;
   }, [filteredEvents, activeAds, events])
-
-  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
-  const { data: settings } = useDoc<any>(settingsRef)
-  const siteName = settings?.siteName || "Viby"
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -287,7 +235,6 @@ export default function ExplorarPage() {
             <TabsTrigger value="nearby" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold uppercase text-[10px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100">
               <Navigation className="w-3 h-3" /> Perto de Você
             </TabsTrigger>
-            <TabsTrigger value="new" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold uppercase text-[10px] tracking-widest opacity-50 data-[state=active]:opacity-100">Recém Lançados</TabsTrigger>
             <TabsTrigger value="organizadores" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-secondary data-[state=active]:border-b-2 data-[state=active]:border-secondary rounded-none px-0 py-2 font-bold uppercase text-[10px] tracking-widest flex items-center gap-2 opacity-50 data-[state=active]:opacity-100">
               <Building2 className="w-3 h-3" /> Organizadores
             </TabsTrigger>
@@ -301,37 +248,19 @@ export default function ExplorarPage() {
         </div>
       )}
 
-      {!loading && filter !== 'organizadores' && interleavedContent.length === 0 && (
-        <div className="py-24 text-center border-2 border-dashed rounded-[3rem] bg-white/20">
-          <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">Nenhum evento disponível no momento.</p>
-        </div>
-      )}
-
-      {filter === 'organizadores' && nearbyOrganizerIds.length === 0 && !loading && (
-        <div className="py-24 text-center border-2 border-dashed rounded-[3rem] bg-white/20">
-          <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">Ative sua localização para ver organizadores próximos.</p>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {filter === 'organizadores' ? (
-          nearbyOrganizerIds.map((item) => (
-            <OrgCard key={item.id} orgId={item.id} usernameFallback={item.username} />
-          ))
-        ) : (
-          interleavedContent.map((item: any, idx: number) => (
-            item._isAdObject ? (
-              <AdCard key={`ad-${item.id || item.adId}-${idx}`} ad={item} />
-            ) : (
-              <EventCard 
-                key={`event-${item.id}-${idx}`} 
-                event={item} 
-                userLocation={userLocation} 
-                isSponsored={item.isSponsored}
-              />
-            )
-          ))
-        )}
+        {interleavedContent.map((item: any, idx: number) => (
+          item._isAdObject ? (
+            <AdCard key={`ad-${item.adId}-${idx}`} ad={item} />
+          ) : (
+            <EventCard 
+              key={`event-${item.id}-${idx}`} 
+              event={item} 
+              userLocation={userLocation} 
+              isSponsored={item.isSponsored}
+            />
+          )
+        ))}
       </div>
       <Footer />
     </div>

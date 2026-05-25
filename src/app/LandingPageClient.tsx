@@ -3,12 +3,12 @@
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
-import { collection, query, limit, orderBy, doc, where, getDocs } from "firebase/firestore"
+import { collection, query, limit, doc, where } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { AdCard } from "@/components/ads/AdCard"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Globe, Search, ArrowRight, Loader2, MapPin, Tag, FilterX, Sparkles, Navigation } from "lucide-react"
+import { Search, MapPin, FilterX, Sparkles, Navigation, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
@@ -24,6 +24,7 @@ import {
 import { getCurrentLocation, calculateDistance, type Coordinates } from "@/lib/location-utils"
 import Footer from "@/components/layout/Footer"
 import { cn } from "@/lib/utils"
+import useEmblaCarousel from 'embla-carousel-react'
 
 export default function LandingPageClient() {
   const db = useFirestore()
@@ -55,6 +56,12 @@ export default function LandingPageClient() {
   }, [db])
   const { data: activeAds } = useCollection<any>(adsQuery)
 
+  const [emblaRef, emblaApi] = useEmblaCarousel({ 
+    loop: true, 
+    align: 'start',
+    slidesToScroll: 1
+  })
+
   React.useEffect(() => {
     const fetchLocation = async () => {
       try {
@@ -75,11 +82,18 @@ export default function LandingPageClient() {
 
   const filteredEvents = React.useMemo(() => {
     if (!events) return []
+    const now = new Date()
+
     let result = events.filter((e: any) => {
       const matchesSearch = e.title?.toLowerCase().includes(searchName.toLowerCase())
       const matchesCity = selectedCity === 'all' || e.city === selectedCity
       const matchesCategory = selectedCategory === 'all' || e.categoryId === selectedCategory
-      return matchesSearch && matchesCity && matchesCategory
+      
+      const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+      const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+      const isNotEnded = end >= now;
+
+      return matchesSearch && matchesCity && matchesCategory && isNotEnded
     })
 
     if (sortBy === 'distance' && userLocation) {
@@ -100,8 +114,50 @@ export default function LandingPageClient() {
 
   const interleavedContent = React.useMemo(() => {
     if (filteredEvents.length === 0) return []
-    return filteredEvents.map(e => ({ ...e, isSponsored: false, _isAdObject: false }))
-  }, [filteredEvents])
+    const now = new Date()
+    
+    // Filtrar e preparar Ads ativos
+    const sponsoredPool = (activeAds || [])
+      .map((ad: any) => {
+        const start = ad.startDate?.toDate ? ad.startDate.toDate() : new Date(ad.startDate);
+        const end = ad.endDate?.toDate ? ad.endDate.toDate() : new Date(ad.endDate);
+        const isDateValid = (!start || now >= start) && (!end || now <= end);
+        const hasBudget = (ad.remainingBudget || 0) > 0;
+
+        if (!isDateValid || !hasBudget) return null;
+
+        if (ad.type === 'evento') {
+          const fullEvent = events?.find((e: any) => e.id === ad.eventId);
+          if (!fullEvent || fullEvent.status !== 'Ativo') return null;
+          return { ...fullEvent, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: false };
+        }
+        return { ...ad, isSponsored: true, adId: ad.id, _remainingBudget: ad.remainingBudget, _isAdObject: true };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => (b._remainingBudget || 0) - (a._remainingBudget || 0));
+
+    const organic = filteredEvents.map(e => ({ ...e, isSponsored: false, _isAdObject: false }));
+    const result = [];
+    const sponsoredEventIds = new Set(sponsoredPool.filter(s => !s._isAdObject).map(s => s.id));
+    const filteredOrganic = organic.filter(e => !sponsoredEventIds.has(e.id));
+
+    let organicIdx = 0;
+    let adIdx = 0;
+
+    while (organicIdx < filteredOrganic.length || adIdx < sponsoredPool.length) {
+      const interval = 4;
+      const chunk = filteredOrganic.slice(organicIdx, organicIdx + interval);
+      result.push(...chunk);
+      organicIdx += interval;
+
+      if (adIdx < sponsoredPool.length) {
+        result.push(sponsoredPool[adIdx]);
+        adIdx++;
+      }
+    }
+
+    return result;
+  }, [filteredEvents, activeAds, events])
 
   const siteName = settings?.siteName || "Viby"
 
@@ -128,7 +184,7 @@ export default function LandingPageClient() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative py-20 md:py-32 overflow-hidden bg-primary text-white">
+      <section className="relative min-h-[70vh] flex items-center overflow-hidden bg-primary text-white">
         <div className="absolute inset-0 opacity-20 pointer-events-none">
           <Image 
             src="https://picsum.photos/seed/vibyhero/1920/1080" 
@@ -139,9 +195,9 @@ export default function LandingPageClient() {
             unoptimized
           />
         </div>
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="max-w-3xl space-y-6">
-            <Badge className="bg-secondary text-white border-none px-4 py-1.5 rounded-full font-black uppercase text-[10px] tracking-widest mb-4">
+        <div className="container mx-auto px-4 relative z-10 py-20">
+          <div className="max-w-4xl space-y-8">
+            <Badge className="bg-secondary text-white border-none px-4 py-1.5 rounded-full font-black uppercase text-[10px] tracking-widest">
               <Sparkles className="w-3 h-3 mr-2 fill-current" /> Descubra sua próxima experiência
             </Badge>
             <h1 className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter leading-[0.85]">
@@ -151,7 +207,7 @@ export default function LandingPageClient() {
               A maior vitrine de eventos do Brasil. Shows, festivais, gastronomia e cultura a um clique de distância.
             </p>
 
-            <Card className="bg-white/10 backdrop-blur-xl border-white/10 rounded-[2rem] p-4 md:p-6 shadow-2xl mt-12">
+            <Card className="bg-white/10 backdrop-blur-xl border-white/10 rounded-[2.5rem] p-4 md:p-8 shadow-2xl mt-12 w-full">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div className="md:col-span-5 relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
@@ -189,29 +245,38 @@ export default function LandingPageClient() {
         </div>
       </section>
 
-      {/* Category Filter */}
-      <section className="bg-white border-b border-border py-6 sticky top-16 z-40 shadow-sm">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center gap-4 overflow-x-auto pb-2 no-scrollbar">
-            <Button 
-              variant={selectedCategory === 'all' ? 'secondary' : 'ghost'} 
-              size="sm" 
-              className={cn("rounded-full font-black uppercase text-[10px] tracking-widest px-6 h-10 shrink-0", selectedCategory === 'all' && "shadow-lg shadow-secondary/20")}
-              onClick={() => setSelectedCategory('all')}
-            >
-              Todos
-            </Button>
-            {categories?.map((cat: any) => (
-              <Button 
-                key={cat.id} 
-                variant={selectedCategory === cat.id ? 'secondary' : 'ghost'} 
-                size="sm" 
-                className={cn("rounded-full font-black uppercase text-[10px] tracking-widest px-6 h-10 shrink-0", selectedCategory === cat.id && "shadow-lg shadow-secondary/20")}
-                onClick={() => setSelectedCategory(cat.id)}
-              >
-                {cat.name}
-              </Button>
-            ))}
+      {/* Category Filter - Infinite Carousel */}
+      <section className="bg-white border-b border-border py-6 sticky top-16 z-40 shadow-sm overflow-hidden">
+        <div className="container mx-auto px-4 relative group">
+          <div className="overflow-hidden" ref={emblaRef}>
+            <div className="flex gap-4">
+              <div className="flex-[0_0_auto]">
+                <Button 
+                  variant={selectedCategory === 'all' ? 'secondary' : 'ghost'} 
+                  size="sm" 
+                  className={cn("rounded-full font-black uppercase text-[10px] tracking-widest px-6 h-10 shrink-0", selectedCategory === 'all' && "shadow-lg shadow-secondary/20")}
+                  onClick={() => setSelectedCategory('all')}
+                >
+                  Todos
+                </Button>
+              </div>
+              {categories?.map((cat: any) => (
+                <div key={cat.id} className="flex-[0_0_auto]">
+                  <Button 
+                    variant={selectedCategory === cat.id ? 'secondary' : 'ghost'} 
+                    size="sm" 
+                    className={cn("rounded-full font-black uppercase text-[10px] tracking-widest px-6 h-10 shrink-0", selectedCategory === cat.id && "shadow-lg shadow-secondary/20")}
+                    onClick={() => setSelectedCategory(cat.id)}
+                  >
+                    {cat.name}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-1 bg-gradient-to-l from-white via-white to-transparent pl-12 h-full items-center pointer-events-none group-hover:pointer-events-auto">
+             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-white shadow-md border" onClick={() => emblaApi?.scrollPrev()}><ChevronLeft className="w-4 h-4" /></Button>
+             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-white shadow-md border" onClick={() => emblaApi?.scrollNext()}><ChevronRight className="w-4 h-4" /></Button>
           </div>
         </div>
       </section>
@@ -252,7 +317,11 @@ export default function LandingPageClient() {
         ) : interleavedContent.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
             {interleavedContent.map((item: any, idx: number) => (
-              <EventCard key={idx} event={item} userLocation={userLocation} />
+              item._isAdObject ? (
+                <AdCard key={`ad-${item.adId}-${idx}`} ad={item} />
+              ) : (
+                <EventCard key={`ev-${item.id}-${idx}`} event={item} userLocation={userLocation} isSponsored={item.isSponsored} />
+              )
             ))}
           </div>
         ) : (
@@ -260,7 +329,7 @@ export default function LandingPageClient() {
              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                 <FilterX className="w-8 h-8 text-muted-foreground opacity-20" />
              </div>
-             <p className="text-muted-foreground font-black uppercase tracking-widest text-xs">Nenhum evento encontrado para os filtros selecionados.</p>
+             <p className="text-muted-foreground font-black uppercase tracking-widest text-xs">Nenhum evento ativo encontrado para os filtros selecionados.</p>
              <Button variant="link" className="mt-2 text-secondary font-bold" onClick={() => { setSearchName(""); setSelectedCity("all"); setSelectedCategory("all"); }}>Limpar Filtros</Button>
           </div>
         )}
