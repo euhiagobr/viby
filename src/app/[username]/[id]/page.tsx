@@ -55,7 +55,8 @@ import {
   MousePointer2,
   Map as MapIcon,
   AlertCircle,
-  Timer
+  Timer,
+  BadgeCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -92,21 +93,7 @@ import { Separator } from '@/components/ui/separator';
 
 function VerifiedBadge() {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="w-4 h-4 fill-blue-500 text-white"
-    >
-      <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74z" />
-      <path d="m9 12 2 2 4-4" />
-    </svg>
+    <BadgeCheck className="w-4 h-4 fill-blue-500 text-white" />
   );
 }
 
@@ -149,22 +136,13 @@ function AvatarFallback({
 
 const renderFormattedText = (text: string) => {
   if (!text) return '';
-  const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@[\w.]+)/g);
+  const parts = text.split(/(\*\*.*?\*\*|@[\w.]+)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**'))
       return (
         <strong key={i} className="font-black">
           {part.slice(2, -2)}
         </strong>
-      );
-    if (part.startsWith('+') && part.endsWith('+'))
-      return (
-        <span
-          key={i}
-          className="text-2xl md:text-3xl font-black uppercase italic leading-tight block my-4 text-primary"
-        >
-          {part.slice(1, -1)}
-        </span>
       );
     if (part.startsWith('@'))
       return (

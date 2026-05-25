@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -37,15 +36,12 @@ import { FirestorePermissionError } from "@/firebase/errors"
 
 const renderFormattedText = (text: string) => {
   if (!text) return "";
-  // Regex para: **negrito**, +grande+, @username
-  const parts = text.split(/(\*\*.*?\*\*|\+.*?\+|@[\w.]+)/g);
+  // Regex para: **negrito**, @username
+  const parts = text.split(/(\*\*.*?\*\*|@[\w.]+)/g);
 
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
-    }
-    if (part.startsWith('+') && part.endsWith('+')) {
-      return <span key={i} className="text-[1.3em] font-bold leading-tight inline-block">{part.slice(1, -1)}</span>;
     }
     if (part.startsWith('@')) {
       const usernameMention = part.slice(1).toLowerCase();
@@ -77,7 +73,7 @@ function CommentItem({ comment, eventId, isAdmin, onDelete }: { comment: any, ev
             <span className="text-[11px] font-black uppercase tracking-tight text-primary">
               {author?.name || "Usuário"}
             </span>
-            {author?.isVerified && <BadgeCheck className="w-3 h-3 fill-blue-500 text-white" />}
+            {(author?.isVerified || author?.verified) && <BadgeCheck className="w-3 h-3 fill-blue-500 text-white" />}
           </div>
           {canDelete && (
             <button onClick={(e) => { e.stopPropagation(); onDelete(comment.id); }} className="opacity-0 group-hover:opacity-100 text-destructive hover:scale-110 transition-all">
@@ -91,6 +87,10 @@ function CommentItem({ comment, eventId, isAdmin, onDelete }: { comment: any, ev
       </div>
     </div>
   );
+}
+
+interface EventTimelineCardProps {
+  event: any
 }
 
 export function EventTimelineCard({ event }: EventTimelineCardProps) {
@@ -208,6 +208,8 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
     deleteDoc(doc(db, "events", event.id, "comments", commentId))
   }
 
+  const isVerified = event.organizer?.verified === true || event.organizer?.isVerified === true;
+
   return (
     <Card 
       className={cn(
@@ -225,7 +227,7 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
           <div className="flex flex-col">
             <div className="flex items-center gap-1">
               <span className="text-sm font-black uppercase italic tracking-tighter text-primary">{event.organizer?.name || "Organizador"}</span>
-              {event.organizer?.isVerified && <BadgeCheck className="w-3.5 h-3.5 fill-blue-500 text-white" />}
+              {isVerified && <BadgeCheck className="w-3.5 h-3.5 fill-blue-500 text-white" />}
             </div>
             <span className="text-[10px] font-bold text-secondary uppercase tracking-widest">@{username}</span>
           </div>
