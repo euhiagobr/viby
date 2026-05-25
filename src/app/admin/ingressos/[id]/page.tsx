@@ -1,9 +1,8 @@
-
 'use client';
 
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { useDoc, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { 
   doc, 
   collection, 
@@ -30,7 +29,8 @@ import {
   ArrowLeft,
   Loader2,
   Clock,
-  Map as MapIcon,
+  MapPin,
+  Map as MapIcon, 
   ShieldCheck,
   History,
   AlertTriangle,
@@ -82,7 +82,6 @@ export default function AdminEventTicketingDetails() {
 
   const regsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    // Removido orderBy para evitar necessidade de índice composto
     return query(collection(db, "registrations"), where("eventId", "==", eventId));
   }, [db, eventId]);
 
@@ -219,10 +218,10 @@ export default function AdminEventTicketingDetails() {
                                  <DropdownMenu>
                                     <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="rounded-full"><MoreHorizontal className="w-4 h-4" /></Button></DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="rounded-xl w-56">
-                                       <DropdownMenuItem className="gap-2 cursor-pointer"><Mail className="w-4 h-4" /> Reenviar Voucher</DropdownMenuItem>
-                                       <DropdownMenuItem className="gap-2 cursor-pointer"><Edit2 className="w-4 h-4" /> Alterar Dados</DropdownMenuItem>
+                                       <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => toast({ title: "Funcionalidade em desenvolvimento" })}><Mail className="w-4 h-4" /> Reenviar Voucher</DropdownMenuItem>
+                                       <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => toast({ title: "Funcionalidade em desenvolvimento" })}><Edit2 className="w-4 h-4" /> Alterar Dados</DropdownMenuItem>
                                        <DropdownMenuSeparator />
-                                       <DropdownMenuItem className="gap-2 text-destructive cursor-pointer focus:text-destructive"><XCircle className="w-4 h-4" /> Cancelar Ingresso</DropdownMenuItem>
+                                       <DropdownMenuItem className="gap-2 text-destructive cursor-pointer focus:text-destructive" onClick={() => toast({ title: "Funcionalidade em desenvolvimento" })}><XCircle className="w-4 h-4" /> Cancelar Ingresso</DropdownMenuItem>
                                     </DropdownMenuContent>
                                  </DropdownMenu>
                               </TableCell>
