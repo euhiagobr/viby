@@ -37,6 +37,31 @@ import Link from 'next/link';
 import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
 
+// Utilitários de formatação robustos
+const formatDate = (dateValue: any) => {
+  if (!dateValue) return "A definir";
+  try {
+    let d: Date;
+    if (dateValue?.toDate) d = dateValue.toDate();
+    else if (dateValue instanceof Date) d = dateValue;
+    else d = new Date(dateValue);
+    if (isNaN(d.getTime())) return "A definir";
+    return d.toLocaleDateString('pt-BR');
+  } catch (e) { return "A definir"; }
+};
+
+const formatTime = (dateValue: any) => {
+  if (!dateValue) return "";
+  try {
+    let d: Date;
+    if (dateValue?.toDate) d = dateValue.toDate();
+    else if (dateValue instanceof Date) d = dateValue;
+    else d = new Date(dateValue);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  } catch (e) { return ""; }
+};
+
 export default function AdminIngressosDashboard() {
   const db = useFirestore();
   const [search, setSearch] = React.useState("");
@@ -45,7 +70,6 @@ export default function AdminIngressosDashboard() {
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    // Removido orderBy para evitar necessidade de índice composto inicial
     return query(collection(db, "events"), where("status", "==", "Ativo"));
   }, [db]);
 
@@ -61,7 +85,6 @@ export default function AdminIngressosDashboard() {
       return matchesDate && matchesCity && matchesSearch;
     });
 
-    // Ordenar em memória para garantir funcionamento sem índice
     return result.sort((a, b) => {
       const dateA = a.date?.seconds || new Date(a.date).getTime();
       const dateB = b.date?.seconds || new Date(b.date).getTime();
@@ -149,7 +172,6 @@ function EventOpRow({ event }: { event: any }) {
   const stats = React.useMemo(() => {
     if (!regs) return { sold: 0, checkedIn: 0, revenue: 0 };
     return regs.reduce((acc: any, r: any) => {
-      // Consideramos Pago ou Disponível (grátis) como venda concluída
       if (['Pago', 'Disponível'].includes(r.paymentStatus)) {
         acc.sold++;
         acc.revenue += (r.price || r.ticketBasePrice || 0);
@@ -171,8 +193,15 @@ function EventOpRow({ event }: { event: any }) {
            <div className="space-y-1">
               <h4 className="font-black text-sm uppercase italic text-primary truncate leading-tight">{event.title}</h4>
               <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground uppercase">
-                 <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-secondary" /> {event.date?.toDate ? event.date.toDate().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : "---"}</span>
-                 <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-secondary" /> {event.city}</span>
+                 <span className="flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-secondary" /> {formatDate(event.date)}
+                 </span>
+                 <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-secondary" /> {formatTime(event.date)}
+                 </span>
+                 <span className="flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-secondary" /> {event.city}
+                 </span>
               </div>
            </div>
         </div>
