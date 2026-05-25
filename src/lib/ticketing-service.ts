@@ -86,6 +86,7 @@ export async function releaseExpiredSeats(db: Firestore, eventoId: string) {
 
 /**
  * Gera assentos físicos baseados na configuração do setor.
+ * Define uma grade inicial de posições.
  */
 export async function generateMapData(
   db: Firestore, 
@@ -95,6 +96,8 @@ export async function generateMapData(
 ) {
   const batch = writeBatch(db);
   const assentosRef = collection(db, "events", eventoId, "setores", setorId, "assentos");
+
+  const gap = 45; // Espaçamento inicial entre assentos
 
   if (sectorData.tipo === 'assentos') {
     const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -111,6 +114,8 @@ export async function generateMapData(
           status: 'disponivel',
           setorId,
           eventoId,
+          posX: n * gap,
+          posY: (f + 1) * gap,
           createdAt: serverTimestamp()
         });
       }
@@ -127,6 +132,8 @@ export async function generateMapData(
         status: 'disponivel',
         setorId,
         eventoId,
+        posX: ((m - 1) % 10 + 1) * gap * 2,
+        posY: (Math.floor((m - 1) / 10) + 1) * gap * 2,
         createdAt: serverTimestamp()
       });
     }

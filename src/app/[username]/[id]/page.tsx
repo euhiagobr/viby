@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -44,6 +45,8 @@ import {
   X,
   ShoppingCart,
   Send,
+  Accessibility,
+  UserCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -267,15 +270,8 @@ function SeatMap({
     <Card className="border-none shadow-inner rounded-[2rem] bg-muted/10 overflow-hidden">
       <CardContent className="p-4 md:p-8">
         <TransformWrapper initialScale={1} minScale={0.5} maxScale={3}>
-          <TransformComponent wrapperStyle={{ width: '100%', height: '400px' }}>
-            <div
-              className="p-10 grid gap-3 place-content-center"
-              style={{ 
-                gridTemplateColumns: 'repeat(10, 40px)',
-                width: 'fit-content',
-                margin: '0 auto'
-              }}
-            >
+          <TransformComponent wrapperStyle={{ width: '100%', height: '450px' }}>
+            <div className="relative min-w-[800px] min-h-[400px] bg-white rounded-2xl shadow-inner border border-dashed">
               {seats?.map((seat) => {
                 const isSold = seat.status === 'vendido';
                 const isSelected = selectedSeatIds.includes(seat.id);
@@ -284,16 +280,29 @@ function SeatMap({
                     key={seat.id}
                     disabled={isSold}
                     onClick={() => onToggleSeat(seat)}
+                    style={{ 
+                        position: 'absolute', 
+                        left: seat.posX || 0, 
+                        top: seat.posY || 0,
+                        width: '36px',
+                        height: '36px'
+                    }}
                     className={cn(
-                      'w-10 h-10 rounded-lg flex items-center justify-center text-[10px] font-black transition-all',
+                      'rounded-lg flex items-center justify-center text-[10px] font-black transition-all border-2 shadow-sm',
                       isSold
-                        ? 'bg-muted text-muted-foreground/30 cursor-not-allowed'
+                        ? 'bg-muted text-muted-foreground/30 cursor-not-allowed border-muted-foreground/10'
                         : isSelected
-                          ? 'bg-green-500 text-white scale-110 shadow-lg ring-4 ring-green-500/20'
-                          : 'bg-white border-2 border-secondary/20 text-secondary hover:border-secondary hover:bg-secondary/5'
+                          ? 'bg-green-500 text-white scale-110 shadow-lg ring-4 ring-green-500/20 border-green-600'
+                          : seat.categoria === 'pcd'
+                            ? 'bg-blue-50 border-blue-500 text-blue-600'
+                            : seat.categoria === 'pcd_acompanhante'
+                               ? 'bg-purple-50 border-purple-500 text-purple-600'
+                               : 'bg-white border-secondary/20 text-secondary hover:border-secondary hover:bg-secondary/5'
                     )}
                   >
-                    {seat.codigo}
+                    {seat.categoria === 'pcd' ? <Accessibility className="w-4 h-4" /> : 
+                     seat.categoria === 'pcd_acompanhante' ? <Users2 className="w-4 h-4" /> :
+                     seat.codigo}
                   </button>
                 );
               })}
@@ -307,12 +316,16 @@ function SeatMap({
             <span className="text-[10px] font-black uppercase opacity-60">Livre</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-green-500 rounded" />
-            <span className="text-[10px] font-black uppercase opacity-60">Sua Seleção</span>
+            <div className="w-4 h-4 bg-blue-500 rounded" />
+            <span className="text-[10px] font-black uppercase opacity-60">PCD</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-muted rounded" />
-            <span className="text-[10px] font-black uppercase opacity-60">Ocupado</span>
+            <div className="w-4 h-4 bg-purple-500 rounded" />
+            <span className="text-[10px] font-black uppercase opacity-60">Acompanhante</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-green-500 rounded" />
+            <span className="text-[10px] font-black uppercase opacity-60">Selecionado</span>
           </div>
         </div>
       </CardContent>
@@ -482,7 +495,12 @@ export default function EventoPublicoPage() {
       if (next[seat.id]) {
         delete next[seat.id];
       } else {
-        next[seat.id] = { seat, ticketType: availableTickets[0] };
+        // Encontra o tipo de ingresso padrão para o assento (respeita PCD)
+        const defaultType = seat.categoria === 'pcd' 
+            ? (availableTickets.find((t: any) => t.isLegalHalf) || availableTickets[0])
+            : availableTickets[0];
+
+        next[seat.id] = { seat, ticketType: defaultType };
       }
       return next;
     });
@@ -900,38 +918,60 @@ export default function EventoPublicoPage() {
                                     <Ticket className="w-4 h-4" /> 3. Atribua os Ingressos
                                  </h3>
                                  <div className="grid grid-cols-1 gap-4">
-                                    {Object.values(selectedSeats).map(({ seat, ticketType }) => (
-                                      <Card key={seat.id} className="border-none shadow-sm rounded-2xl p-6 bg-white flex flex-col sm:flex-row items-center justify-between gap-6 group hover:border-secondary/20 border transition-all">
-                                         <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center text-secondary font-black">
-                                               {seat.codigo}
-                                            </div>
-                                            <div>
-                                               <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Assento Selecionado</p>
-                                               <p className="font-bold text-sm uppercase italic tracking-tight">{selectedSector.nome}</p>
-                                            </div>
-                                         </div>
+                                    {Object.values(selectedSeats).map(({ seat, ticketType }) => {
+                                      // Filtra os ingressos válidos para este assento específico
+                                      // Se for PCD, mostra apenas meias.
+                                      const validOptions = seat.categoria === 'pcd'
+                                        ? availableTickets.filter((t: any) => t.isLegalHalf)
+                                        : availableTickets;
 
-                                         <div className="w-full sm:w-64">
-                                            <Select value={ticketType.id} onValueChange={(val) => updateSeatTicketType(seat.id, val)}>
-                                               <SelectTrigger className="rounded-xl h-11 border-secondary/20">
-                                                  <SelectValue placeholder="Tipo de ingresso" />
-                                               </SelectTrigger>
-                                               <SelectContent className="rounded-xl">
-                                                  {availableTickets.map((t: any) => (
-                                                    <SelectItem key={t.id} value={t.id} className="font-bold uppercase text-[10px]">
-                                                       {t.name} - {formatCurrency(t.price)}
-                                                    </SelectItem>
-                                                  ))}
-                                               </SelectContent>
-                                            </Select>
-                                         </div>
+                                      return (
+                                        <Card key={seat.id} className="border-none shadow-sm rounded-2xl p-6 bg-white flex flex-col sm:flex-row items-center justify-between gap-6 group hover:border-secondary/20 border transition-all">
+                                           <div className="flex items-center gap-4">
+                                              <div className={cn(
+                                                  "w-12 h-12 rounded-xl flex items-center justify-center font-black",
+                                                  seat.categoria === 'pcd' ? "bg-blue-100 text-blue-600" :
+                                                  seat.categoria === 'pcd_acompanhante' ? "bg-purple-100 text-purple-600" :
+                                                  "bg-secondary/10 text-secondary"
+                                              )}>
+                                                 {seat.categoria === 'pcd' ? <Accessibility className="w-6 h-6" /> : 
+                                                  seat.categoria === 'pcd_acompanhante' ? <Users2 className="w-6 h-6" /> :
+                                                  seat.codigo}
+                                              </div>
+                                              <div>
+                                                 <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">
+                                                    {seat.categoria === 'pcd' ? "Assento PCD" : 
+                                                     seat.categoria === 'pcd_acompanhante' ? "Acompanhante PCD" : 
+                                                     "Assento Selecionado"}
+                                                 </p>
+                                                 <p className="font-bold text-sm uppercase italic tracking-tight">{selectedSector.nome}</p>
+                                              </div>
+                                           </div>
 
-                                         <button onClick={() => handleToggleSeat(seat)} className="text-muted-foreground/30 hover:text-destructive transition-colors">
-                                            <X className="w-5 h-5" />
-                                         </button>
-                                      </Card>
-                                    ))}
+                                           <div className="w-full sm:w-64">
+                                              <Select value={ticketType.id} onValueChange={(val) => updateSeatTicketType(seat.id, val)}>
+                                                 <SelectTrigger className="rounded-xl h-11 border-secondary/20">
+                                                    <SelectValue placeholder="Tipo de ingresso" />
+                                                 </SelectTrigger>
+                                                 <SelectContent className="rounded-xl">
+                                                    {validOptions.map((t: any) => (
+                                                      <SelectItem key={t.id} value={t.id} className="font-bold uppercase text-[10px]">
+                                                         {t.name} - {formatCurrency(t.price)}
+                                                      </SelectItem>
+                                                    ))}
+                                                 </SelectContent>
+                                              </Select>
+                                              {seat.categoria === 'pcd' && (
+                                                <p className="text-[8px] font-black text-blue-600 uppercase mt-1.5 ml-1">Restrito a Meia-Entrada PCD</p>
+                                              )}
+                                           </div>
+
+                                           <button onClick={() => handleToggleSeat(seat)} className="text-muted-foreground/30 hover:text-destructive transition-colors">
+                                              <X className="w-5 h-5" />
+                                           </button>
+                                        </Card>
+                                      );
+                                    })}
                                  </div>
                               </div>
                             )}

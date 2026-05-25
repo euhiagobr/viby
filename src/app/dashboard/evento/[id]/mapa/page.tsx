@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -21,7 +22,11 @@ import {
   Move,
   RotateCw,
   CheckCircle2,
-  Ticket
+  Ticket,
+  ChevronRight,
+  Accessibility,
+  Users2,
+  UserCircle
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -87,8 +92,15 @@ export default function EventoMapaPage() {
   
   const [palcoNome, setPalcoNome] = React.useState("PALCO PRINCIPAL")
   const [sectorToDelete, setSectorToDelete] = React.useState<any>(null)
+  
+  // Edição Individual de Assentos
+  const [selectedSectorId, setSelectedSectorId] = React.useState<string | null>(null)
+  const seatsQuery = useMemoFirebase(() => {
+    if (!db || !eventId || !selectedSectorId) return null
+    return query(collection(db, "events", eventId, "setores", selectedSectorId, "assentos"), orderBy("codigo", "asc"))
+  }, [db, eventId, selectedSectorId])
+  const { data: seats, loading: seatsLoading } = useCollection<any>(seatsQuery)
 
-  // Estado local para os campos do formulário (reatividade ao selecionar link)
   const [formNome, setFormNome] = React.useState("")
   const [formCapacidade, setFormCapacidade] = React.useState(0)
 
@@ -139,8 +151,8 @@ export default function EventoMapaPage() {
       cor: formData.get("cor") as string || "#2C52EE",
       posX: 700,
       posY: 300,
-      width: 250,
-      height: 150,
+      width: 400,
+      height: 300,
       rotation: 0,
       zIndex: (setores?.length || 0) + 1,
       ativo: true,
@@ -162,16 +174,22 @@ export default function EventoMapaPage() {
       if (selectedType !== 'livre') {
         await generateMapData(db, eventId, docRef.id, sectorData)
       }
-      toast({ title: "Setor criado e vinculado!" })
+      toast({ title: "Setor criado!" })
       setIsDialogOpen(false)
       setSelectedTicketLink("")
-      setFormNome("")
-      setFormCapacidade(0)
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao criar", description: error.message })
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handleUpdateSeat = async (seatId: string, data: any) => {
+    if (!db || !eventId || !selectedSectorId) return
+    updateDoc(doc(db, "events", eventId, "setores", selectedSectorId, "assentos", seatId), {
+      ...data,
+      updatedAt: serverTimestamp()
+    })
   }
 
   const handleDeleteSector = async () => {
@@ -184,6 +202,7 @@ export default function EventoMapaPage() {
       batch.delete(doc(db, "events", eventId, "setores", sectorToDelete.id))
       await batch.commit()
       toast({ title: "Setor removido" })
+      if (selectedSectorId === sectorToDelete.id) setSelectedSectorId(null)
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao remover" })
     } finally {
@@ -192,31 +211,18 @@ export default function EventoMapaPage() {
     }
   }
 
-  const updateVisualLayout = async (sectorId: string, d: any) => {
-    if (!db || !eventId) return
-    updateDoc(doc(db, "events", eventId, "setores", sectorId), {
-      posX: d.x,
-      posY: d.y,
-      width: d.width,
-      height: d.height,
-      updatedAt: serverTimestamp()
-    })
-  }
-
   const handleGlobalSave = async () => {
     if (!db || !eventRef) return
     setIsSubmitting(true)
     try {
       await updateDoc(eventRef, { palcoNome, mapaConfigurado: true, updatedAt: serverTimestamp() })
-      toast({ title: "Planta salva com sucesso!" })
+      toast({ title: "Planta salva!" })
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao salvar" })
     } finally {
       setIsSubmitting(false)
     }
   }
-
-  if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-8 pb-20 px-4 h-screen flex flex-col overflow-hidden text-foreground">
@@ -229,46 +235,42 @@ export default function EventoMapaPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+           {selectedSectorId && (
+             <Button variant="outline" className="rounded-xl h-11 px-4 gap-2 font-bold" onClick={() => setSelectedSectorId(null)}>
+                <ArrowLeft className="w-4 h-4" /> Voltar para Setores
+             </Button>
+           )}
            <Button onClick={handleGlobalSave} disabled={isSubmitting} className="bg-primary text-white font-black rounded-xl h-11 px-6 shadow-lg gap-2 uppercase italic">
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               Salvar Planta
            </Button>
 
-           <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if(!open) setSelectedTicketLink(""); }}>
+           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="rounded-xl font-bold gap-2 bg-secondary text-white shadow-lg h-11 px-6 uppercase italic">
-                  <Plus className="w-4 h-4" /> Novo Setor no Mapa
+                  <Plus className="w-4 h-4" /> Novo Setor
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-md rounded-[2.5rem] max-h-[90vh] overflow-y-auto">
                 <form onSubmit={handleCreateSector} className="space-y-6">
                   <DialogHeader>
                     <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Vincular Bilheteria</DialogTitle>
-                    <DialogDescription>Escolha uma definição de ingresso existente para representar no mapa.</DialogDescription>
+                    <DialogDescription>Crie um setor físico vinculado a um ingresso existente.</DialogDescription>
                   </DialogHeader>
-                  
                   <div className="space-y-4">
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Vincular a:</Label>
+                       <Label className="text-[10px] font-black uppercase opacity-60">Ingresso Correspondente</Label>
                        <Select value={selectedTicketLink} onValueChange={handleLinkChange} required>
-                          <SelectTrigger className="rounded-xl h-12">
-                             <SelectValue placeholder="Selecione o ingresso/setor" />
-                          </SelectTrigger>
+                          <SelectTrigger className="rounded-xl h-12"><SelectValue placeholder="Selecione" /></SelectTrigger>
                           <SelectContent className="rounded-xl">
-                             <SelectGroup>
-                                <SelectLabel className="text-[9px] font-black uppercase opacity-40">Definições Disponíveis</SelectLabel>
-                                {availableLinks.map(link => (
-                                  <SelectItem key={link.id} value={link.id} className="text-xs font-bold">
-                                     {link.name} ({link.capacity} un.)
-                                  </SelectItem>
-                                ))}
-                             </SelectGroup>
+                             {availableLinks.map(link => (
+                               <SelectItem key={link.id} value={link.id} className="text-xs font-bold">{link.name} ({link.capacity} un.)</SelectItem>
+                             ))}
                           </SelectContent>
                        </Select>
                     </div>
-
                     {selectedTicketLink && (
-                      <div className="animate-in slide-in-from-top-2 duration-300 space-y-6 border-t border-dashed pt-6">
+                      <div className="space-y-6 border-t border-dashed pt-6 animate-in slide-in-from-top-2">
                          <div className="space-y-3">
                             <Label className="text-[10px] font-black uppercase opacity-60">Tipo de Visualização</Label>
                             <div className="grid grid-cols-3 gap-2">
@@ -277,77 +279,109 @@ export default function EventoMapaPage() {
                                <Button type="button" variant={selectedType === 'mesas' ? 'secondary' : 'outline'} className="flex-col h-20 gap-1 text-[10px] uppercase font-black" onClick={() => setSelectedType('mesas')}><Grid3X3 className="w-5 h-5" /> Mesas</Button>
                             </div>
                          </div>
-
-                         <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase opacity-60">Nome no Mapa</Label>
-                            <Input value={formNome} onChange={e => setFormNome(e.target.value)} required className="rounded-xl h-11" />
-                         </div>
-
+                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome no Mapa</Label><Input value={formNome} onChange={e => setFormNome(e.target.value)} required className="rounded-xl h-11" /></div>
                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cor do Setor</Label><Input name="cor" type="color" defaultValue="#2C52EE" className="h-10 p-1" /></div>
-                            <div className="space-y-2">
-                               <Label className="text-[10px] font-black uppercase opacity-60">Capacidade</Label>
-                               <Input type="number" value={formCapacidade} onChange={e => setFormCapacidade(Number(e.target.value))} required className="rounded-xl h-11 font-black" />
-                            </div>
+                            <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cor</Label><Input name="cor" type="color" defaultValue="#2C52EE" className="h-10 p-1" /></div>
+                            <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Capacidade</Label><Input type="number" value={formCapacidade} onChange={e => setFormCapacidade(Number(e.target.value))} required className="rounded-xl h-11 font-black" /></div>
                          </div>
-
                          {selectedType === 'assentos' && (
                            <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-2xl border border-dashed">
-                             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fileiras</Label><Input name="fileiras" type="number" required defaultValue={Math.ceil(formCapacidade/10)} /></div>
-                             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Assentos/Fila</Label><Input name="assentosPorFileira" type="number" required defaultValue={10} /></div>
-                           </div>
-                         )}
-
-                         {selectedType === 'mesas' && (
-                           <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-2xl border border-dashed">
-                             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Qtd Mesas</Label><Input name="quantidadeMesas" type="number" required defaultValue={Math.ceil(formCapacidade/4)} /></div>
-                             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Lugares/Mesa</Label><Input name="lugaresPorMesa" type="number" required defaultValue={4} /></div>
+                             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fileiras</Label><Input name="fileiras" type="number" required defaultValue={5} /></div>
+                             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cadeiras/Fila</Label><Input name="assentosPorFileira" type="number" required defaultValue={10} /></div>
                            </div>
                          )}
                       </div>
                     )}
                   </div>
-                  <DialogFooter>
-                    <Button type="submit" disabled={isSubmitting || !selectedTicketLink} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                       {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Vincular e Adicionar"}
-                    </Button>
-                  </DialogFooter>
+                  <DialogFooter><Button type="submit" disabled={isSubmitting || !selectedTicketLink} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">{isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Criar Setor"}</Button></DialogFooter>
                 </form>
               </DialogContent>
            </Dialog>
         </div>
       </div>
 
-      <div className="flex-1 relative bg-muted/20 border-2 border-dashed rounded-[2.5rem] overflow-hidden">
-        <div className="absolute inset-0 overflow-auto custom-scrollbar">
-          <div className="relative min-w-[2000px] min-h-[1500px] bg-white" style={{ backgroundImage: 'radial-gradient(#e5e7eb 1px, transparent 0)', backgroundSize: '30px 30px' }}>
-            {/* Palco */}
+      <div className="flex-1 relative bg-muted/10 border-2 border-dashed rounded-[2.5rem] overflow-hidden">
+        <div className="absolute inset-0 overflow-auto">
+          <div className="relative min-w-[2000px] min-h-[1500px] bg-white" style={{ backgroundImage: 'radial-gradient(#e5e7eb 1.5px, transparent 0)', backgroundSize: '40px 40px' }}>
+            
+            {/* PALCO */}
             <Rnd bounds="parent" default={{ x: 700, y: 50, width: 600, height: 120 }}>
               <div className="w-full h-full bg-primary text-white flex flex-col items-center justify-center rounded-2xl shadow-2xl border-4 border-white/20 select-none">
                 <span className="font-black italic uppercase tracking-[0.5em] text-xl">{palcoNome}</span>
               </div>
             </Rnd>
 
-            {/* Setores */}
+            {/* SETORES */}
             {setores?.map((s: any) => (
               <Rnd
                 key={s.id}
                 bounds="parent"
-                size={{ width: s.width || 250, height: s.height || 150 }}
+                size={{ width: s.width || 400, height: s.height || 300 }}
                 position={{ x: s.posX || 0, y: s.posY || 0 }}
-                onDragStop={(e, d) => updateVisualLayout(s.id, { x: d.x, y: d.y, width: s.width, height: s.height })}
-                onResizeStop={(e, direction, ref, delta, position) => updateVisualLayout(s.id, { x: position.x, y: position.y, width: parseInt(ref.style.width), height: parseInt(ref.style.height) })}
+                onDragStop={(e, d) => updateDoc(doc(db!, "events", eventId, "setores", s.id), { posX: d.x, posY: d.y })}
+                onResizeStop={(e, dir, ref, delta, pos) => updateDoc(doc(db!, "events", eventId, "setores", s.id), { posX: pos.x, posY: pos.y, width: parseInt(ref.style.width), height: parseInt(ref.style.height) })}
+                enableResizing={!selectedSectorId || selectedSectorId !== s.id}
+                disableDragging={selectedSectorId === s.id}
               >
                 <div 
-                  className="w-full h-full flex flex-col items-center justify-center shadow-lg border-2 transition-all group select-none relative rounded-[2.5rem]"
-                  style={{ backgroundColor: `${s.cor}15`, borderColor: s.cor, color: s.cor, transform: `rotate(${s.rotation || 0}deg)` }}
+                  className={cn(
+                    "w-full h-full border-2 transition-all group relative rounded-[2rem]",
+                    selectedSectorId === s.id ? "ring-4 ring-secondary/50 border-secondary bg-white shadow-2xl" : "shadow-lg bg-white/40"
+                  )}
+                  style={{ borderColor: s.cor }}
+                  onClick={(e) => { e.stopPropagation(); setSelectedSectorId(s.id); }}
                 >
-                   <div className="text-center p-4">
-                      <h4 className="font-black uppercase italic text-sm mb-1">{s.nome}</h4>
-                      <Badge variant="outline" className="text-[8px] font-black uppercase border-current mb-2" style={{ color: s.cor }}>{s.tipo}</Badge>
-                      <p className="text-[10px] font-black opacity-60">{s.capacidade} LUGARES TOTAIS</p>
+                   {/* Cabeçalho do Setor */}
+                   <div className="absolute -top-10 left-0 flex items-center gap-2">
+                      <Badge style={{ backgroundColor: s.cor }} className="text-[10px] font-black uppercase text-white shadow-md">{s.nome}</Badge>
+                      {s.tipo !== 'livre' && <Badge variant="secondary" className="text-[10px] font-black uppercase shadow-sm">Editar Assentos</Badge>}
                    </div>
-                   <Button variant="ghost" size="icon" className="absolute top-3 right-3 h-8 w-8 text-destructive bg-white/80 opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-white" onClick={() => setSectorToDelete(s)}>
+
+                   {/* Renderização de Assentos Individuais (Somente se selecionado e for tipo assentos/mesas) */}
+                   {selectedSectorId === s.id && (s.tipo === 'assentos' || s.tipo === 'mesas') ? (
+                     <div className="w-full h-full relative p-10 overflow-auto">
+                        {seatsLoading ? <div className="flex justify-center pt-20"><Loader2 className="animate-spin" /></div> : (
+                          seats?.map((seat: any) => (
+                            <Rnd
+                              key={seat.id}
+                              bounds="parent"
+                              position={{ x: seat.posX || 0, y: seat.posY || 0 }}
+                              onDragStop={(e, d) => handleUpdateSeat(seat.id, { posX: d.x, posY: d.y })}
+                              enableResizing={false}
+                            >
+                               <div className="group/seat relative">
+                                  <button 
+                                    className={cn(
+                                      "w-10 h-10 rounded-lg flex items-center justify-center text-[10px] font-black border-2 transition-all shadow-sm",
+                                      seat.categoria === 'pcd' ? "bg-blue-500 text-white border-blue-600" :
+                                      seat.categoria === 'pcd_acompanhante' ? "bg-purple-500 text-white border-purple-600" :
+                                      "bg-white border-muted-foreground/20 text-primary hover:border-secondary"
+                                    )}
+                                  >
+                                    {seat.categoria === 'pcd' ? <Accessibility className="w-4 h-4" /> : 
+                                     seat.categoria === 'pcd_acompanhante' ? <Users2 className="w-4 h-4" /> : 
+                                     seat.codigo}
+                                  </button>
+                                  
+                                  {/* Menu de Categoria do Assento */}
+                                  <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-white rounded-xl shadow-2xl border p-1 hidden group-hover/seat:flex gap-1 z-50">
+                                     <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" onClick={() => handleUpdateSeat(seat.id, { categoria: 'comum' })} title="Comum"><UserCircle className="w-4 h-4" /></Button>
+                                     <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-blue-600" onClick={() => handleUpdateSeat(seat.id, { categoria: 'pcd' })} title="PCD"><Accessibility className="w-4 h-4" /></Button>
+                                     <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-purple-600" onClick={() => handleUpdateSeat(seat.id, { categoria: 'pcd_acompanhante' })} title="Acompanhante"><Users2 className="w-4 h-4" /></Button>
+                                  </div>
+                               </div>
+                            </Rnd>
+                          ))
+                        )}
+                     </div>
+                   ) : (
+                     <div className="flex flex-col items-center justify-center h-full opacity-40 select-none">
+                        <h4 className="font-black uppercase italic text-sm mb-1">{s.nome}</h4>
+                        <p className="text-[10px] font-black">{s.capacidade} LUGARES {s.tipo.toUpperCase()}</p>
+                     </div>
+                   )}
+
+                   <Button variant="ghost" size="icon" className="absolute top-4 right-4 h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity rounded-full bg-white shadow" onClick={(e) => { e.stopPropagation(); setSectorToDelete(s); }}>
                       <Trash2 className="w-4 h-4" />
                    </Button>
                 </div>
@@ -360,12 +394,12 @@ export default function EventoMapaPage() {
       <AlertDialog open={!!sectorToDelete} onOpenChange={() => setSectorToDelete(null)}>
         <AlertDialogContent className="rounded-[2rem]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Remover Setor?</AlertDialogTitle>
-            <AlertDialogDescription>Esta ação apagará permanentemente o setor <strong>{sectorToDelete?.nome}</strong> e todos os assentos vinculados a ele na planta visual.</AlertDialogDescription>
+            <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Excluir Setor?</AlertDialogTitle>
+            <AlertDialogDescription>Isso removerá o setor e todos os assentos configurados.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteSector} disabled={isSubmitting} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px]">Excluir</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteSector} className="bg-destructive rounded-xl font-black uppercase text-[10px]">Confirmar Exclusão</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
