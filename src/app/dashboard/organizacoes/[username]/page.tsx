@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -64,7 +63,8 @@ import {
   Eye,
   Clock,
   Wallet,
-  ArrowRight
+  ArrowRight,
+  Megaphone
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -267,7 +267,7 @@ export default function OrganizationDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black">{events?.filter(e => e.status === 'Ativo').length || 0}</div>
+            <div className="text-3xl font-black">{events?.length || 0}</div>
           </CardContent>
         </Card>
 
