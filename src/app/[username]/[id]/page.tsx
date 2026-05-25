@@ -37,6 +37,8 @@ import {
   Layers,
   Zap,
   Navigation,
+  Plus,
+  Minus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -52,22 +54,18 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 // --- COMPONENTES AUXILIARES ---
 
 function VerifiedBadge() {
-  return <BadgeCheck className="w-4 h-4 fill-blue-500 text-white" />;
-}
-
-function BadgeCheck({ className }: { className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
+      width="16"
+      height="16"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={className}
+      className="w-4 h-4 fill-blue-500 text-white"
     >
       <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.74z" />
       <path d="m9 12 2 2 4-4" />
@@ -247,8 +245,12 @@ function SeatMap({
         <TransformWrapper initialScale={1} minScale={0.5} maxScale={3}>
           <TransformComponent wrapperStyle={{ width: '100%', height: '400px' }}>
             <div
-              className="p-10 grid gap-3"
-              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(40px, 1fr))' }}
+              className="p-10 grid gap-3 place-content-center"
+              style={{ 
+                gridTemplateColumns: 'repeat(10, 40px)', // Mantendo uma estrutura fixa de 10 colunas para parecer um mapa
+                width: 'fit-content',
+                margin: '0 auto'
+              }}
             >
               {seats?.map((seat) => {
                 const isSold = seat.status === 'vendido';
@@ -259,7 +261,7 @@ function SeatMap({
                     disabled={isSold}
                     onClick={() => onSelectSeat(seat)}
                     className={cn(
-                      'aspect-square rounded-lg flex items-center justify-center text-[10px] font-black transition-all',
+                      'w-10 h-10 rounded-lg flex items-center justify-center text-[10px] font-black transition-all',
                       isSold
                         ? 'bg-muted text-muted-foreground/30 cursor-not-allowed'
                         : isSelected
@@ -298,10 +300,16 @@ function TicketCard({
   type,
   isSelected,
   onSelect,
+  quantity,
+  onQuantityChange,
+  showQuantity,
 }: {
   type: any;
   isSelected: boolean;
   onSelect: () => void;
+  quantity?: number;
+  onQuantityChange?: (val: number) => void;
+  showQuantity?: boolean;
 }) {
   return (
     <Card
@@ -355,13 +363,28 @@ function TicketCard({
               </Badge>
             )}
           </div>
-          {isSelected ? (
-            <div className="bg-secondary text-white rounded-full p-1.5 shadow-md animate-in zoom-in-50">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-          ) : (
-            <div className="w-6 h-6 rounded-full border-2 border-muted-foreground/20 group-hover:border-secondary/40 transition-colors" />
-          )}
+          
+          <div className="flex items-center gap-4">
+             {showQuantity && isSelected && onQuantityChange && (
+                <div className="flex items-center gap-3 bg-white p-1 rounded-lg border shadow-sm" onClick={e => e.stopPropagation()}>
+                   <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md" onClick={() => onQuantityChange(Math.max(1, (quantity || 1) - 1))}>
+                      <Minus className="w-3.5 h-3.5" />
+                   </Button>
+                   <span className="font-black text-sm w-4 text-center">{quantity}</span>
+                   <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md" onClick={() => onQuantityChange((quantity || 1) + 1)}>
+                      <Plus className="w-3.5 h-3.5" />
+                   </Button>
+                </div>
+             )}
+
+             {isSelected ? (
+                <div className="bg-secondary text-white rounded-full p-1.5 shadow-md animate-in zoom-in-50">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              ) : (
+                <div className="w-6 h-6 rounded-full border-2 border-muted-foreground/20 group-hover:border-secondary/40 transition-colors" />
+              )}
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -472,6 +495,7 @@ export default function EventoPublicoPage() {
 
     toast({ title: 'Adicionado ao carrinho!' });
     if (selectedSeat) setSelectedSeat(null);
+    setQuantity(1);
   };
 
   if (eventLoading)
@@ -681,6 +705,7 @@ export default function EventoPublicoPage() {
                               setSelectedSector(setor);
                               setSelectedSeat(null);
                               setSelectedTicketType(null);
+                              setQuantity(1);
                             }}
                             className={cn(
                               'cursor-pointer border-2 transition-all rounded-2xl p-6',
@@ -754,6 +779,9 @@ export default function EventoPublicoPage() {
                                   type={type}
                                   isSelected={selectedTicketType?.id === type.id}
                                   onSelect={() => setSelectedTicketType(type)}
+                                  showQuantity
+                                  quantity={quantity}
+                                  onQuantityChange={setQuantity}
                                 />
                               ))}
                             </div>
@@ -780,8 +808,8 @@ export default function EventoPublicoPage() {
                       <div className="space-y-4 animate-in fade-in">
                         <div className="p-4 bg-muted/30 rounded-2xl border border-dashed space-y-2">
                           <div className="flex justify-between font-black text-sm uppercase italic">
-                            <span>{selectedTicketType.name}</span>
-                            <span>{formatCurrency(selectedTicketType.price)}</span>
+                            <span>{selectedTicketType.name} {quantity > 1 && `x ${quantity}`}</span>
+                            <span>{formatCurrency(selectedTicketType.price * quantity)}</span>
                           </div>
                           <div className="flex flex-col text-[10px] font-bold text-secondary uppercase tracking-widest">
                             <span>Setor: {selectedSector.nome}</span>
@@ -792,11 +820,11 @@ export default function EventoPublicoPage() {
                         <div className="space-y-2 text-[10px] font-bold uppercase opacity-60">
                           <div className="flex justify-between">
                             <span>Subtotal</span>
-                            <span>{formatCurrency(selectedTicketType.price)}</span>
+                            <span>{formatCurrency(selectedTicketType.price * quantity)}</span>
                           </div>
                           <div className="flex justify-between">
                             <span>Taxa de Serviço (15%)</span>
-                            <span>{formatCurrency(selectedTicketType.price * 0.15)}</span>
+                            <span>{formatCurrency(selectedTicketType.price * quantity * 0.15)}</span>
                           </div>
                         </div>
 
@@ -805,7 +833,7 @@ export default function EventoPublicoPage() {
                         <div className="flex justify-between items-center">
                           <span className="text-lg font-black uppercase italic">Total</span>
                           <span className="text-3xl font-black text-primary">
-                            {formatCurrency(selectedTicketType.price * 1.15)}
+                            {formatCurrency(selectedTicketType.price * quantity * 1.15)}
                           </span>
                         </div>
 
@@ -813,7 +841,7 @@ export default function EventoPublicoPage() {
                           onClick={handleAddToCart}
                           className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform"
                         >
-                          Finalizar Compra
+                          Adicionar ao Carrinho
                         </Button>
                       </div>
                     ) : (
@@ -842,7 +870,7 @@ export default function EventoPublicoPage() {
           <div className="flex flex-col">
             <p className="text-[10px] font-black uppercase opacity-40">Total do Pedido</p>
             <p className="text-xl font-black text-primary">
-              {selectedTicketType ? formatCurrency(selectedTicketType.price * 1.15) : '---'}
+              {selectedTicketType ? formatCurrency(selectedTicketType.price * quantity * 1.15) : '---'}
             </p>
           </div>
           <Button
