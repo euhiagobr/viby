@@ -47,7 +47,12 @@ import {
   Accessibility,
   UserCircle,
   Maximize2,
-  Megaphone
+  Megaphone,
+  ZoomIn,
+  ZoomOut,
+  RefreshCcw,
+  Hand,
+  MousePointer2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -78,6 +83,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ToastAction } from "@/components/ui/toast";
+import { Separator } from '@/components/ui/separator';
 
 // --- COMPONENTES AUXILIARES ---
 
@@ -95,14 +101,10 @@ function VerifiedBadge() {
       strokeLinejoin="round"
       className="w-4 h-4 fill-blue-500 text-white"
     >
-      <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.74z" />
+      <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74z" />
       <path d="m9 12 2 2 4-4" />
     </svg>
   );
-}
-
-function Separator({ className }: { className?: string }) {
-  return <div className={cn('h-px w-full bg-border', className)} />;
 }
 
 function Avatar({
@@ -239,7 +241,146 @@ function EventHero({ event }: { event: any }) {
   );
 }
 
-function SeatMap({
+/**
+ * Componente que renderiza a Planta Visual completa do evento
+ */
+function VenueMap({
+  event,
+  setores,
+  selectedSectorId,
+  onSelectSector,
+  onToggleSeat,
+  selectedSeatIds,
+}: {
+  event: any;
+  setores: any[];
+  selectedSectorId: string | null;
+  onSelectSector: (sector: any) => void;
+  onToggleSeat: (seat: any) => void;
+  selectedSeatIds: string[];
+}) {
+  const [scale, setScale] = React.useState(0.8);
+  const [isPanningEnabled, setIsPanningEnabled] = React.useState(false);
+
+  return (
+    <Card className="border-none shadow-inner rounded-[2.5rem] bg-muted/10 overflow-hidden relative group">
+      <TransformWrapper 
+        initialScale={0.8} 
+        minScale={0.1} 
+        maxScale={3} 
+        centerOnInit
+        limitToBounds={false}
+        panning={{ disabled: !isPanningEnabled }}
+        onTransformed={(ref) => setScale(ref.state.scale)}
+      >
+        {({ zoomIn, zoomOut, resetTransform }) => (
+          <>
+            {/* Toolbar do Mapa */}
+            <div className="absolute bottom-6 right-6 z-30 flex flex-col gap-2 bg-white/80 backdrop-blur-md p-2 rounded-2xl shadow-xl border border-border opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl" onClick={() => zoomIn()}><ZoomIn className="w-4 h-4" /></Button>
+              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl" onClick={() => zoomOut()}><ZoomOut className="w-4 h-4" /></Button>
+              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl" onClick={() => resetTransform()}><RefreshCcw className="w-4 h-4" /></Button>
+              <Separator />
+              <Button 
+                variant={isPanningEnabled ? 'secondary' : 'ghost'} 
+                size="icon" 
+                className={cn("h-9 w-9 rounded-xl", isPanningEnabled ? "bg-secondary text-white" : "text-muted-foreground")}
+                onClick={() => setIsPanningEnabled(!isPanningEnabled)}
+              >
+                 {isPanningEnabled ? <Hand className="w-4 h-4" /> : <MousePointer2 className="w-4 h-4" />}
+              </Button>
+            </div>
+
+            <TransformComponent wrapperStyle={{ width: '100%', height: '500px' }}>
+              <div className="relative min-w-[2000px] min-h-[1500px] bg-white">
+                <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#e5e7eb 1.5px, transparent 0)', backgroundSize: '40px 40px' }} />
+                
+                <div className="absolute inset-0">
+                  {/* PALCO */}
+                  <div 
+                    style={{ position: 'absolute', left: 700, top: 50, width: 600, height: 120 }}
+                    className="bg-primary text-white flex flex-col items-center justify-center rounded-2xl shadow-2xl border-4 border-white/20 select-none"
+                  >
+                    <span className="font-black italic uppercase tracking-[0.5em] text-xl">{event.palcoNome || "PALCO PRINCIPAL"}</span>
+                  </div>
+
+                  {/* SETORES */}
+                  {setores.map((s: any) => (
+                    <div
+                      key={s.id}
+                      style={{ 
+                        position: 'absolute', 
+                        left: s.posX || 0, 
+                        top: s.posY || 0, 
+                        width: s.width || 400, 
+                        height: s.height || 300,
+                        borderColor: s.cor,
+                      }}
+                      className={cn(
+                        "border-2 transition-all rounded-[2rem] flex flex-col items-center justify-center cursor-pointer",
+                        selectedSectorId === s.id ? "bg-white shadow-2xl ring-4 ring-secondary/40 z-20" : "bg-white/40 hover:bg-white/60 shadow-lg z-10"
+                      )}
+                      onClick={(e) => { e.stopPropagation(); if(!isPanningEnabled) onSelectSector(s); }}
+                    >
+                      <div className="absolute -top-10 left-0">
+                        <Badge style={{ backgroundColor: s.cor }} className="text-[10px] font-black uppercase text-white shadow-md">{s.nome}</Badge>
+                      </div>
+
+                      {/* Se for o setor selecionado e tiver assentos, renderizamos eles */}
+                      {selectedSectorId === s.id && (s.tipo === 'assentos' || s.tipo === 'mesas') ? (
+                        <div className="w-full h-full relative p-8">
+                           <SectorSeatsContent 
+                             eventId={event.id} 
+                             sectorId={s.id} 
+                             onToggleSeat={onToggleSeat} 
+                             selectedSeatIds={selectedSeatIds} 
+                           />
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-1 opacity-40 select-none">
+                           <h4 className="font-black uppercase italic text-xs">{s.nome}</h4>
+                           <p className="text-[9px] font-bold">{s.capacidade} LUGARES {s.tipo.toUpperCase()}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </TransformComponent>
+          </>
+        )}
+      </TransformWrapper>
+
+      <div className="p-4 bg-white/80 backdrop-blur-md border-t flex flex-wrap justify-center gap-6 px-4 text-center">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-white border-2 border-secondary/20 rounded" />
+            <span className="text-[9px] font-black uppercase opacity-60">Livre</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-blue-500 rounded" />
+            <span className="text-[9px] font-black uppercase opacity-60">PCD</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-purple-500 rounded" />
+            <span className="text-[9px] font-black uppercase opacity-60">Acompanhante</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-orange-500 rounded" />
+            <span className="text-[9px] font-black uppercase opacity-60">Obeso</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-green-500 rounded" />
+            <span className="text-[9px] font-black uppercase opacity-60">Selecionado</span>
+          </div>
+        </div>
+    </Card>
+  );
+}
+
+/**
+ * Componente interno para renderizar as cadeiras de um setor específico no mapa
+ */
+function SectorSeatsContent({
   eventId,
   sectorId,
   onToggleSeat,
@@ -258,86 +399,51 @@ function SeatMap({
       orderBy('codigo', 'asc')
     );
   }, [db, eventId, sectorId]);
+  
   const { data: seats, loading } = useCollection<any>(seatsQuery);
 
-  if (loading)
-    return (
-      <div className="h-64 flex items-center justify-center bg-muted/20 rounded-[2rem] border-2 border-dashed">
-        <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-      </div>
-    );
+  if (loading) return <div className="flex items-center justify-center h-full"><Loader2 className="w-6 h-6 animate-spin text-secondary" /></div>;
 
   return (
-    <Card className="border-none shadow-inner rounded-[2rem] bg-muted/10 overflow-hidden">
-      <CardContent className="p-4 md:p-8">
-        <TransformWrapper initialScale={1} minScale={0.5} maxScale={3}>
-          <TransformComponent wrapperStyle={{ width: '100%', height: '450px' }}>
-            <div className="relative min-w-[800px] min-h-[400px] bg-white rounded-2xl shadow-inner border border-dashed">
-              {seats?.map((seat) => {
-                const isSold = seat.status === 'vendido';
-                const isSelected = selectedSeatIds.includes(seat.id);
-                return (
-                  <button
-                    key={seat.id}
-                    disabled={isSold}
-                    onClick={() => onToggleSeat(seat)}
-                    style={{ 
-                        position: 'absolute', 
-                        left: seat.posX || 0, 
-                        top: seat.posY || 0,
-                        width: '36px',
-                        height: '36px'
-                    }}
-                    className={cn(
-                      'rounded-lg flex items-center justify-center text-[10px] font-black transition-all border-2 shadow-sm',
-                      isSold
-                        ? 'bg-muted text-muted-foreground/30 cursor-not-allowed border-muted-foreground/10'
-                        : isSelected
-                          ? 'bg-green-500 text-white scale-110 shadow-lg ring-4 ring-green-500/20 border-green-600'
-                          : seat.categoria === 'pcd'
-                            ? 'bg-blue-50 border-blue-500 text-blue-600'
-                            : seat.categoria === 'pcd_acompanhante'
-                               ? 'bg-purple-50 border-purple-500 text-purple-600'
-                               : seat.categoria === 'obeso'
-                                  ? 'bg-orange-50 border-orange-500 text-orange-600'
-                                  : 'bg-white border-secondary/20 text-secondary hover:border-secondary hover:bg-secondary/5'
-                    )}
-                  >
-                    {seat.categoria === 'pcd' ? <Accessibility className="w-4 h-4" /> : 
-                     seat.categoria === 'pcd_acompanhante' ? <Users2 className="w-4 h-4" /> :
-                     seat.categoria === 'obeso' ? <Maximize2 className="w-4 h-4" /> :
-                     seat.codigo}
-                  </button>
-                );
-              })}
-            </div>
-          </TransformComponent>
-        </TransformWrapper>
-
-        <div className="mt-8 flex flex-wrap justify-center gap-6 px-4 text-center">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-white border-2 border-secondary/20 rounded" />
-            <span className="text-[10px] font-black uppercase opacity-60">Livre</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-blue-500 rounded" />
-            <span className="text-[10px] font-black uppercase opacity-60">PCD</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-purple-500 rounded" />
-            <span className="text-[10px] font-black uppercase opacity-60">Acompanhante</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-orange-500 rounded" />
-            <span className="text-[10px] font-black uppercase opacity-60">Obeso</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-green-500 rounded" />
-            <span className="text-[10px] font-black uppercase opacity-60">Selecionado</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <>
+      {seats?.map((seat) => {
+        const isSold = seat.status === 'vendido';
+        const isSelected = selectedSeatIds.includes(seat.id);
+        return (
+          <button
+            key={seat.id}
+            disabled={isSold}
+            onClick={(e) => { e.stopPropagation(); onToggleSeat(seat); }}
+            style={{ 
+                position: 'absolute', 
+                left: seat.posX || 0, 
+                top: seat.posY || 0,
+                width: '32px',
+                height: '32px'
+            }}
+            className={cn(
+              'rounded-lg flex items-center justify-center text-[9px] font-black transition-all border-2 shadow-sm',
+              isSold
+                ? 'bg-muted text-muted-foreground/30 cursor-not-allowed border-muted-foreground/10'
+                : isSelected
+                  ? 'bg-green-500 text-white scale-110 shadow-lg ring-4 ring-green-500/20 border-green-600 z-30'
+                  : seat.categoria === 'pcd'
+                    ? 'bg-blue-50 border-blue-500 text-blue-600'
+                    : seat.categoria === 'pcd_acompanhante'
+                       ? 'bg-purple-50 border-purple-500 text-purple-600'
+                       : seat.categoria === 'obeso'
+                          ? 'bg-orange-50 border-orange-500 text-orange-600'
+                          : 'bg-white border-secondary/20 text-secondary hover:border-secondary hover:bg-secondary/5'
+            )}
+          >
+            {seat.categoria === 'pcd' ? <Accessibility className="w-3.5 h-3.5" /> : 
+             seat.categoria === 'pcd_acompanhante' ? <Users2 className="w-3.5 h-3.5" /> :
+             seat.categoria === 'obeso' ? <Maximize2 className="w-3.5 h-3.5" /> :
+             seat.codigo}
+          </button>
+        );
+      })}
+    </>
   );
 }
 
@@ -486,7 +592,6 @@ export default function EventoPublicoPage() {
   const availableTickets = React.useMemo(() => {
     if (!event) return [];
 
-    // Lógica para quando um setor está selecionado
     if (selectedSector) {
       if (event.ticketMode === 'sector_batches') {
         const sectorDef = event.sectors?.find((s: any) => s.id === selectedSector.ticketLinkId);
@@ -503,7 +608,6 @@ export default function EventoPublicoPage() {
         return activeBatch?.ticketTypes?.map((t: any) => ({ ...t, _batch: activeBatch })) || [];
       }
       
-      // Se o evento é de lotes globais mas usa mapa de setores
       if (event.ticketMode === 'batches' || event.ticketMode === 'paid_single') {
          const activeBatch =
           event.batches?.find((b: any) => {
@@ -517,7 +621,6 @@ export default function EventoPublicoPage() {
       }
     }
 
-    // Lógica padrão sem setor (ex: ingresso livre direto)
     if (event.ticketMode === 'batches' || event.ticketMode === 'paid_single' || event.ticketMode === 'free') {
       const activeBatch =
         event.batches?.find((b: any) => {
@@ -539,7 +642,6 @@ export default function EventoPublicoPage() {
       if (next[seat.id]) {
         delete next[seat.id];
       } else {
-        // Encontra o tipo de ingresso padrão para o assento (respeita PCD)
         const defaultType = seat.categoria === 'pcd' 
             ? (availableTickets.find((t: any) => t.isLegalHalf) || availableTickets[0])
             : availableTickets[0];
@@ -901,7 +1003,7 @@ export default function EventoPublicoPage() {
                   <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-secondary">
                     Bilheteria
                   </h2>
-                  <p className="text-3xl font-black italic tracking-tighter uppercase">
+                  <p className="text-3xl font-black italic uppercase tracking-tighter uppercase">
                     Garanta seu Ingresso
                   </p>
                 </div>
@@ -915,6 +1017,26 @@ export default function EventoPublicoPage() {
                   </div>
                 ) : (
                   <div className="space-y-12">
+                    {/* PLANTA VISUAL DO EVENTO */}
+                    <div className="space-y-6">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                        <MapIcon className="w-4 h-4 text-secondary" /> Planta Visual
+                      </h3>
+                      <VenueMap 
+                        event={event}
+                        setores={setores}
+                        selectedSectorId={selectedSector?.id || null}
+                        onSelectSector={(s) => {
+                          setSelectedSector(s);
+                          setSelectedSeats({});
+                          setSelectedTicketType(null);
+                          setQuantity(1);
+                        }}
+                        onToggleSeat={handleToggleSeat}
+                        selectedSeatIds={Object.keys(selectedSeats)}
+                      />
+                    </div>
+
                     <div className="space-y-6">
                       <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                         <Layers className="w-4 h-4" /> 1. Escolha o Setor
@@ -959,27 +1081,13 @@ export default function EventoPublicoPage() {
                       <div className="space-y-8 animate-in slide-in-from-top-4 duration-500 pt-4 border-t border-dashed">
                         {selectedSector.tipo !== 'livre' ? (
                           <div className="space-y-10">
-                            <div className="space-y-6">
-                               <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                                  <Armchair className="w-4 h-4" /> 2. Escolha seus Lugares
-                               </h3>
-                               <SeatMap
-                                 eventId={event.id}
-                                 sectorId={selectedSector.id}
-                                 onToggleSeat={handleToggleSeat}
-                                 selectedSeatIds={Object.keys(selectedSeats)}
-                               />
-                            </div>
-
                             {Object.keys(selectedSeats).length > 0 && (
                               <div className="space-y-6 animate-in zoom-in-95 duration-300">
                                  <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                                    <Ticket className="w-4 h-4" /> 3. Atribua os Ingressos
+                                    <Ticket className="w-4 h-4" /> 2. Atribua os Ingressos
                                  </h3>
                                  <div className="grid grid-cols-1 gap-4">
                                     {Object.values(selectedSeats).map(({ seat, ticketType }) => {
-                                      // Filtra os ingressos válidos para este assento específico
-                                      // Se for PCD, mostra apenas meias.
                                       const validOptions = seat.categoria === 'pcd'
                                         ? availableTickets.filter((t: any) => t.isLegalHalf)
                                         : availableTickets;
@@ -1162,3 +1270,4 @@ export default function EventoPublicoPage() {
     </div>
   );
 }
+
