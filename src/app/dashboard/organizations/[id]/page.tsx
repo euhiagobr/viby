@@ -2,8 +2,8 @@
 
 import * as React from 'react';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, limit } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, query, where, limit, doc, getDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,19 @@ export default function OrganizationDashboardPage() {
     );
   }, [db, currentOrg?.id]);
 
-  const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery);
+  const { data: rawEvents, loading: eventsLoading } = useCollection<any>(eventsQuery);
+
+  const events = React.useMemo(() => {
+    if (!rawEvents) return [];
+    return [...rawEvents]
+      .filter(e => e.status === 'Ativo')
+      .sort((a, b) => {
+        const tA = a.createdAt?.seconds || 0;
+        const tB = b.createdAt?.seconds || 0;
+        return tB - tA;
+      })
+      .slice(0, 5);
+  }, [rawEvents]);
 
   const membersQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null;
@@ -132,20 +144,24 @@ export default function OrganizationDashboardPage() {
                <div className="p-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-secondary" /></div>
              ) : events && events.length > 0 ? (
                <div className="divide-y">
-                 {events.map((event: any) => (
-                   <div key={event.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                      <div className="flex items-center gap-4">
-                         <div className="h-10 w-10 rounded-lg bg-muted overflow-hidden">
-                            {event.banner && <img src={event.banner} className="w-full h-full object-cover" />}
-                         </div>
-                         <div>
-                            <p className="font-bold text-sm leading-tight">{event.title}</p>
-                            <p className="text-[10px] text-muted-foreground font-bold uppercase">{new Date(event.startDate).toLocaleDateString('pt-BR')}</p>
-                         </div>
-                      </div>
-                      <Badge variant="outline" className="text-[9px] font-black uppercase">{event.status}</Badge>
-                   </div>
-                 ))}
+                 {events.map((event: any) => {
+                   const dateValue = event.startDate || event.date;
+                   const formattedDate = dateValue ? (dateValue.toDate ? dateValue.toDate().toLocaleDateString('pt-BR') : new Date(dateValue).toLocaleDateString('pt-BR')) : 'Sem data';
+                   
+                   return (
+                     <div key={event.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                        <div className="flex items-center gap-4">
+                           <div className="h-10 w-10 rounded-lg bg-muted overflow-hidden">
+                              {event.banner && <img src={event.banner} className="w-full h-full object-cover" />}
+                           </div>
+                           <div>
+                              <p className="font-bold text-sm leading-tight">{event.title}</p>
+                              <p className="text-[10px] text-muted-foreground font-bold uppercase">{new Date(event.startDate).toLocaleDateString('pt-BR')}</p>
+                           </div>
+                        </div>
+                        <Badge variant="outline" className="text-[9px] font-black uppercase">{event.status}</Badge>
+                     </div>
+                   ))}
                </div>
              ) : (
                <div className="p-12 text-center text-muted-foreground italic text-sm">Nenhum evento publicado ainda.</div>

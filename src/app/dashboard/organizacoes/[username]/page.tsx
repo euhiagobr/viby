@@ -55,7 +55,7 @@ export default function OrganizationDashboardPage() {
   const events = React.useMemo(() => {
     if (!rawEvents) return [];
     return [...rawEvents]
-      .filter(e => e.status !== 'Excluído')
+      .filter(e => e.status === 'Ativo')
       .sort((a, b) => {
         const tA = a.createdAt?.seconds || 0;
         const tB = b.createdAt?.seconds || 0;
