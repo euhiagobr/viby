@@ -1,6 +1,5 @@
-
 /**
- * @fileOverview Utilitários financeiros oficiais do Viby.
+ * @fileOverview Utilitários financeiros oficiais do Viby com suporte a campanhas promocionais.
  */
 
 export function formatCurrency(value: number): string {
@@ -32,14 +31,22 @@ export interface VibyFinancialSnapshot {
 
 /**
  * Verifica se uma promoção está ativa baseada em switch e datas.
+ * Garante tratamento robusto para datas vazias ou inválidas.
  */
 function isPromoActive(active: boolean, start: string, end: string) {
   if (!active) return false;
   const now = new Date();
-  const startDate = start ? new Date(start) : null;
-  const endDate = end ? new Date(end) : null;
-  if (startDate && now < startDate) return false;
-  if (endDate && now > endDate) return false;
+  
+  if (start) {
+    const startDate = new Date(start);
+    if (!isNaN(startDate.getTime()) && now < startDate) return false;
+  }
+  
+  if (end) {
+    const endDate = new Date(end);
+    if (!isNaN(endDate.getTime()) && now > endDate) return false;
+  }
+  
   return true;
 }
 
@@ -52,7 +59,7 @@ export function calculateDetailedVibyBreakdown(
   qty: number, 
   globalFees: any, 
   stripeSettings: any,
-  isFirstInCharge: boolean = true, // Para aplicar a taxa fixa da Stripe apenas uma vez por grupo
+  isFirstInCharge: boolean = true, 
   promotions: any = null
 ): VibyFinancialSnapshot {
   const impostoRate = 0.11;
@@ -79,7 +86,7 @@ export function calculateDetailedVibyBreakdown(
   // 1. Taxa do Comprador (Buyer Fee)
   let bPercentVal = globalFees?.buyerFeePercent ?? 15;
   if (promotions && isPromoActive(promotions.buyerPromoActive, promotions.buyerPromoStart, promotions.buyerPromoEnd)) {
-    bPercentVal = promotions.buyerPromoPercent ?? bPercentVal;
+    bPercentVal = (promotions.buyerPromoPercent !== undefined) ? promotions.buyerPromoPercent : bPercentVal;
   }
   const bPercent = bPercentVal / 100;
   const buyerFeeTotal = totalFace * bPercent;
@@ -90,8 +97,8 @@ export function calculateDetailedVibyBreakdown(
   let oMinVal = globalFees?.organizerMinFee ?? 9.99;
   
   if (promotions && isPromoActive(promotions.organizerPromoActive, promotions.organizerPromoStart, promotions.organizerPromoEnd)) {
-    oPercentVal = promotions.organizerPromoPercent ?? oPercentVal;
-    oMinVal = promotions.organizerPromoMinFee ?? oMinVal;
+    oPercentVal = (promotions.organizerPromoPercent !== undefined) ? promotions.organizerPromoPercent : oPercentVal;
+    oMinVal = (promotions.organizerPromoMinFee !== undefined) ? promotions.organizerPromoMinFee : oMinVal;
   }
 
   const oPercent = oPercentVal / 100;
@@ -146,7 +153,7 @@ export function calculateFinancialBreakdown(facePrice: number, globalFees?: any,
   // Taxa Comprador
   let bPercentVal = globalFees?.buyerFeePercent ?? 15;
   if (promotions && isPromoActive(promotions.buyerPromoActive, promotions.buyerPromoStart, promotions.buyerPromoEnd)) {
-    bPercentVal = promotions.buyerPromoPercent ?? bPercentVal;
+    bPercentVal = (promotions.buyerPromoPercent !== undefined) ? promotions.buyerPromoPercent : bPercentVal;
   }
   const buyerFeePercent = bPercentVal / 100;
   const administrativeFeeAmount = Number((price * buyerFeePercent).toFixed(2));
@@ -157,8 +164,8 @@ export function calculateFinancialBreakdown(facePrice: number, globalFees?: any,
   let oMinVal = globalFees?.organizerMinFee ?? 9.99;
   
   if (promotions && isPromoActive(promotions.organizerPromoActive, promotions.organizerPromoStart, promotions.organizerPromoEnd)) {
-    oPercentVal = promotions.organizerPromoPercent ?? oPercentVal;
-    oMinVal = promotions.organizerPromoMinFee ?? oMinVal;
+    oPercentVal = (promotions.organizerPromoPercent !== undefined) ? promotions.organizerPromoPercent : oPercentVal;
+    oMinVal = (promotions.organizerPromoMinFee !== undefined) ? promotions.organizerPromoMinFee : oMinVal;
   }
 
   const orgFeePercent = oPercentVal / 100;
