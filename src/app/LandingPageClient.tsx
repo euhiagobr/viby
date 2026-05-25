@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -25,6 +24,7 @@ import { getCurrentLocation, calculateDistance, type Coordinates } from "@/lib/l
 import Footer from "@/components/layout/Footer"
 import { cn } from "@/lib/utils"
 import useEmblaCarousel from 'embla-carousel-react'
+import { PlaceHolderImages } from "@/lib/placeholder-images"
 
 export default function LandingPageClient() {
   const db = useFirestore()
@@ -61,6 +61,8 @@ export default function LandingPageClient() {
     align: 'start',
     slidesToScroll: 1
   })
+
+  const heroImage = PlaceHolderImages.find(img => img.id === 'hero-bg')?.imageUrl || "https://picsum.photos/seed/vibyhero-event/1920/1080"
 
   React.useEffect(() => {
     const fetchLocation = async () => {
@@ -183,21 +185,23 @@ export default function LandingPageClient() {
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative min-h-[70vh] flex items-center overflow-hidden bg-primary text-white">
-        <div className="absolute inset-0 opacity-20 pointer-events-none">
+      {/* Hero Section - Centralized */}
+      <section className="relative min-h-[80vh] flex items-center justify-center overflow-hidden bg-primary text-white text-center">
+        <div className="absolute inset-0 opacity-40 pointer-events-none">
           <Image 
-            src="https://picsum.photos/seed/vibyhero/1920/1080" 
+            src={heroImage} 
             alt="Hero Background" 
             fill 
             className="object-cover" 
             priority
             unoptimized
+            data-ai-hint="concert event"
           />
+          <div className="absolute inset-0 bg-gradient-to-b from-primary/60 via-primary/40 to-primary" />
         </div>
         <div className="container mx-auto px-4 relative z-10 py-20">
-          <div className="max-w-4xl space-y-8">
-            <Badge className="bg-secondary text-white border-none px-4 py-1.5 rounded-full font-black uppercase text-[10px] tracking-widest">
+          <div className="max-w-4xl mx-auto space-y-8 flex flex-col items-center">
+            <Badge className="bg-secondary text-white border-none px-4 py-1.5 rounded-full font-black uppercase text-[10px] tracking-widest w-fit">
               <Sparkles className="w-3 h-3 mr-2 fill-current" /> Descubra sua próxima experiência
             </Badge>
             <h1 className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter leading-[0.85]">
@@ -207,7 +211,7 @@ export default function LandingPageClient() {
               A maior vitrine de eventos do Brasil. Shows, festivais, gastronomia e cultura a um clique de distância.
             </p>
 
-            <Card className="bg-white/10 backdrop-blur-xl border-white/10 rounded-[2.5rem] p-4 md:p-8 shadow-2xl mt-12 w-full">
+            <Card className="bg-white/10 backdrop-blur-xl border-white/10 rounded-[2.5rem] p-4 md:p-8 shadow-2xl mt-12 w-full text-left">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div className="md:col-span-5 relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />

@@ -1,0 +1,10 @@
+{
+  "placeholderImages": [
+    {
+      "id": "hero-bg",
+      "description": "Background for hero section showing a concert crowd",
+      "imageUrl": "https://picsum.photos/seed/viby-event-concert/1920/1080",
+      "imageHint": "concert event"
+    }
+  ]
+}
