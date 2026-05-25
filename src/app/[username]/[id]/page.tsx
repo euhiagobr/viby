@@ -3,8 +3,8 @@
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useDoc, useFirestore, useAuth, useUser } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
+import { doc, collection, query, where, orderBy, getDocs } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -15,7 +15,7 @@ import {
   MapPin, 
   Ticket, 
   Loader2, 
-  ArrowLeft,
+  ArrowLeft, 
   ShoppingCart,
   Layers,
   ChevronRight,
@@ -23,7 +23,10 @@ import {
   X,
   Clock,
   Info,
-  BadgeCheck
+  BadgeCheck,
+  Maximize2,
+  Armchair,
+  Grid3X3
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
@@ -31,6 +34,7 @@ import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/financial-utils"
 import { useCart } from "@/contexts/CartContext"
 import Link from "next/link"
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch"
 
 export default function EventoPublicoPage() {
   const params = useParams()
@@ -44,18 +48,57 @@ export default function EventoPublicoPage() {
   const eventRef = React.useMemo(() => db ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
 
-  const [selectedSector, setSelectedSector] = React.useState<any>(null)
+  // Busca setores do mapa
+  const setoresQuery = useMemoFirebase(() => {
+    if (!db || !eventId) return null
+    return query(collection(db, "events", eventId, "setores"), orderBy("zIndex", "asc"))
+  }, [db, eventId])
+  const { data: setores, loading: setoresLoading } = useCollection<any>(setoresQuery)
 
-  // Lógica de Venda Ativa considerando data/hora e migração de lotes
-  const getSaleStatus = (target: any) => {
-    if (!target || !target.batches || target.batches.length === 0) {
-      return { active: false, message: "Indisponível", batch: null };
+  const [selectedSector, setSelectedSector] = React.useState<any>(null)
+  const [selectedSeat, setSelectedSeat] = React.useState<any>(null)
+  const [seats, setSeats] = React.useState<any[]>([])
+  const [loadingSeats, setLoadingSeats] = React.useState(false)
+
+  // Busca assentos quando um setor é selecionado
+  React.useEffect(() => {
+    if (!db || !eventId || !selectedSector || selectedSector.tipo === 'livre') {
+      setSeats([])
+      return
     }
+
+    const fetchSeats = async () => {
+      setLoadingSeats(true)
+      try {
+        const q = query(collection(db, "events", eventId, "setores", selectedSector.id, "assentos"), orderBy("codigo", "asc"))
+        const snap = await getDocs(q)
+        setSeats(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      } catch (e) {
+        console.error("Erro ao carregar assentos:", e)
+      } finally {
+        setLoadingSeats(false)
+      }
+    }
+
+    fetchSeats()
+  }, [db, eventId, selectedSector])
+
+  // Lógica de Venda Ativa
+  const getSaleStatus = (target: any) => {
+    if (!target) return { active: false, message: "Indisponível", batch: null };
+    
+    // Se o target for o evento e estiver no modo setor, a venda depende do setor
+    if (target.ticketMode === 'sector_batches' && !target.batches) {
+       return { active: true, message: "Selecione um setor", isSectorMode: true };
+    }
+
+    const batches = target.batches || [];
+    if (batches.length === 0) return { active: false, message: "Indisponível", batch: null };
     
     const now = new Date();
     let carryOver = 0;
     
-    const processedBatches = target.batches.map((b: any) => {
+    const processedBatches = batches.map((b: any) => {
       const start = b.startDate ? new Date(b.startDate) : null;
       const end = b.endDate ? new Date(b.endDate) : null;
       
@@ -82,18 +125,18 @@ export default function EventoPublicoPage() {
     return { active: false, message: "Esgotado", batch: null };
   };
 
-  const globalSaleStatus = React.useMemo(() => {
-    if (!event) return { active: false, message: "Indisponível", batch: null };
-    if (event.ticketMode === 'sector_batches') return { active: true, message: "Selecione um setor", isSectorMode: true };
-    
-    return getSaleStatus(event);
-  }, [event]);
+  const globalSaleStatus = React.useMemo(() => getSaleStatus(event), [event]);
 
   const handleAddToCart = (type: any, batch: any, sector?: any) => {
     if (!event) return;
+
+    if (sector && sector.tipo !== 'livre' && !selectedSeat) {
+      toast({ variant: "destructive", title: "Selecione um lugar", description: "Para este setor é necessário escolher um assento ou mesa." });
+      return;
+    }
     
     addItem({
-      id: `${event.id}_${batch.id}_${type.id}_${sector?.id || 'gen'}`,
+      id: `${event.id}_${batch.id}_${type.id}_${sector?.id || 'gen'}_${selectedSeat?.id || 'any'}`,
       eventId: event.id,
       eventTitle: event.title,
       eventImage: event.image || "",
@@ -112,10 +155,17 @@ export default function EventoPublicoPage() {
       sectorId: sector?.id,
       sectorName: sector?.name,
       poolId: type.poolId,
-      poolName: type.poolName
+      poolName: type.poolName,
+      // @ts-ignore - Estendendo a interface do carrinho para suportar assentos
+      seatId: selectedSeat?.id,
+      seatCode: selectedSeat?.codigo
     });
     
     toast({ title: "Adicionado ao carrinho!" });
+    if (selectedSeat) {
+      setSelectedSeat(null);
+      setSelectedSector(null);
+    }
   }
 
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>
@@ -123,6 +173,7 @@ export default function EventoPublicoPage() {
 
   const address = event.address || {};
   const isVerified = event.organizer?.isVerified || false;
+  const hasMap = event.mapaConfigurado && setores && setores.length > 0;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
@@ -141,6 +192,7 @@ export default function EventoPublicoPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 pb-20">
            <div className="lg:col-span-8 space-y-8">
+              {/* Header do Evento */}
               <div className="relative h-64 md:h-96 w-full rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white">
                 <Image src={event.image || "https://picsum.photos/seed/event/1200/800"} alt={event.title} fill className="object-cover" unoptimized />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
@@ -154,6 +206,7 @@ export default function EventoPublicoPage() {
                 </div>
               </div>
 
+              {/* Descrição e Organizador */}
               <div className="p-8 bg-white rounded-[2.5rem] shadow-sm space-y-6">
                 <div className="flex items-center gap-4">
                   <Avatar className="h-14 w-14 border-2 border-secondary/20">
@@ -174,7 +227,69 @@ export default function EventoPublicoPage() {
                 </div>
               </div>
 
-              {event.ticketMode === 'sector_batches' && (
+              {/* MAPA VISUAL DO EVENTO */}
+              {hasMap && (
+                <div className="space-y-6">
+                   <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary flex items-center gap-2 px-2">
+                      <MapIcon className="w-5 h-5 text-secondary" /> Planta do Evento
+                   </h2>
+                   <Card className="border-none shadow-xl rounded-[2.5rem] bg-white overflow-hidden p-0 relative">
+                      <div className="h-[400px] md:h-[600px] w-full bg-[#f8fafc] relative">
+                        <TransformWrapper minScale={0.5} maxScale={3} initialScale={1}>
+                          <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
+                            <div className="relative min-w-[1200px] min-h-[800px] bg-white" style={{ backgroundImage: 'radial-gradient(#e5e7eb 1px, transparent 0)', backgroundSize: '30px 30px' }}>
+                               {/* Palco */}
+                               <div className="absolute left-[300px] top-[50px] w-[600px] h-[100px] bg-primary text-white flex items-center justify-center rounded-xl shadow-lg border-2 border-white/20">
+                                  <span className="font-black italic uppercase tracking-[0.4em] text-sm">{event.palcoNome || "PALCO"}</span>
+                               </div>
+
+                               {/* Setores Interativos */}
+                               {setores.map((s: any) => (
+                                 <div 
+                                   key={s.id}
+                                   className={cn(
+                                     "absolute flex flex-col items-center justify-center shadow-lg border-2 transition-all cursor-pointer hover:scale-105 rounded-[2rem]",
+                                     selectedSector?.id === s.id ? "ring-4 ring-secondary ring-offset-2" : ""
+                                   )}
+                                   style={{ 
+                                     left: s.posX, 
+                                     top: s.posY, 
+                                     width: s.width, 
+                                     height: s.height, 
+                                     backgroundColor: `${s.cor}20`, 
+                                     borderColor: s.cor, 
+                                     color: s.cor,
+                                     zIndex: s.zIndex 
+                                   }}
+                                   onClick={() => setSelectedSector(s)}
+                                 >
+                                    <div className="text-center p-2">
+                                       <p className="font-black uppercase italic text-[10px] leading-tight">{s.nome}</p>
+                                       <Badge variant="outline" className="text-[7px] font-black uppercase h-3.5 border-current mt-1" style={{ color: s.cor }}>{s.tipo}</Badge>
+                                    </div>
+                                 </div>
+                               ))}
+                            </div>
+                          </TransformComponent>
+                        </TransformWrapper>
+                        
+                        <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-20">
+                           <div className="bg-white/90 backdrop-blur-md p-3 rounded-2xl shadow-lg border border-border flex flex-col gap-2">
+                              <p className="text-[8px] font-black uppercase tracking-widest opacity-40">Controles</p>
+                              <div className="flex items-center gap-3 text-[10px] font-bold">
+                                 <div className="w-3 h-3 rounded-full bg-secondary" /> Selecionado
+                                 <div className="w-3 h-3 rounded-full bg-border" /> Disponível
+                              </div>
+                           </div>
+                           <Button variant="secondary" size="icon" className="h-10 w-10 rounded-full shadow-xl"><Maximize2 className="w-4 h-4" /></Button>
+                        </div>
+                      </div>
+                   </Card>
+                </div>
+              )}
+
+              {/* LISTA DE SETORES (SE NÃO TIVER MAPA) */}
+              {!hasMap && event.ticketMode === 'sector_batches' && (
                 <div className="space-y-6">
                    <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary flex items-center gap-2">
                       <Layers className="w-5 h-5 text-secondary" /> Escolha o Setor
@@ -212,26 +327,90 @@ export default function EventoPublicoPage() {
                 </div>
               )}
 
+              {/* DETALHAMENTO DO SETOR SELECIONADO */}
               {selectedSector && (
                 <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
                    <Card className="border-none shadow-xl rounded-[2.5rem] bg-white overflow-hidden border-t-8 border-secondary">
                       <CardHeader className="bg-primary/5 p-8 flex flex-row items-center justify-between">
                          <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                               <Layers className="w-4 h-4 text-secondary" />
+                               {selectedSector.tipo === 'assentos' ? <Armchair className="w-4 h-4 text-secondary" /> : <Layers className="w-4 h-4 text-secondary" />}
                                <CardTitle className="text-2xl font-black uppercase italic tracking-tighter">{selectedSector.name}</CardTitle>
                             </div>
                             <CardDescription className="text-muted-foreground font-bold uppercase text-[10px] tracking-widest">Bilheteria do Setor Selecionado</CardDescription>
                          </div>
                          <Button variant="ghost" size="icon" onClick={() => setSelectedSector(null)} className="rounded-full hover:bg-muted"><X className="w-4 h-4" /></Button>
                       </CardHeader>
-                      <CardContent className="p-8">
+                      <CardContent className="p-8 space-y-10">
+                         {/* Se o setor tiver assentos, mostra a grade de seleção */}
+                         {['assentos', 'mesas'].includes(selectedSector.tipo) && (
+                           <div className="space-y-6">
+                              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                                 {selectedSector.tipo === 'mesas' ? <Grid3X3 className="w-4 h-4" /> : <Armchair className="w-4 h-4" />}
+                                 {selectedSector.tipo === 'mesas' ? 'Selecione a Mesa' : 'Selecione o seu Lugar'}
+                              </h3>
+                              
+                              <div className="p-8 bg-muted/10 rounded-[2rem] border-2 border-dashed border-border/50">
+                                 {loadingSeats ? (
+                                   <div className="py-10 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-secondary" /></div>
+                                 ) : seats.length > 0 ? (
+                                   <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3">
+                                      {seats.map((seat) => {
+                                        const isOccupied = ['vendido', 'bloqueado'].includes(seat.status);
+                                        const isSelected = selectedSeat?.id === seat.id;
+                                        
+                                        return (
+                                          <button
+                                            key={seat.id}
+                                            disabled={isOccupied}
+                                            onClick={() => setSelectedSeat(seat)}
+                                            className={cn(
+                                              "h-10 rounded-xl flex items-center justify-center font-black text-[10px] transition-all relative overflow-hidden",
+                                              isOccupied ? "bg-muted text-muted-foreground/30 cursor-not-allowed" :
+                                              isSelected ? "bg-secondary text-white shadow-lg scale-110 ring-2 ring-secondary ring-offset-1" :
+                                              "bg-white border-2 border-border text-primary hover:border-secondary/50"
+                                            )}
+                                          >
+                                             {seat.codigo}
+                                             {isSelected && <div className="absolute top-0 right-0 p-0.5"><CheckCircle2 className="w-2.5 h-2.5" /></div>}
+                                          </button>
+                                        )
+                                      })}
+                                   </div>
+                                 ) : (
+                                   <div className="py-10 text-center text-muted-foreground italic text-xs uppercase">Mapa de assentos indisponível.</div>
+                                 )}
+                              </div>
+                              
+                              {selectedSeat && (
+                                <div className="p-5 bg-green-50 rounded-2xl border-2 border-dashed border-green-200 flex items-center justify-between animate-in zoom-in-95">
+                                   <div className="flex items-center gap-3">
+                                      <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white">
+                                         {selectedSector.tipo === 'mesas' ? <Grid3X3 className="w-5 h-5" /> : <Armchair className="w-5 h-5" />}
+                                      </div>
+                                      <div>
+                                         <p className="text-[8px] font-black uppercase text-green-700 opacity-60">Lugar Escolhido</p>
+                                         <p className="font-black text-green-900 uppercase italic">{selectedSector.name} • {selectedSeat.codigo}</p>
+                                      </div>
+                                   </div>
+                                   <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase text-green-700" onClick={() => setSelectedSeat(null)}>Trocar</Button>
+                                </div>
+                              )}
+                           </div>
+                         )}
+
                          {(() => {
-                           const status = getSaleStatus(selectedSector);
+                           // Obtém o lote ativo baseado na bilheteria vinculada
+                           let targetForSale = selectedSector;
+                           if (selectedSector.ticketLinkId === 'global') targetForSale = event;
+                           if (selectedSector.ticketLinkId === 'global_batches') targetForSale = event;
+                           // Se for vínculo específico de setor, o target é o objeto do lote dentro do setor (tratado em getSaleStatus)
+                           
+                           const status = getSaleStatus(targetForSale);
                            if (!status.active) return <div className="py-20 text-center text-muted-foreground font-bold italic uppercase">{status.message}</div>;
                            
                            return (
-                             <div className="space-y-8">
+                             <div className={cn("space-y-8 transition-opacity", (['assentos', 'mesas'].includes(selectedSector.tipo) && !selectedSeat) ? "opacity-30 pointer-events-none" : "opacity-100")}>
                                 <div className="flex justify-between items-center px-2 bg-muted/20 p-4 rounded-2xl">
                                    <div className="space-y-0.5">
                                       <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Etapa de Venda</p>
@@ -273,17 +452,18 @@ export default function EventoPublicoPage() {
            </div>
 
            <div className="lg:col-span-4 space-y-6">
+              {/* Carrinho Rápido / Lateral */}
               <Card className="border-none shadow-xl rounded-[2.5rem] border-t-8 border-primary overflow-hidden bg-white sticky top-24">
                  <CardHeader className="p-8 pb-4">
                     <CardTitle className="text-xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-2">
-                       <Ticket className="w-5 h-5 text-secondary" /> Bilheteria Geral
+                       <Ticket className="w-5 h-5 text-secondary" /> Bilheteria
                     </CardTitle>
                  </CardHeader>
                  <CardContent className="p-8 pt-0 space-y-6">
-                    {globalSaleStatus.isSectorMode ? (
+                    {event.ticketMode === 'sector_batches' || hasMap ? (
                       <div className="py-12 text-center space-y-4 bg-muted/10 rounded-[2rem] border-2 border-dashed border-border/50">
                          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm"><MapIcon className="w-8 h-8 text-muted-foreground opacity-20" /></div>
-                         <p className="text-[10px] font-black text-muted-foreground uppercase leading-tight px-6">Para continuar, escolha uma área do evento ao lado.</p>
+                         <p className="text-[10px] font-black text-muted-foreground uppercase leading-tight px-6">Para continuar, escolha uma área do evento ao lado ou no mapa.</p>
                       </div>
                     ) : globalSaleStatus.batch ? (
                       <div className="space-y-6 animate-in slide-in-from-right-4">
@@ -318,6 +498,7 @@ export default function EventoPublicoPage() {
                  </CardContent>
               </Card>
 
+              {/* Endereço */}
               <Card className="border-none shadow-sm rounded-[2rem] bg-white">
                 <CardHeader>
                   <CardTitle className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
