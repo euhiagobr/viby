@@ -7,10 +7,6 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  devIndicators: {
-    buildActivity: false,
-    appShell: false,
-  },
   images: {
     minimumCacheTTL: 31536000, // 1 ano de cache para imagens otimizadas
     remotePatterns: [
