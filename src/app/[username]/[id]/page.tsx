@@ -242,7 +242,7 @@ export default function EventoPublicoPage() {
                   </div>
                 </div>
                 <Separator className="border-dashed" />
-                <div className="prose prose-sm max-w-none text-muted-foreground font-medium leading-relaxed">
+                <div className="prose prose-sm max-w-none text-muted-foreground font-medium leading-relaxed whitespace-pre-line">
                   {renderFormattedText(event.description)}
                 </div>
               </div>
