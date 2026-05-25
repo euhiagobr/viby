@@ -47,7 +47,8 @@ import {
   ArrowRight,
   UserCheck,
   Calendar,
-  Info
+  Info,
+  ExternalLink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -201,6 +202,11 @@ export default function AdminEventTicketingDetails() {
            </div>
         </div>
         <div className="flex gap-2">
+           <Button variant="outline" className="rounded-xl h-11 px-6 font-bold uppercase text-[10px] gap-2 border-border" asChild>
+              <Link href={`/${event.organizer?.username || 'evento'}/${event.id}`} target="_blank">
+                 <ExternalLink className="w-4 h-4" /> Ver Página Pública
+              </Link>
+           </Button>
            <Button variant="outline" className="rounded-xl h-11 px-6 font-bold uppercase text-[10px] gap-2 border-border">
               <Download className="w-4 h-4" /> Exportar Dados
            </Button>
