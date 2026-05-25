@@ -59,7 +59,7 @@ import * as XLSX from 'xlsx'
 import { useSearchParams, useRouter } from "next/navigation"
 import Link from "next/link"
 
-export default function AdminImpostoPage() {
+function AdminImpostoContent() {
   const db = useFirestore()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -430,4 +430,16 @@ function StatCard({ title, value, icon: Icon, color, subtitle }: { title: string
        <CardContent className="px-5 pb-5 pt-0"><div className="text-lg font-black">{value}</div></CardContent>
     </Card>
   )
+}
+
+export default function AdminImpostoPage() {
+  return (
+    <React.Suspense fallback={
+      <div className="flex justify-center py-20">
+        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+      </div>
+    }>
+      <AdminImpostoContent />
+    </React.Suspense>
+  );
 }

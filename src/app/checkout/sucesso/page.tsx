@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -17,7 +16,7 @@ import Footer from "@/components/layout/Footer"
 import { calculateDetailedVibyBreakdown } from "@/lib/financial-utils"
 import { processGamificationEvent } from "@/lib/gamification-service"
 
-export default function CheckoutSucessoPage() {
+function CheckoutSucessoContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const db = useFirestore()
@@ -217,4 +216,17 @@ export default function CheckoutSucessoPage() {
       <Footer />
     </div>
   )
+}
+
+export default function CheckoutSucessoPage() {
+  return (
+    <React.Suspense fallback={
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <Loader2 className="w-12 h-12 animate-spin text-secondary" />
+        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Carregando...</p>
+      </div>
+    }>
+      <CheckoutSucessoContent />
+    </React.Suspense>
+  );
 }

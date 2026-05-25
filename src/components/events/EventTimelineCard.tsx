@@ -311,7 +311,7 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
 
         {!showComments && (
           <Button disabled={isEnded} className={cn("w-full h-12 font-black rounded-2xl uppercase italic text-xs gap-2 group transition-colors", isEnded ? "bg-muted text-muted-foreground" : "bg-primary text-white hover:bg-secondary")}>
-            {isEnded ? "Evento Encerrado" : <><Ticket className="w-4 h-4" /> Garantir meu Ingresso <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></>}
+            {isEnded ? "Evento Encerrado" : <React.Fragment><Ticket className="w-4 h-4" /> Garantir meu Ingresso <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></React.Fragment>}
           </Button>
         )}
       </CardContent>
