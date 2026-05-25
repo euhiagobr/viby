@@ -1119,7 +1119,7 @@ export default function EventoPublicoPage() {
                     </div>
 
                     {selectedSector && (
-                      <div className="space-y-8 animate-in slide-in-from-top-4 duration-500 pt-4 border-t border-dashed">
+                      <div className="space-y-8 animate-in slide-in-from-top-4 duration-500 pt-4">
                         {selectedSector.tipo !== 'livre' ? (
                           <div className="space-y-10">
                             {Object.keys(selectedSeats).length > 0 && (
@@ -1231,23 +1231,27 @@ export default function EventoPublicoPage() {
                       <div className="space-y-6 animate-in fade-in">
                         <div className="space-y-3">
                            {selectedSector?.tipo === 'livre' ? (
-                             <div className="p-4 bg-muted/30 rounded-2xl border border-dashed space-y-2">
-                                <div className="flex justify-between font-black text-sm uppercase italic">
-                                   <span className="text-primary">{selectedTicketType.name} {quantity > 1 && `x ${quantity}`}</span>
-                                   <span className="text-primary">{formatCurrency(selectedTicketType.price * quantity)}</span>
-                                </div>
-                                <div className="text-[10px] font-bold text-secondary uppercase tracking-widest">
-                                   Setor: {selectedSector.nome}
-                                </div>
-                             </div>
+                             <Card className="border-none bg-muted/30 rounded-2xl border-dashed">
+                               <CardContent className="p-4 space-y-2">
+                                  <div className="flex justify-between font-black text-sm uppercase italic">
+                                     <span className="text-primary">{selectedTicketType.name} {quantity > 1 && `x ${quantity}`}</span>
+                                     <span className="text-primary">{formatCurrency(selectedTicketType.price * quantity)}</span>
+                                  </div>
+                                  <div className="text-[10px] font-bold text-secondary uppercase tracking-widest">
+                                     Setor: {selectedSector.nome}
+                                  </div>
+                               </CardContent>
+                             </Card>
                            ) : (
                              Object.values(selectedSeats).map(({ seat, ticketType }) => (
-                               <div key={seat.id} className="p-4 bg-muted/30 rounded-2xl border border-dashed space-y-1">
-                                  <div className="flex justify-between font-black text-[10px] uppercase italic text-primary">
-                                     <span>{ticketType?.name || "Ingresso"} - Lug. {seat.codigo}</span>
-                                     <span>{formatCurrency(ticketType?.price || 0)}</span>
-                                  </div>
-                               </div>
+                               <Card key={seat.id} className="border-none bg-muted/30 rounded-2xl border-dashed">
+                                 <CardContent className="p-4 space-y-1">
+                                    <div className="flex justify-between font-black text-[10px] uppercase italic text-primary">
+                                       <span>{ticketType?.name || "Ingresso"} - Lug. {seat.codigo}</span>
+                                       <span>{formatCurrency(ticketType?.price || 0)}</span>
+                                    </div>
+                                 </CardContent>
+                               </Card>
                              ))
                            )}
                         </div>
