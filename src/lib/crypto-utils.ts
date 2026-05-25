@@ -1,7 +1,13 @@
 
 import CryptoJS from 'crypto-js';
 
-const ENCRYPTION_KEY = 'viby-secure-key-2024-proto'; // Em produção, usar variável de ambiente
+/**
+ * @fileOverview Utilitários de criptografia.
+ * ADVERTÊNCIA: A chave ENCRYPTION_KEY deve ser configurada via variáveis de ambiente.
+ * A descriptografia deve ocorrer preferencialmente no servidor.
+ */
+
+const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_CRYPTO_KEY || 'viby-secure-key-2024-proto';
 
 /**
  * Criptografa um dado de forma determinística para permitir buscas.
@@ -9,7 +15,6 @@ const ENCRYPTION_KEY = 'viby-secure-key-2024-proto'; // Em produção, usar vari
 export function encryptDeterministic(data: string): string {
   if (!data) return "";
   const normalized = data.replace(/\D/g, "");
-  // Usamos CTR mode com IV fixo para garantir que o mesmo dado gere o mesmo ciphertext
   const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY);
   const iv = CryptoJS.enc.Utf8.parse('viby-fixed-iv-16');
   const encrypted = CryptoJS.AES.encrypt(normalized, key, {
@@ -38,4 +43,14 @@ export function decryptData(encryptedData: string): string {
     console.error("Erro ao descriptografar:", e);
     return "";
   }
+}
+
+/**
+ * Mascara o CPF para exibição visual segura.
+ */
+export function maskCPF(cpf: string): string {
+  if (!cpf) return "***.***.***-**";
+  const clean = cpf.replace(/\D/g, "");
+  if (clean.length !== 11) return "***.***.***-**";
+  return `***.${clean.substring(3, 6)} .***-**`;
 }

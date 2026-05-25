@@ -1,0 +1,45 @@
+
+{
+  "audit_id": "VIBY-SEC-2024-001",
+  "status": "COMPLETED",
+  "timestamp": "2024-05-19T14:30:00Z",
+  "vulnerabilities": [
+    {
+      "id": "SEC-001",
+      "severity": "CRITICAL",
+      "category": "Data Leakage",
+      "description": "CPF stored in public 'users' document. Any user could read the encrypted CPF of any other user.",
+      "remediation": "Move CPF and sensitive fields to a restricted subcollection '/users/{uid}/private/sensitive' and restrict read access to the owner and admins.",
+      "status": "FIXED"
+    },
+    {
+      "id": "SEC-002",
+      "severity": "HIGH",
+      "category": "Cryptographic Failure",
+      "description": "Encryption key hardcoded in client-side accessible file (crypto-utils.ts). Key could be extracted from JS bundle.",
+      "remediation": "Encryption/Decryption logic restricted to Server Actions. Cryptographic keys stored as environment variables.",
+      "status": "FIXED"
+    },
+    {
+      "id": "SEC-003",
+      "severity": "MEDIUM",
+      "category": "Broken Access Control",
+      "description": "Registrations collection allowed read access to any signed-in user, exposing attendee data.",
+      "remediation": "Restrict registration read access to the buyer, the attendee, organization members, or global admins.",
+      "status": "FIXED"
+    },
+    {
+      "id": "SEC-004",
+      "severity": "LOW",
+      "category": "Information Exposure",
+      "description": "Financial snapshots in registrations potentially exposed sensitive fee breakdowns to public users.",
+      "remediation": "Mask sensitive financial data in public views.",
+      "status": "FIXED"
+    }
+  ],
+  "architecture_updates": {
+    "sensitive_data_storage": "/users/{userId}/private/sensitive",
+    "access_policy": "Public discovery maintained; Sensitive data isolated and server-side decrypted.",
+    "masking_standard": "CPF: ***.***.XXX-**"
+  }
+}

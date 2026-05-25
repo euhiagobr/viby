@@ -37,9 +37,10 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
-import { encryptDeterministic, decryptData } from "@/lib/crypto-utils"
+import { maskCPF } from "@/lib/crypto-utils"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import { getUserCPF, updateUserCPF } from "@/app/actions/user"
 
 const validateCPF = (cpf: string) => {
   const cleanCPF = cpf.replace(/\D/g, "");
@@ -102,9 +103,10 @@ export default function EditarPerfilPage() {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [checkingUsername, setCheckingUsername] = useState(false)
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
+  const [hasCPFInPrivate, setHasCPFInPrivate] = useState(false)
 
   useEffect(() => {
-    if (profile) {
+    if (profile && user) {
       setFormData({
         name: profile.name || "",
         username: profile.username || "",
@@ -119,11 +121,19 @@ export default function EditarPerfilPage() {
         instagram: profile.instagram || "",
         whatsapp: profile.whatsapp || "",
         email: profile.email || "",
-        cpf: profile.cpf ? decryptData(profile.cpf) : "",
+        cpf: "", // CPF é buscado de forma segura
         showEmail: profile.showEmail !== undefined ? profile.showEmail : true
-      })
+      });
+
+      // Tenta buscar o CPF de forma segura no servidor
+      getUserCPF(user.uid, user.uid).then(res => {
+        if (res.success) {
+          setFormData(prev => ({ ...prev, cpf: res.cpf! }));
+          setHasCPFInPrivate(true);
+        }
+      });
     }
-  }, [profile])
+  }, [profile, user])
 
   useEffect(() => {
     if (!db || !profile || !formData.username) return
@@ -177,12 +187,6 @@ export default function EditarPerfilPage() {
     return v;
   }
 
-  const maskCPFDisplay = (cpf: string) => {
-    const digits = cpf.replace(/\D/g, "");
-    if (digits.length !== 11) return "***.***.***-**";
-    return `***.${digits.substring(3, 6)}.***-**`;
-  };
-
   const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, cpf: formatCPF(e.target.value) }));
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -231,12 +235,16 @@ export default function EditarPerfilPage() {
       batch.set(doc(db, "usernames", newUsername), { uid: user.uid, type: 'user' });
     }
 
-    const encryptedCpf = formData.cpf ? encryptDeterministic(formData.cpf) : "";
+    // CPF é processado no servidor
+    if (formData.cpf && (!hasCPFInPrivate || formData.cpf !== await getUserCPF(user.uid, user.uid).then(r => r.cpf))) {
+      await updateUserCPF(user.uid, formData.cpf);
+    }
+
     const userRef = doc(db, "users", user.uid)
+    const { cpf, ...safeData } = formData; // Remove CPF do documento público
     
     const updateData = {
-      ...formData,
-      cpf: encryptedCpf,
+      ...safeData,
       username: newUsername,
       updatedAt: serverTimestamp()
     }
@@ -263,7 +271,7 @@ export default function EditarPerfilPage() {
 
   if (profileLoading) return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
 
-  const isCpfLocked = !!profile?.cpf;
+  const isCpfLocked = hasCPFInPrivate;
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 pb-20">
@@ -331,13 +339,13 @@ export default function EditarPerfilPage() {
               <Label htmlFor="cpf" className="flex items-center gap-2"><Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF {isCpfLocked && <Lock className="w-3 h-3 text-muted-foreground ml-auto" />}</Label>
               <Input 
                 id="cpf" 
-                value={isCpfLocked ? maskCPFDisplay(formData.cpf) : formData.cpf} 
+                value={isCpfLocked ? maskCPF(formData.cpf) : formData.cpf} 
                 onChange={handleCPFChange} 
                 placeholder="000.000.000-00" 
                 disabled={isCpfLocked} 
                 className={cn(isCpfLocked && "bg-muted/50 cursor-not-allowed")} 
               />
-              <p className="text-[10px] text-muted-foreground">O CPF é obrigatório para emissão de ingressos nominais.</p>
+              <p className="text-[10px] text-muted-foreground">O CPF é obrigatório para emissão de ingressos nominais e por segurança não pode ser alterado após validado.</p>
             </div>
 
             <div className="space-y-2">

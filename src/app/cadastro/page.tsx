@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
-import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore"
+import { doc, getDoc, runTransaction, serverTimestamp, setDoc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils"
 import { sendWelcomeEmail } from "@/app/actions/email"
 import Image from "next/image"
 import { processGamificationEvent } from "@/lib/gamification-service"
+import { updateUserCPF } from "@/app/actions/user"
 
 const validateCPF = (cpf: string) => {
   const cleanCPF = cpf.replace(/\D/g, "");
@@ -171,8 +172,6 @@ export default function CadastroPage() {
 
       await updateProfile(user, { displayName: name })
 
-      const encryptedCpf = encryptDeterministic(cpf);
-
       const userData = {
         uid: user.uid,
         name,
@@ -180,7 +179,6 @@ export default function CadastroPage() {
         email,
         birthDate,
         gender,
-        cpf: encryptedCpf,
         avatar: `https://picsum.photos/seed/${user.uid}/100/100`,
         plan: "free",
         platform: "viby",
@@ -214,6 +212,9 @@ export default function CadastroPage() {
           timestamp: serverTimestamp()
         })
       });
+
+      // Salvar CPF na subcoleção privada via Server Action para segurança máxima
+      await updateUserCPF(user.uid, cpf);
 
       // Gatilho de Gamificação: Boas-vindas
       await processGamificationEvent(db, user.uid, 'on_signup', {}, user.uid, userData);

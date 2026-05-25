@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -11,7 +12,8 @@ import { Loader2, Mail, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Link 
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { decryptData } from "@/lib/crypto-utils"
+import { maskCPF } from "@/lib/crypto-utils"
+import { getUserCPF } from "@/app/actions/user"
 
 export default function PerfilPage() {
   const auth = useAuth()
@@ -20,6 +22,20 @@ export default function PerfilPage() {
 
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile, loading: profileLoading } = useDoc<any>(userDocRef)
+
+  const [fullCPF, setFullCPF] = React.useState<string | null>(null);
+  const [showCPF, setShowCPF] = React.useState(false);
+
+  const fetchCPF = async () => {
+    if (!user) return;
+    const result = await getUserCPF(user.uid, user.uid);
+    if (result.success) {
+      setFullCPF(result.cpf!);
+      setShowCPF(true);
+    } else {
+      toast({ variant: "destructive", title: "Erro de segurança", description: result.error });
+    }
+  };
 
   if (authLoading || profileLoading) {
     return (
@@ -39,14 +55,6 @@ export default function PerfilPage() {
   }
 
   const locationStr = [profile.city, profile.state, profile.country].filter(Boolean).join(", ");
-
-  const maskCPF = (encryptedCpf: string) => {
-    if (!encryptedCpf) return "Não informado";
-    const raw = decryptData(encryptedCpf);
-    const digits = raw.replace(/\D/g, "");
-    if (digits.length !== 11) return "***.***.***-**";
-    return `***.${digits.substring(3, 6)}.***-**`;
-  };
 
   const formatJoinDate = (dateValue: any) => {
     if (!dateValue) return 'Recentemente';
@@ -118,9 +126,21 @@ export default function PerfilPage() {
                     {profile.showEmail === false && <EyeOff className="w-3 h-3" />}
                   </div>
                 )}
-                <div className="flex items-center gap-3 text-sm">
-                  <Fingerprint className="w-4 h-4 text-muted-foreground" />
-                  <span className="font-medium">{maskCPF(profile.cpf)}</span>
+                <div className="flex items-center justify-between gap-3 text-sm group">
+                  <div className="flex items-center gap-3">
+                    <Fingerprint className="w-4 h-4 text-muted-foreground" />
+                    <span className="font-medium">
+                      {showCPF ? fullCPF : maskCPF("")}
+                    </span>
+                  </div>
+                  {!showCPF && (
+                    <button 
+                      onClick={fetchCPF}
+                      className="text-[10px] font-black uppercase text-secondary hover:underline"
+                    >
+                      Revelar
+                    </button>
+                  )}
                 </div>
                 {locationStr && (
                   <div className="flex items-center gap-3 text-sm">
