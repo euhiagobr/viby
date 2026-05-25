@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -31,6 +30,7 @@ import {
   Wallet
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
@@ -198,7 +198,7 @@ export default function AdminPayoutsERP() {
               <DialogDescription>Protocolo #{selectedRequest?.id.slice(-8)}</DialogDescription>
            </DialogHeader>
            <div className="space-y-6 py-4">
-              <div className="p-6 bg-muted/30 rounded-3xl border border-dashed text-center">
+              <div className="p-6 bg-muted/30 rounded-3xl border border-dashed text-center space-y-1">
                  <p className="text-[10px] font-black uppercase opacity-40 mb-1">Valor do Pagamento</p>
                  <p className="text-3xl font-black text-primary">{formatCurrency(selectedRequest?.amount || 0)}</p>
               </div>
