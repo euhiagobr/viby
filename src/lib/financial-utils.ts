@@ -67,8 +67,8 @@ function isPromoActive(active: boolean, start: string, end: string) {
 
 /**
  * Calcula a quebra financeira básica para checkout.
- * A TAXA ADMINISTRATIVA do comprador é calculada "por dentro" (gross-up).
- * Exemplo: Preço 300,00 e Taxa 10% -> 300 / (1 - 0.10) = 333,33.
+ * Alterado para CÁLCULO SIMPLES (Markup) conforme solicitado pelo usuário.
+ * Exemplo: Preço 300,00 e Taxa 10% -> 300 + 30 = 330,00.
  */
 export function calculateFinancialBreakdown(facePrice: number, globalFees?: any, promotions?: any, orgSettings?: any) {
   const price = parseFloat(facePrice as any) || 0;
@@ -81,11 +81,10 @@ export function calculateFinancialBreakdown(facePrice: number, globalFees?: any,
   }
   const buyerFeePercent = bPercentVal / 100;
 
-  // 2. CÁLCULO POR DENTRO (Gross-up)
-  // Final = Preço / (1 - Taxa)
-  // Garantimos precisão centesimal para evitar disparidades no checkout
-  const customerFinalPrice = Number((price / (1 - buyerFeePercent)).toFixed(2));
-  const administrativeFeeAmount = Number((customerFinalPrice - price).toFixed(2));
+  // 2. CÁLCULO SIMPLES (Markup)
+  // A taxa é aplicada sobre o valor de face do ingresso
+  const administrativeFeeAmount = Number((price * buyerFeePercent).toFixed(2));
+  const customerFinalPrice = Number((price + administrativeFeeAmount).toFixed(2));
   
   // 3. Taxa do Organizador (Dedução do Preço de Face)
   let oPercentVal = globalFees?.organizerFeePercent ?? 10;
