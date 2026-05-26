@@ -24,7 +24,8 @@ import {
   X,
   ChevronRight,
   Inbox,
-  Archive
+  Archive,
+  HelpCircle
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -158,71 +159,76 @@ export default function SuportePage() {
           <p className="text-muted-foreground font-medium">Estamos aqui para ajudar você com qualquer dúvida ou problema.</p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-secondary text-white font-black rounded-full px-6 h-12 shadow-lg hover:scale-105 transition-transform gap-2">
-              <Plus className="w-5 h-5" />
-              Novo Ticket
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md rounded-[2rem]">
-            <form onSubmit={handleCreateTicket} className="space-y-6">
-              <DialogHeader>
-                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Abrir Chamado</DialogTitle>
-                <DialogDescription>Preencha os detalhes abaixo para que nossa equipe possa ajudar.</DialogDescription>
-              </DialogHeader>
-              
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Seu Nome</Label>
-                    <Input value={user?.displayName || ""} disabled className="bg-muted/50 border-none rounded-xl" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Seu E-mail</Label>
-                    <Input value={user?.email || ""} disabled className="bg-muted/50 border-none rounded-xl" />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="subject" className="text-[10px] font-black uppercase tracking-widest opacity-60">Assunto</Label>
-                  <Input id="subject" name="subject" placeholder="Ex: Problema com ingresso" required className="rounded-xl border-dashed border-secondary/30" />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="description" className="text-[10px] font-black uppercase tracking-widest opacity-60">Descrição do Problema</Label>
-                  <Textarea id="description" name="description" placeholder="Descreva detalhadamente..." required className="rounded-xl border-dashed border-secondary/30 min-h-[120px]" />
-                </div>
-
+        <div className="flex gap-3">
+          <Button variant="outline" asChild className="rounded-full h-12 px-6 font-bold gap-2 text-xs uppercase border-secondary text-secondary hover:bg-secondary/5">
+             <Link href="/dashboard/suporte/faq"><HelpCircle className="w-4 h-4" /> Perguntas Frequentes</Link>
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-secondary text-white font-black rounded-full px-6 h-12 shadow-lg hover:scale-105 transition-transform gap-2">
+                <Plus className="w-5 h-5" />
+                Novo Ticket
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md rounded-[2rem]">
+              <form onSubmit={handleCreateTicket} className="space-y-6">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Abrir Chamado</DialogTitle>
+                  <DialogDescription>Preencha os detalhes abaixo para que nossa equipe possa ajudar.</DialogDescription>
+                </DialogHeader>
+                
                 <div className="space-y-4">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Anexos (Fotos ou PDF)</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {attachments.map((url, i) => (
-                      <div key={i} className="relative w-16 h-16 rounded-lg bg-muted border border-border overflow-hidden">
-                        <img src={url} className="w-full h-full object-cover" />
-                        <button type="button" onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 bg-black/50 text-white p-0.5 rounded-bl-lg">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                    <label className="w-16 h-16 rounded-lg border-2 border-dashed border-secondary/20 flex items-center justify-center cursor-pointer hover:bg-secondary/5 transition-colors">
-                      <Paperclip className="w-5 h-5 text-secondary/40" />
-                      <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} />
-                    </label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Seu Nome</Label>
+                      <Input value={user?.displayName || ""} disabled className="bg-muted/50 border-none rounded-xl" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Seu E-mail</Label>
+                      <Input value={user?.email || ""} disabled className="bg-muted/50 border-none rounded-xl" />
+                    </div>
                   </div>
-                  {uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}
-                </div>
-              </div>
 
-              <DialogFooter>
-                <Button type="submit" disabled={isSubmitting || uploadProgress !== null} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <MessageSquare className="w-5 h-5 mr-2" />}
-                  Enviar Chamado
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                  <div className="space-y-2">
+                    <Label htmlFor="subject" className="text-[10px] font-black uppercase tracking-widest opacity-60">Assunto</Label>
+                    <Input id="subject" name="subject" placeholder="Ex: Problema com ingresso" required className="rounded-xl border-dashed border-secondary/30" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="description" className="text-[10px] font-black uppercase tracking-widest opacity-60">Descrição do Problema</Label>
+                    <Textarea id="description" name="description" placeholder="Descreva detalhadamente..." required className="rounded-xl border-dashed border-secondary/30 min-h-[120px]" />
+                  </div>
+
+                  <div className="space-y-4">
+                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Anexos (Fotos ou PDF)</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {attachments.map((url, i) => (
+                        <div key={i} className="relative w-16 h-16 rounded-lg bg-muted border border-border overflow-hidden">
+                          <img src={url} className="w-full h-full object-cover" />
+                          <button type="button" onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 bg-black/50 text-white p-0.5 rounded-bl-lg">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                      <label className="w-16 h-16 rounded-lg border-2 border-dashed border-secondary/20 flex items-center justify-center cursor-pointer hover:bg-secondary/5 transition-colors">
+                        <Paperclip className="w-5 h-5 text-secondary/40" />
+                        <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} />
+                      </label>
+                    </div>
+                    {uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button type="submit" disabled={isSubmitting || uploadProgress !== null} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                    {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <MessageSquare className="w-5 h-5 mr-2" />}
+                    Enviar Chamado
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Tabs defaultValue="active" className="space-y-6">
