@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 5.0.0 (LEDGER FINANCEIRO PROTEGIDO)
+    // REGRAS VIBY - Versão: 6.0.0 (LEDGER FINANCEIRO PROTEGIDO)
     
     function isSignedIn() {
       return request.auth != null;
@@ -30,24 +30,27 @@ service cloud.firestore {
     // --- CARTEIRAS E LEDGER (APENAS SERVER-SIDE OU ADMIN PODE ESCREVER) ---
     match /wallets/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow write: if isAdmin(); // Bloqueia edição manual de saldo pelo cliente
+      // Escrita restrita a Admin SDK ou Global Admins
+      allow write: if isAdmin(); 
     }
 
     match /wallet_transactions/{txId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow create: if isAdmin(); // Apenas transações via Server Actions
-      allow update, delete: if false; // Transações são imutáveis
+      // Criação via Client apenas para Admin Global (Server Actions usam Admin SDK)
+      allow create: if isAdmin(); 
+      allow update, delete: if false; 
     }
 
     match /financial_logs/{logId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin();
+      allow write: if isAdmin();
     }
 
     // --- COLEÇÕES PÚBLICAS ---
     
     match /events/{eventId} {
       allow read: if true;
-      allow create: if hasOrgRole(request.resource.data.organizationId, ['owner', 'admin', 'editor']);
+      allow create: if isSignedIn();
       allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
       allow delete: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
       
@@ -99,7 +102,8 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       match /private/sensitive {
-        allow read, write: if isOwner(userId) || isAdmin();
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
       }
     }
 
@@ -117,7 +121,7 @@ service cloud.firestore {
         isAdmin()
       );
       allow create: if isSignedIn();
-      allow update: if isAdmin() || hasOrgRole(resource.data.organizationId, ['owner', 'admin']);
+      allow update: if isAdmin() || hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin']);
       allow delete: if isAdmin();
     }
 
@@ -147,7 +151,8 @@ service cloud.firestore {
     }
 
     match /tax_tickets/{taxId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin() || (isSignedIn() && resource.data.organizationId != null && hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'finance']));
+      allow write: if isAdmin();
     }
 
     match /ads/{adId} {
