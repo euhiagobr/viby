@@ -90,28 +90,36 @@ export default function OrganizationEventsPage() {
   const upcomingEvents = React.useMemo(() => {
     return filteredEvents
       .filter(e => {
-        const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+        const dateVal = e.date || e.startDate;
+        if (!dateVal) return true; // Mostra na agenda se não tiver data definida
+        const start = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
         const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
         return end >= now;
       })
       .sort((a, b) => {
-        const dateA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime();
-        const dateB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
-        return dateA - dateB;
+        const dA = a.date || a.startDate;
+        const dB = b.date || b.startDate;
+        const tA = dA?.toDate ? dA.toDate().getTime() : (dA ? new Date(dA).getTime() : 0);
+        const tB = dB?.toDate ? dB.toDate().getTime() : (dB ? new Date(dB).getTime() : 0);
+        return tA - tB;
       });
   }, [filteredEvents, now]);
 
   const pastEvents = React.useMemo(() => {
     return filteredEvents
       .filter(e => {
-        const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+        const dateVal = e.date || e.startDate;
+        if (!dateVal) return false;
+        const start = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
         const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
         return end < now;
       })
       .sort((a, b) => {
-        const dateA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime();
-        const dateB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
-        return dateB - dateA;
+        const dA = a.date || a.startDate;
+        const dB = b.date || b.startDate;
+        const tA = dA?.toDate ? dA.toDate().getTime() : (dA ? new Date(dA).getTime() : 0);
+        const tB = dB?.toDate ? dB.toDate().getTime() : (dB ? new Date(dB).getTime() : 0);
+        return tB - tA;
       });
   }, [filteredEvents, now]);
 
@@ -148,7 +156,6 @@ export default function OrganizationEventsPage() {
     if (!db || !eventToDelete) return;
     setIsDeleting(true);
     try {
-      // 1. Verificar se existem ingressos pagos ou disponíveis
       const salesQuery = query(
         collection(db, "registrations"),
         where("eventId", "==", eventToDelete.id),
@@ -156,36 +163,22 @@ export default function OrganizationEventsPage() {
         limit(1)
       );
       const salesSnap = await getDocs(salesQuery);
-
       const eventRef = doc(db, "events", eventToDelete.id);
 
       if (!salesSnap.empty) {
-        // EXISTEM VENDAS: APENAS OCULTAR
-        await updateDoc(eventRef, { 
-          status: "Oculto", 
-          updatedAt: serverTimestamp() 
-        });
-        toast({ 
-          title: "Evento Ocultado", 
-          description: "Como já existem ingressos vendidos, o evento foi ocultado em vez de excluído para preservar os vouchers." 
-        });
+        await updateDoc(eventRef, { status: "Oculto", updatedAt: serverTimestamp() });
+        toast({ title: "Evento Ocultado", description: "Vendas detectadas. O projeto foi retirado do ar mas os vouchers continuam válidos." });
       } else {
-        // NÃO EXISTEM VENDAS: EXCLUSÃO SOFT TOTAL
         const batch = writeBatch(db);
         batch.update(eventRef, { status: "Excluído", updatedAt: serverTimestamp() });
-        
         const regsQuery = query(collection(db, "registrations"), where("eventId", "==", eventToDelete.id));
         const regsSnap = await getDocs(regsQuery);
         regsSnap.forEach((regDoc) => batch.delete(regDoc.ref));
-        
         await batch.commit();
         toast({ title: "Evento removido" });
       }
     } catch (error: any) {
-      errorEmitter.emit("permission-error", new FirestorePermissionError({
-        path: `events/${eventToDelete?.id}`,
-        operation: "update",
-      }));
+      errorEmitter.emit("permission-error", new FirestorePermissionError({ path: `events/${eventToDelete?.id}`, operation: "update" }));
     } finally {
       setIsDeleting(false);
       setEventToDelete(null);
@@ -200,7 +193,7 @@ export default function OrganizationEventsPage() {
             <Megaphone className="w-8 h-8 text-secondary" />
             Eventos da Marca
           </h1>
-          <p className="text-muted-foreground font-medium">Gerencie o calendário de publicações de <strong>{currentOrg?.name}</strong>.</p>
+          <p className="text-muted-foreground font-medium">Gerencie suas publicações de <strong>{currentOrg?.name}</strong>.</p>
         </div>
         
         {isAtLeastEditor && (
@@ -223,20 +216,17 @@ export default function OrganizationEventsPage() {
             className="pl-10 h-12 rounded-xl"
           />
         </div>
-        <Button variant="outline" className="h-12 w-12 rounded-xl" size="icon">
-          <Filter className="w-4 h-4" />
-        </Button>
       </div>
 
       <Tabs defaultValue="upcoming" className="w-full space-y-8">
         <TabsList className="bg-muted/50 p-1 rounded-xl h-12">
-          <TabsTrigger value="upcoming" className="rounded-lg px-8 font-bold gap-2 data-[state=active]:bg-white">
+          <TabsTrigger value="upcoming" className="rounded-lg px-6 font-bold gap-2 data-[state=active]:bg-white">
             <Calendar className="w-4 h-4" />
-            Próximos Eventos ({upcomingEvents.length})
+            Próximos / Gestão ({upcomingEvents.length})
           </TabsTrigger>
           <TabsTrigger value="past" className="rounded-lg px-8 font-bold gap-2 data-[state=active]:bg-white">
             <History className="w-4 h-4" />
-            Eventos Passados ({pastEvents.length})
+            Passados ({pastEvents.length})
           </TabsTrigger>
         </TabsList>
 
@@ -330,7 +320,7 @@ function EventRow({
   setEventToDelete,
   isPast = false 
 }: any) {
-  const dateValue = event.startDate || event.date;
+  const dateValue = event.date || event.startDate;
   const eventDate = dateValue ? (dateValue.toDate ? dateValue.toDate() : new Date(dateValue)) : null;
   const isToday = eventDate && eventDate.toDateString() === new Date().toDateString();
   const time = formatTime(dateValue);

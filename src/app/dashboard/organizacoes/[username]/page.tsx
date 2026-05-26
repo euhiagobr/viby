@@ -3,109 +3,35 @@
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useFirebaseApp, useDoc } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { 
   doc, 
-  getDoc, 
   collection, 
   query, 
   where, 
-  limit, 
-  getDocs, 
-  setDoc, 
-  deleteDoc, 
-  serverTimestamp, 
-  collectionGroup,
-  increment,
-  updateDoc,
-  addDoc
+  orderBy,
+  limit
 } from "firebase/firestore"
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { 
   Loader2, 
-  AlertTriangle, 
-  MapPin, 
-  Globe, 
-  Instagram, 
-  Calendar,
-  Users,
-  Grid,
-  Heart,
-  Share2,
-  ExternalLink,
-  Building2,
-  Bell,
-  Plus,
-  Check,
-  Handshake,
-  Info,
-  BadgeCheck,
-  Phone,
-  Flag,
-  Camera,
-  Paperclip,
-  X,
-  Send,
-  ShieldAlert,
-  ShieldCheck,
-  EyeOff,
-  Trophy,
-  Zap,
-  Award,
-  Sparkles,
-  TrendingUp,
-  BarChart3,
-  Map as MapIcon,
-  ChevronRight,
-  Target,
-  Navigation,
-  Search,
+  Eye, 
+  Clock, 
+  Wallet, 
+  ArrowRight, 
+  Megaphone,
   LayoutGrid,
+  TrendingUp,
+  ShieldCheck,
+  CheckCircle2,
   Lock,
-  Eye,
-  Clock,
-  Wallet,
-  ArrowRight,
-  Megaphone
+  BadgeCheck
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Separator } from "@/components/ui/separator"
-import { EventCard } from "@/components/events/EventCard"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/layout/AppSidebar"
-import { OrganizationProvider, useCurrentOrganization } from "@/contexts/OrganizationContext"
-import Footer from "@/components/layout/Footer"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Progress } from "@/components/ui/progress"
-import { toast } from "@/hooks/use-toast"
-import { calculateLevel, DEFAULT_LEVELS } from "@/lib/gamification"
-import { processGamificationEvent } from "@/lib/gamification-service"
+import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { formatCurrency } from '@/lib/financial-utils'
 
 const roleTranslations: Record<string, string> = {
@@ -126,11 +52,10 @@ export default function OrganizationDashboardPage() {
   const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization();
   const db = useFirestore();
 
-  // Permissões
   const isFinanceManager = ['owner', 'admin', 'finance'].includes(userRole || '');
 
-  // Consulta de Eventos
-  const eventsQuery = useMemoFirebase(() => {
+  // Consulta de TODOS os eventos da marca para o contador de gestão
+  const allEventsQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null;
     return query(
       collection(db, 'events'), 
@@ -138,30 +63,20 @@ export default function OrganizationDashboardPage() {
     );
   }, [db, currentOrg?.id]);
 
-  const { data: rawEvents, loading: eventsLoading } = useCollection<any>(eventsQuery);
+  const { data: rawAllEvents, loading: eventsLoading } = useCollection<any>(allEventsQuery);
 
-  const events = React.useMemo(() => {
-    if (!rawEvents) return [];
-    const now = new Date();
+  const eventsSummary = React.useMemo(() => {
+    if (!rawAllEvents) return { total: 0, active: 0, recent: [] };
     
-    return [...rawEvents]
-      .filter(e => {
-        // Filtrar por status ativo
-        if (e.status !== 'Ativo') return false;
-        
-        // Filtrar para remover eventos que já terminaram
-        const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
-        const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
-        
-        return end >= now;
-      })
-      .sort((a, b) => {
-        const tA = a.createdAt?.seconds || 0;
-        const tB = b.createdAt?.seconds || 0;
-        return tB - tA;
-      })
-      .slice(0, 5);
-  }, [rawEvents]);
+    const active = rawAllEvents.filter((e: any) => e.status === 'Ativo').length;
+    const sorted = [...rawAllAllEvents].sort((a, b) => {
+      const tA = a.createdAt?.seconds || 0;
+      const tB = b.createdAt?.seconds || 0;
+      return tB - tA;
+    }).slice(0, 5);
+
+    return { total: rawAllEvents.length, active, recent: sorted };
+  }, [rawAllEvents]);
 
   // Consulta de Vendas (Registrations) para métricas financeiras
   const salesQuery = useMemoFirebase(() => {
@@ -183,29 +98,16 @@ export default function OrganizationDashboardPage() {
     monthStart.setDate(now.getDate() - 30);
 
     return sales.reduce((acc: any, sale: any) => {
-      // Apenas vendas confirmadas entram na receita líquida
       if (!["Pago", "Disponível"].includes(sale.paymentStatus)) return acc;
       
       const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp);
       const netAmount = sale.producerNetAmount || 0;
 
-      if (saleDate >= todayStart) {
-        acc.today += netAmount;
-      }
-      if (saleDate >= monthStart) {
-        acc.month += netAmount;
-      }
+      if (saleDate >= todayStart) acc.today += netAmount;
+      if (saleDate >= monthStart) acc.month += netAmount;
       return acc;
     }, { today: 0, month: 0 });
   }, [sales]);
-
-  // Consulta de Membros
-  const membersQuery = useMemoFirebase(() => {
-    if (!db || !currentOrg) return null;
-    return collection(db, 'organizations', currentOrg.id, 'members');
-  }, [db, currentOrg?.id]);
-
-  const { data: members } = useCollection<any>(membersQuery);
 
   // Consulta de Seguidores
   const followersQuery = useMemoFirebase(() => {
@@ -217,38 +119,16 @@ export default function OrganizationDashboardPage() {
 
   const followerStats = React.useMemo(() => {
     if (!followers) return { total: 0, last30Days: 0, growth: 0 };
-    
     const now = new Date();
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(now.getDate() - 30);
-
-    const last30 = followers.filter((f: any) => {
-      const date = f.timestamp?.toDate ? f.timestamp.toDate() : new Date(f.timestamp);
-      return date > thirtyDaysAgo;
-    }).length;
-
+    const last30 = followers.filter((f: any) => (f.timestamp?.toDate ? f.timestamp.toDate() : new Date(f.timestamp)) > thirtyDaysAgo).length;
     const previousTotal = followers.length - last30;
     const growth = previousTotal > 0 ? (last30 / previousTotal) * 100 : (last30 > 0 ? 100 : 0);
-
-    return {
-      total: followers.length,
-      last30Days: last30,
-      growth: Math.round(growth)
-    };
+    return { total: followers.length, last30Days: last30, growth: Math.round(growth) };
   }, [followers]);
 
-  if (orgLoading) {
-    return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
-  }
-
-  if (!currentOrg) {
-    return (
-      <div className="text-center py-20">
-        <h2 className="text-xl font-bold">Marca não encontrada</h2>
-        <Button asChild className="mt-4" variant="outline"><Link href="/dashboard/organizacoes">Voltar para Minhas Marcas</Link></Button>
-      </div>
-    );
-  }
+  if (orgLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -264,16 +144,16 @@ export default function OrganizationDashboardPage() {
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
-              Eventos Ativos
+              Eventos Totais
               <Megaphone className="w-4 h-4 text-secondary" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black">{events?.length || 0}</div>
+            <div className="text-3xl font-black">{eventsSummary.total}</div>
+            <p className="text-[9px] font-bold text-secondary uppercase mt-1">{eventsSummary.active} ativos no ar</p>
           </CardContent>
         </Card>
 
-        {/* MÉTRICAS REAIS DE ACESSO */}
         <Card className="border-none shadow-sm bg-white overflow-hidden relative">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
@@ -293,7 +173,6 @@ export default function OrganizationDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* RECEITA HOJE */}
         <Card className="border-none shadow-sm bg-white border-l-4 border-green-500">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
@@ -315,7 +194,6 @@ export default function OrganizationDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* RECEITA 30 DIAS */}
         <Card className="border-none shadow-sm bg-white border-l-4 border-primary">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
@@ -354,8 +232,8 @@ export default function OrganizationDashboardPage() {
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
              <div>
-                <CardTitle className="text-lg font-bold">Eventos Ativos</CardTitle>
-                <CardDescription>Próximas publicações no ar.</CardDescription>
+                <CardTitle className="text-lg font-bold">Eventos Recentes</CardTitle>
+                <CardDescription>Últimos projetos cadastrados.</CardDescription>
              </div>
              <Button variant="ghost" size="sm" asChild className="rounded-xl font-bold uppercase text-[10px] gap-2">
                <Link href={`/dashboard/organizacoes/${currentOrg.username}/events`}>Ver Todos <ArrowRight className="w-3 h-3" /></Link>
@@ -364,10 +242,10 @@ export default function OrganizationDashboardPage() {
           <CardContent className="p-0">
              {eventsLoading ? (
                <div className="p-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-secondary" /></div>
-             ) : events && events.length > 0 ? (
+             ) : eventsSummary.recent.length > 0 ? (
                <div className="divide-y">
-                 {events.map((event: any) => {
-                   const dateValue = event.startDate || event.date;
+                 {eventsSummary.recent.map((event: any) => {
+                   const dateValue = event.date || event.startDate;
                    const formattedDate = dateValue ? (dateValue.toDate ? dateValue.toDate().toLocaleDateString('pt-BR') : new Date(dateValue).toLocaleDateString('pt-BR')) : 'Sem data';
                    
                    return (
@@ -381,13 +259,16 @@ export default function OrganizationDashboardPage() {
                               <p className="text-[10px] text-muted-foreground font-bold uppercase">{formattedDate}</p>
                            </div>
                         </div>
-                        <Badge variant="outline" className="text-[9px] font-black uppercase">{event.status}</Badge>
+                        <Badge variant="outline" className={cn(
+                          "text-[9px] font-black uppercase",
+                          event.status === 'Ativo' ? "border-green-200 text-green-600" : "border-muted text-muted-foreground"
+                        )}>{event.status || 'Rascunho'}</Badge>
                      </div>
                    );
                  })}
                </div>
              ) : (
-               <div className="p-12 text-center text-muted-foreground italic text-sm">Nenhum evento ativo no momento.</div>
+               <div className="p-12 text-center text-muted-foreground italic text-sm">Nenhum evento cadastrado ainda.</div>
              )}
           </CardContent>
         </Card>
@@ -411,7 +292,7 @@ export default function OrganizationDashboardPage() {
                      {followerStats.last30Days > 0 && (
                        <div className="flex items-center gap-2 text-green-400 text-[10px] font-black uppercase">
                          <TrendingUp className="w-3 h-3" />
-                         +{followerStats.last30Days} nos últimos 30 dias ({followerStats.growth}%)
+                         +{followerStats.last30Days} (30d)
                        </div>
                      )}
                   </div>
