@@ -1,0 +1,39 @@
+
+{
+  "collection": "organizations",
+  "description": "Campos de métricas para suporte à página de perfil premium",
+  "fields": {
+    "followersCount": "number (incrementado via cloud function ou transação)",
+    "followingCount": "number (quantidade de perfis que a marca segue)",
+    "totalEventsCount": "number (total histórico de eventos criados)",
+    "totalAttendeesCount": "number (soma de todos os participantes confirmados em eventos da marca)",
+    "socialLinks": {
+      "type": "map",
+      "fields": {
+        "instagram": "string",
+        "tiktok": "string",
+        "youtube": "string",
+        "spotify": "string",
+        "soundcloud": "string",
+        "website": "string",
+        "whatsapp": "string",
+        "telegram": "string",
+        "linkedin": "string",
+        "twitter": "string"
+      }
+    },
+    "gallery": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "fields": {
+          "url": "string",
+          "type": "image | video",
+          "thumbnail": "string (opcional)",
+          "caption": "string",
+          "createdAt": "timestamp"
+        }
+      }
+    }
+  }
+}
