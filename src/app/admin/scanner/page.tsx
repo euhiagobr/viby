@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -22,7 +23,8 @@ import {
   ArrowLeft,
   DollarSign,
   Clock,
-  ShieldAlert
+  ShieldAlert,
+  UserCheck
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
@@ -98,7 +100,8 @@ export default function AdminScannerPage() {
     setMode('manual')
 
     try {
-      const q = query(collection(db, "registrations"), where("ticketCode", "==", code.trim().toUpperCase()))
+      const cleanCode = code.trim().toUpperCase()
+      const q = query(collection(db, "registrations"), where("ticketCode", "==", cleanCode))
       const snap = await getDocs(q)
 
       if (snap.empty) {
@@ -114,7 +117,7 @@ export default function AdminScannerPage() {
         setTicketData({ ...docData, id: snap.docs[0].id, isCancelled })
         
         if (docData.checkedIn && !isCancelled) {
-          toast({ variant: "destructive", title: "Atenção!", description: "Ingresso já utilizado." })
+          toast({ variant: "destructive", title: "Atenção!", description: "Ingresso já utilizado anteriormente." })
         }
       }
     } catch (err) {
@@ -382,7 +385,7 @@ export default function AdminScannerPage() {
                 onClick={handleConfirmCheckIn}
                 disabled={isValidating}
               >
-                {isValidating ? <Loader2 className="w-10 h-10 animate-spin mr-4" /> : <CheckCircle2 className="w-10 h-10 mr-4 group-hover:scale-110 transition-transform" />}
+                {isValidating ? <Loader2 className="w-10 h-10 animate-spin mr-4" /> : <UserCheck className="w-10 h-10 mr-4 group-hover:scale-110 transition-transform" />}
                 LIBERAR ACESSO
               </Button>
             )}

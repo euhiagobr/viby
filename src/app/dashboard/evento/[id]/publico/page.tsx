@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -38,7 +39,8 @@ import {
   RotateCcw,
   XCircle,
   ShieldCheck,
-  Check
+  Check,
+  UserCheck
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import {
@@ -55,9 +57,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { formatCurrency, calculateRefundAmount } from "@/lib/financial-utils"
+import { formatCurrency } from "@/lib/financial-utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { processTicketRefund } from "@/app/actions/finance"
+import { processGamificationEvent } from "@/lib/gamification-service"
 
 export default function EventoPublicoPage() {
   const params = useParams()
@@ -85,9 +88,10 @@ export default function EventoPublicoPage() {
   const [activeTab, setActiveTab] = React.useState("all")
   const [ticketToRefund, setTicketToRefund] = React.useState<any>(null)
   const [isRefunding, setIsRefunding] = React.useState(false)
+  const [isActionLoading, setIsActionLoading] = React.useState<string | null>(null)
 
   const stats = React.useMemo(() => {
-    const total = registrations?.filter((r: any) => r.status !== 'cancelled').length || 0;
+    const total = registrations?.filter((r: any) => r.status !== 'cancelled' && r.paymentStatus !== 'refunded_wallet').length || 0;
     const present = registrations?.filter((r: any) => r.checkedIn).length || 0;
     const pendingRefunds = registrations?.filter((r: any) => r.refundStatus === 'requested').length || 0;
     return { total, present, pendingRefunds };
@@ -111,7 +115,37 @@ export default function EventoPublicoPage() {
       )
   }, [registrations, search, activeTab])
 
-  const canAction = ['owner', 'admin', 'editor'].includes(userRole || '');
+  const canAction = ['owner', 'admin', 'editor', 'checkin'].includes(userRole || '');
+  const canRefund = ['owner', 'admin', 'editor'].includes(userRole || '');
+
+  const handleManualCheckIn = async (reg: any) => {
+    if (!db || !currentUser || !canAction) return
+    setIsActionLoading(reg.id)
+    try {
+      const regRef = doc(db, "registrations", reg.id)
+      await updateDoc(regRef, {
+        checkedIn: true,
+        checkedInAt: serverTimestamp(),
+        checkedInBy: currentUser.uid,
+        status: "Utilizado"
+      })
+
+      // Gatilho Gamificação
+      await processGamificationEvent(db, reg.userId, 'on_checkin', {
+        eventId: reg.eventId,
+        eventTitle: reg.eventTitle,
+        categoryName: reg.categoryName,
+        city: reg.eventCity,
+        orgName: reg.organizer?.name
+      }, reg.id);
+
+      toast({ title: "Check-in realizado!", description: `${reg.userName} agora consta como presente.` })
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro no check-in" })
+    } finally {
+      setIsActionLoading(null)
+    }
+  }
 
   const handleApproveRefund = async () => {
     if (!db || !ticketToRefund || !currentUser) return;
@@ -141,10 +175,17 @@ export default function EventoPublicoPage() {
 
   return (
     <div className="space-y-8 pb-20">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild><Link href="/dashboard/projetos"><ArrowLeft className="w-5 h-5" /></Link></Button>
           <div><h1 className="text-3xl font-bold tracking-tight">Gestão de Público</h1><p className="text-muted-foreground line-clamp-1">{event.title}</p></div>
+        </div>
+        <div className="flex gap-2">
+           <Button asChild className="bg-primary text-white font-black rounded-full px-8 h-12 shadow-lg gap-2 uppercase italic">
+              <Link href="/admin/scanner">
+                 <ScanQrCode className="w-5 h-5" /> Abrir Scanner
+              </Link>
+           </Button>
         </div>
       </div>
 
@@ -221,13 +262,20 @@ export default function EventoPublicoPage() {
                       </TableCell>
                       <TableCell className="text-right font-black text-xs">{formatCurrency(reg.producerNetAmount || 0)}</TableCell>
                       <TableCell className="px-8 text-right">
-                        {canAction && !isCanceled && !reg.checkedIn && (
+                        {!isCanceled && (
                           <div className="flex items-center justify-end gap-2">
-                             {isRequest ? (
+                             {!reg.checkedIn && !isRequest && canAction && (
+                               <Button size="sm" variant="outline" className="h-8 rounded-lg text-[9px] font-black uppercase gap-1.5 border-secondary text-secondary hover:bg-secondary/5" onClick={() => handleManualCheckIn(reg)} disabled={isActionLoading === reg.id}>
+                                  {isActionLoading === reg.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserCheck className="w-3 h-3" />}
+                                  Check-in
+                               </Button>
+                             )}
+                             {isRequest && canRefund && (
                                <Button size="sm" className="bg-orange-500 text-white font-black text-[9px] uppercase h-8 rounded-lg gap-1.5 shadow-lg shadow-orange-200" onClick={() => setTicketToRefund(reg)}>
                                   <Check className="w-3 h-3" /> Aprovar Estorno
                                </Button>
-                             ) : (
+                             )}
+                             {!reg.checkedIn && !isRequest && canRefund && (
                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/30 hover:text-destructive hover:bg-red-50" onClick={() => setTicketToRefund(reg)} title="Estornar Manualmente">
                                   <RotateCcw className="w-4 h-4" />
                                </Button>
