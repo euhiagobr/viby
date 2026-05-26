@@ -2,7 +2,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 4.2.0 (RESTRIÇÃO DE USERNAME)
+    // REGRAS VIBY - Versão: 4.3.0 (BLOQUEIO DE UNFOLLOW OFICIAL)
     
     function isSignedIn() {
       return request.auth != null;
@@ -74,7 +74,6 @@ service cloud.firestore {
     match /usernames/{username} {
       allow read: if true;
       allow create: if isSignedIn();
-      // Somente Admin pode editar ou deletar usernames existentes para evitar quebra de URLs
       allow update, delete: if isAdmin();
     }
 
@@ -87,6 +86,15 @@ service cloud.firestore {
       match /private/sensitive {
         allow read, write: if isOwner(userId) || isAdmin();
       }
+    }
+
+    match /follows/{followId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
+      // Proibir unfollow (delete) da conta oficial Viby
+      allow delete: if isSignedIn() && 
+                    resource.data.followerId == request.auth.uid && 
+                    resource.data.followingId != 'd3c9fdc1-7fcc-4a70-ab99-79729fad2bf9';
     }
 
     match /registrations/{regId} {

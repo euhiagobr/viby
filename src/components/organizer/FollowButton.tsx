@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { Heart, Loader2 } from "lucide-react";
+import { Heart, Loader2, Lock } from "lucide-react";
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase";
 import { doc, setDoc, deleteDoc, serverTimestamp, increment, updateDoc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,8 @@ interface FollowButtonProps {
   organizationId: string;
   className?: string;
 }
+
+const VIBY_OFFICIAL_UID = 'd3c9fdc1-7fcc-4a70-ab99-79729fad2bf9';
 
 export function FollowButton({ organizationId, className }: FollowButtonProps) {
   const db = useFirestore();
@@ -31,8 +33,19 @@ export function FollowButton({ organizationId, className }: FollowButtonProps) {
   const handleToggleFollow = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    
     if (!db || !user) {
       toast({ title: "Ação necessária", description: "Faça login para seguir esta marca." });
+      return;
+    }
+
+    // Bloqueio de unfollow para conta oficial
+    if (isFollowing && organizationId === VIBY_OFFICIAL_UID) {
+      toast({ 
+        variant: "destructive", 
+        title: "Ação não permitida", 
+        description: "Você não pode deixar de seguir a conta oficial da Viby." 
+      });
       return;
     }
 
@@ -41,7 +54,8 @@ export function FollowButton({ organizationId, className }: FollowButtonProps) {
       if (isFollowing) {
         await deleteDoc(followRef!);
         await updateDoc(doc(db, "organizations", organizationId), {
-          followersCount: increment(-1)
+          followersCount: increment(-1),
+          updatedAt: serverTimestamp()
         });
         toast({ title: "Deixou de seguir" });
       } else {
@@ -52,7 +66,8 @@ export function FollowButton({ organizationId, className }: FollowButtonProps) {
           timestamp: serverTimestamp()
         });
         await updateDoc(doc(db, "organizations", organizationId), {
-          followersCount: increment(1)
+          followersCount: increment(1),
+          updatedAt: serverTimestamp()
         });
         toast({ title: "Seguindo!", description: "Você receberá atualizações desta marca." });
       }
@@ -64,6 +79,8 @@ export function FollowButton({ organizationId, className }: FollowButtonProps) {
   };
 
   if (followLoading) return <div className="w-32 h-10 animate-pulse bg-muted rounded-full" />;
+
+  const isOfficial = organizationId === VIBY_OFFICIAL_UID;
 
   return (
     <Button
@@ -79,10 +96,12 @@ export function FollowButton({ organizationId, className }: FollowButtonProps) {
     >
       {loading ? (
         <Loader2 className="w-4 h-4 animate-spin" />
+      ) : isFollowing && isOfficial ? (
+        <Lock className="w-4 h-4" />
       ) : (
         <Heart className={cn("w-4 h-4", isFollowing && "fill-current")} />
       )}
-      {isFollowing ? "Seguindo" : "Seguir Marca"}
+      {isFollowing ? (isOfficial ? "Seguindo (Oficial)" : "Seguindo") : "Seguir Marca"}
     </Button>
   );
 }

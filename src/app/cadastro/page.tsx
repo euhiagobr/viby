@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
-import { doc, getDoc, runTransaction, serverTimestamp, setDoc } from "firebase/firestore"
+import { doc, getDoc, runTransaction, serverTimestamp, increment } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -204,12 +204,20 @@ export default function CadastroPage() {
         transaction.set(usernameRef, { uid: user.uid, type: 'user' })
         transaction.set(userRef, userData)
 
+        // Auto-follow conta oficial
         const followRef = doc(db, "follows", `${user.uid}_${officialOrgId}`)
         transaction.set(followRef, {
           followerId: user.uid,
           followingId: officialOrgId,
           targetType: 'organization',
           timestamp: serverTimestamp()
+        })
+        
+        // Incrementar contador da conta oficial
+        const officialOrgRef = doc(db, "organizations", officialOrgId)
+        transaction.update(officialOrgRef, {
+          followersCount: increment(1),
+          updatedAt: serverTimestamp()
         })
       });
 
@@ -263,8 +271,9 @@ export default function CadastroPage() {
                 alt={siteName} 
                 width={120} 
                 height={40} 
-                className="h-8 w-auto object-contain" 
+                className="h-10 w-auto object-contain" 
                 priority 
+                unoptimized
               />
             ) : (
               <>
@@ -296,6 +305,7 @@ export default function CadastroPage() {
                   height={48} 
                   className="w-full h-full object-contain p-2" 
                   priority 
+                  unoptimized
                 />
               ) : (
                 <Globe className="text-white w-7 h-7" />
