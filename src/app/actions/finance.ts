@@ -21,6 +21,7 @@ function getVibyDb() {
 
 /**
  * Processa o estorno de um ingresso para a carteira Viby.
+ * RESTRITO: Apenas organizadores ou admins podem EXECUTAR o estorno.
  */
 export async function processTicketRefund(registrationId: string, executorUid: string, reason: string) {
   const db = getVibyDb();
@@ -34,25 +35,17 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       const regData = regSnap.data()!;
 
       // --- VALIDAÇÃO DE SEGURANÇA MANUAL ---
-      const isOwner = regData.userId === executorUid;
       const userSnap = await transaction.get(db.collection("users").doc(executorUid));
       const isAdmin = userSnap.exists && userSnap.data()?.role === 'admin';
       
       const memberSnap = await transaction.get(
         db.collection("organizations").doc(regData.organizationId).collection("members").doc(executorUid)
       );
-      const isOrgManager = memberSnap.exists && ['owner', 'admin'].includes(memberSnap.data()?.role);
+      const isOrgManager = memberSnap.exists && ['owner', 'admin', 'editor'].includes(memberSnap.data()?.role);
 
-      if (!isOwner && !isAdmin && !isOrgManager) {
-        throw new Error("Você não tem permissão para realizar este estorno.");
-      }
-
-      // --- VALIDAÇÃO DE DATA (Trava para Comprador) ---
-      if (isOwner && !isAdmin && !isOrgManager) {
-        const eventDate = regData.eventDate?.toDate ? regData.eventDate.toDate() : new Date(regData.eventDate);
-        if (eventDate < new Date()) {
-          throw new Error("Não é possível estornar ingressos de eventos que já iniciaram ou terminaram.");
-        }
+      // Trava: O próprio comprador NÃO PODE executar o estorno (apenas solicitar)
+      if (!isAdmin && !isOrgManager) {
+        throw new Error("Apenas o organizador do evento ou administradores podem aprovar estornos.");
       }
 
       // --- VALIDAÇÃO DE STATUS ---
@@ -92,7 +85,8 @@ export async function processTicketRefund(registrationId: string, executorUid: s
         cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
         cancelledBy: executorUid,
         cancelReason: reason,
-        refundAmount: refundAmount
+        refundAmount: refundAmount,
+        refundStatus: 'approved'
       });
 
       // 2. Atualiza Saldo da Carteira (Ledger)
@@ -116,7 +110,7 @@ export async function processTicketRefund(registrationId: string, executorUid: s
         amount: refundAmount,
         type: 'credit',
         reason: 'ticket_refund',
-        description: `Estorno: ${regData.eventTitle}`,
+        description: `Estorno Aprovado: ${regData.eventTitle}`,
         metadata: {
           registrationId,
           eventId: regData.eventId,
@@ -145,7 +139,7 @@ export async function processTicketRefund(registrationId: string, executorUid: s
         category: 'payout',
         userId: executorUid,
         targetId: registrationId,
-        description: `Estorno realizado para o usuário ${userId}. Valor: ${refundAmount}. Motivo: ${reason}`,
+        description: `Estorno aprovado pelo organizador ${executorUid} para o usuário ${userId}. Valor: ${refundAmount}.`,
         timestamp: admin.firestore.FieldValue.serverTimestamp()
       });
 
