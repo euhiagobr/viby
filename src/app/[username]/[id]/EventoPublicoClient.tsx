@@ -159,7 +159,7 @@ const renderInlineStyles = (text: string) => {
       );
     if (part.startsWith('+') && part.endsWith('+')) {
        return (
-         <span key={i} className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-primary inline-block my-4 leading-none">
+         <span key={i} className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter text-primary inline-block my-2 leading-none">
            {part.slice(1, -1)}
          </span>
        );
@@ -177,7 +177,7 @@ const renderFormattedText = (text: string) => {
 
     if (trimmed.startsWith('# ')) {
       return (
-        <h2 key={bIdx} className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter mb-12 mt-8 text-primary leading-[0.8] drop-shadow-sm">
+        <h2 key={bIdx} className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter mb-8 mt-6 text-primary leading-[0.9] drop-shadow-sm">
           {renderInlineStyles(trimmed.replace('# ', ''))}
         </h2>
       );
@@ -185,14 +185,14 @@ const renderFormattedText = (text: string) => {
     
     if (trimmed.startsWith('## ')) {
       return (
-        <h3 key={bIdx} className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter mb-10 mt-6 text-primary leading-[0.85]">
+        <h3 key={bIdx} className="text-2xl md:text-4xl font-black uppercase italic tracking-tighter mb-6 mt-4 text-primary leading-[1]">
           {renderInlineStyles(trimmed.replace('## ', ''))}
         </h3>
       );
     }
     
     return (
-      <p key={bIdx} className="mb-8 last:mb-0 leading-relaxed text-lg md:text-xl font-medium text-foreground/80">
+      <p key={bIdx} className="mb-6 last:mb-0 leading-relaxed text-lg md:text-xl font-medium text-foreground/80">
         {renderInlineStyles(trimmed)}
       </p>
     );
