@@ -65,20 +65,26 @@ function isPromoActive(active: boolean, start: string, end: string) {
 }
 
 /**
- * Calcula a quebra financeira básica para checkout
+ * Calcula a quebra financeira básica para checkout.
+ * A TAXA ADMINISTRATIVA do comprador é calculada "por dentro" (sobre o valor final).
  */
 export function calculateFinancialBreakdown(facePrice: number, globalFees?: any, promotions?: any, orgSettings?: any) {
   const price = parseFloat(facePrice as any) || 0;
   if (price <= 0) return { ticketBasePrice: 0, customerFinalPrice: 0, administrativeFeeAmount: 0, producerFeeAmount: 0, producerNetAmount: 0, totalVibyRevenue: 0 };
   
+  // 1. Determinar a porcentagem da taxa do comprador
   let bPercentVal = globalFees?.buyerFeePercent ?? 15;
   if (promotions && isPromoActive(promotions.buyerPromoActive, promotions.buyerPromoStart, promotions.buyerPromoEnd)) {
     bPercentVal = (promotions.buyerPromoPercent !== undefined) ? promotions.buyerPromoPercent : bPercentVal;
   }
   const buyerFeePercent = bPercentVal / 100;
-  const administrativeFeeAmount = Number((price * buyerFeePercent).toFixed(2));
-  const customerFinalPrice = Number((price + administrativeFeeAmount).toFixed(2));
+
+  // 2. CÁLCULO POR DENTRO (Gross-up): Final = Preço / (1 - Taxa)
+  // Isso garante que a taxa seja X% do valor FINAL pago pelo cliente.
+  const customerFinalPrice = Number((price / (1 - buyerFeePercent)).toFixed(2));
+  const administrativeFeeAmount = Number((customerFinalPrice - price).toFixed(2));
   
+  // 3. Taxa do Organizador (Dedução do Preço de Face)
   let oPercentVal = globalFees?.organizerFeePercent ?? 10;
   let oMinVal = globalFees?.organizerMinFee ?? 9.99;
   let oMaxVal = globalFees?.organizerMaxFee ?? 0;
