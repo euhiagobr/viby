@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -18,7 +17,8 @@ import {
   RefreshCw,
   Inbox,
   ArrowLeft,
-  ChevronRight
+  ChevronRight,
+  ShieldCheck
 } from "lucide-react"
 import { formatCurrency } from "@/lib/financial-utils"
 import { cn } from "@/lib/utils"
@@ -57,7 +57,8 @@ export default function CarteiraPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
-      <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" asChild><Link href="/dashboard/perfil"><ArrowLeft className="w-5 h-5" /></Link></Button>
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
           <Wallet className="w-8 h-8 text-secondary" />
           Minha Carteira
