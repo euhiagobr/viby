@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -68,6 +69,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 
 interface TicketType {
   id: string
@@ -111,6 +113,7 @@ export default function EditarEventoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const app = useFirebaseApp()
+  const { currentOrg } = useCurrentOrganization()
 
   const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
@@ -503,7 +506,7 @@ export default function EditarEventoPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!db || !eventRef) return
+    if (!db || !eventRef || !currentOrg) return
     setLoading(true)
     const formData = new FormData(e.currentTarget)
     try {
@@ -556,6 +559,13 @@ export default function EditarEventoPage() {
         sectors: finalSectors,
         address,
         image: uploadedImageUrl || event.image || "",
+        organizer: {
+          id: currentOrg.id,
+          name: currentOrg.name,
+          username: currentOrg.username,
+          avatar: currentOrg.avatar || "",
+          isVerified: currentOrg.verified || false
+        },
         updatedAt: serverTimestamp()
       }
       await updateDoc(eventRef, updateData)

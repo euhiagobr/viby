@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -529,6 +530,8 @@ export default function NovoEventoPage() {
     }
   }
 
+  const supportsMap = ['paid_single', 'batches', 'sector_batches'].includes(ticketMode);
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 text-foreground">
       <div className="flex items-center gap-4">
@@ -580,43 +583,13 @@ export default function NovoEventoPage() {
                 <div className="md:col-span-3 space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Rua</Label><Input value={address.street} onChange={e => setAddress({...address, street: e.target.value})} required className="rounded-xl h-11" /></div>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Número</Label><Input value={address.number} onChange={e => setAddress({...address, number: e.target.value})} required className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Número</Label><Input id="number" value={address.number} onChange={e => setAddress({...address, number: e.target.value})} required className="rounded-xl h-11" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label><Input value={address.complement} onChange={e => setAddress({...address, complement: e.target.value})} className="rounded-xl h-11" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} required className="rounded-xl h-11" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={address.city} readOnly required className="rounded-xl h-11 bg-muted/30" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">UF</Label><Input value={address.state} readOnly required className="rounded-xl h-11 bg-muted/30 w-16" /></div>
              </div>
           </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
-           <CardHeader className="bg-primary/5">
-              <CardTitle className="text-lg flex items-center gap-2"><MapIcon className="w-5 h-5 text-primary" /> Estrutura do Evento (Mapa)</CardTitle>
-           </CardHeader>
-           <CardContent className="p-8 space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                 {[
-                   { id: 'none', label: 'Sem Mapa', icon: X, desc: 'Lista simples' },
-                   { id: 'setores', label: 'Setores', icon: Layout, desc: 'Áreas livres' },
-                   { id: 'assentos', label: 'Assentos', icon: Armchair, desc: 'Cadeiras' },
-                   { id: 'mesas', label: 'Mesas', icon: Grid3X3, desc: 'Numeradas' }
-                 ].map((mode) => (
-                   <Button 
-                     key={mode.id} 
-                     type="button"
-                     variant={mapMode === mode.id ? 'secondary' : 'outline'}
-                     className={cn("h-24 flex-col gap-2 rounded-2xl border-dashed", mapMode === mode.id && "border-solid ring-2 ring-secondary/20")}
-                     onClick={() => setMapMode(mode.id as any)}
-                   >
-                     <mode.icon className="w-6 h-6" />
-                     <div className="text-center">
-                        <p className="text-[10px] font-black uppercase">{mode.label}</p>
-                        <p className="text-[8px] font-bold opacity-50 uppercase">{mode.desc}</p>
-                     </div>
-                   </Button>
-                 ))}
-              </div>
-           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
@@ -651,6 +624,40 @@ export default function NovoEventoPage() {
                </div>
             )}
 
+            {supportsMap && (
+              <div className="animate-in fade-in slide-in-from-top-4 duration-500 space-y-6 border-b border-dashed pb-8 mb-8">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                    <MapIcon className="w-4 h-4 text-secondary" /> Estrutura do Evento (Mapa)
+                  </h3>
+                  <p className="text-[10px] text-muted-foreground font-bold uppercase">Habilite o mapa para permitir seleção de assentos ou visualização de setores.</p>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { id: 'none', label: 'Sem Mapa', icon: X, desc: 'Lista simples' },
+                    { id: 'setores', label: 'Setores', icon: Layout, desc: 'Áreas livres' },
+                    { id: 'assentos', label: 'Assentos', icon: Armchair, desc: 'Cadeiras' },
+                    { id: 'mesas', label: 'Mesas', icon: Grid3X3, desc: 'Numeradas' }
+                  ].map((mode) => (
+                    <Button 
+                      key={mode.id} 
+                      type="button"
+                      variant={mapMode === mode.id ? 'secondary' : 'outline'}
+                      className={cn("h-24 flex-col gap-2 rounded-2xl border-dashed", mapMode === mode.id && "border-solid ring-2 ring-secondary/20")}
+                      onClick={() => setMapMode(mode.id as any)}
+                    >
+                      <mode.icon className="w-6 h-6" />
+                      <div className="text-center">
+                          <p className="text-[10px] font-black uppercase">{mode.label}</p>
+                          <p className="text-[8px] font-bold opacity-50 uppercase">{mode.desc}</p>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {ticketMode === 'paid_single' && (
                <div className="space-y-8 animate-in fade-in duration-300">
                   <div className="p-8 bg-muted/20 rounded-[2rem] border-2 border-dashed border-border space-y-6">
@@ -661,7 +668,7 @@ export default function NovoEventoPage() {
                           value={singleCapacity} 
                           onChange={e => setSingleCapacity(parseInt(e.target.value) || 0)} 
                           className="h-14 text-3xl font-black rounded-xl text-center border-secondary/20 max-w-[200px] bg-white" 
-                        />
+                     />
                      </div>
                      
                      <div className="grid grid-cols-2 gap-6">
@@ -710,7 +717,7 @@ export default function NovoEventoPage() {
                     <div className="space-y-4 animate-in slide-in-from-top-4 duration-500">
                        <div className="flex items-center justify-between px-2">
                           <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Categorias de Meia-Entrada ({halfPricePercent}%)</h3>
-                          <Badge variant="outline" className="rounded-lg text-[10px] font-black uppercase border-secondary text-secondary">Cota: {singleCapacity - (singleTicketTypes[0]?.quantity || 0)} Ingressos</Badge>
+                          <Badge variant="outline" className="rounded-lg text-[10px] font-black uppercase border-secondary text-secondary">Cota: {Math.floor(singleCapacity * (halfPricePercent / 100))} Ingressos</Badge>
                        </div>
                        
                        <div className="space-y-3">
@@ -747,7 +754,7 @@ export default function NovoEventoPage() {
                              variant="ghost" 
                              size="sm" 
                              className="text-secondary font-black uppercase text-[10px] gap-2 ml-2"
-                             onClick={() => setSingleTicketTypes([...singleTicketTypes, { id: crypto.randomUUID(), name: "Nova Meia", price: singleTicketTypes[0].price / 2, quantity: singleCapacity - singleTicketTypes[0].quantity, poolId: singleTicketTypes[1]?.poolId || crypto.randomUUID(), poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" }])}
+                             onClick={() => setSingleTicketTypes([...singleTicketTypes, { id: crypto.randomUUID(), name: "Nova Meia", price: (singleTicketTypes[0]?.price || 0) / 2, quantity: Math.floor(singleCapacity * (halfPricePercent / 100)), poolId: singleTicketTypes[1]?.poolId || crypto.randomUUID(), poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" }])}
                           >
                              <Plus className="w-4 h-4" /> Adicionar Categoria
                           </Button>
@@ -808,8 +815,7 @@ export default function NovoEventoPage() {
 
                      <div className="space-y-6 pt-4 border-t border-dashed border-border/40">
                         <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-1">
-                           <Ticket className="w-3.5 h-3.5" /> Ingressos do Lote
-                        </h4>
+                           <Ticket className="w-3.5 h-3.5" /> Ingressos do Lote</h4>
                         
                         <div className="p-6 bg-white rounded-3xl border shadow-sm grid grid-cols-12 gap-6 items-end">
                            <div className="col-span-5 space-y-2">
@@ -830,7 +836,7 @@ export default function NovoEventoPage() {
                            <div className="space-y-4 animate-in slide-in-from-top-4 duration-500">
                               <div className="flex items-center justify-between px-2">
                                  <h3 className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Categorias de Meia ({batch.halfPricePercent}%)</h3>
-                                 <Badge variant="outline" className="rounded-lg text-[8px] font-black uppercase border-secondary text-secondary">Cota Lote: {batch.capacidadeInicial - batch.ticketTypes[0].quantity} un.</Badge>
+                                 <Badge variant="outline" className="rounded-lg text-[8px] font-black uppercase border-secondary text-secondary">Cota Lote: {Math.floor(batch.capacidadeInicial * ((batch.halfPricePercent || 40) / 100))} un.</Badge>
                               </div>
                               
                               <div className="space-y-3">
@@ -875,12 +881,6 @@ export default function NovoEventoPage() {
                            </div>
                         )}
                      </div>
-
-                      {bi < batches.length - 1 && (
-                         <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-20">
-                            <div className="bg-secondary text-white p-1 rounded-full shadow-lg border-2 border-white"><ArrowDown className="w-4 h-4" /></div>
-                         </div>
-                      )}
                   </div>
                 ))}
                 <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addGlobalBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>
