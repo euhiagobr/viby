@@ -21,7 +21,8 @@ import {
   CheckCircle2,
   Lock,
   Armchair,
-  Layers
+  Layers,
+  XCircle
 } from "lucide-react"
 import Image from "next/image"
 import { QRCodeSVG } from "qrcode.react"
@@ -76,6 +77,7 @@ export default function VoucherPage() {
   const isAcceptedHolder = registration.sharedWithUid === user?.uid && registration.transferStatus === 'accepted';
   const isOriginalActiveOwner = registration.userId === user?.uid && !registration.sharedWithUid;
   const isCurrentActivePossessor = isAcceptedHolder || isOriginalActiveOwner;
+  const isCancelled = registration.status === 'Cancelado' || registration.paymentStatus === 'Cancelado';
 
   const isPaid = registration.paymentStatus === "Pago" || registration.paymentStatus === "Disponível" || (registration.price || 0) === 0;
 
@@ -90,7 +92,7 @@ export default function VoucherPage() {
            <Button variant="outline" size="icon" className="rounded-full">
              <Share2 className="w-4 h-4" />
            </Button>
-           {isCurrentActivePossessor && isPaid && (
+           {isCurrentActivePossessor && isPaid && !isCancelled && (
              <Button variant="outline" size="icon" className="rounded-full" onClick={() => window.print()}>
                <Download className="w-4 h-4" />
              </Button>
@@ -111,15 +113,18 @@ export default function VoucherPage() {
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
             <div className="absolute bottom-6 left-8 right-6">
               <div className="flex items-center gap-2 mb-2">
-                <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase">
-                  {registration.batchName || "Lote Único"}
+                <Badge className={cn(
+                  "border-none text-[10px] font-black uppercase",
+                  isCancelled ? "bg-destructive text-white" : "bg-secondary text-white"
+                )}>
+                  {isCancelled ? "Ingresso Cancelado" : (registration.batchName || "Lote Único")}
                 </Badge>
-                {registration.seatCode && (
+                {registration.seatCode && !isCancelled && (
                    <Badge className="bg-white text-primary border-none text-[10px] font-black uppercase flex items-center gap-1">
                       <Armchair className="w-3 h-3" /> {registration.seatCode}
                    </Badge>
                 )}
-                {registration.checkedIn && (
+                {registration.checkedIn && !isCancelled && (
                   <Badge className="bg-green-500 text-white border-none text-[10px] font-black uppercase flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" /> Utilizado
                   </Badge>
@@ -189,11 +194,11 @@ export default function VoucherPage() {
 
               <div className={cn(
                 "flex flex-col items-center justify-center p-8 rounded-[2rem] gap-6 transition-all",
-                isCurrentActivePossessor ? "bg-muted/30" : "bg-orange-50 border-2 border-dashed border-orange-200"
+                isCurrentActivePossessor && !isCancelled ? "bg-muted/30" : "bg-orange-50 border-2 border-dashed border-orange-200"
               )}>
                 <div className="p-4 bg-white rounded-3xl shadow-inner relative overflow-hidden">
                    <div className="w-48 h-48 relative flex items-center justify-center">
-                      {isCurrentActivePossessor && isPaid ? (
+                      {isCurrentActivePossessor && isPaid && !isCancelled ? (
                         <QRCodeSVG 
                           value={JSON.stringify({
                              v: "2.0",
@@ -208,11 +213,14 @@ export default function VoucherPage() {
                           level="H"
                         />
                       ) : (
-                        <div className="flex flex-col items-center gap-4 text-orange-500 text-center">
-                          <Lock className="w-16 h-16 opacity-30" />
+                        <div className={cn(
+                          "flex flex-col items-center gap-4 text-center",
+                          isCancelled ? "text-red-500" : "text-orange-500"
+                        )}>
+                          {isCancelled ? <XCircle className="w-16 h-16 opacity-30" /> : <Lock className="w-16 h-16 opacity-30" />}
                           <p className="text-[10px] font-black uppercase leading-tight">
                             QR Code Indisponível<br/>
-                            {!isCurrentActivePossessor ? "Ingresso Transferido" : "Aguardando Pagamento"}
+                            {isCancelled ? "Ingresso Cancelado" : (!isCurrentActivePossessor ? "Ingresso Transferido" : "Aguardando Pagamento")}
                           </p>
                         </div>
                       )}
@@ -223,9 +231,9 @@ export default function VoucherPage() {
                   <p className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Código de Validação</p>
                   <p className={cn(
                     "text-xl font-mono font-black tracking-tighter",
-                    isCurrentActivePossessor ? "text-secondary" : "text-muted-foreground/30"
+                    isCurrentActivePossessor && !isCancelled ? "text-secondary" : "text-muted-foreground/30"
                   )}>
-                    {isCurrentActivePossessor ? (registration.ticketCode || "GERANDO...") : "****-****-****-****"}
+                    {isCurrentActivePossessor && !isCancelled ? (registration.ticketCode || "GERANDO...") : "****-****-****-****"}
                   </p>
                 </div>
               </div>
@@ -233,7 +241,7 @@ export default function VoucherPage() {
 
             <div className="pt-4 text-center">
               <p className="text-[9px] text-muted-foreground font-medium max-w-[200px] mx-auto uppercase tracking-tighter">
-                Apresente este voucher na entrada do evento para validação via scanner.
+                {isCancelled ? "Este ingresso foi invalidado e não permite acesso." : "Apresente este voucher na entrada do evento para validação via scanner."}
               </p>
             </div>
           </CardContent>

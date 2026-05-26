@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -219,6 +218,13 @@ export default function EventoPublicoPage() {
         setScanMode('idle');
       } else {
         const data = snap.docs[0].data()
+
+        if (data.status === 'Cancelado' || data.paymentStatus === 'Cancelado') {
+          toast({ variant: "destructive", title: "Ingresso Cancelado", description: "Acesso não permitido. Inscrição invalidada por cancelamento." })
+          setScanMode('idle');
+          return;
+        }
+
         setScanResult({ ...data, id: snap.docs[0].id })
         setScanMode('result')
         if (data.checkedIn) {
