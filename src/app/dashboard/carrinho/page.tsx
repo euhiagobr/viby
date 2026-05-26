@@ -199,15 +199,23 @@ export default function CarrinhoPage() {
       if (isFullBalanceOrder) {
         await runTransaction(db, async (transaction) => {
           const userRef = doc(db, "users", user.uid);
+          const walletRef = doc(db, "wallets", user.uid);
+          
           const uSnap = await transaction.get(userRef);
           if (!uSnap.exists() || (uSnap.data().walletBalance || 0) < cartTotals.balanceUsed) {
             throw new Error("Saldo insuficiente na carteira.");
           }
           
+          // Sincroniza ambos os documentos de saldo
           transaction.update(userRef, {
             walletBalance: increment(-cartTotals.balanceUsed),
             updatedAt: serverTimestamp()
           });
+
+          transaction.set(walletRef, {
+            balance: increment(-cartTotals.balanceUsed),
+            updatedAt: serverTimestamp()
+          }, { merge: true });
 
           const txRef = doc(collection(db, "wallet_transactions"));
           transaction.set(txRef, {

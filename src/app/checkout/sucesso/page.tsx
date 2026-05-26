@@ -4,8 +4,8 @@
 import * as React from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useFirestore, useAuth, useUser } from "@/firebase"
-import { doc, updateDoc, serverTimestamp, getDoc, increment, addDoc, collection } from "firebase/firestore"
-import { Card, CardContent } from "@/components/ui/card"
+import { doc, updateDoc, serverTimestamp, getDoc, increment, addDoc, collection, setDoc } from "firebase/firestore"
+import { Card, CardContent } from "@/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, CheckCircle2, ArrowRight } from "lucide-react"
 import { getStripeSession } from "@/app/actions/stripe"
@@ -81,12 +81,20 @@ function CheckoutSucessoContent() {
           const balanceUsed = parseFloat(metadata.balanceUsed || "0");
           if (balanceUsed > 0) {
             const userRef = doc(db, "users", user.uid);
+            const walletRef = doc(db, "wallets", user.uid);
+
+            // Sincroniza ambos os documentos de saldo para garantir consistência no Ledger
             await updateDoc(userRef, {
               walletBalance: increment(-balanceUsed),
               updatedAt: serverTimestamp()
             });
 
-            // Registrar transação de carteira
+            await setDoc(walletRef, {
+              balance: increment(-balanceUsed),
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+
+            // Registrar transação de carteira no histórico
             await addDoc(collection(db, "wallet_transactions"), {
               userId: user.uid,
               amount: balanceUsed,
