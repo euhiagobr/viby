@@ -69,7 +69,8 @@ export default function OrganizationDashboardPage() {
     if (!rawAllEvents) return { total: 0, active: 0, recent: [] };
     
     const active = rawAllEvents.filter((e: any) => e.status === 'Ativo').length;
-    const sorted = [...rawAllAllEvents].sort((a, b) => {
+    // Corrigido: rawAllEvents em vez de rawAllAllEvents
+    const sorted = [...rawAllEvents].sort((a, b) => {
       const tA = a.createdAt?.seconds || 0;
       const tB = b.createdAt?.seconds || 0;
       return tB - tA;
@@ -129,6 +130,16 @@ export default function OrganizationDashboardPage() {
   }, [followers]);
 
   if (orgLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
+
+  if (!currentOrg) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+        <Building2 className="w-16 h-16 text-muted-foreground opacity-20" />
+        <h2 className="text-xl font-bold">Organização não encontrada</h2>
+        <Button asChild variant="outline" className="rounded-full"><Link href="/dashboard/organizacoes">Ver Minhas Marcas</Link></Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -229,7 +240,7 @@ export default function OrganizationDashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
+        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
           <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
              <div>
                 <CardTitle className="text-lg font-bold">Eventos Recentes</CardTitle>

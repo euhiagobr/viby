@@ -68,6 +68,7 @@ export default function OrganizationEventsPage() {
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null;
+    // Removido orderBy para evitar erros de índice ausente em organizações novas
     return query(
       collection(db, 'events'), 
       where('organizationId', '==', currentOrg.id)
@@ -78,6 +79,7 @@ export default function OrganizationEventsPage() {
 
   const allEvents = React.useMemo(() => {
     if (!rawEvents) return [];
+    // Incluir todos os status no painel de gestão para transparência total
     return [...rawEvents].filter(e => e.status !== 'Excluído');
   }, [rawEvents]);
 
@@ -91,7 +93,7 @@ export default function OrganizationEventsPage() {
     return filteredEvents
       .filter(e => {
         const dateVal = e.date || e.startDate;
-        if (!dateVal) return true; // Mostra na agenda se não tiver data definida
+        if (!dateVal) return true; // Mostra na agenda se não tiver data definida para permitir gestão
         const start = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
         const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
         return end >= now;
@@ -430,7 +432,7 @@ function EventRow({
 
 function NoEventsPlaceholder({ message, isAtLeastEditor, icon: Icon = Megaphone }: any) {
   return (
-    <div className="py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed flex flex-col items-center justify-center gap-4 shadow-inner">
+    <div className="py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed flex flex-col items-center justify-center gap-4 shadow-inner w-full">
        <Icon className="w-12 h-12 text-muted-foreground opacity-10" />
        <p className="text-muted-foreground font-bold italic">{message}</p>
        {isAtLeastEditor && (
