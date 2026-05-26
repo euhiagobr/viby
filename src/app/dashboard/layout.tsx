@@ -1,13 +1,14 @@
+
 "use client"
 
 import * as React from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
-import { Bell, Loader2, Plus, Building2, ShoppingCart } from "lucide-react"
+import { Bell, Loader2, Plus, Building2, ShoppingCart, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, where } from "firebase/firestore"
+import { collection, query, where, doc, getDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore"
 import { OrganizationProvider, useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { useCart } from "@/contexts/CartContext"
 import {
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
+import { toast } from "@/hooks/use-toast"
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { currentOrg, organizations, setCurrentOrg, loading } = useCurrentOrganization()
@@ -28,6 +30,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const db = useFirestore()
   const router = useRouter()
   const { totalCount } = useCart()
+  const [checkingAccount, setCheckingAccount] = React.useState(true)
 
   const unreadQuery = useMemoFirebase(() => {
     if (!db || !user) return null
@@ -35,7 +38,45 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   }, [db, user])
   const { data: unreadNotifications } = useCollection<any>(unreadQuery)
 
-  if (authLoading || loading) {
+  // LOGICA DE REATIVAÇÃO AUTOMÁTICA
+  React.useEffect(() => {
+    if (!db || !user || authLoading) {
+      if (!authLoading) setCheckingAccount(false)
+      return
+    }
+
+    const checkReactivation = async () => {
+      try {
+        const userRef = doc(db, "users", user.uid)
+        const userSnap = await getDoc(userRef)
+        
+        if (userSnap.exists()) {
+          const userData = userSnap.data()
+          if (userData.status === 'Desativado' || userData.status === 'Exclusão Programada') {
+            await updateDoc(userRef, {
+              status: 'Ativo',
+              deletionScheduledAt: deleteField(),
+              reactivatedAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
+            })
+            toast({
+              title: "Bem-vindo de volta!",
+              description: "Sua conta foi reativada automaticamente.",
+              duration: 6000
+            })
+          }
+        }
+      } catch (e) {
+        console.error("Erro na verificação de conta:", e)
+      } finally {
+        setCheckingAccount(false)
+      }
+    }
+
+    checkReactivation()
+  }, [db, user, authLoading])
+
+  if (authLoading || loading || checkingAccount) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-secondary" />

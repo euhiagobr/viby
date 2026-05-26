@@ -8,12 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, Mail, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Link as LinkIcon, Instagram, Phone, EyeOff, User as UserIcon, Users as UsersIcon, Fingerprint } from "lucide-react"
+import { Loader2, Mail, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Link as LinkIcon, Instagram, Phone, EyeOff, User as UserIcon, Users as UsersIcon, Fingerprint, Settings } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { maskCPF } from "@/lib/crypto-utils"
 import { getUserCPF } from "@/app/actions/user"
+import { toast } from "@/hooks/use-toast"
 
 export default function PerfilPage() {
   const auth = useAuth()
@@ -69,12 +70,17 @@ export default function PerfilPage() {
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Meu Perfil Pessoal</h1>
           <p className="text-muted-foreground">Gerencie suas informações pessoais e configurações de conta.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="ghost" size="icon" asChild className="rounded-full h-10 w-10 border" title="Segurança e Conta">
+            <Link href="/dashboard/perfil/configuracoes">
+              <Settings className="w-4 h-4" />
+            </Link>
+          </Button>
           <Button variant="outline" asChild className="gap-2 font-bold rounded-full">
             <Link href="/dashboard/perfil/editar">
               <Edit className="w-4 h-4" />
