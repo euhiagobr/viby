@@ -179,7 +179,7 @@ const renderFormattedText = (text: string) => {
 
     if (trimmed.startsWith('# ')) {
       return (
-        <h2 key={bIdx} className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter mb-6 mt-4 text-primary leading-[0.9] drop-shadow-sm">
+        <h2 key={bIdx} className="text-5xl md:text-6xl font-black uppercase italic tracking-tighter mb-6 mt-4 text-primary leading-[0.9] drop-shadow-sm">
           {renderInlineStyles(trimmed.replace('# ', ''))}
         </h2>
       );
@@ -187,7 +187,7 @@ const renderFormattedText = (text: string) => {
     
     if (trimmed.startsWith('## ')) {
       return (
-        <h3 key={bIdx} className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-4 mt-2 text-primary leading-[1]">
+        <h3 key={bIdx} className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter mb-4 mt-2 text-primary leading-[1]">
           {renderInlineStyles(trimmed.replace('## ', ''))}
         </h3>
       );
@@ -655,6 +655,9 @@ function LocationSection({ event }: { event: any }) {
     ? `https://www.waze.com/ul?ll=${event.latitude},${event.longitude}&navigate=yes`
     : `https://www.waze.com/ul?q=${encodeURIComponent(addressStr)}&navigate=yes`;
 
+  // Iframe do Google Maps sem necessidade de API Key (modo de busca/legado)
+  const mapEmbedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(addressStr)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+
   return (
     <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden p-0 relative">
       <div className="p-8 pb-4">
@@ -663,12 +666,16 @@ function LocationSection({ event }: { event: any }) {
         </h3>
       </div>
       
-      <div className="relative h-64 bg-muted overflow-hidden group">
-         <div className="absolute inset-0 bg-muted flex items-center justify-center">
-            <MapIcon className="w-12 h-12 text-muted-foreground opacity-20" />
-            <p className="absolute bottom-4 text-[10px] font-bold text-muted-foreground uppercase">Clique para abrir o mapa interativo</p>
-         </div>
-         <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer" className="absolute inset-0 z-10" />
+      <div className="relative h-80 bg-muted overflow-hidden">
+         <iframe
+            width="100%"
+            height="100%"
+            style={{ border: 0 }}
+            loading="lazy"
+            allowFullScreen
+            src={mapEmbedUrl}
+            title="Mapa do Local"
+         />
       </div>
 
       <div className="p-8 space-y-6">
