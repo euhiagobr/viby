@@ -64,7 +64,7 @@ export default function CarrinhoPage() {
   const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null)
   const [isApplyingCoupon, setIsApplyingCoupon] = React.useState(false)
 
-  // Carregar dados das organizações dos itens no carrinho
+  // Carregar dados das organizações dos itens no carrinho para garantir dados atualizados (nome/username)
   React.useEffect(() => {
     if (!db || items.length === 0) {
       setLoadingOrgs(false)
@@ -182,6 +182,9 @@ export default function CarrinhoPage() {
         const orgSettings = orgsData[item.organizationId]
         const breakdown = calculateFinancialBreakdown(discountedPrice, globalFees, promotions, orgSettings);
         
+        // Usar o username atual da marca (vindo do orgsData) para evitar dados obsoletos
+        const currentOrganizerUsername = orgSettings?.username || item.organizerUsername;
+
         for (let i = 0; i < item.quantity; i++) {
           const ticketCode = await generateUniqueTicketCode(db);
           const regData = {
@@ -195,8 +198,8 @@ export default function CarrinhoPage() {
             userEmail: user.email,
             attendeeName: user.displayName || user.email || "Participante",
             organizationId: item.organizationId,
-            organizerId: item.organizerId,
-            organizerUsername: item.organizerUsername,
+            organizerId: user.uid, // Mantido apenas para auditoria de quem comprou
+            organizerUsername: currentOrganizerUsername,
             ticketBasePrice: item.price,
             discountApplied: currentItemDiscount,
             price: breakdown.customerFinalPrice,
@@ -211,10 +214,8 @@ export default function CarrinhoPage() {
             poolName: item.poolName || null,
             sectorId: item.sectorId || null,
             sectorName: item.sectorName || null,
-            // @ts-ignore
-            seatId: item.seatId || null,
-            // @ts-ignore
-            seatCode: item.seatCode || null,
+            seatId: (item as any).seatId || null,
+            seatCode: (item as any).seatCode || null,
             couponId: isEligibleForDiscount ? appliedCoupon.id : null,
             quantity: 1,
             checkedIn: false,
@@ -238,7 +239,7 @@ export default function CarrinhoPage() {
               eventDate: eventDate,
               eventCity: item.eventCity || "Local Confirmado",
               voucherUrl: `https://viby.club/dashboard/ingressos/${docRef.id}/voucher`,
-              eventUrl: `https://viby.club/${item.organizerUsername || 'evento'}/${item.eventId}`,
+              eventUrl: `https://viby.club/${currentOrganizerUsername || 'evento'}/${item.eventId}`,
               ticketPrice: 0,
               feePrice: 0,
               totalPrice: 0,
@@ -255,8 +256,7 @@ export default function CarrinhoPage() {
                 name: `${item.eventTitle} - ${item.ticketTypeName}`,
                 description: [
                    item.sectorName ? `Setor: ${item.sectorName}` : null,
-                   // @ts-ignore
-                   item.seatCode ? `Lugar: ${item.seatCode}` : null,
+                   (item as any).seatCode ? `Lugar: ${(item as any).seatCode}` : null,
                    item.batchName ? `Lote: ${item.batchName}` : null
                 ].filter(Boolean).join(" | "),
                 images: (item.eventImage && item.eventImage.startsWith('http')) ? [item.eventImage] : [],
@@ -364,8 +364,7 @@ export default function CarrinhoPage() {
                               <div className="flex items-center flex-wrap gap-4 text-[10px] font-bold text-muted-foreground uppercase">
                                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3 text-secondary" /> {new Date(item.eventDate).toLocaleDateString('pt-BR')}</span>
                                  {item.sectorName && <span className="flex items-center gap-1 text-secondary"><Layers className="w-3 h-3" /> {item.sectorName}</span>}
-                                 {/* @ts-ignore */}
-                                 {item.seatCode && <span className="flex items-center gap-1 text-green-600 font-black"><Armchair className="w-3 h-3" /> Lugar: {item.seatCode}</span>}
+                                 {(item as any).seatCode && <span className="flex items-center gap-1 text-green-600 font-black"><Armchair className="w-3 h-3" /> Lugar: {(item as any).seatCode}</span>}
                                  {item.batchName && <span className="flex items-center gap-1 text-primary/40"><Ticket className="w-3 h-3" /> {item.batchName}</span>}
                               </div>
                            </div>
@@ -376,7 +375,7 @@ export default function CarrinhoPage() {
                               <Badge variant="outline" className="text-[9px] font-black uppercase border-secondary text-secondary w-fit">{item.ticketTypeName}</Badge>
                            </div>
                            <div className="flex items-center gap-6">
-                              {!item.seatId && (
+                              {!(item as any).seatId && (
                                 <div className="flex items-center gap-3"><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => updateQuantity(item.id, item.quantity - 1)}><Minus className="w-3 h-3" /></Button><span className="font-black text-sm">{item.quantity}</span><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => updateQuantity(item.id, item.quantity + 1)}><Plus className="w-3 h-3" /></Button></div>
                               )}
                               <div className="text-right"><p className="text-lg font-black text-primary">{formatCurrency(res.customerFinalPrice * item.quantity)}</p><p className="text-[8px] font-bold text-muted-foreground uppercase">Taxa Adm: {formatCurrency(res.administrativeFeeAmount * item.quantity)} incl.</p></div>

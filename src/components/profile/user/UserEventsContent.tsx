@@ -2,10 +2,10 @@
 "use client";
 
 import * as React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, MapPin, Ticket, Heart, Sparkles, Clock, CheckCircle2, Lock, EyeOff } from "lucide-react";
+import { Calendar, MapPin, CheckCircle2, Lock, Sparkles } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -18,17 +18,20 @@ interface UserEventsContentProps {
 export function UserEventsContent({ registrations, isOwner = false }: UserEventsContentProps) {
   const now = new Date();
   
-  const upcoming = registrations?.filter((r: any) => {
-    const d = r.eventDate?.toDate ? r.eventDate.toDate() : new Date(r.eventDate);
-    return d >= now && r.status !== 'Cancelado' && r.paymentStatus !== 'Cancelado';
-  }) || [];
+  const upcoming = React.useMemo(() => {
+    return registrations?.filter((r: any) => {
+      const d = r.eventDate?.toDate ? r.eventDate.toDate() : new Date(r.eventDate);
+      return d >= now && r.status !== 'Cancelado' && r.paymentStatus !== 'Cancelado';
+    }) || [];
+  }, [registrations, now]);
 
-  const past = registrations?.filter((r: any) => {
-    const d = r.eventDate?.toDate ? r.eventDate.toDate() : new Date(r.eventDate);
-    return d < now || r.checkedIn;
-  }) || [];
+  const past = React.useMemo(() => {
+    return registrations?.filter((r: any) => {
+      const d = r.eventDate?.toDate ? r.eventDate.toDate() : new Date(r.eventDate);
+      return d < now || r.checkedIn;
+    }) || [];
+  }, [registrations, now]);
 
-  // LGPD: Don't show specific events to anyone but the owner
   if (!isOwner) {
     return (
       <div className="space-y-10 sticky top-24">
@@ -86,7 +89,6 @@ export function UserEventsContent({ registrations, isOwner = false }: UserEvents
         </div>
       </section>
 
-      {/* Badges Preview */}
       <section className="space-y-6 pt-6 border-t border-dashed">
          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Conquistas</h2>
          <div className="grid grid-cols-4 gap-4 px-2">
@@ -104,8 +106,13 @@ export function UserEventsContent({ registrations, isOwner = false }: UserEvents
 function EventCompactCard({ registration, isPast = false }: { registration: any, isPast?: boolean }) {
   const d = registration.eventDate?.toDate ? registration.eventDate.toDate() : new Date(registration.eventDate);
   
+  // Como o username da marca pode mudar, o link construído com registration.organizerUsername 
+  // pode se tornar obsoleto. Idealmente, redirecionamos via /[username]/[id] onde o [username]
+  // é apenas para SEO, mas o id é o que importa.
+  const path = `/${registration.organizerUsername || 'evento'}/${registration.eventId}`;
+
   return (
-    <Link href={`/${registration.organizerUsername || 'evento'}/${registration.eventId}`}>
+    <Link href={path}>
       <Card className={cn(
         "overflow-hidden border-none shadow-sm hover:shadow-md transition-all rounded-2xl bg-white group flex",
         isPast && "opacity-60 grayscale-[0.5]"
