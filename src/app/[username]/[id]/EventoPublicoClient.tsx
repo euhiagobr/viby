@@ -138,7 +138,6 @@ function AvatarFallback({
 }
 
 const renderInlineStyles = (text: string) => {
-  // Regex atualizada para incluir suporte a +texto+ para letras maiores
   const parts = text.split(/(\*\*.*?\*\*|@[\w.]+|\+.*?\+)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**'))
@@ -821,7 +820,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
             <div className="lg:col-span-8 space-y-16">
               {/* ORGANIZADOR CARD */}
-              <Card className="border-none shadow-sm rounded-[3rem] bg-white overflow-hidden p-8 hover:shadow-xl transition-shadow group">
+              <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden p-8 hover:shadow-xl transition-shadow group">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
                     <div className="flex items-center gap-8">
                       <Avatar className="h-24 w-24 border-4 border-secondary/10 p-0.5 group-hover:scale-110 transition-transform">
