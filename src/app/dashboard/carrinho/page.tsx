@@ -141,7 +141,7 @@ export default function CarrinhoPage() {
       finalTotal = totalBeforeBalance - balanceUsed;
     }
 
-    return { subtotal, fees, discount, balanceUsed, total: finalTotal };
+    return { subtotal, fees, discount, balanceUsed, total: finalTotal, totalBeforeBalance };
   }, [items, appliedCoupon, globalFees, promotions, orgsData, useBalance, walletBalance]);
 
   const handleApplyCoupon = async () => {
@@ -216,7 +216,7 @@ export default function CarrinhoPage() {
             amount: cartTotals.balanceUsed,
             type: 'debit',
             reason: 'compra_ingresso',
-            description: `Compra: ${items.length > 1 ? 'Múltiplos itens' : items[0].eventTitle}`,
+            description: `Compra Integral: ${items.length > 1 ? 'Múltiplos itens' : items[0].eventTitle}`,
             timestamp: serverTimestamp()
           });
         });
@@ -320,12 +320,21 @@ export default function CarrinhoPage() {
         });
         router.push("/dashboard/ingressos");
       } else {
-        // Se houver saldo parcial usado, incluímos nos metadados para descontar na página de sucesso
+        // CORREÇÃO: Se houver saldo utilizado, enviamos uma cobrança unificada do valor residual.
+        // O Stripe não permite itens negativos de forma simples, então para pagamentos parciais
+        // enviamos o total final calculado como um item de "Pagamento de Inscrição".
+        const useUnifiedPayment = cartTotals.balanceUsed > 0;
+
         const { url } = await createCheckoutSession({
-          eventId: "multiple", eventTitle: "Ingressos Viby Club", eventImage: "",
-          userId: user.uid, userName: profile?.name || user.displayName || "Usuário", userEmail: user.email!,
+          eventId: "multiple", 
+          eventTitle: items.length > 1 ? `Inscrição: ${items.length} itens` : items[0].eventTitle,
+          eventImage: items[0].eventImage || "",
+          userId: user.uid, 
+          userName: profile?.name || user.displayName || "Usuário", 
+          userEmail: user.email!,
           totalAmount: Math.round(cartTotals.total * 100),
-          lineItems,
+          // Se usar saldo, passa undefined para o Stripe usar o totalAmount como preço unitário do título do evento
+          lineItems: useUnifiedPayment ? undefined : lineItems, 
           metadata: { 
             type: "cart_checkout",
             registrationIds: registrationIds.join(","),
