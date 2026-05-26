@@ -2,9 +2,8 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import { motion } from "framer-motion";
-import { Share2, Globe, Instagram, MessageCircle, Mail } from "lucide-react";
+import { Share2, Globe, Instagram } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -14,9 +13,17 @@ import { toast } from "@/hooks/use-toast";
 
 interface OrganizerHeroProps {
   organization: any;
+  realFollowersCount: number;
+  realEventsCount: number;
+  realAttendeesCount: number;
 }
 
-export function OrganizerHero({ organization }: OrganizerHeroProps) {
+export function OrganizerHero({ 
+  organization, 
+  realFollowersCount, 
+  realEventsCount, 
+  realAttendeesCount 
+}: OrganizerHeroProps) {
   const handleShare = () => {
     if (typeof window !== "undefined") {
       navigator.clipboard.writeText(window.location.href);
@@ -26,7 +33,6 @@ export function OrganizerHero({ organization }: OrganizerHeroProps) {
 
   return (
     <section className="relative w-full overflow-hidden">
-      {/* Banner */}
       <div className="relative h-[40vh] md:h-[50vh] w-full">
         {organization.banner ? (
           <img
@@ -40,7 +46,6 @@ export function OrganizerHero({ organization }: OrganizerHeroProps) {
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
       </div>
 
-      {/* Info Overlay */}
       <div className="container mx-auto px-4 -mt-24 md:-mt-32 relative z-10">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-8">
           <div className="flex flex-col md:flex-row items-center md:items-end gap-6 text-center md:text-left">
@@ -74,9 +79,9 @@ export function OrganizerHero({ organization }: OrganizerHeroProps) {
               </div>
 
               <div className="flex flex-wrap justify-center md:justify-start items-center gap-8 pt-2">
-                <StatItem label="Seguidores" value={organization.followersCount || 0} />
-                <StatItem label="Eventos" value={organization.totalEventsCount || 0} />
-                <StatItem label="Público Total" value={organization.totalAttendeesCount || 0} />
+                <StatItem label="Seguidores" value={realFollowersCount} />
+                <StatItem label="Eventos" value={realEventsCount} />
+                <StatItem label="Público Total" value={realAttendeesCount} />
               </div>
             </div>
           </div>
@@ -107,7 +112,7 @@ function StatItem({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex flex-col md:items-start">
       <span className="text-2xl font-black italic tracking-tighter text-primary">
-        {value > 1000 ? `${(value / 1000).toFixed(1)}k` : value}
+        {value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value}
       </span>
       <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-60">
         {label}

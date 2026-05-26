@@ -55,7 +55,21 @@ export default function ProfilePageClient({ username }: { username: string }) {
     fetchData();
   }, [db, username]);
 
-  // Fetch All Events for this organization (Filtering in memory for resilience)
+  // Fetch Real Followers Count
+  const followersQuery = useMemoFirebase(() => {
+    if (!db || !data?.id) return null;
+    return query(collection(db, "follows"), where("followingId", "==", data.id));
+  }, [db, data?.id]);
+  const { data: followers } = useCollection<any>(followersQuery);
+
+  // Fetch Real Attendees (Public) Count
+  const registrationsQuery = useMemoFirebase(() => {
+    if (!db || !data?.id) return null;
+    return query(collection(db, "registrations"), where("organizationId", "==", data.id));
+  }, [db, data?.id]);
+  const { data: registrations } = useCollection<any>(registrationsQuery);
+
+  // Fetch All Events for this organization
   const eventsQuery = useMemoFirebase(() => {
     if (!db || !data?.id || type !== 'organization') return null;
     return query(
@@ -88,7 +102,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
       const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
       const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
       return end < now;
-    }).reverse(); // Most recent first for past events
+    }).reverse();
 
     return { upcoming, past };
   }, [events]);
@@ -125,7 +139,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white font-body">
-      {/* Premium Navigation */}
       <nav className="fixed top-0 z-50 w-full bg-background/80 backdrop-blur-xl border-b border-border/40">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
@@ -154,7 +167,12 @@ export default function ProfilePageClient({ username }: { username: string }) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <OrganizerHero organization={data} />
+            <OrganizerHero 
+              organization={data} 
+              realFollowersCount={followers?.length || 0}
+              realEventsCount={events?.length || 0}
+              realAttendeesCount={registrations?.length || 0}
+            />
 
             <div className="container mx-auto px-4 mt-12 max-w-6xl">
               <Tabs defaultValue="upcoming" className="w-full">
