@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useDoc } from "@/firebase";
-import { doc, getDoc, collection, query, where, orderBy } from "firebase/firestore";
+import { doc, getDoc, collection, query, where } from "firebase/firestore";
 import { Loader2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -55,18 +55,43 @@ export default function ProfilePageClient({ username }: { username: string }) {
     fetchData();
   }, [db, username]);
 
-  // Fetch All Active Events
+  // Fetch All Events for this organization (Filtering in memory for resilience)
   const eventsQuery = useMemoFirebase(() => {
     if (!db || !data?.id || type !== 'organization') return null;
     return query(
       collection(db, "events"), 
-      where("organizationId", "==", data.id),
-      where("status", "==", "Ativo"),
-      orderBy("date", "desc")
+      where("organizationId", "==", data.id)
     );
   }, [db, data?.id, type]);
 
   const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery);
+
+  const processedEvents = React.useMemo(() => {
+    if (!events) return { upcoming: [], past: [] };
+    const now = new Date();
+
+    const all = events
+      .filter((e: any) => e.status === "Ativo")
+      .sort((a: any, b: any) => {
+        const dateA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime();
+        const dateB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
+        return dateA - dateB;
+      });
+
+    const upcoming = all.filter((e: any) => {
+      const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+      const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+      return end >= now;
+    });
+
+    const past = all.filter((e: any) => {
+      const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+      const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+      return end < now;
+    }).reverse(); // Most recent first for past events
+
+    return { upcoming, past };
+  }, [events]);
 
   if (loading) {
     return (
@@ -97,20 +122,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
       </div>
     );
   }
-
-  const now = new Date();
-  const upcomingEvents = (events || []).filter(e => {
-    const dateValue = e.startDate || e.date;
-    const start = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
-    const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
-    return end >= now;
-  });
-  const pastEvents = (events || []).filter(e => {
-    const dateValue = e.startDate || e.date;
-    const start = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
-    const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
-    return end < now;
-  });
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white font-body">
@@ -162,12 +173,16 @@ export default function ProfilePageClient({ username }: { username: string }) {
                 </div>
 
                 <TabsContent value="upcoming" className="animate-in fade-in slide-in-from-bottom-4 duration-500 m-0 focus-visible:outline-none">
-                  <OrganizerEvents events={upcomingEvents} title="Agenda" />
+                  {eventsLoading ? (
+                    <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+                  ) : (
+                    <OrganizerEvents events={processedEvents.upcoming} title="Agenda" />
+                  )}
                 </TabsContent>
 
                 <TabsContent value="past" className="animate-in fade-in slide-in-from-bottom-4 duration-500 m-0 focus-visible:outline-none">
                   <div className="space-y-20">
-                    <OrganizerEvents events={pastEvents} title="Histórico" isPast />
+                    <OrganizerEvents events={processedEvents.past} title="Histórico" isPast />
                     <OrganizerGallery gallery={data.gallery || []} />
                   </div>
                 </TabsContent>
