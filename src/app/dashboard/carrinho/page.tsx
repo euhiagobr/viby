@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -72,7 +71,6 @@ export default function CarrinhoPage() {
   const [isApplyingCoupon, setIsApplyingCoupon] = React.useState(false)
   const [useBalance, setUseBalance] = React.useState(false)
 
-  // Carregar dados das organizações
   React.useEffect(() => {
     if (!db || items.length === 0) {
       setLoadingOrgs(false)
@@ -131,14 +129,15 @@ export default function CarrinhoPage() {
       fees += res.administrativeFeeAmount * item.quantity;
     });
 
-    const totalBeforeBalance = Math.max(0, (subtotal - discount) + fees);
+    // Precisão centesimal para evitar erros de arredondamento na soma total
+    const totalBeforeBalance = Number(((subtotal - discount) + fees).toFixed(2));
     
     let balanceUsed = 0;
     let finalTotal = totalBeforeBalance;
 
     if (useBalance && walletBalance > 0) {
       balanceUsed = Math.min(walletBalance, totalBeforeBalance);
-      finalTotal = totalBeforeBalance - balanceUsed;
+      finalTotal = Number((totalBeforeBalance - balanceUsed).toFixed(2));
     }
 
     return { subtotal, fees, discount, balanceUsed, total: finalTotal, totalBeforeBalance };
@@ -195,7 +194,6 @@ export default function CarrinhoPage() {
       const totalQtyEligible = items.reduce((acc, i) => acc + (appliedCoupon && i.eventId === appliedCoupon.eventId ? i.quantity : 0), 0);
       const discountPerUnit = totalQtyEligible > 0 ? (cartTotals.discount / totalQtyEligible) : 0;
 
-      // Se for pagamento total com saldo, precisamos de uma transação para descontar o saldo antes
       if (isFullBalanceOrder) {
         await runTransaction(db, async (transaction) => {
           const userRef = doc(db, "users", user.uid);
@@ -209,7 +207,6 @@ export default function CarrinhoPage() {
             updatedAt: serverTimestamp()
           });
 
-          // Registrar transação de carteira
           const txRef = doc(collection(db, "wallet_transactions"));
           transaction.set(txRef, {
             userId: user.uid,
@@ -229,7 +226,6 @@ export default function CarrinhoPage() {
         
         const orgSettings = orgsData[item.organizationId]
         const breakdown = calculateFinancialBreakdown(discountedPrice, globalFees, promotions, orgSettings);
-        
         const currentOrganizerUsername = orgSettings?.username || item.organizerUsername;
 
         for (let i = 0; i < item.quantity; i++) {
@@ -245,8 +241,8 @@ export default function CarrinhoPage() {
             userEmail: user.email,
             attendeeName: profile?.name || user.displayName || user.email || "Participante",
             organizationId: item.organizationId,
-            organizerId: user.uid,
-            organizerUsername: currentOrganizerUsername,
+            organizerId: item.organizerId,
+            timestamp: serverTimestamp(),
             ticketBasePrice: item.price,
             discountApplied: currentItemDiscount,
             price: breakdown.customerFinalPrice,
@@ -320,11 +316,7 @@ export default function CarrinhoPage() {
         });
         router.push("/dashboard/ingressos");
       } else {
-        // CORREÇÃO: Se houver saldo utilizado, enviamos uma cobrança unificada do valor residual.
-        // O Stripe não permite itens negativos de forma simples, então para pagamentos parciais
-        // enviamos o total final calculado como um item de "Pagamento de Inscrição".
         const useUnifiedPayment = cartTotals.balanceUsed > 0;
-
         const { url } = await createCheckoutSession({
           eventId: "multiple", 
           eventTitle: items.length > 1 ? `Inscrição: ${items.length} itens` : items[0].eventTitle,
@@ -333,7 +325,6 @@ export default function CarrinhoPage() {
           userName: profile?.name || user.displayName || "Usuário", 
           userEmail: user.email!,
           totalAmount: Math.round(cartTotals.total * 100),
-          // Se usar saldo, passa undefined para o Stripe usar o totalAmount como preço unitário do título do evento
           lineItems: useUnifiedPayment ? undefined : lineItems, 
           metadata: { 
             type: "cart_checkout",
@@ -442,7 +433,6 @@ export default function CarrinhoPage() {
         </div>
 
         <div className="lg:col-span-4 space-y-6">
-           {/* USAR SALDO VIBY */}
            <Card className="border-none shadow-sm rounded-[2rem] bg-primary text-white overflow-hidden relative">
               <CardHeader className="pb-4">
                  <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2 opacity-60">
@@ -460,12 +450,6 @@ export default function CarrinhoPage() {
                        <Switch checked={useBalance} onCheckedChange={setUseBalance} disabled={walletBalance <= 0} />
                     </div>
                  </div>
-                 {walletBalance > 0 && useBalance && (
-                    <div className="p-3 bg-white/10 rounded-xl border border-white/10 flex gap-2">
-                       <CheckCircle2 className="w-3.5 h-3.5 text-secondary shrink-0 mt-0.5" />
-                       <p className="text-[9px] font-bold uppercase leading-tight">O saldo disponível será abatido do valor total da sua compra.</p>
-                    </div>
-                 )}
               </CardContent>
               <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-secondary/10 rounded-full blur-2xl" />
            </Card>

@@ -66,7 +66,8 @@ function isPromoActive(active: boolean, start: string, end: string) {
 
 /**
  * Calcula a quebra financeira básica para checkout.
- * A TAXA ADMINISTRATIVA do comprador é calculada "por dentro" (sobre o valor final).
+ * A TAXA ADMINISTRATIVA do comprador é calculada "por dentro" (gross-up).
+ * Exemplo: Preço 300,00 e Taxa 10% -> 300 / (1 - 0.10) = 333,33.
  */
 export function calculateFinancialBreakdown(facePrice: number, globalFees?: any, promotions?: any, orgSettings?: any) {
   const price = parseFloat(facePrice as any) || 0;
@@ -79,8 +80,9 @@ export function calculateFinancialBreakdown(facePrice: number, globalFees?: any,
   }
   const buyerFeePercent = bPercentVal / 100;
 
-  // 2. CÁLCULO POR DENTRO (Gross-up): Final = Preço / (1 - Taxa)
-  // Isso garante que a taxa seja X% do valor FINAL pago pelo cliente.
+  // 2. CÁLCULO POR DENTRO (Gross-up)
+  // Final = Preço / (1 - Taxa)
+  // Garantimos que a taxa administrativeFeeAmount seja exatamente a diferença.
   const customerFinalPrice = Number((price / (1 - buyerFeePercent)).toFixed(2));
   const administrativeFeeAmount = Number((customerFinalPrice - price).toFixed(2));
   
@@ -138,12 +140,11 @@ export function calculateDetailedVibyBreakdown(
   const stripeFixed = stripeSettings?.feeFixed ?? 0.39;
   
   const stripeFeePercentAmount = Number((totalCharged * stripePercent).toFixed(2));
-  // A taxa fixa do Stripe é cobrada por transação. Se for o primeiro item, aplicamos.
   const stripeFeeFixedAmount = isFirstItemInOrder ? stripeFixed : 0;
   const stripeFeeTotal = Number((stripeFeePercentAmount + stripeFeeFixedAmount).toFixed(2));
   
   const vibyGross = Number((buyerFeeTotal + organizerFeeTotal).toFixed(2));
-  const imposto = Number((vibyGross * 0.11).toFixed(2)); // Imposto fixo de 11% sobre a receita da Viby
+  const imposto = Number((vibyGross * 0.11).toFixed(2)); // Imposto de 11% sobre o ganho da Viby
   const vibyNet = Number((vibyGross - stripeFeeTotal - imposto).toFixed(2));
   
   const payoutToProducer = Number((totalFace - organizerFeeTotal).toFixed(2));
