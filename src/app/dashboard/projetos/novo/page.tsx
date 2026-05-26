@@ -56,6 +56,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog"
 
 interface TicketType {
@@ -330,14 +331,6 @@ export default function NovoEventoPage() {
       description: "" 
     }); 
     setBatches(n); 
-  }
-
-  const removeTicketType = (bi: number, ti: number) => { 
-    const n = [...batches]; 
-    if(n[bi].ticketTypes.length > 1) { 
-      n[bi].ticketTypes.splice(ti, 1); 
-      setBatches(n); 
-    } 
   }
 
   const handleCepBlur = async () => {
@@ -956,3 +949,4 @@ export default function NovoEventoPage() {
     </div>
   )
 }
+
