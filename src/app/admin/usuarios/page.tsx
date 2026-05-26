@@ -15,7 +15,8 @@ import {
   serverTimestamp,
   deleteField,
   where,
-  getDocs
+  getDocs,
+  limit
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { 
@@ -189,19 +190,12 @@ export default function AdminUsuariosPage() {
 
     setIsRecalculating(true)
     try {
-      // 1. Buscar configurações globais necessárias para o motor financeiro
-      const [feesSnap, stripeSnap, promosSnap] = await Promise.all([
-        getDoc(doc(db, "settings", "fees")),
-        getDoc(doc(db, "settings", "stripe")),
-        getDoc(doc(db, "settings", "promotions"))
+      const [stripeSnap] = await Promise.all([
+        getDoc(doc(db, "settings", "stripe"))
       ])
 
-      const globalFees = feesSnap.data()
       const stripeSettings = stripeSnap.data()
-      const promotions = promosSnap.data()
 
-      // 2. Buscar ingressos da organização que NÃO foram repassados
-      // Assumimos que não foram repassados se não possuem payoutId ou status de repasse concluído
       const regsQuery = query(
         collection(db, "registrations"), 
         where("organizationId", "==", editingOrg.id),
@@ -219,39 +213,52 @@ export default function AdminUsuariosPage() {
 
       for (const regDoc of regsSnap.docs) {
         const reg = regDoc.data()
-        
-        // Regra de ouro: Só recalcula o que ainda não foi liquidado
         if (reg.payoutId || reg.payoutStatus === 'Concluído') continue
 
-        // Recalcular usando o novo customFee do editingOrg
-        const breakdown = calculateDetailedVibyBreakdown(
-          reg.ticketBasePrice || 0,
-          1,
-          globalFees,
-          stripeSettings,
-          true, // Assumimos item individual para recalculo
-          promotions,
-          editingOrg // Passamos os dados da org em edição com a nova taxa
-        )
+        // PRESERVAÇÃO DE VALORES PAGOS (NUNCA ALTERAR O QUE O CLIENTE PAGOU)
+        const facePrice = reg.ticketBasePrice || 0;
+        const buyerFeeAmount = reg.administrativeFeeAmount || 0;
+        const totalCharged = reg.price || 0;
 
-        // Atualizar Registro do Ingresso
+        // RECALCULAR APENAS A TAXA DO PRODUTOR (BASEADO NO NOVO ACORDO COMERCIAL)
+        const oPercentVal = editingOrg.customFeePercent ?? 10;
+        const oMinVal = editingOrg.customMinFee ?? 9.99;
+        const oMaxVal = editingOrg.customMaxFee ?? 0;
+
+        const calculatedPercentFee = Number((facePrice * (oPercentVal / 100)).toFixed(2));
+        let newProducerFee = Math.max(calculatedPercentFee, oMinVal);
+        if (oMaxVal > 0) newProducerFee = Math.min(newProducerFee, oMaxVal);
+
+        const newProducerNet = Number((facePrice - newProducerFee).toFixed(2));
+
+        // RECALCULAR GATEWAY (STRIPE) SOBRE O VALOR TOTAL REAL JÁ COBRADO
+        const stripePercent = (stripeSettings?.feePercent ?? 3.99) / 100;
+        const stripeFixed = stripeSettings?.feeFixed ?? 0.39;
+        const stripeFeeTotal = Number(((totalCharged * stripePercent) + stripeFixed).toFixed(2));
+
+        // RECALCULAR LUCRO BRUTO DA VIBY (TAXA COMPRADOR + TAXA PRODUTOR)
+        const newVibyGross = Number((buyerFeeAmount + newProducerFee).toFixed(2));
+        const newTaxAmount = Number((newVibyGross * 0.11).toFixed(2)); // Imposto fixo de 11% sobre o ganho
+        const newVibyNet = Number((newVibyGross - stripeFeeTotal - newTaxAmount).toFixed(2));
+
+        // ATUALIZAR INGRESSO
         batch.update(regDoc.ref, {
-          producerFeeAmount: breakdown.organizerFeeTotal,
-          producerNetAmount: breakdown.payoutToProducer,
+          producerFeeAmount: newProducerFee,
+          producerNetAmount: newProducerNet,
           updatedAt: serverTimestamp(),
           recalculatedAt: serverTimestamp()
         })
 
-        // Atualizar Registro Fiscal (ERP) correspondente
+        // ATUALIZAR REGISTRO FISCAL (TAX_TICKETS)
         const taxQ = query(collection(db, "tax_tickets"), where("registrationId", "==", regDoc.id), limit(1))
         const taxSnap = await getDocs(taxQ)
         if (!taxSnap.empty) {
           batch.update(taxSnap.docs[0].ref, {
-             organizerFeeAmount: breakdown.organizerFeeTotal,
-             vibyGrossProfit: breakdown.vibyGross,
-             taxAmount: breakdown.imposto,
-             vibyNetProfit: breakdown.vibyNet,
-             payoutToProducer: breakdown.payoutToProducer,
+             organizerFeeAmount: newProducerFee,
+             vibyGrossProfit: newVibyGross,
+             taxAmount: newTaxAmount,
+             vibyNetProfit: newVibyNet,
+             payoutToProducer: newProducerNet,
              recalculatedAt: serverTimestamp()
           })
         }
@@ -260,7 +267,7 @@ export default function AdminUsuariosPage() {
 
       if (count > 0) {
         await batch.commit()
-        toast({ title: "Recálculo Concluído!", description: `${count} ingressos foram atualizados com as novas taxas.` })
+        toast({ title: "Recálculo Concluído!", description: `${count} ingressos atualizados conforme novo acordo.` })
       } else {
         toast({ title: "Nenhuma alteração", description: "Todos os ingressos elegíveis já possuem essas taxas." })
       }
