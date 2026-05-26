@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Utilitários financeiros oficiais do Viby.
  * Implementa aritmética de centavos para precisão monetária e regras de retenção de taxas.
@@ -37,6 +36,7 @@ export function formatCurrency(value: number): string {
  * Regra: 4.99% do TOTAL PAGO + R$ 1.00
  */
 export function calculateRetainedGatewayFee(totalPaid: number): number {
+  if (totalPaid <= 0) return 0;
   const totalCents = toCents(totalPaid);
   const percentFee = Math.ceil(totalCents * GATEWAY_FEE_PERCENT);
   const fixedFee = toCents(GATEWAY_FEE_FIXED);
@@ -67,12 +67,22 @@ function isPromoActive(active: boolean, start: string, end: string) {
 
 /**
  * Calcula a quebra financeira básica para checkout.
- * Alterado para CÁLCULO SIMPLES (Markup) conforme solicitado pelo usuário.
- * Exemplo: Preço 300,00 e Taxa 10% -> 300 + 30 = 330,00.
+ * Regra: Markup simples. Ingressos grátis (0.00) NÃO possuem taxas.
  */
 export function calculateFinancialBreakdown(facePrice: number, globalFees?: any, promotions?: any, orgSettings?: any) {
   const price = parseFloat(facePrice as any) || 0;
-  if (price <= 0) return { ticketBasePrice: 0, customerFinalPrice: 0, administrativeFeeAmount: 0, producerFeeAmount: 0, producerNetAmount: 0, totalVibyRevenue: 0 };
+  
+  // TRAVA DE GRATUIDADE: Se o preço é zero, tudo é zero.
+  if (price <= 0) {
+    return { 
+      ticketBasePrice: 0, 
+      customerFinalPrice: 0, 
+      administrativeFeeAmount: 0, 
+      producerFeeAmount: 0, 
+      producerNetAmount: 0, 
+      totalVibyRevenue: 0 
+    };
+  }
   
   // 1. Determinar a porcentagem da taxa do comprador
   let bPercentVal = globalFees?.buyerFeePercent ?? 15;
@@ -82,7 +92,6 @@ export function calculateFinancialBreakdown(facePrice: number, globalFees?: any,
   const buyerFeePercent = bPercentVal / 100;
 
   // 2. CÁLCULO SIMPLES (Markup)
-  // A taxa é aplicada sobre o valor de face do ingresso
   const administrativeFeeAmount = Number((price * buyerFeePercent).toFixed(2));
   const customerFinalPrice = Number((price + administrativeFeeAmount).toFixed(2));
   
@@ -134,6 +143,24 @@ export function calculateDetailedVibyBreakdown(
   const buyerFeeTotal = Number((basic.administrativeFeeAmount * quantity).toFixed(2));
   const organizerFeeTotal = Number((basic.producerFeeAmount * quantity).toFixed(2));
   const totalCharged = Number((basic.customerFinalPrice * quantity).toFixed(2));
+
+  // Se o preço é zero, isenta tudo
+  if (totalFace <= 0) {
+    return {
+      unitPrice: 0,
+      totalFace: 0,
+      buyerFeeTotal: 0,
+      organizerFeeTotal: 0,
+      stripeFeePercentAmount: 0,
+      stripeFeeFixedAmount: 0,
+      stripeFeeTotal: 0,
+      vibyGross: 0,
+      imposto: 0,
+      vibyNet: 0,
+      payoutToProducer: 0,
+      customerFinalPrice: 0
+    };
+  }
   
   // Taxas do Stripe (Padrão: 3.99% + 0.39 se não configurado)
   const stripePercent = (stripeSettings?.feePercent ?? 3.99) / 100;
