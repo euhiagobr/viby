@@ -9,7 +9,6 @@ import {
   useUser,
   useCollection,
   useMemoFirebase,
-  useFirebaseApp,
 } from '@/firebase';
 import {
   doc,
@@ -33,9 +32,7 @@ import {
   CheckCircle2,
   Ticket,
   Users2,
-  ChevronRight,
   Layers,
-  Navigation,
   Plus,
   Minus,
   X,
@@ -55,7 +52,8 @@ import {
   Sparkles,
   ShieldCheck,
   Grid3X3,
-  AlertTriangle
+  AlertTriangle,
+  ChevronDown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -169,30 +167,32 @@ const renderInlineStyles = (text: string) => {
 const renderFormattedText = (text: string) => {
   if (!text) return '';
   
-  // Divide por quebras de linha duplas para parágrafos
-  return text.split(/\n\n+/).map((paragraph, pIdx) => {
-    // Trata títulos começando com #
-    if (paragraph.startsWith('# ')) {
+  return text.split(/\n\n+/).map((block, bIdx) => {
+    const trimmed = block.trim();
+    if (!trimmed) return null;
+
+    if (trimmed.startsWith('# ')) {
       return (
-        <h2 key={pIdx} className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter mb-6 text-primary leading-tight">
-          {renderInlineStyles(paragraph.replace('# ', ''))}
+        <h2 key={bIdx} className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter mb-10 mt-6 text-primary leading-[0.85] drop-shadow-sm">
+          {renderInlineStyles(trimmed.replace('# ', ''))}
         </h2>
       );
     }
-    if (paragraph.startsWith('## ')) {
+    
+    if (trimmed.startsWith('## ')) {
       return (
-        <h3 key={pIdx} className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter mb-4 text-primary leading-tight">
-          {renderInlineStyles(paragraph.replace('## ', ''))}
+        <h3 key={bIdx} className="text-2xl md:text-4xl font-black uppercase italic tracking-tighter mb-8 mt-4 text-primary leading-[0.9]">
+          {renderInlineStyles(trimmed.replace('## ', ''))}
         </h3>
       );
     }
     
     return (
-      <p key={pIdx} className="mb-6 last:mb-0 leading-relaxed">
-        {renderInlineStyles(paragraph)}
+      <p key={bIdx} className="mb-8 last:mb-0 leading-relaxed text-lg md:text-xl font-medium text-foreground/80">
+        {renderInlineStyles(trimmed)}
       </p>
     );
-  });
+  }).filter(Boolean);
 };
 
 function ReportDialog({ eventId, eventTitle }: { eventId: string, eventTitle: string }) {
@@ -313,7 +313,7 @@ function EventHero({ event }: { event: any }) {
           </Badge>
           {event.isSponsored && (
             <Badge className="bg-primary text-white border-none text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
-              <Megaphone className="w-3 h-3 text-secondary fill-current" /> Destaque
+              <Megaphone className="w-3 h-3 text-secondary" /> Destaque
             </Badge>
           )}
         </div>
@@ -681,6 +681,15 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     });
   };
 
+  const handleUpdateSeatType = (seatId: string, ticketTypeId: string) => {
+    const type = allAvailableTickets.find(t => t.id === ticketTypeId);
+    if (!type) return;
+    setSelectedSeats(prev => ({
+      ...prev,
+      [seatId]: { ...prev[seatId], ticketType: type }
+    }));
+  };
+
   const handleAddToCart = () => {
     if (!event) return;
     
@@ -855,14 +864,14 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
               </Card>
 
               {/* DESCRIÇÃO CARD */}
-              <Card className="border-none shadow-sm rounded-[3rem] bg-white overflow-hidden p-10 relative">
+              <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden p-10 relative">
                 <div className="absolute top-0 right-0 p-8 opacity-5">
                    <Info className="w-32 h-32 text-primary" />
                 </div>
-                <h3 className="text-xl font-black uppercase italic tracking-tighter mb-8 flex items-center gap-3">
+                <h3 className="text-xl font-black uppercase italic tracking-tighter mb-10 flex items-center gap-3">
                   <Sparkles className="w-5 h-5 text-secondary" /> Informações do Evento
                 </h3>
-                <div className="prose prose-slate max-w-none prose-lg text-foreground/80 font-medium">
+                <div className="space-y-2">
                   {renderFormattedText(event.description)}
                 </div>
               </Card>
@@ -915,7 +924,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                          ) : (
                             <div className="grid gap-4">
                                {Object.values(selectedSeats).map(({ seat, ticketType }) => (
-                                  <div key={seat.id} className="p-6 bg-secondary/5 rounded-3xl border-2 border-secondary/20 flex items-center justify-between gap-4">
+                                  <div key={seat.id} className="p-6 bg-secondary/5 rounded-3xl border-2 border-secondary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                      <div className="flex items-center gap-4">
                                         <div className="p-3 bg-secondary rounded-2xl text-white">
                                            <Armchair className="w-6 h-6" />
@@ -925,9 +934,25 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                                            <p className="font-black text-xl italic uppercase text-primary">{seat.codigo} • {selectedSector.nome}</p>
                                         </div>
                                      </div>
-                                     <div className="text-right">
-                                        <p className="text-[9px] font-bold text-muted-foreground uppercase">{ticketType.name}</p>
-                                        <p className="font-black text-xl">{formatCurrency(ticketType.price)}</p>
+                                     
+                                     <div className="flex items-center gap-6">
+                                        <div className="space-y-1 min-w-[150px]">
+                                           <Label className="text-[8px] font-black uppercase opacity-40">Tipo de Ingresso</Label>
+                                           <Select value={ticketType.id} onValueChange={(val) => handleUpdateSeatType(seat.id, val)}>
+                                              <SelectTrigger className="h-9 rounded-xl text-[10px] font-bold uppercase bg-white">
+                                                 <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent className="rounded-xl">
+                                                 {allAvailableTickets.map(t => (
+                                                   <SelectItem key={t.id} value={t.id} className="text-[10px] font-bold uppercase">{t.name}</SelectItem>
+                                                 ))}
+                                              </SelectContent>
+                                           </Select>
+                                        </div>
+                                        <div className="text-right">
+                                           <p className="text-[9px] font-bold text-muted-foreground uppercase">{ticketType.name}</p>
+                                           <p className="font-black text-xl">{formatCurrency(ticketType.price)}</p>
+                                        </div>
                                      </div>
                                   </div>
                                ))}
