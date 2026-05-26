@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -22,12 +23,21 @@ import {
   RotateCcw,
   Zap,
   CheckCircle2,
-  Lock
+  Lock,
+  Ticket,
+  AlertCircle,
+  FileText
 } from "lucide-react"
 import { formatCurrency } from "@/lib/financial-utils"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { Separator } from "@/components/ui/separator"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 export default function CarteiraPage() {
   const db = useFirestore()
@@ -69,7 +79,7 @@ export default function CarteiraPage() {
            <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
              <Wallet className="w-8 h-8 text-secondary" /> Minha Carteira
            </h1>
-           <p className="text-muted-foreground font-medium">Gerencie seu saldo e histórico financeiro.</p>
+           <p className="text-muted-foreground font-medium">Gerencie seu saldo e acompanhe seu histórico financeiro detalhado.</p>
         </div>
       </div>
 
@@ -97,8 +107,8 @@ export default function CarteiraPage() {
               <div className="flex items-start gap-4">
                  <div className="p-3 bg-green-50 rounded-2xl text-green-600"><RotateCcw className="w-6 h-6" /></div>
                  <div className="space-y-1">
-                    <h3 className="font-bold text-sm">Estorno Automático</h3>
-                    <p className="text-xs text-muted-foreground leading-relaxed">Cancelamentos devolvem o valor do ingresso instantaneamente para este saldo.</p>
+                    <h3 className="font-bold text-sm">Estorno para Carteira</h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">Cancelamentos de ingressos devolvem o valor líquido instantaneamente para este saldo.</p>
                  </div>
               </div>
               <Separator className="border-dashed" />
@@ -106,26 +116,39 @@ export default function CarteiraPage() {
                  <div className="p-3 bg-blue-50 rounded-2xl text-blue-600"><ShieldCheck className="w-6 h-6" /></div>
                  <div className="space-y-1">
                     <h3 className="font-bold text-sm">Compra Protegida</h3>
-                    <p className="text-xs text-muted-foreground leading-relaxed">Utilize seu saldo como crédito em novas experiências sem burocracia.</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">Utilize seu saldo como crédito em novas experiências sem burocracia no checkout.</p>
                  </div>
               </div>
            </Card>
 
            <div className="p-5 bg-orange-50 rounded-[1.5rem] border-2 border-dashed border-orange-200 flex items-start gap-4">
-              <Info className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
               <div className="space-y-1">
                  <h4 className="text-[10px] font-black uppercase text-orange-800 italic">Retenção Operacional</h4>
-                 <p className="text-[9px] text-orange-700 font-medium leading-tight uppercase">Taxas financeiras (4.99% + R$ 1,00) são retidas pelo gateway e não são reembolsáveis em cancelamentos.</p>
+                 <p className="text-[9px] text-orange-700 font-medium leading-tight uppercase">Taxas financeiras (4.99% + R$ 1,00) são retidas pelo gateway no momento da compra e não são reembolsáveis em cancelamentos.</p>
               </div>
            </div>
         </div>
       </div>
 
       <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
-        <CardHeader className="p-8 border-b">
-           <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-              <History className="w-5 h-5 text-secondary" /> Extrato da Carteira
-           </CardTitle>
+        <CardHeader className="p-8 border-b flex flex-row items-center justify-between">
+           <div>
+              <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+                 <History className="w-5 h-5 text-secondary" /> Extrato Detalhado
+              </CardTitle>
+              <CardDescription className="text-[10px] font-bold uppercase">Movimentações financeiras da sua conta</CardDescription>
+           </div>
+           <TooltipProvider>
+              <Tooltip>
+                 <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="rounded-full"><Info className="w-4 h-4 opacity-30" /></Button>
+                 </TooltipTrigger>
+                 <TooltipContent className="max-w-xs p-4 rounded-xl">
+                    <p className="text-[10px] font-bold uppercase leading-relaxed">O extrato exibe créditos (verdes) e débitos (pretos). Créditos de estorno mostram a discriminação de taxas retidas conforme regulamento.</p>
+                 </TooltipContent>
+              </Tooltip>
+           </TooltipProvider>
         </CardHeader>
         <CardContent className="p-0">
            {txLoading ? (
@@ -134,35 +157,76 @@ export default function CarteiraPage() {
              <div className="divide-y divide-border/50">
                 {transactions.map((tx: any) => {
                   const isCredit = tx.type === 'credit';
+                  const isRefund = tx.reason === 'ticket_refund';
                   const date = tx.timestamp?.toDate ? tx.timestamp.toDate() : new Date(tx.timestamp);
+                  
                   return (
-                    <div key={tx.id} className="p-6 flex items-center justify-between hover:bg-muted/5 transition-colors">
-                       <div className="flex items-center gap-4">
-                          <div className={cn(
-                            "p-3 rounded-2xl",
-                            isCredit ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"
-                          )}>
-                             {isCredit ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
+                    <div key={tx.id} className="p-8 flex flex-col gap-6 hover:bg-muted/5 transition-colors group">
+                       <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                             <div className={cn(
+                               "p-3 rounded-2xl",
+                               isCredit ? "bg-green-50 text-green-600" : "bg-primary/5 text-primary"
+                             )}>
+                                {isCredit ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
+                             </div>
+                             <div className="space-y-0.5">
+                                <p className="text-sm font-black text-primary uppercase italic tracking-tight">{tx.description}</p>
+                                <div className="flex items-center gap-3">
+                                   <span className="text-[10px] font-bold text-muted-foreground uppercase">{date.toLocaleString('pt-BR')}</span>
+                                   <Badge variant="outline" className="text-[8px] font-black uppercase px-2 h-4 border-muted-foreground/20">
+                                      {tx.reason === 'ticket_refund' ? 'Estorno' : tx.reason === 'compra_ingresso' ? 'Compra' : 'Ajuste'}
+                                   </Badge>
+                                </div>
+                             </div>
                           </div>
-                          <div className="space-y-0.5">
-                             <p className="text-sm font-bold text-primary uppercase">{tx.description}</p>
-                             <div className="flex items-center gap-3">
-                                <span className="text-[10px] font-bold text-muted-foreground uppercase">{date.toLocaleString('pt-BR')}</span>
-                                {tx.metadata?.gatewayFeeRetained > 0 && (
-                                   <Badge variant="ghost" className="text-[8px] font-black uppercase opacity-40 p-0 h-auto">Taxa Retida: {formatCurrency(tx.metadata.gatewayFeeRetained)}</Badge>
-                                )}
+                          <div className="text-right">
+                             <p className={cn("text-xl font-black", isCredit ? "text-green-600" : "text-primary")}>
+                                {isCredit ? "+" : "-"}{formatCurrency(tx.amount)}
+                             </p>
+                             <div className="flex items-center justify-end gap-1 opacity-40">
+                                <CheckCircle2 className="w-3 h-3 text-green-600" />
+                                <span className="text-[8px] font-black uppercase">Consolidado</span>
                              </div>
                           </div>
                        </div>
-                       <div className="text-right">
-                          <p className={cn("text-lg font-black", isCredit ? "text-green-600" : "text-primary")}>
-                             {isCredit ? "+" : "-"}{formatCurrency(tx.amount)}
-                          </p>
-                          <div className="flex items-center justify-end gap-1 opacity-40">
-                             <CheckCircle2 className="w-3 h-3" />
-                             <span className="text-[8px] font-black uppercase">Consolidado</span>
-                          </div>
-                       </div>
+
+                       {/* Discriminação Detalhada para Estornos */}
+                       {isRefund && tx.metadata && (
+                         <div className="ml-12 p-4 bg-muted/30 rounded-2xl border border-dashed border-border/60 animate-in slide-in-from-top-2 duration-300">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                               <div className="space-y-1">
+                                  <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60">Valor Pago Original</p>
+                                  <p className="text-xs font-bold text-primary">{formatCurrency(tx.metadata.totalPaid || 0)}</p>
+                               </div>
+                               <div className="space-y-1">
+                                  <p className="text-[8px] font-black uppercase text-red-500 opacity-60">Taxas Retidas (4.99% + R$1)</p>
+                                  <p className="text-xs font-bold text-red-500">-{formatCurrency(tx.metadata.gatewayFeeRetained || 0)}</p>
+                               </div>
+                               <div className="space-y-1">
+                                  <p className="text-[8px] font-black uppercase text-green-600 opacity-60">Saldo Devolvido</p>
+                                  <p className="text-xs font-black text-green-600">{formatCurrency(tx.amount)}</p>
+                               </div>
+                            </div>
+                            {tx.metadata.registrationId && (
+                               <div className="mt-4 pt-3 border-t border-dashed border-border/40 flex items-center justify-between">
+                                  <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground uppercase">
+                                     <Ticket className="w-3 h-3" /> Protocolo #{tx.metadata.registrationId.slice(-8)}
+                                  </div>
+                                  <Button variant="link" asChild className="h-auto p-0 text-[9px] font-black uppercase text-secondary">
+                                     <Link href="/dashboard/ingressos">Ver Histórico de Ingressos <ChevronRight className="w-3 h-3" /></Link>
+                                  </Button>
+                               </div>
+                            )}
+                         </div>
+                       )}
+
+                       {/* Discriminação para Compras */}
+                       {!isCredit && tx.reason === 'compra_ingresso' && (
+                         <div className="ml-12 flex items-center gap-2 text-[9px] font-bold text-muted-foreground uppercase">
+                            <CreditCard className="w-3 h-3" /> Abatimento de saldo em nova compra
+                         </div>
+                       )}
                     </div>
                   );
                 })}
@@ -171,10 +235,18 @@ export default function CarteiraPage() {
              <div className="py-32 text-center space-y-4">
                 <Inbox className="w-16 h-16 text-muted-foreground opacity-10 mx-auto" />
                 <p className="text-muted-foreground font-black uppercase tracking-widest text-xs">Sua carteira ainda não possui movimentações.</p>
+                <Button variant="outline" asChild className="rounded-full text-[10px] font-black uppercase border-secondary/20 text-secondary">
+                   <Link href="/dashboard">Explorar Experiências</Link>
+                </Button>
              </div>
            )}
         </CardContent>
       </Card>
+
+      <div className="flex items-center justify-center gap-3 opacity-30">
+         <ShieldCheck className="w-4 h-4" />
+         <p className="text-[10px] font-black uppercase tracking-widest">Sistema de Carteira Viby Protegido</p>
+      </div>
     </div>
   )
 }
