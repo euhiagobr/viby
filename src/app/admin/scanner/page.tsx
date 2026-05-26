@@ -20,13 +20,16 @@ import {
   Ticket,
   RefreshCw,
   ArrowLeft,
-  DollarSign
+  DollarSign,
+  Clock,
+  ShieldAlert
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { processGamificationEvent } from "@/lib/gamification-service"
+import { formatCurrency } from "@/lib/financial-utils"
 
 export default function AdminScannerPage() {
   const db = useFirestore()
@@ -103,15 +106,14 @@ export default function AdminScannerPage() {
         toast({ variant: "destructive", title: "Erro", description: "Código inexistente." })
       } else {
         const docData = snap.docs[0].data()
-        
-        if (docData.status === 'Cancelado' || docData.paymentStatus === 'Cancelado') {
-          setError("Acesso Negado: Este ingresso foi cancelado ou estornado.")
-          return
-        }
+        const isCancelled = docData.status === 'cancelled' || 
+                            docData.status === 'Cancelado' || 
+                            docData.paymentStatus === 'refunded_wallet' || 
+                            docData.paymentStatus === 'Cancelado';
 
-        setTicketData({ ...docData, id: snap.docs[0].id })
+        setTicketData({ ...docData, id: snap.docs[0].id, isCancelled })
         
-        if (docData.checkedIn) {
+        if (docData.checkedIn && !isCancelled) {
           toast({ variant: "destructive", title: "Atenção!", description: "Ingresso já utilizado." })
         }
       }
@@ -136,7 +138,7 @@ export default function AdminScannerPage() {
         status: "Utilizado"
       })
 
-      // Gatilho Gamificação: Check-in via Scanner Admin (Travado pelo ID do ingresso)
+      // Gatilho Gamificação
       await processGamificationEvent(db, ticketData.userId, 'on_checkin', {
         eventId: ticketData.eventId,
         eventTitle: ticketData.eventTitle,
@@ -161,6 +163,20 @@ export default function AdminScannerPage() {
     setTicketData(null)
     setError(null)
     setManualCode("")
+  }
+
+  const formatAdDate = (dateVal: any) => {
+    if (!dateVal) return "---";
+    try {
+      const d = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
+      return d.toLocaleString('pt-BR', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric',
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    } catch (e) { return "---"; }
   }
 
   return (
@@ -255,7 +271,7 @@ export default function AdminScannerPage() {
                <XCircle className="w-10 h-10" />
             </div>
             <div className="space-y-2">
-              <h3 className="font-black text-2xl uppercase italic tracking-tighter text-destructive">Acesso Negado</h3>
+              <h3 className="font-black text-2xl uppercase italic tracking-tighter text-destructive">Erro de Validação</h3>
               <p className="text-sm font-medium text-muted-foreground max-w-xs">{error}</p>
             </div>
             <Button variant="outline" onClick={() => { setError(null); setTicketData(null); setMode('idle'); }} className="rounded-xl h-12 px-8 font-bold uppercase text-xs border-destructive text-destructive hover:bg-destructive/5">Tentar Outro Código</Button>
@@ -263,7 +279,30 @@ export default function AdminScannerPage() {
         </Card>
       )}
 
-      {ticketData && (
+      {ticketData && ticketData.isCancelled && (
+        <Card className="border-none shadow-2xl rounded-[3rem] overflow-hidden bg-destructive text-white animate-in zoom-in-95 duration-300">
+           <CardContent className="p-12 flex flex-col items-center gap-8 text-center">
+              <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md">
+                 <XCircle className="w-16 h-16" />
+              </div>
+              <div className="space-y-4">
+                 <h2 className="text-5xl md:text-6xl font-black uppercase italic tracking-tighter">Ingresso Cancelado</h2>
+                 <p className="text-lg md:text-xl font-medium opacity-90 leading-relaxed max-w-lg mx-auto">
+                    Este ingresso foi invalidado por estorno. O dinheiro já foi devolvido ao cliente no dia <strong>{formatAdDate(ticketData.cancelledAt || ticketData.updatedAt)}</strong>.
+                 </p>
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={resetScanner} 
+                className="rounded-2xl h-16 px-12 font-black uppercase italic text-lg border-white text-white hover:bg-white hover:text-destructive transition-all"
+              >
+                 <ArrowLeft className="mr-2 w-6 h-6" /> Voltar e Reiniciar
+              </Button>
+           </CardContent>
+        </Card>
+      )}
+
+      {ticketData && !ticketData.isCancelled && (
         <Card className={cn(
           "overflow-hidden transition-all shadow-2xl rounded-[2.5rem] border-none bg-white",
           ticketData.checkedIn ? "ring-4 ring-orange-500/20" : "ring-4 ring-green-500/20"
