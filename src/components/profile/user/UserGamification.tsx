@@ -4,6 +4,7 @@
 import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { Trophy, Zap, Star, Award, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { calculateLevel, DEFAULT_LEVELS } from "@/lib/gamification";
