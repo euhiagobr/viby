@@ -2,7 +2,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 4.0.0 (AUDITORIA DE SEGURANÇA E ACESSO PÚBLICO)
+    // REGRAS VIBY - Versão: 4.1.0 (CORREÇÃO DE GESTÃO DE USERNAMES)
     
     function isSignedIn() {
       return request.auth != null;
@@ -25,19 +25,15 @@ service cloud.firestore {
     function hasOrgRole(orgId, roles) {
       return isSignedIn() && 
         exists(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
-        (get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.status == 'accepted' || 
-         !('status' in get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data)) &&
         get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
     }
 
     function isOrgMember(orgId) {
       return isSignedIn() && 
-        exists(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
-        (get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.status == 'accepted' ||
-         !('status' in get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data));
+        exists(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid));
     }
 
-    // --- COLEÇÕES PÚBLICAS (Descoberta e Configurações) ---
+    // --- COLEÇÕES PÚBLICAS ---
     
     match /events/{eventId} {
       allow read: if true;
@@ -60,16 +56,6 @@ service cloud.firestore {
         allow read: if true;
         allow write: if isSignedIn() && request.auth.uid == userId;
       }
-      
-      match /setores/{sectorId} {
-        allow read: if true;
-        allow write: if hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
-        
-        match /assentos/{seatId} {
-          allow read: if true;
-          allow write: if isSignedIn();
-        }
-      }
     }
 
     match /organizations/{orgId} {
@@ -79,63 +65,24 @@ service cloud.firestore {
       allow delete: if hasOrgRole(orgId, ['owner']) || isAdmin();
 
       match /members/{userId} {
-        allow read: if true; // Membros são públicos para exibição no dashboard/perfil
+        allow read: if true;
         allow update: if (isSignedIn() && request.auth.uid == userId) || hasOrgRole(orgId, ['owner', 'admin']) || isAdmin();
         allow create, delete: if hasOrgRole(orgId, ['owner', 'admin']) || isAdmin();
       }
-
-      match /visitors/{visitorId} {
-        allow read: if isOrgMember(orgId) || isAdmin();
-        allow create, update: if true; // Visitantes podem ser registrados anonimamente
-      }
-
-      match /transactions/{txId} {
-        allow read: if hasOrgRole(orgId, ['owner', 'admin', 'finance']) || isAdmin();
-        allow create: if hasOrgRole(orgId, ['owner', 'admin', 'finance']) || isAdmin();
-      }
-    }
-
-    match /ads/{adId} {
-      allow read: if true;
-      allow write: if isSignedIn() || isAdmin();
-      
-      match /viewers/{viewerId} {
-        allow read, write: if true; // Registro de impressões é público
-      }
-    }
-
-    match /categories/{catId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /settings/{settingId} {
-      allow read: if true;
-      allow write: if isAdmin();
     }
 
     match /usernames/{username} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow delete: if (isSignedIn() && get(/databases/eventosviby/documents/usernames/$(username)).data.uid == request.auth.uid) || isAdmin();
+      // Permite deletar se for o dono do perfil ou dono/admin da organização vinculada ao username
+      allow delete: if isAdmin() || (
+        isSignedIn() && (
+          request.auth.uid == resource.data.uid || 
+          (resource.data.type == 'organization' && hasOrgRole(resource.data.uid, ['owner', 'admin']))
+        )
+      );
     }
 
-    match /levels/{lvlId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /badges/{badgeId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /xp_rules/{ruleId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // --- USUÁRIOS ---
     match /users/{userId} {
       allow read: if true;
       allow create: if isSignedIn() && request.auth.uid == userId;
@@ -147,9 +94,8 @@ service cloud.firestore {
       }
     }
 
-    // --- REGISTROS E INGRESSOS (Protegidos) ---
     match /registrations/{regId} {
-      allow read: if true; // Acesso público para validação simplificada, dados sensíveis são omitidos no objeto
+      allow read: if true;
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
@@ -160,27 +106,20 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // --- SISTEMA E ADMINISTRAÇÃO ---
-    match /reports/{reportId} {
-      allow read: if isAdmin();
+    match /support_tickets/{ticketId} {
+      allow read, write: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn();
-      allow delete: if isAdmin();
     }
 
-    match /payout_requests/{requestId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin());
-      allow create: if isSignedIn() && hasOrgRole(request.resource.data.organizationId, ['owner', 'admin']);
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+    match /ads/{adId} {
+      allow read: if true;
+      allow write: if isSignedIn() || isAdmin();
     }
 
-    match /internal_expenses/{expenseId} {
-      allow read, write: if isAdmin();
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
-
-    match /tax_ads/{taxId} { allow read: if isAdmin() || true; allow write: if isAdmin(); }
-    match /tax_tickets/{taxId} { allow read: if isAdmin() || true; allow write: if isAdmin(); }
-    match /tax_audit/{auditId} { allow read, write: if isAdmin(); }
 
     match /{allPaths=**} {
       allow read: if true;
