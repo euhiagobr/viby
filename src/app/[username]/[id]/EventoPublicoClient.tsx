@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -53,7 +54,8 @@ import {
   ShieldCheck,
   Grid3X3,
   AlertTriangle,
-  ChevronDown
+  ChevronDown,
+  Navigation
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -159,7 +161,7 @@ const renderInlineStyles = (text: string) => {
       );
     if (part.startsWith('+') && part.endsWith('+')) {
        return (
-         <span key={i} className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter text-primary inline-block my-2 leading-none">
+         <span key={i} className="text-4xl font-black uppercase italic tracking-tighter text-primary inline-block my-2 leading-none">
            {part.slice(1, -1)}
          </span>
        );
@@ -177,7 +179,7 @@ const renderFormattedText = (text: string) => {
 
     if (trimmed.startsWith('# ')) {
       return (
-        <h2 key={bIdx} className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter mb-8 mt-6 text-primary leading-[0.9] drop-shadow-sm">
+        <h2 key={bIdx} className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter mb-6 mt-4 text-primary leading-[0.9] drop-shadow-sm">
           {renderInlineStyles(trimmed.replace('# ', ''))}
         </h2>
       );
@@ -185,15 +187,21 @@ const renderFormattedText = (text: string) => {
     
     if (trimmed.startsWith('## ')) {
       return (
-        <h3 key={bIdx} className="text-2xl md:text-4xl font-black uppercase italic tracking-tighter mb-6 mt-4 text-primary leading-[1]">
+        <h3 key={bIdx} className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-4 mt-2 text-primary leading-[1]">
           {renderInlineStyles(trimmed.replace('## ', ''))}
         </h3>
       );
     }
     
+    const lines = trimmed.split('\n');
     return (
       <p key={bIdx} className="mb-6 last:mb-0 leading-relaxed text-lg md:text-xl font-medium text-foreground/80">
-        {renderInlineStyles(trimmed)}
+        {lines.map((line, lIdx) => (
+          <React.Fragment key={lIdx}>
+            {renderInlineStyles(line)}
+            {lIdx < lines.length - 1 && <br />}
+          </React.Fragment>
+        ))}
       </p>
     );
   }).filter(Boolean);
@@ -345,6 +353,29 @@ function EventHero({ event }: { event: any }) {
   );
 }
 
+function MapLegend() {
+  return (
+    <div className="flex flex-wrap gap-6 p-6 bg-muted/20 rounded-2xl border border-dashed border-border/60">
+       <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded-lg bg-blue-50 border-2 border-blue-500 flex items-center justify-center text-blue-600 shadow-sm"><Accessibility className="w-3.5 h-3.5" /></div>
+          <span className="text-[10px] font-black uppercase tracking-tight text-muted-foreground">Assento PCD</span>
+       </div>
+       <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded-lg bg-purple-50 border-2 border-purple-500 flex items-center justify-center text-purple-600 shadow-sm"><Users2 className="w-3.5 h-3.5" /></div>
+          <span className="text-[10px] font-black uppercase tracking-tight text-muted-foreground">Acompanhante</span>
+       </div>
+       <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded-lg bg-orange-50 border-2 border-orange-500 flex items-center justify-center text-orange-600 shadow-sm"><Maximize2 className="w-3.5 h-3.5" /></div>
+          <span className="text-[10px] font-black uppercase tracking-tight text-muted-foreground">Obeso</span>
+       </div>
+       <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded-lg bg-muted border-2 border-muted-foreground/10 flex items-center justify-center text-muted-foreground/30"><X className="w-3.5 h-3.5" /></div>
+          <span className="text-[10px] font-black uppercase tracking-tight text-muted-foreground">Vendido</span>
+       </div>
+    </div>
+  );
+}
+
 function VenueMap({
   event,
   setores,
@@ -364,16 +395,17 @@ function VenueMap({
 
   return (
     <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden relative group p-1">
-      <div className="bg-muted/50 p-6 flex items-center justify-between border-b border-border/40">
+      <div className="bg-muted/50 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40">
          <div className="flex items-center gap-3">
             <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
                <MapIcon className="w-5 h-5" />
             </div>
             <div>
-               <h3 className="font-black uppercase italic tracking-tighter">Planta do Local</h3>
+               <h3 className="font-black uppercase italic tracking-tighter text-primary">Planta do Local</h3>
                <p className="text-[10px] font-bold text-muted-foreground uppercase">Clique em um setor para ver as opções.</p>
             </div>
          </div>
+         <MapLegend />
       </div>
 
       <TransformWrapper 
@@ -608,6 +640,58 @@ function TicketCard({
           </div>
         </div>
       </CardContent>
+    </Card>
+  );
+}
+
+function LocationSection({ event }: { event: any }) {
+  const addressStr = `${event.address?.street || event.location}${event.address?.number ? `, ${event.address.number}` : ''} - ${event.address?.neighborhood || ''}, ${event.city} - ${event.address?.state || ''}`;
+  
+  const googleMapsUrl = event.latitude && event.longitude 
+    ? `https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressStr)}`;
+    
+  const wazeUrl = event.latitude && event.longitude
+    ? `https://www.waze.com/ul?ll=${event.latitude},${event.longitude}&navigate=yes`
+    : `https://www.waze.com/ul?q=${encodeURIComponent(addressStr)}&navigate=yes`;
+
+  return (
+    <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden p-0 relative">
+      <div className="p-8 pb-4">
+        <h3 className="text-xl font-black uppercase italic tracking-tighter flex items-center gap-3">
+          <MapPin className="w-5 h-5 text-secondary" /> Localização
+        </h3>
+      </div>
+      
+      <div className="relative h-64 bg-muted overflow-hidden group">
+         <div className="absolute inset-0 bg-muted flex items-center justify-center">
+            <MapIcon className="w-12 h-12 text-muted-foreground opacity-20" />
+            <p className="absolute bottom-4 text-[10px] font-bold text-muted-foreground uppercase">Clique para abrir o mapa interativo</p>
+         </div>
+         <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer" className="absolute inset-0 z-10" />
+      </div>
+
+      <div className="p-8 space-y-6">
+        <div className="space-y-1">
+          <p className="text-sm font-bold text-primary">{event.location || "Local do Evento"}</p>
+          <p className="text-xs text-muted-foreground font-medium">{addressStr}</p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button variant="outline" className="flex-1 rounded-xl h-12 font-bold uppercase text-[10px] gap-2 border-secondary/20 text-secondary hover:bg-secondary/5" asChild>
+            <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
+               <img src="https://upload.wikimedia.org/wikipedia/commons/a/aa/Google_Maps_icon_%282020%29.svg" className="w-4 h-4" alt="Google Maps" />
+               Abrir no Google Maps
+            </a>
+          </Button>
+          <Button variant="outline" className="flex-1 rounded-xl h-12 font-bold uppercase text-[10px] gap-2 border-border text-primary hover:bg-muted" asChild>
+            <a href={wazeUrl} target="_blank" rel="noopener noreferrer">
+               <img src="https://upload.wikimedia.org/wikipedia/commons/6/66/Waze_icon.svg" className="w-4 h-4" alt="Waze" />
+               Abrir no Waze
+            </a>
+          </Button>
+        </div>
+      </div>
     </Card>
   );
 }
@@ -878,6 +962,9 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                   {renderFormattedText(event.description)}
                 </div>
               </Card>
+
+              {/* LOCALIZAÇÃO CARD */}
+              <LocationSection event={event} />
 
               {/* TICKETS SECTION */}
               <section id="tickets" className="space-y-10">
