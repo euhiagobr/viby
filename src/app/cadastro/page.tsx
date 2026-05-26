@@ -189,8 +189,9 @@ export default function CadastroPage() {
         createdAt: serverTimestamp()
       };
 
-      // UID da página oficial para seguimento automático
+      // UIDs para seguimento automático
       const officialOrgId = "d3c9fdc1-7fcc-4a70-ab99-79729fad2bf9";
+      const secondaryProfileId = "ljX22anYgMdseouK2AAYhC7oAf93";
 
       await runTransaction(db, async (transaction) => {
         const usernameRef = doc(db, "usernames", normalizedUsername)
@@ -204,9 +205,9 @@ export default function CadastroPage() {
         transaction.set(usernameRef, { uid: user.uid, type: 'user' })
         transaction.set(userRef, userData)
 
-        // Auto-follow conta oficial
-        const followRef = doc(db, "follows", `${user.uid}_${officialOrgId}`)
-        transaction.set(followRef, {
+        // Auto-follow conta oficial (Viby)
+        const followRef1 = doc(db, "follows", `${user.uid}_${officialOrgId}`)
+        transaction.set(followRef1, {
           followerId: user.uid,
           followingId: officialOrgId,
           targetType: 'organization',
@@ -219,6 +220,15 @@ export default function CadastroPage() {
           followersCount: increment(1),
           updatedAt: serverTimestamp()
         })
+
+        // Auto-follow perfil secundário (ljX22anYgMdseouK2AAYhC7oAf93)
+        const followRef2 = doc(db, "follows", `${user.uid}_${secondaryProfileId}`)
+        transaction.set(followRef2, {
+          followerId: user.uid,
+          followingId: secondaryProfileId,
+          targetType: 'user', // Assumido como perfil de usuário
+          timestamp: serverTimestamp()
+        })
       });
 
       // Salvar CPF na subcoleção privada via Server Action para segurança máxima
@@ -227,7 +237,7 @@ export default function CadastroPage() {
       // Gatilho de Gamificação: Boas-vindas
       await processGamificationEvent(db, user.uid, 'on_signup', {}, user.uid, userData);
       
-      // Gatilho de Gamificação: Seguir conta oficial
+      // Gatilhos de Gamificação para seguidores
       await processGamificationEvent(db, user.uid, 'on_follow_org', { 
         targetId: officialOrgId, 
         orgName: siteName 
