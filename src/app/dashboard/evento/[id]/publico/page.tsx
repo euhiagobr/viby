@@ -3,7 +3,21 @@
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useDoc, useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
-import { doc, collection, query, where, updateDoc, deleteDoc, getDoc, writeBatch, serverTimestamp, getDocs } from "firebase/firestore"
+import { 
+  doc, 
+  collection, 
+  query, 
+  where, 
+  updateDoc, 
+  deleteDoc, 
+  getDoc, 
+  writeBatch, 
+  serverTimestamp, 
+  getDocs, 
+  limit, 
+  runTransaction,
+  increment
+} from "firebase/firestore"
 import { 
   Table, 
   TableBody, 
@@ -36,11 +50,29 @@ import {
   TrendingUp,
   Percent,
   Layers,
-  ShieldAlert
+  ShieldAlert,
+  XCircle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription, 
+  DialogFooter 
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
@@ -82,15 +114,20 @@ export default function EventoPublicoPage() {
   const [manualCode, setManualCode] = React.useState("")
   const [scanResult, setScanResult] = React.useState<any>(null)
   const [isValidating, setIsValidating] = React.useState(false)
+
+  // Estorno/Cancelamento
+  const [ticketToRefund, setTicketToRefund] = React.useState<any>(null)
+  const [isRefunding, setIsRefunding] = React.useState(false)
   
   const scannerInstance = React.useRef<Html5Qrcode | null>(null)
 
   const stats = React.useMemo(() => {
-    const total = registrations?.length || 0;
+    const total = registrations?.filter((r: any) => r.status !== 'Cancelado').length || 0;
     const present = registrations?.filter((r: any) => r.checkedIn).length || 0;
     const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
     
     const financial = (registrations || []).reduce((acc: any, reg: any) => {
+      if (reg.status === 'Cancelado') return acc;
       acc.gross += (reg.price || 0);
       acc.net += (reg.producerNetAmount || 0);
       return acc;
@@ -240,6 +277,73 @@ export default function EventoPublicoPage() {
       })
   }
 
+  const handleRefundAndCancel = async () => {
+    if (!db || !ticketToRefund || !currentUser) return
+    setIsRefunding(true)
+    try {
+      await runTransaction(db, async (transaction) => {
+        const regRef = doc(db, "registrations", ticketToRefund.id);
+        const regSnap = await transaction.get(regRef);
+        
+        if (!regSnap.exists()) throw new Error("Inscrição não encontrada.");
+        const regData = regSnap.data();
+
+        if (regData.status === 'Cancelado') throw new Error("Este ingresso já está cancelado.");
+
+        // 1. Atualizar status da inscrição
+        transaction.update(regRef, {
+          status: 'Cancelado',
+          paymentStatus: 'Cancelado',
+          updatedAt: serverTimestamp(),
+          cancelledAt: serverTimestamp(),
+          cancelledBy: currentUser.uid
+        });
+
+        // 2. Estornar valor para a carteira (se houver preço pago)
+        const refundAmount = regData.price || 0;
+        if (refundAmount > 0 && regData.userId) {
+          const userRef = doc(db, "users", regData.userId);
+          transaction.update(userRef, {
+            walletBalance: increment(refundAmount),
+            updatedAt: serverTimestamp()
+          });
+
+          // 3. Registrar transação de carteira
+          const txRef = doc(collection(db, "wallet_transactions"));
+          transaction.set(txRef, {
+            userId: regData.userId,
+            amount: refundAmount,
+            type: 'credit',
+            reason: 'estorno_ingresso',
+            description: `Estorno (Produtor): ${regData.eventTitle}`,
+            registrationId: ticketToRefund.id,
+            timestamp: serverTimestamp()
+          });
+        }
+
+        // 4. Log de auditoria
+        const logRef = doc(collection(db, "ticket_logs"));
+        transaction.set(logRef, {
+          registrationId: ticketToRefund.id,
+          eventId: eventId,
+          adminId: currentUser.uid,
+          adminName: currentUser.displayName || "Produtor",
+          action: "cancel",
+          timestamp: serverTimestamp(),
+          reason: "Cancelamento solicitado pelo organizador",
+          amountRefunded: refundAmount
+        });
+      });
+
+      toast({ title: "Cancelado com sucesso", description: "O valor foi devolvido ao participante." })
+      setTicketToRefund(null)
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro no estorno", description: e.message })
+    } finally {
+      setIsRefunding(false)
+    }
+  }
+
   const calculateAge = (birthDate: string) => {
     if (!birthDate) return "---";
     try {
@@ -344,17 +448,6 @@ export default function EventoPublicoPage() {
     finally { setIsSyncing(false) }
   }
 
-  if (!canAction && userRole) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
-        <ShieldAlert className="w-16 h-16 text-muted-foreground opacity-20" />
-        <h2 className="text-xl font-bold italic uppercase tracking-tighter">Acesso Restrito</h2>
-        <p className="text-muted-foreground font-medium max-w-sm">Seu cargo ({userRole}) não permite realizar check-in neste evento.</p>
-        <Button asChild variant="outline" className="rounded-full mt-4"><Link href="/dashboard">Voltar</Link></Button>
-      </div>
-    );
-  }
-
   if (eventLoading) return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
   if (!event) return <div className="flex flex-col items-center justify-center h-[60vh] gap-4"><h2 className="text-2xl font-bold">Evento não encontrado</h2><Button onClick={() => router.push('/dashboard/projetos')}>Voltar</Button></div>
 
@@ -450,9 +543,9 @@ export default function EventoPublicoPage() {
               </TableHeader>
               <TableBody>
                 {filteredRegistrations.map((reg) => (
-                  <TableRow key={reg.id} className={cn("hover:bg-muted/10 transition-colors", reg.checkedIn && "bg-green-50/30")}>
+                  <TableRow key={reg.id} className={cn("hover:bg-muted/10 transition-colors", reg.checkedIn && "bg-green-50/30", reg.status === 'Cancelado' && "opacity-50 grayscale")}>
                     <TableCell className="text-center">
-                      <Button variant={reg.checkedIn ? "default" : "outline"} size="icon" onClick={() => handleCheckIn(reg, reg.checkedIn)} className={cn("h-9 w-9 rounded-full transition-all", reg.checkedIn ? "bg-green-500 hover:bg-green-600 text-white" : "border-muted-foreground/30")}>
+                      <Button variant={reg.checkedIn ? "default" : "outline"} size="icon" disabled={reg.status === 'Cancelado'} onClick={() => handleCheckIn(reg, reg.checkedIn)} className={cn("h-9 w-9 rounded-full transition-all", reg.checkedIn ? "bg-green-500 hover:bg-green-600 text-white" : "border-muted-foreground/30")}>
                         <CheckCircle2 className={cn("w-5 h-5", reg.checkedIn ? "text-white" : "text-muted-foreground/20")} />
                       </Button>
                     </TableCell>
@@ -506,22 +599,10 @@ export default function EventoPublicoPage() {
                     </TableCell>
                     <TableCell><span className="text-[10px] font-mono font-bold text-secondary">{reg.ticketCode}</span></TableCell>
                     <TableCell className="text-right">
-                      {['owner', 'admin'].includes(userRole || '') && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" onClick={async () => {
-                          if (confirm(`Remover inscrição de ${reg.userName}?`)) {
-                            deleteDoc(doc(db!, "registrations", reg.id))
-                              .then(() => toast({ title: "Inscrição removida" }))
-                              .catch(async (serverError) => {
-                                if (serverError.code === 'permission-denied') {
-                                  const permissionError = new FirestorePermissionError({
-                                    path: `registrations/${reg.id}`,
-                                    operation: "delete"
-                                  });
-                                  errorEmitter.emit('permission-error', permissionError);
-                                }
-                              })
-                          }
-                        }}><Trash2 className="w-4 h-4" /></Button>
+                      {['owner', 'admin'].includes(userRole || '') && reg.status !== 'Cancelado' && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" onClick={() => setTicketToRefund(reg)}>
+                           <XCircle className="w-4 h-4" />
+                        </Button>
                       )}
                     </TableCell>
                   </TableRow>
@@ -600,6 +681,32 @@ export default function EventoPublicoPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ALERT DIALOG DE ESTORNO */}
+      <AlertDialog open={!!ticketToRefund} onOpenChange={(o) => !o && setTicketToRefund(null)}>
+        <AlertDialogContent className="rounded-[2.5rem]">
+          <AlertDialogHeader>
+            <div className="w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mb-4 text-destructive">
+               <AlertTriangle className="w-6 h-6" />
+            </div>
+            <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Cancelar e Estornar?</AlertDialogTitle>
+            <AlertDialogDescription className="font-medium text-foreground/70">
+               O ingresso de <strong>{ticketToRefund?.userName}</strong> será invalidado. O valor de <strong>{formatCurrency(ticketToRefund?.price || 0)}</strong> será devolvido à carteira do participante imediatamente. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3 mt-4">
+            <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px] tracking-widest">Manter Ingresso</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleRefundAndCancel}
+              disabled={isRefunding}
+              className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest h-11 px-8 shadow-lg shadow-destructive/20"
+            >
+              {isRefunding ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <XCircle className="w-4 h-4 mr-2" />}
+              Confirmar e Estornar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -12,7 +11,7 @@ import {
   orderBy, 
   updateDoc, 
   serverTimestamp, 
-  writeBatch, 
+  runTransaction, 
   getDocs,
   deleteDoc,
   addDoc
@@ -136,30 +135,62 @@ export default function AdminEventTicketingDetails() {
     if (!db || !ticketToCancel || !user) return;
     setIsCancelling(true);
     try {
-      const regRef = doc(db, "registrations", ticketToCancel.id);
-      const updateData = {
-        status: 'Cancelado',
-        paymentStatus: 'Cancelado',
-        updatedAt: serverTimestamp(),
-        cancelledAt: serverTimestamp(),
-        cancelledBy: user.uid
-      };
-      
-      await updateDoc(regRef, updateData);
+      await runTransaction(db, async (transaction) => {
+        const regRef = doc(db, "registrations", ticketToCancel.id);
+        const regSnap = await transaction.get(regRef);
+        
+        if (!regSnap.exists()) throw new Error("Inscrição não encontrada.");
+        const regData = regSnap.data();
 
-      // Registrar Log de Auditoria
-      await addDoc(collection(db, "ticket_logs"), {
-        registrationId: ticketToCancel.id,
-        eventId: eventId,
-        adminId: user.uid,
-        adminName: user.displayName || "Admin",
-        action: "cancel",
-        timestamp: serverTimestamp(),
-        reason: "Cancelamento manual via painel admin",
-        previousStatus: ticketToCancel.status || 'Ativo'
+        if (regData.status === 'Cancelado') throw new Error("Este ingresso já está cancelado.");
+
+        // 1. Atualizar status da inscrição
+        transaction.update(regRef, {
+          status: 'Cancelado',
+          paymentStatus: 'Cancelado',
+          updatedAt: serverTimestamp(),
+          cancelledAt: serverTimestamp(),
+          cancelledBy: user.uid
+        });
+
+        // 2. Se for um ingresso pago, estornar para a carteira
+        const refundAmount = regData.price || 0;
+        if (refundAmount > 0 && regData.userId) {
+          const userRef = doc(db, "users", regData.userId);
+          transaction.update(userRef, {
+            walletBalance: increment(refundAmount),
+            updatedAt: serverTimestamp()
+          });
+
+          // 3. Registrar a transação na carteira do usuário
+          const txRef = doc(collection(db, "wallet_transactions"));
+          transaction.set(txRef, {
+            userId: regData.userId,
+            amount: refundAmount,
+            type: 'credit',
+            reason: 'estorno_ingresso',
+            description: `Estorno: ${regData.eventTitle}`,
+            registrationId: ticketToCancel.id,
+            timestamp: serverTimestamp()
+          });
+        }
+
+        // 4. Registrar Log de Auditoria do Sistema
+        const logRef = doc(collection(db, "ticket_logs"));
+        transaction.set(logRef, {
+          registrationId: ticketToCancel.id,
+          eventId: eventId,
+          adminId: user.uid,
+          adminName: user.displayName || "Admin",
+          action: "cancel",
+          timestamp: serverTimestamp(),
+          reason: "Cancelamento e estorno manual via painel admin",
+          amountRefunded: refundAmount,
+          previousStatus: regData.status || 'Ativo'
+        });
       });
 
-      toast({ title: "Ingresso cancelado com sucesso" });
+      toast({ title: "Ingresso cancelado e estornado!" });
       setTicketToCancel(null);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro ao cancelar", description: e.message });
@@ -311,7 +342,7 @@ export default function AdminEventTicketingDetails() {
                                            className="gap-2 text-destructive cursor-pointer focus:text-destructive" 
                                            onSelect={() => setTicketToCancel(reg)}
                                          >
-                                           <XCircle className="w-4 h-4" /> Cancelar Ingresso
+                                           <XCircle className="w-4 h-4" /> Cancelar e Estornar
                                          </DropdownMenuItem>
                                       </DropdownMenuContent>
                                    </DropdownMenu>
@@ -392,9 +423,9 @@ export default function AdminEventTicketingDetails() {
             <div className="w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mb-4 text-destructive">
                <AlertTriangle className="w-6 h-6" />
             </div>
-            <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Confirmar Cancelamento?</AlertDialogTitle>
+            <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Confirmar Cancelamento e Estorno?</AlertDialogTitle>
             <AlertDialogDescription className="font-medium text-foreground/70">
-              Você está prestes a cancelar o ingresso de <strong>{ticketToCancel?.userName}</strong>. O QR Code será invalidado permanentemente e a vaga voltará ao estoque do lote <strong>{ticketToCancel?.batchName}</strong>.
+              Você está prestes a cancelar o ingresso de <strong>{ticketToCancel?.userName}</strong>. O QR Code será invalidado e o valor de <strong>{formatCurrency(ticketToCancel?.price || 0)}</strong> será devolvido à carteira do usuário imediatamente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-3 mt-4">
@@ -405,7 +436,7 @@ export default function AdminEventTicketingDetails() {
               className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-destructive/20 h-11 px-8"
             >
               {isCancelling ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <XCircle className="w-4 h-4 mr-2" />}
-              Sim, Cancelar Ingresso
+              Confirmar e Estornar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
