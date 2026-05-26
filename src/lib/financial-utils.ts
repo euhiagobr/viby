@@ -105,3 +105,53 @@ export function calculateFinancialBreakdown(facePrice: number, globalFees?: any,
     totalVibyRevenue: Number((administrativeFeeAmount + producerFeeAmount).toFixed(2)) 
   };
 }
+
+/**
+ * Calcula a quebra financeira detalhada para fins fiscais e de ERP.
+ */
+export function calculateDetailedVibyBreakdown(
+  facePrice: number,
+  quantity: number = 1,
+  globalFees?: any,
+  stripeSettings?: any,
+  isFirstItemInOrder: boolean = true,
+  promotions?: any,
+  orgSettings?: any
+) {
+  const basic = calculateFinancialBreakdown(facePrice, globalFees, promotions, orgSettings);
+  
+  const totalFace = Number((basic.ticketBasePrice * quantity).toFixed(2));
+  const buyerFeeTotal = Number((basic.administrativeFeeAmount * quantity).toFixed(2));
+  const organizerFeeTotal = Number((basic.producerFeeAmount * quantity).toFixed(2));
+  const totalCharged = Number((basic.customerFinalPrice * quantity).toFixed(2));
+  
+  // Taxas do Stripe (Padrão: 3.99% + 0.39 se não configurado)
+  const stripePercent = (stripeSettings?.feePercent ?? 3.99) / 100;
+  const stripeFixed = stripeSettings?.feeFixed ?? 0.39;
+  
+  const stripeFeePercentAmount = Number((totalCharged * stripePercent).toFixed(2));
+  // A taxa fixa do Stripe é cobrada por transação. Se for o primeiro item, aplicamos.
+  const stripeFeeFixedAmount = isFirstItemInOrder ? stripeFixed : 0;
+  const stripeFeeTotal = Number((stripeFeePercentAmount + stripeFeeFixedAmount).toFixed(2));
+  
+  const vibyGross = Number((buyerFeeTotal + organizerFeeTotal).toFixed(2));
+  const imposto = Number((vibyGross * 0.11).toFixed(2)); // Imposto fixo de 11% sobre a receita da Viby
+  const vibyNet = Number((vibyGross - stripeFeeTotal - imposto).toFixed(2));
+  
+  const payoutToProducer = Number((totalFace - organizerFeeTotal).toFixed(2));
+
+  return {
+    unitPrice: basic.ticketBasePrice,
+    totalFace,
+    buyerFeeTotal,
+    organizerFeeTotal,
+    stripeFeePercentAmount,
+    stripeFeeFixedAmount,
+    stripeFeeTotal,
+    vibyGross,
+    imposto,
+    vibyNet,
+    payoutToProducer,
+    customerFinalPrice: basic.customerFinalPrice
+  };
+}
