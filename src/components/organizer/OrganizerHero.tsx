@@ -29,13 +29,10 @@ export function OrganizerHero({ organization }: OrganizerHeroProps) {
       {/* Banner */}
       <div className="relative h-[40vh] md:h-[50vh] w-full">
         {organization.banner ? (
-          <Image
+          <img
             src={organization.banner}
             alt={organization.name}
-            fill
-            className="object-cover"
-            priority
-            unoptimized
+            className="w-full h-full object-cover"
           />
         ) : (
           <div className="w-full h-full bg-primary" />

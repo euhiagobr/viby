@@ -100,11 +100,15 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
   const now = new Date();
   const upcomingEvents = (events || []).filter(e => {
-    const end = e.endDate?.toDate ? e.endDate.toDate() : (e.date?.toDate ? new Date(e.date.toDate().getTime() + 4 * 60 * 60 * 1000) : new Date());
+    const dateValue = e.startDate || e.date;
+    const start = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
+    const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
     return end >= now;
   });
   const pastEvents = (events || []).filter(e => {
-    const end = e.endDate?.toDate ? e.endDate.toDate() : (e.date?.toDate ? new Date(e.date.toDate().getTime() + 4 * 60 * 60 * 1000) : new Date());
+    const dateValue = e.startDate || e.date;
+    const start = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
+    const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
     return end < now;
   });
 
