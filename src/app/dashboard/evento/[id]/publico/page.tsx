@@ -33,44 +33,18 @@ import {
   CheckCircle2, 
   Ticket, 
   Clock, 
-  RefreshCw, 
   AlertTriangle, 
   ScanQrCode, 
-  X, 
-  User, 
-  DollarSign, 
-  TrendingUp, 
-  XCircle,
-  RotateCcw
+  RotateCcw,
+  XCircle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription, 
-  DialogFooter 
-} from "@/components/ui/dialog"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { Html5Qrcode } from "html5-qrcode"
-import { formatCurrency, calculateRefundAmount, calculateRetainedGatewayFee } from "@/lib/financial-utils"
+import { formatCurrency, calculateRefundAmount } from "@/lib/financial-utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
-import { processTicketRefund } from "@/app/actions/finance"
+import { processTicketRefundClient } from "@/lib/finance-service"
 
 export default function EventoPublicoPage() {
   const params = useParams()
@@ -88,24 +62,14 @@ export default function EventoPublicoPage() {
     if (!db || !eventId || !event?.organizationId) return null
     return query(
       collection(db, "registrations"), 
-      where("eventId", "==", eventId),
-      where("organizationId", "==", event.organizationId)
+      where("eventId", "==", eventId)
     )
   }, [db, eventId, event?.organizationId])
 
   const { data: registrations, loading: registrationsLoading } = useCollection<any>(registrationsQuery)
   const [search, setSearch] = React.useState("")
-
-  const [isScannerOpen, setIsScannerOpen] = React.useState(false)
-  const [scanMode, setScanMode] = React.useState<'idle' | 'scanning' | 'result'>('idle')
-  const [manualCode, setManualCode] = React.useState("")
-  const [scanResult, setScanResult] = React.useState<any>(null)
-  const [isValidating, setIsValidating] = React.useState(false)
-
   const [ticketToRefund, setTicketToRefund] = React.useState<any>(null)
   const [isRefunding, setIsRefunding] = React.useState(false)
-  
-  const scannerInstance = React.useRef<Html5Qrcode | null>(null)
 
   const stats = React.useMemo(() => {
     const total = registrations?.filter((r: any) => r.status !== 'cancelled').length || 0;
@@ -126,53 +90,11 @@ export default function EventoPublicoPage() {
 
   const canAction = ['owner', 'admin'].includes(userRole || '');
 
-  const startScanning = async () => {
-    setScanMode('scanning');
-    setTimeout(async () => {
-      try {
-        const html5QrCode = new Html5Qrcode("reader-integrated");
-        scannerInstance.current = html5QrCode;
-        await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => { stopScanning(); validateTicket(text); }, () => {});
-      } catch (err) { toast({ variant: "destructive", title: "Câmera indisponível" }); setScanMode('idle'); }
-    }, 300);
-  }
-
-  const stopScanning = async () => {
-    if (scannerInstance.current?.isScanning) {
-      await scannerInstance.current.stop();
-      scannerInstance.current.clear();
-      scannerInstance.current = null;
-    }
-  }
-
-  const validateTicket = async (code: string) => {
-    if (!db || !code) return
-    setIsValidating(true)
-    try {
-      const q = query(collection(db, "registrations"), where("ticketCode", "==", code.trim().toUpperCase()), where("eventId", "==", eventId), limit(1))
-      const snap = await getDocs(q)
-      if (snap.empty) {
-        toast({ variant: "destructive", title: "Não encontrado" });
-        setScanMode('idle');
-      } else {
-        const data = snap.docs[0].data();
-        if (data.status === 'cancelled') {
-           toast({ variant: "destructive", title: "ACESSO NEGADO", description: "Ingresso Estornado/Cancelado." });
-           setScanMode('idle');
-           return;
-        }
-        setScanResult({ ...data, id: snap.docs[0].id });
-        setScanMode('result');
-      }
-    } catch (err) { setScanMode('idle'); }
-    finally { setIsValidating(false); }
-  }
-
   const handleRefund = async () => {
-    if (!ticketToRefund || !currentUser) return;
+    if (!db || !ticketToRefund || !currentUser) return;
     setIsRefunding(true);
     try {
-      const result = await processTicketRefund(ticketToRefund.id, currentUser.uid, "Cancelamento solicitado pelo Organizador.");
+      const result = await processTicketRefundClient(db, ticketToRefund.id, currentUser.uid, "Cancelamento solicitado pelo Organizador.");
       if (result.success) {
         toast({ title: "Ingresso Estornado!", description: result.isFree ? "Reserva gratuita cancelada." : `R$ ${result.refundAmount?.toFixed(2)} devolvidos ao usuário.` });
         setTicketToRefund(null);
@@ -201,7 +123,6 @@ export default function EventoPublicoPage() {
           <Button variant="ghost" size="icon" asChild><Link href="/dashboard/projetos"><ArrowLeft className="w-5 h-5" /></Link></Button>
           <div><h1 className="text-3xl font-bold tracking-tight">Gestão de Público</h1><p className="text-muted-foreground line-clamp-1">{event.title}</p></div>
         </div>
-        <Button className="rounded-xl font-bold gap-2 bg-primary text-white shadow-lg" onClick={() => { setIsScannerOpen(true); setScanMode('idle'); }}><ScanQrCode className="w-4 h-4" /> Portaria Integrada</Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -243,7 +164,7 @@ export default function EventoPublicoPage() {
                     <TableCell className="text-right font-black text-xs">{formatCurrency(reg.producerNetAmount || 0)}</TableCell>
                     <TableCell className="px-8 text-right">
                       {canAction && !isCanceled && !reg.checkedIn && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-red-50" onClick={() => setTicketToRefund(reg)}><RotateCcw className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-red-50" onClick={() => setTicketToRefund(reg)} title="Estornar Ingresso"><RotateCcw className="w-4 h-4" /></Button>
                       )}
                     </TableCell>
                   </TableRow>
@@ -261,9 +182,9 @@ export default function EventoPublicoPage() {
             <div className="w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mb-4 text-destructive mx-auto"><AlertTriangle className="w-6 h-6" /></div>
             <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter text-center">Confirmar Estorno Manual?</AlertDialogTitle>
             <AlertDialogDescription className="text-center font-medium">
-               O ingresso de <strong>{ticketToRefund?.userName}</strong> será invalidado imediatamente. O valor nominal (R$ {ticketToRefund?.ticketBasePrice?.toFixed(2)}) será devolvido à carteira dele. 
+               O ingresso de <strong>{ticketToRefund?.userName}</strong> será invalidado imediatamente. O valor líquido (R$ {calculateRefundAmount(ticketToRefund?.price || 0).toFixed(2)}) será devolvido à carteira dele. 
                <br/><br/>
-               <span className="text-xs font-bold uppercase text-destructive italic">A taxa operacional (4.99% + R$ 1) não é reembolsável.</span>
+               <span className="text-xs font-bold uppercase text-destructive italic">Taxas financeiras operacionais não são reembolsáveis.</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 pt-4">

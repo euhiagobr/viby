@@ -11,42 +11,25 @@ import {
   orderBy, 
   updateDoc, 
   serverTimestamp, 
-  runTransaction, 
   getDocs,
-  deleteDoc,
-  addDoc,
-  increment,
   limit
 } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Ticket, 
-  Users, 
-  CheckCircle2, 
-  XCircle, 
+  ShieldCheck, 
   Search, 
-  Download, 
-  MoreHorizontal, 
   ArrowLeft,
   Loader2,
-  Clock,
-  MapPin,
-  ShieldCheck,
-  History,
-  AlertTriangle,
-  Mail,
-  QrCode,
   DollarSign,
   RotateCcw,
-  ExternalLink,
-  Calendar
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { formatCurrency, calculateRefundAmount, calculateRetainedGatewayFee } from '@/lib/financial-utils';
+import { formatCurrency, calculateRefundAmount } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
 import { 
   Table, 
@@ -56,13 +39,6 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -73,8 +49,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import Link from 'next/link';
-import { processTicketRefund } from '@/app/actions/finance';
+import { processTicketRefundClient } from '@/lib/finance-service';
 
 export default function AdminEventTicketingDetails() {
   const params = useParams();
@@ -118,9 +93,9 @@ export default function AdminEventTicketingDetails() {
     if (!db || !ticketToRefund || !user) return;
     setIsProcessing(true);
     try {
-      const result = await processTicketRefund(ticketToRefund.id, user.uid, "Estorno administrativo forçado via painel global.");
+      const result = await processTicketRefundClient(db, ticketToRefund.id, user.uid, "Estorno administrativo forçado via painel global.");
       if (result.success) {
-        toast({ title: "Estorno Concluído!", description: `Valor de R$ ${result.refundAmount?.toFixed(2)} creditado na carteira.` });
+        toast({ title: "Estorno Concluído!", description: result.isFree ? "Reserva gratuita cancelada." : `R$ ${result.refundAmount?.toFixed(2)} creditados na carteira.` });
         setTicketToRefund(null);
       } else {
         toast({ variant: "destructive", title: "Erro no estorno", description: result.error });
@@ -204,9 +179,10 @@ export default function AdminEventTicketingDetails() {
           <AlertDialogHeader>
             <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-2 text-red-600"><AlertTriangle className="w-6 h-6" /></div>
             <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter text-center">Confirmar Estorno Administrativo?</AlertDialogTitle>
-            <AlertDialogDescription className="text-center">
+            <AlertDialogDescription className="text-center font-medium">
               O ingresso será invalidado e <strong>{formatCurrency(calculateRefundAmount(ticketToRefund?.price || 0))}</strong> voltará para a carteira do usuário. 
-              A taxa operacional de gateway será retida pelo sistema.
+              <br/><br/>
+              <span className="text-xs font-bold text-red-600 uppercase">Taxas financeiras operacionais não são reembolsáveis.</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">

@@ -44,11 +44,13 @@ export function calculateRetainedGatewayFee(totalPaid: number): number {
 }
 
 /**
- * Calcula o valor a ser devolvido para a carteira
+ * Calcula o valor exato a ser devolvido para a carteira conforme regras da plataforma.
+ * Regra: Valor Total Pago - (4.99% + R$ 1,00)
  */
 export function calculateRefundAmount(totalPaid: number): number {
+  if (!totalPaid || totalPaid <= 0) return 0;
   const fee = calculateRetainedGatewayFee(totalPaid);
-  return Math.max(0, Number((totalPaid - fee).toFixed(2)));
+  return Number(Math.max(0, totalPaid - fee).toFixed(2));
 }
 
 /**
