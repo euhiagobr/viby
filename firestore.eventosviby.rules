@@ -2,7 +2,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 4.3.0 (BLOQUEIO DE UNFOLLOW OFICIAL)
+    // REGRAS VIBY - Versão: 4.4.0 (SUPORTE A ACESSO PÚBLICO E GAMIFICAÇÃO)
     
     function isSignedIn() {
       return request.auth != null;
@@ -91,7 +91,6 @@ service cloud.firestore {
     match /follows/{followId} {
       allow read: if true;
       allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
-      // Proibir unfollow (delete) da conta oficial Viby
       allow delete: if isSignedIn() && 
                     resource.data.followerId == request.auth.uid && 
                     resource.data.followingId != 'd3c9fdc1-7fcc-4a70-ab99-79729fad2bf9';
@@ -107,6 +106,22 @@ service cloud.firestore {
         isAdmin()
       );
       allow delete: if isAdmin();
+    }
+
+    // Gamificação e Estatísticas Culturais - Leitura Pública
+    match /user_gamification/{userId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /cultural_stats/{userId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /xp_logs/{logId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
     }
 
     match /support_tickets/{ticketId} {

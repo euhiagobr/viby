@@ -37,12 +37,17 @@ export default function ProfilePageClient({ username }: { username: string }) {
   const [profileType, setProfileType] = React.useState<'user' | 'organization' | null>(null);
   const [isOwner, setIsOwner] = React.useState(false);
   const [currentUserProfile, setCurrentUserProfile] = React.useState<any>(null);
+  const [now, setNow] = React.useState<Date>(new Date());
+
+  React.useEffect(() => {
+    setNow(new Date());
+  }, []);
 
   const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db]);
   const { data: settings } = useDoc<any>(settingsRef);
   const siteName = settings?.siteName || "Viby";
 
-  // Fetch Logged User
+  // Fetch Logged User Profile info
   React.useEffect(() => {
     if (db && loggedUser) {
       getDoc(doc(db, "users", loggedUser.uid)).then(snap => {
@@ -51,34 +56,29 @@ export default function ProfilePageClient({ username }: { username: string }) {
     }
   }, [db, loggedUser]);
 
-  // Fetch Target Profile
+  // Fetch Target Profile (Independent of loggedUser)
   React.useEffect(() => {
     if (!db || !username) return;
+    
     const fetchData = async () => {
       setLoading(true);
       try {
         const uRef = doc(db, "usernames", username.toLowerCase());
         const uSnap = await getDoc(uRef);
+        
         if (uSnap.exists()) {
           const { uid, type } = uSnap.data();
           setProfileType(type);
+          
           const dataSnap = await getDoc(doc(db, type === 'user' ? 'users' : 'organizations', uid));
           if (dataSnap.exists()) {
             const data = { id: dataSnap.id, ...dataSnap.data() };
             setProfileData(data);
-
-            if (loggedUser) {
-              if (type === 'organization') {
-                const memberRef = doc(db, 'organizations', uid, 'members', loggedUser.uid);
-                const memberSnap = await getDoc(memberRef);
-                if (memberSnap.exists()) {
-                  setIsOwner(['owner', 'admin'].includes(memberSnap.data().role));
-                }
-              } else if (type === 'user' && loggedUser.uid === uid) {
-                setIsOwner(true);
-              }
-            }
+          } else {
+            setProfileData(null);
           }
+        } else {
+          setProfileData(null);
         }
       } catch (e) {
         console.error("Erro ao buscar perfil:", e);
@@ -86,8 +86,35 @@ export default function ProfilePageClient({ username }: { username: string }) {
         setLoading(false);
       }
     };
+
     fetchData();
-  }, [db, username, loggedUser]);
+  }, [db, username]);
+
+  // Determine Ownership
+  React.useEffect(() => {
+    if (!db || !loggedUser || !profileData || !profileType) {
+      setIsOwner(false);
+      return;
+    }
+
+    const checkOwnership = async () => {
+      if (profileType === 'organization') {
+        const memberRef = doc(db, 'organizations', profileData.id, 'members', loggedUser.uid);
+        const memberSnap = await getDoc(memberRef);
+        if (memberSnap.exists()) {
+          setIsOwner(['owner', 'admin'].includes(memberSnap.data().role));
+        } else {
+          setIsOwner(false);
+        }
+      } else if (profileType === 'user' && loggedUser.uid === profileData.id) {
+        setIsOwner(true);
+      } else {
+        setIsOwner(false);
+      }
+    };
+
+    checkOwnership();
+  }, [db, loggedUser, profileData, profileType]);
 
   const handleLogout = async () => {
     if (!auth) return;
@@ -151,6 +178,21 @@ export default function ProfilePageClient({ username }: { username: string }) {
         <Loader2 className="w-10 h-10 animate-spin text-secondary" />
       </div>
     );
+  }
+
+  // Profile Privacy Check (Deactivated or Scheduled Deletion)
+  const isProfileHidden = profileData?.status === 'Desativado' || profileData?.status === 'Exclusão Programada';
+  if (profileData && isProfileHidden && !isOwner) {
+     return (
+       <div className="min-h-screen flex flex-col items-center justify-center p-10 bg-[#f8fafc] text-center gap-6">
+         <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center">
+            <Lock className="w-10 h-10 text-muted-foreground opacity-30" />
+         </div>
+         <h1 className="text-3xl font-black uppercase italic tracking-tighter">Perfil Privado</h1>
+         <p className="text-muted-foreground font-medium max-w-sm">Este usuário optou por desativar sua conta temporariamente.</p>
+         <Button asChild className="bg-primary text-white rounded-full px-12 h-14 font-black uppercase italic"><Link href="/">Voltar à Viby</Link></Button>
+       </div>
+     );
   }
 
   if (!profileData) {
@@ -228,8 +270,16 @@ export default function ProfilePageClient({ username }: { username: string }) {
                         <TabsTrigger value="about" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg">Sobre</TabsTrigger>
                       </TabsList>
                     </div>
-                    <TabsContent value="upcoming" className="animate-in fade-in slide-in-from-bottom-4 duration-500"><OrganizerEvents events={orgEvents?.filter((e:any) => (e.endDate?.toDate?.() || new Date(e.endDate || e.date)) >= new Date()) || []} title="Agenda" /></TabsContent>
-                    <TabsContent value="past" className="animate-in fade-in slide-in-from-bottom-4 duration-500"><div className="space-y-20"><OrganizerEvents events={orgEvents?.filter((e:any) => (e.endDate?.toDate?.() || new Date(e.endDate || e.date)) < new Date()) || []} title="Histórico" isPast /><OrganizerGallery gallery={profileData.gallery || []} /></div></TabsContent>
+                    <TabsContent value="upcoming" className="animate-in fade-in slide-in-from-bottom-4 duration-500"><OrganizerEvents events={orgEvents?.filter((e:any) => {
+                      const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+                      const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+                      return end >= now;
+                    }) || []} title="Agenda" /></TabsContent>
+                    <TabsContent value="past" className="animate-in fade-in slide-in-from-bottom-4 duration-500"><div className="space-y-20"><OrganizerEvents events={orgEvents?.filter((e:any) => {
+                      const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+                      const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+                      return end < now;
+                    }) || []} title="Histórico" isPast /><OrganizerGallery gallery={profileData.gallery || []} /></div></TabsContent>
                     <TabsContent value="about" className="animate-in fade-in slide-in-from-bottom-4 duration-500"><OrganizerAbout organization={profileData} /></TabsContent>
                   </Tabs>
                 </div>
@@ -252,7 +302,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
                       ) : (
                         <div className="p-12 border-2 border-dashed border-border/60 rounded-[3rem] text-center flex flex-col items-center gap-4 bg-muted/10">
                           <Lock className="w-10 h-10 text-muted-foreground opacity-20" />
-                          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">O progresso cultural deste usuário é privado.</p>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">O progresso cultural desta usuária é privado.</p>
                         </div>
                       )}
                       <UserSocialContent profile={profileData} stats={userStats} activities={activities} isOwner={isOwner} />
