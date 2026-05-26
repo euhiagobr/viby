@@ -52,6 +52,10 @@ export default function CarrinhoPage() {
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile } = useDoc<any>(userDocRef)
 
+  // Busca saldo real da carteira (Ledger)
+  const walletRef = React.useMemo(() => (db && user) ? doc(db, "wallets", user.uid) : null, [db, user])
+  const { data: wallet } = useDoc<any>(walletRef)
+
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
 
@@ -91,7 +95,7 @@ export default function CarrinhoPage() {
     fetchOrgs()
   }, [db, items])
 
-  const walletBalance = profile?.walletBalance || 0
+  const walletBalance = wallet?.balance || 0
 
   const cartTotals = React.useMemo(() => {
     let subtotal = 0;
@@ -201,21 +205,22 @@ export default function CarrinhoPage() {
           const userRef = doc(db, "users", user.uid);
           const walletRef = doc(db, "wallets", user.uid);
           
-          const uSnap = await transaction.get(userRef);
-          if (!uSnap.exists() || (uSnap.data().walletBalance || 0) < cartTotals.balanceUsed) {
+          const wSnap = await transaction.get(walletRef);
+          if (!wSnap.exists() || (wSnap.data().balance || 0) < cartTotals.balanceUsed) {
             throw new Error("Saldo insuficiente na carteira.");
           }
           
-          // Sincroniza ambos os documentos de saldo
-          transaction.update(userRef, {
-            walletBalance: increment(-cartTotals.balanceUsed),
-            updatedAt: serverTimestamp()
-          });
-
+          // Desconta o saldo do Ledger
           transaction.set(walletRef, {
             balance: increment(-cartTotals.balanceUsed),
             updatedAt: serverTimestamp()
           }, { merge: true });
+
+          // Sincroniza campo no perfil
+          transaction.update(userRef, {
+            walletBalance: increment(-cartTotals.balanceUsed),
+            updatedAt: serverTimestamp()
+          });
 
           const txRef = doc(collection(db, "wallet_transactions"));
           transaction.set(txRef, {
@@ -329,7 +334,6 @@ export default function CarrinhoPage() {
         });
         router.push("/dashboard/ingressos");
       } else {
-        // Se houver saldo parcial, forçamos o uso do total consolidado no Stripe
         const useUnifiedPayment = cartTotals.balanceUsed > 0;
         
         const { url } = await createCheckoutSession({
@@ -340,8 +344,6 @@ export default function CarrinhoPage() {
           userName: profile?.name || user.displayName || "Usuário", 
           userEmail: user.email!,
           totalAmount: Math.round(cartTotals.total * 100),
-          // IMPORTANTE: Se usar saldo, enviamos apenas o residual como valor único.
-          // Se NÃO usar saldo, enviamos os lineItems individuais para melhor visualização no Stripe.
           lineItems: useUnifiedPayment ? undefined : lineItems, 
           metadata: { 
             type: "cart_checkout",
