@@ -25,6 +25,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
   const [loading, setLoading] = React.useState(true);
   const [data, setData] = React.useState<any>(null);
   const [type, setType] = React.useState<'user' | 'organization' | null>(null);
+  const [isOwner, setIsOwner] = React.useState(false);
 
   const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db]);
   const { data: settings } = useDoc<any>(settingsRef);
@@ -43,7 +44,20 @@ export default function ProfilePageClient({ username }: { username: string }) {
           setType(resType);
           const dataSnap = await getDoc(doc(db, resType === 'user' ? 'users' : 'organizations', uid));
           if (dataSnap.exists()) {
-            setData({ id: dataSnap.id, ...dataSnap.data() });
+            const orgData = { id: dataSnap.id, ...dataSnap.data() };
+            setData(orgData);
+
+            // Verificar se o usuário logado é dono/admin da organização
+            if (user && resType === 'organization') {
+              const memberRef = doc(db, 'organizations', uid, 'members', user.uid);
+              const memberSnap = await getDoc(memberRef);
+              if (memberSnap.exists()) {
+                const role = memberSnap.data().role;
+                setIsOwner(['owner', 'admin'].includes(role));
+              }
+            } else if (user && resType === 'user' && user.uid === uid) {
+              setIsOwner(true);
+            }
           }
         }
       } catch (e) {
@@ -53,7 +67,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
       }
     };
     fetchData();
-  }, [db, username]);
+  }, [db, username, user]);
 
   // Fetch Real Followers Count
   const followersQuery = useMemoFirebase(() => {
@@ -172,6 +186,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
               realFollowersCount={followers?.length || 0}
               realEventsCount={events?.length || 0}
               realAttendeesCount={registrations?.length || 0}
+              isOwner={isOwner}
             />
 
             <div className="container mx-auto px-4 mt-12 max-w-6xl">
