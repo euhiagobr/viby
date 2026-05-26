@@ -348,8 +348,12 @@ export default function EditarEventoPage() {
           city: data.localidade || prev.city,
           state: data.uf || prev.state
         }))
+      } else {
+        toast({ variant: "destructive", title: "CEP não encontrado" })
       }
-    } catch (e) {}
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao buscar endereço" })
+    }
   }
 
   const addSector = () => {
@@ -631,7 +635,10 @@ export default function EditarEventoPage() {
           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle></CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="space-y-2"><Label htmlFor="cep" className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label><Input value={address.cep} onChange={e => setAddress({...address, cep: e.target.value})} onBlur={handleCepBlur} placeholder="00000-000" className="rounded-xl h-11" /></div>
+                <div className="space-y-2">
+                   <Label htmlFor="cep" className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
+                   <Input value={address.cep} onChange={e => setAddress({...address, cep: e.target.value})} onBlur={handleCepBlur} placeholder="00000-000" className="rounded-xl h-11" />
+                </div>
                 <div className="md:col-span-3 space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Rua</Label><Input value={address.street} onChange={e => setAddress({...address, street: e.target.value})} className="rounded-xl h-11" /></div>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
