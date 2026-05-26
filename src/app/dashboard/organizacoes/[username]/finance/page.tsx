@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -47,7 +46,8 @@ import {
   Undo2,
   SendHorizontal,
   AlertCircle,
-  XCircle
+  XCircle,
+  User
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
@@ -79,6 +79,9 @@ export default function OrganizationFinancePage() {
   const [topUpAmount, setTopUpAmount] = React.useState<string>("50.00");
   const [isTopUpLoading, setIsTopUpLoading] = React.useState(false);
   const [isWaitingPayment, setIsWaitingPayment] = React.useState(false);
+
+  // Filtro de Vendas
+  const [salesSearch, setSalesSearch] = React.useState("");
 
   // Saques
   const [isPayoutModalOpen, setIsPayoutModalOpen] = React.useState(false);
@@ -127,15 +130,23 @@ export default function OrganizationFinancePage() {
 
   const sales = React.useMemo(() => {
     if (!rawSales) return [];
-    // Incluir "Cancelado" para discriminação no extrato
+    
     return rawSales
       .filter((r: any) => ["Pago", "Disponível", "Cancelado"].includes(r.paymentStatus))
+      .filter((r: any) => {
+        const s = salesSearch.toLowerCase();
+        return (
+          r.eventTitle?.toLowerCase().includes(s) ||
+          r.userName?.toLowerCase().includes(s) ||
+          r.ticketCode?.toLowerCase().includes(s)
+        );
+      })
       .sort((a, b) => {
         const timeA = a.timestamp?.seconds || a.createdAt?.seconds || 0;
         const timeB = b.timestamp?.seconds || b.createdAt?.seconds || 0;
         return timeB - timeA;
       });
-  }, [rawSales]);
+  }, [rawSales, salesSearch]);
 
   const filteredTransactions = React.useMemo(() => {
     if (!rawTransactions) return [];
@@ -151,18 +162,17 @@ export default function OrganizationFinancePage() {
   const isFinanceManager = ['owner', 'admin', 'finance'].includes(userRole || '');
 
   const salesStats = React.useMemo(() => {
-    if (!sales) return { netTotal: 0, availableTotal: 0, lockedTotal: 0, grossTotal: 0, count: 0, fees: 0 };
+    if (!rawSales) return { netTotal: 0, availableTotal: 0, lockedTotal: 0, grossTotal: 0, count: 0, fees: 0 };
     
     const now = new Date();
     
-    // Soma de todos os saques solicitados (pendentes ou concluídos)
     const totalWithdrawnAndPending = (payoutRequests || [])
       .filter((r: any) => r.status !== 'Recusado')
       .reduce((acc: number, r: any) => acc + (r.amount || 0), 0);
 
-    const baseStats = sales.reduce((acc: any, sale: any) => {
-      // Ignorar cancelados das somas totais
+    const baseStats = rawSales.reduce((acc: any, sale: any) => {
       if (sale.status === 'Cancelado' || sale.paymentStatus === 'Cancelado') return acc;
+      if (!["Pago", "Disponível"].includes(sale.paymentStatus)) return acc;
 
       acc.count++;
       acc.grossTotal += (sale.ticketBasePrice || 0);
@@ -187,12 +197,11 @@ export default function OrganizationFinancePage() {
       return acc;
     }, { netTotal: 0, availableTotal: 0, lockedTotal: 0, grossTotal: 0, count: 0, fees: 0 });
 
-    // O saldo disponível real é o total liberado menos o que já foi retirado/solicitado
     return {
       ...baseStats,
       availableTotal: Math.max(0, baseStats.availableTotal - totalWithdrawnAndPending)
     };
-  }, [sales, payoutRequests]);
+  }, [rawSales, payoutRequests]);
 
   const handleTopUp = async () => {
     if (!currentOrg || !user || !db) return;
@@ -405,9 +414,20 @@ export default function OrganizationFinancePage() {
 
           <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
             <CardHeader className="border-b p-8 pb-6">
-              <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-                <History className="w-5 h-5 text-secondary" /> Extrato de Vendas
-              </CardTitle>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+                  <History className="w-5 h-5 text-secondary" /> Extrato de Vendas
+                </CardTitle>
+                <div className="relative w-full md:w-80">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    placeholder="Evento ou Comprador..." 
+                    value={salesSearch}
+                    onChange={(e) => setSalesSearch(e.target.value)}
+                    className="pl-10 h-10 rounded-xl text-xs"
+                  />
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="p-0 overflow-x-auto">
               {salesLoading ? (
@@ -416,12 +436,13 @@ export default function OrganizationFinancePage() {
                 <Table>
                   <TableHeader className="bg-muted/30">
                     <TableRow>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest">Data / Hora</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest px-8">Data / Hora</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest">Evento</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest">Comprador</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Valor Face</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Seu Líquido</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Status</TableHead>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Ações</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right px-8">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -436,9 +457,12 @@ export default function OrganizationFinancePage() {
 
                       return (
                         <TableRow key={sale.id} className={cn("hover:bg-muted/10 transition-colors", isCancelled && "opacity-60 bg-red-50/10 grayscale-[0.5]")}>
-                          <TableCell className="text-[10px] font-bold">{saleDate.toLocaleString('pt-BR')}</TableCell>
+                          <TableCell className="text-[10px] font-bold px-8">{saleDate.toLocaleString('pt-BR')}</TableCell>
                           <TableCell className={cn("text-xs font-bold uppercase", isCancelled && "line-through")}>
                             {sale.eventTitle}
+                          </TableCell>
+                          <TableCell className="text-xs font-medium uppercase truncate max-w-[150px]">
+                            {sale.userName}
                           </TableCell>
                           <TableCell className="text-right text-[10px] text-muted-foreground">
                             {formatCurrency(sale.ticketBasePrice || 0)}
@@ -460,7 +484,7 @@ export default function OrganizationFinancePage() {
                                </div>
                              )}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right px-8">
                              {!isAvailable && !sale.advanceRequested && !isCancelled && (
                                <Button size="sm" variant="outline" className="h-8 rounded-lg text-[8px] font-black uppercase border-secondary text-secondary" onClick={() => { setSelectedSaleForAdvance(sale); setIsAdvanceModalOpen(true); }}>
                                   <Zap className="w-3 h-3 fill-secondary" /> Antecipar
@@ -473,14 +497,13 @@ export default function OrganizationFinancePage() {
                   </TableBody>
                 </Table>
               ) : (
-                <div className="py-24 text-center text-muted-foreground italic text-sm">Nenhuma venda registrada.</div>
+                <div className="py-24 text-center text-muted-foreground italic text-sm">Nenhuma venda encontrada para os critérios de busca.</div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="anuncios" className="space-y-8 animate-in fade-in zoom-in-95 duration-300">
-           {/* ... conteúdo de anúncios permanece igual ... */}
            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card className="border-none shadow-sm bg-secondary text-white overflow-hidden relative">
                  <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Saldo Livre para Ads</CardTitle></CardHeader>
@@ -738,7 +761,7 @@ export default function OrganizationFinancePage() {
               <p className="text-[9px] text-muted-foreground font-medium uppercase leading-relaxed text-center italic">A liberação ocorrerá na sua conta bancária verificada em até 1 dia útil após a aprovação.</p>
            </div>
            <DialogFooter>
-              <Button onClick={handleRequestAdvance} disabled={isAdvancing} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-lg uppercase italic">
+              <Button onClick={handleRequestAdvance} disabled={isAdvancing} className="w-full bg-secondary text-white font-black h-14 rounded-lg shadow-lg uppercase italic">
                  {isAdvancing ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Zap className="w-5 h-5 mr-2 fill-white" />}
                  Confirmar Antecipação
               </Button>
