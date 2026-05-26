@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -19,17 +18,36 @@ export function UserEventsContent({ registrations, isOwner = false }: UserEvents
   const now = new Date();
   
   const upcoming = React.useMemo(() => {
-    return registrations?.filter((r: any) => {
+    if (!registrations) return [];
+    const uniqueEvents = new Map();
+    
+    registrations.forEach((r: any) => {
       const d = r.eventDate?.toDate ? r.eventDate.toDate() : new Date(r.eventDate);
-      return d >= now && r.status !== 'Cancelado' && r.paymentStatus !== 'Cancelado';
-    }) || [];
+      if (d >= now && r.status !== 'Cancelado' && r.paymentStatus !== 'Cancelado') {
+        if (!uniqueEvents.has(r.eventId)) {
+          uniqueEvents.set(r.eventId, r);
+        }
+      }
+    });
+    
+    return Array.from(uniqueEvents.values());
   }, [registrations, now]);
 
   const past = React.useMemo(() => {
-    return registrations?.filter((r: any) => {
+    if (!registrations) return [];
+    const uniqueEvents = new Map();
+    
+    registrations.forEach((r: any) => {
       const d = r.eventDate?.toDate ? r.eventDate.toDate() : new Date(r.eventDate);
-      return d < now || r.checkedIn;
-    }) || [];
+      // Eventos passados ou onde já foi feito check-in
+      if (d < now || r.checkedIn) {
+        if (!uniqueEvents.has(r.eventId)) {
+          uniqueEvents.set(r.eventId, r);
+        }
+      }
+    });
+    
+    return Array.from(uniqueEvents.values());
   }, [registrations, now]);
 
   if (!isOwner) {
@@ -62,7 +80,7 @@ export function UserEventsContent({ registrations, isOwner = false }: UserEvents
         </div>
         
         <div className="space-y-4">
-           {upcoming.length > 0 ? upcoming.map((reg) => (
+           {upcoming.length > 0 ? upcoming.map((reg: any) => (
              <EventCompactCard key={reg.id} registration={reg} />
            )) : (
              <div className="p-8 text-center bg-white rounded-3xl border-2 border-dashed opacity-40">
@@ -78,7 +96,7 @@ export function UserEventsContent({ registrations, isOwner = false }: UserEvents
         </div>
         
         <div className="space-y-4">
-           {past.slice(0, 3).map((reg) => (
+           {past.slice(0, 3).map((reg: any) => (
              <EventCompactCard key={reg.id} registration={reg} isPast />
            ))}
            {past.length > 3 && (
@@ -105,10 +123,6 @@ export function UserEventsContent({ registrations, isOwner = false }: UserEvents
 
 function EventCompactCard({ registration, isPast = false }: { registration: any, isPast?: boolean }) {
   const d = registration.eventDate?.toDate ? registration.eventDate.toDate() : new Date(registration.eventDate);
-  
-  // Como o username da marca pode mudar, o link construído com registration.organizerUsername 
-  // pode se tornar obsoleto. Idealmente, redirecionamos via /[username]/[id] onde o [username]
-  // é apenas para SEO, mas o id é o que importa.
   const path = `/${registration.organizerUsername || 'evento'}/${registration.eventId}`;
 
   return (
