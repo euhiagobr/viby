@@ -191,6 +191,7 @@ export default function EditarEventoPage() {
         setSingleTicketTypes(b.ticketTypes || []);
         if (b.ticketTypes?.length > 1) {
           setIsHalfPriceEnabled(true);
+          setHalfPricePercent(b.halfPricePercent || 40);
         }
       } else if (event.ticketMode === 'free' && event.batches?.length > 0) {
         const b = event.batches[0];
@@ -262,6 +263,7 @@ export default function EditarEventoPage() {
     setIsHalfPriceEnabled(true);
     const poolId = crypto.randomUUID();
     const halfQty = Math.floor(singleCapacity * (percent / 100));
+    const inteiraQty = singleCapacity - halfQty;
 
     const defaultMeias: TicketType[] = [
       { id: crypto.randomUUID(), name: "Meia Estudante", price: (singleTicketTypes[0]?.price || 0) / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
@@ -270,7 +272,7 @@ export default function EditarEventoPage() {
     ];
 
     setSingleTicketTypes([
-      { ...singleTicketTypes[0], quantity: singleCapacity },
+      { ...singleTicketTypes[0], quantity: inteiraQty },
       ...defaultMeias
     ]);
     setIsPercentDialogOpen(false);
@@ -288,10 +290,11 @@ export default function EditarEventoPage() {
       const batch = sector.batches[bIdx];
       const poolId = crypto.randomUUID();
       const halfQty = Math.floor(batch.capacidadeInicial * (percent / 100));
+      const inteiraQty = batch.capacidadeInicial - halfQty;
       const currentInteiraPrice = batch.ticketTypes[0]?.price || 100;
 
       newSectors[sIdx].batches[bIdx].ticketTypes = [
-        { ...batch.ticketTypes[0], quantity: batch.capacidadeInicial },
+        { ...batch.ticketTypes[0], quantity: inteiraQty },
         { id: crypto.randomUUID(), name: "Meia Estudante", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Setor", requiresProof: true, isLegalHalf: true, description: "" },
         { id: crypto.randomUUID(), name: "Meia PCD", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Setor", requiresProof: true, isLegalHalf: true, description: "" }
       ];
@@ -304,10 +307,11 @@ export default function EditarEventoPage() {
       const batch = n[bIdx];
       const poolId = crypto.randomUUID();
       const halfQty = Math.floor(batch.capacidadeInicial * (percent / 100));
+      const inteiraQty = batch.capacidadeInicial - halfQty;
       const currentInteiraPrice = batch.ticketTypes[0]?.price || 100;
 
       n[bIdx].ticketTypes = [
-        { ...batch.ticketTypes[0], quantity: batch.capacidadeInicial },
+        { ...batch.ticketTypes[0], quantity: inteiraQty },
         { id: crypto.randomUUID(), name: "Meia Estudante", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Lote", requiresProof: true, isLegalHalf: true, description: "" },
         { id: crypto.randomUUID(), name: "Meia PCD", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Lote", requiresProof: true, isLegalHalf: true, description: "" }
       ];
@@ -356,6 +360,78 @@ export default function EditarEventoPage() {
     }
   }
 
+  // Lotes Globais
+  const addBatch = () => {
+    const newB: Batch = { 
+      id: crypto.randomUUID(), 
+      name: `${batches.length + 1}º Lote`, 
+      startDate: "", 
+      endDate: "", 
+      capacidadeInicial: 100, 
+      capacidadeAtual: 100,
+      vendidos: 0,
+      restantes: 100,
+      migradosDoLoteAnterior: 0,
+      ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }],
+      isHalfPriceEnabled: false,
+      halfPricePercent: 40
+    }
+    setBatches([...batches, newB])
+  }
+
+  const removeBatch = (i: number) => {
+    if(batches.length > 1) setBatches(batches.filter((_, idx) => idx !== i))
+  }
+
+  const updateBatchField = (i: number, f: keyof Batch, v: any) => { 
+    const n = [...batches]; 
+    n[i] = { ...n[i], [f]: v } as any; 
+    
+    if (f === 'capacidadeInicial') {
+      const cap = parseInt(v) || 0;
+      if (n[i].isHalfPriceEnabled) {
+        const hPercent = n[i].halfPricePercent || 40;
+        const hQty = Math.floor(cap * (hPercent / 100));
+        const iQty = cap - hQty;
+        if (n[i].ticketTypes[0]) n[i].ticketTypes[0].quantity = iQty;
+        for (let j = 1; j < n[i].ticketTypes.length; j++) {
+          n[i].ticketTypes[j].quantity = hQty;
+        }
+      } else {
+        if (n[i].ticketTypes[0]) n[i].ticketTypes[0].quantity = cap;
+      }
+    }
+    setBatches(n); 
+  }
+
+  const updateTicketTypeField = (bi: number, ti: number, f: string, v: any) => { 
+    const n = [...batches]; 
+    n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; 
+    setBatches(n); 
+  }
+
+  const addTicketType = (bi: number) => { 
+    const n = [...batches]; 
+    const b = n[bi];
+    const poolId = b.isHalfPriceEnabled ? (b.ticketTypes[1]?.poolId || crypto.randomUUID()) : undefined;
+    const poolName = b.isHalfPriceEnabled ? "Cota Lote" : undefined;
+    const qty = b.isHalfPriceEnabled ? (b.ticketTypes[1]?.quantity || 0) : b.capacidadeInicial;
+
+    n[bi].ticketTypes.push({ 
+      id: crypto.randomUUID(), 
+      name: "Nova Meia", 
+      price: 50, 
+      quantity: qty, 
+      poolId,
+      poolName,
+      requiresProof: true, 
+      isLegalHalf: true, 
+      description: "" 
+    }); 
+    setBatches(n); 
+  }
+
+  // Setores com Lotes
   const addSector = () => {
     setSectorsWithBatches([...sectorsWithBatches, {
       id: crypto.randomUUID(),
@@ -419,16 +495,19 @@ export default function EditarEventoPage() {
   const updateBatchInSectorField = (si: number, bi: number, f: keyof Batch, v: any) => {
     const n = [...sectorsWithBatches];
     n[si].batches[bi] = { ...n[si].batches[bi], [f]: v } as any;
+    
     if (f === 'capacidadeInicial') {
       const cap = parseInt(v) || 0;
-      if (n[si].batches[bi].ticketTypes[0]) n[si].batches[bi].ticketTypes[0].quantity = cap;
-      
       if (n[si].batches[bi].isHalfPriceEnabled) {
         const hPercent = n[si].batches[bi].halfPricePercent || 40;
         const hQty = Math.floor(cap * (hPercent / 100));
-        for (let j = 1; j < n[si].batches[bi].ticketTypes.length; j++) { 
-          n[si].batches[bi].ticketTypes[j].quantity = hQty; 
+        const iQty = cap - hQty;
+        if (n[si].batches[bi].ticketTypes[0]) n[si].batches[bi].ticketTypes[0].quantity = iQty;
+        for (let j = 1; j < n[si].batches[bi].ticketTypes.length; j++) {
+          n[si].batches[bi].ticketTypes[j].quantity = hQty;
         }
+      } else {
+        if (n[si].batches[bi].ticketTypes[0]) n[si].batches[bi].ticketTypes[0].quantity = cap;
       }
     }
     setSectorsWithBatches(n);
@@ -447,65 +526,18 @@ export default function EditarEventoPage() {
     const poolName = b.isHalfPriceEnabled ? "Cota Setor" : undefined;
     const qty = b.isHalfPriceEnabled ? (b.ticketTypes[1]?.quantity || 0) : b.capacidadeInicial;
 
-    n[si].batches[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Nova Meia", price: 50, quantity: qty, poolId, poolName, requiresProof: true, isLegalHalf: true, description: "" }); 
+    n[si].batches[bi].ticketTypes.push({ 
+      id: crypto.randomUUID(), 
+      name: "Nova Meia", 
+      price: 50, 
+      quantity: qty, 
+      poolId,
+      poolName,
+      requiresProof: true, 
+      isLegalHalf: true, 
+      description: "" 
+    }); 
     setSectorsWithBatches(n);
-  }
-
-  const addBatch = () => {
-    const newB: Batch = {
-      id: crypto.randomUUID(),
-      name: `${batches.length + 1}º Lote`,
-      startDate: "",
-      endDate: "",
-      capacidadeInicial: 100,
-      capacidadeAtual: 100,
-      vendidos: 0,
-      restantes: 100,
-      migradosDoLoteAnterior: 0,
-      ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }],
-      isHalfPriceEnabled: false,
-      halfPricePercent: 40
-    }
-    setBatches([...batches, newB])
-  }
-
-  const removeBatch = (i: number) => {
-    if(batches.length > 1) setBatches(batches.filter((_, idx) => idx !== i))
-  }
-
-  const updateBatchField = (i: number, f: keyof Batch, v: any) => { 
-    const n = [...batches]; 
-    n[i] = { ...n[i], [f]: v } as any; 
-    
-    if (f === 'capacidadeInicial') {
-      const cap = parseInt(v) || 0;
-      if (n[i].ticketTypes[0]) n[i].ticketTypes[0].quantity = cap;
-
-      if (n[i].isHalfPriceEnabled) {
-        const hPercent = n[i].halfPricePercent || 40;
-        const hQty = Math.floor(cap * (hPercent / 100));
-        for (let j = 1; j < n[i].ticketTypes.length; j++) { 
-          n[i].ticketTypes[j].quantity = hQty; 
-        }
-      }
-    }
-    setBatches(n); 
-  }
-
-  const updateTicketTypeField = (bi: number, ti: number, f: string, v: any) => { 
-    const n = [...batches]; 
-    n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; 
-    setBatches(n); 
-  }
-
-  const addTicketType = (bi: number) => { 
-    const n = [...batches]; 
-    const poolId = n[bi].isHalfPriceEnabled ? (n[bi].ticketTypes[1]?.poolId || crypto.randomUUID()) : undefined;
-    const poolName = n[bi].isHalfPriceEnabled ? "Cota Lote" : undefined;
-    const qty = n[bi].isHalfPriceEnabled ? (n[bi].ticketTypes[1]?.quantity || 0) : n[bi].capacidadeInicial;
-
-    n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Nova Meia", price: 50, quantity: qty, poolId, poolName, requiresProof: true, isLegalHalf: true, description: "" }); 
-    setBatches(n); 
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -563,13 +595,6 @@ export default function EditarEventoPage() {
         sectors: finalSectors,
         address,
         image: uploadedImageUrl || event.image || "",
-        organizer: {
-          id: currentOrg.id,
-          name: currentOrg.name,
-          username: currentOrg.username,
-          avatar: currentOrg.avatar || "",
-          isVerified: currentOrg.verified || false
-        },
         updatedAt: serverTimestamp()
       }
       await updateDoc(eventRef, updateData)

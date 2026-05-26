@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -86,6 +87,13 @@ interface Batch {
   halfPricePercent?: number
 }
 
+interface SectorWithBatches {
+  id: string
+  name: string
+  capacity: number
+  batches: Batch[]
+}
+
 export default function NovoEventoPage() {
   const router = useRouter()
   const db = useFirestore()
@@ -108,7 +116,7 @@ export default function NovoEventoPage() {
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
   
   const [selectedCategory, setSelectedCategory] = useState("")
-  const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches'>('free')
+  const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches' | 'sector_batches'>('free')
   const [mapMode, setMapMode] = useState<'none' | 'setores' | 'assentos' | 'mesas'>('none')
   
   const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
@@ -130,12 +138,12 @@ export default function NovoEventoPage() {
     { id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }
   ])
 
-  // --- Lotes ---
+  // --- Lotes Globais ---
   const [totalBatchCapacity, setTotalBatchCapacity] = useState<number>(500)
   const [batches, setBatches] = useState<Batch[]>([
     { 
       id: crypto.randomUUID(),
-      name: "Lote 1", 
+      name: "1º Lote", 
       startDate: "", 
       endDate: "", 
       capacidadeInicial: 100, 
@@ -150,9 +158,32 @@ export default function NovoEventoPage() {
       halfPricePercent: 40
     }
   ])
+
+  // --- Setores e Lotes ---
+  const [sectorsWithBatches, setSectorsWithBatches] = useState<SectorWithBatches[]>([
+    {
+      id: crypto.randomUUID(),
+      name: "Setor Único",
+      capacity: 100,
+      batches: [{ 
+        id: crypto.randomUUID(),
+        name: "Lote 1", 
+        startDate: "", 
+        endDate: "", 
+        capacidadeInicial: 100,
+        capacidadeAtual: 100,
+        vendidos: 0,
+        restantes: 100,
+        migradosDoLoteAnterior: 0,
+        ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }],
+        isHalfPriceEnabled: false,
+        halfPricePercent: 40
+      }]
+    }
+  ])
   
   const [isBatchPercentDialogOpen, setIsBatchPercentDialogOpen] = useState(false)
-  const [activeBatchIdx, setActiveBatchIdx] = useState<number | null>(null)
+  const [activeBatchIdx, setActiveBatchIdx] = useState<{ sectorIdx?: number, batchIdx: number } | null>(null)
   const [tempBatchPercent, setTempBatchPercent] = useState(40)
 
   // --- Gratuito ---
@@ -221,28 +252,45 @@ export default function NovoEventoPage() {
   const handleEnableBatchHalfPrice = () => {
     if (activeBatchIdx === null) return;
     const percent = tempBatchPercent;
-    const n = [...batches];
-    const batch = n[activeBatchIdx];
-    const poolId = crypto.randomUUID();
-    const halfQty = Math.floor(batch.capacidadeInicial * (percent / 100));
-    const inteiraQty = batch.capacidadeInicial - halfQty;
-
-    const currentInteiraPrice = batch.ticketTypes[0]?.price || 100;
-
-    const defaultMeias: TicketType[] = [
-      { id: crypto.randomUUID(), name: "Meia Estudante", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Lote", requiresProof: true, isLegalHalf: true, description: "" },
-      { id: crypto.randomUUID(), name: "Meia PCD", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Lote", requiresProof: true, isLegalHalf: true, description: "" },
-      { id: crypto.randomUUID(), name: "Meia Idoso", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Lote", requiresProof: true, isLegalHalf: true, description: "" }
-    ];
-
-    n[activeBatchIdx].ticketTypes = [
-      { ...batch.ticketTypes[0], quantity: inteiraQty },
-      ...defaultMeias
-    ];
-    n[activeBatchIdx].isHalfPriceEnabled = true;
-    n[activeBatchIdx].halfPricePercent = percent;
     
-    setBatches(n);
+    if (activeBatchIdx.sectorIdx !== undefined) {
+      const sIdx = activeBatchIdx.sectorIdx;
+      const bIdx = activeBatchIdx.batchIdx;
+      const newSectors = [...sectorsWithBatches];
+      const sector = newSectors[sIdx];
+      const batch = sector.batches[bIdx];
+      const poolId = crypto.randomUUID();
+      const halfQty = Math.floor(batch.capacidadeInicial * (percent / 100));
+      const inteiraQty = batch.capacidadeInicial - halfQty;
+      const currentInteiraPrice = batch.ticketTypes[0]?.price || 100;
+
+      newSectors[sIdx].batches[bIdx].ticketTypes = [
+        { ...batch.ticketTypes[0], quantity: inteiraQty },
+        { id: crypto.randomUUID(), name: "Meia Estudante", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Setor", requiresProof: true, isLegalHalf: true, description: "" },
+        { id: crypto.randomUUID(), name: "Meia PCD", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Setor", requiresProof: true, isLegalHalf: true, description: "" }
+      ];
+      newSectors[sIdx].batches[bIdx].isHalfPriceEnabled = true;
+      newSectors[sIdx].batches[bIdx].halfPricePercent = percent;
+      setSectorsWithBatches(newSectors);
+    } else {
+      const bIdx = activeBatchIdx.batchIdx;
+      const n = [...batches];
+      const batch = n[bIdx];
+      const poolId = crypto.randomUUID();
+      const halfQty = Math.floor(batch.capacidadeInicial * (percent / 100));
+      const inteiraQty = batch.capacidadeInicial - halfQty;
+      const currentInteiraPrice = batch.ticketTypes[0]?.price || 100;
+
+      n[bIdx].ticketTypes = [
+        { ...batch.ticketTypes[0], quantity: inteiraQty },
+        { id: crypto.randomUUID(), name: "Meia Estudante", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Lote", requiresProof: true, isLegalHalf: true, description: "" },
+        { id: crypto.randomUUID(), name: "Meia PCD", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Lote", requiresProof: true, isLegalHalf: true, description: "" }
+      ];
+      n[bIdx].isHalfPriceEnabled = true;
+      n[bIdx].halfPricePercent = percent;
+      setBatches(n);
+    }
+    
     setIsBatchPercentDialogOpen(false);
     setActiveBatchIdx(null);
   }
@@ -263,6 +311,7 @@ export default function NovoEventoPage() {
     } catch (err) { setUploadProgress(null) }
   }
 
+  // Lotes Globais
   const addBatch = () => {
     const newB: Batch = { 
       id: crypto.randomUUID(), 
@@ -289,18 +338,19 @@ export default function NovoEventoPage() {
     const n = [...batches]; 
     n[i] = { ...n[i], [f]: v } as any; 
     
-    if (f === 'capacidadeInicial' && n[i].isHalfPriceEnabled) {
+    if (f === 'capacidadeInicial') {
       const cap = parseInt(v) || 0;
-      const hPercent = n[i].halfPricePercent || 40;
-      const hQty = Math.floor(cap * (hPercent / 100));
-      const iQty = cap - hQty;
-
-      if (n[i].ticketTypes[0]) n[i].ticketTypes[0].quantity = iQty;
-      for (let j = 1; j < n[i].ticketTypes.length; j++) {
-        n[i].ticketTypes[j].quantity = hQty;
+      if (n[i].isHalfPriceEnabled) {
+        const hPercent = n[i].halfPricePercent || 40;
+        const hQty = Math.floor(cap * (hPercent / 100));
+        const iQty = cap - hQty;
+        if (n[i].ticketTypes[0]) n[i].ticketTypes[0].quantity = iQty;
+        for (let j = 1; j < n[i].ticketTypes.length; j++) {
+          n[i].ticketTypes[j].quantity = hQty;
+        }
+      } else {
+        if (n[i].ticketTypes[0]) n[i].ticketTypes[0].quantity = cap;
       }
-    } else if (f === 'capacidadeInicial') {
-      if (n[i].ticketTypes[0]) n[i].ticketTypes[0].quantity = parseInt(v) || 0;
     }
 
     setBatches(n); 
@@ -331,6 +381,115 @@ export default function NovoEventoPage() {
       description: "" 
     }); 
     setBatches(n); 
+  }
+
+  // Setores com Lotes
+  const addSector = () => {
+    setSectorsWithBatches([...sectorsWithBatches, {
+      id: crypto.randomUUID(),
+      name: `Novo Setor ${sectorsWithBatches.length + 1}`,
+      capacity: 100,
+      batches: [{ 
+        id: crypto.randomUUID(),
+        name: "Lote 1", 
+        startDate: "", 
+        endDate: "", 
+        capacidadeInicial: 100,
+        capacidadeAtual: 100,
+        vendidos: 0,
+        restantes: 100,
+        migradosDoLoteAnterior: 0,
+        ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }],
+        isHalfPriceEnabled: false,
+        halfPricePercent: 40
+      }]
+    }])
+  }
+
+  const removeSector = (i: number) => {
+    if(sectorsWithBatches.length > 1) setSectorsWithBatches(sectorsWithBatches.filter((_, idx) => idx !== i))
+  }
+
+  const updateSectorField = (i: number, f: keyof SectorWithBatches, v: any) => {
+    const n = [...sectorsWithBatches];
+    n[i] = { ...n[i], [f]: v } as any;
+    setSectorsWithBatches(n);
+  }
+
+  const addBatchToSector = (si: number) => {
+    const n = [...sectorsWithBatches];
+    const newB: Batch = { 
+      id: crypto.randomUUID(), 
+      name: `Lote ${n[si].batches.length + 1}`, 
+      startDate: "", 
+      endDate: "", 
+      capacidadeInicial: 50, 
+      capacidadeAtual: 50,
+      vendidos: 0,
+      restantes: 50,
+      migradosDoLoteAnterior: 0,
+      ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 50, requiresProof: false, isLegalHalf: false, description: "" }],
+      isHalfPriceEnabled: false,
+      halfPricePercent: 40
+    }
+    n[si].batches.push(newB);
+    setSectorsWithBatches(n);
+  }
+
+  const removeBatchFromSector = (si: number, bi: number) => {
+    const n = [...sectorsWithBatches];
+    if(n[si].batches.length > 1) {
+      n[si].batches = n[si].batches.filter((_, idx) => idx !== bi);
+      setSectorsWithBatches(n);
+    }
+  }
+
+  const updateBatchInSectorField = (si: number, bi: number, f: keyof Batch, v: any) => {
+    const n = [...sectorsWithBatches];
+    n[si].batches[bi] = { ...n[si].batches[bi], [f]: v } as any;
+    
+    if (f === 'capacidadeInicial') {
+      const cap = parseInt(v) || 0;
+      if (n[si].batches[bi].isHalfPriceEnabled) {
+        const hPercent = n[si].batches[bi].halfPricePercent || 40;
+        const hQty = Math.floor(cap * (hPercent / 100));
+        const iQty = cap - hQty;
+        if (n[si].batches[bi].ticketTypes[0]) n[si].batches[bi].ticketTypes[0].quantity = iQty;
+        for (let j = 1; j < n[si].batches[bi].ticketTypes.length; j++) {
+          n[si].batches[bi].ticketTypes[j].quantity = hQty;
+        }
+      } else {
+        if (n[si].batches[bi].ticketTypes[0]) n[si].batches[bi].ticketTypes[0].quantity = cap;
+      }
+    }
+    setSectorsWithBatches(n);
+  }
+
+  const updateTicketTypeInSectorField = (si: number, bi: number, ti: number, f: string, v: any) => {
+    const n = [...sectorsWithBatches];
+    n[si].batches[bi].ticketTypes[ti] = { ...n[si].batches[bi].ticketTypes[ti], [f]: v };
+    setSectorsWithBatches(n);
+  }
+
+  const addTicketTypeToSector = (si: number, bi: number) => {
+    const n = [...sectorsWithBatches];
+    const b = n[si].batches[bi];
+    const poolId = b.isHalfPriceEnabled ? (b.ticketTypes[1]?.poolId || crypto.randomUUID()) : undefined;
+    const poolName = b.isHalfPriceEnabled ? "Cota Setor" : undefined;
+    const qty = b.isHalfPriceEnabled ? (b.ticketTypes[1]?.quantity || 0) : b.capacidadeInicial;
+
+    n[si].batches[bi].ticketTypes.push({ 
+      id: crypto.randomUUID(), 
+      name: "Nova Meia", 
+      price: 50, 
+      quantity: qty, 
+      poolId,
+      poolName,
+      requiresProof: true, 
+      isLegalHalf: true, 
+      description: "" 
+    }); 
+    setSectorsWithBatches(n);
   }
 
   const handleCepBlur = async () => {
@@ -364,6 +523,7 @@ export default function NovoEventoPage() {
       const cat = categories?.find(c => c.id === selectedCategory)
       
       let finalBatches: any[] = []
+      let finalSectors: any[] = []
       let totalCapacity = 0
 
       if (ticketMode === 'free') {
@@ -389,6 +549,9 @@ export default function NovoEventoPage() {
       } else if (ticketMode === 'batches') {
         finalBatches = batches;
         totalCapacity = totalBatchCapacity;
+      } else if (ticketMode === 'sector_batches') {
+        finalSectors = sectorsWithBatches;
+        totalCapacity = sectorsWithBatches.reduce((acc, s) => acc + s.capacity, 0);
       }
 
       const eventData = {
@@ -402,7 +565,8 @@ export default function NovoEventoPage() {
         mapMode,
         possuiMapa: mapMode !== 'none',
         capacidadeTotal: totalCapacity,
-        batches: ticketMode === 'none' ? [] : finalBatches,
+        batches: ticketMode === 'sector_batches' ? [] : finalBatches,
+        sectors: finalSectors,
         address, image: uploadedImageUrl || "",
         organizationId: currentOrg.id, 
         organizerId: user.uid,
@@ -418,7 +582,6 @@ export default function NovoEventoPage() {
 
       const docRef = await addDoc(collection(db, "events"), eventData)
       
-      // Criar convites de parceria se existirem
       if (invitedPartners.length > 0) {
         const batch = writeBatch(db)
         invitedPartners.forEach(p => {
@@ -607,9 +770,9 @@ export default function NovoEventoPage() {
                 <CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle>
               </div>
               <div className="bg-white p-1 rounded-xl border flex flex-wrap gap-1">
-                {['none', 'free', 'paid_single', 'batches'].map((mode: any) => (
+                {['none', 'free', 'paid_single', 'batches', 'sector_batches'].map((mode: any) => (
                   <Button key={mode} type="button" variant={ticketMode === mode ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode(mode)}>
-                    {mode === 'none' ? 'Sem Ingresso' : mode === 'free' ? 'Grátis' : mode === 'paid_single' ? 'Valor Único' : 'Lotes'}
+                    {mode === 'none' ? 'Sem Ingresso' : mode === 'free' ? 'Grátis' : mode === 'paid_single' ? 'Valor Único' : mode === 'batches' ? 'Lotes' : 'Setor e Lote'}
                   </Button>
                 ))}
               </div>
@@ -900,6 +1063,69 @@ export default function NovoEventoPage() {
                 <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>
               </div>
             )}
+
+            {ticketMode === 'sector_batches' && (
+              <div className="space-y-10 animate-in fade-in duration-500">
+                {sectorsWithBatches.map((sector, si) => (
+                  <div key={sector.id} className="p-8 rounded-[2.5rem] border-2 border-primary/20 bg-white space-y-8 relative">
+                    <div className="flex justify-between items-center">
+                       <div className="flex-1 max-w-md space-y-2">
+                          <Label className="text-[10px] font-black uppercase opacity-60">Nome do Setor</Label>
+                          <Input value={sector.name} onChange={e => updateSectorField(si, 'name', e.target.value)} className="rounded-xl h-11 font-black text-primary" placeholder="Ex: Plateia Baixa" />
+                       </div>
+                       <div className="w-40 space-y-2 ml-4">
+                          <Label className="text-[10px] font-black uppercase opacity-60">Capacidade</Label>
+                          <Input type="number" value={sector.capacity} onChange={e => updateSectorField(si, 'capacity', parseInt(e.target.value) || 0)} className="rounded-xl h-11 font-black text-secondary" />
+                       </div>
+                       <Button type="button" variant="ghost" size="icon" className="text-destructive ml-4" onClick={() => removeSector(si)} disabled={sectorsWithBatches.length === 1}><Trash2 className="w-5 h-5" /></Button>
+                    </div>
+
+                    <div className="space-y-6">
+                       {sector.batches.map((batch, bi) => (
+                         <div key={batch.id} className="p-6 rounded-[2rem] border-2 bg-muted/5 space-y-6 relative">
+                            <div className="flex justify-between items-center">
+                               <div className="flex items-center gap-3">
+                                  <h5 className="font-black italic uppercase text-secondary text-lg">{batch.name}</h5>
+                                  <Badge variant="outline" className="text-[9px] font-bold uppercase">{batch.capacidadeInicial} Ingressos</Badge>
+                               </div>
+                               <div className="flex gap-2">
+                                  <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[9px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setActiveBatchIdx({ sectorIdx: si, batchIdx: bi }); setTempBatchPercent(batch.halfPricePercent || 40); setIsBatchPercentDialogOpen(true); }}>
+                                     <Sparkles className="w-3 h-3" /> Gerar Meia
+                                  </Button>
+                                  <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatchFromSector(si, bi)} disabled={sector.batches.length === 1}><Trash2 className="w-4 h-4" /></Button>
+                               </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                               <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-60">Nome da Janela</Label><Input value={batch.name} onChange={e => updateBatchInSectorField(si, bi, 'name', e.target.value)} className="rounded-xl h-10" /></div>
+                               <div className="space-y-2"><Label className="text-[9px] font-black uppercase opacity-60">Carga do Lote</Label><Input type="number" value={batch.capacidadeInicial} onChange={e => updateBatchInSectorField(si, bi, 'capacidadeInicial', parseInt(e.target.value) || 0)} className="rounded-xl h-10 font-bold" /></div>
+                            </div>
+                            <div className="space-y-4 pt-4 border-t border-dashed">
+                               {batch.ticketTypes.map((t, ti) => (
+                                 <div key={t.id} className="p-4 bg-white rounded-2xl border shadow-sm grid grid-cols-12 gap-4 items-center">
+                                    <div className="col-span-5 space-y-1">
+                                       <Label className="text-[8px] font-black uppercase opacity-40">Ingresso</Label>
+                                       <Input value={t.name} onChange={e => updateTicketTypeInSectorField(si, bi, ti, 'name', e.target.value)} className="rounded-lg h-9 font-bold" />
+                                    </div>
+                                    <div className="col-span-3 space-y-1">
+                                       <Label className="text-[8px] font-black uppercase opacity-40">Valor (R$)</Label>
+                                       <Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeInSectorField(si, bi, ti, 'price', parseFloat(e.target.value) || 0)} className="rounded-lg h-9 font-black text-secondary" />
+                                    </div>
+                                    <div className="col-span-2 flex justify-end pt-3">
+                                       {ti > 0 && <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { const n = [...sectorsWithBatches]; n[si].batches[bi].ticketTypes.splice(ti,1); setSectorsWithBatches(n); }}><Trash2 className="w-3 h-3" /></Button>}
+                                    </div>
+                                 </div>
+                               ))}
+                               <Button type="button" variant="ghost" size="sm" className="text-secondary font-black uppercase text-[9px] gap-2" onClick={() => addTicketTypeToSector(si, bi)}><Plus className="w-3.5 h-3.5" /> Adicionar Categoria ao Lote</Button>
+                            </div>
+                         </div>
+                       ))}
+                       <Button type="button" variant="outline" className="w-full h-12 rounded-xl border-dashed font-bold uppercase text-[10px]" onClick={() => addBatchToSector(si)}><Plus className="w-4 h-4 mr-2" /> Adicionar Lote ao Setor</Button>
+                    </div>
+                  </div>
+                ))}
+                <Button type="button" variant="outline" className="w-full h-16 rounded-[2rem] border-dashed font-black uppercase italic" onClick={addSector}><Plus className="w-6 h-6 mr-2" /> Criar Novo Setor</Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -949,4 +1175,3 @@ export default function NovoEventoPage() {
     </div>
   )
 }
-
