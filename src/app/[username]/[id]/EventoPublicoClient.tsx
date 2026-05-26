@@ -87,6 +87,12 @@ import {
 } from "@/components/ui/select";
 import { Separator } from '@/components/ui/separator';
 import Footer from '@/components/layout/Footer';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // --- COMPONENTES AUXILIARES ---
 
@@ -133,8 +139,7 @@ function AvatarFallback({
   );
 }
 
-const renderFormattedText = (text: string) => {
-  if (!text) return '';
+const renderInlineStyles = (text: string) => {
   const parts = text.split(/(\*\*.*?\*\*|@[\w.]+|\+.*?\+)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**'))
@@ -149,6 +154,7 @@ const renderFormattedText = (text: string) => {
           key={i}
           href={`/${part.slice(1).toLowerCase()}`}
           className="text-secondary font-black hover:underline"
+          onClick={e => e.stopPropagation()}
         >
           {part}
         </Link>
@@ -157,6 +163,35 @@ const renderFormattedText = (text: string) => {
        return part.slice(1, -1);
     }
     return part;
+  });
+};
+
+const renderFormattedText = (text: string) => {
+  if (!text) return '';
+  
+  // Divide por quebras de linha duplas para parágrafos
+  return text.split(/\n\n+/).map((paragraph, pIdx) => {
+    // Trata títulos começando com #
+    if (paragraph.startsWith('# ')) {
+      return (
+        <h2 key={pIdx} className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter mb-6 text-primary leading-tight">
+          {renderInlineStyles(paragraph.replace('# ', ''))}
+        </h2>
+      );
+    }
+    if (paragraph.startsWith('## ')) {
+      return (
+        <h3 key={pIdx} className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter mb-4 text-primary leading-tight">
+          {renderInlineStyles(paragraph.replace('## ', ''))}
+        </h3>
+      );
+    }
+    
+    return (
+      <p key={pIdx} className="mb-6 last:mb-0 leading-relaxed">
+        {renderInlineStyles(paragraph)}
+      </p>
+    );
   });
 };
 
@@ -197,8 +232,8 @@ function ReportDialog({ eventId, eventTitle }: { eventId: string, eventTitle: st
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="rounded-full hover:bg-red-50 hover:text-red-500 transition-colors">
-          <Flag className="w-5 h-5" />
+        <Button variant="ghost" size="sm" className="rounded-xl hover:bg-red-50 hover:text-red-500 transition-colors gap-2 font-black uppercase text-[9px] tracking-widest text-muted-foreground/60">
+          <Flag className="w-4 h-4" /> Denunciar Irregularidade
         </Button>
       </DialogTrigger>
       <DialogContent className="rounded-[2.5rem] max-w-md">
@@ -827,7 +862,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 <h3 className="text-xl font-black uppercase italic tracking-tighter mb-8 flex items-center gap-3">
                   <Sparkles className="w-5 h-5 text-secondary" /> Informações do Evento
                 </h3>
-                <div className="prose prose-slate max-w-none prose-lg text-foreground/80 leading-relaxed font-medium">
+                <div className="prose prose-slate max-w-none prose-lg text-foreground/80 font-medium">
                   {renderFormattedText(event.description)}
                 </div>
               </Card>
@@ -994,10 +1029,3 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     </div>
   );
 }
-
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
