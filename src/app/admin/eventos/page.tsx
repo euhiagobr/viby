@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore"
+import { collection, query, orderBy, deleteDoc, doc, updateDoc, where, getDocs, limit, serverTimestamp, writeBatch } from "firebase/firestore"
 import { 
   Table, 
   TableBody, 
@@ -24,7 +24,8 @@ import {
   Edit2,
   MapPin,
   Clock,
-  RefreshCcw
+  RefreshCcw,
+  AlertTriangle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
@@ -36,6 +37,7 @@ import { cn } from "@/lib/utils"
 export default function AdminEventosPage() {
   const db = useFirestore()
   const [search, setSearch] = React.useState("")
+  const [isProcessing, setIsProcessing] = React.useState(false)
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -53,19 +55,46 @@ export default function AdminEventosPage() {
     )
   }, [events, search])
 
-  const handleDeleteEvent = async (eventId: string) => {
+  const handleDeleteEvent = async (eventId: string, title: string) => {
     if (!db) return
-    if (!confirm("Tem certeza que deseja excluir PERMANENTEMENTE este evento? Esta ação removerá todos os dados do banco de dados.")) return
+    if (!confirm(`Tem certeza que deseja remover "${title}"? Se existirem vendas, o evento será apenas ocultado.`)) return
 
-    deleteDoc(doc(db, "events", eventId))
-      .then(() => toast({ title: "Evento removido permanentemente" }))
-      .catch(async () => {
-        const permissionError = new FirestorePermissionError({
-          path: `events/${eventId}`,
-          operation: "delete"
-        })
-        errorEmitter.emit("permission-error", permissionError)
-      })
+    setIsProcessing(true)
+    try {
+      // 1. Verificar se existem ingressos pagos ou disponíveis
+      const salesQuery = query(
+        collection(db, "registrations"),
+        where("eventId", "==", eventId),
+        where("paymentStatus", "in", ["Pago", "Disponível"]),
+        limit(1)
+      );
+      const salesSnap = await getDocs(salesQuery);
+      const eventRef = doc(db, "events", eventId);
+
+      if (!salesSnap.empty) {
+        // EXISTEM VENDAS: APENAS OCULTAR
+        await updateDoc(eventRef, { status: "Oculto", updatedAt: serverTimestamp() });
+        toast({ title: "Evento Ocultado", description: "Vendas detectadas. O evento saiu do ar mas os ingressos continuam válidos." });
+      } else {
+        // NÃO EXISTEM VENDAS: EXCLUSÃO SOFT TOTAL
+        const batch = writeBatch(db);
+        batch.update(eventRef, { status: "Excluído", updatedAt: serverTimestamp() });
+        
+        const regsQuery = query(collection(db, "registrations"), where("eventId", "==", eventId));
+        const regsSnap = await getDocs(regsQuery);
+        regsSnap.forEach((regDoc) => batch.delete(regDoc.ref));
+        
+        await batch.commit();
+        toast({ title: "Evento removido permanentemente" });
+      }
+    } catch (error: any) {
+      errorEmitter.emit("permission-error", new FirestorePermissionError({
+        path: `events/${eventId}`,
+        operation: "update",
+      }))
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const handleRestoreEvent = async (eventId: string) => {
@@ -165,7 +194,7 @@ export default function AdminEventosPage() {
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge 
-                        variant={event.status === 'Excluído' ? 'destructive' : 'outline'} 
+                        variant={event.status === 'Excluído' ? 'destructive' : (event.status === 'Oculto' ? 'secondary' : 'outline')} 
                         className="text-[10px] font-bold uppercase"
                       >
                         {event.status || "Ativo"}
@@ -173,7 +202,7 @@ export default function AdminEventosPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {event.status === 'Excluído' && (
+                        {(event.status === 'Excluído' || event.status === 'Oculto') && (
                           <Button 
                             variant="ghost" 
                             size="icon" 
@@ -198,8 +227,9 @@ export default function AdminEventosPage() {
                           variant="ghost" 
                           size="icon" 
                           className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                          onClick={() => handleDeleteEvent(event.id)}
-                          title="Excluir Permanentemente"
+                          disabled={isProcessing}
+                          onClick={() => handleDeleteEvent(event.id, event.title)}
+                          title="Remover / Ocultar"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>

@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query, where, doc, writeBatch, getDocs } from "firebase/firestore"
+import { collection, query, where, doc, writeBatch, getDocs, limit, updateDoc, serverTimestamp } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { 
@@ -113,21 +114,42 @@ export default function MeusEventosPage() {
 
     setIsDeleting(true)
     try {
-      const batch = writeBatch(db);
+      // 1. Verificar se existem ingressos pagos ou disponíveis
+      const salesQuery = query(
+        collection(db, "registrations"),
+        where("eventId", "==", eventToDelete.id),
+        where("paymentStatus", "in", ["Pago", "Disponível"]),
+        limit(1)
+      );
+      const salesSnap = await getDocs(salesQuery);
       const eventRef = doc(db, "events", eventToDelete.id);
-      batch.update(eventRef, { status: "Excluído" });
-      
-      const regsQuery = query(collection(db, "registrations"), where("eventId", "==", eventToDelete.id));
-      const regsSnap = await getDocs(regsQuery);
-      regsSnap.forEach((regDoc) => batch.delete(regDoc.ref));
-      
-      await batch.commit();
-      toast({ title: "Evento removido", description: `O evento "${eventToDelete.title}" e seus vouchers foram excluídos.` });
+
+      if (!salesSnap.empty) {
+        // EXISTEM VENDAS: APENAS OCULTAR
+        await updateDoc(eventRef, { 
+          status: "Oculto", 
+          updatedAt: serverTimestamp() 
+        });
+        toast({ 
+          title: "Evento Ocultado", 
+          description: "Como já existem ingressos vendidos, o evento foi ocultado em vez de excluído para preservar os vouchers." 
+        });
+      } else {
+        // NÃO EXISTEM VENDAS: EXCLUSÃO SOFT TOTAL
+        const batch = writeBatch(db);
+        batch.update(eventRef, { status: "Excluído", updatedAt: serverTimestamp() });
+        
+        const regsQuery = query(collection(db, "registrations"), where("eventId", "==", eventToDelete.id));
+        const regsSnap = await getDocs(regsQuery);
+        regsSnap.forEach((regDoc) => batch.delete(regDoc.ref));
+        
+        await batch.commit();
+        toast({ title: "Evento removido" });
+      }
     } catch (error: any) {
       errorEmitter.emit("permission-error", new FirestorePermissionError({
-        path: `events/${eventToDelete.id}`,
+        path: `events/${eventToDelete?.id}`,
         operation: "update",
-        requestResourceData: { status: "Excluído" }
       }))
     } finally {
       setIsDeleting(false)
@@ -243,7 +265,7 @@ export default function MeusEventosPage() {
                             className="flex items-center gap-2 text-destructive focus:text-destructive py-2 cursor-pointer"
                             onSelect={() => setEventToDelete({ id: event.id, title: event.title })}
                           >
-                            <Trash2 className="w-4 h-4" /> Excluir Evento
+                            <Trash2 className="w-4 h-4" /> Remover
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -293,9 +315,9 @@ export default function MeusEventosPage() {
       <AlertDialog open={!!eventToDelete} onOpenChange={(open) => !open && setEventToDelete(null)}>
         <AlertDialogContent className="rounded-[2rem]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-black italic uppercase italic tracking-tighter">Excluir este evento?</AlertDialogTitle>
+            <AlertDialogTitle className="text-xl font-black italic uppercase italic tracking-tighter">Remover este evento?</AlertDialogTitle>
             <AlertDialogDescription>
-              O evento <strong>"{eventToDelete?.title}"</strong> e todos os seus ingressos serão removidos permanentemente. Esta ação não pode ser desfeita.
+              Se existirem ingressos vendidos, o evento será apenas ocultado para preservar os vouchers. Caso contrário, será excluído permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -306,7 +328,7 @@ export default function MeusEventosPage() {
               className="bg-destructive text-white hover:bg-destructive/90 rounded-xl font-black uppercase text-[10px] tracking-widest"
             >
               {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
-              Confirmar Exclusão
+              Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
