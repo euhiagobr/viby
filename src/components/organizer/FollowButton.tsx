@@ -22,6 +22,11 @@ export function FollowButton({ organizationId, className }: FollowButtonProps) {
   const { user } = useUser(auth);
   const [loading, setLoading] = React.useState(false);
 
+  // Ocultar botão para a conta oficial, já que o follow é obrigatório e automático
+  if (organizationId === VIBY_OFFICIAL_UID) {
+    return null;
+  }
+
   const followRef = React.useMemo(() => 
     (db && user && organizationId) ? doc(db, "follows", `${user.uid}_${organizationId}`) : null, 
     [db, user, organizationId]
@@ -36,16 +41,6 @@ export function FollowButton({ organizationId, className }: FollowButtonProps) {
     
     if (!db || !user) {
       toast({ title: "Ação necessária", description: "Faça login para seguir esta marca." });
-      return;
-    }
-
-    // Bloqueio de unfollow para conta oficial
-    if (isFollowing && organizationId === VIBY_OFFICIAL_UID) {
-      toast({ 
-        variant: "destructive", 
-        title: "Ação não permitida", 
-        description: "Você não pode deixar de seguir a conta oficial da Viby." 
-      });
       return;
     }
 
@@ -80,8 +75,6 @@ export function FollowButton({ organizationId, className }: FollowButtonProps) {
 
   if (followLoading) return <div className="w-32 h-10 animate-pulse bg-muted rounded-full" />;
 
-  const isOfficial = organizationId === VIBY_OFFICIAL_UID;
-
   return (
     <Button
       onClick={handleToggleFollow}
@@ -96,12 +89,10 @@ export function FollowButton({ organizationId, className }: FollowButtonProps) {
     >
       {loading ? (
         <Loader2 className="w-4 h-4 animate-spin" />
-      ) : isFollowing && isOfficial ? (
-        <Lock className="w-4 h-4" />
       ) : (
         <Heart className={cn("w-4 h-4", isFollowing && "fill-current")} />
       )}
-      {isFollowing ? (isOfficial ? "Seguindo (Oficial)" : "Seguindo") : "Seguir Marca"}
+      {isFollowing ? "Seguindo" : "Seguir Marca"}
     </Button>
   );
 }
