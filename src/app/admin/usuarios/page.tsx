@@ -13,7 +13,9 @@ import {
   getDoc, 
   writeBatch,
   serverTimestamp,
-  deleteField
+  deleteField,
+  where,
+  getDocs
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { 
@@ -48,7 +50,9 @@ import {
   Coins,
   Percent,
   TrendingUp,
-  ArrowDown
+  ArrowDown,
+  RefreshCw,
+  AlertTriangle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -61,6 +65,7 @@ import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { calculateDetailedVibyBreakdown } from "@/lib/financial-utils"
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (
@@ -83,6 +88,7 @@ export default function AdminUsuariosPage() {
   const [isEditOrgOpen, setIsEditOrgOpen] = React.useState(false)
   
   const [isSaving, setIsSaving] = React.useState(false)
+  const [isRecalculating, setIsRecalculating] = React.useState(false)
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
   const [checkingUsername, setCheckingUsername] = React.useState(false)
   const [usernameStatus, setUsernameStatus] = React.useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
@@ -105,8 +111,8 @@ export default function AdminUsuariosPage() {
   const filteredOrgs = React.useMemo(() => {
     if (!orgs) return []
     return orgs.filter(o => 
-      o.name?.toLowerCase().includes(search.toLowerCase()) || 
-      o.username?.toLowerCase().includes(search.toLowerCase())
+      (o.name?.toLowerCase() || "").includes(search.toLowerCase()) || 
+      (o.username?.toLowerCase() || "").includes(search.toLowerCase())
     )
   }, [orgs, search])
 
@@ -137,27 +143,6 @@ export default function AdminUsuariosPage() {
     }, 500)
     return () => clearTimeout(timer)
   }, [editingUser?.username, editingOrg?.username, activeTab, db, users, orgs])
-
-  const handleImageUpload = async (file: File, type: 'avatar' | 'banner', targetId: string, coll: 'users' | 'organizations') => {
-    if (!storage) return
-    setUploadProgress(0)
-    try {
-      const path = `${coll}/${targetId}/${type}_${Date.now()}`
-      const storageRef = ref(storage, path)
-      const uploadTask = uploadBytesResumable(storageRef, file)
-      uploadTask.on('state_changed', 
-        (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100),
-        () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }) },
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
-          if (coll === 'users') setEditingUser((p: any) => ({ ...p, [type]: downloadURL }))
-          else setEditingOrg((p: any) => ({ ...p, [type]: downloadURL }))
-          setUploadProgress(null)
-          toast({ title: "Imagem carregada!" })
-        }
-      )
-    } catch (e) { setUploadProgress(null) }
-  }
 
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -197,6 +182,94 @@ export default function AdminUsuariosPage() {
       setIsEditOrgOpen(false)
     } catch (e) { toast({ variant: "destructive", title: "Erro ao salvar" }) }
     finally { setIsSaving(false) }
+  }
+
+  const handleRecalculateFees = async () => {
+    if (!db || !editingOrg || isRecalculating) return
+
+    setIsRecalculating(true)
+    try {
+      // 1. Buscar configurações globais necessárias para o motor financeiro
+      const [feesSnap, stripeSnap, promosSnap] = await Promise.all([
+        getDoc(doc(db, "settings", "fees")),
+        getDoc(doc(db, "settings", "stripe")),
+        getDoc(doc(db, "settings", "promotions"))
+      ])
+
+      const globalFees = feesSnap.data()
+      const stripeSettings = stripeSnap.data()
+      const promotions = promosSnap.data()
+
+      // 2. Buscar ingressos da organização que NÃO foram repassados
+      // Assumimos que não foram repassados se não possuem payoutId ou status de repasse concluído
+      const regsQuery = query(
+        collection(db, "registrations"), 
+        where("organizationId", "==", editingOrg.id),
+        where("paymentStatus", "in", ["Pago", "Disponível"])
+      )
+      
+      const regsSnap = await getDocs(regsQuery)
+      if (regsSnap.empty) {
+        toast({ title: "Tudo em dia!", description: "Não há ingressos pendentes de repasse para esta marca." })
+        return
+      }
+
+      const batch = writeBatch(db)
+      let count = 0
+
+      for (const regDoc of regsSnap.docs) {
+        const reg = regDoc.data()
+        
+        // Regra de ouro: Só recalcula o que ainda não foi liquidado
+        if (reg.payoutId || reg.payoutStatus === 'Concluído') continue
+
+        // Recalcular usando o novo customFee do editingOrg
+        const breakdown = calculateDetailedVibyBreakdown(
+          reg.ticketBasePrice || 0,
+          1,
+          globalFees,
+          stripeSettings,
+          true, // Assumimos item individual para recalculo
+          promotions,
+          editingOrg // Passamos os dados da org em edição com a nova taxa
+        )
+
+        // Atualizar Registro do Ingresso
+        batch.update(regDoc.ref, {
+          producerFeeAmount: breakdown.organizerFeeTotal,
+          producerNetAmount: breakdown.payoutToProducer,
+          updatedAt: serverTimestamp(),
+          recalculatedAt: serverTimestamp()
+        })
+
+        // Atualizar Registro Fiscal (ERP) correspondente
+        const taxQ = query(collection(db, "tax_tickets"), where("registrationId", "==", regDoc.id), limit(1))
+        const taxSnap = await getDocs(taxQ)
+        if (!taxSnap.empty) {
+          batch.update(taxSnap.docs[0].ref, {
+             organizerFeeAmount: breakdown.organizerFeeTotal,
+             vibyGrossProfit: breakdown.vibyGross,
+             taxAmount: breakdown.imposto,
+             vibyNetProfit: breakdown.vibyNet,
+             payoutToProducer: breakdown.payoutToProducer,
+             recalculatedAt: serverTimestamp()
+          })
+        }
+        count++
+      }
+
+      if (count > 0) {
+        await batch.commit()
+        toast({ title: "Recálculo Concluído!", description: `${count} ingressos foram atualizados com as novas taxas.` })
+      } else {
+        toast({ title: "Nenhuma alteração", description: "Todos os ingressos elegíveis já possuem essas taxas." })
+      }
+    } catch (error) {
+      console.error(error)
+      toast({ variant: "destructive", title: "Erro no recálculo" })
+    } finally {
+      setIsRecalculating(false)
+    }
   }
 
   return (
@@ -358,7 +431,7 @@ export default function AdminUsuariosPage() {
       <Dialog open={isEditOrgOpen} onOpenChange={setIsEditOrgOpen}>
         <DialogContent className="max-w-xl h-[90vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
            <DialogHeader className="p-8 border-b bg-muted/30">
-              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Editar Página Comercial</DialogTitle>
+              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Editar Página Comercial</DialogTitle>
               <DialogDescription>Ajuste dados e configure taxas personalizadas para esta marca.</DialogDescription>
            </DialogHeader>
            <form onSubmit={handleUpdateOrg} className="flex-1 overflow-y-auto p-8 space-y-8">
@@ -424,43 +497,65 @@ export default function AdminUsuariosPage() {
                  </div>
 
                  {editingOrg?.customFeeActive && (
-                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in slide-in-from-top-2 duration-300">
-                      <div className="space-y-2">
-                         <Label className="text-[9px] font-black uppercase opacity-60 flex items-center gap-1.5"><Percent className="w-3 h-3" /> Taxa Produtor (%)</Label>
-                         <div className="relative">
-                            <Input 
-                               type="number" step="0.1" 
-                               value={editingOrg?.customFeePercent ?? 10} 
-                               onChange={e => setEditingOrg({...editingOrg, customFeePercent: parseFloat(e.target.value) || 0})}
-                               className="rounded-xl h-10 font-black text-secondary pr-8" 
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] opacity-40">%</span>
-                         </div>
+                   <div className="space-y-6 animate-in slide-in-from-top-2 duration-300">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                           <Label className="text-[9px] font-black uppercase opacity-60 flex items-center gap-1.5"><Percent className="w-3 h-3" /> Taxa Produtor (%)</Label>
+                           <div className="relative">
+                              <Input 
+                                 type="number" step="0.1" 
+                                 value={editingOrg?.customFeePercent ?? 10} 
+                                 onChange={e => setEditingOrg({...editingOrg, customFeePercent: parseFloat(e.target.value) || 0})}
+                                 className="rounded-xl h-10 font-black text-secondary pr-8" 
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] opacity-40">%</span>
+                           </div>
+                        </div>
+                        <div className="space-y-2">
+                           <Label className="text-[9px] font-black uppercase opacity-60 flex items-center gap-1.5"><TrendingUp className="w-3 h-3" /> Valor Mínimo (R$)</Label>
+                           <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] opacity-40">R$</span>
+                              <Input 
+                                 type="number" step="0.01" 
+                                 value={editingOrg?.customMinFee ?? 9.99} 
+                                 onChange={e => setEditingOrg({...editingOrg, customMinFee: parseFloat(e.target.value) || 0})}
+                                 className="rounded-xl h-10 font-black text-secondary pl-8" 
+                              />
+                           </div>
+                        </div>
+                        <div className="space-y-2">
+                           <Label className="text-[9px] font-black uppercase opacity-60 flex items-center gap-1.5"><ArrowDown className="w-3 h-3" /> Valor Máximo (R$)</Label>
+                           <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] opacity-40">R$</span>
+                              <Input 
+                                 type="number" step="0.01" 
+                                 value={editingOrg?.customMaxFee ?? 0} 
+                                 onChange={e => setEditingOrg({...editingOrg, customMaxFee: parseFloat(e.target.value) || 0})}
+                                 className="rounded-xl h-10 font-black text-secondary pl-8" 
+                              />
+                           </div>
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                         <Label className="text-[9px] font-black uppercase opacity-60 flex items-center gap-1.5"><TrendingUp className="w-3 h-3" /> Valor Mínimo (R$)</Label>
-                         <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] opacity-40">R$</span>
-                            <Input 
-                               type="number" step="0.01" 
-                               value={editingOrg?.customMinFee ?? 9.99} 
-                               onChange={e => setEditingOrg({...editingOrg, customMinFee: parseFloat(e.target.value) || 0})}
-                               className="rounded-xl h-10 font-black text-secondary pl-8" 
-                            />
+
+                      <div className="p-6 bg-secondary/5 rounded-3xl border-2 border-dashed border-secondary/20 space-y-4">
+                         <div className="flex items-start gap-4">
+                            <RefreshCw className={cn("w-6 h-6 text-secondary shrink-0 mt-1", isRecalculating && "animate-spin")} />
+                            <div className="space-y-1">
+                               <h4 className="font-black text-xs uppercase italic text-secondary">Sincronizar Vendas Pendentes</h4>
+                               <p className="text-[10px] text-muted-foreground leading-relaxed uppercase">
+                                  Ao mudar a taxa, você pode recalcular o valor líquido de todos os ingressos vendidos que **ainda não foram repassados** (em custódia).
+                               </p>
+                            </div>
                          </div>
-                      </div>
-                      <div className="space-y-2">
-                         <Label className="text-[9px] font-black uppercase opacity-60 flex items-center gap-1.5"><ArrowDown className="w-3 h-3" /> Valor Máximo (R$)</Label>
-                         <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] opacity-40">R$</span>
-                            <Input 
-                               type="number" step="0.01" 
-                               value={editingOrg?.customMaxFee ?? 0} 
-                               onChange={e => setEditingOrg({...editingOrg, customMaxFee: parseFloat(e.target.value) || 0})}
-                               className="rounded-xl h-10 font-black text-secondary pl-8" 
-                            />
-                         </div>
-                         <p className="text-[7px] font-bold text-muted-foreground uppercase mt-1">0 = Sem Teto</p>
+                         <Button 
+                           type="button" 
+                           onClick={handleRecalculateFees} 
+                           disabled={isRecalculating || !editingOrg?.customFeeActive}
+                           className="w-full h-11 rounded-xl bg-white border-2 border-secondary text-secondary font-black uppercase text-[10px] italic shadow-sm hover:bg-secondary hover:text-white transition-all"
+                         >
+                            {isRecalculating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                            Recalcular Taxas Pendentes
+                         </Button>
                       </div>
                    </div>
                  )}
