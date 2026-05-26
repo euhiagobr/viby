@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { 
   ShoppingCart, 
   Trash2, 
@@ -27,14 +28,17 @@ import {
   X,
   Layers,
   Armchair,
-  Ticket
+  Ticket,
+  Wallet,
+  Coins,
+  ArrowRight
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { formatCurrency, calculateFinancialBreakdown } from "@/lib/financial-utils"
 import { createCheckoutSession } from "@/app/actions/stripe"
 import { toast } from "@/hooks/use-toast"
-import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, limit, getDoc } from "firebase/firestore"
+import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, limit, getDoc, updateDoc, increment, runTransaction } from "firebase/firestore"
 import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 import { sendCartPendingEmail, sendTicketEmail } from "@/app/actions/email"
 
@@ -45,6 +49,9 @@ export default function CarrinhoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   
+  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
+  const { data: profile } = useDoc<any>(userDocRef)
+
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
 
@@ -63,8 +70,9 @@ export default function CarrinhoPage() {
   const [couponCode, setCouponCode] = React.useState("")
   const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null)
   const [isApplyingCoupon, setIsApplyingCoupon] = React.useState(false)
+  const [useBalance, setUseBalance] = React.useState(false)
 
-  // Carregar dados das organizações dos itens no carrinho para garantir dados atualizados (nome/username)
+  // Carregar dados das organizações
   React.useEffect(() => {
     if (!db || items.length === 0) {
       setLoadingOrgs(false)
@@ -83,6 +91,8 @@ export default function CarrinhoPage() {
     }
     fetchOrgs()
   }, [db, items])
+
+  const walletBalance = profile?.walletBalance || 0
 
   const cartTotals = React.useMemo(() => {
     let subtotal = 0;
@@ -121,9 +131,18 @@ export default function CarrinhoPage() {
       fees += res.administrativeFeeAmount * item.quantity;
     });
 
-    const finalTotal = Math.max(0, (subtotal - discount) + fees);
-    return { subtotal, fees, discount, total: finalTotal };
-  }, [items, appliedCoupon, globalFees, promotions, orgsData]);
+    const totalBeforeBalance = Math.max(0, (subtotal - discount) + fees);
+    
+    let balanceUsed = 0;
+    let finalTotal = totalBeforeBalance;
+
+    if (useBalance && walletBalance > 0) {
+      balanceUsed = Math.min(walletBalance, totalBeforeBalance);
+      finalTotal = totalBeforeBalance - balanceUsed;
+    }
+
+    return { subtotal, fees, discount, balanceUsed, total: finalTotal };
+  }, [items, appliedCoupon, globalFees, promotions, orgsData, useBalance, walletBalance]);
 
   const handleApplyCoupon = async () => {
     if (!db || !couponCode.trim()) return;
@@ -167,12 +186,41 @@ export default function CarrinhoPage() {
 
     setProcessing(true)
     try {
+      const isFullBalanceOrder = cartTotals.total <= 0 && useBalance;
+      const isFreeOrder = cartTotals.total <= 0 && !useBalance;
+
       const registrationIds = [];
       const lineItems = [];
+      
       const totalQtyEligible = items.reduce((acc, i) => acc + (appliedCoupon && i.eventId === appliedCoupon.eventId ? i.quantity : 0), 0);
       const discountPerUnit = totalQtyEligible > 0 ? (cartTotals.discount / totalQtyEligible) : 0;
 
-      const isFreeOrder = cartTotals.total <= 0;
+      // Se for pagamento total com saldo, precisamos de uma transação para descontar o saldo antes
+      if (isFullBalanceOrder) {
+        await runTransaction(db, async (transaction) => {
+          const userRef = doc(db, "users", user.uid);
+          const uSnap = await transaction.get(userRef);
+          if (!uSnap.exists() || (uSnap.data().walletBalance || 0) < cartTotals.balanceUsed) {
+            throw new Error("Saldo insuficiente na carteira.");
+          }
+          
+          transaction.update(userRef, {
+            walletBalance: increment(-cartTotals.balanceUsed),
+            updatedAt: serverTimestamp()
+          });
+
+          // Registrar transação de carteira
+          const txRef = doc(collection(db, "wallet_transactions"));
+          transaction.set(txRef, {
+            userId: user.uid,
+            amount: cartTotals.balanceUsed,
+            type: 'debit',
+            reason: 'compra_ingresso',
+            description: `Compra: ${items.length > 1 ? 'Múltiplos itens' : items[0].eventTitle}`,
+            timestamp: serverTimestamp()
+          });
+        });
+      }
 
       for (const item of items) {
         const isEligibleForDiscount = appliedCoupon && item.eventId === appliedCoupon.eventId;
@@ -182,7 +230,6 @@ export default function CarrinhoPage() {
         const orgSettings = orgsData[item.organizationId]
         const breakdown = calculateFinancialBreakdown(discountedPrice, globalFees, promotions, orgSettings);
         
-        // Usar o username atual da marca (vindo do orgsData) para evitar dados obsoletos
         const currentOrganizerUsername = orgSettings?.username || item.organizerUsername;
 
         for (let i = 0; i < item.quantity; i++) {
@@ -194,11 +241,11 @@ export default function CarrinhoPage() {
             eventDate: item.eventDate,
             eventCity: item.eventCity,
             userId: user.uid,
-            userName: user.displayName || user.email || "Usuário",
+            userName: profile?.name || user.displayName || user.email || "Usuário",
             userEmail: user.email,
-            attendeeName: user.displayName || user.email || "Participante",
+            attendeeName: profile?.name || user.displayName || user.email || "Participante",
             organizationId: item.organizationId,
-            organizerId: user.uid, // Mantido apenas para auditoria de quem comprou
+            organizerId: user.uid,
             organizerUsername: currentOrganizerUsername,
             ticketBasePrice: item.price,
             discountApplied: currentItemDiscount,
@@ -219,8 +266,8 @@ export default function CarrinhoPage() {
             couponId: isEligibleForDiscount ? appliedCoupon.id : null,
             quantity: 1,
             checkedIn: false,
-            paymentStatus: isFreeOrder ? "Disponível" : "Pendente",
-            confirmedAt: isFreeOrder ? serverTimestamp() : null,
+            paymentStatus: (isFreeOrder || isFullBalanceOrder) ? "Disponível" : "Pendente",
+            confirmedAt: (isFreeOrder || isFullBalanceOrder) ? serverTimestamp() : null,
             ticketCode,
             status: "Ativo",
             createdAt: serverTimestamp(),
@@ -229,26 +276,23 @@ export default function CarrinhoPage() {
           const docRef = await addDoc(collection(db, "registrations"), regData);
           registrationIds.push(docRef.id);
 
-          if (isFreeOrder) {
+          if (isFreeOrder || isFullBalanceOrder) {
             const eventDate = item.eventDate?.toDate ? item.eventDate.toDate().toLocaleString('pt-BR') : new Date(item.eventDate).toLocaleString('pt-BR');
             await sendTicketEmail({
               to: user.email!,
-              userName: user.displayName || "Participante",
+              userName: profile?.name || user.displayName || "Participante",
               eventTitle: item.eventTitle,
               ticketCode: ticketCode,
               eventDate: eventDate,
               eventCity: item.eventCity || "Local Confirmado",
               voucherUrl: `https://viby.club/dashboard/ingressos/${docRef.id}/voucher`,
               eventUrl: `https://viby.club/${currentOrganizerUsername || 'evento'}/${item.eventId}`,
-              ticketPrice: 0,
-              feePrice: 0,
-              totalPrice: 0,
               isFree: true
             });
           }
         }
 
-        if (!isFreeOrder) {
+        if (!isFreeOrder && !isFullBalanceOrder) {
           lineItems.push({
             price_data: {
               currency: 'brl',
@@ -268,26 +312,26 @@ export default function CarrinhoPage() {
         }
       }
 
-      if (isFreeOrder) {
+      if (isFreeOrder || isFullBalanceOrder) {
         clearCart();
-        toast({ title: "Reserva confirmada!", description: "Seus ingressos gratuitos já estão disponíveis no seu painel." });
+        toast({ 
+          title: isFullBalanceOrder ? "Compra realizada com saldo!" : "Reserva gratuita confirmada!", 
+          description: "Seus ingressos já estão disponíveis no seu painel." 
+        });
         router.push("/dashboard/ingressos");
       } else {
-        await sendCartPendingEmail({
-          to: user.email!, userName: user.displayName || "Usuário",
-          items: items, totalAmount: cartTotals.total, siteName: settings?.siteName || "Viby Club"
-        });
-
+        // Se houver saldo parcial usado, incluímos nos metadados para descontar na página de sucesso
         const { url } = await createCheckoutSession({
           eventId: "multiple", eventTitle: "Ingressos Viby Club", eventImage: "",
-          userId: user.uid, userName: user.displayName || "Usuário", userEmail: user.email!,
+          userId: user.uid, userName: profile?.name || user.displayName || "Usuário", userEmail: user.email!,
           totalAmount: Math.round(cartTotals.total * 100),
           lineItems,
           metadata: { 
             type: "cart_checkout",
             registrationIds: registrationIds.join(","),
             userId: user.uid,
-            couponId: appliedCoupon?.id || null
+            couponId: appliedCoupon?.id || null,
+            balanceUsed: cartTotals.balanceUsed.toString()
           }
         });
 
@@ -389,6 +433,34 @@ export default function CarrinhoPage() {
         </div>
 
         <div className="lg:col-span-4 space-y-6">
+           {/* USAR SALDO VIBY */}
+           <Card className="border-none shadow-sm rounded-[2rem] bg-primary text-white overflow-hidden relative">
+              <CardHeader className="pb-4">
+                 <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2 opacity-60">
+                    <Wallet className="w-4 h-4 text-secondary" /> Saldo Viby
+                 </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 relative z-10">
+                 <div className="flex justify-between items-end">
+                    <div className="space-y-1">
+                       <p className="text-[10px] font-black uppercase opacity-40">Disponível na Carteira</p>
+                       <p className="text-2xl font-black italic tracking-tighter">{formatCurrency(walletBalance)}</p>
+                    </div>
+                    <div className="flex flex-col items-center gap-2">
+                       <span className="text-[8px] font-black uppercase opacity-40">{useBalance ? 'Ativado' : 'Usar Saldo?'}</span>
+                       <Switch checked={useBalance} onCheckedChange={setUseBalance} disabled={walletBalance <= 0} />
+                    </div>
+                 </div>
+                 {walletBalance > 0 && useBalance && (
+                    <div className="p-3 bg-white/10 rounded-xl border border-white/10 flex gap-2">
+                       <CheckCircle2 className="w-3.5 h-3.5 text-secondary shrink-0 mt-0.5" />
+                       <p className="text-[9px] font-bold uppercase leading-tight">O saldo disponível será abatido do valor total da sua compra.</p>
+                    </div>
+                 )}
+              </CardContent>
+              <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-secondary/10 rounded-full blur-2xl" />
+           </Card>
+
            <Card className="border-none shadow-sm rounded-[2rem] bg-white">
               <CardHeader className="pb-4"><CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2"><TicketPercent className="w-4 h-4 text-secondary" /> Possui Cupom?</CardTitle></CardHeader>
               <CardContent>
@@ -405,12 +477,24 @@ export default function CarrinhoPage() {
               <CardContent className="space-y-6">
                  <div className="space-y-4">
                     <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Subtotal (Ingressos)</span><span>{formatCurrency(cartTotals.subtotal)}</span></div>
-                    {cartTotals.discount > 0 && <div className="flex justify-between text-xs font-black uppercase text-green-600"><span>Desconto</span><span>-{formatCurrency(cartTotals.discount)}</span></div>}
-                    <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Taxas</span><span>{formatCurrency(cartTotals.fees)}</span></div>
+                    {cartTotals.discount > 0 && <div className="flex justify-between text-xs font-black uppercase text-green-600"><span>Desconto Cupom</span><span>-{formatCurrency(cartTotals.discount)}</span></div>}
+                    <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Taxas Adm.</span><span>{formatCurrency(cartTotals.fees)}</span></div>
+                    {cartTotals.balanceUsed > 0 && (
+                      <div className="flex justify-between text-xs font-black uppercase text-secondary">
+                        <span className="flex items-center gap-1.5"><Coins className="w-3.5 h-3.5" /> Abatimento Saldo Viby</span>
+                        <span>-{formatCurrency(cartTotals.balanceUsed)}</span>
+                      </div>
+                    )}
                     <Separator className="bg-border/60" />
                     <div className="flex justify-between items-center"><span className="text-lg font-black uppercase italic">Total</span><span className="text-2xl font-black text-primary">{formatCurrency(cartTotals.total)}</span></div>
                  </div>
-                 <Button onClick={handleCheckout} disabled={processing || feesLoading || loadingOrgs} className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform gap-3">{processing ? <Loader2 className="w-6 h-6 animate-spin" /> : (cartTotals.total > 0 ? <><CreditCard className="w-6 h-6" /> Pagar via Stripe</> : "Confirmar Reserva")}</Button>
+                 
+                 <Button onClick={handleCheckout} disabled={processing || feesLoading || loadingOrgs} className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform gap-3">
+                    {processing ? <Loader2 className="w-6 h-6 animate-spin" /> : 
+                     (cartTotals.total > 0 ? <><CreditCard className="w-6 h-6" /> Pagar via Stripe</> : 
+                      (useBalance ? <><Wallet className="w-6 h-6" /> Pagar com Saldo Viby</> : "Confirmar Reserva"))}
+                 </Button>
+                 
                  <Button variant="ghost" asChild className="w-full font-bold text-muted-foreground uppercase text-xs tracking-widest"><Link href="/dashboard">Continuar Comprando</Link></Button>
               </CardContent>
            </Card>

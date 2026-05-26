@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -49,6 +50,7 @@ function CheckoutSucessoContent() {
         const userSnap = await getDoc(doc(db, "users", user.uid));
         const userData = userSnap.exists() ? userSnap.data() : null;
 
+        // Se houver saldo usado em uma recarga de anúncio
         if (metadata.type === 'ad_balance_topup') {
           const orgRef = doc(db, "organizations", metadata.orgId);
           const amountToCredit = parseFloat(metadata.baseAmount);
@@ -69,11 +71,32 @@ function CheckoutSucessoContent() {
 
           toast({ title: "Saldo Recarregado!", description: `R$ ${amountToCredit.toFixed(2)} adicionados para anúncios.` });
         }
+        // Se for checkout de carrinho (Ingressos)
         else if (metadata.type === 'cart_checkout' || metadata.registrationId) {
           const regIds = metadata.type === 'cart_checkout' 
             ? metadata.registrationIds.split(",") 
             : [metadata.registrationId];
           
+          // Verificar se houve abatimento de saldo da carteira (parcial)
+          const balanceUsed = parseFloat(metadata.balanceUsed || "0");
+          if (balanceUsed > 0) {
+            const userRef = doc(db, "users", user.uid);
+            await updateDoc(userRef, {
+              walletBalance: increment(-balanceUsed),
+              updatedAt: serverTimestamp()
+            });
+
+            // Registrar transação de carteira
+            await addDoc(collection(db, "wallet_transactions"), {
+              userId: user.uid,
+              amount: balanceUsed,
+              type: 'debit',
+              reason: 'compra_ingresso',
+              description: `Abatimento Checkout: ${regIds.length > 1 ? 'Múltiplos itens' : 'Ingresso'}`,
+              timestamp: serverTimestamp()
+            });
+          }
+
           const [stripeSettingsSnap, feesSettingsSnap, promosSnap] = await Promise.all([
             getDoc(doc(db, 'settings', 'stripe')),
             getDoc(doc(db, 'settings', 'fees')),
@@ -114,7 +137,6 @@ function CheckoutSucessoContent() {
                 const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toLocaleDateString('pt-BR');
 
                 await addDoc(collection(db, "tax_tickets"), {
-                   adId: null, 
                    registrationId: regId,
                    eventId: regData.eventId,
                    eventTitle: regData.eventTitle || "Evento",
