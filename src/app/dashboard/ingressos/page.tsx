@@ -177,8 +177,13 @@ function TicketListItem({ registration, isIncoming = false, isHistorical = false
 
   const isCancelled = registration.status === 'cancelled' || registration.paymentStatus === 'refunded_wallet';
   const totalPaid = registration.price || 0;
-  const refundValue = calculateRefundAmount(totalPaid);
-  const feeRetained = calculateRetainedGatewayFee(totalPaid);
+  
+  // Regra Viby: Devolve o preço de face (ticketBasePrice)
+  const refundValue = registration.ticketBasePrice || 0;
+  const adminFeeNotRefunded = (registration.price || 0) - (registration.ticketBasePrice || 0);
+
+  const eventDate = registration.eventDate?.toDate ? registration.eventDate.toDate() : new Date(registration.eventDate);
+  const isPastEvent = eventDate < new Date();
 
   const handleRefundRequest = async () => {
     if (!user) return;
@@ -264,48 +269,54 @@ function TicketListItem({ registration, isIncoming = false, isHistorical = false
           <div className="flex gap-2">
             {!isCancelled && !isHistorical && !isIncoming && (
               <>
-                <Button size="sm" variant="outline" onClick={handleResendEmail} disabled={isSendingEmail} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-secondary text-secondary">
+                <Button size="sm" variant="outline" onClick={handleResendEmail} title="Reenviar Voucher" disabled={isSendingEmail} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-secondary text-secondary">
                   {isSendingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
                 </Button>
 
-                <Dialog open={isRefundDialogOpen} onOpenChange={setIsRefundDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" variant="ghost" className="h-9 px-3 text-[10px] font-black uppercase rounded-xl text-destructive hover:bg-red-50">
-                      <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Estornar
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="rounded-[2.5rem] max-w-sm">
-                    <DialogHeader>
-                       <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
-                          <XCircle className="w-8 h-8" />
-                       </div>
-                       <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Cancelar Ingresso</DialogTitle>
-                       <DialogDescription className="text-center font-medium">Você receberá o valor pago de volta na sua carteira Viby.</DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                       <div className="p-4 bg-muted/30 rounded-2xl space-y-2">
-                          <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Valor Pago</span> <span>{formatCurrency(totalPaid)}</span></div>
-                          <div className="flex justify-between text-xs font-black text-red-500"><span>Taxas Operacionais</span> <span>-{formatCurrency(feeRetained)}</span></div>
-                          <Separator className="border-dashed" />
-                          <div className="flex justify-between items-center"><span className="text-sm font-black uppercase italic">Saldo a Receber</span> <span className="text-xl font-black text-green-600">{formatCurrency(refundValue)}</span></div>
-                       </div>
-                       <div className="p-3 bg-orange-50 rounded-xl flex gap-2">
-                          <AlertCircle className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
-                          <p className="text-[9px] text-orange-800 font-bold uppercase leading-tight">Taxas financeiras operacionais não são reembolsáveis. O saldo ficará disponível imediatamente após o cancelamento.</p>
-                       </div>
-                    </div>
-                    <DialogFooter>
-                       <Button onClick={handleRefundRequest} disabled={isSaving} className="w-full bg-destructive text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                          {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Confirmar e Estornar"}
-                       </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                {!isPastEvent && !registration.checkedIn && (
+                  <Dialog open={isRefundDialogOpen} onOpenChange={setIsRefundDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="ghost" className="h-9 px-3 text-[10px] font-black uppercase rounded-xl text-destructive hover:bg-red-50">
+                        <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Estornar
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="rounded-[2.5rem] max-w-sm">
+                      <DialogHeader>
+                        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+                            <XCircle className="w-8 h-8" />
+                        </div>
+                        <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Cancelar Ingresso</DialogTitle>
+                        <DialogDescription className="text-center font-medium">O valor de face será devolvido à sua carteira Viby.</DialogDescription>
+                      </DialogHeader>
+                      <div className="py-4 space-y-4">
+                        <div className="p-4 bg-muted/30 rounded-2xl space-y-2">
+                            <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Valor Total Pago</span> <span>{formatCurrency(totalPaid)}</span></div>
+                            <div className="flex justify-between text-xs font-black text-red-500"><span>Taxa de Serviço</span> <span>-{formatCurrency(adminFeeNotRefunded)}</span></div>
+                            <Separator className="border-dashed" />
+                            <div className="flex justify-between items-center"><span className="text-sm font-black uppercase italic text-primary">Estorno p/ Carteira</span> <span className="text-xl font-black text-green-600">{formatCurrency(refundValue)}</span></div>
+                        </div>
+                        <div className="p-3 bg-orange-50 rounded-xl flex gap-2">
+                            <AlertCircle className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
+                            <p className="text-[9px] text-orange-800 font-bold uppercase leading-tight">A taxa administrativa não é reembolsável. O saldo fica disponível instantaneamente após a confirmação.</p>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button onClick={handleRefundRequest} disabled={isSaving} className="w-full bg-destructive text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                            {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Confirmar e Estornar"}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
 
                 <Button size="sm" className="h-9 px-4 text-[10px] font-black uppercase rounded-xl bg-primary text-white" asChild>
                   <Link href={`/dashboard/ingressos/${registration.id}/voucher`}><QrCode className="w-3.5 h-3.5 mr-1.5" /> Voucher</Link>
                 </Button>
               </>
+            )}
+            
+            {isPastEvent && !isCancelled && (
+              <Badge variant="secondary" className="h-9 rounded-xl px-4 font-black uppercase text-[9px] opacity-40">Evento Passado</Badge>
             )}
           </div>
         </div>

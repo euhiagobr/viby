@@ -16,15 +16,11 @@ function getVibyDb() {
       projectId: firebaseConfig.projectId,
     });
   }
-  // No Firebase Admin SDK, o acesso a bancos nomeados é feito através da instância do Firestore
-  return admin.firestore().databaseId === 'eventosviby' 
-    ? admin.firestore() 
-    : admin.firestore(); // Em ambientes de protótipo, usamos a instância padrão ou configurada via env
+  return admin.firestore();
 }
 
 /**
  * Processa o estorno de um ingresso para a carteira Viby.
- * Segue a regra de retenção de taxa financeira (4.99% + R$ 1,00).
  */
 export async function processTicketRefund(registrationId: string, executorUid: string, reason: string) {
   const db = getVibyDb();
@@ -38,30 +34,26 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       const regData = regSnap.data()!;
 
       // --- VALIDAÇÃO DE SEGURANÇA MANUAL ---
-      // Verificamos se o executor tem permissão para realizar esta ação
       const isOwner = regData.userId === executorUid;
+      const userSnap = await transaction.get(db.collection("users").doc(executorUid));
+      const isAdmin = userSnap.exists && userSnap.data()?.role === 'admin';
       
-      let isAuthorized = isOwner;
+      const memberSnap = await transaction.get(
+        db.collection("organizations").doc(regData.organizationId).collection("members").doc(executorUid)
+      );
+      const isOrgManager = memberSnap.exists && ['owner', 'admin'].includes(memberSnap.data()?.role);
 
-      if (!isAuthorized) {
-        // Verifica se o executor é admin global
-        const userSnap = await transaction.get(db.collection("users").doc(executorUid));
-        if (userSnap.exists && userSnap.data()?.role === 'admin') {
-          isAuthorized = true;
-        }
+      if (!isOwner && !isAdmin && !isOrgManager) {
+        throw new Error("Você não tem permissão para realizar este estorno.");
       }
 
-      if (!isAuthorized) {
-        // Verifica se o executor é admin/owner da organização do evento
-        const memberSnap = await transaction.get(
-          db.collection("organizations").doc(regData.organizationId).collection("members").doc(executorUid)
-        );
-        if (memberSnap.exists && ['owner', 'admin'].includes(memberSnap.data()?.role)) {
-          isAuthorized = true;
+      // --- VALIDAÇÃO DE DATA (Trava para Comprador) ---
+      if (isOwner && !isAdmin && !isOrgManager) {
+        const eventDate = regData.eventDate?.toDate ? regData.eventDate.toDate() : new Date(regData.eventDate);
+        if (eventDate < new Date()) {
+          throw new Error("Não é possível estornar ingressos de eventos que já iniciaram ou terminaram.");
         }
       }
-
-      if (!isAuthorized) throw new Error("Você não tem permissão para realizar este estorno.");
 
       // --- VALIDAÇÃO DE STATUS ---
       if (regData.status === 'cancelled' || regData.paymentStatus === 'refunded_wallet') {
@@ -76,7 +68,6 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       const ticketBasePrice = regData.ticketBasePrice || 0;
 
       if (totalPaid <= 0) {
-        // Ingresso gratuito: apenas cancela
         transaction.update(regRef, {
           status: 'cancelled',
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -87,9 +78,7 @@ export async function processTicketRefund(registrationId: string, executorUid: s
         return { success: true, isFree: true };
       }
 
-      // Cálculo de Devolução (Regra: Valor Nominal do Ingresso)
-      // O sistema devolve o ticketBasePrice para o usuário.
-      // A taxa administrativa fica com a plataforma.
+      // Devolução do Valor de Face (ticketBasePrice)
       const refundAmount = ticketBasePrice;
       const userId = regData.userId;
 
@@ -106,14 +95,14 @@ export async function processTicketRefund(registrationId: string, executorUid: s
         refundAmount: refundAmount
       });
 
-      // 2. Atualiza Saldo da Carteira (Coleção wallets)
+      // 2. Atualiza Saldo da Carteira (Ledger)
       const walletRef = db.collection("wallets").doc(userId);
       transaction.set(walletRef, {
         balance: admin.firestore.FieldValue.increment(refundAmount),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
 
-      // 3. Legado/Compatibilidade: Sincroniza walletBalance no perfil do usuário
+      // 3. Sincroniza walletBalance no perfil do usuário
       const userRef = db.collection("users").doc(userId);
       transaction.update(userRef, {
         walletBalance: admin.firestore.FieldValue.increment(refundAmount),
