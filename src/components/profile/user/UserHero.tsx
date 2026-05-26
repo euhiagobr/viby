@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { Share2, MapPin, BadgeCheck, UserPlus, Heart, MessageCircle, Settings } from "lucide-react";
+import { Share2, MapPin, BadgeCheck, UserPlus, Heart, MessageCircle, Settings, Edit, Lock, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +35,10 @@ export function UserHero({
     }
   };
 
+  const showStats = isOwner || !profile.privacy?.hideStats;
+  const showGamification = isOwner || !profile.privacy?.hideGamification;
+  const showFollowers = isOwner || !profile.privacy?.hideFollowers;
+
   return (
     <section className="relative w-full">
       {/* Banner / Cover */}
@@ -60,9 +64,11 @@ export function UserHero({
                 <AvatarImage src={profile.avatar} className="object-cover" />
                 <AvatarFallback className="text-4xl font-black bg-muted">{profile.name?.charAt(0)}</AvatarFallback>
               </Avatar>
-              <div className="absolute -bottom-2 -right-2 bg-secondary text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-xl border-4 border-background">
-                 Lv. {gamification?.level || 1}
-              </div>
+              {showGamification && (
+                <div className="absolute -bottom-2 -right-2 bg-secondary text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-xl border-4 border-background">
+                   Lv. {gamification?.level || 1}
+                </div>
+              )}
             </motion.div>
 
             <div className="space-y-3 pb-2">
@@ -72,12 +78,20 @@ export function UserHero({
                     {profile.name || "Membro Viby"}
                   </h1>
                   {profile.isVerified && <BadgeCheck className="w-6 h-6 fill-blue-500 text-white" />}
+                  {isOwner && (
+                    <Badge variant="outline" className="text-[8px] font-black uppercase border-secondary/20 text-secondary bg-secondary/5">Seu Perfil</Badge>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
                   <span className="text-sm font-bold text-secondary uppercase tracking-widest">@{profile.username}</span>
-                  {(profile.city || profile.state) && (
+                  {!profile.privacy?.hideLocation && (profile.city || profile.state) && (
                     <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-muted-foreground bg-muted/50 px-2 py-1 rounded-lg">
                       <MapPin className="w-3 h-3" /> {profile.city}{profile.state ? `, ${profile.state}` : ""}
+                    </div>
+                  )}
+                  {isOwner && profile.privacy?.hideLocation && (
+                    <div className="flex items-center gap-1.5 text-[9px] font-black uppercase text-orange-600 bg-orange-50 px-2 py-1 rounded-lg">
+                      <EyeOff className="w-3 h-3" /> Localização Privada
                     </div>
                   )}
                 </div>
@@ -90,16 +104,20 @@ export function UserHero({
               )}
 
               <div className="flex flex-wrap justify-center md:justify-start items-center gap-6 pt-2">
-                <StatItem label="Seguidores" value={followersCount} />
-                <StatItem label="Seguindo" value={followingCount} />
-                <StatItem label="Rolês" value={eventsCount} />
+                {showFollowers && <StatItem label="Seguidores" value={followersCount} />}
+                {isOwner && <StatItem label="Seguindo" value={followingCount} />}
+                {showStats && <StatItem label="Experiências" value={eventsCount} />}
               </div>
             </div>
           </div>
 
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center justify-center gap-3 pb-2">
-            {!isOwner && (
+            {isOwner ? (
+              <Button asChild className="bg-primary text-white font-black uppercase italic h-12 px-8 rounded-2xl shadow-xl hover:scale-105 transition-all gap-2">
+                 <Link href="/dashboard/perfil/editar"><Edit className="w-4 h-4" /> Editar Perfil</Link>
+              </Button>
+            ) : (
               <>
                 <Button className="bg-secondary text-white font-black uppercase italic h-12 px-8 rounded-2xl shadow-xl shadow-secondary/20 hover:scale-105 transition-all gap-2">
                    <UserPlus className="w-4 h-4" /> Seguir
@@ -108,11 +126,6 @@ export function UserHero({
                    <MessageCircle className="w-5 h-5" />
                 </Button>
               </>
-            )}
-            {isOwner && (
-              <Button variant="outline" size="icon" className="h-12 w-12 rounded-2xl border-2" asChild>
-                <Link href="/dashboard/perfil/editar"><Settings className="w-5 h-5" /></Link>
-              </Button>
             )}
             <Button variant="outline" size="icon" className="h-12 w-12 rounded-2xl border-2" onClick={handleShare}>
               <Share2 className="w-5 h-5" />

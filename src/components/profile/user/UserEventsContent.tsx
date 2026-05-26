@@ -1,10 +1,11 @@
+
 "use client";
 
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, MapPin, Ticket, Heart, Sparkles, Clock, CheckCircle2 } from "lucide-react";
+import { Calendar, MapPin, Ticket, Heart, Sparkles, Clock, CheckCircle2, Lock, EyeOff } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -27,11 +28,33 @@ export function UserEventsContent({ registrations, isOwner = false }: UserEvents
     return d < now || r.checkedIn;
   }) || [];
 
+  // LGPD: Don't show specific events to anyone but the owner
+  if (!isOwner) {
+    return (
+      <div className="space-y-10 sticky top-24">
+        <section className="space-y-6">
+          <div className="flex items-center justify-between px-2">
+             <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Privacidade</h2>
+          </div>
+          <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-8 text-center space-y-4">
+             <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto text-orange-500">
+                <Lock className="w-6 h-6" />
+             </div>
+             <div className="space-y-1">
+                <p className="text-xs font-black uppercase italic tracking-tighter text-primary">Agenda Privada</p>
+                <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">O histórico de rolês e próximos planos deste usuário são protegidos.</p>
+             </div>
+          </Card>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-10 sticky top-24">
       <section className="space-y-6">
         <div className="flex items-center justify-between px-2">
-           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Próximas Paradas</h2>
+           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Sua Agenda</h2>
            <Badge variant="outline" className="rounded-full text-[9px] font-black uppercase">{upcoming.length}</Badge>
         </div>
         
@@ -48,7 +71,7 @@ export function UserEventsContent({ registrations, isOwner = false }: UserEvents
 
       <section className="space-y-6">
         <div className="flex items-center justify-between px-2">
-           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Histórico</h2>
+           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Histórico Pessoal</h2>
         </div>
         
         <div className="space-y-4">
@@ -56,7 +79,9 @@ export function UserEventsContent({ registrations, isOwner = false }: UserEvents
              <EventCompactCard key={reg.id} registration={reg} isPast />
            ))}
            {past.length > 3 && (
-             <Button variant="ghost" className="w-full h-10 rounded-xl text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:bg-muted">Ver todos os {past.length} rolês</Button>
+             <Button asChild variant="ghost" className="w-full h-10 rounded-xl text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:bg-muted">
+                <Link href="/dashboard/ingressos">Ver todos os {past.length} rolês</Link>
+             </Button>
            )}
         </div>
       </section>

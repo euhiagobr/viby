@@ -5,7 +5,7 @@ import * as React from "react";
 import { useFirestore, useAuth, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase";
 import { doc, getDoc, collection, query, where, orderBy, limit } from "firebase/firestore";
 import { signOut } from "firebase/auth";
-import { Loader2, LogOut, User as UserIcon } from "lucide-react";
+import { Loader2, LogOut, User as UserIcon, Lock, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -134,15 +134,15 @@ export default function ProfilePageClient({ username }: { username: string }) {
   const { data: userStats } = useDoc<any>(userStatsRef);
 
   const userActivitiesQuery = useMemoFirebase(() => {
-    if (!db || !profileData?.id || profileType !== 'user') return null;
+    if (!db || !profileData?.id || profileType !== 'user' || !isOwner) return null;
     return query(collection(db, "xp_logs"), where("userId", "==", profileData.id), orderBy("timestamp", "desc"), limit(15));
-  }, [db, profileData?.id, profileType]);
+  }, [db, profileData?.id, profileType, isOwner]);
   const { data: activities } = useCollection<any>(userActivitiesQuery);
 
   const userRegistrationsQuery = useMemoFirebase(() => {
-    if (!db || !profileData?.id || profileType !== 'user') return null;
+    if (!db || !profileData?.id || profileType !== 'user' || !isOwner) return null;
     return query(collection(db, "registrations"), where("userId", "==", profileData.id));
-  }, [db, profileData?.id, profileType]);
+  }, [db, profileData?.id, profileType, isOwner]);
   const { data: userRegistrations } = useCollection<any>(userRegistrationsQuery);
 
   if (loading) {
@@ -162,6 +162,8 @@ export default function ProfilePageClient({ username }: { username: string }) {
       </div>
     );
   }
+
+  const isGamificationVisible = isOwner || !profileData.privacy?.hideGamification;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white font-body">
@@ -245,8 +247,15 @@ export default function ProfilePageClient({ username }: { username: string }) {
                 
                 <div className="container mx-auto px-4 max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-12">
                    <div className="lg:col-span-8 space-y-20">
-                      <UserGamification gamification={gamification} />
-                      <UserSocialContent profile={profileData} stats={userStats} activities={activities} />
+                      {isGamificationVisible ? (
+                        <UserGamification gamification={gamification} />
+                      ) : (
+                        <div className="p-12 border-2 border-dashed border-border/60 rounded-[3rem] text-center flex flex-col items-center gap-4 bg-muted/10">
+                          <Lock className="w-10 h-10 text-muted-foreground opacity-20" />
+                          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">O progresso cultural deste usuário é privado.</p>
+                        </div>
+                      )}
+                      <UserSocialContent profile={profileData} stats={userStats} activities={activities} isOwner={isOwner} />
                    </div>
                    <aside className="lg:col-span-4 space-y-12">
                       <UserEventsContent registrations={userRegistrations} isOwner={isOwner} />
