@@ -239,7 +239,7 @@ export default function CadastroPage() {
         siteName: siteName
       });
 
-      toast({ title: "Conta criada!", description: `Bem-vindo ao ${siteName}.` })
+      toast({ title: "Conta criada!", description: `Bem-vindo à ${siteName}.` })
       router.push("/dashboard")
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') {

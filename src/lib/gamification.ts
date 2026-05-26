@@ -14,7 +14,7 @@ export interface LevelConfig {
 }
 
 export const DEFAULT_LEVELS: LevelConfig[] = [
-  { id: 'l1', level: 1, name: 'Novato', xpRequired: 0, icon: 'Zap', color: '#94a3b8', description: 'Iniciando sua jornada no Viby.' },
+  { id: 'l1', level: 1, name: 'Novato', xpRequired: 0, icon: 'Zap', color: '#94a3b8', description: 'Iniciando sua jornada na Viby.' },
   { id: 'l5', level: 5, name: 'Explorador', xpRequired: 500, icon: 'Globe', color: '#3b82f6', description: 'Descobrindo novos horizontes culturais.' },
   { id: 'l10', level: 10, name: 'Rolezeiro', xpRequired: 1500, icon: 'MapPin', color: '#8b5cf6', description: 'Presente nos melhores eventos da cidade.' },
   { id: 'l20', level: 20, name: 'Influente', xpRequired: 4000, icon: 'Star', color: '#f59e0b', description: 'Referência de estilo e presença.' },

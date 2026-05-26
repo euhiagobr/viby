@@ -53,7 +53,7 @@ export default function PlanoPage() {
         <CardContent className="p-10 md:p-16 flex flex-col md:flex-row items-center gap-10">
           <div className="flex-1 space-y-6">
             <Badge className="bg-secondary text-white font-black uppercase text-[10px] px-3">Acesso Total Liberado</Badge>
-            <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-tight">O Viby agora é para todos.</h2>
+            <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-tight">A Viby agora é para todos.</h2>
             <p className="text-lg opacity-80 leading-relaxed font-medium">
               Removemos os limites de planos. Agora você pode criar quantas marcas e eventos desejar, sem custos fixos mensais. Você paga apenas quando vende.
             </p>

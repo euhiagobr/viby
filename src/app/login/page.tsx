@@ -74,10 +74,10 @@ export default function LoginPage() {
       const userDoc = await getDoc(doc(db, "users", userCredential.user.uid))
       if (!userDoc.exists() || userDoc.data()?.platform !== "viby") {
         await signOut(auth)
-        throw new Error(`Esta conta não pertence ao ${siteName}.`)
+        throw new Error(`Esta conta não pertence à ${siteName}.`)
       }
 
-      toast({ title: "Login realizado!", description: `Bem-vindo de volta ao ${siteName}.` })
+      toast({ title: "Login realizado!", description: `Bem-vindo de volta à ${siteName}.` })
       router.push("/dashboard")
     } catch (error: any) {
       toast({
@@ -182,7 +182,7 @@ export default function LoginPage() {
               </div>
               <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 font-black h-14 rounded-2xl shadow-xl shadow-secondary/20 uppercase italic mt-4" disabled={loading}>
                 {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Entrar no {siteName}
+                Entrar na {siteName}
               </Button>
             </form>
           </CardContent>

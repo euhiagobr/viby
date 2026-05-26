@@ -1,3 +1,4 @@
+
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -209,7 +210,7 @@ export async function sendCartPendingEmail(data: any) {
       <div style="font-family: 'Poppins', sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 32px; overflow: hidden; border: 1px solid #e2e8f0; padding: 40px;">
         <h1 style="color: #2563eb; font-style: italic; text-transform: uppercase;">Viby Club</h1>
         <h2>Olá, ${data.userName}! 👋</h2>
-        <p>Recebemos a sua intenção de compra no valor de <strong>${formatBRL(data.totalAmount)}</strong>.</p>
+        <p>Recebemos a sua intenção de compra na <strong>${data.siteName}</strong> no valor de <strong>${formatBRL(data.totalAmount)}</strong>.</p>
         <p>Se você já concluiu o pagamento na aba aberta pelo Stripe, seu ingresso aparecerá no painel em alguns instantes.</p>
         <div style="margin-top: 30px;">
           <p style="font-size: 12px; color: #64748b; font-weight: bold; text-transform: uppercase;">Itens no Pedido:</p>
@@ -227,7 +228,7 @@ export async function sendCartPendingEmail(data: any) {
       sender: "Viby Checkout",
       recipientName: data.userName,
       recipientEmail: data.to,
-      subject: `🛒 Resumo do seu pedido no ${data.siteName}`,
+      subject: `🛒 Resumo do seu pedido na ${data.siteName}`,
       content: htmlContent,
       type: "order_summary"
     });
@@ -242,7 +243,7 @@ export async function sendCartPendingEmail(data: any) {
     await transporter.sendMail({
       from: `"Viby Club" <${smtpUser}>`,
       to: data.to,
-      subject: `🛒 Resumo do seu pedido no ${data.siteName}`,
+      subject: `🛒 Resumo do seu pedido na ${data.siteName}`,
       html: htmlContent,
     });
 
@@ -260,7 +261,7 @@ export async function sendWelcomeEmail(data: any) {
       <div style="font-family: 'Poppins', sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 32px; overflow: hidden; border: 1px solid #e2e8f0; padding: 40px;">
         <h1 style="color: #2563eb; font-style: italic; text-transform: uppercase;">Viby Club</h1>
         <h1>Olá, ${data.userName}! 👋</h1>
-        <p>Seja muito bem-vindo ao <strong>VIBY.CLUB</strong>!</p>
+        <p>Seja muito bem-vindo à <strong>VIBY.CLUB</strong>!</p>
         <p>Agora você faz parte de uma comunidade exclusiva focada em experiências culturais transformadoras.</p>
         <div style="text-align: center; margin: 40px 0;">
           <a href="https://viby.club/dashboard" style="display: inline-block; background: #2563eb; color: white !important; padding: 18px 36px; text-decoration: none; border-radius: 16px; font-weight: bold; font-size: 16px;">Explorar Painel</a>
@@ -304,7 +305,7 @@ export async function sendTeamInvitationEmail(data: any) {
       <div style="font-family: 'Poppins', sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 32px; overflow: hidden; border: 1px solid #e2e8f0; padding: 40px;">
         <h1 style="color: #2563eb; font-style: italic; text-transform: uppercase;">Viby Club</h1>
         <h2>Convite para Equipe 🤝</h2>
-        <p>Olá! <strong>${data.inviterName}</strong> convidou você para fazer parte da equipe de <strong>${data.orgName}</strong> como <strong>${data.role}</strong>.</p>
+        <p>Olá! <strong>${data.inviterName}</strong> convidou você para fazer parte da equipe da <strong>${data.orgName}</strong> como <strong>${data.role}</strong>.</p>
         <div style="text-align: center; margin: 40px 0;">
           <a href="https://viby.club/dashboard/solicitacoes" style="display: inline-block; background: #2563eb; color: white !important; padding: 18px 36px; text-decoration: none; border-radius: 16px; font-weight: bold; font-size: 16px;">Ver Solicitação</a>
         </div>
