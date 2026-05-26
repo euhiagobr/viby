@@ -38,14 +38,18 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   }, [db, user])
   const { data: unreadNotifications } = useCollection<any>(unreadQuery)
 
-  // LOGICA DE REATIVAÇÃO AUTOMÁTICA
+  // LÓGICA DE PROTEÇÃO DE ROTA E REATIVAÇÃO AUTOMÁTICA
   React.useEffect(() => {
-    if (!db || !user || authLoading) {
-      if (!authLoading) setCheckingAccount(false)
+    if (authLoading) return
+
+    // Redireciona se não estiver logado
+    if (!user) {
+      router.replace("/login")
       return
     }
 
     const checkReactivation = async () => {
+      if (!db || !user) return
       try {
         const userRef = doc(db, "users", user.uid)
         const userSnap = await getDoc(userRef)
@@ -74,9 +78,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     }
 
     checkReactivation()
-  }, [db, user, authLoading])
+  }, [db, user, authLoading, router])
 
-  if (authLoading || loading || checkingAccount) {
+  if (authLoading || checkingAccount || !user) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-secondary" />
