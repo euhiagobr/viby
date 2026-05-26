@@ -693,7 +693,7 @@ function LocationSection({ event }: { event: any }) {
           </Button>
           <Button variant="outline" className="flex-1 rounded-xl h-12 font-bold uppercase text-[10px] gap-2 border-border text-primary hover:bg-muted" asChild>
             <a href={wazeUrl} target="_blank" rel="noopener noreferrer">
-               <img src="https://upload.wikimedia.org/wikipedia/commons/6/66/Waze_icon.svg" className="w-4 h-4" alt="Waze" />
+               <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" className="w-4 h-4"><path d="M466.8 190.2c-10.4-44.4-40.2-82-83.8-106.1-43.6-24.1-94.5-31.4-143.5-20.7-49 10.7-91.8 39-120.7 79.9-28.9 40.9-42.3 90.7-37.7 140.2 4.6 49.5 26.6 95 62 128.2 35.4 33.2 81.3 53.6 129.2 57.5 4.8.4 9.6.6 14.4.6 47.9 0 94-14.8 132.8-42.1 3.2-2.3 6.3-4.7 9.3-7.2 26.4-21.7 46.2-50.6 56.4-83.5 10.2-32.9 12.1-68.1 5.4-101.5l3.1-4.7c10.3-15.5 10.3-35.3 0-50.8l-3-4.7zm-215 225.1c-31.5 0-61.1-10.4-83.3-29.3-2.1-1.8-4.1-3.6-6-5.5-23.7-22.3-38.4-52.7-41.5-85.9-3.1-33.2 5.9-66.5 25.3-94 19.4-27.4 48.1-46.4 80.9-53.6 32.8-7.2 67-.2 96.2 16 29.2 16.2 49.2 41.3 56.2 71.1 4.5 22.4 3.2 46-3.6 68.1-6.8 22.1-20.1 41.5-37.8 56.1-2 1.6-4.1 3.2-6.2 4.7-26 18.3-56.6 28.2-88.6 28.2l8.4 24.2h-17zm134.4-78.2c-5.5 6.4-12.7 11.2-20.8 14.1-8.1 2.9-16.9 3.5-25.3 1.8-8.4-1.7-16.2-5.4-22.4-10.8s-10.8-12.7-13.3-21c-2.5-8.3-2.6-17.1-.3-25.5 2.3-8.4 6.9-15.9 13.1-21.5s13.9-9.2 22.3-10.4c8.4-1.2 17-.1 24.9 3.1 7.9 3.2 14.8 8.6 20 15.5s8.4 15.2 9.2 23.9c.8 8.7-1 17.5-5.2 25.3-4.2 7.8-10.5 14.3-18.1 19l4.5 13.5-13.4-7zm-143.5 0c-5.5 6.4-12.7 11.2-20.8 14.1-8.1 2.9-16.9 3.5-25.3 1.8-8.4-1.7-16.2-5.4-22.4-10.8s-10.8-12.7-13.3-21c-2.5-8.3-2.6-17.1-.3-25.5 2.3-8.4 6.9-15.9 13.1-21.5s13.9-9.2 22.3-10.4c8.4-1.2 17-.1 24.9 3.1 7.9 3.2 14.8 8.6 20 15.5s8.4 15.2 9.2 23.9c.8 8.7-1 17.5-5.2 25.3-4.2 7.8-10.5 14.3-18.1 19l4.5 13.5-13.4-7z" fill="#33CCFF"/></svg>
                Abrir no Waze
             </a>
           </Button>
@@ -850,6 +850,14 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     toast({ title: 'Adicionado ao carrinho!' });
   };
 
+  const handleShare = () => {
+    if (typeof window !== 'undefined') {
+      const url = window.location.href;
+      navigator.clipboard.writeText(url);
+      toast({ title: "Link copiado!", description: "Compartilhe o evento com seus amigos." });
+    }
+  }
+
   const totals = React.useMemo(() => {
     let subtotal = 0;
     let fees = 0;
@@ -890,6 +898,9 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 <ShoppingCart className="w-5 h-5" />
                 {totalCount > 0 && <span className="absolute -top-2 -right-2 bg-secondary text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-lg border-2 border-white">{totalCount}</span>}
               </Link>
+            </Button>
+            <Button variant="outline" size="icon" className="rounded-full border-2" onClick={handleShare}>
+              <Share2 className="w-5 h-5" />
             </Button>
             {user ? (
                <Avatar className="h-10 w-10 border-2 border-secondary shadow-sm">
