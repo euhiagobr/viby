@@ -70,6 +70,7 @@ export function AppSidebar() {
   const personalItems = [
     { title: "Explorar", url: "/dashboard", icon: Globe },
     { title: "Meus Ingressos", url: "/dashboard/ingressos", icon: Ticket },
+    { title: "Minha Carteira", url: "/dashboard/carteira", icon: Wallet },
     { title: "Minhas Organizações", url: "/dashboard/organizacoes", icon: Building2 },
     { title: "Solicitações", url: "/dashboard/solicitacoes", icon: UserCheck, badge: pendingInvitations.length > 0 ? pendingInvitations.length : null },
     { title: "Seguindo", url: "/dashboard/seguindo", icon: Heart },

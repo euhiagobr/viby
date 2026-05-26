@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -18,9 +19,23 @@
         "state": { "type": "string" },
         "country": { "type": "string" },
         "plan": { "type": "string", "enum": ["free", "pro", "top"] },
+        "walletBalance": { "type": "number", "description": "Saldo em reais disponível para uso na plataforma" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "username", "email", "plan"]
+    },
+    "WalletTransaction": {
+      "title": "Transação de Carteira",
+      "description": "Registro de crédito ou débito na carteira do usuário",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["credit", "debit"] },
+        "reason": { "type": "string", "description": "Motivo (ex: estorno_ingresso, compra_ingresso)" },
+        "description": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
     },
     "InternalExpense": {
       "title": "Despesa Interna",
@@ -45,18 +60,6 @@
         "status": { "type": "string", "enum": ["Pendente", "Concluído", "Bloqueado"] },
         "bankDetails": { "type": "object" }
       }
-    },
-    "TaxTicket": {
-      "title": "Lançamento Fiscal de Ingresso",
-      "description": "Registro detalhado de impostos e taxas por venda",
-      "type": "object",
-      "properties": {
-        "eventTitle": { "type": "string" },
-        "totalFacePrice": { "type": "number" },
-        "vibyNetProfit": { "type": "number" },
-        "taxAmount": { "type": "number" },
-        "status": { "type": "string" }
-      }
     }
   },
   "auth": {
@@ -67,21 +70,9 @@
       "schema": "User",
       "description": "Perfis de usuários"
     },
-    "/internal_expenses/{expenseId}": {
-      "schema": "InternalExpense",
-      "description": "Despesas operacionais da Viby"
-    },
-    "/payout_requests/{payoutId}": {
-      "schema": "PayoutRequest",
-      "description": "Gestão de saques dos produtores"
-    },
-    "/tax_tickets/{taxId}": {
-      "schema": "TaxTicket",
-      "description": "Livro fiscal de ingressos"
-    },
-    "/tax_ads/{adTaxId}": {
-      "schema": "TaxAd",
-      "description": "Livro fiscal de anúncios"
+    "/wallet_transactions/{txId}": {
+      "schema": "WalletTransaction",
+      "description": "Extrato de créditos e débitos dos usuários"
     }
   }
 }
