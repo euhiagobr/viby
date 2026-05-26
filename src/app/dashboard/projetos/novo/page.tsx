@@ -965,7 +965,7 @@ export default function NovoEventoPage() {
                                     <Switch checked={t.requiresProof} onCheckedChange={v => { const n = [...singleTicketTypes]; n[ti].requiresProof = v; setSingleTicketTypes(n); }} />
                                  </div>
                                  <div className="col-span-1 flex justify-end">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-full hover:bg-destructive/10" onClick={() => setSingleTicketTypes(singleTicketTypes.filter((_, i) => i !== ti))}>
+                                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-full hover:bg-destructive/10" onClick={() => setSingleTicketTypes(singleTicketTypes.filter((_, i) => i !== ti))}>
                                        <Trash2 className="w-4 h-4" />
                                     </Button>
                                  </div>
@@ -1084,7 +1084,7 @@ export default function NovoEventoPage() {
                                              <Switch checked={t.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} />
                                           </div>
                                           <div className="col-span-1 flex justify-end">
-                                             <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive rounded-full" onClick={() => { const n = [...batches]; n[bi].ticketTypes.splice(ti,1); setBatches(n); }}>
+                                             <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive rounded-full" onClick={() => { const n = [...batches]; n[bi].ticketTypes.splice(ti, 1); setBatches(n); }}>
                                                 <Trash2 className="w-3.5 h-3.5" />
                                              </Button>
                                           </div>
@@ -1163,7 +1163,7 @@ export default function NovoEventoPage() {
                                        <Input type="number" step="0.01" value={t.price} onChange={e => updateTicketTypeInSectorField(si, bi, ti, 'price', parseFloat(e.target.value) || 0)} className="rounded-lg h-9 font-black text-secondary" />
                                     </div>
                                     <div className="col-span-2 flex justify-end pt-3">
-                                       {ti > 0 && <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { const n = [...sectorsWithBatches]; n[si].batches[bi].ticketTypes.splice(ti,1); setSectorsWithBatches(n); }}><Trash2 className="w-3 h-3" /></Button>}
+                                       {ti > 0 && <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { const n = [...sectorsWithBatches]; n[si].batches[bi].ticketTypes.splice(ti, 1); setSectorsWithBatches(n); }}><Trash2 className="w-3 h-3" /></Button>}
                                     </div>
                                  </div>
                                ))}
@@ -1181,7 +1181,7 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
-        <Button type="submit" disabled={loading} className="w-full h-16 bg-secondary text-white font-black h-16 rounded-[2rem] shadow-xl uppercase italic">
+        <Button type="submit" disabled={loading} className="w-full h-16 bg-secondary text-white font-black text-xl rounded-[2rem] shadow-xl uppercase italic">
           {loading ? <Loader2 className="animate-spin mr-2" /> : "Publicar Evento"}
         </Button>
       </form>
@@ -1194,7 +1194,6 @@ export default function NovoEventoPage() {
                   <Percent className="w-6 h-6" />
                </div>
                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Meia-Entrada Automática</DialogTitle>
-               <DialogDescription className="text-center font-medium">Qual a porcentagem da capacidade total você deseja reservar para meia-entrada?</DialogDescription>
             </DialogHeader>
             <div className="py-6 space-y-6">
                <div className="relative">
@@ -1213,7 +1212,6 @@ export default function NovoEventoPage() {
                   <Percent className="w-6 h-6" />
                </div>
                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Meia por Lote</DialogTitle>
-               <DialogDescription className="text-center font-medium">Defina a porcentagem de cota de meia-entrada para este lote específico.</DialogDescription>
             </DialogHeader>
             <div className="py-6 space-y-4">
                <div className="relative">
