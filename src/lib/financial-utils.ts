@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Utilitários financeiros oficiais do Viby.
  * Implementa aritmética de centavos para precisão monetária e regras de retenção de taxas.
@@ -82,7 +83,7 @@ export function calculateFinancialBreakdown(facePrice: number, globalFees?: any,
 
   // 2. CÁLCULO POR DENTRO (Gross-up)
   // Final = Preço / (1 - Taxa)
-  // Garantimos que a taxa administrativeFeeAmount seja exatamente a diferença.
+  // Garantimos precisão centesimal para evitar disparidades no checkout
   const customerFinalPrice = Number((price / (1 - buyerFeePercent)).toFixed(2));
   const administrativeFeeAmount = Number((customerFinalPrice - price).toFixed(2));
   

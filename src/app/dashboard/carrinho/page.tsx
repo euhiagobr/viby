@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -129,7 +130,6 @@ export default function CarrinhoPage() {
       fees += res.administrativeFeeAmount * item.quantity;
     });
 
-    // Precisão centesimal para evitar erros de arredondamento na soma total
     const totalBeforeBalance = Number(((subtotal - discount) + fees).toFixed(2));
     
     let balanceUsed = 0;
@@ -185,6 +185,7 @@ export default function CarrinhoPage() {
 
     setProcessing(true)
     try {
+      // 1. Determinar se é um pedido gratuito ou pago totalmente por saldo
       const isFullBalanceOrder = cartTotals.total <= 0 && useBalance;
       const isFreeOrder = cartTotals.total <= 0 && !useBalance;
 
@@ -194,6 +195,7 @@ export default function CarrinhoPage() {
       const totalQtyEligible = items.reduce((acc, i) => acc + (appliedCoupon && i.eventId === appliedCoupon.eventId ? i.quantity : 0), 0);
       const discountPerUnit = totalQtyEligible > 0 ? (cartTotals.discount / totalQtyEligible) : 0;
 
+      // Se for pagamento integral via saldo, realizamos a transação agora
       if (isFullBalanceOrder) {
         await runTransaction(db, async (transaction) => {
           const userRef = doc(db, "users", user.uid);
@@ -219,6 +221,7 @@ export default function CarrinhoPage() {
         });
       }
 
+      // 2. Gerar Ingressos como "Pendente" (ou Disponível se grátis/saldo)
       for (const item of items) {
         const isEligibleForDiscount = appliedCoupon && item.eventId === appliedCoupon.eventId;
         const currentItemDiscount = isEligibleForDiscount ? discountPerUnit : 0;
@@ -288,6 +291,7 @@ export default function CarrinhoPage() {
           }
         }
 
+        // Se não for pago apenas com saldo, montamos os itens do Stripe
         if (!isFreeOrder && !isFullBalanceOrder) {
           lineItems.push({
             price_data: {
@@ -308,6 +312,7 @@ export default function CarrinhoPage() {
         }
       }
 
+      // 3. Finalização
       if (isFreeOrder || isFullBalanceOrder) {
         clearCart();
         toast({ 
@@ -316,7 +321,9 @@ export default function CarrinhoPage() {
         });
         router.push("/dashboard/ingressos");
       } else {
+        // Se houver saldo parcial, forçamos o uso do total consolidado no Stripe
         const useUnifiedPayment = cartTotals.balanceUsed > 0;
+        
         const { url } = await createCheckoutSession({
           eventId: "multiple", 
           eventTitle: items.length > 1 ? `Inscrição: ${items.length} itens` : items[0].eventTitle,
@@ -325,6 +332,8 @@ export default function CarrinhoPage() {
           userName: profile?.name || user.displayName || "Usuário", 
           userEmail: user.email!,
           totalAmount: Math.round(cartTotals.total * 100),
+          // IMPORTANTE: Se usar saldo, enviamos apenas o residual como valor único.
+          // Se NÃO usar saldo, enviamos os lineItems individuais para melhor visualização no Stripe.
           lineItems: useUnifiedPayment ? undefined : lineItems, 
           metadata: { 
             type: "cart_checkout",
