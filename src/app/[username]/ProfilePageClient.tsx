@@ -2,48 +2,56 @@
 "use client";
 
 import * as React from "react";
-import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useDoc } from "@/firebase";
-import { doc, getDoc, collection, query, where } from "firebase/firestore";
+import { useFirestore, useAuth, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase";
+import { doc, getDoc, collection, query, where, orderBy, limit } from "firebase/firestore";
 import { signOut } from "firebase/auth";
-import { Loader2, Users, LogOut, User as UserIcon } from "lucide-react";
+import { Loader2, LogOut, User as UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
+import Image from "next/image";
 
-// Components
+// Components - Organization
 import { OrganizerHero } from "@/components/organizer/OrganizerHero";
 import { OrganizerEvents } from "@/components/organizer/OrganizerEvents";
 import { OrganizerAbout } from "@/components/organizer/OrganizerAbout";
 import { OrganizerGallery } from "@/components/organizer/OrganizerGallery";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+// Components - User (Social/Gamified)
+import { UserHero } from "@/components/profile/user/UserHero";
+import { UserGamification } from "@/components/profile/user/UserGamification";
+import { UserSocialContent } from "@/components/profile/user/UserSocialContent";
+import { UserEventsContent } from "@/components/profile/user/UserEventsContent";
+
 import Footer from "@/components/layout/Footer";
 
 export default function ProfilePageClient({ username }: { username: string }) {
   const db = useFirestore();
   const auth = useAuth();
-  const { user } = useUser(auth);
+  const { user: loggedUser } = useUser(auth);
   
   const [loading, setLoading] = React.useState(true);
-  const [data, setData] = React.useState<any>(null);
-  const [type, setType] = React.useState<'user' | 'organization' | null>(null);
+  const [profileData, setProfileData] = React.useState<any>(null);
+  const [profileType, setProfileType] = React.useState<'user' | 'organization' | null>(null);
   const [isOwner, setIsOwner] = React.useState(false);
-  const [currentUserProfile, setCurrentUserProfile] = React.useState<any>(null)
+  const [currentUserProfile, setCurrentUserProfile] = React.useState<any>(null);
 
   const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db]);
   const { data: settings } = useDoc<any>(settingsRef);
   const siteName = settings?.siteName || "Viby";
 
-  // Fetch Logged User Profile
+  // Fetch Logged User
   React.useEffect(() => {
-    if (db && user) {
-      getDoc(doc(db, "users", user.uid)).then(snap => {
+    if (db && loggedUser) {
+      getDoc(doc(db, "users", loggedUser.uid)).then(snap => {
         if (snap.exists()) setCurrentUserProfile(snap.data())
       })
     }
-  }, [db, user])
+  }, [db, loggedUser]);
 
-  // Fetch Profile Data
+  // Fetch Target Profile
   React.useEffect(() => {
     if (!db || !username) return;
     const fetchData = async () => {
@@ -52,23 +60,23 @@ export default function ProfilePageClient({ username }: { username: string }) {
         const uRef = doc(db, "usernames", username.toLowerCase());
         const uSnap = await getDoc(uRef);
         if (uSnap.exists()) {
-          const { uid, type: resType } = uSnap.data();
-          setType(resType);
-          const dataSnap = await getDoc(doc(db, resType === 'user' ? 'users' : 'organizations', uid));
+          const { uid, type } = uSnap.data();
+          setProfileType(type);
+          const dataSnap = await getDoc(doc(db, type === 'user' ? 'users' : 'organizations', uid));
           if (dataSnap.exists()) {
-            const orgData = { id: dataSnap.id, ...dataSnap.data() };
-            setData(orgData);
+            const data = { id: dataSnap.id, ...dataSnap.data() };
+            setProfileData(data);
 
-            // Verificar se o usuário logado é dono/admin da organização
-            if (user && resType === 'organization') {
-              const memberRef = doc(db, 'organizations', uid, 'members', user.uid);
-              const memberSnap = await getDoc(memberRef);
-              if (memberSnap.exists()) {
-                const role = memberSnap.data().role;
-                setIsOwner(['owner', 'admin'].includes(role));
+            if (loggedUser) {
+              if (type === 'organization') {
+                const memberRef = doc(db, 'organizations', uid, 'members', loggedUser.uid);
+                const memberSnap = await getDoc(memberRef);
+                if (memberSnap.exists()) {
+                  setIsOwner(['owner', 'admin'].includes(memberSnap.data().role));
+                }
+              } else if (type === 'user' && loggedUser.uid === uid) {
+                setIsOwner(true);
               }
-            } else if (user && resType === 'user' && user.uid === uid) {
-              setIsOwner(true);
             }
           }
         }
@@ -79,7 +87,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
       }
     };
     fetchData();
-  }, [db, username, user]);
+  }, [db, username, loggedUser]);
 
   const handleLogout = async () => {
     if (!auth) return;
@@ -92,84 +100,65 @@ export default function ProfilePageClient({ username }: { username: string }) {
     }
   }
 
-  // Fetch Real Followers Count
+  // --- Common Data ---
   const followersQuery = useMemoFirebase(() => {
-    if (!db || !data?.id) return null;
-    return query(collection(db, "follows"), where("followingId", "==", data.id));
-  }, [db, data?.id]);
+    if (!db || !profileData?.id) return null;
+    return query(collection(db, "follows"), where("followingId", "==", profileData.id));
+  }, [db, profileData?.id]);
   const { data: followers } = useCollection<any>(followersQuery);
 
-  // Fetch Real Attendees (Public) Count
-  const registrationsQuery = useMemoFirebase(() => {
-    if (!db || !data?.id) return null;
-    return query(collection(db, "registrations"), where("organizationId", "==", data.id));
-  }, [db, data?.id]);
-  const { data: registrations } = useCollection<any>(registrationsQuery);
+  const followingQuery = useMemoFirebase(() => {
+    if (!db || !profileData?.id || profileType !== 'user') return null;
+    return query(collection(db, "follows"), where("followerId", "==", profileData.id));
+  }, [db, profileData?.id, profileType]);
+  const { data: following } = useCollection<any>(followingQuery);
 
-  // Fetch All Events for this organization
-  const eventsQuery = useMemoFirebase(() => {
-    if (!db || !data?.id || type !== 'organization') return null;
-    return query(
-      collection(db, "events"), 
-      where("organizationId", "==", data.id)
-    );
-  }, [db, data?.id, type]);
+  // --- Organization Specific ---
+  const orgEventsQuery = useMemoFirebase(() => {
+    if (!db || !profileData?.id || profileType !== 'organization') return null;
+    return query(collection(db, "events"), where("organizationId", "==", profileData.id));
+  }, [db, profileData?.id, profileType]);
+  const { data: orgEvents } = useCollection<any>(orgEventsQuery);
 
-  const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery);
+  const orgRegistrationsQuery = useMemoFirebase(() => {
+    if (!db || !profileData?.id || profileType !== 'organization') return null;
+    return query(collection(db, "registrations"), where("organizationId", "==", profileData.id));
+  }, [db, profileData?.id, profileType]);
+  const { data: orgRegistrations } = useCollection<any>(orgRegistrationsQuery);
 
-  const processedEvents = React.useMemo(() => {
-    if (!events) return { upcoming: [], past: [] };
-    const now = new Date();
+  // --- User Specific ---
+  const userGamificationRef = React.useMemo(() => (db && profileData?.id && profileType === 'user') ? doc(db, "user_gamification", profileData.id) : null, [db, profileData?.id, profileType]);
+  const { data: gamification } = useDoc<any>(userGamificationRef);
 
-    const all = events
-      .filter((e: any) => e.status === "Ativo")
-      .sort((a: any, b: any) => {
-        const dateA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime();
-        const dateB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
-        return dateA - dateB;
-      });
+  const userStatsRef = React.useMemo(() => (db && profileData?.id && profileType === 'user') ? doc(db, "cultural_stats", profileData.id) : null, [db, profileData?.id, profileType]);
+  const { data: userStats } = useDoc<any>(userStatsRef);
 
-    const upcoming = all.filter((e: any) => {
-      const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
-      const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
-      return end >= now;
-    });
+  const userActivitiesQuery = useMemoFirebase(() => {
+    if (!db || !profileData?.id || profileType !== 'user') return null;
+    return query(collection(db, "xp_logs"), where("userId", "==", profileData.id), orderBy("timestamp", "desc"), limit(15));
+  }, [db, profileData?.id, profileType]);
+  const { data: activities } = useCollection<any>(userActivitiesQuery);
 
-    const past = all.filter((e: any) => {
-      const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
-      const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
-      return end < now;
-    }).reverse();
-
-    return { upcoming, past };
-  }, [events]);
+  const userRegistrationsQuery = useMemoFirebase(() => {
+    if (!db || !profileData?.id || profileType !== 'user') return null;
+    return query(collection(db, "registrations"), where("userId", "==", profileData.id));
+  }, [db, profileData?.id, profileType]);
+  const { data: userRegistrations } = useCollection<any>(userRegistrationsQuery);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-        >
-          <Loader2 className="w-10 h-10 text-secondary" />
-        </motion.div>
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
       </div>
     );
   }
 
-  if (!data) {
+  if (!profileData) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-10 bg-background text-center gap-6">
-        <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-4">
-          <Users className="w-12 h-12 text-muted-foreground opacity-20" />
-        </div>
-        <div className="space-y-2">
-          <h1 className="text-3xl font-black uppercase italic tracking-tighter">Perfil não encontrado</h1>
-          <p className="text-muted-foreground font-medium">O @{username} não está vinculado a nenhuma conta ativa.</p>
-        </div>
-        <Button asChild className="bg-primary text-white rounded-full px-12 h-14 font-black uppercase italic">
-          <Link href="/">Voltar ao Início</Link>
-        </Button>
+      <div className="min-h-screen flex flex-col items-center justify-center p-10 bg-[#f8fafc] text-center gap-6">
+        <Image src="https://picsum.photos/seed/404/400/400" alt="404" width={200} height={200} className="rounded-full grayscale opacity-20" unoptimized />
+        <h1 className="text-3xl font-black uppercase italic tracking-tighter">Perfil não encontrado</h1>
+        <Button asChild className="bg-primary text-white rounded-full px-12 h-14 font-black uppercase italic"><Link href="/">Voltar ao Início</Link></Button>
       </div>
     );
   }
@@ -186,7 +175,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
             )}
           </Link>
           <div className="flex items-center gap-4">
-            {user ? (
+            {loggedUser ? (
               <>
                 <Button variant="ghost" asChild className="font-black uppercase text-[10px] tracking-widest hidden sm:flex">
                   <Link href="/dashboard">Painel</Link>
@@ -194,7 +183,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
                 <Button variant="ghost" asChild className="font-black uppercase text-[10px] tracking-widest hidden sm:flex text-secondary">
                   <Link href={`/${currentUserProfile?.username || ""}`}>
                     <UserIcon className="w-3 h-3 mr-1.5" />
-                    {currentUserProfile?.name || user.displayName || "Meu Perfil"}
+                    {currentUserProfile?.name || loggedUser.displayName || "Meu Perfil"}
                   </Link>
                 </Button>
                 <Button variant="ghost" onClick={handleLogout} className="font-black uppercase text-[10px] tracking-widest text-destructive">
@@ -218,60 +207,56 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
       <main className="flex-1 pb-32 pt-16">
         <AnimatePresence mode="wait">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <OrganizerHero 
-              organization={data} 
-              realFollowersCount={followers?.length || 0}
-              realEventsCount={events?.length || 0}
-              realAttendeesCount={registrations?.length || 0}
-              isOwner={isOwner}
-            />
-
-            <div className="container mx-auto px-4 mt-12 max-w-6xl">
-              <Tabs defaultValue="upcoming" className="w-full">
-                <div className="flex justify-center mb-12">
-                  <TabsList className="bg-muted/50 p-1 rounded-2xl h-14 inline-flex">
-                    <TabsTrigger value="upcoming" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg">
-                      Próximos Eventos
-                    </TabsTrigger>
-                    <TabsTrigger value="past" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg">
-                      Eventos Passados
-                    </TabsTrigger>
-                    <TabsTrigger value="about" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg">
-                      Sobre
-                    </TabsTrigger>
-                  </TabsList>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+            {profileType === 'organization' ? (
+              <>
+                <OrganizerHero 
+                  organization={profileData} 
+                  realFollowersCount={followers?.length || 0}
+                  realEventsCount={orgEvents?.length || 0}
+                  realAttendeesCount={orgRegistrations?.length || 0}
+                  isOwner={isOwner}
+                />
+                <div className="container mx-auto px-4 mt-12 max-w-6xl">
+                  <Tabs defaultValue="upcoming" className="w-full">
+                    <div className="flex justify-center mb-12">
+                      <TabsList className="bg-muted/50 p-1 rounded-2xl h-14 inline-flex">
+                        <TabsTrigger value="upcoming" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg">Próximos Eventos</TabsTrigger>
+                        <TabsTrigger value="past" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg">Eventos Passados</TabsTrigger>
+                        <TabsTrigger value="about" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg">Sobre</TabsTrigger>
+                      </TabsList>
+                    </div>
+                    <TabsContent value="upcoming" className="animate-in fade-in slide-in-from-bottom-4 duration-500"><OrganizerEvents events={orgEvents?.filter((e:any) => (e.endDate?.toDate?.() || new Date(e.endDate || e.date)) >= new Date()) || []} title="Agenda" /></TabsContent>
+                    <TabsContent value="past" className="animate-in fade-in slide-in-from-bottom-4 duration-500"><div className="space-y-20"><OrganizerEvents events={orgEvents?.filter((e:any) => (e.endDate?.toDate?.() || new Date(e.endDate || e.date)) < new Date()) || []} title="Histórico" isPast /><OrganizerGallery gallery={profileData.gallery || []} /></div></TabsContent>
+                    <TabsContent value="about" className="animate-in fade-in slide-in-from-bottom-4 duration-500"><OrganizerAbout organization={profileData} /></TabsContent>
+                  </Tabs>
                 </div>
-
-                <TabsContent value="upcoming" className="animate-in fade-in slide-in-from-bottom-4 duration-500 m-0 focus-visible:outline-none">
-                  {eventsLoading ? (
-                    <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
-                  ) : (
-                    <OrganizerEvents events={processedEvents.upcoming} title="Agenda" />
-                  )}
-                </TabsContent>
-
-                <TabsContent value="past" className="animate-in fade-in slide-in-from-bottom-4 duration-500 m-0 focus-visible:outline-none">
-                  <div className="space-y-20">
-                    <OrganizerEvents events={processedEvents.past} title="Histórico" isPast />
-                    <OrganizerGallery gallery={data.gallery || []} />
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="about" className="animate-in fade-in slide-in-from-bottom-4 duration-500 m-0 focus-visible:outline-none">
-                  <OrganizerAbout organization={data} />
-                </TabsContent>
-              </Tabs>
-            </div>
+              </>
+            ) : (
+              <div className="space-y-12">
+                <UserHero 
+                  profile={profileData} 
+                  gamification={gamification}
+                  followersCount={followers?.length || 0}
+                  followingCount={following?.length || 0}
+                  eventsCount={userRegistrations?.length || 0}
+                  isOwner={isOwner}
+                />
+                
+                <div className="container mx-auto px-4 max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-12">
+                   <div className="lg:col-span-8 space-y-20">
+                      <UserGamification gamification={gamification} />
+                      <UserSocialContent profile={profileData} stats={userStats} activities={activities} />
+                   </div>
+                   <aside className="lg:col-span-4 space-y-12">
+                      <UserEventsContent registrations={userRegistrations} isOwner={isOwner} />
+                   </aside>
+                </div>
+              </div>
+            )}
           </motion.div>
         </AnimatePresence>
       </main>
-
       <Footer />
     </div>
   );

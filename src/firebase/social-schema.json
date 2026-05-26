@@ -1,0 +1,60 @@
+
+{
+  "collections": {
+    "user_gamification": {
+      "id": "userId",
+      "fields": {
+        "totalXp": "number",
+        "level": "number",
+        "levelName": "string",
+        "rank": "string (opcional)",
+        "lastActivityAt": "timestamp",
+        "city": "string",
+        "state": "string"
+      }
+    },
+    "cultural_stats": {
+      "id": "userId",
+      "fields": {
+        "totalEvents": "number",
+        "totalCheckins": "number",
+        "totalSpent": "number",
+        "topCategory": "string",
+        "topNeighborhood": "string",
+        "topCity": "string",
+        "categoriesExplored": "array",
+        "citiesExplored": "array",
+        "favoriteOrganizers": "array"
+      }
+    },
+    "xp_logs": {
+      "id": "auto-id",
+      "fields": {
+        "userId": "string",
+        "amount": "number",
+        "reason": "string (on_checkin, on_purchase, etc)",
+        "timestamp": "timestamp",
+        "context": "object (eventId, eventTitle, etc)"
+      }
+    },
+    "user_badges": {
+      "id": "auto-id",
+      "fields": {
+        "userId": "string",
+        "badgeId": "string",
+        "earnedAt": "timestamp",
+        "rarity": "string",
+        "category": "string"
+      }
+    },
+    "follows": {
+      "id": "followerId_followingId",
+      "fields": {
+        "followerId": "string",
+        "followingId": "string",
+        "targetType": "user | organization",
+        "timestamp": "timestamp"
+      }
+    }
+  }
+}
