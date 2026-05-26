@@ -73,18 +73,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { ToastAction } from "@/components/ui/toast";
 import { Separator } from '@/components/ui/separator';
 import Footer from '@/components/layout/Footer';
 
@@ -239,7 +227,6 @@ function VenueMap({
   onToggleSeat: (seat: any) => void;
   selectedSeatIds: string[];
 }) {
-  const [scale, setScale] = React.useState(0.8);
   const [isPanningEnabled, setIsPanningEnabled] = React.useState(false);
 
   return (
@@ -263,7 +250,6 @@ function VenueMap({
         centerOnInit
         limitToBounds={false}
         panning={{ disabled: !isPanningEnabled }}
-        onTransformed={(ref) => setScale(ref.state.scale)}
       >
         {({ zoomIn, zoomOut, resetTransform }) => (
           <>
@@ -541,13 +527,11 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
       return all;
     };
     
-    // Se temos um setor selecionado E o modo é por setores, filtramos os ingressos vinculados
     if (selectedSector && event.ticketMode === 'sector_batches') {
       const sectorDef = event.sectors?.find((s: any) => s.id === selectedSector.ticketLinkId);
       return sectorDef ? extractFromBatches(sectorDef.batches || []) : [];
     }
     
-    // Fallback para lotes globais (usado em 'paid_single' e 'batches')
     return extractFromBatches(event.batches || []);
   }, [event, selectedSector]);
 
@@ -568,7 +552,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const handleAddToCart = () => {
     if (!event) return;
     
-    // Lógica para setores com assentos/mesas
     if (selectedSector && selectedSector.tipo !== 'livre') {
       if (Object.keys(selectedSeats).length === 0) {
         toast({ variant: "destructive", title: "Selecione um lugar primeiro." });
@@ -600,9 +583,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
       });
       setSelectedSeats({});
       setSelectedSector(null);
-    } 
-    // Lógica para setores Livres ou Sem Mapa
-    else {
+    } else {
       if (!selectedTicketType) {
         toast({ variant: "destructive", title: "Selecione um tipo de ingresso." });
         return;
@@ -880,23 +861,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
           </div>
         </div>
       </main>
-
-      {/* MOBILE BAR ADICIONAR */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t p-4 lg:hidden animate-in slide-in-from-bottom-full duration-500 shadow-[0_-20px_50px_rgba(0,0,0,0.1)]">
-         <div className="max-w-md mx-auto flex items-center justify-between gap-4">
-            <div className="shrink-0">
-               <p className="text-[8px] font-black uppercase opacity-40">Total do Pedido</p>
-               <p className="text-xl font-black text-primary">{formatCurrency(totals.total)}</p>
-            </div>
-            <Button 
-               onClick={handleAddToCart}
-               disabled={!selectedTicketType && Object.keys(selectedSeats).length === 0}
-               className="flex-1 bg-secondary text-white font-black h-14 rounded-2xl uppercase italic text-sm shadow-xl"
-            >
-               Adicionar ao Carrinho
-            </Button>
-         </div>
-      </div>
 
       <Footer />
     </div>
