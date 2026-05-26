@@ -4,11 +4,13 @@
 import * as React from "react";
 import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useDoc } from "@/firebase";
 import { doc, getDoc, collection, query, where } from "firebase/firestore";
-import { Loader2, Users } from "lucide-react";
+import { signOut } from "firebase/auth";
+import { Loader2, Users, LogOut, User as UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "@/hooks/use-toast";
 
 // Components
 import { OrganizerHero } from "@/components/organizer/OrganizerHero";
@@ -26,10 +28,20 @@ export default function ProfilePageClient({ username }: { username: string }) {
   const [data, setData] = React.useState<any>(null);
   const [type, setType] = React.useState<'user' | 'organization' | null>(null);
   const [isOwner, setIsOwner] = React.useState(false);
+  const [currentUserProfile, setCurrentUserProfile] = React.useState<any>(null)
 
   const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db]);
   const { data: settings } = useDoc<any>(settingsRef);
   const siteName = settings?.siteName || "Viby";
+
+  // Fetch Logged User Profile
+  React.useEffect(() => {
+    if (db && user) {
+      getDoc(doc(db, "users", user.uid)).then(snap => {
+        if (snap.exists()) setCurrentUserProfile(snap.data())
+      })
+    }
+  }, [db, user])
 
   // Fetch Profile Data
   React.useEffect(() => {
@@ -68,6 +80,17 @@ export default function ProfilePageClient({ username }: { username: string }) {
     };
     fetchData();
   }, [db, username, user]);
+
+  const handleLogout = async () => {
+    if (!auth) return;
+    try {
+      await signOut(auth);
+      toast({ title: "Até logo!", description: "Você saiu da sua conta." });
+      window.location.reload();
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao sair" });
+    }
+  }
 
   // Fetch Real Followers Count
   const followersQuery = useMemoFirebase(() => {
@@ -163,12 +186,32 @@ export default function ProfilePageClient({ username }: { username: string }) {
             )}
           </Link>
           <div className="flex items-center gap-4">
-            <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest hidden sm:flex">
-              <Link href="/login">Entrar</Link>
-            </Button>
-            <Button asChild className="bg-primary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg shadow-primary/10">
-              <Link href="/cadastro">Criar Conta</Link>
-            </Button>
+            {user ? (
+              <>
+                <Button variant="ghost" asChild className="font-black uppercase text-[10px] tracking-widest hidden sm:flex">
+                  <Link href="/dashboard">Painel</Link>
+                </Button>
+                <Button variant="ghost" asChild className="font-black uppercase text-[10px] tracking-widest hidden sm:flex text-secondary">
+                  <Link href={`/${currentUserProfile?.username || ""}`}>
+                    <UserIcon className="w-3 h-3 mr-1.5" />
+                    {currentUserProfile?.name || user.displayName || "Meu Perfil"}
+                  </Link>
+                </Button>
+                <Button variant="ghost" onClick={handleLogout} className="font-black uppercase text-[10px] tracking-widest text-destructive">
+                  <LogOut className="w-3 h-3 mr-1.5" />
+                  Sair
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest hidden sm:flex">
+                  <Link href="/login">Entrar</Link>
+                </Button>
+                <Button asChild className="bg-primary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg shadow-primary/10">
+                  <Link href="/cadastro">Criar Conta</Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </nav>

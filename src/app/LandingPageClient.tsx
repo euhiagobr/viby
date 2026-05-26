@@ -3,12 +3,13 @@
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
-import { collection, query, limit, doc, where } from "firebase/firestore"
+import { collection, query, limit, doc, where, getDoc } from "firebase/firestore"
+import { signOut } from "firebase/auth"
 import { EventCard } from "@/components/events/EventCard"
 import { AdCard } from "@/components/ads/AdCard"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, MapPin, FilterX, Settings, Navigation, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
+import { Search, MapPin, FilterX, Settings, Navigation, ChevronLeft, ChevronRight, Loader2, LogOut, User as UserIcon } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
@@ -26,6 +27,7 @@ import Footer from "@/components/layout/Footer"
 import { cn } from "@/lib/utils"
 import useEmblaCarousel from 'embla-carousel-react'
 import { PlaceHolderImages } from "@/lib/placeholder-images"
+import { toast } from "@/hooks/use-toast"
 
 export default function LandingPageClient() {
   const db = useFirestore()
@@ -37,9 +39,19 @@ export default function LandingPageClient() {
   const [selectedCategory, setSelectedCategory] = React.useState("all")
   const [sortBy, setSortBy] = React.useState<'date' | 'distance'>('date')
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
+  const [currentUserProfile, setCurrentUserProfile] = React.useState<any>(null)
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
+
+  // Fetch logged user profile to get username
+  React.useEffect(() => {
+    if (db && user) {
+      getDoc(doc(db, "users", user.uid)).then(snap => {
+        if (snap.exists()) setCurrentUserProfile(snap.data())
+      })
+    }
+  }, [db, user])
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -71,14 +83,23 @@ export default function LandingPageClient() {
       try {
         const loc = await getCurrentLocation()
         setUserLocation(loc)
-        // Se temos localização, priorizamos ordenação por distância por padrão
         setSortBy('distance')
       } catch (err) {}
     }
     fetchLocation()
   }, [])
 
-  // Filtragem dos eventos em escopo (antes do filtro de categoria)
+  const handleLogout = async () => {
+    if (!auth) return;
+    try {
+      await signOut(auth);
+      toast({ title: "Até logo!", description: "Você saiu da sua conta." });
+      window.location.reload();
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao sair" });
+    }
+  }
+
   const eventsInScope = React.useMemo(() => {
     if (!events) return []
     const now = new Date()
@@ -95,18 +116,15 @@ export default function LandingPageClient() {
     })
   }, [events, searchName, selectedCity])
 
-  // Categorias ativas baseadas nos eventos em escopo
   const activeCategoryIds = React.useMemo(() => {
     return new Set(eventsInScope.map((e: any) => e.categoryId).filter(Boolean))
   }, [eventsInScope])
 
-  // Categorias filtradas para exibição no carrossel
   const activeCategories = React.useMemo(() => {
     if (!categories) return []
     return categories.filter((cat: any) => activeCategoryIds.has(cat.id))
   }, [categories, activeCategoryIds])
 
-  // Resetar categoria se ela não estiver mais em escopo
   React.useEffect(() => {
     if (selectedCategory !== 'all' && !activeCategoryIds.has(selectedCategory)) {
       setSelectedCategory('all')
@@ -147,7 +165,6 @@ export default function LandingPageClient() {
     if (filteredEvents.length === 0) return []
     const now = new Date()
     
-    // Filtrar e preparar Ads ativos
     const sponsoredPool = (activeAds || [])
       .map((ad: any) => {
         const start = ad.startDate?.toDate ? ad.startDate.toDate() : new Date(ad.startDate);
@@ -204,12 +221,32 @@ export default function LandingPageClient() {
             )}
           </Link>
           <div className="flex items-center gap-4">
-            <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest hidden sm:flex">
-              <Link href="/login">Entrar</Link>
-            </Button>
-            <Button asChild className="bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg shadow-secondary/20">
-              <Link href="/cadastro">Criar Conta</Link>
-            </Button>
+            {user ? (
+              <>
+                <Button variant="ghost" asChild className="font-black uppercase text-[10px] tracking-widest hidden sm:flex">
+                  <Link href="/dashboard">Painel</Link>
+                </Button>
+                <Button variant="ghost" asChild className="font-black uppercase text-[10px] tracking-widest hidden sm:flex text-secondary">
+                  <Link href={`/${currentUserProfile?.username || ""}`}>
+                    <UserIcon className="w-3 h-3 mr-1.5" />
+                    {currentUserProfile?.name || user.displayName || "Meu Perfil"}
+                  </Link>
+                </Button>
+                <Button variant="ghost" onClick={handleLogout} className="font-black uppercase text-[10px] tracking-widest text-destructive">
+                  <LogOut className="w-3 h-3 mr-1.5" />
+                  Sair
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest">
+                  <Link href="/login">Entrar</Link>
+                </Button>
+                <Button asChild className="bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg shadow-secondary/20">
+                  <Link href="/cadastro">Criar Conta</Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </nav>
