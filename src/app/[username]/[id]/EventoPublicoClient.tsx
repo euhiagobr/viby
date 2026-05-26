@@ -9,6 +9,7 @@ import {
   useUser,
   useCollection,
   useMemoFirebase,
+  useFirebaseApp,
 } from '@/firebase';
 import {
   doc,
@@ -53,11 +54,23 @@ import {
   Armchair,
   Sparkles,
   ShieldCheck,
-  Grid3X3
+  Grid3X3,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
 import { useCart } from '@/contexts/CartContext';
 import Link from 'next/link';
@@ -146,6 +159,88 @@ const renderFormattedText = (text: string) => {
     return part;
   });
 };
+
+function ReportDialog({ eventId, eventTitle }: { eventId: string, eventTitle: string }) {
+  const db = useFirestore();
+  const auth = useAuth();
+  const { user } = useUser(auth);
+  const [open, setOpen] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!db) return;
+    setLoading(true);
+    const formData = new FormData(e.currentTarget);
+    
+    try {
+      await addDoc(collection(db, "reports"), {
+        targetId: eventId,
+        targetName: eventTitle,
+        type: 'event',
+        reason: formData.get("reason"),
+        description: formData.get("description"),
+        reporterId: user?.uid || 'anonymous',
+        reporterName: user?.displayName || 'Anônimo',
+        status: 'Pendente',
+        timestamp: serverTimestamp()
+      });
+      toast({ title: "Denúncia enviada", description: "Nossa equipe analisará o caso em até 24h." });
+      setOpen(false);
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao enviar" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" className="rounded-full hover:bg-red-50 hover:text-red-500 transition-colors">
+          <Flag className="w-5 h-5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="rounded-[2.5rem] max-w-md">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <DialogHeader>
+            <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center mb-2 text-red-600">
+               <AlertTriangle className="w-6 h-6" />
+            </div>
+            <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Denunciar Evento</DialogTitle>
+            <DialogDescription>Ajude-nos a manter a Viby segura relatando irregularidades.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase opacity-60">Motivo principal</Label>
+              <Select name="reason" required>
+                <SelectTrigger className="rounded-xl h-12">
+                  <SelectValue placeholder="Selecione um motivo" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="fraude">Evento Falso ou Fraude</SelectItem>
+                  <SelectItem value="copyright">Violação de Direitos Autorais</SelectItem>
+                  <SelectItem value="inadequado">Conteúdo Inadequado / Ofensivo</SelectItem>
+                  <SelectItem value="outro">Outro Motivo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase opacity-60">Detalhes (Opcional)</Label>
+              <Textarea name="description" placeholder="Descreva o que está acontecendo..." className="rounded-xl min-h-[100px] resize-none" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={loading} className="w-full h-14 bg-red-600 text-white font-black rounded-2xl shadow-xl uppercase italic">
+              {loading ? <Loader2 className="animate-spin mr-2" /> : null}
+              Confirmar Denúncia
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // --- COMPONENTES DA PÁGINA ---
 
@@ -491,6 +586,9 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const organizationRef = React.useMemo(() => (db && event?.organizationId) ? doc(db, 'organizations', event.organizationId) : null, [db, event?.organizationId]);
   const { data: organizationProfile } = useDoc<any>(organizationRef);
 
+  const partnersQuery = useMemoFirebase(() => (db && id) ? query(collection(db, 'events', id, 'partners'), where('status', '==', 'accepted')) : null, [db, id]);
+  const { data: partners } = useCollection<any>(partnersQuery);
+
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db]);
   const { data: settings } = useDoc<any>(settingsRef);
   const siteName = settings?.siteName || "Viby";
@@ -640,7 +738,11 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
           <div className="flex items-center gap-6">
             <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full hover:bg-muted"><ArrowLeft className="w-5 h-5" /></Button>
             <Link href="/" className="flex items-center gap-2">
-              <span className="font-black italic uppercase tracking-tighter text-2xl text-primary">{siteName}</span>
+               {settings?.logoUrl ? (
+                 <img src={settings.logoUrl} alt={siteName} className="h-8 w-auto object-contain" />
+               ) : (
+                 <span className="font-black italic uppercase tracking-tighter text-2xl text-primary">{siteName}</span>
+               )}
             </Link>
           </div>
           <div className="flex items-center gap-4">
@@ -671,7 +773,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
             <div className="lg:col-span-8 space-y-16">
               {/* ORGANIZADOR CARD */}
               <Card className="border-none shadow-sm rounded-[3rem] bg-white overflow-hidden p-8 hover:shadow-xl transition-shadow group">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
                     <div className="flex items-center gap-8">
                       <Avatar className="h-24 w-24 border-4 border-secondary/10 p-0.5 group-hover:scale-110 transition-transform">
                         <AvatarImage src={organizationProfile?.avatar || event.organizer?.avatar} className="rounded-full object-cover" />
@@ -686,7 +788,34 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                         <Link href={`/${organizationProfile?.username || event.organizer?.username}`} className="text-xs font-black text-secondary uppercase hover:underline">Ver Perfil da Marca</Link>
                       </div>
                     </div>
-                    <Button variant="outline" className="rounded-xl h-12 px-6 font-bold gap-2 hidden md:flex"><Users2 className="w-4 h-4" /> Seguir Marca</Button>
+                    
+                    {partners && partners.length > 0 && (
+                      <div className="flex flex-col gap-3 md:border-l md:pl-8 border-border/40">
+                         <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Em parceria com</p>
+                         <div className="flex -space-x-4">
+                            {partners.map((p: any) => (
+                              <TooltipProvider key={p.id}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Link href={`/${p.username}`}>
+                                       <Avatar className="h-10 w-10 border-4 border-white shadow-md hover:-translate-y-1 transition-transform cursor-pointer">
+                                          <AvatarImage src={p.avatar} className="object-cover" />
+                                          <AvatarFallback className="bg-muted text-[10px] font-bold">{p.orgName?.charAt(0)}</AvatarFallback>
+                                       </Avatar>
+                                    </Link>
+                                  </TooltipTrigger>
+                                  <TooltipContent><p className="text-[10px] font-black uppercase">{p.orgName}</p></TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ))}
+                         </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                       <Button variant="outline" className="rounded-xl h-12 px-6 font-bold gap-2"><Users2 className="w-4 h-4" /> Seguir</Button>
+                       <ReportDialog eventId={id} eventTitle={event.title} />
+                    </div>
                   </div>
               </Card>
 
@@ -865,3 +994,10 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     </div>
   );
 }
+
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
