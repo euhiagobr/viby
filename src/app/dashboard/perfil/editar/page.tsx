@@ -79,9 +79,6 @@ export default function EditarPerfilPage() {
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile, loading: profileLoading } = useDoc<any>(userDocRef)
 
-  const blockedRef = React.useMemo(() => (db ? doc(db, 'settings', 'blocked_usernames') : null), [db]);
-  const { data: blockedData } = useDoc<any>(blockedRef);
-
   const [formData, setFormData] = useState({
     name: "",
     username: "",
@@ -101,8 +98,6 @@ export default function EditarPerfilPage() {
   })
   const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
-  const [checkingUsername, setCheckingUsername] = useState(false)
-  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
   const [hasCPFInPrivate, setHasCPFInPrivate] = useState(false)
 
   useEffect(() => {
@@ -121,11 +116,10 @@ export default function EditarPerfilPage() {
         instagram: profile.instagram || "",
         whatsapp: profile.whatsapp || "",
         email: profile.email || "",
-        cpf: "", // CPF é buscado de forma segura
+        cpf: "", 
         showEmail: profile.showEmail !== undefined ? profile.showEmail : true
       });
 
-      // Tenta buscar o CPF de forma segura no servidor
       getUserCPF(user.uid, user.uid).then(res => {
         if (res.success) {
           setFormData(prev => ({ ...prev, cpf: res.cpf! }));
@@ -134,49 +128,6 @@ export default function EditarPerfilPage() {
       });
     }
   }, [profile, user])
-
-  useEffect(() => {
-    if (!db || !profile || !formData.username) return
-    
-    const newUsername = formData.username.toLowerCase().trim()
-    const oldUsername = (profile.username || "").toLowerCase().trim()
-
-    if (newUsername === oldUsername) {
-      setUsernameStatus('idle')
-      setCheckingUsername(false)
-      return
-    }
-
-    const regex = /^[a-zA-Z0-9]+$/
-    if (newUsername.length < 5 || newUsername.length > 20 || !regex.test(newUsername)) {
-      setUsernameStatus('invalid')
-      setCheckingUsername(false)
-      return
-    }
-
-    if (blockedData?.list?.includes(newUsername)) {
-      setUsernameStatus('taken')
-      setCheckingUsername(false)
-      return
-    }
-
-    setUsernameStatus('idle')
-    setCheckingUsername(true)
-
-    const timer = setTimeout(async () => {
-      try {
-        const usernameRef = doc(db, "usernames", newUsername)
-        const usernameSnap = await getDoc(usernameRef)
-        if (usernameSnap.exists()) setUsernameStatus('taken'); else setUsernameStatus('valid');
-      } catch (e) {
-        console.error(e)
-      } finally {
-        setCheckingUsername(false)
-      }
-    }, 500)
-
-    return () => clearTimeout(timer)
-  }, [formData.username, profile, db, blockedData])
 
   const formatCPF = (v: string) => {
     v = v.replace(/\D/g, "");
@@ -214,59 +165,34 @@ export default function EditarPerfilPage() {
     e.preventDefault()
     if (!db || !user || !profile) return
 
-    const newUsername = formData.username.toLowerCase().trim()
-    const oldUsername = (profile.username || "").toLowerCase().trim()
-    const usernameChanged = newUsername !== oldUsername
-
-    if (usernameChanged && usernameStatus !== 'valid') {
-      toast({ variant: "destructive", title: "Username inválido" })
-      return
-    }
-
     if (formData.cpf && !validateCPF(formData.cpf)) {
       toast({ variant: "destructive", title: "CPF Inválido", description: "O número de CPF informado não é válido." })
       return
     }
 
     setSaving(true)
-    const batch = writeBatch(db)
-    if (usernameChanged) {
-      if (oldUsername) batch.delete(doc(db, "usernames", oldUsername));
-      batch.set(doc(db, "usernames", newUsername), { uid: user.uid, type: 'user' });
-    }
-
-    // CPF é processado no servidor
-    if (formData.cpf && (!hasCPFInPrivate || formData.cpf !== await getUserCPF(user.uid, user.uid).then(r => r.cpf))) {
-      await updateUserCPF(user.uid, formData.cpf);
-    }
-
-    const userRef = doc(db, "users", user.uid)
-    const { cpf, ...safeData } = formData; // Remove CPF do documento público
     
-    const updateData = {
-      ...safeData,
-      username: newUsername,
-      updatedAt: serverTimestamp()
-    }
+    try {
+      if (formData.cpf && (!hasCPFInPrivate || formData.cpf !== await getUserCPF(user.uid, user.uid).then(r => r.cpf))) {
+        await updateUserCPF(user.uid, formData.cpf);
+      }
 
-    batch.update(userRef, updateData)
-    
-    batch.commit()
-      .then(() => {
-        toast({ title: "Perfil atualizado!" })
-        router.push("/dashboard/perfil")
-      })
-      .catch(async (serverError) => {
-        if (serverError.code === 'permission-denied') {
-          const permissionError = new FirestorePermissionError({
-            path: `users/${user.uid}`,
-            operation: 'update',
-            requestResourceData: updateData
-          });
-          errorEmitter.emit('permission-error', permissionError);
-        }
-      })
-      .finally(() => { setSaving(false) })
+      const userRef = doc(db, "users", user.uid)
+      const { cpf, username, ...safeData } = formData; 
+      
+      const updateData = {
+        ...safeData,
+        updatedAt: serverTimestamp()
+      }
+
+      await updateDoc(userRef, updateData)
+      toast({ title: "Perfil atualizado!" })
+      router.push("/dashboard/perfil")
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao salvar" })
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (profileLoading) return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
@@ -304,11 +230,17 @@ export default function EditarPerfilPage() {
               <div className="space-y-2">
                 <Label htmlFor="username">Nome de Usuário (@)</Label>
                 <div className="relative">
-                  <Input id="username" value={formData.username} maxLength={20} onChange={(e) => setFormData(prev => ({...prev, username: e.target.value.toLowerCase().replace(/\s+/g, "")}))} className={cn(usernameStatus === 'valid' ? 'border-green-500 pr-10' : usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-destructive pr-10' : 'pr-10')} />
+                  <Input 
+                    id="username" 
+                    value={formData.username} 
+                    readOnly 
+                    className="bg-muted/50 cursor-not-allowed pr-10 font-bold" 
+                  />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    {checkingUsername ? <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" /> : usernameStatus === 'valid' ? <Check className="w-3.5 h-3.5 text-green-500" /> : usernameStatus === 'taken' || usernameStatus === 'invalid' ? <X className="w-3.5 h-3.5 text-destructive" /> : null}
+                    <Lock className="w-4 h-4 text-muted-foreground opacity-50" />
                   </div>
                 </div>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase">Alterações de username devem ser solicitadas ao suporte.</p>
               </div>
             </div>
 

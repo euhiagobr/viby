@@ -2,7 +2,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 4.1.0 (CORREÇÃO DE GESTÃO DE USERNAMES)
+    // REGRAS VIBY - Versão: 4.2.0 (RESTRIÇÃO DE USERNAME)
     
     function isSignedIn() {
       return request.auth != null;
@@ -74,13 +74,8 @@ service cloud.firestore {
     match /usernames/{username} {
       allow read: if true;
       allow create: if isSignedIn();
-      // Permite deletar se for o dono do perfil ou dono/admin da organização vinculada ao username
-      allow delete: if isAdmin() || (
-        isSignedIn() && (
-          request.auth.uid == resource.data.uid || 
-          (resource.data.type == 'organization' && hasOrgRole(resource.data.uid, ['owner', 'admin']))
-        )
-      );
+      // Somente Admin pode editar ou deletar usernames existentes para evitar quebra de URLs
+      allow update, delete: if isAdmin();
     }
 
     match /users/{userId} {
