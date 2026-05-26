@@ -52,7 +52,9 @@ import {
   Timer,
   BadgeCheck,
   Armchair,
-  Sparkles
+  Sparkles,
+  ShieldCheck,
+  Grid3X3
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -900,4 +902,3 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     </div>
   );
 }
-
