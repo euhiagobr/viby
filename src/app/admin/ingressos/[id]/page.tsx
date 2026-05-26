@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -14,7 +15,9 @@ import {
   runTransaction, 
   getDocs,
   deleteDoc,
-  addDoc
+  addDoc,
+  increment,
+  limit
 } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -118,13 +121,13 @@ export default function AdminEventTicketingDetails() {
   const stats = React.useMemo(() => {
     if (!registrations) return { sold: 0, checkedIn: 0, revenue: 0, cancelled: 0 };
     return registrations.reduce((acc: any, r: any) => {
-      if (r.status === 'Excluído' || r.status === 'Cancelado' || r.paymentStatus === 'Cancelado') {
+      if (r.status === 'Cancelado' || r.paymentStatus === 'Cancelado') {
         acc.cancelled++;
         return acc;
       }
       if (['Pago', 'Disponível'].includes(r.paymentStatus)) {
         acc.sold++;
-        acc.revenue += (r.price || r.ticketBasePrice || 0);
+        acc.revenue += (r.ticketBasePrice || 0);
         if (r.checkedIn) acc.checkedIn++;
       }
       return acc;
@@ -135,6 +138,11 @@ export default function AdminEventTicketingDetails() {
     if (!db || !ticketToCancel || !user) return;
     setIsCancelling(true);
     try {
+      // Buscar registro fiscal antes para atualizar na mesma transação/fluxo
+      const taxTicketsQ = query(collection(db, "tax_tickets"), where("registrationId", "==", ticketToCancel.id), limit(1));
+      const taxSnap = await getDocs(taxTicketsQ);
+      const taxDocRef = !taxSnap.empty ? taxSnap.docs[0].ref : null;
+
       await runTransaction(db, async (transaction) => {
         const regRef = doc(db, "registrations", ticketToCancel.id);
         const regSnap = await transaction.get(regRef);
@@ -153,8 +161,9 @@ export default function AdminEventTicketingDetails() {
           cancelledBy: user.uid
         });
 
-        // 2. Se for um ingresso pago, estornar para a carteira
-        const refundAmount = regData.price || 0;
+        // 2. Se for um ingresso pago, estornar APENAS o valor base para a carteira
+        // A taxa administrativa fica com a plataforma
+        const refundAmount = regData.ticketBasePrice || 0;
         if (refundAmount > 0 && regData.userId) {
           const userRef = doc(db, "users", regData.userId);
           transaction.update(userRef, {
@@ -175,7 +184,16 @@ export default function AdminEventTicketingDetails() {
           });
         }
 
-        // 4. Registrar Log de Auditoria do Sistema
+        // 4. Se houver registro fiscal, marcar como cancelado
+        if (taxDocRef) {
+          transaction.update(taxDocRef, {
+            nfStatus: 'cancelado',
+            status: 'cancelado',
+            updatedAt: serverTimestamp()
+          });
+        }
+
+        // 5. Registrar Log de Auditoria
         const logRef = doc(collection(db, "ticket_logs"));
         transaction.set(logRef, {
           registrationId: ticketToCancel.id,
@@ -184,13 +202,13 @@ export default function AdminEventTicketingDetails() {
           adminName: user.displayName || "Admin",
           action: "cancel",
           timestamp: serverTimestamp(),
-          reason: "Cancelamento e estorno manual via painel admin",
+          reason: "Cancelamento manual via painel admin (Base Price Refund)",
           amountRefunded: refundAmount,
           previousStatus: regData.status || 'Ativo'
         });
       });
 
-      toast({ title: "Ingresso cancelado e estornado!" });
+      toast({ title: "Ingresso cancelado!", description: `R$ ${ticketToCancel.ticketBasePrice?.toFixed(2)} devolvidos ao usuário.` });
       setTicketToCancel(null);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro ao cancelar", description: e.message });
@@ -248,7 +266,7 @@ export default function AdminEventTicketingDetails() {
          <KPICard title="Vendas Líquidas" value={stats.sold} icon={Ticket} color="blue" />
          <KPICard title="Presentes" value={stats.checkedIn} icon={UserCheck} color="green" />
          <KPICard title="Cancelamentos" value={stats.cancelled} icon={XCircle} color="red" />
-         <KPICard title="Receita Bruta" value={formatCurrency(stats.revenue)} icon={DollarSign} color="secondary" />
+         <KPICard title="Receita Bruta (Face)" value={formatCurrency(stats.revenue)} icon={DollarSign} color="secondary" />
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
@@ -289,8 +307,9 @@ export default function AdminEventTicketingDetails() {
                       <TableBody>
                          {sortedRegistrations.filter(r => !search || r.userName?.toLowerCase().includes(search.toLowerCase()) || r.ticketCode?.includes(search.toUpperCase())).map((reg: any) => {
                            const saleDateTime = formatDateTime(reg.timestamp || reg.createdAt);
+                           const isCancelled = reg.status === 'Cancelado' || reg.paymentStatus === 'Cancelado';
                            return (
-                             <TableRow key={reg.id} className="hover:bg-muted/5 transition-colors">
+                             <TableRow key={reg.id} className={cn("hover:bg-muted/5 transition-colors", isCancelled && "opacity-50 grayscale")}>
                                 <TableCell className="p-6">
                                    <div className="flex items-center gap-3">
                                       <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><QrCode className="w-5 h-5" /></div>
@@ -321,12 +340,12 @@ export default function AdminEventTicketingDetails() {
                                 <TableCell className="text-center">
                                    <Badge className={cn(
                                      "uppercase text-[8px] font-black h-5 px-2", 
-                                     reg.status === 'Cancelado' || reg.paymentStatus === 'Cancelado' ? "bg-destructive text-white" :
+                                     isCancelled ? "bg-destructive text-white" :
                                      reg.checkedIn ? "bg-green-500 text-white" : 
                                      reg.paymentStatus === 'Pago' ? "bg-blue-500 text-white" : 
                                      reg.paymentStatus === 'Pendente' ? "bg-orange-500 text-white" : "bg-muted"
                                    )}>
-                                     {reg.status === 'Cancelado' || reg.paymentStatus === 'Cancelado' ? 'Cancelado' :
+                                     {isCancelled ? 'Cancelado' :
                                       reg.checkedIn ? 'Utilizado' : (reg.paymentStatus || 'Pendente')}
                                    </Badge>
                                 </TableCell>
@@ -338,7 +357,7 @@ export default function AdminEventTicketingDetails() {
                                          <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => toast({ title: "Funcionalidade em desenvolvimento" })}><Edit2 className="w-4 h-4" /> Alterar Dados</DropdownMenuItem>
                                          <DropdownMenuSeparator />
                                          <DropdownMenuItem 
-                                           disabled={reg.status === 'Cancelado'}
+                                           disabled={isCancelled}
                                            className="gap-2 text-destructive cursor-pointer focus:text-destructive" 
                                            onSelect={() => setTicketToCancel(reg)}
                                          >
@@ -405,9 +424,9 @@ export default function AdminEventTicketingDetails() {
                  <CardHeader><CardTitle className="text-lg font-black uppercase italic tracking-tighter">Relatório de Receita</CardTitle></CardHeader>
                  <CardContent className="space-y-6">
                     <div className="space-y-4">
-                       <div className="flex justify-between items-center py-2 border-b border-dashed"><span className="text-xs font-bold uppercase opacity-60">Receita Bruta (Vendas)</span><span className="font-black text-primary">{formatCurrency(stats.revenue)}</span></div>
-                       <div className="flex justify-between items-center py-2 border-b border-dashed"><span className="text-xs font-bold uppercase text-red-500">Taxas da Plataforma</span><span className="font-black text-red-500">-{formatCurrency(stats.revenue * 0.15)}</span></div>
-                       <div className="flex justify-between items-center py-2"><span className="text-sm font-black uppercase text-green-600">Líquido de Repasse</span><span className="text-xl font-black text-green-600">{formatCurrency(stats.revenue * 0.85)}</span></div>
+                       <div className="flex justify-between items-center py-2 border-b border-dashed"><span className="text-xs font-bold uppercase opacity-60">Receita Face (Vendas Ativas)</span><span className="font-black text-primary">{formatCurrency(stats.revenue)}</span></div>
+                       <div className="flex justify-between items-center py-2 border-b border-dashed"><span className="text-xs font-bold uppercase text-red-500">Taxas da Plataforma (15%)</span><span className="font-black text-red-500">+{formatCurrency(stats.revenue * 0.15)}</span></div>
+                       <div className="flex justify-between items-center py-2"><span className="text-sm font-black uppercase text-green-600">Total a Repassar</span><span className="text-xl font-black text-green-600">{formatCurrency(stats.revenue * 0.90)}</span></div>
                     </div>
                     <div className="p-4 bg-muted/30 rounded-2xl flex gap-3"><Info className="w-5 h-5 text-secondary shrink-0" /><p className="text-[10px] font-medium leading-relaxed opacity-60 uppercase">Este é um resumo operacional. Os valores definitivos para repasse devem ser consultados no módulo Financeiro/ERP.</p></div>
                  </CardContent>
@@ -425,7 +444,7 @@ export default function AdminEventTicketingDetails() {
             </div>
             <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Confirmar Cancelamento e Estorno?</AlertDialogTitle>
             <AlertDialogDescription className="font-medium text-foreground/70">
-              Você está prestes a cancelar o ingresso de <strong>{ticketToCancel?.userName}</strong>. O QR Code será invalidado e o valor de <strong>{formatCurrency(ticketToCancel?.price || 0)}</strong> será devolvido à carteira do usuário imediatamente.
+              Você está prestes a cancelar o ingresso de <strong>{ticketToCancel?.userName}</strong>. O QR Code será invalidado e o valor base de <strong>{formatCurrency(ticketToCancel?.ticketBasePrice || 0)}</strong> será devolvido à carteira do usuário. A taxa administrativa do serviço (Viby) não é reembolsável.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-3 mt-4">

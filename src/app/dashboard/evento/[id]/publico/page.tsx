@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -128,7 +129,7 @@ export default function EventoPublicoPage() {
     
     const financial = (registrations || []).reduce((acc: any, reg: any) => {
       if (reg.status === 'Cancelado') return acc;
-      acc.gross += (reg.price || 0);
+      acc.gross += (reg.ticketBasePrice || 0);
       acc.net += (reg.producerNetAmount || 0);
       return acc;
     }, { gross: 0, net: 0 });
@@ -281,6 +282,11 @@ export default function EventoPublicoPage() {
     if (!db || !ticketToRefund || !currentUser) return
     setIsRefunding(true)
     try {
+      // Buscar registro fiscal para invalidar
+      const taxTicketsQ = query(collection(db, "tax_tickets"), where("registrationId", "==", ticketToRefund.id), limit(1));
+      const taxSnap = await getDocs(taxTicketsQ);
+      const taxDocRef = !taxSnap.empty ? taxSnap.docs[0].ref : null;
+
       await runTransaction(db, async (transaction) => {
         const regRef = doc(db, "registrations", ticketToRefund.id);
         const regSnap = await transaction.get(regRef);
@@ -299,8 +305,9 @@ export default function EventoPublicoPage() {
           cancelledBy: currentUser.uid
         });
 
-        // 2. Estornar valor para a carteira (se houver preço pago)
-        const refundAmount = regData.price || 0;
+        // 2. Estornar APENAS o valor do ingresso (ticketBasePrice) para a carteira
+        // A taxa administrativa não entra no estorno conforme solicitado
+        const refundAmount = regData.ticketBasePrice || 0;
         if (refundAmount > 0 && regData.userId) {
           const userRef = doc(db, "users", regData.userId);
           transaction.update(userRef, {
@@ -321,7 +328,16 @@ export default function EventoPublicoPage() {
           });
         }
 
-        // 4. Log de auditoria
+        // 4. Se houver registro fiscal, marcar como cancelado
+        if (taxDocRef) {
+          transaction.update(taxDocRef, {
+            nfStatus: 'cancelado',
+            status: 'cancelado',
+            updatedAt: serverTimestamp()
+          });
+        }
+
+        // 5. Log de auditoria
         const logRef = doc(collection(db, "ticket_logs"));
         transaction.set(logRef, {
           registrationId: ticketToRefund.id,
@@ -330,12 +346,12 @@ export default function EventoPublicoPage() {
           adminName: currentUser.displayName || "Produtor",
           action: "cancel",
           timestamp: serverTimestamp(),
-          reason: "Cancelamento solicitado pelo organizador",
+          reason: "Cancelamento solicitado pelo organizador (Ticket Base Price)",
           amountRefunded: refundAmount
         });
       });
 
-      toast({ title: "Cancelado com sucesso", description: "O valor foi devolvido ao participante." })
+      toast({ title: "Cancelado com sucesso", description: "O valor nominal foi devolvido ao participante." })
       setTicketToRefund(null)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro no estorno", description: e.message })
@@ -502,12 +518,12 @@ export default function EventoPublicoPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black text-primary">{formatCurrency(stats.net)}</div>
-            <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">Líquido já descontado o seu plano</p>
+            <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">Líquido de repasse futuro</p>
           </CardContent>
         </Card>
         <Card className="border-none shadow-sm bg-card bg-orange-50/50">
           <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-orange-600 tracking-widest flex items-center gap-1.5"><AlertTriangle className="w-3 h-3" /> Transparência</CardTitle></CardHeader>
-          <CardContent><p className="text-[10px] text-orange-800 leading-tight">O valor pago pelo cliente (Bruto) inclui a taxa Viby de 15%. Seu repasse (Líquido) deduz o custo do seu plano.</p></CardContent>
+          <CardContent><p className="text-[10px] text-orange-800 leading-tight">Cancelamentos devolvem o valor do ingresso ao usuário. As taxas administrativas e custos Stripe permanecem retidos.</p></CardContent>
         </Card>
       </div>
 
@@ -542,71 +558,74 @@ export default function EventoPublicoPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredRegistrations.map((reg) => (
-                  <TableRow key={reg.id} className={cn("hover:bg-muted/10 transition-colors", reg.checkedIn && "bg-green-50/30", reg.status === 'Cancelado' && "opacity-50 grayscale")}>
-                    <TableCell className="text-center">
-                      <Button variant={reg.checkedIn ? "default" : "outline"} size="icon" disabled={reg.status === 'Cancelado'} onClick={() => handleCheckIn(reg, reg.checkedIn)} className={cn("h-9 w-9 rounded-full transition-all", reg.checkedIn ? "bg-green-500 hover:bg-green-600 text-white" : "border-muted-foreground/30")}>
-                        <CheckCircle2 className={cn("w-5 h-5", reg.checkedIn ? "text-white" : "text-muted-foreground/20")} />
-                      </Button>
-                    </TableCell>
-                    <TableCell><div className="flex flex-col"><span className="font-bold text-sm text-foreground">{reg.userName || "Pendente"}</span><span className="text-[10px] text-muted-foreground">{reg.userEmail}</span></div></TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-0.5">
-                         <span className="text-xs font-bold text-muted-foreground">{calculateAge(reg.userBirthDate)}</span>
-                         <Badge variant="outline" className="text-[8px] font-black w-fit h-4 uppercase">{reg.userGender || "N/A"}</Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                       <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-bold">{reg.ticketTypeName || "Acesso"}</span>
-                          {reg.poolName && <span className="text-[8px] font-black text-secondary uppercase flex items-center gap-1"><Layers className="w-2 h-2" /> Pool: {reg.poolName}</span>}
-                       </div>
-                    </TableCell>
-                    <TableCell>
-                      {reg.checkedIn ? (
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-green-600 uppercase">
-                          <Clock className="w-3 h-3" />
-                          {formatTimestamp(reg.checkedInAt)}
-                        </div>
-                      ) : (
-                        <span className="text-[10px] font-bold text-muted-foreground/40 uppercase">---</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex flex-col cursor-help">
-                              <span className="text-xs font-black text-primary">{formatCurrency(reg.producerNetAmount || 0)}</span>
-                              <Badge variant="ghost" className="text-[7px] p-0 font-bold uppercase opacity-50">Ver Breakdown</Badge>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent className="p-4 space-y-3 w-64">
-                             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b pb-1">Análise da Venda</p>
-                             <div className="space-y-1.5">
-                                <div className="flex justify-between gap-4 text-[10px] font-bold"><span>Valor do Ingresso:</span> <span>{formatCurrency(reg.ticketBasePrice)}</span></div>
-                                <div className="flex justify-between gap-4 text-[10px] font-bold text-red-500"><span>Custo do seu Plano:</span> <span>- {formatCurrency(reg.producerFeeAmount || 0)}</span></div>
-                                <div className="flex justify-between gap-4 text-[10px] font-black text-green-600 pt-1 border-t"><span>Seu Líquido:</span> <span>{formatCurrency(reg.producerNetAmount)}</span></div>
-                             </div>
-                             <Separator className="my-2" />
-                             <div className="space-y-1.5">
-                                <div className="flex justify-between gap-4 text-[10px] font-medium opacity-60"><span>Taxa Comprador (15%):</span> <span>+ {formatCurrency(reg.administrativeFeeAmount)}</span></div>
-                                <div className="flex justify-between gap-4 text-[11px] font-black text-primary"><span>Total Pago (Stripe):</span> <span>{formatCurrency(reg.price)}</span></div>
-                             </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableCell>
-                    <TableCell><span className="text-[10px] font-mono font-bold text-secondary">{reg.ticketCode}</span></TableCell>
-                    <TableCell className="text-right">
-                      {['owner', 'admin'].includes(userRole || '') && reg.status !== 'Cancelado' && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" onClick={() => setTicketToRefund(reg)}>
-                           <XCircle className="w-4 h-4" />
+                {filteredRegistrations.map((reg) => {
+                  const isCancelled = reg.status === 'Cancelado' || reg.paymentStatus === 'Cancelado';
+                  return (
+                    <TableRow key={reg.id} className={cn("hover:bg-muted/10 transition-colors", reg.checkedIn && "bg-green-50/30", isCancelled && "opacity-50 grayscale")}>
+                      <TableCell className="text-center">
+                        <Button variant={reg.checkedIn ? "default" : "outline"} size="icon" disabled={isCancelled} onClick={() => handleCheckIn(reg, reg.checkedIn)} className={cn("h-9 w-9 rounded-full transition-all", reg.checkedIn ? "bg-green-500 hover:bg-green-600 text-white" : "border-muted-foreground/30")}>
+                          <CheckCircle2 className={cn("w-5 h-5", reg.checkedIn ? "text-white" : "text-muted-foreground/20")} />
                         </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell><div className="flex flex-col"><span className={cn("font-bold text-sm text-foreground", isCancelled && "line-through")}>{reg.userName || "Pendente"}</span><span className="text-[10px] text-muted-foreground">{reg.userEmail}</span></div></TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5">
+                           <span className="text-xs font-bold text-muted-foreground">{calculateAge(reg.userBirthDate)}</span>
+                           <Badge variant="outline" className="text-[8px] font-black w-fit h-4 uppercase">{reg.userGender || "N/A"}</Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                         <div className="flex flex-col gap-0.5">
+                            <span className="text-xs font-bold">{reg.ticketTypeName || "Acesso"}</span>
+                            {reg.poolName && <span className="text-[8px] font-black text-secondary uppercase flex items-center gap-1"><Layers className="w-2 h-2" /> Pool: {reg.poolName}</span>}
+                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {reg.checkedIn ? (
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-green-600 uppercase">
+                            <Clock className="w-3 h-3" />
+                            {formatTimestamp(reg.checkedInAt)}
+                          </div>
+                        ) : (
+                          <span className="text-[10px] font-bold text-muted-foreground/40 uppercase">{isCancelled ? "CANCELADO" : "---"}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className={cn("flex flex-col cursor-help", isCancelled && "line-through opacity-30")}>
+                                <span className="text-xs font-black text-primary">{formatCurrency(reg.producerNetAmount || 0)}</span>
+                                <Badge variant="ghost" className="text-[7px] p-0 font-bold uppercase opacity-50">Ver Breakdown</Badge>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent className="p-4 space-y-3 w-64">
+                               <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b pb-1">Análise da Venda</p>
+                               <div className="space-y-1.5">
+                                  <div className="flex justify-between gap-4 text-[10px] font-bold"><span>Valor do Ingresso:</span> <span>{formatCurrency(reg.ticketBasePrice)}</span></div>
+                                  <div className="flex justify-between gap-4 text-[10px] font-bold text-red-500"><span>Custo do seu Plano:</span> <span>- {formatCurrency(reg.producerFeeAmount || 0)}</span></div>
+                                  <div className="flex justify-between gap-4 text-[10px] font-black text-green-600 pt-1 border-t"><span>Seu Líquido:</span> <span>{formatCurrency(reg.producerNetAmount)}</span></div>
+                               </div>
+                               <Separator className="my-2" />
+                               <div className="space-y-1.5">
+                                  <div className="flex justify-between gap-4 text-[10px] font-medium opacity-60"><span>Taxa Comprador (15%):</span> <span>+ {formatCurrency(reg.administrativeFeeAmount)}</span></div>
+                                  <div className="flex justify-between gap-4 text-[11px] font-black text-primary"><span>Total Pago (Stripe):</span> <span>{formatCurrency(reg.price)}</span></div>
+                               </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
+                      <TableCell><span className="text-[10px] font-mono font-bold text-secondary">{reg.ticketCode}</span></TableCell>
+                      <TableCell className="text-right">
+                        {['owner', 'admin'].includes(userRole || '') && !isCancelled && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" onClick={() => setTicketToRefund(reg)}>
+                             <XCircle className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -691,7 +710,7 @@ export default function EventoPublicoPage() {
             </div>
             <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Cancelar e Estornar?</AlertDialogTitle>
             <AlertDialogDescription className="font-medium text-foreground/70">
-               O ingresso de <strong>{ticketToRefund?.userName}</strong> será invalidado. O valor de <strong>{formatCurrency(ticketToRefund?.price || 0)}</strong> será devolvido à carteira do participante imediatamente. Esta ação não pode ser desfeita.
+               O ingresso de <strong>{ticketToRefund?.userName}</strong> será invalidado. O valor nominal de <strong>{formatCurrency(ticketToRefund?.ticketBasePrice || 0)}</strong> será devolvido à carteira do participante. A taxa administrativa do serviço (Viby) não é reembolsável. Esta ação é irreversível.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-3 mt-4">

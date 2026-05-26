@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -45,7 +46,8 @@ import {
   Filter,
   Undo2,
   SendHorizontal,
-  AlertCircle
+  AlertCircle,
+  XCircle
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
@@ -125,8 +127,9 @@ export default function OrganizationFinancePage() {
 
   const sales = React.useMemo(() => {
     if (!rawSales) return [];
+    // Incluir "Cancelado" para discriminação no extrato
     return rawSales
-      .filter((r: any) => ["Pago", "Disponível"].includes(r.paymentStatus))
+      .filter((r: any) => ["Pago", "Disponível", "Cancelado"].includes(r.paymentStatus))
       .sort((a, b) => {
         const timeA = a.timestamp?.seconds || a.createdAt?.seconds || 0;
         const timeB = b.timestamp?.seconds || b.createdAt?.seconds || 0;
@@ -158,6 +161,9 @@ export default function OrganizationFinancePage() {
       .reduce((acc: number, r: any) => acc + (r.amount || 0), 0);
 
     const baseStats = sales.reduce((acc: any, sale: any) => {
+      // Ignorar cancelados das somas totais
+      if (sale.status === 'Cancelado' || sale.paymentStatus === 'Cancelado') return acc;
+
       acc.count++;
       acc.grossTotal += (sale.ticketBasePrice || 0);
       acc.fees += (sale.producerFeeAmount || 0);
@@ -376,10 +382,10 @@ export default function OrganizationFinancePage() {
             </Card>
 
             <Card className="border-none shadow-sm bg-white">
-              <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Faturamento Bruto</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Faturamento Líquido</CardTitle></CardHeader>
               <CardContent>
-                <div className="text-3xl font-black text-foreground">{formatCurrency(salesStats.grossTotal)}</div>
-                <p className="text-[9px] font-bold text-red-500 uppercase mt-2">Taxas Plataforma: -{formatCurrency(salesStats.fees)}</p>
+                <div className="text-3xl font-black text-foreground">{formatCurrency(salesStats.netTotal)}</div>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase mt-2">Total que você recebeu/receberá</p>
               </CardContent>
             </Card>
 
@@ -412,8 +418,8 @@ export default function OrganizationFinancePage() {
                     <TableRow>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest">Data / Hora</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest">Evento</TableHead>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Bruto</TableHead>
-                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Líquido</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Valor Face</TableHead>
+                      <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Seu Líquido</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Status</TableHead>
                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Ações</TableHead>
                     </TableRow>
@@ -421,25 +427,41 @@ export default function OrganizationFinancePage() {
                   <TableBody>
                     {sales.map((sale: any) => {
                       const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp);
+                      const isCancelled = sale.status === 'Cancelado' || sale.paymentStatus === 'Cancelado';
+                      
                       const standardReleaseDate = new Date(saleDate);
                       standardReleaseDate.setDate(standardReleaseDate.getDate() + 30);
                       const releaseDate = sale.advanceRequestedAt ? new Date(new Date(sale.advanceRequestedAt).getTime() + 24 * 60 * 60 * 1000) : standardReleaseDate;
                       const isAvailable = new Date() >= releaseDate;
 
                       return (
-                        <TableRow key={sale.id} className="hover:bg-muted/10">
+                        <TableRow key={sale.id} className={cn("hover:bg-muted/10 transition-colors", isCancelled && "opacity-60 bg-red-50/10 grayscale-[0.5]")}>
                           <TableCell className="text-[10px] font-bold">{saleDate.toLocaleString('pt-BR')}</TableCell>
-                          <TableCell className="text-xs font-bold uppercase">{sale.eventTitle}</TableCell>
-                          <TableCell className="text-right text-[10px] text-muted-foreground">{formatCurrency(sale.ticketBasePrice || 0)}</TableCell>
-                          <TableCell className="text-right"><span className="font-black text-xs text-primary">{formatCurrency(sale.producerNetAmount)}</span></TableCell>
-                          <TableCell className="text-center">
-                             <div className={cn("flex items-center justify-center gap-1 text-[9px] font-black uppercase", isAvailable ? "text-green-600" : "text-orange-500")}>
-                               {isAvailable ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                               {isAvailable ? "Liberado" : "Bloqueado"}
-                             </div>
+                          <TableCell className={cn("text-xs font-bold uppercase", isCancelled && "line-through")}>
+                            {sale.eventTitle}
+                          </TableCell>
+                          <TableCell className="text-right text-[10px] text-muted-foreground">
+                            {formatCurrency(sale.ticketBasePrice || 0)}
                           </TableCell>
                           <TableCell className="text-right">
-                             {!isAvailable && !sale.advanceRequested && (
+                            <span className={cn("font-black text-xs", isCancelled ? "text-red-400 line-through" : "text-primary")}>
+                              {formatCurrency(sale.producerNetAmount)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                             {isCancelled ? (
+                               <div className="flex items-center justify-center gap-1 text-[9px] font-black uppercase text-red-500">
+                                 <XCircle className="w-3 h-3" /> Cancelado
+                               </div>
+                             ) : (
+                               <div className={cn("flex items-center justify-center gap-1 text-[9px] font-black uppercase", isAvailable ? "text-green-600" : "text-orange-500")}>
+                                 {isAvailable ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                                 {isAvailable ? "Liberado" : "Bloqueado"}
+                               </div>
+                             )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                             {!isAvailable && !sale.advanceRequested && !isCancelled && (
                                <Button size="sm" variant="outline" className="h-8 rounded-lg text-[8px] font-black uppercase border-secondary text-secondary" onClick={() => { setSelectedSaleForAdvance(sale); setIsAdvanceModalOpen(true); }}>
                                   <Zap className="w-3 h-3 fill-secondary" /> Antecipar
                                </Button>
@@ -458,6 +480,7 @@ export default function OrganizationFinancePage() {
         </TabsContent>
 
         <TabsContent value="anuncios" className="space-y-8 animate-in fade-in zoom-in-95 duration-300">
+           {/* ... conteúdo de anúncios permanece igual ... */}
            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card className="border-none shadow-sm bg-secondary text-white overflow-hidden relative">
                  <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Saldo Livre para Ads</CardTitle></CardHeader>
@@ -544,7 +567,6 @@ export default function OrganizationFinancePage() {
                     </CardContent>
                  </Card>
 
-                 {/* HISTÓRICO DE TRANSAÇÕES DA CONTA DE ANÚNCIOS */}
                  <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
                     <CardHeader className="border-b p-8 pb-6">
                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
