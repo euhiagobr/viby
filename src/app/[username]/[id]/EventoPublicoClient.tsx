@@ -138,6 +138,7 @@ function AvatarFallback({
 }
 
 const renderInlineStyles = (text: string) => {
+  // Regex atualizada para incluir suporte a +texto+ para letras maiores
   const parts = text.split(/(\*\*.*?\*\*|@[\w.]+|\+.*?\+)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**'))
@@ -158,7 +159,11 @@ const renderInlineStyles = (text: string) => {
         </Link>
       );
     if (part.startsWith('+') && part.endsWith('+')) {
-       return part.slice(1, -1);
+       return (
+         <span key={i} className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-primary inline-block my-4 leading-none">
+           {part.slice(1, -1)}
+         </span>
+       );
     }
     return part;
   });
@@ -173,7 +178,7 @@ const renderFormattedText = (text: string) => {
 
     if (trimmed.startsWith('# ')) {
       return (
-        <h2 key={bIdx} className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter mb-10 mt-6 text-primary leading-[0.85] drop-shadow-sm">
+        <h2 key={bIdx} className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter mb-12 mt-8 text-primary leading-[0.8] drop-shadow-sm">
           {renderInlineStyles(trimmed.replace('# ', ''))}
         </h2>
       );
@@ -181,7 +186,7 @@ const renderFormattedText = (text: string) => {
     
     if (trimmed.startsWith('## ')) {
       return (
-        <h3 key={bIdx} className="text-2xl md:text-4xl font-black uppercase italic tracking-tighter mb-8 mt-4 text-primary leading-[0.9]">
+        <h3 key={bIdx} className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter mb-10 mt-6 text-primary leading-[0.85]">
           {renderInlineStyles(trimmed.replace('## ', ''))}
         </h3>
       );
@@ -857,7 +862,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                     )}
 
                     <div className="flex items-center gap-2">
-                       <Button variant="outline" className="rounded-xl h-12 px-6 font-bold gap-2"><Users2 className="w-4 h-4" /> Seguir</Button>
                        <ReportDialog eventId={id} eventTitle={event.title} />
                     </div>
                   </div>
