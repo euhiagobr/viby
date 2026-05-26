@@ -31,7 +31,8 @@ import {
   Ticket,
   Wallet,
   Coins,
-  ArrowRight
+  ArrowRight,
+  ShieldAlert
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -41,6 +42,7 @@ import { toast } from "@/hooks/use-toast"
 import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, limit, getDoc, updateDoc, increment, runTransaction } from "firebase/firestore"
 import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 import { sendCartPendingEmail, sendTicketEmail } from "@/app/actions/email"
+import { AgeRatingBadge, AgeRatingWarning } from "@/lib/age-rating"
 
 export default function CarrinhoPage() {
   const { items, removeItem, updateQuantity, clearCart } = useCart()
@@ -96,6 +98,8 @@ export default function CarrinhoPage() {
   }, [db, items])
 
   const walletBalance = wallet?.balance || 0
+
+  const hasRestrictedEvents = items.some(item => (item as any).ageRating && (item as any).ageRating !== 'free');
 
   const cartTotals = React.useMemo(() => {
     let subtotal = 0;
@@ -320,7 +324,7 @@ export default function CarrinhoPage() {
               },
               unit_amount: Math.round(breakdown.customerFinalPrice * 100),
             },
-            quantity: item.quantity,
+            padding: item.quantity,
           });
         }
       }
@@ -411,44 +415,65 @@ export default function CarrinhoPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className="lg:col-span-8 space-y-4">
-           {feesLoading || loadingOrgs ? <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div> : 
-            items.map((item) => {
-             const orgSettings = orgsData[item.organizationId]
-             const res = calculateFinancialBreakdown(item.price, globalFees, promotions, orgSettings);
-             return (
-               <Card key={item.id} className="border-none shadow-sm rounded-2xl overflow-hidden group">
-                  <div className="flex flex-col sm:flex-row">
-                     <div className="relative w-full sm:w-48 h-32 sm:h-auto bg-muted"><Image src={item.eventImage || "https://picsum.photos/seed/event/400/300"} alt={item.eventTitle} fill className="object-cover" unoptimized /></div>
-                     <CardContent className="p-6 flex-1 flex flex-col justify-between gap-4">
-                        <div className="flex justify-between items-start gap-4">
-                           <div className="space-y-1">
-                              <h3 className="font-bold text-base leading-tight uppercase italic tracking-tight">{item.eventTitle}</h3>
-                              <div className="flex items-center flex-wrap gap-4 text-[10px] font-bold text-muted-foreground uppercase">
-                                 <span className="flex items-center gap-1"><Calendar className="w-3 h-3 text-secondary" /> {new Date(item.eventDate).toLocaleDateString('pt-BR')}</span>
-                                 {item.sectorName && <span className="flex items-center gap-1 text-secondary"><Layers className="w-3 h-3" /> {item.sectorName}</span>}
-                                 {(item as any).seatCode && <span className="flex items-center gap-1 text-green-600 font-black"><Armchair className="w-3 h-3" /> Lugar: {(item as any).seatCode}</span>}
-                                 {item.batchName && <span className="flex items-center gap-1 text-primary/40"><Ticket className="w-3 h-3" /> {item.batchName}</span>}
+        <div className="lg:col-span-8 space-y-6">
+           {hasRestrictedEvents && (
+              <div className="p-4 bg-orange-50 rounded-2xl border-2 border-dashed border-orange-200 flex items-start gap-4 animate-in slide-in-from-top-2">
+                 <ShieldAlert className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
+                 <div className="space-y-1">
+                    <h3 className="text-xs font-black uppercase italic text-orange-800">Atenção: Evento Restrito</h3>
+                    <p className="text-[10px] text-orange-700 font-medium leading-relaxed uppercase">
+                       Existem eventos com restrição de idade no seu carrinho. <strong>Será obrigatória a apresentação de documento oficial com foto na entrada do evento.</strong>
+                    </p>
+                 </div>
+              </div>
+           )}
+
+           <div className="space-y-4">
+              {feesLoading || loadingOrgs ? <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div> : 
+               items.map((item) => {
+                const orgSettings = orgsData[item.organizationId]
+                const res = calculateFinancialBreakdown(item.price, globalFees, promotions, orgSettings);
+                return (
+                  <Card key={item.id} className="border-none shadow-sm rounded-2xl overflow-hidden group">
+                     <div className="flex flex-col sm:flex-row">
+                        <div className="relative w-full sm:w-48 h-32 sm:h-auto bg-muted">
+                           <Image src={item.eventImage || "https://picsum.photos/seed/event/400/300"} alt={item.eventTitle} fill className="object-cover" unoptimized />
+                           {(item as any).ageRating && (
+                             <div className="absolute top-2 left-2">
+                                <AgeRatingBadge code={(item as any).ageRating} className="bg-white/90 p-1 rounded-md shadow-lg" />
+                             </div>
+                           )}
+                        </div>
+                        <CardContent className="p-6 flex-1 flex flex-col justify-between gap-4">
+                           <div className="flex justify-between items-start gap-4">
+                              <div className="space-y-1">
+                                 <h3 className="font-bold text-base leading-tight uppercase italic tracking-tight">{item.eventTitle}</h3>
+                                 <div className="flex items-center flex-wrap gap-4 text-[10px] font-bold text-muted-foreground uppercase">
+                                    <span className="flex items-center gap-1"><Calendar className="w-3 h-3 text-secondary" /> {new Date(item.eventDate).toLocaleDateString('pt-BR')}</span>
+                                    {item.sectorName && <span className="flex items-center gap-1 text-secondary"><Layers className="w-3 h-3" /> {item.sectorName}</span>}
+                                    {(item as any).seatCode && <span className="flex items-center gap-1 text-green-600 font-black"><Armchair className="w-3 h-3" /> Lugar: {(item as any).seatCode}</span>}
+                                    {item.batchName && <span className="flex items-center gap-1 text-primary/40"><Ticket className="w-3 h-3" /> {item.batchName}</span>}
+                                 </div>
+                              </div>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeItem(item.id)}><Trash2 className="w-4 h-4" /></Button>
+                           </div>
+                           <div className="flex flex-wrap items-end justify-between gap-4 pt-4 border-t border-dashed border-border/60">
+                              <div className="flex flex-col gap-1">
+                                 <Badge variant="outline" className="text-[9px] font-black uppercase border-secondary text-secondary w-fit">{item.ticketTypeName}</Badge>
+                              </div>
+                              <div className="flex items-center gap-6">
+                                 {!(item as any).seatId && (
+                                   <div className="flex items-center gap-3"><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => updateQuantity(item.id, item.quantity - 1)}><Minus className="w-3 h-3" /></Button><span className="font-black text-sm">{item.quantity}</span><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => updateQuantity(item.id, item.quantity + 1)}><Plus className="w-3 h-3" /></Button></div>
+                                 )}
+                                 <div className="text-right"><p className="text-lg font-black text-primary">{formatCurrency(res.customerFinalPrice * item.quantity)}</p><p className="text-[8px] font-bold text-muted-foreground uppercase">Taxa Adm: {formatCurrency(res.administrativeFeeAmount * item.quantity)} incl.</p></div>
                               </div>
                            </div>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeItem(item.id)}><Trash2 className="w-4 h-4" /></Button>
-                        </div>
-                        <div className="flex flex-wrap items-end justify-between gap-4 pt-4 border-t border-dashed border-border/60">
-                           <div className="flex flex-col gap-1">
-                              <Badge variant="outline" className="text-[9px] font-black uppercase border-secondary text-secondary w-fit">{item.ticketTypeName}</Badge>
-                           </div>
-                           <div className="flex items-center gap-6">
-                              {!(item as any).seatId && (
-                                <div className="flex items-center gap-3"><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => updateQuantity(item.id, item.quantity - 1)}><Minus className="w-3 h-3" /></Button><span className="font-black text-sm">{item.quantity}</span><Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => updateQuantity(item.id, item.quantity + 1)}><Plus className="w-3 h-3" /></Button></div>
-                              )}
-                              <div className="text-right"><p className="text-lg font-black text-primary">{formatCurrency(res.customerFinalPrice * item.quantity)}</p><p className="text-[8px] font-bold text-muted-foreground uppercase">Taxa Adm: {formatCurrency(res.administrativeFeeAmount * item.quantity)} incl.</p></div>
-                           </div>
-                        </div>
-                     </CardContent>
-                  </div>
-               </Card>
-             );
-           })}
+                        </CardContent>
+                     </div>
+                  </Card>
+                );
+              })}
+           </div>
         </div>
 
         <div className="lg:col-span-4 space-y-6">

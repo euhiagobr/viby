@@ -45,7 +45,8 @@ import {
   Clock,
   Handshake,
   Search,
-  AtSign
+  AtSign,
+  ShieldAlert
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -57,8 +58,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
+import { AGE_RATINGS, AgeRatingBadge, getAgeRatingConfig } from "@/lib/age-rating"
 
 interface TicketType {
   id: string
@@ -116,6 +117,7 @@ export default function NovoEventoPage() {
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
   
   const [selectedCategory, setSelectedCategory] = useState("")
+  const [selectedAgeRating, setSelectedAgeRating] = useState("free")
   const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches' | 'sector_batches'>('free')
   const [mapMode, setMapMode] = useState<'none' | 'setores' | 'assentos' | 'mesas'>('none')
   
@@ -521,6 +523,7 @@ export default function NovoEventoPage() {
     const formData = new FormData(e.currentTarget)
     try {
       const cat = categories?.find(c => c.id === selectedCategory)
+      const ageRatingConfig = getAgeRatingConfig(selectedAgeRating);
       
       let finalBatches: any[] = []
       let finalSectors: any[] = []
@@ -561,6 +564,12 @@ export default function NovoEventoPage() {
         endDate: formData.get("endDate") as string,
         categoryId: selectedCategory,
         categoryName: cat?.name || "Outros",
+        ageRating: {
+          code: ageRatingConfig.code,
+          label: ageRatingConfig.label,
+          minimumAge: ageRatingConfig.minimumAge,
+          isAdultsOnly: !!ageRatingConfig.isAdultsOnly
+        },
         ticketMode,
         mapMode,
         possuiMapa: mapMode !== 'none',
@@ -635,20 +644,63 @@ export default function NovoEventoPage() {
           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Calendar className="w-5 h-5 text-secondary" /> Informações Básicas</CardTitle></CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2"><Label>Título</Label><Input name="title" required className="rounded-xl h-11" placeholder="Nome do seu evento" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Título</Label><Input name="title" required className="rounded-xl h-11" placeholder="Nome do seu evento" /></div>
                 <div className="space-y-2">
-                  <Label>Categoria</Label>
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory} required>
                     <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent className="rounded-xl">{categories?.map((c: any) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}</SelectContent>
                   </Select>
                 </div>
              </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2"><Label>Início</Label><Input name="startDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
-                <div className="space-y-2"><Label>Término</Label><Input name="endDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
+             
+             {/* Classificação Indicativa */}
+             <div className="space-y-4 p-6 bg-muted/20 rounded-3xl border-2 border-dashed border-border/60">
+                <div className="flex items-center justify-between">
+                   <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                         <ShieldAlert className="w-3.5 h-3.5 text-secondary" /> Classificação Indicativa
+                      </Label>
+                      <p className="text-[9px] text-muted-foreground font-bold uppercase">Escolha a faixa etária permitida no evento.</p>
+                   </div>
+                   <AgeRatingBadge code={selectedAgeRating} showLabel className="bg-white p-2 rounded-xl shadow-sm border" />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                   {['free', 'not_recommended_18', 'adults_only_18'].map((code) => {
+                      const config = getAgeRatingConfig(code);
+                      const isSelected = selectedAgeRating === code;
+                      return (
+                        <Button 
+                          key={code} 
+                          type="button"
+                          variant={isSelected ? 'secondary' : 'outline'}
+                          className={cn(
+                            "h-auto py-4 flex-col gap-2 rounded-2xl border-2 transition-all",
+                            isSelected ? "border-secondary ring-4 ring-secondary/10" : "border-border/40"
+                          )}
+                          onClick={() => setSelectedAgeRating(code)}
+                        >
+                           <AgeRatingBadge code={code} />
+                           <div className="text-center">
+                              <p className="text-[9px] font-black uppercase tracking-tighter leading-tight">{config.description || config.label}</p>
+                           </div>
+                        </Button>
+                      );
+                   })}
+                </div>
+                {getAgeRatingConfig(selectedAgeRating).minimumAge >= 18 && (
+                   <div className="flex items-start gap-3 p-3 bg-orange-50 rounded-xl border border-orange-100">
+                      <AlertCircle className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
+                      <p className="text-[9px] text-orange-800 font-bold uppercase leading-tight">Será exibido um aviso de obrigatoriedade de documento com foto para os participantes.</p>
+                   </div>
+                )}
              </div>
-             <div className="space-y-2"><Label>Descrição</Label><Textarea name="description" className="min-h-[120px] rounded-xl border-dashed border-secondary/30" required placeholder="Fale tudo sobre a experiência..." /></div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input name="startDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Término</Label><Input name="endDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
+             </div>
+             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Descrição</Label><Textarea name="description" className="min-h-[120px] rounded-xl border-dashed border-secondary/30" required placeholder="Fale tudo sobre a experiência..." /></div>
           </CardContent>
         </Card>
 
@@ -703,7 +755,7 @@ export default function NovoEventoPage() {
                 </DialogContent>
               </Dialog>
             </div>
-            <CardDescription>Convide marcas parceiras para figurar na produção.</CardDescription>
+            <CardDescription className="font-medium">Convide marcas parceiras para figurar na produção.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
              {invitedPartners.length > 0 ? (
@@ -748,9 +800,9 @@ export default function NovoEventoPage() {
                 <div className="md:col-span-3 space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Rua</Label><Input value={address.street} onChange={e => setAddress({...address, street: e.target.value})} required className="rounded-xl h-11" /></div>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Número</Label><Input id="number" value={address.number} onChange={e => setAddress({...address, number: e.target.value})} required className="rounded-xl h-11" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Complemento</Label><Input id="complement" value={address.complement} onChange={e => setAddress({...address, complement: e.target.value})} className="rounded-xl h-11" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Bairro</Label><Input id="neighborhood" value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} required className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Número</Label><Input id="number" value={address.number} onChange={e => setAddress({...address, number: e.target.value})} required className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label><Input id="complement" value={address.complement} onChange={e => setAddress({...address, complement: e.target.value})} className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input id="neighborhood" value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} required className="rounded-xl h-11" /></div>
                 <div className="space-y-2">
                    <Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label>
                    <Input value={address.city} readOnly required className="rounded-xl h-11 bg-muted/30" />
@@ -895,7 +947,7 @@ export default function NovoEventoPage() {
                           {singleTicketTypes.slice(1).map((t, idx) => {
                             const ti = idx + 1;
                             return (
-                              <div key={t.id} className="p-5 bg-white rounded-[1.5rem] border shadow-sm grid grid-cols-12 gap-6 items-center hover:border-secondary/20 transition-all">
+                              <div key={t.id} className="p-5 bg-white rounded-[1.5rem] border shadow-sm grid grid-cols-12 gap-4 items-center hover:border-secondary/20 transition-all">
                                  <div className="col-span-4 space-y-1">
                                     <Label className="text-[9px] uppercase font-black opacity-40">Categoria</Label>
                                     <Input value={t.name} onChange={e => { const n = [...singleTicketTypes]; n[ti].name = e.target.value; setSingleTicketTypes(n); }} className="rounded-xl h-10 font-bold border-none bg-muted/20" />
@@ -955,7 +1007,7 @@ export default function NovoEventoPage() {
                            <Badge variant="outline" className="text-[10px] font-bold uppercase">{batch.capacidadeInicial} Ingressos Iniciais</Badge>
                         </div>
                         <div className="flex gap-2">
-                           <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setActiveBatchIdx(bi); setTempBatchPercent(batch.halfPricePercent || 40); setIsBatchPercentDialogOpen(true); }}>
+                           <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setActiveBatchIdx({ batchIdx: bi }); setTempBatchPercent(batch.halfPricePercent || 40); setIsBatchPercentDialogOpen(true); }}>
                               <Sparkles className="w-3 h-3" /> Gerar Meia
                            </Button>
                            <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeBatch(bi)} disabled={batches.length === 1}><Trash2 className="w-4 h-4" /></Button>
@@ -1032,7 +1084,7 @@ export default function NovoEventoPage() {
                                              <Switch checked={t.requiresProof} onCheckedChange={v => updateTicketTypeField(bi, ti, 'requiresProof', v)} />
                                           </div>
                                           <div className="col-span-1 flex justify-end">
-                                             <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive rounded-full" onClick={() => removeTicketType(bi, ti)}>
+                                             <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive rounded-full" onClick={() => { const n = [...batches]; n[bi].ticketTypes.splice(ti,1); setBatches(n); }}>
                                                 <Trash2 className="w-3.5 h-3.5" />
                                              </Button>
                                           </div>
@@ -1129,7 +1181,7 @@ export default function NovoEventoPage() {
           </CardContent>
         </Card>
 
-        <Button type="submit" disabled={loading} className="w-full h-16 bg-secondary text-white font-black text-xl rounded-[2rem] shadow-xl uppercase italic">
+        <Button type="submit" disabled={loading} className="w-full h-16 bg-secondary text-white font-black h-16 rounded-[2rem] shadow-xl uppercase italic">
           {loading ? <Loader2 className="animate-spin mr-2" /> : "Publicar Evento"}
         </Button>
       </form>

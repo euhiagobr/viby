@@ -56,7 +56,8 @@ import {
   AlertTriangle,
   ChevronDown,
   Navigation,
-  Lock
+  Lock,
+  ShieldAlert
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -94,6 +95,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { AgeRatingBadge, AgeRatingWarning } from '@/lib/age-rating';
 
 // --- COMPONENTES AUXILIARES ---
 
@@ -320,7 +322,8 @@ function EventHero({ event }: { event: any }) {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 -mt-40 relative z-10 space-y-6">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white p-2 rounded-xl shadow-xl border" />
           <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg">
             {event.categoryName || 'Evento'}
           </Badge>
@@ -820,7 +823,8 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
           sectorId: selectedSector.id,
           sectorName: selectedSector.nome,
           seatId: seat.id,
-          seatCode: seat.codigo
+          seatCode: seat.codigo,
+          ageRating: event.ageRating?.code
         });
       });
       setSelectedSeats({});
@@ -849,6 +853,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
         requiresProof: selectedTicketType.requiresProof || false,
         sectorId: selectedSector?.id || null,
         sectorName: selectedSector?.nome || null,
+        ageRating: event.ageRating?.code
       });
       setQuantity(1);
       setSelectedTicketType(null);
@@ -927,6 +932,26 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
         <div className="max-w-7xl mx-auto px-4 py-16 md:py-24">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
             <div className="lg:col-span-8 space-y-16">
+              {/* CLASSIFICAÇÃO E ALERTAS */}
+              <section className="space-y-6">
+                 <div className="flex items-center gap-3 px-2">
+                    <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><ShieldCheck className="w-5 h-5" /></div>
+                    <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary">Classificação e Regras</h2>
+                 </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 flex flex-col items-center justify-center text-center gap-4">
+                       <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-muted/30 p-4 rounded-2xl scale-125" />
+                       <div className="space-y-1">
+                          <p className="text-[10px] font-black uppercase opacity-40">Classificação Indicativa</p>
+                          <p className="font-bold text-lg">{event.ageRating?.label || "Livre para todos os públicos"}</p>
+                       </div>
+                    </Card>
+                    <div className="flex items-center">
+                       <AgeRatingWarning code={event.ageRating?.code || "free"} />
+                    </div>
+                 </div>
+              </section>
+
               {/* ORGANIZADOR CARD */}
               <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden p-8 hover:shadow-xl transition-shadow group">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">

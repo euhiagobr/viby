@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -12,6 +13,7 @@ import { cn } from "@/lib/utils"
 import { calculateDistance, type Coordinates } from "@/lib/location-utils"
 import { useFirestore, useDoc, useAuth, useUser } from "@/firebase"
 import { doc, updateDoc, increment, serverTimestamp, getDoc, setDoc } from "firebase/firestore"
+import { AgeRatingBadge } from "@/lib/age-rating"
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (
@@ -311,10 +313,13 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           )}
           {!isEnded && (
             <>
-              <Badge className="bg-white/90 text-primary border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider">
-                {categoryDisplay}
-              </Badge>
-              <Badge className={cn("text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider", event.isFree ? "bg-green-500" : "bg-primary")}>
+              <div className="flex items-center gap-2">
+                 <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/95 p-1 rounded-md shadow-sm" />
+                 <Badge className="bg-white/90 text-primary border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider">
+                   {categoryDisplay}
+                 </Badge>
+              </div>
+              <Badge className={cn("text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider w-fit", event.isFree ? "bg-green-500" : "bg-primary")}>
                 {getPriceDisplay()}
               </Badge>
             </>

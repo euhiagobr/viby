@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -16,7 +17,8 @@ import {
   Loader2,
   Trash2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  ShieldAlert
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card"
@@ -33,6 +35,7 @@ import { useFirestore, useAuth, useUser, useCollection, useMemoFirebase, useDoc 
 import { collection, query, orderBy, serverTimestamp, addDoc, doc, deleteDoc, getDocs, where, limit, writeBatch, setDoc } from "firebase/firestore"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import { AgeRatingBadge } from "@/lib/age-rating"
 
 const renderFormattedText = (text: string) => {
   if (!text) return "";
@@ -241,7 +244,10 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
         <Image src={event.image || `https://picsum.photos/seed/${event.id}/800/600`} alt={event.title} fill className={cn("object-cover transition-transform group-hover:scale-105", isEnded && "grayscale")} unoptimized />
         <div className="absolute top-4 left-4 flex flex-col gap-2">
           {isEnded && <Badge className="bg-muted text-muted-foreground border-none shadow-lg text-[10px] font-black uppercase px-3 py-1">Encerrado</Badge>}
-          {event.categoryName && <Badge className="bg-white/90 text-primary border-none shadow-lg text-[10px] font-black uppercase px-3 py-1">{event.categoryName}</Badge>}
+          <div className="flex items-center gap-2">
+             <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/90 p-1.5 rounded-xl shadow-lg" />
+             {event.categoryName && <Badge className="bg-white/90 text-primary border-none shadow-lg text-[10px] font-black uppercase px-3 py-1">{event.categoryName}</Badge>}
+          </div>
         </div>
       </div>
 
