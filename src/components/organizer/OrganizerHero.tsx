@@ -76,28 +76,27 @@ export function OrganizerHero({ organization }: OrganizerHeroProps) {
                 </p>
               </div>
 
-              <div className="flex flex-wrap justify-center md:justify-start items-center gap-6 pt-2">
+              <div className="flex flex-wrap justify-center md:justify-start items-center gap-8 pt-2">
                 <StatItem label="Seguidores" value={organization.followersCount || 0} />
-                <StatItem label="Seguindo" value={organization.followingCount || 0} />
                 <StatItem label="Eventos" value={organization.totalEventsCount || 0} />
-                <StatItem label="Público" value={organization.totalAttendeesCount || 0} />
+                <StatItem label="Público Total" value={organization.totalAttendeesCount || 0} />
               </div>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-3 pb-2">
             <FollowButton organizationId={organization.id} />
-            <Button variant="outline" size="icon" className="rounded-2xl h-12 w-12 border-2" onClick={handleShare}>
+            <Button variant="outline" size="icon" className="rounded-2xl h-12 w-12 border-2" onClick={handleShare} title="Compartilhar">
               <Share2 className="w-5 h-5" />
             </Button>
             {organization.website && (
-              <Button variant="outline" size="icon" className="rounded-2xl h-12 w-12 border-2" asChild>
+              <Button variant="outline" size="icon" className="rounded-2xl h-12 w-12 border-2" asChild title="Site Oficial">
                 <a href={organization.website} target="_blank" rel="noopener noreferrer"><Globe className="w-5 h-5" /></a>
               </Button>
             )}
             {organization.instagram && (
-              <Button variant="outline" size="icon" className="rounded-2xl h-12 w-12 border-2" asChild>
-                <a href={`https://instagram.com/${organization.instagram}`} target="_blank" rel="noopener noreferrer"><Instagram className="w-5 h-5" /></a>
+              <Button variant="outline" size="icon" className="rounded-2xl h-12 w-12 border-2" asChild title="Instagram">
+                <a href={`https://instagram.com/${organization.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer"><Instagram className="w-5 h-5" /></a>
               </Button>
             )}
           </div>
@@ -110,7 +109,7 @@ export function OrganizerHero({ organization }: OrganizerHeroProps) {
 function StatItem({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex flex-col md:items-start">
-      <span className="text-xl font-black italic tracking-tighter text-primary">
+      <span className="text-2xl font-black italic tracking-tighter text-primary">
         {value > 1000 ? `${(value / 1000).toFixed(1)}k` : value}
       </span>
       <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-60">

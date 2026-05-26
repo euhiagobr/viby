@@ -2,21 +2,19 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useDoc } from "@/firebase";
 import { doc, getDoc, collection, query, where, orderBy } from "firebase/firestore";
-import { Loader2, Users, ArrowLeft } from "lucide-react";
+import { Loader2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Components
 import { OrganizerHero } from "@/components/organizer/OrganizerHero";
-import { OrganizerBio } from "@/components/organizer/OrganizerBio";
 import { OrganizerEvents } from "@/components/organizer/OrganizerEvents";
-import { OrganizerSocials } from "@/components/organizer/OrganizerSocials";
+import { OrganizerAbout } from "@/components/organizer/OrganizerAbout";
 import { OrganizerGallery } from "@/components/organizer/OrganizerGallery";
-import { OrganizerMap } from "@/components/organizer/OrganizerMap";
 import Footer from "@/components/layout/Footer";
 
 export default function ProfilePageClient({ username }: { username: string }) {
@@ -57,7 +55,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
     fetchData();
   }, [db, username]);
 
-  // Fetch Events
+  // Fetch All Active Events
   const eventsQuery = useMemoFirebase(() => {
     if (!db || !data?.id || type !== 'organization') return null;
     return query(
@@ -100,8 +98,18 @@ export default function ProfilePageClient({ username }: { username: string }) {
     );
   }
 
+  const now = new Date();
+  const upcomingEvents = (events || []).filter(e => {
+    const end = e.endDate?.toDate ? e.endDate.toDate() : (e.date?.toDate ? new Date(e.date.toDate().getTime() + 4 * 60 * 60 * 1000) : new Date());
+    return end >= now;
+  });
+  const pastEvents = (events || []).filter(e => {
+    const end = e.endDate?.toDate ? e.endDate.toDate() : (e.date?.toDate ? new Date(e.date.toDate().getTime() + 4 * 60 * 60 * 1000) : new Date());
+    return end < now;
+  });
+
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white font-body">
       {/* Premium Navigation */}
       <nav className="fixed top-0 z-50 w-full bg-background/80 backdrop-blur-xl border-b border-border/40">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -114,10 +122,10 @@ export default function ProfilePageClient({ username }: { username: string }) {
           </Link>
           <div className="flex items-center gap-4">
             <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest hidden sm:flex">
-              <Link href="/dashboard">Painel</Link>
+              <Link href="/login">Entrar</Link>
             </Button>
             <Button asChild className="bg-primary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg shadow-primary/10">
-              <Link href="/login">Entrar</Link>
+              <Link href="/cadastro">Criar Conta</Link>
             </Button>
           </div>
         </div>
@@ -133,24 +141,37 @@ export default function ProfilePageClient({ username }: { username: string }) {
           >
             <OrganizerHero organization={data} />
 
-            <div className="container mx-auto px-4 mt-20 space-y-24 max-w-6xl">
-              {/* Main Content Layout */}
-              <div className="grid grid-cols-1 gap-24">
-                {/* 1. About Section */}
-                <OrganizerBio bio={data.bio} />
+            <div className="container mx-auto px-4 mt-12 max-w-6xl">
+              <Tabs defaultValue="upcoming" className="w-full">
+                <div className="flex justify-center mb-12">
+                  <TabsList className="bg-muted/50 p-1 rounded-2xl h-14 inline-flex">
+                    <TabsTrigger value="upcoming" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg">
+                      Próximos Eventos
+                    </TabsTrigger>
+                    <TabsTrigger value="past" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg">
+                      Eventos Passados
+                    </TabsTrigger>
+                    <TabsTrigger value="about" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg">
+                      Sobre
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
 
-                {/* 2. Social Connections */}
-                <OrganizerSocials organization={data} />
+                <TabsContent value="upcoming" className="animate-in fade-in slide-in-from-bottom-4 duration-500 m-0 focus-visible:outline-none">
+                  <OrganizerEvents events={upcomingEvents} title="Agenda" />
+                </TabsContent>
 
-                {/* 3. Event List System */}
-                <OrganizerEvents events={events || []} />
+                <TabsContent value="past" className="animate-in fade-in slide-in-from-bottom-4 duration-500 m-0 focus-visible:outline-none">
+                  <div className="space-y-20">
+                    <OrganizerEvents events={pastEvents} title="Histórico" isPast />
+                    <OrganizerGallery gallery={data.gallery || []} />
+                  </div>
+                </TabsContent>
 
-                {/* 4. Multimedia Gallery */}
-                <OrganizerGallery gallery={data.gallery || []} />
-
-                {/* 5. Physical Location */}
-                <OrganizerMap organization={data} />
-              </div>
+                <TabsContent value="about" className="animate-in fade-in slide-in-from-bottom-4 duration-500 m-0 focus-visible:outline-none">
+                  <OrganizerAbout organization={data} />
+                </TabsContent>
+              </Tabs>
             </div>
           </motion.div>
         </AnimatePresence>
