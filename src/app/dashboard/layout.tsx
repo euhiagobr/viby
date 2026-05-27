@@ -1,11 +1,10 @@
-
 "use client"
 
 import * as React from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
-import { Bell, Loader2, Plus, Building2, ShoppingCart, Sparkles } from "lucide-react"
+import { Bell, Loader2, Plus, Building2, ShoppingCart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, where, doc, getDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore"
@@ -22,13 +21,15 @@ import {
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import { toast } from "@/hooks/use-toast"
+import { UserNav } from "@/components/layout/UserNav"
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
-  const { currentOrg, organizations, setCurrentOrg, loading } = useCurrentOrganization()
+  const { currentOrg, organizations, setCurrentOrg } = useCurrentOrganization()
   const auth = useAuth()
   const { user, loading: authLoading } = useUser(auth)
   const db = useFirestore()
   const router = useRouter()
+  const pathname = usePathname()
   const { totalCount } = useCart()
   const [checkingAccount, setCheckingAccount] = React.useState(true)
 
@@ -148,13 +149,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                   )}
                 </Link>
               </Button>
-              <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold border border-border shadow-sm overflow-hidden">
-                {user?.photoURL ? (
-                  <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-xs uppercase">{user?.displayName?.charAt(0) || 'U'}</span>
-                )}
-              </div>
+              <UserNav />
             </div>
           </header>
           <div className="p-6 lg:p-10 max-w-7xl mx-auto w-full flex-1">

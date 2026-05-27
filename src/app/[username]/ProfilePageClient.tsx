@@ -1,16 +1,15 @@
-
 "use client";
 
 import * as React from "react";
 import { useFirestore, useAuth, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase";
 import { doc, getDoc, collection, query, where, orderBy, limit } from "firebase/firestore";
-import { signOut } from "firebase/auth";
 import { Loader2, LogOut, User as UserIcon, Lock, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/hooks/use-toast";
 import Image from "next/image";
+import { UserNav } from "@/components/layout/UserNav";
 
 // Components - Organization
 import { OrganizerHero } from "@/components/organizer/OrganizerHero";
@@ -36,7 +35,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
   const [profileData, setProfileData] = React.useState<any>(null);
   const [profileType, setProfileType] = React.useState<'user' | 'organization' | null>(null);
   const [isOwner, setIsOwner] = React.useState(false);
-  const [currentUserProfile, setCurrentUserProfile] = React.useState<any>(null);
   const [now, setNow] = React.useState<Date>(new Date());
 
   React.useEffect(() => {
@@ -46,15 +44,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
   const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db]);
   const { data: settings } = useDoc<any>(settingsRef);
   const siteName = settings?.siteName || "Viby";
-
-  // Fetch Logged User Profile info
-  React.useEffect(() => {
-    if (db && loggedUser) {
-      getDoc(doc(db, "users", loggedUser.uid)).then(snap => {
-        if (snap.exists()) setCurrentUserProfile(snap.data())
-      })
-    }
-  }, [db, loggedUser]);
 
   // Fetch Target Profile (Independent of loggedUser)
   React.useEffect(() => {
@@ -115,17 +104,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
     checkOwnership();
   }, [db, loggedUser, profileData, profileType]);
-
-  const handleLogout = async () => {
-    if (!auth) return;
-    try {
-      await signOut(auth);
-      toast({ title: "Até logo!", description: "Você saiu da sua conta." });
-      window.location.reload();
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao sair" });
-    }
-  }
 
   // --- Common Data ---
   const followersQuery = useMemoFirebase(() => {
@@ -220,21 +198,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
           </Link>
           <div className="flex items-center gap-4">
             {loggedUser ? (
-              <>
-                <Button variant="ghost" asChild className="font-black uppercase text-[10px] tracking-widest hidden sm:flex">
-                  <Link href="/dashboard">Painel</Link>
-                </Button>
-                <Button variant="ghost" asChild className="font-black uppercase text-[10px] tracking-widest hidden sm:flex text-secondary">
-                  <Link href={`/${currentUserProfile?.username || ""}`}>
-                    <UserIcon className="w-3 h-3 mr-1.5" />
-                    {currentUserProfile?.name || loggedUser.displayName || "Meu Perfil"}
-                  </Link>
-                </Button>
-                <Button variant="ghost" onClick={handleLogout} className="font-black uppercase text-[10px] tracking-widest text-destructive">
-                  <LogOut className="w-3 h-3 mr-1.5" />
-                  Sair
-                </Button>
-              </>
+              <UserNav />
             ) : (
               <>
                 <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest hidden sm:flex">

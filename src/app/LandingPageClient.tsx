@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -28,6 +27,7 @@ import { cn } from "@/lib/utils"
 import useEmblaCarousel from 'embla-carousel-react'
 import { PlaceHolderImages } from "@/lib/placeholder-images"
 import { toast } from "@/hooks/use-toast"
+import { UserNav } from "@/components/layout/UserNav"
 
 export default function LandingPageClient() {
   const db = useFirestore()
@@ -39,19 +39,9 @@ export default function LandingPageClient() {
   const [selectedCategory, setSelectedCategory] = React.useState("all")
   const [sortBy, setSortBy] = React.useState<'date' | 'distance'>('date')
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
-  const [currentUserProfile, setCurrentUserProfile] = React.useState<any>(null)
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
-
-  // Fetch logged user profile to get username
-  React.useEffect(() => {
-    if (db && user) {
-      getDoc(doc(db, "users", user.uid)).then(snap => {
-        if (snap.exists()) setCurrentUserProfile(snap.data())
-      })
-    }
-  }, [db, user])
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -88,17 +78,6 @@ export default function LandingPageClient() {
     }
     fetchLocation()
   }, [])
-
-  const handleLogout = async () => {
-    if (!auth) return;
-    try {
-      await signOut(auth);
-      toast({ title: "Até logo!", description: "Você saiu da sua conta." });
-      window.location.reload();
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao sair" });
-    }
-  }
 
   const eventsInScope = React.useMemo(() => {
     if (!events) return []
@@ -222,21 +201,7 @@ export default function LandingPageClient() {
           </Link>
           <div className="flex items-center gap-4">
             {user ? (
-              <>
-                <Button variant="ghost" asChild className="font-black uppercase text-[10px] tracking-widest hidden sm:flex">
-                  <Link href="/dashboard">Painel</Link>
-                </Button>
-                <Button variant="ghost" asChild className="font-black uppercase text-[10px] tracking-widest hidden sm:flex text-secondary">
-                  <Link href={`/${currentUserProfile?.username || ""}`}>
-                    <UserIcon className="w-3 h-3 mr-1.5" />
-                    {currentUserProfile?.name || user.displayName || "Meu Perfil"}
-                  </Link>
-                </Button>
-                <Button variant="ghost" onClick={handleLogout} className="font-black uppercase text-[10px] tracking-widest text-destructive">
-                  <LogOut className="w-3 h-3 mr-1.5" />
-                  Sair
-                </Button>
-              </>
+              <UserNav />
             ) : (
               <>
                 <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest">

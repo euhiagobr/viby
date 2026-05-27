@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -35,6 +34,7 @@ import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import Footer from '@/components/layout/Footer';
 import Image from "next/image"
+import { UserNav } from '@/components/layout/UserNav';
 
 export default function AdminLayout({
   children,
@@ -185,13 +185,11 @@ export default function AdminLayout({
             <h2 className="font-bold text-xs uppercase tracking-widest">Plataforma Administrativa</h2>
           </div>
           <div className="flex items-center gap-4">
-             <div className="flex flex-col items-end">
+             <div className="flex flex-col items-end hidden sm:flex">
                 <span className="text-xs font-bold">{user?.displayName || 'Administrador'}</span>
                 <span className="text-[10px] font-bold text-muted-foreground uppercase">Viby Control Center</span>
              </div>
-             <div className="h-9 w-9 rounded-full bg-secondary flex items-center justify-center text-white font-bold shadow-sm">
-                {user?.displayName?.charAt(0) || 'A'}
-             </div>
+             <UserNav />
           </div>
         </header>
         <div className="p-10 max-w-7xl mx-auto w-full flex-1">

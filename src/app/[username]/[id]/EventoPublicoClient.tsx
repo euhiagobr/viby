@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -96,49 +95,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { AgeRatingBadge, AgeRatingWarning } from '@/lib/age-rating';
+import { UserNav } from '@/components/layout/UserNav';
 
 // --- COMPONENTES AUXILIARES ---
 
 function VerifiedBadge() {
   return (
     <BadgeCheck className="w-5 h-5 fill-blue-500 text-white" />
-  );
-}
-
-function Avatar({
-  className,
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className={cn('relative flex shrink-0 overflow-hidden rounded-full', className)}>
-      {children}
-    </div>
-  );
-}
-
-function AvatarImage({ src, className }: { src?: string; className?: string }) {
-  return <img src={src} className={cn('aspect-square h-full w-full object-cover', className)} />;
-}
-
-function AvatarFallback({
-  className,
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className={cn(
-        'flex h-full w-full items-center justify-center rounded-full bg-muted text-muted-foreground',
-        className
-      )}
-    >
-      {children}
-    </div>
   );
 }
 
@@ -914,10 +877,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
               <Share2 className="w-5 h-5" />
             </Button>
             {user ? (
-               <Avatar className="h-10 w-10 border-2 border-secondary shadow-sm">
-                 <AvatarImage src={user.photoURL || ""} />
-                 <AvatarFallback>{user.displayName?.charAt(0)}</AvatarFallback>
-               </Avatar>
+               <UserNav />
             ) : (
               <Button asChild className="bg-primary text-white font-black uppercase text-[10px] italic rounded-full px-6 shadow-lg shadow-primary/10">
                 <Link href="/login">Entrar</Link>
@@ -956,10 +916,9 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
               <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden p-8 hover:shadow-xl transition-shadow group">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
                     <div className="flex items-center gap-8">
-                      <Avatar className="h-24 w-24 border-4 border-secondary/10 p-0.5 group-hover:scale-110 transition-transform">
-                        <AvatarImage src={organizationProfile?.avatar || event.organizer?.avatar} className="rounded-full object-cover" />
-                        <AvatarFallback className="text-2xl font-black bg-muted">{organizationProfile?.name?.charAt(0) || 'O'}</AvatarFallback>
-                      </Avatar>
+                      <div className="h-24 w-24 relative">
+                        <img src={organizationProfile?.avatar || event.organizer?.avatar} className="h-full w-full rounded-full object-cover border-4 border-secondary/10 p-0.5 group-hover:scale-110 transition-transform" />
+                      </div>
                       <div className="space-y-1">
                         <p className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Realização</p>
                         <div className="flex items-center gap-2">
@@ -979,10 +938,9 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Link href={`/${p.username}`}>
-                                       <Avatar className="h-10 w-10 border-4 border-white shadow-md hover:-translate-y-1 transition-transform cursor-pointer">
-                                          <AvatarImage src={p.avatar} className="object-cover" />
-                                          <AvatarFallback className="bg-muted text-[10px] font-bold">{p.orgName?.charAt(0)}</AvatarFallback>
-                                       </Avatar>
+                                       <div className="h-10 w-10 relative border-4 border-white shadow-md hover:-translate-y-1 transition-transform cursor-pointer rounded-full overflow-hidden">
+                                          <img src={p.avatar} className="h-full w-full object-cover" />
+                                       </div>
                                     </Link>
                                   </TooltipTrigger>
                                   <TooltipContent><p className="text-[10px] font-black uppercase">{p.orgName}</p></TooltipContent>
