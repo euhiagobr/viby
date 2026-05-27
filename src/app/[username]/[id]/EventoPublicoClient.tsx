@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -96,6 +97,7 @@ import {
 } from "@/components/ui/tooltip";
 import { AgeRatingBadge, AgeRatingWarning } from '@/lib/age-rating';
 import { UserNav } from '@/components/layout/UserNav';
+import { RichText } from '@/components/ui/rich-text';
 
 // --- COMPONENTES AUXILIARES ---
 
@@ -105,39 +107,8 @@ function VerifiedBadge() {
   );
 }
 
-const renderInlineStyles = (text: string) => {
-  const parts = text.split(/(\*\*.*?\*\*|@[\w.]+|\+.*?\+)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**'))
-      return (
-        <strong key={i} className="font-black text-primary">
-          {part.slice(2, -2)}
-        </strong>
-      );
-    if (part.startsWith('@'))
-      return (
-        <Link
-          key={i}
-          href={`/${part.slice(1).toLowerCase()}`}
-          className="text-secondary font-black hover:underline"
-          onClick={e => e.stopPropagation()}
-        >
-          {part}
-        </Link>
-      );
-    if (part.startsWith('+') && part.endsWith('+')) {
-       return (
-         <span key={i} className="text-4xl font-black uppercase italic tracking-tighter text-primary inline-block my-2 leading-none">
-           {part.slice(1, -1)}
-         </span>
-       );
-    }
-    return part;
-  });
-};
-
 const renderFormattedText = (text: string) => {
-  if (!text) return '';
+  if (!text) return null;
   
   return text.split(/\n\n+/).map((block, bIdx) => {
     const trimmed = block.trim();
@@ -146,7 +117,7 @@ const renderFormattedText = (text: string) => {
     if (trimmed.startsWith('# ')) {
       return (
         <h2 key={bIdx} className="text-5xl md:text-6xl font-black uppercase italic tracking-tighter mb-6 mt-4 text-primary leading-[0.9] drop-shadow-sm">
-          {renderInlineStyles(trimmed.replace('# ', ''))}
+          <RichText content={trimmed.replace('# ', '')} />
         </h2>
       );
     }
@@ -154,21 +125,15 @@ const renderFormattedText = (text: string) => {
     if (trimmed.startsWith('## ')) {
       return (
         <h3 key={bIdx} className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter mb-4 mt-2 text-primary leading-[1]">
-          {renderInlineStyles(trimmed.replace('## ', ''))}
+          <RichText content={trimmed.replace('## ', '')} />
         </h3>
       );
     }
     
-    const lines = trimmed.split('\n');
     return (
-      <p key={bIdx} className="mb-6 last:mb-0 leading-relaxed text-lg md:text-xl font-medium text-foreground/80">
-        {lines.map((line, lIdx) => (
-          <React.Fragment key={lIdx}>
-            {renderInlineStyles(line)}
-            {lIdx < lines.length - 1 && <br />}
-          </React.Fragment>
-        ))}
-      </p>
+      <div key={bIdx} className="mb-6 last:mb-0 leading-relaxed text-lg md:text-xl font-medium text-foreground/80">
+        <RichText content={trimmed} />
+      </div>
     );
   }).filter(Boolean);
 };

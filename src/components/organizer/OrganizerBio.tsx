@@ -4,6 +4,7 @@
 import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Info, Sparkles } from "lucide-react";
+import { RichText } from "@/components/ui/rich-text";
 
 interface OrganizerBioProps {
   bio: string;
@@ -17,17 +18,19 @@ export function OrganizerBio({ bio }: OrganizerBioProps) {
       const trimmed = block.trim();
       if (!trimmed) return null;
 
-      // Custom formatting
-      const parts = trimmed.split(/(\*\*.*?\*\*|@[\w.]+|\+.*?\+)/g);
-      const renderedParts = parts.map((part, i) => {
-        if (part.startsWith('**') && part.endsWith('**'))
-          return <strong key={i} className="font-black text-primary">{part.slice(2, -2)}</strong>;
-        if (part.startsWith('+') && part.endsWith('+'))
-          return <span key={i} className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter text-primary block my-2">{part.slice(1, -1)}</span>;
-        return part;
-      });
+      if (trimmed.startsWith('# ')) {
+        return (
+          <h3 key={idx} className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter text-primary block my-4 leading-none">
+            <RichText content={trimmed.replace('# ', '')} />
+          </h3>
+        );
+      }
 
-      return <p key={idx} className="mb-4 last:mb-0 text-lg md:text-xl font-medium text-foreground/80 leading-relaxed">{renderedParts}</p>;
+      return (
+        <div key={idx} className="mb-4 last:mb-0 text-lg md:text-xl font-medium text-foreground/80 leading-relaxed">
+          <RichText content={trimmed} />
+        </div>
+      );
     }).filter(Boolean);
   };
 

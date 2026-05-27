@@ -73,6 +73,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { AGE_RATINGS, AgeRatingBadge, getAgeRatingConfig } from "@/lib/age-rating"
+import { MentionTextarea } from "@/components/ui/mention-textarea"
 
 interface TicketType {
   id: string
@@ -142,6 +143,7 @@ export default function EditarEventoPage() {
   const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches' | 'sector_batches'>('none')
   const [mapMode, setMapMode] = useState<'none' | 'setores' | 'assentos' | 'mesas'>('none')
   
+  const [description, setDescription] = useState("")
   const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
 
   // --- Parcerias ---
@@ -181,6 +183,7 @@ export default function EditarEventoPage() {
       setTicketMode(event.ticketMode || 'none')
       setMapMode(event.mapMode || 'none')
       setImagePreview(event.image || null)
+      setDescription(event.description || "")
       if (event.address) setAddress({ ...address, ...event.address })
 
       if (event.ticketMode === 'batches') {
@@ -409,7 +412,7 @@ export default function EditarEventoPage() {
 
       const updateData: any = {
         title: formData.get("title") as string,
-        description: formData.get("description") as string,
+        description: description,
         date: formData.get("startDate") as string,
         endDate: formData.get("endDate") as string,
         categoryId: selectedCategory,
@@ -558,7 +561,19 @@ export default function EditarEventoPage() {
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input name="startDate" type="datetime-local" defaultValue={event.date} required className="rounded-xl h-11 text-xs" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fim</Label><Input name="endDate" type="datetime-local" defaultValue={event.endDate} required className="rounded-xl h-11 text-xs" /></div>
              </div>
-             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Descrição</Label><Textarea name="description" defaultValue={event.description} className="min-h-[120px] rounded-xl" required /></div>
+             <div className="space-y-2">
+                <Label className="flex justify-between items-center">
+                   <span className="text-[10px] font-black uppercase opacity-60">Descrição</span>
+                   <span className="text-[9px] font-black uppercase text-secondary">Suporta: **negrito**, +grande+, @menção</span>
+                </Label>
+                <MentionTextarea 
+                  placeholder="Fale tudo sobre a experiência..." 
+                  value={description}
+                  onValueChange={setDescription}
+                  className="min-h-[150px] rounded-xl border-dashed border-secondary/30" 
+                  required 
+                />
+             </div>
           </CardContent>
         </Card>
 
@@ -673,7 +688,7 @@ export default function EditarEventoPage() {
                         </div>
                      </div>
                      <div className="p-6 bg-white rounded-3xl border shadow-sm grid grid-cols-12 gap-6 items-end">
-                        <div className="col-span-5 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Ingresso Principal</Label><Input value={batch.ticketTypes[0]?.name || ""} onChange={e => updateGlobalTicketTypeField(bi, 0, 'name', e.target.value)} className="rounded-xl h-11 font-bold" /></div>
+                        <div className="col-span-5 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Ingresso Principal</Label><Input value={batch.ticketTypes[0]?.name || ""} onChange={e => updateGlobalBatchField(bi, 0, 'name', e.target.value)} className="rounded-xl h-11 font-bold" /></div>
                         <div className="col-span-3 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Quantidade</Label><Input value={batch.ticketTypes[0]?.quantity || 0} readOnly className="rounded-xl h-11 font-black bg-muted/30" /></div>
                         <div className="col-span-4 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Valor (R$)</Label><Input type="number" step="0.01" value={batch.ticketTypes[0]?.price || 0} onChange={e => updateGlobalTicketTypeField(bi, 0, 'price', parseFloat(e.target.value) || 0)} className="rounded-xl h-11 font-black text-secondary" /></div>
                      </div>

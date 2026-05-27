@@ -1,0 +1,22 @@
+
+{
+  "feature": "Dynamic Rich Text & Mentions",
+  "collections_involved": {
+    "usernames": {
+      "purpose": "Indexador global para busca de perfis e validação de menções",
+      "fields": {
+        "uid": "ID do documento original (users ou organizations)",
+        "type": "Determina se a rota é perfil pessoal ou comercial (user | organization)"
+      }
+    },
+    "notifications": {
+      "purpose": "Registro de alertas quando um usuário é mencionado",
+      "fields": {
+        "targetUid": "UID do usuário que recebeu a menção",
+        "senderId": "UID de quem comentou/publicou",
+        "type": "Tipo 'mention'",
+        "link": "URL para o conteúdo onde ocorreu a menção"
+      }
+    }
+  }
+}

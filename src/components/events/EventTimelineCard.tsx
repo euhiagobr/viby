@@ -36,26 +36,8 @@ import { collection, query, orderBy, serverTimestamp, addDoc, doc, deleteDoc, ge
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import { AgeRatingBadge } from "@/lib/age-rating"
-
-const renderFormattedText = (text: string) => {
-  if (!text) return "";
-  // Regex para: **negrito**, @username, +texto+
-  const parts = text.split(/(\*\*.*?\*\*|@[\w.]+|\+.*?\+)/g);
-
-  return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
-    }
-    if (part.startsWith('@')) {
-      const usernameMention = part.slice(1).toLowerCase();
-      return <Link key={i} href={`/${usernameMention}`} className="text-secondary font-black hover:underline" onClick={(e) => e.stopPropagation()}>{part}</Link>;
-    }
-    if (part.startsWith('+') && part.endsWith('+')) {
-       return part.slice(1, -1);
-    }
-    return part;
-  });
-}
+import { RichText } from "@/components/ui/rich-text"
+import { MentionTextarea } from "@/components/ui/mention-textarea"
 
 function CommentItem({ comment, eventId, isAdmin, onDelete }: { comment: any, eventId: string, isAdmin: boolean, onDelete: (id: string) => void }) {
   const db = useFirestore()
@@ -88,7 +70,7 @@ function CommentItem({ comment, eventId, isAdmin, onDelete }: { comment: any, ev
           )}
         </div>
         <div className="text-xs text-muted-foreground leading-relaxed">
-          {renderFormattedText(comment.text)}
+          <RichText content={comment.text} />
         </div>
       </div>
     </div>
@@ -270,7 +252,7 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
         <div className="space-y-1">
           <h3 className={cn("text-xl font-black uppercase italic tracking-tighter leading-tight text-primary", isEnded && "text-muted-foreground")}>{event.title}</h3>
           <div className="text-sm text-muted-foreground line-clamp-2 font-medium leading-relaxed">
-            {renderFormattedText(event.description || event.shortDescription)}
+            <RichText content={event.description || event.shortDescription} />
           </div>
         </div>
 
@@ -307,7 +289,13 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
              </div>
 
              <form onSubmit={handleAddComment} className="flex gap-2">
-                <Input placeholder="Escreva um comentário..." value={newComment} onChange={(e) => setNewComment(e.target.value)} className="rounded-xl h-10 text-xs border-dashed border-secondary/30 focus-visible:ring-secondary/30" disabled={isSubmitting} />
+                <MentionTextarea 
+                  placeholder="Escreva um comentário..." 
+                  value={newComment} 
+                  onValueChange={setNewComment}
+                  className="rounded-xl min-h-[40px] h-10 py-2 text-xs border-dashed border-secondary/30 focus-visible:ring-secondary/30" 
+                  disabled={isSubmitting} 
+                />
                 <Button type="submit" size="icon" disabled={isSubmitting || !newComment.trim()} className="h-10 w-10 shrink-0 bg-secondary text-white rounded-xl shadow-lg transition-all active:scale-90">
                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </Button>
