@@ -940,7 +940,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                  </div>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 flex flex-col items-center justify-center text-center gap-4">
-                       <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-muted/30 p-4 rounded-2xl scale-125" />
+                       <AgeRatingBadge code={event.ageRating?.code || "free"} className="scale-125" />
                        <div className="space-y-1">
                           <p className="text-[10px] font-black uppercase opacity-40">Classificação Indicativa</p>
                           <p className="font-bold text-lg">{event.ageRating?.label || "Livre para todos os públicos"}</p>

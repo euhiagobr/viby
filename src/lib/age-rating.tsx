@@ -12,7 +12,7 @@ export interface AgeRatingConfig {
   label: string;
   shortLabel: string;
   minimumAge: number;
-  color: string;
+  color: string; // Hex color for inline style
   textColor: string;
   isAdultsOnly?: boolean;
   description?: string;
@@ -24,7 +24,7 @@ export const AGE_RATINGS: Record<string, AgeRatingConfig> = {
     label: 'Livre para todos os públicos',
     shortLabel: 'L',
     minimumAge: 0,
-    color: 'bg-[#00A859]', // Verde oficial
+    color: '#00A859', // Verde oficial
     textColor: 'text-white',
     description: 'Classificação Livre'
   },
@@ -33,7 +33,7 @@ export const AGE_RATINGS: Record<string, AgeRatingConfig> = {
     label: 'Não recomendado para menores de 10 anos',
     shortLabel: '10',
     minimumAge: 10,
-    color: 'bg-[#00AEEF]', // Azul
+    color: '#00AEEF', // Azul
     textColor: 'text-white'
   },
   '12': {
@@ -41,7 +41,7 @@ export const AGE_RATINGS: Record<string, AgeRatingConfig> = {
     label: 'Não recomendado para menores de 12 anos',
     shortLabel: '12',
     minimumAge: 12,
-    color: 'bg-[#F9AD19]', // Amarelo
+    color: '#F9AD19', // Amarelo
     textColor: 'text-white'
   },
   '14': {
@@ -49,7 +49,7 @@ export const AGE_RATINGS: Record<string, AgeRatingConfig> = {
     label: 'Não recomendado para menores de 14 anos',
     shortLabel: '14',
     minimumAge: 14,
-    color: 'bg-[#F26522]', // Laranja
+    color: '#F26522', // Laranja
     textColor: 'text-white'
   },
   '16': {
@@ -57,7 +57,7 @@ export const AGE_RATINGS: Record<string, AgeRatingConfig> = {
     label: 'Não recomendado para menores de 16 anos',
     shortLabel: '16',
     minimumAge: 16,
-    color: 'bg-[#ED1C24]', // Vermelho
+    color: '#ED1C24', // Vermelho
     textColor: 'text-white'
   },
   not_recommended_18: {
@@ -65,7 +65,7 @@ export const AGE_RATINGS: Record<string, AgeRatingConfig> = {
     label: 'Não recomendado para menores de 18 anos',
     shortLabel: '18',
     minimumAge: 18,
-    color: 'bg-[#000000]', // Preto
+    color: '#000000', // Preto
     textColor: 'text-white',
     description: '18 Anos'
   },
@@ -75,7 +75,7 @@ export const AGE_RATINGS: Record<string, AgeRatingConfig> = {
     shortLabel: '18',
     minimumAge: 18,
     isAdultsOnly: true,
-    color: 'bg-[#ED1C24]', // Vermelho vibrante
+    color: '#ED1C24', // Vermelho vibrante
     textColor: 'text-white',
     description: 'Exclusivo 18+'
   }
@@ -98,11 +98,13 @@ export function AgeRatingBadge({
   
   return (
     <div className={cn("inline-flex items-center gap-2", className)}>
-      <div className={cn(
-        "w-6 h-6 rounded-md flex items-center justify-center font-black text-[12px] shadow-sm shrink-0",
-        config.color,
-        config.textColor
-      )}>
+      <div 
+        style={{ backgroundColor: config.color }}
+        className={cn(
+          "w-6 h-6 rounded-md flex items-center justify-center font-black text-[12px] shadow-sm shrink-0",
+          config.textColor
+        )}
+      >
         {config.code === 'adults_only_18' ? (
            <div className="relative flex items-center justify-center">
               <span>18</span>
