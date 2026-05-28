@@ -39,21 +39,22 @@ export async function requestPasswordRecovery(identifier: string) {
     
     if (userSnap.empty) {
       console.warn(`[Recovery] Usuário não encontrado no Firestore: ${identifier}`);
-      return { success: true }; // Resposta genérica
+      return { success: true }; // Resposta genérica por segurança
     }
 
     const userData = userSnap.docs[0].data();
     email = userData.email;
     userName = userData.name || userData.displayName || "Usuário";
 
-    // 2. Verificar no Auth (Gera erro 16 se credenciais do .env forem inválidas)
+    // 2. Verificar no Auth
+    // Se der erro 16 aqui, as credenciais no .env estão incorretas para este projeto.
     try {
       await auth.getUserByEmail(email);
     } catch (e: any) {
        console.error('[Recovery Auth Error]', {
          code: e.code,
          message: e.message,
-         hint: "Se o erro for UNAUTHENTICATED, as chaves do .env não pertencem a este projeto ou o Service Account está desativado."
+         hint: "Verifique se FIREBASE_PROJECT_ID no .env é o mesmo do console Firebase."
        });
        return { success: false, error: 'Erro de autenticação no servidor.' };
     }
@@ -128,7 +129,7 @@ export async function resetPasswordWithCode(email: string, code: string, passwor
       .limit(1)
       .get();
 
-    if (snapshot.empty) throw new Error("Código expirado.");
+    if (snapshot.empty) throw new Error("Código expirado ou já utilizado.");
 
     const userRecord = await auth.getUserByEmail(email);
     await auth.updateUser(userRecord.uid, { password });

@@ -17,15 +17,22 @@ function getAdminApp(): App {
   const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKeyRaw) {
-    console.error('[Admin SDK] Erro: Variáveis de ambiente FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL ou FIREBASE_PRIVATE_KEY ausentes.');
-    throw new Error('FIREBASE_ADMIN_CONFIG_MISSING');
+    console.error('[Admin SDK] Erro: Faltam variáveis de ambiente.', {
+      hasProjectId: !!projectId,
+      hasClientEmail: !!clientEmail,
+      hasPrivateKey: !!privateKeyRaw
+    });
+    throw new Error('MISSING_ADMIN_CREDENTIALS');
   }
 
   try {
+    // Limpeza profunda da chave privada
     const privateKey = privateKeyRaw
-      .replace(/^"|"$/g, '')
-      .replace(/\\n/g, '\n')
+      .replace(/^"|"$/g, '') // Remove aspas no início/fim
+      .replace(/\\n/g, '\n') // Converte \n literal em quebra de linha real
       .trim();
+
+    console.log('[Admin SDK] Tentando inicializar para o projeto:', projectId);
 
     return initializeApp({
       credential: cert({
@@ -33,7 +40,7 @@ function getAdminApp(): App {
         clientEmail,
         privateKey,
       }),
-      projectId, // Garante que o SDK saiba exatamente qual projeto acessar
+      projectId,
     }, 'admin-app');
   } catch (error) {
     console.error('[Admin SDK] Falha crítica na inicialização:', error);
