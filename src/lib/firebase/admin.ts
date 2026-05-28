@@ -4,7 +4,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Inicialização robusta do Firebase Admin SDK.
- * Corrige erros de "Invalid PEM formatted message" tratando a chave privada de forma agressiva.
+ * Trata erros de autenticação e garante que as credenciais do .env sejam aplicadas corretamente.
  */
 
 function getAdminApp(): App {
@@ -17,15 +17,11 @@ function getAdminApp(): App {
   const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKeyRaw) {
-    // Durante o build, as variáveis podem estar ausentes. 
-    // Retornamos um erro controlado que as Server Actions capturam.
+    console.error('[Admin SDK] Erro: Variáveis de ambiente FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL ou FIREBASE_PRIVATE_KEY ausentes.');
     throw new Error('FIREBASE_ADMIN_CONFIG_MISSING');
   }
 
   try {
-    // Tratamento agressivo para o formato PEM da chave privada
-    // 1. Remove aspas duplas no início e fim (comum em alguns dashboards)
-    // 2. Converte a string literal "\n" em quebras de linha reais
     const privateKey = privateKeyRaw
       .replace(/^"|"$/g, '')
       .replace(/\\n/g, '\n')
@@ -37,21 +33,23 @@ function getAdminApp(): App {
         clientEmail,
         privateKey,
       }),
+      projectId, // Garante que o SDK saiba exatamente qual projeto acessar
     }, 'admin-app');
   } catch (error) {
-    console.error('FAILED_TO_INITIALIZE_ADMIN_SDK:', error);
+    console.error('[Admin SDK] Falha crítica na inicialização:', error);
     throw error;
   }
 }
 
 /**
- * Getters dinâmicos para garantir inicialização preguiçosa (Lazy)
+ * Getters para instâncias administrativas.
+ * O Firestore utiliza o banco de dados 'eventosviby'.
  */
 export const getAdminAuth = () => getAuth(getAdminApp());
 export const getAdminDb = () => getFirestore(getAdminApp(), 'eventosviby');
 
 /**
- * Proxies para compatibilidade com código legado
+ * Proxies para compatibilidade legada.
  */
 export const adminAuth = {
   getUserByEmail: (email: string) => getAdminAuth().getUserByEmail(email),
