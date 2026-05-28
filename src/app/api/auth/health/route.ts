@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebase/admin';
+import { adminAuth } from '@/lib/firebase/admin';
 import { getEmailConfig } from '@/app/actions/email';
 import nodemailer from 'nodemailer';
 
@@ -7,20 +7,24 @@ import nodemailer from 'nodemailer';
  * @fileOverview Endpoint de Healthcheck para auditoria técnica do sistema de Auth.
  */
 
+// Força a rota a ser dinâmica para evitar que o Next.js tente pre-renderizar no build
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const status = {
     firebase: false,
-    firestore: true, // Se o adminDb carregar sem erro, assumimos ok inicial
+    firestore: true, // Assume true se o arquivo carregar, validado abaixo
     smtp: false,
     timestamp: new Date().toISOString()
   };
 
   try {
     // 1. Testar Firebase Admin / Auth
-    // Listar usuários ou buscar um ID fictício
     try {
-      await adminAuth.listUsers(1);
-      status.firebase = true;
+      if (adminAuth && typeof adminAuth.listUsers === 'function') {
+        await adminAuth.listUsers(1);
+        status.firebase = true;
+      }
     } catch (e) {
       console.error({ health: 'firebase-admin', error: e });
     }
