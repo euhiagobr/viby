@@ -24,7 +24,10 @@ service cloud.firestore {
       return isSignedIn() && getRole(orgId) in roles;
     }
 
-    // Leitura pública global para descoberta
+    match /password_reset_codes/{docId} {
+      allow read, write: if false; // Apenas Server-side via Admin SDK
+    }
+
     match /{allPaths=**} {
       allow read: if true;
       allow write: if isAdmin();
@@ -33,6 +36,10 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if true;
       allow write: if isUser(userId) || isAdmin();
+      
+      match /private/sensitive {
+        allow read, write: if isUser(userId) || isAdmin();
+      }
     }
 
     match /usernames/{username} {
@@ -55,7 +62,7 @@ service cloud.firestore {
 
     match /events/{eventId} {
       allow read: if true;
-      allow create: if isSignedIn() && hasRole(request.resource.data.organizationId, ['owner', 'admin', 'editor']);
+      allow create: if isSignedIn();
       allow update: if hasRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
       allow delete: if hasRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
     }
@@ -63,7 +70,13 @@ service cloud.firestore {
     match /follows/{followId} {
       allow read: if true;
       allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
-      allow delete: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
+    }
+    
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && resource.data.targetUid == request.auth.uid;
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && resource.data.targetUid == request.auth.uid;
     }
   }
 }
