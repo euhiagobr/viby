@@ -6,6 +6,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Serviço de e-mail exclusivo de servidor usando Firebase Admin e SMTP.
+ * Utiliza exclusivamente o Admin SDK para evitar conflitos no servidor.
  */
 
 async function logEmail(data: any) {
@@ -63,6 +64,7 @@ export async function sendPasswordResetLinkEmail(data: any) {
           ${data.otpCode}
         </div>
         <p style="font-size: 12px; color: #64748b; margin-top: 30px;">Este código expira em 15 minutos.</p>
+        <p style="font-size: 11px; color: #cbd5e1;">Se você não solicitou este código, ignore este e-mail.</p>
       </div>
     `;
 
@@ -75,6 +77,7 @@ export async function sendPasswordResetLinkEmail(data: any) {
 
     await logEmail({
       recipientEmail: data.to,
+      recipientName: data.userName,
       type: "password_recovery_otp",
       subject: "Recuperação de Senha",
       sender: "Viby Auth",
@@ -112,6 +115,7 @@ export async function sendPayoutConfirmedEmail(data: any) {
 
     await logEmail({
       recipientEmail: data.to,
+      recipientName: data.userName,
       type: "payout_confirmation",
       subject: "Confirmação de Repasse",
       sender: "Viby Finance",
@@ -152,6 +156,7 @@ export async function sendTicketEmail(data: any) {
 
     await logEmail({
       recipientEmail: data.to,
+      recipientName: data.userName,
       type: "ticket_confirmation",
       subject: `Ingresso: ${data.eventTitle}`,
       sender: "Viby System",
@@ -186,6 +191,7 @@ export async function sendWelcomeEmail(data: any) {
 
     await logEmail({
       recipientEmail: data.to,
+      recipientName: data.userName,
       type: "welcome_email",
       subject: "Bem-vindo à Viby",
       sender: "Viby System",
@@ -221,6 +227,7 @@ export async function sendTeamInvitationEmail(data: any) {
 
     await logEmail({
       recipientEmail: data.to,
+      recipientName: "Colaborador",
       type: "team_invitation",
       subject: "Convite de Equipe",
       sender: "Viby System",
@@ -278,6 +285,7 @@ export async function resendLoggedEmail(emailData: any) {
 
     await logEmail({
       recipientEmail: emailData.recipientEmail,
+      recipientName: emailData.recipientName,
       type: `resend_${emailData.type}`,
       subject: `Reenvio: ${emailData.subject}`,
       sender: "Viby Admin",

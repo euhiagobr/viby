@@ -7,6 +7,7 @@ import { sendPasswordResetLinkEmail } from './email';
 
 /**
  * @fileOverview Server Actions para recuperação de senha com auditoria via Firebase Admin.
+ * Garante que a lógica de backend ocorra sob privilégios administrativos.
  */
 
 const GENERATOR_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -30,7 +31,7 @@ export async function requestPasswordRecovery(identifier: string) {
     const ip = head.get('x-forwarded-for') || 'unknown';
     const userAgent = head.get('user-agent') || 'unknown';
 
-    // 1. Resolver identificador
+    // 1. Resolver identificador (E-mail ou @Username)
     if (!identifier.includes("@")) {
       const normalizedUsername = identifier.replace('@', '').toLowerCase().trim();
       const snap = await db.collection("users").where("username", "==", normalizedUsername).limit(1).get();
@@ -104,6 +105,7 @@ export async function requestPasswordRecovery(identifier: string) {
     return { success: true };
   } catch (error: any) {
     console.error('[Recovery Error]', {
+      step: 'request-reset',
       message: error.message,
       stack: error.stack
     });
@@ -134,7 +136,7 @@ export async function verifyRecoveryCode(email: string, code: string) {
     return { success: true };
   } catch (error: any) {
     console.error('[Verify Code Error]', error.message);
-    return { success: false, error: 'Erro na validação.' };
+    return { success: false, error: 'Erro na validação do código.' };
   }
 }
 
@@ -154,12 +156,15 @@ export async function resetPasswordWithCode(email: string, code: string, passwor
       .limit(1)
       .get();
 
-    if (snapshot.empty) return { success: false, error: 'Sessão inválida.' };
+    if (snapshot.empty) return { success: false, error: 'Sessão de recuperação inválida ou expirada.' };
 
     const doc = snapshot.docs[0];
+    
+    // Atualizar senha no Firebase Auth
     const userRecord = await auth.getUserByEmail(normalizedEmail);
     await auth.updateUser(userRecord.uid, { password });
 
+    // Marcar código como usado
     await doc.ref.update({
       used: true,
       usedAt: FieldValue.serverTimestamp()
@@ -169,6 +174,6 @@ export async function resetPasswordWithCode(email: string, code: string, passwor
     return { success: true };
   } catch (error: any) {
     console.error('[Reset Password Error]', error.message);
-    return { success: false, error: 'Falha ao redefinir senha.' };
+    return { success: false, error: 'Falha ao redefinir a senha no sistema oficial.' };
   }
 }

@@ -3,38 +3,33 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Inicialização ultra-robusta do Firebase Admin SDK.
- * Resolve erros de "Invalid PEM formatted message" e garante seleção do DB 'eventosviby'.
+ * @fileOverview Inicialização robusta do Firebase Admin SDK.
+ * Corrige erros de "Invalid PEM formatted message" tratando a chave privada de forma agressiva.
  */
 
 function getAdminApp(): App {
   const apps = getApps();
-  if (apps.length > 0) return apps[0];
+  const existingAdmin = apps.find(a => a.name === 'admin-app');
+  if (existingAdmin) return existingAdmin;
 
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKeyRaw) {
-    console.warn('Firebase Admin variables missing. This is expected during some build phases.');
-    // Retornamos uma inicialização parcial ou lançamos erro controlado se for em runtime
+    // Durante o build, as variáveis podem estar ausentes. 
+    // Retornamos um erro controlado que as Server Actions capturam.
     throw new Error('FIREBASE_ADMIN_CONFIG_MISSING');
   }
 
   try {
-    // Limpeza profunda e agressiva da chave privada
-    let privateKey = privateKeyRaw
-      .replace(/^"|"$/g, '') // Remove aspas externas
-      .replace(/\\n/g, '\n') // Converte strings "\n" em quebras reais
+    // Tratamento agressivo para o formato PEM da chave privada
+    // 1. Remove aspas duplas no início e fim (comum em alguns dashboards)
+    // 2. Converte a string literal "\n" em quebras de linha reais
+    const privateKey = privateKeyRaw
+      .replace(/^"|"$/g, '')
+      .replace(/\\n/g, '\n')
       .trim();
-
-    // Garante cabeçalho e rodapé PEM
-    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-      privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}`;
-    }
-    if (!privateKey.includes('-----END PRIVATE KEY-----')) {
-      privateKey = `${privateKey}\n-----END PRIVATE KEY-----`;
-    }
 
     return initializeApp({
       credential: cert({
@@ -42,18 +37,22 @@ function getAdminApp(): App {
         clientEmail,
         privateKey,
       }),
-    });
+    }, 'admin-app');
   } catch (error) {
-    console.error('CRITICAL_ADMIN_INIT_ERROR:', error);
+    console.error('FAILED_TO_INITIALIZE_ADMIN_SDK:', error);
     throw error;
   }
 }
 
-// Proxies para garantir inicialização preguiçosa (Lazy)
+/**
+ * Getters dinâmicos para garantir inicialização preguiçosa (Lazy)
+ */
 export const getAdminAuth = () => getAuth(getAdminApp());
 export const getAdminDb = () => getFirestore(getAdminApp(), 'eventosviby');
 
-// Objetos exportados para compatibilidade legada
+/**
+ * Proxies para compatibilidade com código legado
+ */
 export const adminAuth = {
   getUserByEmail: (email: string) => getAdminAuth().getUserByEmail(email),
   generatePasswordResetLink: (email: string) => getAdminAuth().generatePasswordResetLink(email),
