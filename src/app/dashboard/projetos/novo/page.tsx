@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -58,6 +57,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog"
 import { AGE_RATINGS, AgeRatingBadge, getAgeRatingConfig } from "@/lib/age-rating"
 
@@ -121,6 +121,7 @@ export default function NovoEventoPage() {
   const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches' | 'sector_batches'>('free')
   const [mapMode, setMapMode] = useState<'none' | 'setores' | 'assentos' | 'mesas'>('none')
   
+  const [description, setDescription] = useState("")
   const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
 
   // --- Parcerias ---
@@ -172,7 +173,7 @@ export default function NovoEventoPage() {
         name: "Lote 1", 
         startDate: "", 
         endDate: "", 
-        capacidadeInicial: 100,
+        capacidadeInicial: 100, 
         capacidadeAtual: 100,
         vendidos: 0,
         restantes: 100,
@@ -396,7 +397,7 @@ export default function NovoEventoPage() {
         name: "Lote 1", 
         startDate: "", 
         endDate: "", 
-        capacidadeInicial: 100,
+        capacidadeInicial: 100, 
         capacidadeAtual: 100,
         vendidos: 0,
         restantes: 100,
@@ -947,7 +948,7 @@ export default function NovoEventoPage() {
                           {singleTicketTypes.slice(1).map((t, idx) => {
                             const ti = idx + 1;
                             return (
-                              <div key={t.id} className="p-5 bg-white rounded-[1.5rem] border shadow-sm grid grid-cols-12 gap-4 items-center hover:border-secondary/20 transition-all">
+                              <div key={t.id} className="p-5 bg-white rounded-[1.5rem] border shadow-sm grid grid-cols-12 gap-6 items-center hover:border-secondary/20 transition-all">
                                  <div className="col-span-4 space-y-1">
                                     <Label className="text-[9px] uppercase font-black opacity-40">Categoria</Label>
                                     <Input value={t.name} onChange={e => { const n = [...singleTicketTypes]; n[ti].name = e.target.value; setSingleTicketTypes(n); }} className="rounded-xl h-10 font-bold border-none bg-muted/20" />
@@ -965,7 +966,7 @@ export default function NovoEventoPage() {
                                     <Switch checked={t.requiresProof} onCheckedChange={v => { const n = [...singleTicketTypes]; n[ti].requiresProof = v; setSingleTicketTypes(n); }} />
                                  </div>
                                  <div className="col-span-1 flex justify-end">
-                                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-full hover:bg-destructive/10" onClick={() => setSingleTicketTypes(singleTicketTypes.filter((_, i) => i !== ti))}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-full hover:bg-destructive/10" onClick={() => setSingleTicketTypes(singleTicketTypes.filter((_, i) => i !== ti))}>
                                        <Trash2 className="w-4 h-4" />
                                     </Button>
                                  </div>
