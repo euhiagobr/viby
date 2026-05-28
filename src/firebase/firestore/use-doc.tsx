@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   DocumentReference,
   onSnapshot,
@@ -10,16 +10,18 @@ import {
 } from 'firebase/firestore';
 
 /**
- * Hook para escutar um documento do Firestore de forma estável.
- * Implementa silent fail para acesso público sem erros de console vermelhos.
+ * Hook resiliente para escutar documentos únicos.
+ * Implementa controle de montagem para evitar erros de estado interno no SDK.
  */
 export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<FirestoreError | null>(null);
 
+  const isMountedRef = useRef(true);
+
   useEffect(() => {
-    let isMounted = true;
+    isMountedRef.current = true;
 
     if (!docRef) {
       setData(null);
@@ -29,50 +31,38 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
 
     setLoading(true);
     
-    let unsubscribe: (() => void) | undefined;
+    const unsubscribe = onSnapshot(
+      docRef,
+      (snapshot: DocumentSnapshot<T>) => {
+        if (!isMountedRef.current) return;
 
-    try {
-      unsubscribe = onSnapshot(
-        docRef,
-        (snapshot: DocumentSnapshot<T>) => {
-          if (!isMounted) return;
-
-          if (snapshot.exists()) {
-            setData({ ...(snapshot.data() as T), id: snapshot.id });
-          } else {
-            setData(null);
-          }
-          
-          setLoading(false);
-          setError(null);
-        },
-        (serverError: FirestoreError) => {
-          if (!isMounted) return;
-
-          if (serverError.code === 'permission-denied') {
-            console.warn(`[Firestore] Leitura privada negada: ${docRef.path}. Retornando nulo.`);
-            setData(null);
-          } else {
-            console.error(`[Firestore Error] ${serverError.code}: ${serverError.message}`);
-          }
-          
-          setError(serverError);
-          setLoading(false);
+        if (snapshot.exists()) {
+          setData({ ...(snapshot.data() as T), id: snapshot.id });
+        } else {
+          setData(null);
         }
-      );
-    } catch (err) {
-      console.error("[useDoc] Erro ao iniciar listener:", err);
-      if (isMounted) {
-        setData(null);
+        
+        setLoading(false);
+        setError(null);
+      },
+      (serverError: FirestoreError) => {
+        if (!isMountedRef.current) return;
+
+        if (serverError.code === 'permission-denied') {
+          console.warn(`[Firestore] Documento privado ou inexistente: ${docRef.path}.`);
+          setData(null);
+        } else {
+          console.error(`[Firestore Error] ${serverError.code}: ${serverError.message}`);
+        }
+        
+        setError(serverError);
         setLoading(false);
       }
-    }
+    );
 
     return () => {
-      isMounted = false;
-      if (unsubscribe && typeof unsubscribe === 'function') {
-        unsubscribe();
-      }
+      isMountedRef.current = false;
+      unsubscribe();
     };
   }, [docRef]);
 

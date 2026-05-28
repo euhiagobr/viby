@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Query,
   onSnapshot,
@@ -10,71 +10,63 @@ import {
 } from 'firebase/firestore';
 
 /**
- * Hook para escutar coleções do Firestore de forma estável.
- * Implementa try/catch e silent fail para usuários deslogados.
- * Reforçada a limpeza do listener para evitar erros de estado interno do SDK.
+ * Hook resiliente para escutar coleções do Firestore.
+ * Corrigido para evitar o erro de asserção interna ca9 através de uma limpeza estrita.
  */
 export function useCollection<T = DocumentData>(query: Query<T> | null) {
   const [data, setData] = useState<T[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<FirestoreError | null>(null);
 
+  // Ref para rastrear se o componente ainda está montado
+  const isMountedRef = useRef(true);
+
   useEffect(() => {
-    let isMounted = true;
+    isMountedRef.current = true;
 
     if (!query) {
-      setData(null);
+      setData([]);
       setLoading(false);
       return;
     }
 
     setLoading(true);
     
-    let unsubscribe: (() => void) | undefined;
+    // Inicia o listener de forma segura
+    const unsubscribe = onSnapshot(
+      query,
+      (snapshot: QuerySnapshot<T>) => {
+        if (!isMountedRef.current) return;
+        
+        const items = snapshot.docs.map((doc) => ({
+          ...(doc.data() as T),
+          id: doc.id,
+        }));
+        
+        setData(items);
+        setLoading(false);
+        setError(null);
+      },
+      (serverError: FirestoreError) => {
+        if (!isMountedRef.current) return;
 
-    try {
-      unsubscribe = onSnapshot(
-        query,
-        (snapshot: QuerySnapshot<T>) => {
-          if (!isMounted) return;
-          
-          const items = snapshot.docs.map((doc) => ({
-            ...(doc.data() as T),
-            id: doc.id,
-          }));
-          
-          setData(items);
-          setLoading(false);
-          setError(null);
-        },
-        (serverError: FirestoreError) => {
-          if (!isMounted) return;
-
-          // Silent fail para erros de permissão em navegação pública
-          if (serverError.code === 'permission-denied') {
-            console.warn(`[Firestore] Acesso negado ou restrito. Retornando lista vazia.`);
-            setData([]);
-          } else {
-            console.error(`[Firestore Error] ${serverError.code}: ${serverError.message}`);
-          }
-          
-          setError(serverError);
-          setLoading(false);
+        // Trata erro de permissão silenciosamente para navegação pública
+        if (serverError.code === 'permission-denied') {
+          console.warn(`[Firestore] Acesso restrito em: ${query.toString()}.`);
+          setData([]);
+        } else {
+          console.error(`[Firestore Error] ${serverError.code}: ${serverError.message}`);
         }
-      );
-    } catch (err) {
-      console.error("[useCollection] Erro ao iniciar listener:", err);
-      if (isMounted) {
-        setData([]);
+        
+        setError(serverError);
         setLoading(false);
       }
-    }
+    );
 
     return () => {
-      isMounted = false;
-      if (unsubscribe && typeof unsubscribe === 'function') {
-        unsubscribe();
-      }
+      isMountedRef.current = false;
+      // Garante que o listener seja encerrado antes de qualquer tentativa de resubscrição
+      unsubscribe();
     };
   }, [query]);
 
