@@ -83,6 +83,11 @@ service cloud.firestore {
       allow read: if true;
     }
 
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
     match /usernames/{username} {
       allow read: if true;
       allow create: if isSignedIn();
@@ -100,7 +105,7 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
     }
 
-    // --- COLEÇÕES PRIVADAS ---
+    // --- COLEÇÕES PRIVADAS E FINANCEIRAS ---
     match /registrations/{regId} {
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
@@ -111,6 +116,12 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update: if isSignedIn(); 
       allow delete: if isAdmin();
+    }
+
+    match /payout_requests/{requestId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
     }
 
     match /wallets/{userId} {
@@ -130,8 +141,22 @@ service cloud.firestore {
       allow update, delete: if isOwner(resource.data.targetUid) || isAdmin();
     }
 
+    match /reports/{reportId} {
+      allow create: if isSignedIn();
+      allow read: if isAdmin();
+    }
+
     match /password_reset_codes/{docId} {
       allow read, write: if false; 
+    }
+
+    // --- COLLECTION GROUPS ---
+    match /{path=**}/members/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /{path=**}/partners/{partnerId} {
+      allow read: if isSignedIn();
     }
 
     match /{allPaths=**} {
