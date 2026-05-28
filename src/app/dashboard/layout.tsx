@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -7,6 +6,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
 import { Bell, Loader2, Plus, Building2, ShoppingCart, LogIn } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, where, doc, getDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore"
 import { OrganizationProvider, useCurrentOrganization } from "@/contexts/OrganizationContext"
