@@ -4,7 +4,7 @@ import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Inicialização robusta do Firebase Admin SDK.
- * Resolve erros PEM e credenciais inválidas.
+ * Resolve erros PEM e credenciais inválidas tratando escapes de string.
  */
 
 function getAdminApp(): App {
@@ -17,25 +17,15 @@ function getAdminApp(): App {
   const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKeyRaw) {
-    const missing = [];
-    if (!projectId) missing.push('PROJECT_ID');
-    if (!clientEmail) missing.push('CLIENT_EMAIL');
-    if (!privateKeyRaw) missing.push('PRIVATE_KEY');
-    
-    console.error('[Admin SDK] Variáveis críticas ausentes no .env:', missing.join(', '));
-    throw new Error(`MISSING_ADMIN_ENV_VARS: ${missing.join(', ')}`);
+    throw new Error(`Configurações Admin ausentes no .env: ${[!projectId && 'ID', !clientEmail && 'Email', !privateKeyRaw && 'Key'].filter(Boolean).join(', ')}`);
   }
 
   try {
-    // Sanitização profunda da chave privada
-    let privateKey = privateKeyRaw
-      .replace(/^"|"$/g, '')
-      .replace(/\\n/g, '\n')
+    // Sanitização profunda da chave privada para tratar escapes de \n e aspas residuais
+    const privateKey = privateKeyRaw
+      .replace(/^"|"$/g, '') // remove aspas no início/fim
+      .replace(/\\n/g, '\n') // substitui \n literal por quebra de linha real
       .trim();
-
-    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-      privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
-    }
 
     return initializeApp({
       credential: cert({
@@ -46,15 +36,18 @@ function getAdminApp(): App {
       projectId,
     }, 'admin-app');
   } catch (error: any) {
-    console.error('[Admin SDK] Falha Crítica na Chave Privada:', error.message);
+    console.error('[Admin SDK] Falha Crítica na Inicialização:', error.message);
     throw error;
   }
 }
 
+/**
+ * Getters dinâmicos para garantir inicialização preguiçosa (lazy) no servidor.
+ */
 export const getAdminAuth = () => getAuth(getAdminApp());
 export const getAdminDb = () => getAdminFirestore(getAdminApp(), 'eventosviby');
 
-// Proxies para compatibilidade
+// Proxies para compatibilidade com código legado
 export const adminAuth = {
   getUserByEmail: (email: string) => getAdminAuth().getUserByEmail(email),
   generatePasswordResetLink: (email: string) => getAdminAuth().generatePasswordResetLink(email),

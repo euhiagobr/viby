@@ -6,7 +6,7 @@ import { headers } from 'next/headers';
 import { sendPasswordResetLinkEmail } from './email';
 
 /**
- * @fileOverview Server Actions para recuperação de senha com normalização e logs.
+ * @fileOverview Server Actions para recuperação de senha com normalização rigorosa.
  */
 
 const GENERATOR_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -28,12 +28,13 @@ export async function requestPasswordRecovery(identifier: string) {
     const ip = head.get('x-forwarded-for') || 'unknown';
     const userAgent = head.get('user-agent') || 'unknown';
 
-    // 1. Resolver identificador (E-mail ou @Username)
-    const isEmail = identifier.includes("@");
+    // 1. Resolver identificador (E-mail ou @Username) com normalização
+    const inputClean = identifier.trim().toLowerCase();
+    const isEmail = inputClean.includes("@");
     const searchField = isEmail ? "email" : "username";
-    const searchValue = identifier.replace('@', '').toLowerCase().trim();
+    const searchValue = inputClean.replace('@', '');
 
-    console.log(`[Recovery] Buscando usuário por ${searchField}: ${searchValue}`);
+    console.log(`[Recovery] Iniciando busca por ${searchField}: ${searchValue}`);
 
     const userSnap = await db.collection("users")
       .where(searchField, "==", searchValue)
@@ -41,7 +42,6 @@ export async function requestPasswordRecovery(identifier: string) {
       .get();
     
     if (userSnap.empty) {
-      console.warn(`[Recovery] Identificador não localizado: ${searchValue}`);
       return { success: false, error: 'Usuário não encontrado em nossa base.' }; 
     }
 
@@ -53,8 +53,8 @@ export async function requestPasswordRecovery(identifier: string) {
     try {
       await auth.getUserByEmail(email);
     } catch (e: any) {
-       console.error(`[Recovery] Usuário existe no Firestore mas não no Auth: ${email}`);
-       return { success: false, error: 'Falha na integridade da conta. Contate o suporte.' };
+       console.error(`[Recovery] Erro Auth: ${email}`, e.message);
+       return { success: false, error: 'Falha na integridade da conta.' };
     }
 
     // 3. Gerar código OTP e salvar
@@ -72,7 +72,7 @@ export async function requestPasswordRecovery(identifier: string) {
       userAgent
     });
 
-    console.log(`[Recovery] Código gerado para ${email}: ${code}`);
+    console.log(`[Recovery] Código ${code} gerado para ${email}`);
 
     // 4. Enviar E-mail via SMTP
     const emailResult = await sendPasswordResetLinkEmail({
@@ -82,19 +82,18 @@ export async function requestPasswordRecovery(identifier: string) {
     });
 
     if (!emailResult.success) {
-      console.error(`[Recovery] Erro SMTP: ${emailResult.error}`);
-      return { success: false, error: `Falha ao enviar e-mail: ${emailResult.error}. Verifique a configuração SMTP no Painel Admin.` };
+      return { success: false, error: `Falha no envio de e-mail. Verifique o SMTP no Painel Admin.` };
     }
 
     return { success: true };
   } catch (error: any) {
     console.error('[Recovery Error]', error);
-    return { success: false, error: `Erro no processamento: ${error.message}` };
+    return { success: false, error: `Erro no servidor: ${error.message}` };
   }
 }
 
 /**
- * Simplificado para evitar erro 9 FAILED_PRECONDITION (falta de índice composto)
+ * Valida o código em memória para evitar erro 9 FAILED_PRECONDITION (falta de índice).
  */
 export async function verifyRecoveryCode(email: string, code: string) {
   try {
@@ -102,32 +101,31 @@ export async function verifyRecoveryCode(email: string, code: string) {
     const normalizedEmail = email.trim().toLowerCase();
     const cleanCode = code.trim().toUpperCase();
 
-    console.log(`[Verify] Validando código para ${normalizedEmail}: ${cleanCode}`);
+    console.log(`[Verify] Validando ${cleanCode} para ${normalizedEmail}`);
 
-    // Removido orderBy para evitar erro de índice composto em ambientes de dev
+    // Consulta básica que NÃO exige índice composto
     const snapshot = await db.collection('password_reset_codes')
       .where('email', '==', normalizedEmail)
-      .where('code', '==', cleanCode)
       .where('used', '==', false)
       .get();
 
     if (snapshot.empty) {
-      console.warn(`[Verify] Código ${cleanCode} não encontrado ou já usado para ${normalizedEmail}`);
+      console.warn(`[Verify] Nenhum código pendente para ${normalizedEmail}`);
       return { success: false, error: 'Código inválido ou já utilizado.' };
     }
     
-    // Filtra e ordena na memória para evitar dependência de índice no Firestore
-    const validDocs = snapshot.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .filter((d: any) => d.expiresAt.toDate() > new Date())
-      .sort((a: any, b: any) => b.createdAt.seconds - a.createdAt.seconds);
+    // Filtragem em memória (CPU amigável para volumes pequenos de recuperação)
+    const validCodes = snapshot.docs
+      .map(d => d.data())
+      .filter(d => d.code === cleanCode)
+      .filter(d => d.expiresAt.toDate() > new Date());
 
-    if (validDocs.length === 0) {
-      console.warn(`[Verify] Todos os códigos para ${normalizedEmail} expiraram.`);
-      return { success: false, error: 'Este código expirou. Solicite um novo.' };
+    if (validCodes.length === 0) {
+      console.warn(`[Verify] Código incorreto ou expirado para ${normalizedEmail}`);
+      return { success: false, error: 'Código incorreto ou expirado.' };
     }
 
-    console.log(`[Verify] Código validado com sucesso para ${normalizedEmail}`);
+    console.log(`[Verify] Sucesso para ${normalizedEmail}`);
     return { success: true };
   } catch (error: any) {
     console.error('[Verify Error]', error);
@@ -142,30 +140,29 @@ export async function resetPasswordWithCode(email: string, code: string, passwor
     const normalizedEmail = email.trim().toLowerCase();
     const cleanCode = code.trim().toUpperCase();
     
-    console.log(`[Reset] Processando troca de senha para ${normalizedEmail}`);
+    console.log(`[Reset] Troca de senha solicitada: ${normalizedEmail}`);
 
+    // Localizar o registro do código para marcar como usado
     const snapshot = await db.collection('password_reset_codes')
       .where('email', '==', normalizedEmail)
       .where('code', '==', cleanCode)
       .where('used', '==', false)
       .get();
 
-    if (snapshot.empty) throw new Error("Código inválido ou já utilizado.");
+    if (snapshot.empty) throw new Error("Validação de segurança falhou. Solicite novo código.");
 
-    // Pega o mais recente na memória
-    const latestDoc = snapshot.docs
-      .map(d => ({ ref: d.ref, ...d.data() }))
-      .sort((a: any, b: any) => b.createdAt.seconds - a.createdAt.seconds)[0];
+    const latestDoc = snapshot.docs[0];
 
+    // Atualizar no Firebase Auth
     const userRecord = await auth.getUserByEmail(normalizedEmail);
     await auth.updateUser(userRecord.uid, { password });
     
+    // Marcar como utilizado
     await latestDoc.ref.update({ 
       used: true, 
       usedAt: FieldValue.serverTimestamp() 
     });
 
-    console.log(`[Reset] Senha atualizada com sucesso para ${normalizedEmail}`);
     return { success: true };
   } catch (error: any) {
     console.error('[Reset Error]', error);
