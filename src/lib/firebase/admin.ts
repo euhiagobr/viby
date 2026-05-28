@@ -26,13 +26,11 @@ function getAdminApp(): App {
   }
 
   try {
-    // Limpeza profunda da chave privada
+    // Limpeza profunda da chave privada para lidar com aspas e escapes de ambiente
     const privateKey = privateKeyRaw
       .replace(/^"|"$/g, '') // Remove aspas no início/fim
       .replace(/\\n/g, '\n') // Converte \n literal em quebra de linha real
       .trim();
-
-    console.log('[Admin SDK] Tentando inicializar para o projeto:', projectId);
 
     return initializeApp({
       credential: cert({
@@ -50,7 +48,6 @@ function getAdminApp(): App {
 
 /**
  * Getters para instâncias administrativas.
- * O Firestore utiliza o banco de dados 'eventosviby'.
  */
 export const getAdminAuth = () => getAuth(getAdminApp());
 export const getAdminDb = () => getFirestore(getAdminApp(), 'eventosviby');

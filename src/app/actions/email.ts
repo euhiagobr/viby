@@ -6,7 +6,6 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Serviço de e-mail exclusivo de servidor usando Firebase Admin e SMTP.
- * Utiliza exclusivamente o Admin SDK para evitar conflitos no servidor.
  */
 
 async function logEmail(data: any) {
@@ -32,19 +31,23 @@ export async function getEmailConfig() {
       smtpPass: data?.smtpPass || null,
     };
   } catch (e) {
+    console.error('[Admin SDK] Falha ao buscar config de e-mail:', e);
     return { smtpUser: null, smtpPass: null };
   }
 }
 
 async function getTransporter() {
   const { smtpUser, smtpPass } = await getEmailConfig();
-  if (!smtpUser || !smtpPass) throw new Error("Configuração SMTP incompleta no Painel Admin.");
+  if (!smtpUser || !smtpPass) {
+    throw new Error("Configuração SMTP incompleta. Configure no Painel Admin > Configurações > E-mail.");
+  }
 
   const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 465,
     secure: true,
     auth: { user: smtpUser, pass: smtpPass },
+    timeout: 10000,
   });
 
   await transporter.verify();
