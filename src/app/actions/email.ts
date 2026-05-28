@@ -5,7 +5,7 @@ import { getAdminDb } from '@/lib/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Serviço de e-mail exclusivo de servidor usando Firebase Admin e SMTP.
+ * @fileOverview Serviço de e-mail com retorno de erro detalhado.
  */
 
 async function logEmail(data: any) {
@@ -30,8 +30,8 @@ export async function getEmailConfig() {
       smtpUser: data?.smtpUser || null,
       smtpPass: data?.smtpPass || null,
     };
-  } catch (e) {
-    console.error('[Admin SDK] Falha ao buscar config de e-mail:', e);
+  } catch (e: any) {
+    console.error('[Admin SDK] Falha ao buscar config de e-mail:', e.message);
     return { smtpUser: null, smtpPass: null };
   }
 }
@@ -39,7 +39,7 @@ export async function getEmailConfig() {
 async function getTransporter() {
   const { smtpUser, smtpPass } = await getEmailConfig();
   if (!smtpUser || !smtpPass) {
-    throw new Error("Configuração SMTP incompleta. Configure no Painel Admin > Configurações > E-mail.");
+    throw new Error("SMTP não configurado. Vá em Painel Admin > Configurações > E-mail.");
   }
 
   const transporter = nodemailer.createTransport({
@@ -50,7 +50,12 @@ async function getTransporter() {
     timeout: 10000,
   });
 
-  await transporter.verify();
+  try {
+    await transporter.verify();
+  } catch (verifyError: any) {
+    throw new Error(`Falha na conexão SMTP (Gmail): ${verifyError.message}`);
+  }
+  
   return { transporter, smtpUser };
 }
 
@@ -89,7 +94,6 @@ export async function sendPasswordResetLinkEmail(data: any) {
 
     return { success: true };
   } catch (e: any) { 
-    console.error("Erro no envio de e-mail de recuperação:", e.message);
     return { success: false, error: e.message }; 
   }
 }
@@ -228,48 +232,6 @@ export async function sendTeamInvitationEmail(data: any) {
       html: htmlContent
     });
 
-    await logEmail({
-      recipientEmail: data.to,
-      recipientName: "Colaborador",
-      type: "team_invitation",
-      subject: "Convite de Equipe",
-      sender: "Viby System",
-      content: htmlContent
-    });
-
-    return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
-export async function sendTeamInvitationNoticeEmail(data: any) {
-  try {
-    const { transporter, smtpUser } = await getTransporter();
-    const htmlContent = `<p>Você enviou um convite de equipe para <b>${data.inviteeName}</b> entrar na marca <b>${data.orgName}</b> como ${data.role}.</p>`;
-    await transporter.sendMail({
-      from: `"Viby System" <${smtpUser}>`,
-      to: data.to,
-      subject: `📤 Convite enviado para ${data.inviteeName}`,
-      html: htmlContent
-    });
-    return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
-export async function sendTeamInvitationStatusEmail(data: any) {
-  try {
-    const { transporter, smtpUser } = await getTransporter();
-    const action = data.status === 'accepted' ? 'aceitou' : 'recusou';
-    const htmlContent = `<p>O usuário <b>${data.userName}</b> <b>${action}</b> o seu convite para a equipe de <b>${data.orgName}</b>.</p>`;
-    await transporter.sendMail({
-      from: `"Viby System" <${smtpUser}>`,
-      to: data.to,
-      subject: `🔔 Resposta de Convite: ${data.userName}`,
-      html: htmlContent
-    });
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -284,15 +246,6 @@ export async function resendLoggedEmail(emailData: any) {
       to: emailData.recipientEmail,
       subject: `[REENVIO] ${emailData.subject}`,
       html: emailData.content
-    });
-
-    await logEmail({
-      recipientEmail: emailData.recipientEmail,
-      recipientName: emailData.recipientName,
-      type: `resend_${emailData.type}`,
-      subject: `Reenvio: ${emailData.subject}`,
-      sender: "Viby Admin",
-      content: emailData.content
     });
 
     return { success: true };

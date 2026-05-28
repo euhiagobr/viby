@@ -1,10 +1,10 @@
 import { getApps, initializeApp, cert, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore } from 'firebase/firestore'; // Note: for named databases we often use standard getter logic with admin credentials
+import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Inicialização robusta do Firebase Admin SDK.
- * Tratamento radical para garantir que a chave PEM do .env funcione.
  */
 
 function getAdminApp(): App {
@@ -12,33 +12,20 @@ function getAdminApp(): App {
   const existingAdmin = apps.find(a => a.name === 'admin-app');
   if (existingAdmin) return existingAdmin;
 
-  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKeyRaw) {
-    console.error('[Admin SDK] Erro: Faltam variáveis de ambiente no .env', {
-      projectId: !!projectId,
-      clientEmail: !!clientEmail,
-      privateKey: !!privateKeyRaw
-    });
-    throw new Error('MISSING_ADMIN_ENV_VARS');
+    throw new Error(`Configurações de servidor incompletas no .env. Verifique FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL e FIREBASE_PRIVATE_KEY.`);
   }
 
   try {
-    // Sanitização profunda da chave privada para lidar com aspas e escapes do .env
-    let privateKey = privateKeyRaw
-      .replace(/^"|"$/g, '')      // Remove aspas externas se existirem
-      .replace(/\\n/g, '\n')      // Converte \n literal (string) em quebra de linha real
+    // Tratamento radical da chave privada vinda de strings ou .env
+    const privateKey = privateKeyRaw
+      .replace(/^"|"$/g, '')          // Remove aspas externas
+      .replace(/\\n/g, '\n')          // Converte \n literal em quebra de linha real
       .trim();
-
-    // Garante que a chave tenha os delimitadores PEM corretos
-    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-       privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}`;
-    }
-    if (!privateKey.includes('-----END PRIVATE KEY-----')) {
-       privateKey = `${privateKey}\n-----END PRIVATE KEY-----`;
-    }
 
     return initializeApp({
       credential: cert({
@@ -50,18 +37,18 @@ function getAdminApp(): App {
     }, 'admin-app');
   } catch (error: any) {
     console.error('[Admin SDK] Falha crítica na análise da chave privada:', error.message);
-    throw error;
+    throw new Error(`Falha no parse da Private Key: ${error.message}`);
   }
 }
 
 /**
- * Getters para instâncias administrativas com database isolado 'eventosviby'.
+ * Getters para instâncias administrativas.
  */
 export const getAdminAuth = () => getAuth(getAdminApp());
-export const getAdminDb = () => getFirestore(getAdminApp(), 'eventosviby');
+export const getAdminDb = () => getAdminFirestore(getAdminApp(), 'eventosviby');
 
 /**
- * Proxies para compatibilidade legada em Server Actions.
+ * Proxies para compatibilidade.
  */
 export const adminAuth = {
   getUserByEmail: (email: string) => getAdminAuth().getUserByEmail(email),
