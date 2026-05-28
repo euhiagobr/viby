@@ -17,19 +17,16 @@ function getAdminApp(): App {
   const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKeyRaw) {
-    console.error('[Admin SDK] Erro: Faltam variáveis de ambiente.', {
-      hasProjectId: !!projectId,
-      hasClientEmail: !!clientEmail,
-      hasPrivateKey: !!privateKeyRaw
-    });
+    console.error('[Admin SDK] Erro: Faltam variáveis de ambiente no .env');
     throw new Error('MISSING_ADMIN_CREDENTIALS');
   }
 
   try {
     // Limpeza profunda da chave privada para lidar com aspas e escapes de ambiente
+    // Alguns sistemas de ENV dobram as barras (\\n), outros mantêm ( \n )
     const privateKey = privateKeyRaw
-      .replace(/^"|"$/g, '') // Remove aspas no início/fim
-      .replace(/\\n/g, '\n') // Converte \n literal em quebra de linha real
+      .replace(/^"|"$/g, '') 
+      .replace(/\\n/g, '\n')
       .trim();
 
     return initializeApp({
@@ -41,13 +38,13 @@ function getAdminApp(): App {
       projectId,
     }, 'admin-app');
   } catch (error) {
-    console.error('[Admin SDK] Falha crítica na inicialização:', error);
+    console.error('[Admin SDK] Falha crítica na inicialização da chave privada:', error);
     throw error;
   }
 }
 
 /**
- * Getters para instâncias administrativas.
+ * Getters para instâncias administrativas com seleção explícita de database.
  */
 export const getAdminAuth = () => getAuth(getAdminApp());
 export const getAdminDb = () => getFirestore(getAdminApp(), 'eventosviby');
