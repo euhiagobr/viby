@@ -227,7 +227,8 @@ export default function ProfilePageClient({ username }: { username: string }) {
               <OrganizerHero 
                 organization={profileData} 
                 realFollowersCount={followers?.length || 0}
-                realEventsCount={upcomingEvents.length}
+                realUpcomingCount={upcomingEvents.length}
+                realPastCount={pastEvents.length}
                 realAttendeesCount={attendees?.length || 0}
                 isOwner={isOwner}
               />

@@ -14,7 +14,8 @@ import { toast } from "@/hooks/use-toast";
 interface OrganizerHeroProps {
   organization: any;
   realFollowersCount: number;
-  realEventsCount: number;
+  realUpcomingCount: number;
+  realPastCount: number;
   realAttendeesCount: number;
   isOwner?: boolean;
 }
@@ -22,7 +23,8 @@ interface OrganizerHeroProps {
 export function OrganizerHero({ 
   organization, 
   realFollowersCount, 
-  realEventsCount, 
+  realUpcomingCount, 
+  realPastCount,
   realAttendeesCount,
   isOwner = false
 }: OrganizerHeroProps) {
@@ -91,8 +93,9 @@ export function OrganizerHero({
 
               <div className="flex flex-wrap justify-center md:justify-start items-center gap-8 pt-2">
                 <StatItem label="Seguidores" value={realFollowersCount} />
-                <StatItem label="Agenda" value={realEventsCount} />
-                <StatItem label="Público Total" value={realAttendeesCount} />
+                <StatItem label="Agenda" value={realUpcomingCount} />
+                <StatItem label="Histórico" value={realPastCount} />
+                <StatItem label="Público" value={realAttendeesCount} />
               </div>
             </div>
           </div>
