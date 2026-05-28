@@ -117,6 +117,18 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
   const { data: orgEvents } = useCollection<any>(orgEventsQuery);
 
+  // Busca de Check-ins (Público Total Real)
+  const attendeesQuery = useMemoFirebase(() => {
+    if (!db || !profileData?.id || profileType !== 'organization') return null;
+    return query(
+      collection(db, "registrations"),
+      where("organizationId", "==", profileData.id),
+      where("checkedIn", "==", true)
+    );
+  }, [db, profileData?.id, profileType]);
+
+  const { data: attendees } = useCollection<any>(attendeesQuery);
+
   const { upcomingEvents, pastEvents } = React.useMemo(() => {
     if (!orgEvents) return { upcomingEvents: [], pastEvents: [] };
     const referenceDate = new Date();
@@ -216,7 +228,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
                 organization={profileData} 
                 realFollowersCount={followers?.length || 0}
                 realEventsCount={upcomingEvents.length}
-                realAttendeesCount={profileData.totalAttendees || 0}
+                realAttendeesCount={attendees?.length || 0}
                 isOwner={isOwner}
               />
               <div className="container mx-auto px-4 mt-12 max-w-6xl">

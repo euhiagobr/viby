@@ -74,7 +74,7 @@ export function OrganizerHero({
                     {organization.type || "Produtor"}
                   </Badge>
                 )}
-                <div className="flex items-center justify-center md:justify-start gap-2">
+                <div className="flex items-center gap-2">
                   <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-primary leading-none">
                     {showName ? (organization.name || "Marca Viby") : (
                       <div className="flex items-center gap-2 opacity-30">
@@ -91,10 +91,8 @@ export function OrganizerHero({
 
               <div className="flex flex-wrap justify-center md:justify-start items-center gap-8 pt-2">
                 <StatItem label="Seguidores" value={realFollowersCount} />
-                <StatItem label="Eventos" value={realEventsCount} />
-                {isOwner && (
-                  <StatItem label="Público Total" value={realAttendeesCount} isPrivate />
-                )}
+                <StatItem label="Agenda" value={realEventsCount} />
+                <StatItem label="Público Total" value={realAttendeesCount} />
               </div>
             </div>
           </div>
@@ -121,19 +119,12 @@ export function OrganizerHero({
   );
 }
 
-function StatItem({ label, value, isPrivate = false }: { label: string; value: number; isPrivate?: boolean }) {
+function StatItem({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex flex-col md:items-start group relative">
-      <div className="flex items-center gap-1.5">
-        <span className="text-2xl font-black italic tracking-tighter text-primary">
-          {value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value}
-        </span>
-        {isPrivate && (
-          <div className="p-0.5 bg-secondary/10 rounded-sm" title="Apenas você vê isso">
-            <svg viewBox="0 0 24 24" className="w-3 h-3 fill-secondary"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
-          </div>
-        )}
-      </div>
+      <span className="text-2xl font-black italic tracking-tighter text-primary">
+        {value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value}
+      </span>
       <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-60">
         {label}
       </span>
