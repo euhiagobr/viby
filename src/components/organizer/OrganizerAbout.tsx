@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -15,12 +14,12 @@ interface OrganizerAboutProps {
 
 export function OrganizerAbout({ organization }: OrganizerAboutProps) {
   const hasContactInfo = 
-    (organization.showPhone && organization.phone) || 
-    (organization.showEmail && (organization.contactEmail || organization.email)) ||
-    (organization.showWebsite && organization.website);
+    (organization.showPhone !== false && organization.phone) || 
+    (organization.showEmail !== false && (organization.contactEmail || organization.email)) ||
+    (organization.showWebsite !== false && organization.website);
 
-  const hasFiscalData = (organization.showLegalName && organization.legalName) || (organization.showCnpj && organization.cnpj);
-  const showLocationCard = organization.showNeighborhood || organization.showState;
+  const hasFiscalData = (organization.showLegalName !== false && organization.legalName) || (organization.showCnpj !== false && organization.cnpj);
+  const showLocationCard = (organization.showNeighborhood !== false && organization.neighborhood) || (organization.showState !== false && organization.city);
 
   return (
     <div className="grid grid-cols-1 gap-20">
@@ -77,7 +76,7 @@ export function OrganizerAbout({ organization }: OrganizerAboutProps) {
                 <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Sede</p>
                 <p className="font-bold text-sm text-primary uppercase">
                   {organization.showNeighborhood !== false && organization.neighborhood ? `${organization.neighborhood}, ` : ""}
-                  {organization.showState !== false ? `${organization.city} - ${organization.state}` : organization.city}
+                  {organization.showState !== false ? `${organization.city} - ${organization.state}` : (organization.showNeighborhood !== false ? organization.city : "Localização Privada")}
                 </p>
               </div>
             </CardContent>
@@ -90,7 +89,7 @@ export function OrganizerAbout({ organization }: OrganizerAboutProps) {
         <section className="space-y-6">
           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Canais de Atendimento</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {organization.showPhone && organization.phone && (
+            {organization.showPhone !== false && organization.phone && (
               <ContactCard 
                 icon={Phone} 
                 label="WhatsApp / Telefone" 
@@ -98,7 +97,7 @@ export function OrganizerAbout({ organization }: OrganizerAboutProps) {
                 link={`https://wa.me/${organization.phone.replace(/\D/g, '')}`}
               />
             )}
-            {organization.showEmail && (organization.contactEmail || organization.email) && (
+            {organization.showEmail !== false && (organization.contactEmail || organization.email) && (
               <ContactCard 
                 icon={Mail} 
                 label="E-mail de Contato" 
@@ -106,7 +105,7 @@ export function OrganizerAbout({ organization }: OrganizerAboutProps) {
                 link={`mailto:${organization.contactEmail || organization.email}`}
               />
             )}
-            {organization.showWebsite && organization.website && (
+            {organization.showWebsite !== false && organization.website && (
               <ContactCard 
                 icon={Globe} 
                 label="Site Oficial" 
@@ -122,12 +121,12 @@ export function OrganizerAbout({ organization }: OrganizerAboutProps) {
       <OrganizerSocials organization={organization} />
 
       {/* 6. Physical Location (Only if showAddress is true) */}
-      {organization.showAddress && (
+      {organization.showAddress !== false && (
         <OrganizerMap organization={organization} />
       )}
 
       {/* Placeholder se tudo estiver oculto */}
-      {!hasContactInfo && !hasFiscalData && !showLocationCard && !organization.showBio && !organization.showAddress && (
+      {!hasContactInfo && !hasFiscalData && !showLocationCard && organization.showBio === false && organization.showAddress === false && (
         <Card className="border-none shadow-sm rounded-[3rem] bg-white p-20 text-center flex flex-col items-center gap-4 opacity-40">
            <Lock className="w-12 h-12 text-primary" />
            <p className="text-[10px] font-black uppercase tracking-[0.2em]">As informações detalhadas desta marca são privadas.</p>

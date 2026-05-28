@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -34,9 +33,15 @@ const SOCIAL_MAP: Record<string, any> = {
 
 export function OrganizerSocials({ organization }: OrganizerSocialsProps) {
   const links = organization.socialLinks || {};
-  const activeLinks = Object.entries(links).filter(([_, url]) => !!url);
+  
+  const activeLinks = Object.entries(links).filter(([key, url]) => {
+    if (!url) return false;
+    // Respeita as configurações de privacidade globais para redes específicas
+    if (key === 'instagram' && organization.showInstagram === false) return false;
+    return true;
+  });
 
-  if (activeLinks.length === 0 && !organization.website && !organization.instagram) return null;
+  if (activeLinks.length === 0) return null;
 
   return (
     <section className="space-y-6">
