@@ -9,13 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { ArrowLeft, Loader2, KeyRound, Mail, CheckCircle2, Send, AlertTriangle } from "lucide-react"
+import { ArrowLeft, Loader2, KeyRound, Mail, Send } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { requestPasswordRecovery } from "@/app/actions/password-recovery"
-import { cn } from "@/lib/utils"
 
 export default function RedefinirSenhaPage() {
   const [identifier, setIdentifier] = useState("")
@@ -32,12 +31,11 @@ export default function RedefinirSenhaPage() {
     if (!identifier.trim()) return
     
     setLoading(true)
-    
     try {
       const result = await requestPasswordRecovery(identifier)
-      if (result.success) {
+      if (result.success && result.email) {
         toast({ title: "Código enviado!", description: "Confira seu e-mail para validar o acesso." })
-        router.push(`/auth/verify-code?email=${encodeURIComponent(identifier.toLowerCase().trim())}`)
+        router.push(`/auth/verify-code?email=${encodeURIComponent(result.email)}`)
       } else {
         toast({ variant: "destructive", title: "Erro na solicitação", description: result.error })
       }

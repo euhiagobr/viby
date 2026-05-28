@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -14,20 +13,21 @@ import { requestPasswordRecovery } from "@/app/actions/password-recovery"
 import Footer from "@/components/layout/Footer"
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = React.useState("")
+  const [identifier, setIdentifier] = React.useState("")
   const [loading, setLoading] = React.useState(false)
   const router = useRouter()
 
   const handleRequest = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email.trim()) return
+    if (!identifier.trim()) return
 
     setLoading(true)
     try {
-      const result = await requestPasswordRecovery(email)
-      if (result.success) {
+      const result = await requestPasswordRecovery(identifier)
+      if (result.success && result.email) {
         toast({ title: "Código enviado!", description: "Confira seu e-mail para continuar." })
-        router.push(`/auth/verify-code?email=${encodeURIComponent(email.toLowerCase())}`)
+        // Redireciona usando o e-mail RESOLVIDO pelo servidor
+        router.push(`/auth/verify-code?email=${encodeURIComponent(result.email)}`)
       } else {
         toast({ variant: "destructive", title: "Erro", description: result.error })
       }
@@ -47,25 +47,24 @@ export default function ForgotPasswordPage() {
                <Mail className="w-8 h-8" />
             </div>
             <CardTitle className="text-3xl font-black italic uppercase tracking-tighter text-primary">Recuperar Senha</CardTitle>
-            <CardDescription className="text-center font-medium px-4">Informe seu e-mail para receber o código de verificação.</CardDescription>
+            <CardDescription className="text-center font-medium px-4">Informe seu e-mail ou @username para receber o código.</CardDescription>
           </CardHeader>
           <CardContent className="px-10 pb-6">
             <form onSubmit={handleRequest} className="space-y-6">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">E-mail</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Identificador</Label>
                 <div className="relative">
                   <Input 
-                    type="email"
-                    placeholder="seu@email.com" 
-                    value={email} 
-                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="e-mail ou @username" 
+                    value={identifier} 
+                    onChange={(e) => setIdentifier(e.target.value)}
                     className="pl-11 h-14 rounded-2xl border-dashed border-secondary/30 focus-visible:ring-secondary/30"
                     required 
                   />
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-secondary opacity-50" />
                 </div>
               </div>
-              <Button type="submit" disabled={loading || !email} className="w-full bg-secondary text-white font-black h-16 rounded-[1.5rem] shadow-xl uppercase italic text-lg transition-transform hover:scale-[1.02]">
+              <Button type="submit" disabled={loading || !identifier} className="w-full bg-secondary text-white font-black h-16 rounded-[1.5rem] shadow-xl uppercase italic text-lg transition-transform hover:scale-[1.02]">
                 {loading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><Send className="w-5 h-5 mr-2" /> Enviar Código</>}
               </Button>
             </form>

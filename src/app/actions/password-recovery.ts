@@ -6,7 +6,7 @@ import { headers } from 'next/headers';
 import { sendPasswordResetLinkEmail } from './email';
 
 /**
- * @fileOverview Server Actions para recuperação de senha com tolerância de tempo aumentada e logs de depuração.
+ * @fileOverview Server Actions para recuperação de senha com correção de Username vs Email.
  */
 
 const GENERATOR_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -33,7 +33,7 @@ export async function requestPasswordRecovery(identifier: string) {
     const searchField = isEmail ? "email" : "username";
     const searchValue = inputClean.replace('@', '');
 
-    console.log(`[Recovery] Iniciando busca para ${searchField}: ${searchValue}`);
+    console.log(`[Recovery] Buscando por ${searchField}: ${searchValue}`);
 
     const userSnap = await db.collection("users")
       .where(searchField, "==", searchValue)
@@ -41,23 +41,22 @@ export async function requestPasswordRecovery(identifier: string) {
       .get();
     
     if (userSnap.empty) {
-      console.warn(`[Recovery] Usuário não encontrado no Firestore: ${searchValue}`);
-      return { success: false, error: 'Usuário não encontrado.' }; 
+      return { success: false, error: 'Usuário não encontrado em nossa base.' }; 
     }
 
     const userData = userSnap.docs[0].data();
-    const email = userData.email.toLowerCase().trim();
+    const resolvedEmail = userData.email.toLowerCase().trim();
     const userName = userData.name || userData.displayName || "Usuário";
 
-    // Verificar se o usuário existe no Auth
-    await auth.getUserByEmail(email);
+    // Verificar existência no Firebase Auth
+    await auth.getUserByEmail(resolvedEmail);
 
-    // Gerar código OTP e salvar (Validade de 60 minutos)
+    // Gerar código OTP e salvar (Validade de 60 minutos para evitar erro de fuso horário)
     const code = generateOTP();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); 
 
     await db.collection('password_reset_codes').add({
-      email,
+      email: resolvedEmail, // SALVAR SEMPRE O EMAIL REAL
       code,
       createdAt: FieldValue.serverTimestamp(),
       expiresAt: Timestamp.fromDate(expiresAt),
@@ -67,20 +66,18 @@ export async function requestPasswordRecovery(identifier: string) {
       userAgent
     });
 
-    console.log(`[Recovery] Código ${code} gerado para ${email}`);
-
     const emailResult = await sendPasswordResetLinkEmail({
-      to: email,
+      to: resolvedEmail,
       userName,
       otpCode: code
     });
 
     if (!emailResult.success) {
-      console.error(`[Recovery] Erro no envio de e-mail: ${emailResult.error}`);
-      return { success: false, error: `Erro no SMTP: ${emailResult.error}` };
+      return { success: false, error: `Erro no servidor de e-mail: ${emailResult.error}` };
     }
 
-    return { success: true };
+    // Retorna o e-mail resolvido para que o frontend redirecione corretamente
+    return { success: true, email: resolvedEmail };
   } catch (error: any) {
     console.error('[Recovery Error]', error);
     return { success: false, error: `Falha técnica: ${error.message}` };
@@ -93,40 +90,34 @@ export async function verifyRecoveryCode(email: string, code: string) {
     const normalizedEmail = email.trim().toLowerCase();
     const cleanCode = code.trim().toUpperCase();
 
-    console.log(`[Verify] Validando e-mail: ${normalizedEmail}, código: ${cleanCode}`);
+    console.log(`[Verify] Validando para: ${normalizedEmail}, código digitado: ${cleanCode}`);
 
-    // Consulta básica para evitar dependência de índices complexos
+    // Busca apenas códigos não usados para o e-mail específico
     const snapshot = await db.collection('password_reset_codes')
       .where('email', '==', normalizedEmail)
       .where('used', '==', false)
       .get();
 
     if (snapshot.empty) {
-      console.warn(`[Verify] Nenhum documento pendente para o e-mail: ${normalizedEmail}`);
-      return { success: false, error: 'Nenhum código pendente para este e-mail.' };
+      return { success: false, error: 'Nenhum código pendente para este e-mail. Solicite um novo.' };
     }
     
     const now = new Date();
     
-    // Filtragem em memória para diagnosticar problemas de expiração ou código
+    // Filtra em memória para evitar erro de índice composto (Failed Precondition)
     const validCodes = snapshot.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter((d: any) => {
         const matchesCode = d.code === cleanCode;
         const expirationDate = d.expiresAt.toDate();
         const isNotExpired = expirationDate > now;
-        
-        console.log(`[Verify] Analisando: ID=${d.id}, Match=${matchesCode}, Expira=${expirationDate.toISOString()}, Agora=${now.toISOString()}, Válido=${isNotExpired}`);
-        
         return matchesCode && isNotExpired;
       });
 
     if (validCodes.length === 0) {
-      console.warn(`[Verify] Código incorreto ou expirado para ${normalizedEmail}`);
-      return { success: false, error: 'Código incorreto ou expirado.' };
+      return { success: false, error: 'Código incorreto ou expirado. Tente novamente.' };
     }
 
-    console.log(`[Verify] Código validado com sucesso!`);
     return { success: true };
   } catch (error: any) {
     console.error('[Verify Error]', error);
@@ -141,8 +132,6 @@ export async function resetPasswordWithCode(email: string, code: string, passwor
     const normalizedEmail = email.trim().toLowerCase();
     const cleanCode = code.trim().toUpperCase();
     
-    console.log(`[Reset] Alterando senha para ${normalizedEmail}`);
-
     const snapshot = await db.collection('password_reset_codes')
       .where('email', '==', normalizedEmail)
       .where('code', '==', cleanCode)
@@ -150,21 +139,23 @@ export async function resetPasswordWithCode(email: string, code: string, passwor
       .limit(1)
       .get();
 
-    if (snapshot.empty) throw new Error("Validação expirada ou código já utilizado. Solicite novo código.");
+    if (snapshot.empty) throw new Error("Código expirado ou já utilizado.");
 
     const latestDoc = snapshot.docs[0];
     const userRecord = await auth.getUserByEmail(normalizedEmail);
+    
+    // Atualiza a senha no Firebase Auth
     await auth.updateUser(userRecord.uid, { password });
     
+    // Marca o código como utilizado
     await latestDoc.ref.update({ 
       used: true, 
       usedAt: FieldValue.serverTimestamp() 
     });
 
-    console.log(`[Reset] Senha alterada com sucesso via Auth e documento marcado como usado.`);
     return { success: true };
   } catch (error: any) {
     console.error('[Reset Error]', error);
-    return { success: false, error: `Erro na troca de senha: ${error.message}` };
+    return { success: false, error: `Erro ao redefinir: ${error.message}` };
   }
 }
