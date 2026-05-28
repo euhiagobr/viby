@@ -10,16 +10,19 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { ArrowLeft, Loader2, KeyRound, Mail, Send } from "lucide-react"
+import { ArrowLeft, Loader2, KeyRound, Mail, Send, Clock } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { requestPasswordRecovery } from "@/app/actions/password-recovery"
 
+const COOLDOWN_TIME = 90;
+
 export default function RedefinirSenhaPage() {
   const [identifier, setIdentifier] = useState("")
   const [loading, setLoading] = useState(false)
+  const [cooldown, setCooldown] = useState(0)
   const router = useRouter()
   
   const db = useFirestore()
@@ -27,14 +30,36 @@ export default function RedefinirSenhaPage() {
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
+  // Carregar cooldown
+  React.useEffect(() => {
+    const savedUntil = localStorage.getItem("viby_recovery_cooldown");
+    if (savedUntil) {
+      const remaining = Math.ceil((parseInt(savedUntil) - Date.now()) / 1000);
+      if (remaining > 0) setCooldown(remaining);
+    }
+  }, []);
+
+  // Timer
+  React.useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
   const handleRequest = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!identifier.trim()) return
+    if (!identifier.trim() || cooldown > 0) return
     
     setLoading(true)
     try {
       const result = await requestPasswordRecovery(identifier)
       if (result.success && result.requestId) {
+        const expiry = Date.now() + (COOLDOWN_TIME * 1000);
+        localStorage.setItem("viby_recovery_cooldown", expiry.toString());
+        setCooldown(COOLDOWN_TIME);
+
         toast({ title: "Código enviado!", description: "Confira seu e-mail para validar o acesso." })
         router.push(`/auth/verify-code?req=${encodeURIComponent(result.requestId)}&display=${encodeURIComponent(result.maskedEmail || "")}`)
       } else {
@@ -46,6 +71,12 @@ export default function RedefinirSenhaPage() {
       setLoading(false)
     }
   }
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc] font-body">
@@ -92,12 +123,27 @@ export default function RedefinirSenhaPage() {
                     onChange={(e) => setIdentifier(e.target.value)}
                     className="pl-11 h-14 rounded-2xl border-dashed border-secondary/30 focus-visible:ring-secondary/30"
                     required 
+                    disabled={loading || cooldown > 0}
                   />
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-secondary opacity-50" />
                 </div>
               </div>
-              <Button type="submit" disabled={loading || !identifier} className="w-full bg-secondary text-white font-black h-16 rounded-[1.5rem] shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform">
-                {loading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><Send className="w-5 h-5 mr-2" /> Enviar Código</>}
+
+              {cooldown > 0 && (
+                <div className="flex items-center justify-center gap-2 p-3 bg-muted/50 rounded-xl">
+                  <Clock className="w-4 h-4 text-muted-foreground animate-pulse" />
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
+                    Aguarde {formatTime(cooldown)} para tentar novamente
+                  </p>
+                </div>
+              )}
+
+              <Button 
+                type="submit" 
+                disabled={loading || !identifier || cooldown > 0} 
+                className="w-full bg-secondary text-white font-black h-16 rounded-[1.5rem] shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform"
+              >
+                {loading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : cooldown > 0 ? `Aguarde (${formatTime(cooldown)})` : <><Send className="w-5 h-5 mr-2" /> Enviar Código</>}
               </Button>
             </form>
           </CardContent>

@@ -7,25 +7,59 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ArrowLeft, Loader2, Mail, Send } from "lucide-react"
+import { ArrowLeft, Loader2, Mail, Send, Clock } from "lucide-react"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
 import { requestPasswordRecovery } from "@/app/actions/password-recovery"
 import Footer from "@/components/layout/Footer"
 
+const COOLDOWN_TIME = 90; // 1:30 min em segundos
+
 export default function ForgotPasswordPage() {
   const [identifier, setIdentifier] = React.useState("")
   const [loading, setLoading] = React.useState(false)
+  const [cooldown, setCooldown] = React.useState(0)
   const router = useRouter()
+
+  // Carregar cooldown do localStorage ao montar
+  React.useEffect(() => {
+    const savedUntil = localStorage.getItem("viby_recovery_cooldown");
+    if (savedUntil) {
+      const remaining = Math.ceil((parseInt(savedUntil) - Date.now()) / 1000);
+      if (remaining > 0) {
+        setCooldown(remaining);
+      }
+    }
+  }, []);
+
+  // Timer do cooldown
+  React.useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   const handleRequest = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!identifier.trim()) return
+    if (!identifier.trim() || cooldown > 0) return
 
     setLoading(true)
     try {
       const result = await requestPasswordRecovery(identifier)
       if (result.success && result.requestId) {
+        // Definir cooldown de 1:30 min
+        const expiry = Date.now() + (COOLDOWN_TIME * 1000);
+        localStorage.setItem("viby_recovery_cooldown", expiry.toString());
+        setCooldown(COOLDOWN_TIME);
+
         toast({ title: "Código enviado!", description: "Confira seu e-mail para continuar." })
         router.push(`/auth/verify-code?req=${encodeURIComponent(result.requestId)}&display=${encodeURIComponent(result.maskedEmail || "")}`)
       } else {
@@ -37,6 +71,12 @@ export default function ForgotPasswordPage() {
       setLoading(false)
     }
   }
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30">
@@ -60,12 +100,33 @@ export default function ForgotPasswordPage() {
                     onChange={(e) => setIdentifier(e.target.value)}
                     className="pl-11 h-14 rounded-2xl border-dashed border-secondary/30 focus-visible:ring-secondary/30"
                     required 
+                    disabled={loading || cooldown > 0}
                   />
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-secondary opacity-50" />
                 </div>
               </div>
-              <Button type="submit" disabled={loading || !identifier} className="w-full bg-secondary text-white font-black h-16 rounded-[1.5rem] shadow-xl uppercase italic text-lg transition-transform hover:scale-[1.02]">
-                {loading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><Send className="w-5 h-5 mr-2" /> Enviar Código</>}
+
+              {cooldown > 0 && (
+                <div className="flex items-center justify-center gap-2 p-3 bg-muted/50 rounded-xl animate-in fade-in zoom-in-95">
+                  <Clock className="w-4 h-4 text-muted-foreground animate-pulse" />
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
+                    Aguarde {formatTime(cooldown)} para solicitar novo código
+                  </p>
+                </div>
+              )}
+
+              <Button 
+                type="submit" 
+                disabled={loading || !identifier || cooldown > 0} 
+                className="w-full bg-secondary text-white font-black h-16 rounded-[1.5rem] shadow-xl uppercase italic text-lg transition-transform hover:scale-[1.02]"
+              >
+                {loading ? (
+                  <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                ) : cooldown > 0 ? (
+                  `Aguarde (${formatTime(cooldown)})`
+                ) : (
+                  <><Send className="w-5 h-5 mr-2" /> Enviar Código</>
+                )}
               </Button>
             </form>
           </CardContent>
