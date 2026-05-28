@@ -17,16 +17,29 @@ function getAdminApp(): App {
   const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKeyRaw) {
-    console.error('[Admin SDK] Erro: Faltam variáveis de ambiente no .env');
+    console.error('[Admin SDK] Erro: Faltam variáveis de ambiente no .env', {
+      projectId: !!projectId,
+      clientEmail: !!clientEmail,
+      privateKey: !!privateKeyRaw
+    });
     throw new Error('MISSING_ADMIN_CREDENTIALS');
   }
 
   try {
     // Sanitização profunda para lidar com caracteres de escape vindo do .env
+    // Remove aspas, trata aspas duplas internas e converte \n em quebras de linha reais
     let privateKey = privateKeyRaw
-      .replace(/^"|"$/g, '')      // Remove aspas externas caso existam
-      .replace(/\\n/g, '\n')      // Converte \n literal (string) em quebra de linha real
+      .replace(/^"|"$/g, '')      // Remove aspas externas
+      .replace(/\\n/g, '\n')      // Converte \n literal em quebra de linha real
       .trim();
+
+    // Garante que a chave comece e termine corretamente
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+       privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}`;
+    }
+    if (!privateKey.includes('-----END PRIVATE KEY-----')) {
+       privateKey = `${privateKey}\n-----END PRIVATE KEY-----`;
+    }
 
     return initializeApp({
       credential: cert({
@@ -36,8 +49,8 @@ function getAdminApp(): App {
       }),
       projectId,
     }, 'admin-app');
-  } catch (error) {
-    console.error('[Admin SDK] Falha crítica no parsing PEM da chave privada:', error);
+  } catch (error: any) {
+    console.error('[Admin SDK] Falha crítica no parsing PEM da chave privada:', error.message);
     throw error;
   }
 }
