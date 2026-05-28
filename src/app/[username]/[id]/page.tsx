@@ -105,7 +105,7 @@ export default async function EventoPublicoPage({ params }: { params: Promise<{ 
             asChild 
             className="flex-1 h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic gap-2 hover:bg-secondary transition-all"
           >
-            <Link href="/dashboard">
+            <Link href="/">
               <Home className="w-5 h-5" /> Ver Outros
             </Link>
           </Button>
