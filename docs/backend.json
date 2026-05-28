@@ -37,6 +37,21 @@
         "timestamp": { "type": "string", "format": "date-time" }
       }
     },
+    "Notification": {
+      "title": "Notificação",
+      "description": "Alertas de sistema, menções e interações sociais",
+      "type": "object",
+      "properties": {
+        "targetUid": { "type": "string", "description": "UID do destinatário" },
+        "senderId": { "type": "string", "description": "UID do remetente" },
+        "senderName": { "type": "string" },
+        "type": { "type": "string", "enum": ["mention", "follow", "system"] },
+        "message": { "type": "string" },
+        "link": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
     "InternalExpense": {
       "title": "Despesa Interna",
       "description": "Registro de saída financeira da plataforma",
@@ -73,6 +88,10 @@
     "/wallet_transactions/{txId}": {
       "schema": "WalletTransaction",
       "description": "Extrato de créditos e débitos dos usuários"
+    },
+    "/notifications/{notifId}": {
+      "schema": "Notification",
+      "description": "Central de notificações e menções"
     }
   }
 }
