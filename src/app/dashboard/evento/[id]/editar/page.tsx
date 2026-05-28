@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -17,7 +16,8 @@ import {
   setDoc, 
   deleteDoc,
   orderBy,
-  getDoc
+  getDoc,
+  writeBatch
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -484,9 +484,15 @@ export default function EditarEventoPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 text-foreground">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
-        <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Editar Evento</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
+          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Editar Evento</h1>
+        </div>
+        <Button onClick={handleGlobalSave} disabled={loading} className="bg-primary text-white font-black rounded-full h-11 px-8 shadow-lg gap-2 uppercase italic">
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          Salvar Alterações
+        </Button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
@@ -515,7 +521,6 @@ export default function EditarEventoPage() {
                 </div>
              </div>
 
-             {/* Classificação Indicativa */}
              <div className="space-y-4 p-6 bg-muted/20 rounded-3xl border-2 border-dashed border-border/60">
                 <div className="flex items-center justify-between">
                    <div className="space-y-1">
@@ -549,12 +554,6 @@ export default function EditarEventoPage() {
                       );
                    })}
                 </div>
-                {getAgeRatingConfig(selectedAgeRating).minimumAge >= 18 && (
-                   <div className="flex items-start gap-3 p-3 bg-orange-50 rounded-xl border border-orange-100">
-                      <AlertCircle className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
-                      <p className="text-[9px] text-orange-800 font-bold uppercase leading-tight">Será exibido um aviso de obrigatoriedade de documento com foto para os participantes.</p>
-                   </div>
-                )}
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -564,7 +563,6 @@ export default function EditarEventoPage() {
              <div className="space-y-2">
                 <Label className="flex justify-between items-center">
                    <span className="text-[10px] font-black uppercase opacity-60">Descrição</span>
-                   <span className="text-[9px] font-black uppercase text-secondary">Suporta: **negrito**, +grande+, @menção</span>
                 </Label>
                 <MentionTextarea 
                   placeholder="Fale tudo sobre a experiência..." 
@@ -574,6 +572,91 @@ export default function EditarEventoPage() {
                   required 
                 />
              </div>
+          </CardContent>
+        </Card>
+
+        {/* --- CO-REALIZAÇÃO (PARCERIAS) --- */}
+        <Card className="border-none shadow-sm rounded-[2rem]">
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-lg flex items-center gap-2"><Handshake className="w-5 h-5 text-secondary" /> Co-realização</CardTitle>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="rounded-xl font-bold gap-1.5 uppercase text-[10px] h-9 border-dashed">
+                    <Plus className="w-3.5 h-3.5" /> Convidar Parceiro
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md rounded-[2.5rem]">
+                  <DialogHeader>
+                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Buscar Organização</DialogTitle>
+                    <DialogDescription>As marcas adicionadas aqui serão notificadas para co-produzir o evento.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-6 py-4">
+                    <div className="flex gap-2">
+                       <div className="relative flex-1">
+                          <Input 
+                            placeholder="username da marca" 
+                            value={searchPartner} 
+                            onChange={e => setSearchPartner(e.target.value.toLowerCase())}
+                            className="rounded-xl pl-9 h-12"
+                          />
+                          <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                       </div>
+                       <Button onClick={handleLookupPartner} disabled={isSearchingPartner} className="h-12 rounded-xl px-6 bg-secondary text-white font-bold">
+                          {isSearchingPartner ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                       </Button>
+                    </div>
+
+                    {foundPartner && (
+                      <div className="p-6 bg-muted/30 rounded-3xl border border-dashed flex items-center justify-between animate-in zoom-in-95">
+                         <div className="flex items-center gap-4">
+                            <Avatar className="h-12 w-12 border-2 border-background shadow-sm">
+                               <AvatarImage src={foundPartner.avatar} />
+                               <AvatarFallback>{foundPartner.name?.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div className="space-y-0.5">
+                               <p className="font-black text-sm uppercase italic tracking-tight">{foundPartner.name}</p>
+                               <p className="text-[10px] text-secondary font-bold uppercase tracking-widest">@{foundPartner.username}</p>
+                            </div>
+                         </div>
+                         <Button onClick={handleInvitePartner} className="bg-primary text-white font-black uppercase text-[10px] italic rounded-xl px-6">Convidar</Button>
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+            <CardDescription className="font-medium">Gerencie marcas parceiras que figuram na produção.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+             {partners && partners.length > 0 ? (
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                 {partners.map((p: any) => (
+                   <div key={p.id} className="p-4 bg-muted/20 rounded-2xl border border-border/50 flex items-center justify-between group">
+                      <div className="flex items-center gap-3">
+                         <Avatar className="h-8 w-8">
+                            <AvatarImage src={p.avatar} />
+                            <AvatarFallback>{p.orgName?.charAt(0)}</AvatarFallback>
+                         </Avatar>
+                         <div className="flex flex-col">
+                            <span className="font-bold text-xs">{p.orgName}</span>
+                            <Badge variant={p.status === 'accepted' ? 'secondary' : 'outline'} className="h-4 p-0 px-1 text-[8px] font-black uppercase">
+                               {p.status === 'accepted' ? 'Confirmado' : 'Pendente'}
+                            </Badge>
+                         </div>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleRemovePartner(p.id)}>
+                         <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                   </div>
+                 ))}
+               </div>
+             ) : (
+               <div className="py-10 text-center border-2 border-dashed border-border/40 rounded-[1.5rem] opacity-30">
+                  <Handshake className="w-8 h-8 mx-auto mb-2" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">Sem parceiros vinculados</p>
+               </div>
+             )}
           </CardContent>
         </Card>
 
@@ -625,7 +708,6 @@ export default function EditarEventoPage() {
                   <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
                     <MapIcon className="w-4 h-4 text-secondary" /> Estrutura do Evento (Mapa)
                   </h3>
-                  <p className="text-[10px] text-muted-foreground font-bold uppercase">Habilite o mapa para permitir seleção de assentos.</p>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {['none', 'setores', 'assentos', 'mesas'].map((m) => (
@@ -656,19 +738,6 @@ export default function EditarEventoPage() {
                      <div className="col-span-4 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Valor (R$)</Label><Input type="number" step="0.01" value={singleTicketTypes[0]?.price || 0} onChange={e => { const n = [...singleTicketTypes]; n[0].price = parseFloat(e.target.value) || 0; setSingleTicketTypes(n); }} className="rounded-xl h-12 font-black text-secondary" /></div>
                   </div>
                   <div className="flex justify-center"><Button type="button" variant={isHalfPriceEnabled ? "secondary" : "outline"} className="rounded-full px-8 h-12 font-black uppercase italic text-xs gap-2" onClick={() => setIsPercentDialogOpen(true)}><Sparkles className="w-4 h-4" /> {isHalfPriceEnabled ? "Ajustar Meia-Entrada" : "Habilitar Meia-Entrada"}</Button></div>
-                  {isHalfPriceEnabled && (
-                    <div className="space-y-4">
-                       {singleTicketTypes.slice(1).map((t, idx) => (
-                         <div key={t.id} className="p-5 bg-white rounded-[1.5rem] border shadow-sm grid grid-cols-12 gap-6 items-center">
-                            <div className="col-span-4 space-y-1"><Label className="text-[9px] uppercase font-black opacity-40">Categoria</Label><Input value={t.name} onChange={e => { const n = [...singleTicketTypes]; n[idx+1].name = e.target.value; setSingleTicketTypes(n); }} className="rounded-xl h-10 font-bold border-none bg-muted/20" /></div>
-                            <div className="col-span-2 space-y-1"><Label className="text-[9px] uppercase font-black opacity-40">Quantidade</Label><div className="h-10 flex items-center font-black text-xs px-3 bg-muted/20 rounded-xl">Pool: {t.quantity}</div></div>
-                            <div className="col-span-3 space-y-1"><Label className="text-[9px] uppercase font-black opacity-40">Valor (R$)</Label><Input type="number" step="0.01" value={t.price} onChange={e => { const n = [...singleTicketTypes]; n[idx+1].price = parseFloat(e.target.value) || 0; setSingleTicketTypes(n); }} className="rounded-xl h-10 font-black text-secondary" /></div>
-                            <div className="col-span-2 flex flex-col items-center gap-1"><Label className="text-[8px] uppercase font-black opacity-40">Obrigatório</Label><Switch checked={t.requiresProof} onCheckedChange={v => { const n = [...singleTicketTypes]; n[idx+1].requiresProof = v; setSingleTicketTypes(n); }} /></div>
-                            <div className="col-span-1 flex justify-end"><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setSingleTicketTypes(singleTicketTypes.filter((_, i) => i !== idx+1))}><Trash2 className="w-4 h-4" /></Button></div>
-                         </div>
-                       ))}
-                    </div>
-                  )}
                </div>
             )}
 
@@ -692,23 +761,6 @@ export default function EditarEventoPage() {
                         <div className="col-span-3 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Quantidade</Label><Input value={batch.ticketTypes[0]?.quantity || 0} readOnly className="rounded-xl h-11 font-black bg-muted/30" /></div>
                         <div className="col-span-4 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Valor (R$)</Label><Input type="number" step="0.01" value={batch.ticketTypes[0]?.price || 0} onChange={e => updateGlobalTicketTypeField(bi, 0, 'price', parseFloat(e.target.value) || 0)} className="rounded-xl h-11 font-black text-secondary" /></div>
                      </div>
-                     {batch.isHalfPriceEnabled && (
-                        <div className="space-y-4">
-                           {batch.ticketTypes.slice(1).map((t, ti_idx) => {
-                              const ti = ti_idx + 1;
-                              return (
-                                 <div key={t.id} className="p-5 bg-white rounded-[1.5rem] border shadow-sm grid grid-cols-12 gap-4 items-center">
-                                    <div className="col-span-4 space-y-1"><Label className="text-[8px] uppercase font-black opacity-40">Categoria</Label><Input value={t.name} onChange={e => updateGlobalTicketTypeField(bi, ti, 'name', e.target.value)} className="rounded-xl h-9 font-bold border-none bg-muted/20" /></div>
-                                    <div className="col-span-2 space-y-1"><Label className="text-[8px] uppercase font-black opacity-40">Pool</Label><div className="h-9 flex items-center font-black text-[10px] px-2 bg-muted/20 rounded-xl">{t.quantity}</div></div>
-                                    <div className="col-span-3 space-y-1"><Label className="text-[8px] uppercase font-black opacity-40">Valor (R$)</Label><Input type="number" step="0.01" value={t.price} onChange={e => updateGlobalTicketTypeField(bi, ti, 'price', parseFloat(e.target.value) || 0)} className="rounded-xl h-9 font-black text-secondary" /></div>
-                                    <div className="col-span-2 flex flex-col items-center gap-1"><Label className="text-[7px] uppercase font-black opacity-40">Doc.</Label><Switch checked={t.requiresProof} onCheckedChange={v => updateGlobalTicketTypeField(bi, ti, 'requiresProof', v)} /></div>
-                                    <div className="col-span-1 flex justify-end"><Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeTicketType(bi, ti)}><Trash2 className="w-3.5 h-3.5" /></Button></div>
-                                 </div>
-                              )
-                           })}
-                           <Button type="button" variant="ghost" size="sm" className="text-secondary font-black uppercase text-[9px] gap-2" onClick={() => addGlobalTicketType(bi)}><Plus className="w-3.5 h-3.5" /> Adicionar Meia</Button>
-                        </div>
-                     )}
                   </div>
                 ))}
                 <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>
