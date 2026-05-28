@@ -2,8 +2,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 7.2.0 (SUPORTE A RECUPERAÇÃO DE SENHA)
-    
     function isSignedIn() {
       return request.auth != null;
     }
@@ -12,14 +10,10 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function getUserData() {
-      return get(/databases/eventosviby/documents/users/$(request.auth.uid)).data;
-    }
-
     function isAdmin() {
       return isSignedIn() && 
         exists(/databases/eventosviby/documents/users/$(request.auth.uid)) &&
-        getUserData().role == 'admin';
+        get(/databases/eventosviby/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     function hasOrgRole(orgId, roles) {
@@ -28,84 +22,7 @@ service cloud.firestore {
         get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
     }
 
-    // --- RECUPERAÇÃO DE SENHA (RESTRITO) ---
-    match /password_reset_codes/{docId} {
-      allow read, write: if false; // Acesso exclusivo via Firebase Admin SDK (Server Actions)
-    }
-
-    // --- NOTIFICAÇÕES (SEGURANÇA DE PRIVACIDADE) ---
-    match /notifications/{notifId} {
-      allow read: if isOwner(resource.data.targetUid) || isAdmin();
-      allow create: if isSignedIn();
-      allow update, delete: if isOwner(resource.data.targetUid) || isAdmin();
-    }
-
-    // --- CARTEIRAS E LEDGER (PROTEÇÃO TRANSACIONAL) ---
-    match /wallets/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow write: if isSignedIn(); 
-    }
-
-    match /wallet_transactions/{txId} {
-      allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow create: if isSignedIn(); 
-      allow update, delete: if false; 
-    }
-
-    match /financial_logs/{logId} {
-      allow read: if isAdmin();
-      allow write: if isSignedIn();
-    }
-
     // --- COLEÇÕES PÚBLICAS ---
-    
-    match /events/{eventId} {
-      allow read: if true;
-      allow create: if isSignedIn();
-      allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
-      allow delete: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
-      
-      match /partners/{partnerId} {
-        allow read: if true;
-        allow write: if hasOrgRole(get(/databases/eventosviby/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
-      }
-
-      match /comments/{commentId} {
-        allow read: if true;
-        allow create: if isSignedIn();
-        allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      }
-
-      match /likes/{userId} {
-        allow read: if true;
-        allow write: if isSignedIn() && request.auth.uid == userId;
-      }
-    }
-
-    match /organizations/{orgId} {
-      allow read: if true;
-      allow create: if isSignedIn();
-      allow update: if hasOrgRole(orgId, ['owner', 'admin']) || isAdmin();
-      allow delete: if hasOrgRole(orgId, ['owner']) || isAdmin();
-
-      match /members/{userId} {
-        allow read: if true;
-        allow update: if (isSignedIn() && request.auth.uid == userId) || hasOrgRole(orgId, ['owner', 'admin']) || isAdmin();
-        allow create, delete: if hasOrgRole(orgId, ['owner', 'admin']) || isAdmin();
-      }
-      
-      match /transactions/{txId} {
-        allow read: if hasOrgRole(orgId, ['owner', 'admin', 'finance']) || isAdmin();
-        allow write: if isAdmin();
-      }
-    }
-
-    match /usernames/{username} {
-      allow read: if true;
-      allow create: if isSignedIn();
-      allow update, delete: if isAdmin();
-    }
-
     match /users/{userId} {
       allow read: if true;
       allow create: if isSignedIn() && request.auth.uid == userId;
@@ -118,12 +35,72 @@ service cloud.firestore {
       }
     }
 
+    match /events/{eventId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
+      allow delete: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
+      
+      match /partners/{partnerId} {
+        allow read: if true;
+        allow write: if isSignedIn();
+      }
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      }
+
+      match /likes/{userId} {
+        allow read: if true;
+        allow write: if isSignedIn() && request.auth.uid == userId;
+      }
+      
+      match /setores/{setorId} {
+        allow read: if true;
+        match /assentos/{assentoId} {
+          allow read: if true;
+          allow write: if isSignedIn();
+        }
+      }
+    }
+
+    match /organizations/{orgId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if hasOrgRole(orgId, ['owner', 'admin']) || isAdmin();
+      allow delete: if hasOrgRole(orgId, ['owner']) || isAdmin();
+
+      match /members/{userId} {
+        allow read: if isSignedIn() && (request.auth.uid == userId || hasOrgRole(orgId, ['owner', 'admin', 'editor', 'finance', 'checkin']) || isAdmin());
+        allow update: if (isSignedIn() && request.auth.uid == userId) || hasOrgRole(orgId, ['owner', 'admin']) || isAdmin();
+        allow create, delete: if hasOrgRole(orgId, ['owner', 'admin']) || isAdmin();
+      }
+    }
+
+    match /categories/{catId} {
+      allow read: if true;
+    }
+
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    match /ads/{adId} {
+      allow read: if true;
+      allow write: if isSignedIn() || isAdmin();
+    }
+
     match /follows/{followId} {
       allow read: if true;
       allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
       allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
     }
 
+    // --- COLEÇÕES PRIVADAS ---
     match /registrations/{regId} {
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid || 
@@ -136,44 +113,25 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    match /user_gamification/{userId} {
-      allow read: if true;
-      allow write: if isSignedIn();
+    match /wallets/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isAdmin(); 
     }
 
-    match /cultural_stats/{userId} {
-      allow read: if true;
-      allow write: if isSignedIn();
+    match /wallet_transactions/{txId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow create: if isAdmin(); 
+      allow update, delete: if false; 
     }
 
-    match /xp_logs/{logId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow write: if isSignedIn();
-    }
-
-    match /payout_requests/{reqId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    match /notifications/{notifId} {
+      allow read: if isOwner(resource.data.targetUid) || isAdmin();
       allow create: if isSignedIn();
-      allow update: if isAdmin();
+      allow update, delete: if isOwner(resource.data.targetUid) || isAdmin();
     }
 
-    match /tax_ads/{taxId} {
-      allow read, write: if isAdmin();
-    }
-
-    match /tax_tickets/{taxId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.organizationId != null && hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'finance']));
-      allow write: if isAdmin() || isSignedIn();
-    }
-
-    match /ads/{adId} {
-      allow read: if true;
-      allow write: if isSignedIn() || isAdmin();
-    }
-
-    match /settings/{settingId} {
-      allow read: if true;
-      allow write: if isAdmin();
+    match /password_reset_codes/{docId} {
+      allow read, write: if false; 
     }
 
     match /{allPaths=**} {

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -13,7 +14,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 
 /**
  * Hook para escutar coleções do Firestore de forma estável.
- * Implementa travas de segurança para evitar erros de "Unexpected state" em navegações rápidas.
+ * Implementa try/catch e silent fail para usuários deslogados.
  */
 export function useCollection<T = DocumentData>(query: Query<T> | null) {
   const [data, setData] = useState<T[] | null>(null);
@@ -30,35 +31,45 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
     }
 
     setLoading(true);
-    const unsubscribe = onSnapshot(
-      query,
-      (snapshot: QuerySnapshot<T>) => {
-        if (!isMounted) return;
-        
-        const items = snapshot.docs.map((doc) => ({
-          ...(doc.data() as T),
-          id: doc.id,
-        }));
-        
-        setData(items);
-        setLoading(false);
-        setError(null);
-      },
-      (serverError: FirestoreError) => {
-        if (!isMounted) return;
+    
+    let unsubscribe = () => {};
 
-        if (serverError.code === 'permission-denied') {
-          const permissionError = new FirestorePermissionError({
-            path: (query as any)._query?.path?.toString() || 'unknown',
-            operation: 'list',
-          });
-          errorEmitter.emit('permission-error', permissionError);
+    try {
+      unsubscribe = onSnapshot(
+        query,
+        (snapshot: QuerySnapshot<T>) => {
+          if (!isMounted) return;
+          
+          const items = snapshot.docs.map((doc) => ({
+            ...(doc.data() as T),
+            id: doc.id,
+          }));
+          
+          setData(items);
+          setLoading(false);
+          setError(null);
+        },
+        (serverError: FirestoreError) => {
+          if (!isMounted) return;
+
+          // Silent fail para erros de permissão em navegação pública
+          if (serverError.code === 'permission-denied') {
+            console.warn(`[Firestore] Acesso negado ou restrito a: ${(query as any)._query?.path?.toString() || 'unknown'}. Retornando lista vazia.`);
+            setData([]);
+          } else {
+            console.error(`[Firestore Error] ${serverError.code}: ${serverError.message}`);
+          }
+          
+          setError(serverError);
+          setLoading(false);
         }
-        
-        setError(serverError);
+      );
+    } catch (err) {
+      if (isMounted) {
+        setData([]);
         setLoading(false);
       }
-    );
+    }
 
     return () => {
       isMounted = false;
@@ -66,5 +77,5 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
     };
   }, [query]);
 
-  return { data, loading, error };
+  return { data: data || ([] as T[]), loading, error };
 }

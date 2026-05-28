@@ -2,7 +2,7 @@
 'use client';
 
 import * as React from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, usePathname } from 'next/navigation';
 import {
   useDoc,
   useFirestore,
@@ -58,7 +58,8 @@ import {
   Navigation,
   Lock,
   ShieldAlert,
-  XCircle
+  XCircle,
+  LogIn
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -149,6 +150,10 @@ function ReportDialog({ eventId, eventTitle }: { eventId: string, eventTitle: st
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!db) return;
+    if (!user) {
+       toast({ title: "Ação necessária", description: "Faça login para realizar uma denúncia." });
+       return;
+    }
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     
@@ -159,8 +164,8 @@ function ReportDialog({ eventId, eventTitle }: { eventId: string, eventTitle: st
         type: 'event',
         reason: formData.get("reason"),
         description: formData.get("description"),
-        reporterId: user?.uid || 'anonymous',
-        reporterName: user?.displayName || 'Anônimo',
+        reporterId: user.uid,
+        reporterName: user.displayName || 'Anônimo',
         status: 'Pendente',
         timestamp: serverTimestamp()
       });
@@ -189,32 +194,43 @@ function ReportDialog({ eventId, eventTitle }: { eventId: string, eventTitle: st
             <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Denunciar Evento</DialogTitle>
             <DialogDescription>Ajude-nos a manter a Viby segura relatando irregularidades.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase opacity-60">Motivo principal</Label>
-              <Select name="reason" required>
-                <SelectTrigger className="rounded-xl h-12">
-                  <SelectValue placeholder="Selecione um motivo" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  <SelectItem value="fraude">Evento Falso ou Fraude</SelectItem>
-                  <SelectItem value="copyright">Violação de Direitos Autorais</SelectItem>
-                  <SelectItem value="inadequado">Conteúdo Inadequado / Ofensivo</SelectItem>
-                  <SelectItem value="outro">Outro Motivo</SelectItem>
-                </SelectContent>
-              </Select>
+          {user ? (
+            <>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Motivo principal</Label>
+                  <Select name="reason" required>
+                    <SelectTrigger className="rounded-xl h-12">
+                      <SelectValue placeholder="Selecione um motivo" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="fraude">Evento Falso ou Fraude</SelectItem>
+                      <SelectItem value="copyright">Violação de Direitos Autorais</SelectItem>
+                      <SelectItem value="inadequado">Conteúdo Inadequado / Ofensivo</SelectItem>
+                      <SelectItem value="outro">Outro Motivo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Detalhes (Opcional)</Label>
+                  <Textarea name="description" placeholder="Descreva o que está acontecendo..." className="rounded-xl min-h-[100px] resize-none" />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="submit" disabled={loading} className="w-full h-14 bg-red-600 text-white font-black rounded-2xl shadow-xl uppercase italic">
+                  {loading ? <Loader2 className="animate-spin mr-2" /> : null}
+                  Confirmar Denúncia
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <div className="py-10 text-center space-y-6">
+               <p className="text-sm font-medium text-muted-foreground">Você precisa estar logado para enviar uma denúncia.</p>
+               <Button asChild className="w-full h-12 bg-primary rounded-xl">
+                  <Link href="/login">Fazer Login</Link>
+               </Button>
             </div>
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase opacity-60">Detalhes (Opcional)</Label>
-              <Textarea name="description" placeholder="Descreva o que está acontecendo..." className="rounded-xl min-h-[100px] resize-none" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={loading} className="w-full h-14 bg-red-600 text-white font-black rounded-2xl shadow-xl uppercase italic">
-              {loading ? <Loader2 className="animate-spin mr-2" /> : null}
-              Confirmar Denúncia
-            </Button>
-          </DialogFooter>
+          )}
         </form>
       </DialogContent>
     </Dialog>
@@ -658,6 +674,7 @@ function LocationSection({ event }: { event: any }) {
 
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
   const router = useRouter();
+  const pathname = usePathname();
   const db = useFirestore();
   const auth = useAuth();
   const { user } = useUser(auth);
@@ -750,6 +767,12 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   };
 
   const handleAddToCart = () => {
+    if (!user) {
+      toast({ title: "Ação necessária", description: "Faça login para adicionar ao carrinho." });
+      router.push(`/login?redirect=${encodeURIComponent(pathname || '/')}`);
+      return;
+    }
+
     if (!event || !isActive || isEnded) {
       toast({ variant: "destructive", title: "Vendas encerradas", description: "Este evento não está mais aceitando novas inscrições." });
       return;
@@ -874,9 +897,14 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
             {user ? (
                <UserNav />
             ) : (
-              <Button asChild className="bg-primary text-white font-black uppercase text-[10px] italic rounded-full px-6 shadow-lg shadow-primary/10">
-                <Link href="/login">Entrar</Link>
-              </Button>
+              <div className="flex items-center gap-2">
+                 <Button asChild variant="ghost" className="text-[10px] font-black uppercase tracking-widest px-4 h-10 rounded-full">
+                    <Link href="/login">Entrar</Link>
+                 </Button>
+                 <Button asChild className="bg-primary text-white font-black uppercase text-[10px] italic rounded-full px-6 shadow-lg shadow-primary/10 h-10">
+                   <Link href="/cadastro">Criar Conta</Link>
+                 </Button>
+              </div>
             )}
           </div>
         </div>
@@ -1142,7 +1170,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                             onClick={handleAddToCart} 
                             className="w-full h-20 bg-secondary text-white font-black rounded-3xl shadow-xl shadow-secondary/20 uppercase italic text-xl hover:scale-[1.02] transition-all group"
                           >
-                            Adicionar ao Carrinho
+                            {user ? 'Adicionar ao Carrinho' : <><LogIn className="w-5 h-5 mr-2" /> Fazer Login para Comprar</>}
                             <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
                           </Button>
 

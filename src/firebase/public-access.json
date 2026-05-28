@@ -1,0 +1,29 @@
+
+{
+  "collections": {
+    "events": {
+      "access": "public_read",
+      "fields": ["title", "description", "date", "endDate", "location", "city", "image", "categoryId", "categoryName", "ageRating", "ticketMode", "mapMode", "capacidadeTotal", "batches", "sectors", "palcoNome", "palcoPosX", "palcoPosY", "palcoWidth", "palcoHeight", "status", "organizationId", "organizer", "latitude", "longitude"]
+    },
+    "organizations": {
+      "access": "public_read",
+      "fields": ["name", "username", "avatar", "banner", "bio", "type", "verified", "socialLinks", "gallery", "city", "state", "country", "showName", "showBio", "showType", "showInstagram", "showWebsite", "showEmail", "showPhone", "showAddress", "showNeighborhood", "showState"]
+    },
+    "users": {
+      "access": "public_read",
+      "fields": ["name", "username", "avatar", "bio", "isVerified", "city", "state", "country", "privacy"]
+    },
+    "categories": {
+      "access": "public_read",
+      "fields": ["name", "slug", "icon"]
+    },
+    "usernames": {
+      "access": "public_read",
+      "fields": ["uid", "type"]
+    },
+    "ads": {
+      "access": "public_read",
+      "fields": ["eventTitle", "type", "status", "adImage", "externalUrl", "eventId", "organizationId"]
+    }
+  }
+}

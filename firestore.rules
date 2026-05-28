@@ -21,18 +21,10 @@ service cloud.firestore {
     }
 
     function hasRole(orgId, roles) {
-      return isSignedIn() && getRole(orgId) in roles;
+      return isSignedIn() && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)) && getRole(orgId) in roles;
     }
 
-    match /password_reset_codes/{docId} {
-      allow read, write: if false; // Apenas Server-side via Admin SDK
-    }
-
-    match /{allPaths=**} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
+    // --- LEITURA PÚBLICA ---
     match /users/{userId} {
       allow read: if true;
       allow write: if isUser(userId) || isAdmin();
@@ -42,12 +34,6 @@ service cloud.firestore {
       }
     }
 
-    match /usernames/{username} {
-      allow read: if true;
-      allow create: if isSignedIn();
-      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
-    }
-
     match /organizations/{orgId} {
       allow read: if true;
       allow create: if isSignedIn();
@@ -55,7 +41,7 @@ service cloud.firestore {
       allow delete: if hasRole(orgId, ['owner']) || isAdmin();
 
       match /members/{userId} {
-        allow read: if true;
+        allow read: if isSignedIn() && (request.auth.uid == userId || hasRole(orgId, ['owner', 'admin']) || isAdmin());
         allow write: if hasRole(orgId, ['owner', 'admin']) || isAdmin();
       }
     }
@@ -65,6 +51,50 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update: if hasRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
       allow delete: if hasRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
+      
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      }
+      
+      match /likes/{userId} {
+        allow read: if true;
+        allow write: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      match /partners/{partnerId} {
+        allow read: if true;
+        allow write: if isSignedIn();
+      }
+    }
+
+    match /categories/{catId} {
+      allow read: if true;
+    }
+
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    match /ads/{adId} {
+      allow read: if true;
+      allow write: if isSignedIn() || isAdmin();
+    }
+
+    // --- PRIVADO ---
+    match /registrations/{regId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.sharedWithUid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && resource.data.targetUid == request.auth.uid;
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && resource.data.targetUid == request.auth.uid;
     }
 
     match /follows/{followId} {
@@ -72,11 +102,10 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
       allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
     }
-    
-    match /notifications/{notifId} {
-      allow read: if isSignedIn() && resource.data.targetUid == request.auth.uid;
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn() && resource.data.targetUid == request.auth.uid;
+
+    match /{allPaths=**} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
     }
   }
 }

@@ -1,10 +1,11 @@
+
 "use client"
 
 import * as React from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
-import { Bell, Loader2, Plus, Building2, ShoppingCart } from "lucide-react"
+import { Bell, Loader2, Plus, Building2, ShoppingCart, LogIn } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, where, doc, getDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore"
@@ -26,12 +27,28 @@ import { UserNav } from "@/components/layout/UserNav"
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { currentOrg, organizations, setCurrentOrg } = useCurrentOrganization()
   const auth = useAuth()
-  const { user, loading: authLoading } = useUser(auth)
+  const { user, loading: authLoading, isInitialized } = useUser(auth)
   const db = useFirestore()
   const router = useRouter()
   const pathname = usePathname()
   const { totalCount } = useCart()
   const [checkingAccount, setCheckingAccount] = React.useState(true)
+
+  // Lista de rotas protegidas que EXIGEM login imediato
+  const protectedRoutes = [
+    '/dashboard/ingressos',
+    '/dashboard/carteira',
+    '/dashboard/organizacoes',
+    '/dashboard/solicitacoes',
+    '/dashboard/perfil/editar',
+    '/dashboard/perfil/configuracoes',
+    '/dashboard/admin',
+    '/admin'
+  ];
+
+  const isProtectedRoute = protectedRoutes.some(route => pathname?.startsWith(route));
+  // A página Explorar (/dashboard) agora é pública por padrão na navegação
+  const isExplorar = pathname === '/dashboard';
 
   const unreadQuery = useMemoFirebase(() => {
     if (!db || !user) return null
@@ -39,18 +56,19 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   }, [db, user])
   const { data: unreadNotifications } = useCollection<any>(unreadQuery)
 
-  // LÓGICA DE PROTEÇÃO DE ROTA E REATIVAÇÃO AUTOMÁTICA
   React.useEffect(() => {
-    if (authLoading) return
+    if (!isInitialized) return
 
-    // Redireciona se não estiver logado
-    if (!user) {
-      router.replace("/login")
+    if (!user && isProtectedRoute) {
+      router.replace(`/login?redirect=${encodeURIComponent(pathname || '/dashboard')}`)
       return
     }
 
-    const checkReactivation = async () => {
-      if (!db || !user) return
+    const checkAccountStatus = async () => {
+      if (!db || !user) {
+        setCheckingAccount(false);
+        return;
+      }
       try {
         const userRef = doc(db, "users", user.uid)
         const userSnap = await getDoc(userRef)
@@ -72,16 +90,16 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (e) {
-        console.error("Erro na verificação de conta:", e)
+        console.warn("Conta sem perfil Firestore ainda.");
       } finally {
         setCheckingAccount(false)
       }
     }
 
-    checkReactivation()
-  }, [db, user, authLoading, router])
+    checkAccountStatus()
+  }, [db, user, isInitialized, isProtectedRoute, pathname, router])
 
-  if (authLoading || checkingAccount || !user) {
+  if (!isInitialized) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-secondary" />
@@ -98,58 +116,77 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             <SidebarTrigger />
             
             <div className="flex items-center gap-4">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="gap-2 rounded-xl h-10 border-dashed border-secondary/40 hover:border-secondary transition-all">
-                    <Building2 className="w-4 h-4 text-secondary" />
-                    <span className="font-bold text-xs uppercase tracking-tight">
-                      {currentOrg?.name || "Selecionar Organização"}
-                    </span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 rounded-xl" align="start">
-                  <DropdownMenuLabel className="text-[10px] uppercase font-black opacity-50">Minhas Organizações</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {organizations.map((org) => (
-                    <DropdownMenuItem 
-                      key={org.id} 
-                      onClick={() => setCurrentOrg(org)}
-                      className={currentOrg?.id === org.id ? "bg-secondary/10 font-bold" : ""}
-                    >
-                      {org.name}
+              {user ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="gap-2 rounded-xl h-10 border-dashed border-secondary/40 hover:border-secondary transition-all">
+                      <Building2 className="w-4 h-4 text-secondary" />
+                      <span className="font-bold text-xs uppercase tracking-tight">
+                        {currentOrg?.name || "Selecionar Organização"}
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56 rounded-xl" align="start">
+                    <DropdownMenuLabel className="text-[10px] uppercase font-black opacity-50">Minhas Organizações</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {organizations.map((org) => (
+                      <DropdownMenuItem 
+                        key={org.id} 
+                        onClick={() => setCurrentOrg(org)}
+                        className={currentOrg?.id === org.id ? "bg-secondary/10 font-bold" : ""}
+                      >
+                        {org.name}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/organizacoes/new" className="flex items-center gap-2 text-secondary font-bold">
+                        <Plus className="w-4 h-4" />
+                        Nova Organização
+                      </Link>
                     </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/dashboard/organizacoes/new" className="flex items-center gap-2 text-secondary font-bold">
-                      <Plus className="w-4 h-4" />
-                      Nova Organização
-                    </Link>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Badge variant="outline" className="rounded-full border-dashed px-3 py-1 font-bold text-[10px] uppercase text-muted-foreground">
+                  Modo Visitante
+                </Badge>
+              )}
             </div>
             
             <div className="flex items-center gap-3 ml-auto">
-              <Button variant="ghost" size="icon" className="relative h-9 w-9" asChild>
-                <Link href="/dashboard/carrinho">
-                  <ShoppingCart className="h-5 w-5" />
-                  {totalCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-secondary text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-background">
-                      {totalCount}
-                    </span>
-                  )}
-                </Link>
-              </Button>
-              <Button variant="ghost" size="icon" className="relative h-9 w-9" asChild>
-                <Link href="/dashboard/notificacoes">
-                  <Bell className="h-5 w-5" />
-                  {unreadNotifications && unreadNotifications.length > 0 && (
-                    <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full border-2 border-background" />
-                  )}
-                </Link>
-              </Button>
-              <UserNav />
+              {user ? (
+                <>
+                  <Button variant="ghost" size="icon" className="relative h-9 w-9" asChild>
+                    <Link href="/dashboard/carrinho">
+                      <ShoppingCart className="h-5 w-5" />
+                      {totalCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-secondary text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-background">
+                          {totalCount}
+                        </span>
+                      )}
+                    </Link>
+                  </Button>
+                  <Button variant="ghost" size="icon" className="relative h-9 w-9" asChild>
+                    <Link href="/dashboard/notificacoes">
+                      <Bell className="h-5 w-5" />
+                      {unreadNotifications && unreadNotifications.length > 0 && (
+                        <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full border-2 border-background" />
+                      )}
+                    </Link>
+                  </Button>
+                  <UserNav />
+                </>
+              ) : (
+                <div className="flex items-center gap-2">
+                   <Button variant="ghost" asChild className="text-[10px] font-black uppercase tracking-widest h-9">
+                      <Link href="/login">Entrar</Link>
+                   </Button>
+                   <Button asChild className="bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-5 h-9 shadow-lg shadow-secondary/20">
+                      <Link href="/cadastro">Criar Conta</Link>
+                   </Button>
+                </div>
+              )}
             </div>
           </header>
           <div className="p-6 lg:p-10 max-w-7xl mx-auto w-full flex-1">
