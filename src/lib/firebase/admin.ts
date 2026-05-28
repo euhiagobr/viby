@@ -12,7 +12,7 @@ function getAdminApp(): App {
   const existingAdmin = apps.find(a => a.name === 'admin-app');
   if (existingAdmin) return existingAdmin;
 
-  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
@@ -22,18 +22,17 @@ function getAdminApp(): App {
       clientEmail: !!clientEmail,
       privateKey: !!privateKeyRaw
     });
-    throw new Error('MISSING_ADMIN_CREDENTIALS');
+    throw new Error('MISSING_ADMIN_ENV_VARS');
   }
 
   try {
-    // Sanitização profunda para lidar com caracteres de escape vindo do .env
-    // Remove aspas, trata aspas duplas internas e converte \n em quebras de linha reais
+    // Sanitização profunda da chave privada para lidar com aspas e escapes do .env
     let privateKey = privateKeyRaw
-      .replace(/^"|"$/g, '')      // Remove aspas externas
-      .replace(/\\n/g, '\n')      // Converte \n literal em quebra de linha real
+      .replace(/^"|"$/g, '')      // Remove aspas externas se existirem
+      .replace(/\\n/g, '\n')      // Converte \n literal (string) em quebra de linha real
       .trim();
 
-    // Garante que a chave comece e termine corretamente
+    // Garante que a chave tenha os delimitadores PEM corretos
     if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
        privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}`;
     }
@@ -50,13 +49,13 @@ function getAdminApp(): App {
       projectId,
     }, 'admin-app');
   } catch (error: any) {
-    console.error('[Admin SDK] Falha crítica no parsing PEM da chave privada:', error.message);
+    console.error('[Admin SDK] Falha crítica na análise da chave privada:', error.message);
     throw error;
   }
 }
 
 /**
- * Getters para instâncias administrativas com database isolado.
+ * Getters para instâncias administrativas com database isolado 'eventosviby'.
  */
 export const getAdminAuth = () => getAuth(getAdminApp());
 export const getAdminDb = () => getFirestore(getAdminApp(), 'eventosviby');

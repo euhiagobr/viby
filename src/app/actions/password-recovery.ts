@@ -7,7 +7,7 @@ import { sendPasswordResetLinkEmail } from './email';
 
 /**
  * @fileOverview Server Actions para recuperação de senha.
- * Adicionado logs de erro detalhados para diagnosticar falhas de credenciais ou SMTP.
+ * Centraliza a lógica administrativa para bypass de Security Rules e bypass de limitações client-side.
  */
 
 const GENERATOR_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -22,8 +22,6 @@ function generateOTP(): string {
 
 export async function requestPasswordRecovery(identifier: string) {
   try {
-    console.log(`[Recovery] Iniciando solicitação para: ${identifier}`);
-    
     const auth = getAdminAuth();
     const db = getAdminDb();
     
@@ -33,7 +31,7 @@ export async function requestPasswordRecovery(identifier: string) {
     const ip = head.get('x-forwarded-for') || 'unknown';
     const userAgent = head.get('user-agent') || 'unknown';
 
-    // 1. Resolver identificador
+    // 1. Resolver identificador (E-mail ou @Username)
     const isEmail = identifier.includes("@");
     const userSnap = await db.collection("users")
       .where(isEmail ? "email" : "username", "==", identifier.replace('@', '').toLowerCase().trim())
@@ -41,8 +39,7 @@ export async function requestPasswordRecovery(identifier: string) {
       .get();
     
     if (userSnap.empty) {
-      console.warn(`[Recovery] Usuário não encontrado no Firestore: ${identifier}`);
-      // Por segurança, retornamos sucesso mesmo que não exista, para evitar enumeração de emails
+      // Por segurança contra enumeração de e-mails, retornamos sucesso mesmo que não exista
       return { success: true }; 
     }
 
@@ -50,15 +47,15 @@ export async function requestPasswordRecovery(identifier: string) {
     email = userData.email;
     userName = userData.name || userData.displayName || "Usuário";
 
-    // 2. Verificar no Auth para garantir que o usuário existe no provedor de senha
+    // 2. Verificar se o usuário existe no Firebase Auth
     try {
       await auth.getUserByEmail(email);
     } catch (e: any) {
-       console.error('[Recovery Auth Error] Usuário existe no Firestore mas não no Firebase Auth:', e.code);
-       return { success: false, error: 'Conta não configurada corretamente para login com senha.' };
+       console.error('[Recovery Auth Error] Usuário não encontrado no Auth:', email);
+       return { success: false, error: 'Conta não configurada para login com senha.' };
     }
 
-    // 3. Gerar código e salvar no Firestore
+    // 3. Gerar código OTP e salvar no Firestore administrativo
     const code = generateOTP();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
 
@@ -74,9 +71,7 @@ export async function requestPasswordRecovery(identifier: string) {
       userAgent
     });
 
-    console.log(`[Recovery] Código OTP gerado para ${email}`);
-
-    // 4. Enviar E-mail via SMTP
+    // 4. Enviar E-mail via SMTP (usando config do Firestore)
     const emailResult = await sendPasswordResetLinkEmail({
       to: email,
       userName,
@@ -84,19 +79,13 @@ export async function requestPasswordRecovery(identifier: string) {
     });
 
     if (!emailResult.success) {
-      console.error('[Recovery SMTP Error]', emailResult.error);
       throw new Error(emailResult.error || "Falha ao enviar e-mail.");
     }
 
-    console.log(`[Recovery] E-mail enviado com sucesso para ${email}`);
     return { success: true };
   } catch (error: any) {
-    console.error('[Recovery Global Failure]', {
-      message: error.message,
-      stack: error.stack
-    });
-    // Retornamos o erro específico durante o desenvolvimento para ajudar o usuário
-    return { success: false, error: error.message || 'Falha interna ao processar solicitação.' };
+    console.error('[Recovery Failure]', error.message);
+    return { success: false, error: 'Falha interna ao processar solicitação.' };
   }
 }
 
@@ -120,7 +109,6 @@ export async function verifyRecoveryCode(email: string, code: string) {
 
     return { success: true };
   } catch (error: any) {
-    console.error('[Verify Code Error]', error.message);
     return { success: false, error: 'Erro na validação do código.' };
   }
 }
@@ -139,15 +127,16 @@ export async function resetPasswordWithCode(email: string, code: string, passwor
 
     if (snapshot.empty) throw new Error("Código expirado ou já utilizado.");
 
+    // Atualiza a senha no Firebase Auth
     const userRecord = await auth.getUserByEmail(email);
     await auth.updateUser(userRecord.uid, { password });
     
+    // Invalida o código
     await snapshot.docs[0].ref.update({ 
       used: true, 
       usedAt: FieldValue.serverTimestamp() 
     });
 
-    console.log(`[Reset Password] Senha atualizada com sucesso para: ${email}`);
     return { success: true };
   } catch (error: any) {
     console.error('[Reset Password Error]', error.message);
