@@ -1,6 +1,6 @@
 
 /**
- * @fileOverview Lógica principal do sistema de gamificação Viby.
+ * @fileOverview Lógica central de gamificação: Definição de níveis e cálculos de XP.
  */
 
 export interface LevelConfig {
@@ -13,6 +13,7 @@ export interface LevelConfig {
   description: string;
 }
 
+// Escala de Níveis Viby (Progressão Exponencial)
 export const DEFAULT_LEVELS: LevelConfig[] = [
   { id: 'l1', level: 1, name: 'Novato', xpRequired: 0, icon: 'Zap', color: '#94a3b8', description: 'Iniciando sua jornada na Viby.' },
   { id: 'l5', level: 5, name: 'Explorador', xpRequired: 500, icon: 'Globe', color: '#3b82f6', description: 'Descobrindo novos horizontes culturais.' },
@@ -27,24 +28,19 @@ export interface XPRule {
   name: string;
   event: string;
   points: number;
-  category?: string;
-  limit?: number; // 0 for unlimited
+  description: string;
 }
 
 export const DEFAULT_RULES: XPRule[] = [
-  { id: 'signup', name: 'Criar Conta', event: 'on_signup', points: 50 },
-  { id: 'profile_complete', name: 'Perfil Completo', event: 'on_profile_complete', points: 100 },
-  { id: 'follow_user', name: 'Seguir Usuário', event: 'on_follow_user', points: 10 },
-  { id: 'follow_org', name: 'Seguir Marca', event: 'on_follow_org', points: 15 },
-  { id: 'buy_ticket', name: 'Comprar Ingresso', event: 'on_ticket_purchase', points: 30 },
-  { id: 'checkin', name: 'Realizar Check-in', event: 'on_checkin', points: 100 },
-  { id: 'new_category', name: 'Explorar Nova Categoria', event: 'on_new_category', points: 50 },
-  { id: 'new_city', name: 'Explorar Nova Cidade', event: 'on_new_city', points: 150 },
-  { id: 'new_neighborhood', name: 'Explorar Novo Bairro', event: 'on_new_neighborhood', points: 50 },
+  { id: 'signup', name: 'Primeiro Acesso', event: 'on_signup', points: 50, description: 'Bem-vindo ao clube!' },
+  { id: 'follow_org', name: 'Apoio à Marca', event: 'on_follow_org', points: 15, description: 'Seguir uma organização parceira.' },
+  { id: 'follow_user', name: 'Conexão Social', event: 'on_follow_user', points: 10, description: 'Seguir outro membro da comunidade.' },
+  { id: 'buy_ticket', name: 'Garantir Presença', event: 'on_ticket_purchase', points: 30, description: 'Adquirir um ingresso para um evento.' },
+  { id: 'checkin', name: 'Experiência Vivida', event: 'on_checkin', points: 100, description: 'Realizar o check-in no local do evento.' },
 ];
 
 /**
- * Calcula o nível baseado no XP total.
+ * Calcula o nível e progresso baseado no XP total acumulado.
  */
 export function calculateLevel(totalXp: number, levels: LevelConfig[]) {
   const sortedLevels = [...levels].sort((a, b) => b.level - a.level);

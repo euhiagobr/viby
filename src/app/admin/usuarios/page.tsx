@@ -40,33 +40,26 @@ import {
   Trash2,
   Edit,
   Save,
-  Camera,
-  Calendar,
   BadgeCheck,
   X,
-  RefreshCcw,
+  RefreshCw,
   CheckCircle2,
   ShieldCheck,
-  Globe,
   Coins,
-  Percent,
-  TrendingUp,
   ArrowDown,
-  RefreshCw,
-  AlertTriangle
+  Lock,
+  Globe
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { calculateDetailedVibyBreakdown } from "@/lib/financial-utils"
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (
@@ -130,6 +123,13 @@ export default function AdminUsuariosPage() {
       return
     }
 
+    // Regras de Username: Min 5 chars, sem espaços ou especiais
+    const regex = /^[a-zA-Z0-9._]+$/
+    if (normalized.length < 5 || !regex.test(normalized)) {
+      setUsernameStatus('invalid')
+      return
+    }
+
     setCheckingUsername(true)
     const timer = setTimeout(async () => {
       try {
@@ -152,17 +152,30 @@ export default function AdminUsuariosPage() {
     try {
       const batch = writeBatch(db)
       const original = users?.find(u => u.id === editingUser.id)
+      
+      // Sincronização de Username
       if (editingUser.username !== original?.username) {
-        if (original?.username) batch.delete(doc(db, "usernames", original.username))
-        batch.set(doc(db, "usernames", editingUser.username.toLowerCase()), { uid: editingUser.id, type: 'user' })
+        if (original?.username) {
+          batch.delete(doc(db, "usernames", original.username.toLowerCase()))
+        }
+        batch.set(doc(db, "usernames", editingUser.username.toLowerCase()), { 
+          uid: editingUser.id, 
+          type: 'user',
+          updatedAt: serverTimestamp()
+        })
       }
+
       const { id, ...data } = editingUser
       batch.update(doc(db, "users", id), { ...data, updatedAt: serverTimestamp() })
+      
       await batch.commit()
       toast({ title: "Usuário atualizado!" })
       setIsEditUserOpen(false)
-    } catch (e) { toast({ variant: "destructive", title: "Erro ao salvar" }) }
-    finally { setIsSaving(false) }
+    } catch (e) { 
+      toast({ variant: "destructive", title: "Erro ao salvar", description: "Username pode estar em uso ou inválido." }) 
+    } finally { 
+      setIsSaving(false) 
+    }
   }
 
   const handleUpdateOrg = async (e: React.FormEvent) => {
@@ -172,29 +185,65 @@ export default function AdminUsuariosPage() {
     try {
       const batch = writeBatch(db)
       const original = orgs?.find(o => o.id === editingOrg.id)
+      
       if (editingOrg.username !== original?.username) {
-        if (original?.username) batch.delete(doc(db, "usernames", original.username))
-        batch.set(doc(db, "usernames", editingOrg.username.toLowerCase()), { uid: editingOrg.id, type: 'organization' })
+        if (original?.username) {
+          batch.delete(doc(db, "usernames", original.username.toLowerCase()))
+        }
+        batch.set(doc(db, "usernames", editingOrg.username.toLowerCase()), { 
+          uid: editingOrg.id, 
+          type: 'organization',
+          updatedAt: serverTimestamp()
+        })
       }
+
       const { id, ...data } = editingOrg
       batch.update(doc(db, "organizations", id), { ...data, updatedAt: serverTimestamp() })
+      
       await batch.commit()
       toast({ title: "Página atualizada!" })
       setIsEditOrgOpen(false)
-    } catch (e) { toast({ variant: "destructive", title: "Erro ao salvar" }) }
-    finally { setIsSaving(false) }
+    } catch (e) { 
+      toast({ variant: "destructive", title: "Erro ao salvar" }) 
+    } finally { 
+      setIsSaving(false) 
+    }
+  }
+
+  const handleDeleteProfile = async (id: string, type: 'user' | 'organization', username: string) => {
+    if (!db) return
+    if (!confirm(`Excluir permanentemente este ${type === 'user' ? 'usuário' : 'perfil de marca'}?`)) return
+
+    try {
+      const batch = writeBatch(db)
+      if (username) {
+        batch.delete(doc(db, "usernames", username.toLowerCase()))
+      }
+      batch.delete(doc(db, type === 'user' ? "users" : "organizations", id))
+      
+      // Limpeza de relações (Simplificada para o MVP)
+      const followsQ = query(collection(db, "follows"), where(type === 'user' ? "followerId" : "followingId", "==", id))
+      const followsSnap = await getDocs(followsQ)
+      followsSnap.forEach(d => batch.delete(d.ref))
+
+      await batch.commit()
+      toast({ title: "Perfil removido com sucesso" })
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao remover" })
+    }
   }
 
   const handleRecalculateFees = async () => {
     if (!db || !editingOrg || isRecalculating) return
-
     setIsRecalculating(true)
     try {
-      const [stripeSnap] = await Promise.all([
-        getDoc(doc(db, "settings", "stripe"))
+      const [stripeSnap, feesSnap] = await Promise.all([
+        getDoc(doc(db, "settings", "stripe")),
+        getDoc(doc(db, "settings", "fees"))
       ])
 
       const stripeSettings = stripeSnap.data()
+      const globalFees = feesSnap.data()
 
       const regsQuery = query(
         collection(db, "registrations"), 
@@ -204,7 +253,7 @@ export default function AdminUsuariosPage() {
       
       const regsSnap = await getDocs(regsQuery)
       if (regsSnap.empty) {
-        toast({ title: "Tudo em dia!", description: "Não há ingressos pendentes de repasse para esta marca." })
+        toast({ title: "Tudo em dia!", description: "Não há vendas pendentes de repasse." })
         return
       }
 
@@ -213,17 +262,17 @@ export default function AdminUsuariosPage() {
 
       for (const regDoc of regsSnap.docs) {
         const reg = regDoc.data()
-        if (reg.payoutId || reg.payoutStatus === 'Concluído') continue
+        // Só recalcula se não estiver em um repasse concluído ou bloqueado
+        if (reg.payoutId || reg.payoutStatus === 'Concluído' || reg.payoutStatus === 'Bloqueado') continue
 
-        // PRESERVAÇÃO DE VALORES PAGOS (NUNCA ALTERAR O QUE O CLIENTE PAGOU)
         const facePrice = reg.ticketBasePrice || 0;
         const buyerFeeAmount = reg.administrativeFeeAmount || 0;
-        const totalCharged = reg.price || 0;
+        const totalPaidByCustomer = reg.price || (facePrice + buyerFeeAmount);
 
-        // RECALCULAR APENAS A TAXA DO PRODUTOR (BASEADO NO NOVO ACORDO COMERCIAL)
-        const oPercentVal = editingOrg.customFeePercent ?? 10;
-        const oMinVal = editingOrg.customMinFee ?? 9.99;
-        const oMaxVal = editingOrg.customMaxFee ?? 0;
+        // Termos da Organização
+        const oPercentVal = editingOrg.customFeeActive ? (editingOrg.customFeePercent ?? 10) : (globalFees?.organizerFeePercent ?? 10);
+        const oMinVal = editingOrg.customFeeActive ? (editingOrg.customMinFee ?? 9.99) : (globalFees?.organizerMinFee ?? 9.99);
+        const oMaxVal = editingOrg.customFeeActive ? (editingOrg.customMaxFee ?? 0) : 0;
 
         const calculatedPercentFee = Number((facePrice * (oPercentVal / 100)).toFixed(2));
         let newProducerFee = Math.max(calculatedPercentFee, oMinVal);
@@ -231,17 +280,16 @@ export default function AdminUsuariosPage() {
 
         const newProducerNet = Number((facePrice - newProducerFee).toFixed(2));
 
-        // RECALCULAR GATEWAY (STRIPE) SOBRE O VALOR TOTAL REAL JÁ COBRADO
+        // Stripe (Gateway)
         const stripePercent = (stripeSettings?.feePercent ?? 3.99) / 100;
         const stripeFixed = stripeSettings?.feeFixed ?? 0.39;
-        const stripeFeeTotal = Number(((totalCharged * stripePercent) + stripeFixed).toFixed(2));
+        const stripeFeeTotal = Number(((totalPaidByCustomer * stripePercent) + stripeFixed).toFixed(2));
 
-        // RECALCULAR LUCRO BRUTO DA VIBY (TAXA COMPRADOR + TAXA PRODUTOR)
+        // Viby Metrics
         const newVibyGross = Number((buyerFeeAmount + newProducerFee).toFixed(2));
-        const newTaxAmount = Number((newVibyGross * 0.11).toFixed(2)); // Imposto fixo de 11% sobre o ganho
+        const newTaxAmount = Number((newVibyGross * 0.11).toFixed(2));
         const newVibyNet = Number((newVibyGross - stripeFeeTotal - newTaxAmount).toFixed(2));
 
-        // ATUALIZAR INGRESSO
         batch.update(regDoc.ref, {
           producerFeeAmount: newProducerFee,
           producerNetAmount: newProducerNet,
@@ -249,7 +297,6 @@ export default function AdminUsuariosPage() {
           recalculatedAt: serverTimestamp()
         })
 
-        // ATUALIZAR REGISTRO FISCAL (TAX_TICKETS)
         const taxQ = query(collection(db, "tax_tickets"), where("registrationId", "==", regDoc.id), limit(1))
         const taxSnap = await getDocs(taxQ)
         if (!taxSnap.empty) {
@@ -259,7 +306,7 @@ export default function AdminUsuariosPage() {
              taxAmount: newTaxAmount,
              vibyNetProfit: newVibyNet,
              payoutToProducer: newProducerNet,
-             recalculatedAt: serverTimestamp()
+             updatedAt: serverTimestamp()
           })
         }
         count++
@@ -267,20 +314,17 @@ export default function AdminUsuariosPage() {
 
       if (count > 0) {
         await batch.commit()
-        toast({ title: "Recálculo Concluído!", description: `${count} ingressos atualizados conforme novo acordo.` })
-      } else {
-        toast({ title: "Nenhuma alteração", description: "Todos os ingressos elegíveis já possuem essas taxas." })
+        toast({ title: "Recálculo Concluído!", description: `${count} vendas atualizadas.` })
       }
     } catch (error) {
-      console.error(error)
-      toast({ variant: "destructive", title: "Erro no recálculo" })
+      toast({ variant: "destructive", title: "Erro no processamento" })
     } finally {
       setIsRecalculating(false)
     }
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-20">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">Gestão de Identidades</h1>
         <p className="text-muted-foreground font-medium">Controle administrativo sobre usuários e páginas de marcas.</p>
@@ -298,89 +342,89 @@ export default function AdminUsuariosPage() {
         </div>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-fit">
           <TabsList className="bg-muted/50 p-1 rounded-xl h-11">
-            <TabsTrigger value="usuarios" className="rounded-lg px-6 font-bold gap-2"><Users className="w-4 h-4" /> Usuários</TabsTrigger>
+            <TabsTrigger value="usuarios" className="rounded-lg px-6 font-bold gap-2"><UserIcon className="w-4 h-4" /> Usuários</TabsTrigger>
             <TabsTrigger value="paginas" className="rounded-lg px-6 font-bold gap-2"><Building2 className="w-4 h-4" /> Páginas</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
 
       <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
-        <Tabs value={activeTab} className="w-full">
-          <TabsContent value="usuarios" className="m-0">
-             <Table>
-               <TableHeader className="bg-muted/30">
-                 <TableRow>
-                   <TableHead className="font-bold">Usuário</TableHead>
-                   <TableHead className="font-bold">Cargo</TableHead>
-                   <TableHead className="text-center font-bold">Verificado</TableHead>
-                   <TableHead className="text-right font-bold">Ações</TableHead>
-                 </TableRow>
-               </TableHeader>
-               <TableBody>
-                 {loadingUsers ? (
-                   <TableRow><TableCell colSpan={4} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
-                 ) : filteredUsers.map(user => (
-                   <TableRow key={user.id} className="hover:bg-muted/10">
-                     <TableCell>
-                       <div className="flex items-center gap-3">
-                         <Avatar className="h-9 w-9"><AvatarImage src={user.avatar} /><AvatarFallback>{user.name?.charAt(0)}</AvatarFallback></Avatar>
-                         <div className="flex flex-col"><span className="font-bold text-sm">{user.name}</span><span className="text-[10px] text-muted-foreground">@{user.username}</span></div>
-                       </div>
-                     </TableCell>
-                     <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase">{user.role}</Badge></TableCell>
-                     <TableCell className="text-center">{user.isVerified && <VerifiedBadge className="mx-auto" />}</TableCell>
-                     <TableCell className="text-right">
-                       <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" onClick={() => { setEditingUser(user); setIsEditUserOpen(true); }}><Edit className="w-4 h-4" /></Button>
-                       <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={async () => { if(confirm('Excluir usuário?')){ await deleteDoc(doc(db!, "users", user.id)); if(user.username) await deleteDoc(doc(db!, "usernames", user.username.toLowerCase())); toast({title:"Excluído"}); } }}><Trash2 className="w-4 h-4" /></Button>
-                     </TableCell>
-                   </TableRow>
-                 ))}
-               </TableBody>
-             </Table>
-          </TabsContent>
-
-          <TabsContent value="paginas" className="m-0">
-             <Table>
-               <TableHeader className="bg-muted/30">
-                 <TableRow>
-                   <TableHead className="font-bold">Página / Marca</TableHead>
-                   <TableHead className="font-bold">Status Visibilidade</TableHead>
-                   <TableHead className="text-center font-bold">Verificado</TableHead>
-                   <TableHead className="text-right font-bold">Ações</TableHead>
-                 </TableRow>
-               </TableHeader>
-               <TableBody>
-                 {loadingOrgs ? (
-                   <TableRow><TableCell colSpan={4} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
-                 ) : filteredOrgs.map(org => (
-                   <TableRow key={org.id} className="hover:bg-muted/10">
-                     <TableCell>
-                       <div className="flex items-center gap-3">
-                         <Avatar className="h-9 w-9"><AvatarImage src={org.avatar} className="object-cover" /><AvatarFallback>{org.name?.charAt(0)}</AvatarFallback></Avatar>
-                         <div className="flex flex-col"><span className="font-bold text-sm">{org.name}</span><span className="text-[10px] text-secondary font-bold">@{org.username}</span></div>
-                       </div>
-                     </TableCell>
-                     <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase">{org.status || 'Ativo'}</Badge></TableCell>
-                     <TableCell className="text-center">{org.verified && <VerifiedBadge className="mx-auto" />}</TableCell>
-                     <TableCell className="text-right">
-                       <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" onClick={() => { setEditingOrg(org); setIsEditOrgOpen(true); }}><Edit className="w-4 h-4" /></Button>
-                       <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={async () => { if(confirm('Excluir página?')){ await deleteDoc(doc(db!, "organizations", org.id)); if(org.username) await deleteDoc(doc(db!, "usernames", org.username.toLowerCase())); toast({title:"Página Removida"}); } }}><Trash2 className="w-4 h-4" /></Button>
-                     </TableCell>
-                   </TableRow>
-                 ))}
-               </TableBody>
-             </Table>
-          </TabsContent>
-        </Tabs>
+        <Table>
+          <TableHeader className="bg-muted/30">
+            <TableRow>
+              <TableHead className="font-black uppercase text-[10px] tracking-widest p-6">{activeTab === 'usuarios' ? 'Usuário' : 'Marca'}</TableHead>
+              <TableHead className="font-black uppercase text-[10px] tracking-widest">{activeTab === 'usuarios' ? 'Cargo' : 'Status'}</TableHead>
+              <TableHead className="text-center font-black uppercase text-[10px] tracking-widest">Verificado</TableHead>
+              <TableHead className="text-right font-black uppercase text-[10px] tracking-widest p-6">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {activeTab === 'usuarios' ? (
+              loadingUsers ? (
+                <TableRow><TableCell colSpan={4} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
+              ) : filteredUsers.map(user => (
+                <TableRow key={user.id} className="hover:bg-muted/5 transition-colors">
+                  <TableCell className="p-6">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10 border shadow-sm">
+                        <AvatarImage src={user.avatar} className="object-cover" />
+                        <AvatarFallback className="font-black uppercase">{user.name?.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-sm">{user.name}</span>
+                        <span className="text-[10px] text-secondary font-bold">@{user.username}</span>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase border-primary/20 text-primary">{user.role || 'user'}</Badge></TableCell>
+                  <TableCell className="text-center">{user.isVerified && <VerifiedBadge className="mx-auto" />}</TableCell>
+                  <TableCell className="p-6 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingUser(user); setIsEditUserOpen(true); }}><Edit className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-lg hover:bg-destructive/10" onClick={() => handleDeleteProfile(user.id, 'user', user.username)}><Trash2 className="w-4 h-4" /></Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              loadingOrgs ? (
+                <TableRow><TableCell colSpan={4} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
+              ) : filteredOrgs.map(org => (
+                <TableRow key={org.id} className="hover:bg-muted/5 transition-colors">
+                  <TableCell className="p-6">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10 border shadow-sm">
+                        <AvatarImage src={org.avatar} className="object-cover" />
+                        <AvatarFallback className="font-black uppercase">{org.name?.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-sm">{org.name}</span>
+                        <span className="text-[10px] text-secondary font-bold">@{org.username}</span>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase border-secondary/20 text-secondary">{org.status || 'Ativo'}</Badge></TableCell>
+                  <TableCell className="text-center">{org.verified && <VerifiedBadge className="mx-auto" />}</TableCell>
+                  <TableCell className="p-6 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingOrg(org); setIsEditOrgOpen(true); }}><Edit className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-lg hover:bg-destructive/10" onClick={() => handleDeleteProfile(org.id, 'organization', org.username)}><Trash2 className="w-4 h-4" /></Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </Card>
 
-      {/* DIALOG EDITAR USUÁRIO */}
+      {/* DIALOGS DE EDIÇÃO (MESMOS DO ANTERIOR, MAS COM VALIDAÇÕES REFORÇADAS) */}
       <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
         <DialogContent className="max-w-xl rounded-[2.5rem]">
            <DialogHeader>
-              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Editar Usuário</DialogTitle>
+              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Editar Perfil Pessoal</DialogTitle>
            </DialogHeader>
-           <form onSubmit={handleUpdateUser} className="space-y-6">
+           <form onSubmit={handleUpdateUser} className="space-y-6 py-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60">Nome Completo</Label>
@@ -389,34 +433,29 @@ export default function AdminUsuariosPage() {
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label>
                     <div className="relative">
-                       <Input value={editingUser?.username || ""} onChange={e => setEditingUser({...editingUser, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} className="rounded-xl h-11 pr-10" />
+                       <Input 
+                         value={editingUser?.username || ""} 
+                         onChange={e => setEditingUser({...editingUser, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} 
+                         className={cn(
+                           "rounded-xl h-11 pr-10",
+                           usernameStatus === 'valid' ? 'border-green-500' : usernameStatus === 'taken' ? 'border-destructive' : ''
+                         )} 
+                       />
                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          {checkingUsername && <Loader2 className="w-4 h-4 animate-spin opacity-40" />}
+                          {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin opacity-40" /> : 
+                           usernameStatus === 'taken' ? <X className="w-4 h-4 text-destructive" /> : 
+                           usernameStatus === 'valid' ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : null}
                        </div>
                     </div>
-                 </div>
-                 <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">E-mail</Label>
-                    <Input value={editingUser?.email || ""} onChange={e => setEditingUser({...editingUser, email: e.target.value})} className="rounded-xl h-11" required />
-                 </div>
-                 <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Cargo</Label>
-                    <Select value={editingUser?.role || "user"} onValueChange={v => setEditingUser({...editingUser, role: v})}>
-                       <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                       <SelectContent className="rounded-xl">
-                          <SelectItem value="user">Usuário</SelectItem>
-                          <SelectItem value="admin">Administrador</SelectItem>
-                       </SelectContent>
-                    </Select>
                  </div>
               </div>
 
               <div className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border border-dashed">
                  <div className="space-y-0.5">
                     <p className="font-bold text-sm flex items-center gap-2">
-                       <ShieldCheck className="w-4 h-4 text-blue-500" /> Selo Verificado
+                       <ShieldCheck className="w-4 h-4 text-blue-500" /> Selo de Verificação
                     </p>
-                    <p className="text-[10px] text-muted-foreground uppercase font-black">Habilita o badge de verificação oficial</p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-black">Habilita o badge oficial no perfil</p>
                  </div>
                  <Switch 
                    checked={editingUser?.isVerified || false} 
@@ -425,21 +464,20 @@ export default function AdminUsuariosPage() {
               </div>
 
               <DialogFooter>
-                 <Button type="submit" disabled={isSaving || (usernameStatus === 'taken')} className="w-full bg-primary text-white font-black h-12 rounded-xl uppercase italic">
+                 <Button type="submit" disabled={isSaving || usernameStatus === 'taken'} className="w-full bg-primary text-white font-black h-12 rounded-xl uppercase italic shadow-lg">
                     {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-                    Salvar Usuário
+                    Confirmar Alterações
                  </Button>
               </DialogFooter>
            </form>
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG EDITAR PÁGINA / ORGANIZAÇÃO */}
       <Dialog open={isEditOrgOpen} onOpenChange={setIsEditOrgOpen}>
         <DialogContent className="max-w-xl h-[90vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
            <DialogHeader className="p-8 border-b bg-muted/30">
-              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Editar Página Comercial</DialogTitle>
-              <DialogDescription>Ajuste dados e configure taxas personalizadas para esta marca.</DialogDescription>
+              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Editar Marca Comercial</DialogTitle>
+              <DialogDescription>Gestão de termos comerciais e identidade da marca.</DialogDescription>
            </DialogHeader>
            <form onSubmit={handleUpdateOrg} className="flex-1 overflow-y-auto p-8 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -450,35 +488,29 @@ export default function AdminUsuariosPage() {
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label>
                     <div className="relative">
-                       <Input value={editingOrg?.username || ""} onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} className="rounded-xl h-11 pr-10" />
+                       <Input 
+                         value={editingOrg?.username || ""} 
+                         onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} 
+                         className={cn(
+                           "rounded-xl h-11 pr-10",
+                           usernameStatus === 'valid' ? 'border-green-500' : usernameStatus === 'taken' ? 'border-destructive' : ''
+                         )} 
+                       />
                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          {checkingUsername && <Loader2 className="w-4 h-4 animate-spin opacity-40" />}
+                          {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin opacity-40" /> : 
+                           usernameStatus === 'taken' ? <X className="w-4 h-4 text-destructive" /> : 
+                           usernameStatus === 'valid' ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : null}
                        </div>
                     </div>
-                 </div>
-                 <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Status de Visibilidade</Label>
-                    <Select value={editingOrg?.status || "Ativo"} onValueChange={v => setEditingOrg({...editingOrg, status: v})}>
-                       <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                       <SelectContent className="rounded-xl">
-                          <SelectItem value="Ativo">Ativo (No ar)</SelectItem>
-                          <SelectItem value="Desativado">Desativado (Oculto)</SelectItem>
-                          <SelectItem value="Bloqueado">Bloqueado (Restrito)</SelectItem>
-                       </SelectContent>
-                    </Select>
-                 </div>
-                 <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">CNPJ</Label>
-                    <Input value={editingOrg?.cnpj || ""} onChange={e => setEditingOrg({...editingOrg, cnpj: e.target.value})} className="rounded-xl h-11" />
                  </div>
               </div>
 
               <div className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border border-dashed">
                  <div className="space-y-0.5">
                     <p className="font-bold text-sm flex items-center gap-2">
-                       <ShieldCheck className="w-4 h-4 text-blue-500" /> Selo de Verificação
+                       <VerifiedBadge /> Marca Verificada
                     </p>
-                    <p className="text-[10px] text-muted-foreground uppercase font-black">Valida a autenticidade da marca</p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-black">Valida a autenticidade oficial</p>
                  </div>
                  <Switch 
                    checked={editingOrg?.verified || false} 
@@ -488,14 +520,14 @@ export default function AdminUsuariosPage() {
 
               <Separator className="border-dashed" />
 
-              {/* SEÇÃO DE TAXAS PERSONALIZADAS */}
+              {/* RECALCULO DE TAXAS */}
               <div className="space-y-6">
                  <div className="flex items-center justify-between">
                     <div className="space-y-1">
                        <h3 className="font-black italic uppercase tracking-tighter text-secondary flex items-center gap-2">
-                          <Coins className="w-5 h-5" /> Taxas Personalizadas
+                          <Coins className="w-5 h-5" /> Acordo Comercial
                        </h3>
-                       <p className="text-[10px] font-bold text-muted-foreground uppercase">Sobrescreve taxas globais e campanhas para esta marca.</p>
+                       <p className="text-[10px] font-bold text-muted-foreground uppercase">Configure as taxas que esta marca pagará.</p>
                     </div>
                     <Switch 
                        checked={editingOrg?.customFeeActive || false} 
@@ -507,40 +539,16 @@ export default function AdminUsuariosPage() {
                    <div className="space-y-6 animate-in slide-in-from-top-2 duration-300">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2">
-                           <Label className="text-[9px] font-black uppercase opacity-60 flex items-center gap-1.5"><Percent className="w-3 h-3" /> Taxa Produtor (%)</Label>
-                           <div className="relative">
-                              <Input 
-                                 type="number" step="0.1" 
-                                 value={editingOrg?.customFeePercent ?? 10} 
-                                 onChange={e => setEditingOrg({...editingOrg, customFeePercent: parseFloat(e.target.value) || 0})}
-                                 className="rounded-xl h-10 font-black text-secondary pr-8" 
-                              />
-                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] opacity-40">%</span>
-                           </div>
+                           <Label className="text-[9px] font-black uppercase opacity-60">Taxa Produtor (%)</Label>
+                           <Input type="number" value={editingOrg?.customFeePercent ?? 10} onChange={e => setEditingOrg({...editingOrg, customFeePercent: parseFloat(e.target.value) || 0})} className="rounded-xl" />
                         </div>
                         <div className="space-y-2">
-                           <Label className="text-[9px] font-black uppercase opacity-60 flex items-center gap-1.5"><TrendingUp className="w-3 h-3" /> Valor Mínimo (R$)</Label>
-                           <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] opacity-40">R$</span>
-                              <Input 
-                                 type="number" step="0.01" 
-                                 value={editingOrg?.customMinFee ?? 9.99} 
-                                 onChange={e => setEditingOrg({...editingOrg, customMinFee: parseFloat(e.target.value) || 0})}
-                                 className="rounded-xl h-10 font-black text-secondary pl-8" 
-                              />
-                           </div>
+                           <Label className="text-[9px] font-black uppercase opacity-60">Mínimo (R$)</Label>
+                           <Input type="number" value={editingOrg?.customMinFee ?? 9.99} onChange={e => setEditingOrg({...editingOrg, customMinFee: parseFloat(e.target.value) || 0})} className="rounded-xl" />
                         </div>
                         <div className="space-y-2">
-                           <Label className="text-[9px] font-black uppercase opacity-60 flex items-center gap-1.5"><ArrowDown className="w-3 h-3" /> Valor Máximo (R$)</Label>
-                           <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] opacity-40">R$</span>
-                              <Input 
-                                 type="number" step="0.01" 
-                                 value={editingOrg?.customMaxFee ?? 0} 
-                                 onChange={e => setEditingOrg({...editingOrg, customMaxFee: parseFloat(e.target.value) || 0})}
-                                 className="rounded-xl h-10 font-black text-secondary pl-8" 
-                              />
-                           </div>
+                           <Label className="text-[9px] font-black uppercase opacity-60">Máximo (R$)</Label>
+                           <Input type="number" value={editingOrg?.customMaxFee ?? 0} onChange={e => setEditingOrg({...editingOrg, customMaxFee: parseFloat(e.target.value) || 0})} className="rounded-xl" />
                         </div>
                       </div>
 
@@ -549,19 +557,11 @@ export default function AdminUsuariosPage() {
                             <RefreshCw className={cn("w-6 h-6 text-secondary shrink-0 mt-1", isRecalculating && "animate-spin")} />
                             <div className="space-y-1">
                                <h4 className="font-black text-xs uppercase italic text-secondary">Sincronizar Vendas Pendentes</h4>
-                               <p className="text-[10px] text-muted-foreground leading-relaxed uppercase">
-                                  Ao mudar a taxa, você pode recalcular o valor líquido de todos os ingressos vendidos que **ainda não foram repassados** (em custódia).
-                               </p>
+                               <p className="text-[10px] text-muted-foreground leading-relaxed uppercase">Recalcular o líquido de vendas em custódia com as novas taxas.</p>
                             </div>
                          </div>
-                         <Button 
-                           type="button" 
-                           onClick={handleRecalculateFees} 
-                           disabled={isRecalculating || !editingOrg?.customFeeActive}
-                           className="w-full h-11 rounded-xl bg-white border-2 border-secondary text-secondary font-black uppercase text-[10px] italic shadow-sm hover:bg-secondary hover:text-white transition-all"
-                         >
-                            {isRecalculating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                            Recalcular Taxas Pendentes
+                         <Button type="button" onClick={handleRecalculateFees} disabled={isRecalculating} className="w-full h-11 rounded-xl bg-white border-2 border-secondary text-secondary font-black uppercase text-[10px] shadow-sm">
+                            Confirmar Recálculo Retroativo
                          </Button>
                       </div>
                    </div>
@@ -569,9 +569,9 @@ export default function AdminUsuariosPage() {
               </div>
            </form>
            <DialogFooter className="p-8 border-t bg-muted/30">
-              <Button onClick={handleUpdateOrg} disabled={isSaving || (usernameStatus === 'taken')} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+              <Button onClick={handleUpdateOrg} disabled={isSaving || usernameStatus === 'taken'} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
                  {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-                 Salvar Configurações da Página
+                 Salvar Alterações de Marca
               </Button>
            </DialogFooter>
         </DialogContent>

@@ -1,0 +1,43 @@
+
+{
+  "collections": {
+    "usernames": {
+      "description": "Índice global de unicidade para Users e Organizations",
+      "fields": {
+        "uid": "string (ID do documento original)",
+        "type": "string (user | organization)",
+        "normalized": "string (username em lowercase sem acentos/espaços)"
+      }
+    },
+    "user_gamification": {
+      "description": "Estado atual do progresso do usuário",
+      "fields": {
+        "userId": "string",
+        "totalXp": "number",
+        "level": "number",
+        "levelName": "string",
+        "nextLevelXp": "number",
+        "lastActivityAt": "timestamp"
+      }
+    },
+    "xp_logs": {
+      "description": "Trilha de auditoria de ganhos de XP",
+      "fields": {
+        "userId": "string",
+        "amount": "number",
+        "reason": "string (gatilho)",
+        "timestamp": "timestamp",
+        "context": "object (metadados do evento)"
+      }
+    },
+    "follows": {
+      "description": "Relações de seguimento entre perfis",
+      "fields": {
+        "followerId": "string (UID do seguidor)",
+        "followingId": "string (ID do alvo)",
+        "targetType": "string (user | organization)",
+        "timestamp": "timestamp"
+      }
+    }
+  }
+}
