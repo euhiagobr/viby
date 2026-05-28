@@ -3,8 +3,8 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Inicialização definitiva e resiliente do Firebase Admin SDK.
- * Resolve erros PEM e credenciais inválidas através de sanitização agressiva.
+ * @fileOverview Inicialização robusta do Firebase Admin SDK.
+ * Resolve erros PEM e credenciais inválidas.
  */
 
 function getAdminApp(): App {
@@ -17,13 +17,17 @@ function getAdminApp(): App {
   const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKeyRaw) {
-    console.error('[Admin SDK] Variáveis críticas ausentes no .env');
-    throw new Error('MISSING_ADMIN_ENV_VARS');
+    const missing = [];
+    if (!projectId) missing.push('PROJECT_ID');
+    if (!clientEmail) missing.push('CLIENT_EMAIL');
+    if (!privateKeyRaw) missing.push('PRIVATE_KEY');
+    
+    console.error('[Admin SDK] Variáveis críticas ausentes no .env:', missing.join(', '));
+    throw new Error(`MISSING_ADMIN_ENV_VARS: ${missing.join(', ')}`);
   }
 
   try {
     // Sanitização profunda da chave privada
-    // Remove aspas, trata \n literal e garante delimitadores PEM
     let privateKey = privateKeyRaw
       .replace(/^"|"$/g, '')
       .replace(/\\n/g, '\n')
@@ -50,7 +54,7 @@ function getAdminApp(): App {
 export const getAdminAuth = () => getAuth(getAdminApp());
 export const getAdminDb = () => getAdminFirestore(getAdminApp(), 'eventosviby');
 
-// Proxies para compatibilidade legada
+// Proxies para compatibilidade
 export const adminAuth = {
   getUserByEmail: (email: string) => getAdminAuth().getUserByEmail(email),
   generatePasswordResetLink: (email: string) => getAdminAuth().generatePasswordResetLink(email),

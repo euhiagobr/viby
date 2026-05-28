@@ -33,6 +33,8 @@ export async function requestPasswordRecovery(identifier: string) {
     const searchField = isEmail ? "email" : "username";
     const searchValue = identifier.replace('@', '').toLowerCase().trim();
 
+    console.log(`[Recovery] Buscando usuário por ${searchField}: ${searchValue}`);
+
     const userSnap = await db.collection("users")
       .where(searchField, "==", searchValue)
       .limit(1)
@@ -80,7 +82,8 @@ export async function requestPasswordRecovery(identifier: string) {
     });
 
     if (!emailResult.success) {
-      throw new Error(`Erro SMTP: ${emailResult.error}`);
+      console.error(`[Recovery] Erro SMTP: ${emailResult.error}`);
+      return { success: false, error: `Falha ao enviar e-mail: ${emailResult.error}. Verifique a configuração SMTP no Painel Admin.` };
     }
 
     return { success: true };
@@ -90,6 +93,9 @@ export async function requestPasswordRecovery(identifier: string) {
   }
 }
 
+/**
+ * Simplificado para evitar erro 9 FAILED_PRECONDITION (falta de índice composto)
+ */
 export async function verifyRecoveryCode(email: string, code: string) {
   try {
     const db = getAdminDb();
@@ -98,12 +104,11 @@ export async function verifyRecoveryCode(email: string, code: string) {
 
     console.log(`[Verify] Validando código para ${normalizedEmail}: ${cleanCode}`);
 
+    // Removido orderBy para evitar erro de índice composto em ambientes de dev
     const snapshot = await db.collection('password_reset_codes')
       .where('email', '==', normalizedEmail)
       .where('code', '==', cleanCode)
       .where('used', '==', false)
-      .orderBy('createdAt', 'desc')
-      .limit(1)
       .get();
 
     if (snapshot.empty) {
@@ -111,11 +116,14 @@ export async function verifyRecoveryCode(email: string, code: string) {
       return { success: false, error: 'Código inválido ou já utilizado.' };
     }
     
-    const data = snapshot.docs[0].data();
-    const expiration = data.expiresAt.toDate();
-    
-    if (expiration < new Date()) {
-      console.warn(`[Verify] Código ${cleanCode} expirou em ${expiration}`);
+    // Filtra e ordena na memória para evitar dependência de índice no Firestore
+    const validDocs = snapshot.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter((d: any) => d.expiresAt.toDate() > new Date())
+      .sort((a: any, b: any) => b.createdAt.seconds - a.createdAt.seconds);
+
+    if (validDocs.length === 0) {
+      console.warn(`[Verify] Todos os códigos para ${normalizedEmail} expiraram.`);
       return { success: false, error: 'Este código expirou. Solicite um novo.' };
     }
 
@@ -134,19 +142,25 @@ export async function resetPasswordWithCode(email: string, code: string, passwor
     const normalizedEmail = email.trim().toLowerCase();
     const cleanCode = code.trim().toUpperCase();
     
+    console.log(`[Reset] Processando troca de senha para ${normalizedEmail}`);
+
     const snapshot = await db.collection('password_reset_codes')
       .where('email', '==', normalizedEmail)
       .where('code', '==', cleanCode)
       .where('used', '==', false)
-      .limit(1)
       .get();
 
-    if (snapshot.empty) throw new Error("Código inválido ou expirado.");
+    if (snapshot.empty) throw new Error("Código inválido ou já utilizado.");
+
+    // Pega o mais recente na memória
+    const latestDoc = snapshot.docs
+      .map(d => ({ ref: d.ref, ...d.data() }))
+      .sort((a: any, b: any) => b.createdAt.seconds - a.createdAt.seconds)[0];
 
     const userRecord = await auth.getUserByEmail(normalizedEmail);
     await auth.updateUser(userRecord.uid, { password });
     
-    await snapshot.docs[0].ref.update({ 
+    await latestDoc.ref.update({ 
       used: true, 
       usedAt: FieldValue.serverTimestamp() 
     });
