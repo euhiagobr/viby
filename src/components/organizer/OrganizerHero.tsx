@@ -3,13 +3,14 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { Share2, Globe, Instagram, EyeOff } from "lucide-react";
+import { Share2, Globe, Instagram, EyeOff, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { VerifiedBadge } from "./VerifiedBadge";
 import { FollowButton } from "./FollowButton";
 import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 interface OrganizerHeroProps {
   organization: any;
@@ -94,8 +95,19 @@ export function OrganizerHero({
               <div className="flex flex-wrap justify-center md:justify-start items-center gap-8 pt-2">
                 <StatItem label="Seguidores" value={realFollowersCount} />
                 <StatItem label="Agenda" value={realUpcomingCount} />
-                <StatItem label="Histórico" value={realPastCount} />
-                <StatItem label="Público" value={realAttendeesCount} />
+                <StatItem label="Experiências" value={realPastCount} />
+                {isOwner ? (
+                  <StatItem label="Público" value={realAttendeesCount} />
+                ) : (
+                  <div className="flex flex-col md:items-start opacity-30">
+                    <span className="text-2xl font-black italic tracking-tighter text-primary flex items-center gap-1.5">
+                      *** <Lock className="w-4 h-4" />
+                    </span>
+                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
+                      Público
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

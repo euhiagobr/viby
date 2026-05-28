@@ -93,7 +93,8 @@ export default function ProfilePageClient({ username }: { username: string }) {
         const memberRef = doc(db, 'organizations', profileData.id, 'members', loggedUser.uid);
         const memberSnap = await getDoc(memberRef);
         if (memberSnap.exists()) {
-          setIsOwner(['owner', 'admin'].includes(memberSnap.data().role));
+          // No contexto de organização, ser membro (qualquer role) permite ver métricas privadas
+          setIsOwner(true);
         } else {
           setIsOwner(false);
         }
