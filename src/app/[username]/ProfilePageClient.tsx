@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useFirestore, useAuth, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase";
 import { doc, getDoc, collection, query, where, orderBy, limit, collectionGroup, getDocs } from "firebase/firestore";
-import { Loader2, Lock, ShieldCheck, HelpCircle, ArrowLeft, Handshake } from "lucide-react";
+import { Loader2, Lock, ShieldCheck, HelpCircle, ArrowLeft, Handshake, ShieldAlert, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -213,13 +213,52 @@ export default function ProfilePageClient({ username }: { username: string }) {
     return <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
   }
 
-  if (!profileData || profileData.status === 'Bloqueado') {
+  // Tratamento de Perfil Indisponível (Excluído ou Banido)
+  if (!profileData || profileData.status === 'Bloqueado' || profileData.status === 'Excluído') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-10 bg-[#f8fafc] text-center gap-6">
-        <Image src="https://picsum.photos/seed/404/400/400" alt="Not Found" width={200} height={200} className="rounded-full grayscale opacity-20" unoptimized />
-        <h1 className="text-3xl font-black uppercase italic tracking-tighter">Página Inexistente</h1>
-        <p className="text-muted-foreground font-medium max-w-xs">O perfil que você procura não foi encontrado ou está temporariamente fora do ar.</p>
-        <Button asChild className="bg-primary text-white rounded-full px-12 h-14 font-black uppercase italic"><Link href="/">Voltar ao Início</Link></Button>
+      <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4 text-center selection:bg-secondary selection:text-white">
+        <div className="relative w-full max-w-lg mb-12">
+          <div className="absolute inset-0 bg-secondary/10 blur-3xl rounded-full" />
+          <div className="relative">
+            <div className="w-24 h-24 bg-white rounded-[2rem] shadow-2xl flex items-center justify-center mx-auto mb-8">
+              <ShieldAlert className="w-12 h-12 text-secondary" />
+            </div>
+            
+            <h1 className="text-5xl md:text-7xl font-black text-primary uppercase italic tracking-tighter leading-none mb-4">
+              AVISO
+            </h1>
+            <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tight text-primary">
+              Página <span className="text-secondary">Indisponível</span>
+            </h2>
+            <p className="mt-6 text-muted-foreground font-medium max-w-sm mx-auto leading-relaxed">
+              A página que você solicitou não está mais disponível na plataforma Viby.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+          <Button 
+            variant="outline" 
+            asChild
+            className="flex-1 h-14 rounded-2xl font-black uppercase italic border-2 gap-2 border-primary/10 hover:bg-muted"
+          >
+            <Link href="/">
+               <ArrowLeft className="w-5 h-5" /> Voltar
+            </Link>
+          </Button>
+          <Button 
+            asChild 
+            className="flex-1 h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic gap-2 hover:bg-secondary transition-all"
+          >
+            <Link href="/">
+              <Home className="w-5 h-5" /> Ver Outros
+            </Link>
+          </Button>
+        </div>
+
+        <div className="mt-20 opacity-20">
+           <span className="text-[10px] font-black uppercase tracking-[0.5em]">{siteName.toUpperCase()}</span>
+        </div>
       </div>
     );
   }
