@@ -12,6 +12,7 @@ if (admin.apps.length === 0) {
   });
 }
 
+// Conexão com o banco de dados principal da aplicação
 const db = admin.firestore();
 const auth = admin.auth();
 

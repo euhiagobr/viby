@@ -2,7 +2,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/eventosviby/documents {
-    // REGRAS VIBY - Versão: 7.1.0 (SUPORTE A NOTIFICAÇÕES E MENTIONS)
+    // REGRAS VIBY - Versão: 7.2.0 (SUPORTE A RECUPERAÇÃO DE SENHA)
     
     function isSignedIn() {
       return request.auth != null;
@@ -28,13 +28,15 @@ service cloud.firestore {
         get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
     }
 
+    // --- RECUPERAÇÃO DE SENHA (RESTRITO) ---
+    match /password_reset_codes/{docId} {
+      allow read, write: if false; // Acesso exclusivo via Firebase Admin SDK (Server Actions)
+    }
+
     // --- NOTIFICAÇÕES (SEGURANÇA DE PRIVACIDADE) ---
     match /notifications/{notifId} {
-      // O usuário pode listar e ler apenas as notificações destinadas a ele
       allow read: if isOwner(resource.data.targetUid) || isAdmin();
-      // Qualquer usuário autenticado pode criar uma notificação (ex: ao mencionar ou seguir)
       allow create: if isSignedIn();
-      // Apenas o dono pode marcar como lida ou excluir
       allow update, delete: if isOwner(resource.data.targetUid) || isAdmin();
     }
 

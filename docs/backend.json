@@ -52,28 +52,20 @@
         "createdAt": { "type": "string", "format": "date-time" }
       }
     },
-    "InternalExpense": {
-      "title": "Despesa Interna",
-      "description": "Registro de saída financeira da plataforma",
+    "PasswordResetCode": {
+      "title": "Código de Recuperação",
+      "description": "OTP para troca de senha",
       "type": "object",
       "properties": {
-        "title": { "type": "string" },
-        "amount": { "type": "number" },
-        "category": { "type": "string" },
-        "date": { "type": "string", "format": "date-time" },
-        "status": { "type": "string" },
-        "proofUrl": { "type": "string" }
-      }
-    },
-    "PayoutRequest": {
-      "title": "Solicitação de Repasse",
-      "description": "Pedido de saque de um organizador",
-      "type": "object",
-      "properties": {
-        "organizationId": { "type": "string" },
-        "amount": { "type": "number" },
-        "status": { "type": "string", "enum": ["Pendente", "Concluído", "Bloqueado"] },
-        "bankDetails": { "type": "object" }
+        "email": { "type": "string" },
+        "code": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "used": { "type": "boolean" },
+        "usedAt": { "type": "string", "format": "date-time" },
+        "attempts": { "type": "number" },
+        "ip": { "type": "string" },
+        "userAgent": { "type": "string" }
       }
     }
   },
@@ -92,6 +84,10 @@
     "/notifications/{notifId}": {
       "schema": "Notification",
       "description": "Central de notificações e menções"
+    },
+    "/password_reset_codes/{docId}": {
+      "schema": "PasswordResetCode",
+      "description": "Tokens de segurança para recuperação de senha"
     }
   }
 }
