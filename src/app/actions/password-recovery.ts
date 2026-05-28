@@ -1,20 +1,13 @@
-
 'use server';
 
-import * as admin from 'firebase-admin';
-import { firebaseConfig } from '@/firebase/config';
+import { adminAuth, adminDb } from '@/lib/firebase/admin';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { headers } from 'next/headers';
 import nodemailer from 'nodemailer';
 
-if (admin.apps.length === 0) {
-  admin.initializeApp({
-    projectId: firebaseConfig.projectId,
-  });
-}
-
-// Conexão com o banco de dados principal da aplicação
-const db = admin.firestore();
-const auth = admin.auth();
+/**
+ * @fileOverview Server Actions para recuperação de senha usando Firebase Admin SDK.
+ */
 
 const GENERATOR_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -27,10 +20,14 @@ function generateOTP(): string {
 }
 
 async function getEmailConfig() {
-  const emailDoc = await db.collection('settings').doc('email').get();
-  if (!emailDoc.exists) return { user: null, pass: null };
-  const data = emailDoc.data();
-  return { user: data?.smtpUser || null, pass: data?.smtpPass || null };
+  try {
+    const emailDoc = await adminDb.collection('settings').doc('email').get();
+    if (!emailDoc.exists) return { user: null, pass: null };
+    const data = emailDoc.data();
+    return { user: data?.smtpUser || null, pass: data?.smtpPass || null };
+  } catch (e) {
+    return { user: null, pass: null };
+  }
 }
 
 export async function requestPasswordRecovery(email: string) {
@@ -42,7 +39,7 @@ export async function requestPasswordRecovery(email: string) {
 
     // Rate limit: 3 envios por hora
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    const recentSends = await db.collection('password_reset_codes')
+    const recentSends = await adminDb.collection('password_reset_codes')
       .where('email', '==', normalizedEmail)
       .where('createdAt', '>', oneHourAgo)
       .get();
@@ -54,7 +51,7 @@ export async function requestPasswordRecovery(email: string) {
     // Verificar se usuário existe (sem revelar ao client)
     let userExists = false;
     try {
-      await auth.getUserByEmail(normalizedEmail);
+      await adminAuth.getUserByEmail(normalizedEmail);
       userExists = true;
     } catch (e) {}
 
@@ -63,23 +60,26 @@ export async function requestPasswordRecovery(email: string) {
     }
 
     // Invalida códigos antigos
-    const oldCodes = await db.collection('password_reset_codes')
+    const oldCodes = await adminDb.collection('password_reset_codes')
       .where('email', '==', normalizedEmail)
       .where('used', '==', false)
       .get();
     
-    const batch = db.batch();
-    oldCodes.forEach(doc => batch.update(doc.ref, { used: true, invalidatedAt: admin.firestore.FieldValue.serverTimestamp() }));
+    const batch = adminDb.batch();
+    oldCodes.forEach(doc => batch.update(doc.ref, { 
+      used: true, 
+      invalidatedAt: FieldValue.serverTimestamp() 
+    }));
 
     const code = generateOTP();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    const codeRef = db.collection('password_reset_codes').doc();
+    const codeRef = adminDb.collection('password_reset_codes').doc();
     batch.set(codeRef, {
       email: normalizedEmail,
       code,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+      createdAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromDate(expiresAt),
       used: false,
       attempts: 0,
       ip,
@@ -92,7 +92,9 @@ export async function requestPasswordRecovery(email: string) {
     const { user: smtpUser, pass: smtpPass } = await getEmailConfig();
     if (smtpUser && smtpPass) {
       const transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com', port: 465, secure: true,
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
         auth: { user: smtpUser, pass: smtpPass },
       });
 
@@ -120,6 +122,7 @@ export async function requestPasswordRecovery(email: string) {
 
     return { success: true };
   } catch (error: any) {
+    console.error("Erro na recuperação de senha:", error);
     return { success: false, error: 'Erro ao processar solicitação.' };
   }
 }
@@ -129,7 +132,7 @@ export async function verifyRecoveryCode(email: string, code: string) {
     const normalizedEmail = email.trim().toLowerCase();
     const cleanCode = code.trim().toUpperCase();
 
-    const snapshot = await db.collection('password_reset_codes')
+    const snapshot = await adminDb.collection('password_reset_codes')
       .where('email', '==', normalizedEmail)
       .where('code', '==', cleanCode)
       .where('used', '==', false)
@@ -162,7 +165,7 @@ export async function resetPasswordWithCode(email: string, code: string, passwor
     const normalizedEmail = email.trim().toLowerCase();
     if (password.length < 8) return { success: false, error: 'A senha deve ter no mínimo 8 caracteres.' };
 
-    const snapshot = await db.collection('password_reset_codes')
+    const snapshot = await adminDb.collection('password_reset_codes')
       .where('email', '==', normalizedEmail)
       .where('code', '==', code.toUpperCase())
       .where('used', '==', false)
@@ -176,18 +179,19 @@ export async function resetPasswordWithCode(email: string, code: string, passwor
 
     if (data.expiresAt.toDate() < new Date()) return { success: false, error: 'Sessão expirada.' };
 
-    // Atualizar no Auth
-    const userRecord = await auth.getUserByEmail(normalizedEmail);
-    await auth.updateUser(userRecord.uid, { password });
+    // Atualizar no Auth via Admin SDK
+    const userRecord = await adminAuth.getUserByEmail(normalizedEmail);
+    await adminAuth.updateUser(userRecord.uid, { password });
 
     // Marcar como usado
     await doc.ref.update({
       used: true,
-      usedAt: admin.firestore.FieldValue.serverTimestamp()
+      usedAt: FieldValue.serverTimestamp()
     });
 
     return { success: true };
   } catch (error: any) {
+    console.error("Erro ao redefinir senha:", error);
     return { success: false, error: 'Falha ao redefinir senha.' };
   }
 }

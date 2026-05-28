@@ -1,44 +1,24 @@
 'use server';
 
-import * as admin from 'firebase-admin';
-import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
-import { firebaseConfig } from '@/firebase/config';
+import { adminAuth, adminDb } from '@/lib/firebase/admin';
 import { sendPasswordResetLinkEmail } from './email';
 
 /**
- * Inicializa o Firebase Admin de forma resiliente.
+ * @fileOverview Server Actions para autenticação administrativa.
  */
-function getAdminAuth() {
-  if (admin.apps.length === 0) {
-    try {
-      admin.initializeApp({
-        projectId: firebaseConfig.projectId,
-      });
-    } catch (e) {
-      console.error("Erro ao inicializar Firebase Admin:", e);
-    }
-  }
-  return admin.auth();
-}
 
 /**
  * Solicita a redefinição de senha gerando o link oficial do Firebase.
  */
 export async function requestPasswordReset(identifier: string) {
   try {
-    const app = getApps().find(a => a.name === "[DEFAULT]") || initializeApp(firebaseConfig);
-    const db = getFirestore(app, 'eventosviby');
-    const authAdmin = getAdminAuth();
-
     let email = identifier.trim().toLowerCase();
     let userName = "Usuário";
 
     // 1. Resolver identificador (E-mail ou @Username)
     if (!identifier.includes("@")) {
       const normalizedUsername = identifier.replace('@', '').toLowerCase().trim();
-      const q = query(collection(db, "users"), where("username", "==", normalizedUsername));
-      const snap = await getDocs(q);
+      const snap = await adminDb.collection("users").where("username", "==", normalizedUsername).get();
       
       if (snap.empty) throw new Error("Usuário não encontrado.");
       
@@ -46,8 +26,7 @@ export async function requestPasswordReset(identifier: string) {
       email = userData.email;
       userName = userData.name || userData.displayName || "Usuário";
     } else {
-      const q = query(collection(db, "users"), where("email", "==", email));
-      const snap = await getDocs(q);
+      const snap = await adminDb.collection("users").where("email", "==", email).get();
       if (!snap.empty) {
         const userData = snap.docs[0].data();
         userName = userData.name || userData.displayName || "Usuário";
@@ -57,10 +36,10 @@ export async function requestPasswordReset(identifier: string) {
     // 2. Gerar link oficial de redefinição de senha
     let resetLink;
     try {
-      resetLink = await authAdmin.generatePasswordResetLink(email);
+      resetLink = await adminAuth.generatePasswordResetLink(email);
     } catch (adminError: any) {
       console.error("Erro do Admin SDK ao gerar link:", adminError);
-      throw new Error("O serviço de redefinição exige configuração de Service Account ou permissões administrativas.");
+      throw new Error("Falha ao gerar link de segurança. Verifique a configuração da Service Account.");
     }
 
     // 3. Disparar e-mail via SMTP
