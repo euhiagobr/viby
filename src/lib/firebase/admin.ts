@@ -3,8 +3,8 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Inicialização robusta do Firebase Admin SDK.
- * Resolve erros de "Invalid PEM formatted message" e garante seleção do DB correto.
+ * @fileOverview Inicialização ultra-robusta do Firebase Admin SDK.
+ * Resolve erros de "Invalid PEM formatted message" e garante seleção do DB 'eventosviby'.
  */
 
 function getAdminApp(): App {
@@ -16,18 +16,24 @@ function getAdminApp(): App {
   const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKeyRaw) {
-    console.error('FATAL: Variáveis de ambiente do Firebase Admin ausentes.');
+    console.warn('Firebase Admin variables missing. This is expected during some build phases.');
+    // Retornamos uma inicialização parcial ou lançamos erro controlado se for em runtime
     throw new Error('FIREBASE_ADMIN_CONFIG_MISSING');
   }
 
   try {
-    // Limpeza profunda da chave privada para evitar erros PEM
+    // Limpeza profunda e agressiva da chave privada
     let privateKey = privateKeyRaw
-      .replace(/^"|"$/g, '') // Remove aspas nas extremidades
-      .replace(/\\n/g, '\n'); // Converte strings "\n" em quebras reais
+      .replace(/^"|"$/g, '') // Remove aspas externas
+      .replace(/\\n/g, '\n') // Converte strings "\n" em quebras reais
+      .trim();
 
+    // Garante cabeçalho e rodapé PEM
     if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-      privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----\n`;
+      privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}`;
+    }
+    if (!privateKey.includes('-----END PRIVATE KEY-----')) {
+      privateKey = `${privateKey}\n-----END PRIVATE KEY-----`;
     }
 
     return initializeApp({
@@ -38,16 +44,16 @@ function getAdminApp(): App {
       }),
     });
   } catch (error) {
-    console.error('ERRO_AO_INICIALIZAR_FIREBASE_ADMIN:', error);
+    console.error('CRITICAL_ADMIN_INIT_ERROR:', error);
     throw error;
   }
 }
 
-// Getters exportados para garantir inicialização preguiçosa (Lazy)
+// Proxies para garantir inicialização preguiçosa (Lazy)
 export const getAdminAuth = () => getAuth(getAdminApp());
 export const getAdminDb = () => getFirestore(getAdminApp(), 'eventosviby');
 
-// Objetos proxy para manter compatibilidade com o código existente
+// Objetos exportados para compatibilidade legada
 export const adminAuth = {
   getUserByEmail: (email: string) => getAdminAuth().getUserByEmail(email),
   generatePasswordResetLink: (email: string) => getAdminAuth().generatePasswordResetLink(email),

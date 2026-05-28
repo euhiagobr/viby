@@ -5,7 +5,7 @@ import { getAdminDb } from '@/lib/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Serviço de e-mail exclusivo de servidor usando Firebase Admin.
+ * @fileOverview Serviço de e-mail exclusivo de servidor usando Firebase Admin e SMTP.
  */
 
 async function logEmail(data: any) {
@@ -77,7 +77,8 @@ export async function sendPasswordResetLinkEmail(data: any) {
       recipientEmail: data.to,
       type: "password_recovery_otp",
       subject: "Recuperação de Senha",
-      sender: "Viby Auth"
+      sender: "Viby Auth",
+      content: htmlContent
     });
 
     return { success: true };
@@ -97,7 +98,7 @@ export async function sendPayoutConfirmedEmail(data: any) {
         <h2>Pagamento Realizado!</h2>
         <p>Olá, ${data.userName}. O repasse de <b>${data.orgName}</b> foi processado com sucesso.</p>
         <p><b>Valor:</b> R$ ${data.amount.toFixed(2)}</p>
-        <p>O comprovante oficial está em anexo ou disponível no link abaixo:</p>
+        <p>O comprovante oficial está disponível no link abaixo:</p>
         <a href="${data.proofUrl}" style="display: inline-block; padding: 12px 24px; background: #2C52EE; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Ver Comprovante</a>
       </div>
     `;
@@ -113,7 +114,8 @@ export async function sendPayoutConfirmedEmail(data: any) {
       recipientEmail: data.to,
       type: "payout_confirmation",
       subject: "Confirmação de Repasse",
-      sender: "Viby Finance"
+      sender: "Viby Finance",
+      content: htmlContent
     });
 
     return { success: true };
@@ -152,7 +154,8 @@ export async function sendTicketEmail(data: any) {
       recipientEmail: data.to,
       type: "ticket_confirmation",
       subject: `Ingresso: ${data.eventTitle}`,
-      sender: "Viby System"
+      sender: "Viby System",
+      content: htmlContent
     });
 
     return { success: true };
@@ -185,7 +188,8 @@ export async function sendWelcomeEmail(data: any) {
       recipientEmail: data.to,
       type: "welcome_email",
       subject: "Bem-vindo à Viby",
-      sender: "Viby System"
+      sender: "Viby System",
+      content: htmlContent
     });
 
     return { success: true };
@@ -219,7 +223,8 @@ export async function sendTeamInvitationEmail(data: any) {
       recipientEmail: data.to,
       type: "team_invitation",
       subject: "Convite de Equipe",
-      sender: "Viby System"
+      sender: "Viby System",
+      content: htmlContent
     });
 
     return { success: true };
@@ -231,11 +236,12 @@ export async function sendTeamInvitationEmail(data: any) {
 export async function sendTeamInvitationNoticeEmail(data: any) {
   try {
     const { transporter, smtpUser } = await getTransporter();
+    const htmlContent = `<p>Você enviou um convite de equipe para <b>${data.inviteeName}</b> entrar na marca <b>${data.orgName}</b> como ${data.role}.</p>`;
     await transporter.sendMail({
       from: `"Viby System" <${smtpUser}>`,
       to: data.to,
       subject: `📤 Convite enviado para ${data.inviteeName}`,
-      html: `<p>Você enviou um convite de equipe para <b>${data.inviteeName}</b> entrar na marca <b>${data.orgName}</b> como ${data.role}.</p>`
+      html: htmlContent
     });
     return { success: true };
   } catch (e: any) {
@@ -247,21 +253,17 @@ export async function sendTeamInvitationStatusEmail(data: any) {
   try {
     const { transporter, smtpUser } = await getTransporter();
     const action = data.status === 'accepted' ? 'aceitou' : 'recusou';
+    const htmlContent = `<p>O usuário <b>${data.userName}</b> <b>${action}</b> o seu convite para a equipe de <b>${data.orgName}</b>.</p>`;
     await transporter.sendMail({
       from: `"Viby System" <${smtpUser}>`,
       to: data.to,
       subject: `🔔 Resposta de Convite: ${data.userName}`,
-      html: `<p>O usuário <b>${data.userName}</b> <b>${action}</b> o seu convite para a equipe de <b>${data.orgName}</b>.</p>`
+      html: htmlContent
     });
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };
   }
-}
-
-export async function sendCartPendingEmail(data: any) {
-  // Implementação futura se necessário
-  return { success: true };
 }
 
 export async function resendLoggedEmail(emailData: any) {
@@ -278,7 +280,8 @@ export async function resendLoggedEmail(emailData: any) {
       recipientEmail: emailData.recipientEmail,
       type: `resend_${emailData.type}`,
       subject: `Reenvio: ${emailData.subject}`,
-      sender: "Viby Admin"
+      sender: "Viby Admin",
+      content: emailData.content
     });
 
     return { success: true };

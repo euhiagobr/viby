@@ -100,9 +100,13 @@ export async function requestPasswordRecovery(identifier: string) {
       throw new Error(emailResult.error || "Falha no disparo do SMTP.");
     }
 
+    console.log(`[Recovery] Sucesso para ${email}. Código: ${code}`);
     return { success: true };
   } catch (error: any) {
-    console.error('[Recovery Error]', error.message);
+    console.error('[Recovery Error]', {
+      message: error.message,
+      stack: error.stack
+    });
     return { success: false, error: 'Ocorreu um erro ao processar sua solicitação.' };
   }
 }
@@ -129,6 +133,7 @@ export async function verifyRecoveryCode(email: string, code: string) {
 
     return { success: true };
   } catch (error: any) {
+    console.error('[Verify Code Error]', error.message);
     return { success: false, error: 'Erro na validação.' };
   }
 }
@@ -160,8 +165,10 @@ export async function resetPasswordWithCode(email: string, code: string, passwor
       usedAt: FieldValue.serverTimestamp()
     });
 
+    console.log(`[Reset Password] Sucesso para UID ${userRecord.uid}`);
     return { success: true };
   } catch (error: any) {
+    console.error('[Reset Password Error]', error.message);
     return { success: false, error: 'Falha ao redefinir senha.' };
   }
 }
