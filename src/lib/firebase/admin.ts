@@ -1,33 +1,43 @@
-import { getApps, initializeApp, cert, App } from 'firebase-admin/app';
-import { getAuth, Auth } from 'firebase-admin/auth';
-import { getFirestore, Firestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp, cert, type App } from 'firebase-admin/app';
+import { getAuth, type Auth } from 'firebase-admin/auth';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Singleton para inicialização do Firebase Admin SDK.
- * Restrito exclusivamente ao ambiente Server-Side (Server Actions e API Routes).
+ * @fileOverview Singleton para inicialização segura do Firebase Admin SDK.
+ * Exclusivo para ambiente server-side.
  */
 
-let adminApp: App;
+function getAdminApp(): App {
+  const apps = getApps();
+  if (apps.length > 0) return apps[0];
 
-const projectId = process.env.FIREBASE_PROJECT_ID;
-const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
-if (!getApps().length) {
   if (!projectId || !clientEmail || !privateKey) {
-    console.error("ERRO: Variáveis de ambiente do Firebase Admin não configuradas.");
+    console.error({
+      step: 'admin-sdk-init',
+      error: 'Missing environment variables for Firebase Admin',
+      variables: {
+        projectId: !!projectId,
+        clientEmail: !!clientEmail,
+        privateKey: !!privateKey
+      }
+    });
+    throw new Error("O serviço de redefinição exige configuração de Service Account ou permissões administrativas.");
   }
 
-  adminApp = initializeApp({
+  return initializeApp({
     credential: cert({
       projectId,
       clientEmail,
       privateKey,
     }),
   });
-} else {
-  adminApp = getApps()[0];
 }
+
+const adminApp = getAdminApp();
 
 export const adminAuth: Auth = getAuth(adminApp);
 export const adminDb: Firestore = getFirestore(adminApp);

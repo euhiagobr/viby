@@ -1,4 +1,3 @@
-
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -6,6 +5,10 @@ import QRCode from 'qrcode';
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
+
+/**
+ * @fileOverview Serviços de e-mail com auditoria e logs.
+ */
 
 async function logEmail(data: {
   sender: string;
@@ -23,11 +26,15 @@ async function logEmail(data: {
       timestamp: serverTimestamp(),
     });
   } catch (e) {
-    console.error('Erro ao logar e-mail no Firestore:', e);
+    console.error({
+      step: 'log-email-firestore',
+      error: e,
+      message: e instanceof Error ? e.message : 'Unknown error logging email'
+    });
   }
 }
 
-async function getEmailConfig() {
+export async function getEmailConfig() {
   try {
     const app = getApps().find(a => a.name === "[DEFAULT]") || initializeApp(firebaseConfig);
     const db = getFirestore(app, 'eventosviby');
@@ -42,7 +49,10 @@ async function getEmailConfig() {
       smtpPass: (data.smtpPass as string) || null,
     };
   } catch (e) {
-    console.error('Erro ao buscar config de e-mail no Firestore:', e);
+    console.error({
+      step: 'get-email-config',
+      error: e
+    });
     return { smtpUser: null, smtpPass: null };
   }
 }
@@ -51,15 +61,23 @@ export async function sendPasswordResetLinkEmail(data: any) {
   try {
     const { smtpUser, smtpPass } = await getEmailConfig();
 
+    if (!smtpUser || !smtpPass) {
+       console.error({ step: 'send-reset-email', error: 'SMTP credentials missing in database' });
+       return { success: false, error: "SMTP não configurado no Admin." };
+    }
+
     const htmlContent = `
       <div style="font-family: 'Poppins', sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 32px; overflow: hidden; border: 1px solid #e2e8f0; padding: 40px;">
         <h1 style="color: #2563eb; font-style: italic; text-transform: uppercase;">Viby.Club</h1>
-        <h2 style="font-size: 24px; color: #0f172a;">Redefinição de Senha</h2>
-        <p style="color: #475569; line-height: 1.6;">Olá, ${data.userName}. Recebemos uma solicitação para redefinir sua senha.</p>
-        <div style="text-align: center; margin: 40px 0;">
-          <a href="${data.resetLink}" style="display: inline-block; background: #2563eb; color: white !important; padding: 18px 36px; text-decoration: none; border-radius: 16px; font-weight: bold; font-size: 16px;">Redefinir Senha Agora</a>
+        <h2 style="font-size: 24px; color: #0f172a;">Código de Verificação</h2>
+        <p style="color: #475569; line-height: 1.6;">Olá, ${data.userName}. Use o código abaixo para redefinir sua senha:</p>
+        <div style="background: #f4f4f4; padding: 30px; text-align: center; border-radius: 16px; margin: 20px 0;">
+          <span style="font-size: 42px; font-weight: 900; letter-spacing: 10px; color: #2563eb;">${data.otpCode}</span>
         </div>
-        <p style="font-size: 11px; color: #94a3b8;">Se você não solicitou a troca de senha, ignore este e-mail.</p>
+        <p style="font-size: 11px; color: #94a3b8;">Este código expira em 15 minutos. Se você não solicitou a troca, ignore este e-mail.</p>
+        <div style="margin-top: 30px; text-align: center;">
+          <a href="https://viby.club/dashboard/suporte" style="color: #2563eb; font-size: 12px; font-weight: bold; text-decoration: none;">Precisa de ajuda? Fale com o suporte</a>
+        </div>
       </div>
     `;
 
@@ -67,29 +85,35 @@ export async function sendPasswordResetLinkEmail(data: any) {
       sender: "Viby Auth",
       recipientName: data.userName,
       recipientEmail: data.to,
-      subject: "Redefinição de Senha",
+      subject: "Recuperação de senha • Viby",
       content: htmlContent,
-      type: "password_reset_link"
+      type: "password_reset_code"
     });
-
-    if (!smtpUser || !smtpPass) return { success: false, error: "SMTP não configurado no Admin." };
 
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com', port: 465, secure: true,
       auth: { user: smtpUser, pass: smtpPass },
     });
 
+    // Validar conexão antes de enviar
+    await transporter.verify();
+
     await transporter.sendMail({
       from: `"Viby Auth" <${smtpUser}>`,
       to: data.to,
-      subject: "🔐 Recuperação de Conta: Redefinir Senha",
+      subject: "Recuperação de senha • Viby",
       html: htmlContent
     });
 
     return { success: true };
-  } catch (e) { 
-    console.error("Erro no envio do e-mail de link:", e);
-    return { success: false }; 
+  } catch (e: any) { 
+    console.error({
+      step: 'send-reset-email',
+      error: e,
+      message: e.message,
+      stack: e.stack
+    });
+    return { success: false, error: "Falha ao enviar e-mail de segurança." }; 
   }
 }
 

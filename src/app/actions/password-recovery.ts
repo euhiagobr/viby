@@ -3,10 +3,10 @@
 import { adminAuth, adminDb } from '@/lib/firebase/admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { headers } from 'next/headers';
-import nodemailer from 'nodemailer';
+import { sendPasswordResetLinkEmail } from './email';
 
 /**
- * @fileOverview Server Actions para recuperação de senha usando Firebase Admin SDK.
+ * @fileOverview Server Actions para recuperação de senha com auditoria completa.
  */
 
 const GENERATOR_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -19,49 +19,65 @@ function generateOTP(): string {
   return code;
 }
 
-async function getEmailConfig() {
+export async function requestPasswordRecovery(identifier: string) {
   try {
-    const emailDoc = await adminDb.collection('settings').doc('email').get();
-    if (!emailDoc.exists) return { user: null, pass: null };
-    const data = emailDoc.data();
-    return { user: data?.smtpUser || null, pass: data?.smtpPass || null };
-  } catch (e) {
-    return { user: null, pass: null };
-  }
-}
+    console.log({ step: 'request-recovery-start', identifier });
 
-export async function requestPasswordRecovery(email: string) {
-  try {
-    const normalizedEmail = email.trim().toLowerCase();
+    let email = identifier.trim().toLowerCase();
+    let userName = "Usuário";
     const head = await headers();
     const ip = head.get('x-forwarded-for') || 'unknown';
     const userAgent = head.get('user-agent') || 'unknown';
 
+    // 1. Resolver identificador (E-mail ou @Username)
+    if (!identifier.includes("@")) {
+      const normalizedUsername = identifier.replace('@', '').toLowerCase().trim();
+      const snap = await adminDb.collection("users").where("username", "==", normalizedUsername).limit(1).get();
+      
+      if (snap.empty) {
+         console.warn({ step: 'request-recovery-user-not-found', username: normalizedUsername });
+         return { success: true }; // Resposta genérica por segurança
+      }
+      
+      const userData = snap.docs[0].data();
+      email = userData.email;
+      userName = userData.name || userData.displayName || "Usuário";
+    } else {
+      const snap = await adminDb.collection("users").where("email", "==", email).limit(1).get();
+      if (!snap.empty) {
+        const userData = snap.docs[0].data();
+        userName = userData.name || userData.displayName || "Usuário";
+      }
+    }
+
     // Rate limit: 3 envios por hora
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recentSends = await adminDb.collection('password_reset_codes')
-      .where('email', '==', normalizedEmail)
+      .where('email', '==', email)
       .where('createdAt', '>', oneHourAgo)
       .get();
 
     if (recentSends.size >= 3) {
+      console.warn({ step: 'request-recovery-rate-limit', email });
       return { success: false, error: 'Muitas solicitações. Tente novamente em uma hora.' };
     }
 
-    // Verificar se usuário existe (sem revelar ao client)
+    // Verificar se usuário existe no Auth
     let userExists = false;
     try {
-      await adminAuth.getUserByEmail(normalizedEmail);
+      await adminAuth.getUserByEmail(email);
       userExists = true;
-    } catch (e) {}
+    } catch (e) {
+       console.warn({ step: 'request-recovery-auth-not-found', email });
+    }
 
     if (!userExists) {
-      return { success: true }; // Resposta genérica por segurança
+      return { success: true }; // Resposta genérica
     }
 
     // Invalida códigos antigos
     const oldCodes = await adminDb.collection('password_reset_codes')
-      .where('email', '==', normalizedEmail)
+      .where('email', '==', email)
       .where('used', '==', false)
       .get();
     
@@ -76,7 +92,7 @@ export async function requestPasswordRecovery(email: string) {
 
     const codeRef = adminDb.collection('password_reset_codes').doc();
     batch.set(codeRef, {
-      email: normalizedEmail,
+      email,
       code,
       createdAt: FieldValue.serverTimestamp(),
       expiresAt: Timestamp.fromDate(expiresAt),
@@ -87,43 +103,28 @@ export async function requestPasswordRecovery(email: string) {
     });
 
     await batch.commit();
+    console.log({ step: 'request-recovery-code-saved', email, codeRef: codeRef.id });
 
     // Enviar E-mail
-    const { user: smtpUser, pass: smtpPass } = await getEmailConfig();
-    if (smtpUser && smtpPass) {
-      const transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 465,
-        secure: true,
-        auth: { user: smtpUser, pass: smtpPass },
-      });
+    const emailResult = await sendPasswordResetLinkEmail({
+      to: email,
+      userName,
+      otpCode: code
+    });
 
-      const html = `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #eee; border-radius: 20px;">
-          <h2 style="color: #000; text-transform: uppercase; font-style: italic;">Viby.Club</h2>
-          <h1 style="font-size: 24px; color: #333;">Recuperação de Senha</h1>
-          <p>Você solicitou a redefinição de sua senha. Use o código abaixo para prosseguir:</p>
-          <div style="background: #f4f4f4; padding: 30px; text-align: center; border-radius: 10px; margin: 20px 0;">
-            <span style="font-size: 42px; font-weight: 900; letter-spacing: 10px; color: #2C52EE;">${code}</span>
-          </div>
-          <p style="font-size: 13px; color: #666;">Este código expira em 15 minutos e é de uso único.</p>
-          <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
-          <p style="font-size: 11px; color: #999;">Se você não solicitou esta alteração, ignore este e-mail por segurança.</p>
-        </div>
-      `;
-
-      await transporter.sendMail({
-        from: `"Suporte Viby" <${smtpUser}>`,
-        to: normalizedEmail,
-        subject: "Recuperação de senha • Viby",
-        html
-      });
+    if (!emailResult.success) {
+      throw new Error(emailResult.error || "Falha no envio do e-mail.");
     }
 
     return { success: true };
   } catch (error: any) {
-    console.error("Erro na recuperação de senha:", error);
-    return { success: false, error: 'Erro ao processar solicitação.' };
+    console.error({
+      step: 'request-recovery-failure',
+      error,
+      message: error.message,
+      stack: error.stack
+    });
+    return { success: false, error: 'NÃO foi possível processar sua solicitação.' };
   }
 }
 
@@ -131,6 +132,8 @@ export async function verifyRecoveryCode(email: string, code: string) {
   try {
     const normalizedEmail = email.trim().toLowerCase();
     const cleanCode = code.trim().toUpperCase();
+
+    console.log({ step: 'verify-code-start', email: normalizedEmail, code: cleanCode });
 
     const snapshot = await adminDb.collection('password_reset_codes')
       .where('email', '==', normalizedEmail)
@@ -140,6 +143,7 @@ export async function verifyRecoveryCode(email: string, code: string) {
       .get();
 
     if (snapshot.empty) {
+      console.warn({ step: 'verify-code-not-found', email: normalizedEmail });
       return { success: false, error: 'Código inválido.' };
     }
 
@@ -147,15 +151,18 @@ export async function verifyRecoveryCode(email: string, code: string) {
     const data = doc.data();
 
     if (data.attempts >= 5) {
+      console.warn({ step: 'verify-code-brute-force', email: normalizedEmail });
       return { success: false, error: 'Muitas tentativas. Solicite um novo código.' };
     }
 
     if (data.expiresAt.toDate() < new Date()) {
+      console.warn({ step: 'verify-code-expired', email: normalizedEmail });
       return { success: false, error: 'Código expirado.' };
     }
 
     return { success: true, token: doc.id };
-  } catch (error) {
+  } catch (error: any) {
+    console.error({ step: 'verify-code-failure', error: error.message });
     return { success: false, error: 'Erro na validação.' };
   }
 }
@@ -163,11 +170,15 @@ export async function verifyRecoveryCode(email: string, code: string) {
 export async function resetPasswordWithCode(email: string, code: string, password: string) {
   try {
     const normalizedEmail = email.trim().toLowerCase();
+    const cleanCode = code.trim().toUpperCase();
+    
+    console.log({ step: 'reset-password-start', email: normalizedEmail });
+
     if (password.length < 8) return { success: false, error: 'A senha deve ter no mínimo 8 caracteres.' };
 
     const snapshot = await adminDb.collection('password_reset_codes')
       .where('email', '==', normalizedEmail)
-      .where('code', '==', code.toUpperCase())
+      .where('code', '==', cleanCode)
       .where('used', '==', false)
       .limit(1)
       .get();
@@ -189,9 +200,15 @@ export async function resetPasswordWithCode(email: string, code: string, passwor
       usedAt: FieldValue.serverTimestamp()
     });
 
+    console.log({ step: 'reset-password-success', email: normalizedEmail, uid: userRecord.uid });
+
     return { success: true };
   } catch (error: any) {
-    console.error("Erro ao redefinir senha:", error);
+    console.error({
+      step: 'reset-password-failure',
+      error,
+      message: error.message
+    });
     return { success: false, error: 'Falha ao redefinir senha.' };
   }
 }
