@@ -57,7 +57,8 @@ import {
   ChevronDown,
   Navigation,
   Lock,
-  ShieldAlert
+  ShieldAlert,
+  XCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -222,7 +223,7 @@ function ReportDialog({ eventId, eventTitle }: { eventId: string, eventTitle: st
 
 // --- COMPONENTES DA PÁGINA ---
 
-function EventHero({ event }: { event: any }) {
+function EventHero({ event, isEnded }: { event: any, isEnded: boolean }) {
   const dateValue = event.startDate || event.date;
   const d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
   const formattedDate = d.toLocaleDateString('pt-BR', {
@@ -237,12 +238,15 @@ function EventHero({ event }: { event: any }) {
 
   return (
     <div className="relative w-full">
-      <div className="relative h-[50vh] md:h-[70vh] w-full overflow-hidden">
+      <div className="relative h-[50vh] md:h-[70vh] w-full overflow-hidden bg-muted">
         <Image
           src={event.image || 'https://picsum.photos/seed/event/1200/800'}
           alt={event.title}
           fill
-          className='object-cover'
+          className={cn(
+            'object-cover transition-all duration-700',
+            isEnded && 'grayscale opacity-60 brightness-50'
+          )}
           priority
           unoptimized
         />
@@ -251,18 +255,29 @@ function EventHero({ event }: { event: any }) {
 
       <div className="max-w-7xl mx-auto px-4 -mt-40 relative z-10 space-y-6">
         <div className="flex flex-wrap gap-2 items-center">
-          <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white p-2 rounded-xl shadow-xl border" />
-          <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg">
-            {event.categoryName || 'Evento'}
-          </Badge>
-          {event.isSponsored && (
-            <Badge className="bg-primary text-white border-none text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
-              <Megaphone className="w-3 h-3 text-secondary" /> Destaque
+          {isEnded ? (
+            <Badge className="bg-muted text-muted-foreground border-none text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
+              <XCircle className="w-3 h-3" /> Evento Encerrado
             </Badge>
+          ) : (
+            <>
+              <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white p-2 rounded-xl shadow-xl border" />
+              <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg">
+                {event.categoryName || 'Evento'}
+              </Badge>
+              {event.isSponsored && (
+                <Badge className="bg-primary text-white border-none text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
+                  <Megaphone className="w-3 h-3 text-secondary" /> Destaque
+                </Badge>
+              )}
+            </>
           )}
         </div>
 
-        <h1 className="text-5xl md:text-8xl font-black text-foreground tracking-tighter uppercase italic leading-[0.8] drop-shadow-2xl">
+        <h1 className={cn(
+          "text-5xl md:text-8xl font-black text-foreground tracking-tighter uppercase italic leading-[0.8] drop-shadow-2xl transition-colors",
+          isEnded && "text-muted-foreground"
+        )}>
           {event.title}
         </h1>
 
@@ -315,6 +330,7 @@ function VenueMap({
   onSelectSector,
   onToggleSeat,
   selectedSeatIds,
+  disabled
 }: {
   event: any;
   setores: any[];
@@ -322,11 +338,15 @@ function VenueMap({
   onSelectSector: (sector: any) => void;
   onToggleSeat: (seat: any) => void;
   selectedSeatIds: string[];
+  disabled?: boolean;
 }) {
   const [isPanningEnabled, setIsPanningEnabled] = React.useState(false);
 
   return (
-    <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden relative group p-1">
+    <Card className={cn(
+      "border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden relative group p-1",
+      disabled && "opacity-60 pointer-events-none grayscale"
+    )}>
       <div className="bg-muted/50 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40">
          <div className="flex items-center gap-3">
             <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
@@ -503,7 +523,8 @@ function TicketCard({
   showQuantity,
   promotions,
   globalFees,
-  orgSettings
+  orgSettings,
+  disabled
 }: {
   type: any;
   isSelected: boolean;
@@ -514,6 +535,7 @@ function TicketCard({
   promotions: any;
   globalFees: any;
   orgSettings?: any;
+  disabled?: boolean;
 }) {
   const breakdown = React.useMemo(() => calculateFinancialBreakdown(type.price, globalFees, promotions, orgSettings), [type.price, globalFees, promotions, orgSettings]);
   const now = new Date();
@@ -523,8 +545,8 @@ function TicketCard({
   const end = batch?.endDate ? new Date(batch.endDate) : null;
   
   const isUpcoming = start && now < start;
-  const isExpired = end && now > end;
-  const isActive = (!start || now >= start) && (!end || now <= end);
+  const isExpired = (end && now > end) || disabled;
+  const isActive = (!start || now >= start) && (!end || now <= end) && !disabled;
 
   return (
     <Card
@@ -672,6 +694,14 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const [quantity, setQuantity] = React.useState(1);
 
   const isActive = event?.status === 'Ativo';
+  
+  const isEnded = React.useMemo(() => {
+    if (!event) return false;
+    const now = new Date();
+    const start = event.date?.toDate ? event.date.toDate() : new Date(event.date);
+    const end = event.endDate?.toDate ? event.endDate.toDate() : (event.endDate ? new Date(event.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+    return end < now;
+  }, [event]);
 
   const allAvailableTickets = React.useMemo(() => {
     if (!event) return [];
@@ -696,7 +726,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   }, [event, selectedSector]);
 
   const handleToggleSeat = (seat: any) => {
-    if (!isActive) return;
+    if (!isActive || isEnded) return;
     setSelectedSeats(prev => {
       const next = { ...prev };
       if (next[seat.id]) {
@@ -720,7 +750,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   };
 
   const handleAddToCart = () => {
-    if (!event || !isActive) {
+    if (!event || !isActive || isEnded) {
       toast({ variant: "destructive", title: "Vendas encerradas", description: "Este evento não está mais aceitando novas inscrições." });
       return;
     }
@@ -853,7 +883,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
       </nav>
 
       <main className="pt-20">
-        <EventHero event={event} />
+        <EventHero event={event} isEnded={isEnded} />
         <div className="max-w-7xl mx-auto px-4 py-16 md:py-24">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
             <div className="lg:col-span-8 space-y-16">
@@ -945,17 +975,24 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                    <p className="text-muted-foreground font-medium">Selecione a área desejada e escolha seus ingressos.</p>
                 </div>
 
-                {!isActive && (
-                  <div className="p-10 text-center bg-orange-50 rounded-[2.5rem] border-2 border-dashed border-orange-200 flex flex-col items-center gap-4">
-                     <Lock className="w-12 h-12 text-orange-600 opacity-40" />
+                {(!isActive || isEnded) && (
+                  <div className={cn(
+                    "p-10 text-center rounded-[2.5rem] border-2 border-dashed flex flex-col items-center gap-4",
+                    isEnded ? "bg-muted/30 border-muted" : "bg-orange-50 border-orange-200"
+                  )}>
+                     {isEnded ? <XCircle className="w-12 h-12 text-muted-foreground opacity-40" /> : <Lock className="w-12 h-12 text-orange-600 opacity-40" />}
                      <div className="space-y-1">
-                        <h4 className="text-xl font-black uppercase italic tracking-tighter text-orange-800">Vendas Encerradas</h4>
-                        <p className="text-sm font-medium text-orange-700">Este evento não está aceitando novas compras no momento.</p>
+                        <h4 className="text-xl font-black uppercase italic tracking-tighter">
+                          {isEnded ? "Evento Encerrado" : "Vendas Encerradas"}
+                        </h4>
+                        <p className="text-sm font-medium opacity-70">
+                          {isEnded ? "O evento já encerrou e não é mais possível adquirir ingressos." : "Este evento não está mais aceitando novas inscrições no momento."}
+                        </p>
                      </div>
                   </div>
                 )}
 
-                {isActive && (
+                {isActive && !isEnded && (
                   <>
                     {setores && setores.length > 0 ? (
                       <div className="space-y-8 animate-in fade-in slide-in-from-top-4 duration-500">
@@ -1066,12 +1103,20 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
             {/* SIDEBAR RESUMO */}
             <aside className="hidden lg:block lg:col-span-4">
               <div className="sticky top-28 space-y-8">
-                <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden border-t-8 border-secondary p-8 flex flex-col gap-8">
+                <Card className={cn(
+                  "border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden border-t-8 p-8 flex flex-col gap-8",
+                  isEnded ? "border-muted grayscale opacity-70" : "border-secondary"
+                )}>
                   <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-3">
                     <ShoppingCart className="w-6 h-6 text-secondary" /> Pedido
                   </h2>
 
-                  {isActive ? (
+                  {isEnded ? (
+                    <div className="py-20 text-center space-y-4">
+                       <XCircle className="w-12 h-12 mx-auto text-muted-foreground opacity-20" />
+                       <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">O evento já encerrou.</p>
+                    </div>
+                  ) : isActive ? (
                     (selectedTicketType || Object.keys(selectedSeats).length > 0) ? (
                       <div className="space-y-8 animate-in zoom-in-95 duration-300">
                         <div className="space-y-4">
