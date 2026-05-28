@@ -3,11 +3,12 @@ import { getAuth, type Auth } from 'firebase-admin/auth';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Singleton para inicialização segura do Firebase Admin SDK.
- * Exclusivo para ambiente server-side.
+ * @fileOverview Singleton robusto para o Firebase Admin SDK.
+ * Utiliza inicialização preguiçosa (Lazy) para evitar erros de configuração
+ * durante o tempo de build ou em ambientes com variáveis parciais.
  */
 
-function getAdminApp(): App | null {
+function getAdminApp(): App {
   const apps = getApps();
   if (apps.length > 0) return apps[0];
 
@@ -16,12 +17,12 @@ function getAdminApp(): App | null {
   const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKeyRaw) {
-    // Durante o build ou se faltar env, não inicializamos para evitar quebra do processo
-    return null;
+    console.error('CRITICAL: Firebase Admin credentials missing in environment.');
+    // Retornamos um erro que será capturado pelas rotas, em vez de um objeto que quebrará chamadas de função
+    throw new Error('FIREBASE_ADMIN_NOT_CONFIGURED');
   }
 
   try {
-    // Remove aspas se existirem e processa quebras de linha literais (\n)
     const privateKey = privateKeyRaw
       .replace(/^"|"$/g, '')
       .replace(/\\n/g, '\n');
@@ -34,14 +35,30 @@ function getAdminApp(): App | null {
       }),
     });
   } catch (error) {
-    console.error('Falha crítica ao inicializar Firebase Admin:', error);
-    return null;
+    console.error('FAILED_TO_INITIALIZE_ADMIN_SDK:', error);
+    throw error;
   }
 }
 
-const adminApp = getAdminApp();
+/**
+ * Getters protegidos para garantir que o SDK esteja pronto antes do uso.
+ */
+export const getAdminAuth = () => getAuth(getAdminApp());
+export const getAdminDb = () => getFirestore(getAdminApp(), 'eventosviby');
 
-// Exportamos proxies ou instâncias seguras. Se adminApp for null, chamadas falharão no runtime
-// mas não impedirão a análise estática (build).
-export const adminAuth = adminApp ? getAuth(adminApp) : ({} as Auth);
-export const adminDb = adminApp ? getFirestore(adminApp) : ({} as Firestore);
+/**
+ * Proxies para manter compatibilidade com o código existente, 
+ * garantindo que chamadas como .collection() não falhem por objeto nulo/vazio.
+ */
+export const adminAuth = {
+  getUserByEmail: (email: string) => getAdminAuth().getUserByEmail(email),
+  generatePasswordResetLink: (email: string) => getAdminAuth().generatePasswordResetLink(email),
+  updateUser: (uid: string, data: any) => getAdminAuth().updateUser(uid, data),
+} as unknown as Auth;
+
+export const adminDb = {
+  collection: (path: string) => getAdminDb().collection(path),
+  batch: () => getAdminDb().batch(),
+  doc: (path: string) => getAdminDb().doc(path),
+  runTransaction: (updateFunction: (transaction: any) => Promise<any>) => getAdminDb().runTransaction(updateFunction),
+} as unknown as Firestore;
