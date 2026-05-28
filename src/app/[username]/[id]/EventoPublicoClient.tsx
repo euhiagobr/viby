@@ -969,198 +969,202 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
               <LocationSection event={event} />
 
               {/* TICKETS SECTION */}
-              <section id="tickets" className="space-y-10">
-                <div className="flex flex-col gap-2">
-                   <h2 className="text-4xl font-black italic uppercase tracking-tighter text-primary">Ingressos & Mapa</h2>
-                   <p className="text-muted-foreground font-medium">Selecione a área desejada e escolha seus ingressos.</p>
-                </div>
-
-                {(!isActive || isEnded) && (
-                  <div className={cn(
-                    "p-10 text-center rounded-[2.5rem] border-2 border-dashed flex flex-col items-center gap-4",
-                    isEnded ? "bg-muted/30 border-muted" : "bg-orange-50 border-orange-200"
-                  )}>
-                     {isEnded ? <XCircle className="w-12 h-12 text-muted-foreground opacity-40" /> : <Lock className="w-12 h-12 text-orange-600 opacity-40" />}
-                     <div className="space-y-1">
-                        <h4 className="text-xl font-black uppercase italic tracking-tighter">
-                          {isEnded ? "Evento Encerrado" : "Vendas Encerradas"}
-                        </h4>
-                        <p className="text-sm font-medium opacity-70">
-                          {isEnded ? "O evento já encerrou e não é mais possível adquirir ingressos." : "Este evento não está mais aceitando novas inscrições no momento."}
-                        </p>
-                     </div>
+              {event.ticketMode !== 'none' && (
+                <section id="tickets" className="space-y-10">
+                  <div className="flex flex-col gap-2">
+                    <h2 className="text-4xl font-black italic uppercase tracking-tighter text-primary">Ingressos & Mapa</h2>
+                    <p className="text-muted-foreground font-medium">Selecione a área desejada e escolha seus ingressos.</p>
                   </div>
-                )}
 
-                {isActive && !isEnded && (
-                  <>
-                    {setores && setores.length > 0 ? (
-                      <div className="space-y-8 animate-in fade-in slide-in-from-top-4 duration-500">
-                        <VenueMap 
-                          event={event}
-                          setores={setores}
-                          selectedSectorId={selectedSector?.id || null}
-                          onSelectSector={(s) => { setSelectedSector(s); setSelectedTicketType(null); }}
-                          onToggleSeat={handleToggleSeat}
-                          selectedSeatIds={Object.keys(selectedSeats)}
-                        />
-
-                        {selectedSector && (
-                          <div className="space-y-6 pt-6 animate-in zoom-in-95 duration-300">
-                            <div className="flex items-center justify-between px-2">
-                                <div className="flex items-center gap-3">
-                                  <Badge style={{ backgroundColor: selectedSector.cor }} className="text-white px-4 py-1.5 rounded-full font-black uppercase text-[10px]">{selectedSector.nome}</Badge>
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{selectedSector.tipo === 'livre' ? 'Entrada Livre' : 'Lugares Marcados'}</span>
-                                </div>
-                                <Button variant="ghost" size="sm" onClick={() => { setSelectedSector(null); setSelectedTicketType(null); }} className="rounded-full text-[10px] font-black uppercase gap-2"><X className="w-4 h-4" /> Cancelar Seleção</Button>
-                            </div>
-
-                            {selectedSector.tipo === 'livre' ? (
-                                <div className="grid gap-4">
-                                  {allAvailableTickets.map((type: any) => (
-                                    <TicketCard 
-                                      key={type.id}
-                                      type={type}
-                                      isSelected={selectedTicketType?.id === type.id}
-                                      onSelect={() => setSelectedTicketType(type)}
-                                      quantity={quantity}
-                                      onQuantityChange={setQuantity}
-                                      showQuantity={true}
-                                      promotions={promotions}
-                                      globalFees={globalFees}
-                                      orgSettings={organizationProfile}
-                                    />
-                                  ))}
-                                </div>
-                            ) : (
-                                <div className="grid gap-4">
-                                  {Object.values(selectedSeats).map(({ seat, ticketType }) => (
-                                      <div key={seat.id} className="p-6 bg-secondary/5 rounded-3xl border-2 border-secondary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                        <div className="flex items-center gap-4">
-                                            <div className="p-3 bg-secondary rounded-2xl text-white">
-                                              <Armchair className="w-6 h-6" />
-                                            </div>
-                                            <div>
-                                              <p className="text-[9px] font-black uppercase text-secondary">Lugar Selecionado</p>
-                                              <p className="font-black text-xl italic uppercase text-primary">{seat.codigo} • {selectedSector.nome}</p>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="flex items-center gap-6">
-                                            <div className="space-y-1 min-w-[150px]">
-                                              <Label className="text-[8px] font-black uppercase opacity-40">Tipo de Ingresso</Label>
-                                              <Select value={ticketType.id} onValueChange={(val) => handleUpdateSeatType(seat.id, val)}>
-                                                  <SelectTrigger className="h-9 rounded-xl text-[10px] font-bold uppercase bg-white">
-                                                    <SelectValue />
-                                                  </SelectTrigger>
-                                                  <SelectContent className="rounded-xl">
-                                                    {allAvailableTickets.map(t => (
-                                                      <SelectItem key={t.id} value={t.id} className="text-[10px] font-bold uppercase">{t.name}</SelectItem>
-                                                    ))}
-                                                  </SelectContent>
-                                              </Select>
-                                            </div>
-                                            <div className="text-right">
-                                              <p className="text-[9px] font-bold text-muted-foreground uppercase">{ticketType.name}</p>
-                                              <p className="font-black text-xl">{formatCurrency(ticketType.price)}</p>
-                                            </div>
-                                        </div>
-                                      </div>
-                                  ))}
-                                  {Object.keys(selectedSeats).length === 0 && (
-                                    <div className="py-12 text-center bg-muted/20 rounded-[2rem] border-2 border-dashed border-border/40">
-                                        <p className="text-sm font-bold text-muted-foreground uppercase italic">Toque em uma cadeira no mapa para selecionar.</p>
-                                    </div>
-                                  )}
-                                </div>
-                            )}
-                          </div>
-                        )}
+                  {(!isActive || isEnded) && (
+                    <div className={cn(
+                      "p-10 text-center rounded-[2.5rem] border-2 border-dashed flex flex-col items-center gap-4",
+                      isEnded ? "bg-muted/30 border-muted" : "bg-orange-50 border-orange-200"
+                    )}>
+                      {isEnded ? <XCircle className="w-12 h-12 text-muted-foreground opacity-40" /> : <Lock className="w-12 h-12 text-orange-600 opacity-40" />}
+                      <div className="space-y-1">
+                          <h4 className="text-xl font-black uppercase italic tracking-tighter">
+                            {isEnded ? "Evento Encerrado" : "Vendas Encerradas"}
+                          </h4>
+                          <p className="text-sm font-medium opacity-70">
+                            {isEnded ? "O evento já encerrou e não é mais possível adquirir ingressos." : "Este evento não está mais aceitando novas inscrições no momento."}
+                          </p>
                       </div>
-                    ) : (
-                      <div className="grid gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                        {allAvailableTickets.map((type: any) => (
-                          <TicketCard 
-                            key={type.id}
-                            type={type}
-                            isSelected={selectedTicketType?.id === type.id}
-                            onSelect={() => setSelectedTicketType(type)}
-                            quantity={quantity}
-                            onQuantityChange={setQuantity}
-                            showQuantity={true}
-                            promotions={promotions}
-                            globalFees={globalFees}
-                            orgSettings={organizationProfile}
+                    </div>
+                  )}
+
+                  {isActive && !isEnded && (
+                    <>
+                      {setores && setores.length > 0 ? (
+                        <div className="space-y-8 animate-in fade-in slide-in-from-top-4 duration-500">
+                          <VenueMap 
+                            event={event}
+                            setores={setores}
+                            selectedSectorId={selectedSector?.id || null}
+                            onSelectSector={(s) => { setSelectedSector(s); setSelectedTicketType(null); }}
+                            onToggleSeat={handleToggleSeat}
+                            selectedSeatIds={Object.keys(selectedSeats)}
                           />
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </section>
+
+                          {selectedSector && (
+                            <div className="space-y-6 pt-6 animate-in zoom-in-95 duration-300">
+                              <div className="flex items-center justify-between px-2">
+                                  <div className="flex items-center gap-3">
+                                    <Badge style={{ backgroundColor: selectedSector.cor }} className="text-white px-4 py-1.5 rounded-full font-black uppercase text-[10px]">{selectedSector.nome}</Badge>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{selectedSector.tipo === 'livre' ? 'Entrada Livre' : 'Lugares Marcados'}</span>
+                                  </div>
+                                  <Button variant="ghost" size="sm" onClick={() => { setSelectedSector(null); setSelectedTicketType(null); }} className="rounded-full text-[10px] font-black uppercase gap-2"><X className="w-4 h-4" /> Cancelar Seleção</Button>
+                              </div>
+
+                              {selectedSector.tipo === 'livre' ? (
+                                  <div className="grid gap-4">
+                                    {allAvailableTickets.map((type: any) => (
+                                      <TicketCard 
+                                        key={type.id}
+                                        type={type}
+                                        isSelected={selectedTicketType?.id === type.id}
+                                        onSelect={() => setSelectedTicketType(type)}
+                                        quantity={quantity}
+                                        onQuantityChange={setQuantity}
+                                        showQuantity={true}
+                                        promotions={promotions}
+                                        globalFees={globalFees}
+                                        orgSettings={organizationProfile}
+                                      />
+                                    ))}
+                                  </div>
+                              ) : (
+                                  <div className="grid gap-4">
+                                    {Object.values(selectedSeats).map(({ seat, ticketType }) => (
+                                        <div key={seat.id} className="p-6 bg-secondary/5 rounded-3xl border-2 border-secondary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                          <div className="flex items-center gap-4">
+                                              <div className="p-3 bg-secondary rounded-2xl text-white">
+                                                <Armchair className="w-6 h-6" />
+                                              </div>
+                                              <div>
+                                                <p className="text-[9px] font-black uppercase text-secondary">Lugar Selecionado</p>
+                                                <p className="font-black text-xl italic uppercase text-primary">{seat.codigo} • {selectedSector.nome}</p>
+                                              </div>
+                                          </div>
+                                          
+                                          <div className="flex items-center gap-6">
+                                              <div className="space-y-1 min-w-[150px]">
+                                                <Label className="text-[8px] font-black uppercase opacity-40">Tipo de Ingresso</Label>
+                                                <Select value={ticketType.id} onValueChange={(val) => handleUpdateSeatType(seat.id, val)}>
+                                                    <SelectTrigger className="h-9 rounded-xl text-[10px] font-bold uppercase bg-white">
+                                                      <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="rounded-xl">
+                                                      {allAvailableTickets.map(t => (
+                                                        <SelectItem key={t.id} value={t.id} className="text-[10px] font-bold uppercase">{t.name}</SelectItem>
+                                                      ))}
+                                                    </SelectContent>
+                                                </Select>
+                                              </div>
+                                              <div className="text-right">
+                                                <p className="text-[9px] font-bold text-muted-foreground uppercase">{ticketType.name}</p>
+                                                <p className="font-black text-xl">{formatCurrency(ticketType.price)}</p>
+                                              </div>
+                                          </div>
+                                        </div>
+                                    ))}
+                                    {Object.keys(selectedSeats).length === 0 && (
+                                      <div className="py-12 text-center bg-muted/20 rounded-[2rem] border-2 border-dashed border-border/40">
+                                          <p className="text-sm font-bold text-muted-foreground uppercase italic">Toque em uma cadeira no mapa para selecionar.</p>
+                                      </div>
+                                    )}
+                                  </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="grid gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                          {allAvailableTickets.map((type: any) => (
+                            <TicketCard 
+                              key={type.id}
+                              type={type}
+                              isSelected={selectedTicketType?.id === type.id}
+                              onSelect={() => setSelectedTicketType(type)}
+                              quantity={quantity}
+                              onQuantityChange={setQuantity}
+                              showQuantity={true}
+                              promotions={promotions}
+                              globalFees={globalFees}
+                              orgSettings={organizationProfile}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </section>
+              )}
             </div>
 
             {/* SIDEBAR RESUMO */}
             <aside className="hidden lg:block lg:col-span-4">
               <div className="sticky top-28 space-y-8">
-                <Card className={cn(
-                  "border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden border-t-8 p-8 flex flex-col gap-8",
-                  isEnded ? "border-muted grayscale opacity-70" : "border-secondary"
-                )}>
-                  <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-3">
-                    <ShoppingCart className="w-6 h-6 text-secondary" /> Pedido
-                  </h2>
+                {event.ticketMode !== 'none' && (
+                  <Card className={cn(
+                    "border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden border-t-8 p-8 flex flex-col gap-8",
+                    isEnded ? "border-muted grayscale opacity-70" : "border-secondary"
+                  )}>
+                    <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-3">
+                      <ShoppingCart className="w-6 h-6 text-secondary" /> Pedido
+                    </h2>
 
-                  {isEnded ? (
-                    <div className="py-20 text-center space-y-4">
-                       <XCircle className="w-12 h-12 mx-auto text-muted-foreground opacity-20" />
-                       <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">O evento já encerrou.</p>
-                    </div>
-                  ) : isActive ? (
-                    (selectedTicketType || Object.keys(selectedSeats).length > 0) ? (
-                      <div className="space-y-8 animate-in zoom-in-95 duration-300">
-                        <div className="space-y-4">
-                          <div className="flex justify-between text-xs font-bold uppercase opacity-60">
-                            <span>Subtotal</span>
-                            <span>{formatCurrency(totals.subtotal)}</span>
-                          </div>
-                          <div className="flex justify-between text-xs font-bold uppercase opacity-60">
-                            <span>Taxas Service</span>
-                            <span>{formatCurrency(totals.fees)}</span>
-                          </div>
-                          <Separator className="border-dashed" />
-                          <div className="flex justify-between items-center">
-                            <span className="text-xl font-black uppercase italic text-primary">Total</span>
-                            <span className="text-3xl font-black text-primary">{formatCurrency(totals.total)}</span>
-                          </div>
-                        </div>
-
-                        <Button 
-                          onClick={handleAddToCart} 
-                          className="w-full h-20 bg-secondary text-white font-black rounded-3xl shadow-xl shadow-secondary/20 uppercase italic text-xl hover:scale-[1.02] transition-all group"
-                        >
-                          Adicionar ao Carrinho
-                          <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                        </Button>
-
-                        <div className="p-4 bg-muted/30 rounded-2xl flex gap-3">
-                          <Timer className="w-4 h-4 text-secondary shrink-0 mt-1" />
-                          <p className="text-[10px] font-bold text-muted-foreground leading-tight uppercase">Após adicionar, o item ficará reservado por 15 minutos até a conclusão do pagamento.</p>
-                        </div>
+                    {isEnded ? (
+                      <div className="py-20 text-center space-y-4">
+                        <XCircle className="w-12 h-12 mx-auto text-muted-foreground opacity-20" />
+                        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">O evento já encerrou.</p>
                       </div>
+                    ) : isActive ? (
+                      (selectedTicketType || Object.keys(selectedSeats).length > 0) ? (
+                        <div className="space-y-8 animate-in zoom-in-95 duration-300">
+                          <div className="space-y-4">
+                            <div className="flex justify-between text-xs font-bold uppercase opacity-60">
+                              <span>Subtotal</span>
+                              <span>{formatCurrency(totals.subtotal)}</span>
+                            </div>
+                            <div className="flex justify-between text-xs font-bold uppercase opacity-60">
+                              <span>Taxas Service</span>
+                              <span>{formatCurrency(totals.fees)}</span>
+                            </div>
+                            <Separator className="border-dashed" />
+                            <div className="flex justify-between items-center">
+                              <span className="text-xl font-black uppercase italic text-primary">Total</span>
+                              <span className="text-3xl font-black text-primary">{formatCurrency(totals.total)}</span>
+                            </div>
+                          </div>
+
+                          <Button 
+                            onClick={handleAddToCart} 
+                            className="w-full h-20 bg-secondary text-white font-black rounded-3xl shadow-xl shadow-secondary/20 uppercase italic text-xl hover:scale-[1.02] transition-all group"
+                          >
+                            Adicionar ao Carrinho
+                            <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                          </Button>
+
+                          <div className="p-4 bg-muted/30 rounded-2xl flex gap-3">
+                            <Timer className="w-4 h-4 text-secondary shrink-0 mt-1" />
+                            <p className="text-[10px] font-bold text-muted-foreground leading-tight uppercase">Após adicionar, o item ficará reservado por 15 minutos até a conclusão do pagamento.</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="py-20 text-center space-y-6 opacity-30">
+                          <Ticket className="w-16 h-16 mx-auto text-secondary" />
+                          <p className="text-xs font-black uppercase tracking-[0.2em] max-w-[150px] mx-auto">Selecione um lugar ou ingresso no catálogo ao lado.</p>
+                        </div>
+                      )
                     ) : (
-                      <div className="py-20 text-center space-y-6 opacity-30">
-                        <Ticket className="w-16 h-16 mx-auto text-secondary" />
-                        <p className="text-xs font-black uppercase tracking-[0.2em] max-w-[150px] mx-auto">Selecione um lugar ou ingresso no catálogo ao lado.</p>
+                      <div className="py-20 text-center space-y-4">
+                        <Lock className="w-12 h-12 mx-auto text-muted-foreground opacity-20" />
+                        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Vendas indisponíveis para este evento no momento.</p>
                       </div>
-                    )
-                  ) : (
-                    <div className="py-20 text-center space-y-4">
-                       <Lock className="w-12 h-12 mx-auto text-muted-foreground opacity-20" />
-                       <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Vendas indisponíveis para este evento no momento.</p>
-                    </div>
-                  )}
-                </Card>
+                    )}
+                  </Card>
+                )}
 
                 {/* INFO EXTRA */}
                 <div className="p-8 bg-primary text-white rounded-[3rem] shadow-xl space-y-6 relative overflow-hidden">
