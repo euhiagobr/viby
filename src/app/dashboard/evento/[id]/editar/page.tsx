@@ -208,6 +208,17 @@ export default function EditarEventoPage() {
     }
   }, [event])
 
+  const handleGlobalSave = () => {
+    const form = document.getElementById('edit-event-form') as HTMLFormElement;
+    if (form) {
+      if (form.requestSubmit) {
+        form.requestSubmit();
+      } else {
+        form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+      }
+    }
+  }
+
   const handleLookupPartner = async () => {
     if (!db || !searchPartner) return
     setIsSearchingPartner(true)
@@ -404,7 +415,7 @@ export default function EditarEventoPage() {
         }]
       } else if (ticketMode === 'batches') {
         finalBatches = batches;
-        totalCapacity = totalBatchCapacity;
+        totalCapacity = batches.reduce((acc, b) => acc + b.capacidadeInicial, 0);
       } else if (ticketMode === 'sector_batches') {
         finalSectors = sectorsWithBatches;
         totalCapacity = sectorsWithBatches.reduce((acc, s) => acc + s.capacity, 0);
@@ -443,6 +454,24 @@ export default function EditarEventoPage() {
   }
 
   // --- Funções Auxiliares para Bilheteria ---
+  const addBatch = () => {
+    const newB: Batch = { 
+      id: crypto.randomUUID(), 
+      name: `${batches.length + 1}º Lote`, 
+      startDate: "", 
+      endDate: "", 
+      capacidadeInicial: 100, 
+      capacidadeAtual: 100,
+      vendidos: 0,
+      restantes: 100,
+      migradosDoLoteAnterior: 0,
+      ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }],
+      isHalfPriceEnabled: false,
+      halfPricePercent: 40
+    }
+    setBatches([...batches, newB])
+  }
+
   const updateGlobalBatchField = (i: number, f: keyof Batch, v: any) => { 
     const n = [...batches]; 
     n[i] = { ...n[i], [f]: v } as any; 
@@ -495,7 +524,7 @@ export default function EditarEventoPage() {
         </Button>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
+      <form id="edit-event-form" onSubmit={handleSubmit} className="space-y-8">
         <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
           <CardHeader className="bg-muted/30"><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5" /> Mídia</CardTitle></CardHeader>
           <CardContent className="p-8">
@@ -511,7 +540,7 @@ export default function EditarEventoPage() {
           <CardHeader><CardTitle className="text-lg">Informações Básicas</CardTitle></CardHeader>
           <CardContent className="p-8 space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Título</Label><Input name="title" defaultValue={event.title} required className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Título</Label><Input name="title" defaultValue={event?.title} required className="rounded-xl h-11" /></div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
                   <Select value={selectedCategory} onValueChange={setSelectedCategory} required>
@@ -557,8 +586,8 @@ export default function EditarEventoPage() {
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input name="startDate" type="datetime-local" defaultValue={event.date} required className="rounded-xl h-11 text-xs" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fim</Label><Input name="endDate" type="datetime-local" defaultValue={event.endDate} required className="rounded-xl h-11 text-xs" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input name="startDate" type="datetime-local" defaultValue={event?.date} required className="rounded-xl h-11 text-xs" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fim</Label><Input name="endDate" type="datetime-local" defaultValue={event?.endDate} required className="rounded-xl h-11 text-xs" /></div>
              </div>
              <div className="space-y-2">
                 <Label className="flex justify-between items-center">
@@ -674,7 +703,10 @@ export default function EditarEventoPage() {
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Número</Label><Input value={address.number} onChange={e => setAddress({...address, number: e.target.value})} className="rounded-xl h-11" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label><Input value={address.complement} onChange={e => setAddress({...address, complement: e.target.value})} className="rounded-xl h-11" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} className="rounded-xl h-11" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
+                <div className="space-y-2">
+                   <Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label>
+                   <Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" />
+                </div>
              </div>
           </CardContent>
         </Card>
@@ -757,7 +789,7 @@ export default function EditarEventoPage() {
                         </div>
                      </div>
                      <div className="p-6 bg-white rounded-3xl border shadow-sm grid grid-cols-12 gap-6 items-end">
-                        <div className="col-span-5 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Ingresso Principal</Label><Input value={batch.ticketTypes[0]?.name || ""} onChange={e => updateGlobalBatchField(bi, 0, 'name', e.target.value)} className="rounded-xl h-11 font-bold" /></div>
+                        <div className="col-span-5 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Ingresso Principal</Label><Input value={batch.ticketTypes[0]?.name || ""} onChange={e => updateGlobalBatchField(bi, 'name' as any, e.target.value)} className="rounded-xl h-11 font-bold" /></div>
                         <div className="col-span-3 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Quantidade</Label><Input value={batch.ticketTypes[0]?.quantity || 0} readOnly className="rounded-xl h-11 font-black bg-muted/30" /></div>
                         <div className="col-span-4 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Valor (R$)</Label><Input type="number" step="0.01" value={batch.ticketTypes[0]?.price || 0} onChange={e => updateGlobalTicketTypeField(bi, 0, 'price', parseFloat(e.target.value) || 0)} className="rounded-xl h-11 font-black text-secondary" /></div>
                      </div>
@@ -787,6 +819,23 @@ export default function EditarEventoPage() {
                </div>
             </div>
             <DialogFooter><Button onClick={() => handleEnableHalfPrice(halfPricePercent)} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Configurar Cota</Button></DialogFooter>
+         </DialogContent>
+      </Dialog>
+
+      <Dialog open={isBatchPercentDialogOpen} onOpenChange={setIsBatchPercentDialogOpen}>
+         <DialogContent className="max-w-sm rounded-[2.5rem]">
+            <DialogHeader>
+               <div className="w-12 h-12 bg-secondary/10 rounded-xl flex items-center justify-center mb-2 mx-auto text-secondary"><Percent className="w-6 h-6" /></div>
+               <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Meia por Lote</DialogTitle>
+               <DialogDescription className="text-center font-medium">Defina a porcentagem de cota de meia-entrada para este lote específico.</DialogDescription>
+            </DialogHeader>
+            <div className="py-6 space-y-4">
+               <div className="relative">
+                  <Input type="number" value={tempBatchPercent} onChange={e => setTempBatchPercent(parseInt(e.target.value) || 0)} className="h-20 text-5xl font-black text-center rounded-[1.5rem] border-secondary/20" />
+                  <span className="absolute right-6 top-1/2 -translate-y-1/2 text-2xl font-black text-muted-foreground opacity-30">%</span>
+               </div>
+            </div>
+            <DialogFooter><Button onClick={handleEnableBatchHalfPrice} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Confirmar Cota</Button></DialogFooter>
          </DialogContent>
       </Dialog>
     </div>
