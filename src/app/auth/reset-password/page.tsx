@@ -1,8 +1,8 @@
-
 "use client"
 
 import * as React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useAuth, useUser } from "@/firebase"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +15,8 @@ import Footer from "@/components/layout/Footer"
 function ResetPasswordContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const auth = useAuth()
+  const { user, loading: authLoading } = useUser(auth)
   const requestId = searchParams.get("req") || ""
   const code = searchParams.get("code") || ""
 
@@ -24,8 +26,12 @@ function ResetPasswordContent() {
   const [success, setSuccess] = React.useState(false)
 
   React.useEffect(() => {
+    if (!authLoading && user) {
+      router.replace("/dashboard")
+      return
+    }
     if (!requestId || !code) router.push("/auth/forgot-password")
-  }, [requestId, code, router])
+  }, [requestId, code, router, user, authLoading])
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,6 +54,14 @@ function ResetPasswordContent() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30">
+        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+      </div>
+    )
   }
 
   if (success) {

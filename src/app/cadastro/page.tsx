@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -60,6 +59,7 @@ export default function CadastroPage() {
   
   const router = useRouter()
   const auth = useAuth()
+  const { user, loading: authLoading } = useUser(auth)
   const db = useFirestore()
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
@@ -69,6 +69,12 @@ export default function CadastroPage() {
   const { data: blockedData } = useDoc<any>(blockedRef);
 
   const siteName = settings?.siteName || "Viby"
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace("/dashboard")
+    }
+  }, [user, authLoading, router])
 
   useEffect(() => {
     if (!db || !username) {
@@ -189,7 +195,6 @@ export default function CadastroPage() {
         createdAt: serverTimestamp()
       };
 
-      // UIDs para seguimento automático
       const officialOrgId = "d3c9fdc1-7fcc-4a70-ab99-79729fad2bf9";
       const secondaryProfileId = "ljX22anYgMdseouK2AAYhC7oAf93";
 
@@ -205,7 +210,6 @@ export default function CadastroPage() {
         transaction.set(usernameRef, { uid: user.uid, type: 'user' })
         transaction.set(userRef, userData)
 
-        // Auto-follow conta oficial (Viby)
         const followRef1 = doc(db, "follows", `${user.uid}_${officialOrgId}`)
         transaction.set(followRef1, {
           followerId: user.uid,
@@ -214,30 +218,25 @@ export default function CadastroPage() {
           timestamp: serverTimestamp()
         })
         
-        // Incrementar contador da conta oficial
         const officialOrgRef = doc(db, "organizations", officialOrgId)
         transaction.update(officialOrgRef, {
           followersCount: increment(1),
           updatedAt: serverTimestamp()
         })
 
-        // Auto-follow perfil secundário (ljX22anYgMdseouK2AAYhC7oAf93)
         const followRef2 = doc(db, "follows", `${user.uid}_${secondaryProfileId}`)
         transaction.set(followRef2, {
           followerId: user.uid,
           followingId: secondaryProfileId,
-          targetType: 'user', // Assumido como perfil de usuário
+          targetType: 'user',
           timestamp: serverTimestamp()
         })
       });
 
-      // Salvar CPF na subcoleção privada via Server Action para segurança máxima
       await updateUserCPF(user.uid, cpf);
 
-      // Gatilho de Gamificação: Boas-vindas
       await processGamificationEvent(db, user.uid, 'on_signup', {}, user.uid, userData);
       
-      // Gatilhos de Gamificação para seguidores
       await processGamificationEvent(db, user.uid, 'on_follow_org', { 
         targetId: officialOrgId, 
         orgName: siteName 
@@ -268,6 +267,14 @@ export default function CadastroPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30">
+        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+      </div>
+    )
   }
 
   return (

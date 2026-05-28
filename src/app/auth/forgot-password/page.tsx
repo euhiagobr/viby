@@ -1,8 +1,8 @@
-
 "use client"
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { useAuth, useUser } from "@/firebase"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,6 +20,14 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = React.useState(false)
   const [cooldown, setCooldown] = React.useState(0)
   const router = useRouter()
+  const auth = useAuth()
+  const { user, loading: authLoading } = useUser(auth)
+
+  React.useEffect(() => {
+    if (!authLoading && user) {
+      router.replace("/dashboard")
+    }
+  }, [user, authLoading, router])
 
   // Carregar cooldown do localStorage ao montar
   React.useEffect(() => {
@@ -77,6 +85,14 @@ export default function ForgotPasswordPage() {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30">
+        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30">

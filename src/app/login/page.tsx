@@ -1,9 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth, useFirestore, useDoc } from "@/firebase"
+import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { signInWithEmailAndPassword, signOut } from "firebase/auth"
 import { doc, getDoc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
@@ -22,12 +22,19 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const auth = useAuth()
+  const { user, loading: authLoading } = useUser(auth)
   const db = useFirestore()
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
 
   const siteName = settings?.siteName || "Viby"
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace("/dashboard")
+    }
+  }, [user, authLoading, router])
 
   const verifyVibyUserAndGetEmail = async (uid: string) => {
     if (!db) return null
@@ -78,7 +85,6 @@ export default function LoginPage() {
       toast({ title: "Bem-vindo!", description: `Acesso autorizado em ${siteName}.` })
       router.push("/dashboard")
     } catch (error: any) {
-      // Filtro para erros de Firebase Auth para não expor detalhes técnicos
       let msg = "Credenciais inválidas. Tente novamente."
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
         msg = "E-mail ou senha incorretos."
@@ -94,6 +100,14 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30">
+        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+      </div>
+    )
   }
 
   return (

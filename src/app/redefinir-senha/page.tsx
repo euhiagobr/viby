@@ -1,9 +1,8 @@
-
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
-import { useFirestore, useDoc } from "@/firebase"
+import { useState, useEffect } from "react"
+import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,10 +24,18 @@ export default function RedefinirSenhaPage() {
   const [cooldown, setCooldown] = useState(0)
   const router = useRouter()
   
+  const auth = useAuth()
+  const { user, loading: authLoading } = useUser(auth)
   const db = useFirestore()
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace("/dashboard")
+    }
+  }, [user, authLoading, router])
 
   // Carregar cooldown
   React.useEffect(() => {
@@ -77,6 +84,14 @@ export default function RedefinirSenhaPage() {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc] font-body">

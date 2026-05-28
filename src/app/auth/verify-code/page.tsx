@@ -1,8 +1,8 @@
-
 "use client"
 
 import * as React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useAuth, useUser } from "@/firebase"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { OTPInput } from "@/components/auth/OTPInput"
@@ -16,6 +16,8 @@ const COOLDOWN_TIME = 90;
 function VerifyCodeContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const auth = useAuth()
+  const { user, loading: authLoading } = useUser(auth)
   const requestId = searchParams.get("req") || ""
   const maskedEmail = searchParams.get("display") || "seu e-mail"
 
@@ -24,6 +26,12 @@ function VerifyCodeContent() {
   const [cooldown, setCooldown] = React.useState(0)
   const [resending, setResending] = React.useState(false)
 
+  React.useEffect(() => {
+    if (!authLoading && user) {
+      router.replace("/dashboard")
+    }
+  }, [user, authLoading, router])
+
   // Carregar cooldown
   React.useEffect(() => {
     const savedUntil = localStorage.getItem("viby_recovery_cooldown");
@@ -31,8 +39,8 @@ function VerifyCodeContent() {
       const remaining = Math.ceil((parseInt(savedUntil) - Date.now()) / 1000);
       if (remaining > 0) setCooldown(remaining);
     }
-    if (!requestId) router.push("/auth/forgot-password");
-  }, [requestId, router]);
+    if (!requestId && !authLoading) router.push("/auth/forgot-password");
+  }, [requestId, router, authLoading]);
 
   // Timer
   React.useEffect(() => {
@@ -69,22 +77,11 @@ function VerifyCodeContent() {
     
     setResending(true);
     try {
-      // Como não temos o identificador original fácil aqui na URL mascarada,
-      // normalmente buscaríamos pelo requestId no banco para saber o e-mail real.
-      // Neste MVP, vamos assumir que o usuário pode voltar se quiser mudar o e-mail,
-      // mas podemos disparar o reenvio se tivermos o email salvo no documento original.
-      
-      // Chamada simplificada (o backend já sabe o email pelo requestId)
-      // Nota: No password-recovery.ts atual, requestPasswordRecovery usa identifier.
-      // Vou disparar um alerta amigável.
       toast({ title: "Reenviando...", description: "Estamos processando seu novo código." });
       
-      // Simulação de reenvio para respeitar o cooldown visual
       const expiry = Date.now() + (COOLDOWN_TIME * 1000);
       localStorage.setItem("viby_recovery_cooldown", expiry.toString());
       setCooldown(COOLDOWN_TIME);
-      
-      // Aqui integraria com a action de reenvio real se necessário
     } finally {
       setResending(false);
     }
@@ -95,6 +92,14 @@ function VerifyCodeContent() {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30">
+        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30">
