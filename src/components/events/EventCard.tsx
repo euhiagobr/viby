@@ -1,8 +1,7 @@
-
 "use client"
 
 import * as React from "react"
-import { Calendar, MapPin, Clock, Ticket, Navigation, Megaphone, BadgeCheck } from "lucide-react"
+import { Calendar, MapPin, Clock, Ticket, Navigation, Megaphone, BadgeCheck, Zap } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -19,23 +18,6 @@ function VerifiedBadge({ className }: { className?: string }) {
   return (
     <BadgeCheck className={cn("w-3.5 h-3.5 fill-blue-500 text-white", className)} />
   )
-}
-
-const renderFormattedText = (text: string) => {
-  if (!text) return "";
-  const parts = text.split(/(\*\*.*?\*\*|@[\w.]+|\+.*?\+)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i} className="font-black">{part.slice(2, -2)}</strong>;
-    }
-    if (part.startsWith('@')) {
-       return <span key={i} className="text-secondary font-black">{part}</span>
-    }
-    if (part.startsWith('+') && part.endsWith('+')) {
-       return part.slice(1, -1);
-    }
-    return part;
-  });
 }
 
 interface EventCardProps {
@@ -60,7 +42,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const adsSettingsRef = React.useMemo(() => db ? doc(db, 'settings', 'ads') : null, [db])
   const { data: adsSettings } = useDoc<any>(adsSettingsRef)
   
-  const [liveStatus, setLiveStatus] = React.useState<{ label: string; colorClass: string } | null>(null);
+  const [liveStatus, setLiveStatus] = React.useState<{ label: string; colorClass: string; icon?: any } | null>(null);
 
   const eventDates = React.useMemo(() => {
     const start = event.date?.toDate ? event.date.toDate() : new Date(event.date);
@@ -79,24 +61,17 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       const { start, end } = eventDates;
 
       const hasEnded = end < now;
-      const diffEnd = end.getTime() - now.getTime();
       const diffStart = start.getTime() - now.getTime();
       const isToday = now.toDateString() === start.toDateString();
 
       if (hasEnded) {
-        setLiveStatus({ label: "Evento já acabou", colorClass: "bg-muted text-muted-foreground border-none" });
-      } else if (diffEnd <= 1 * 60 * 60 * 1000 && now >= start) {
-        setLiveStatus({ label: "Evento encerrando", colorClass: "bg-orange-600 animate-pulse text-white" });
+        setLiveStatus({ label: "Finalizado", colorClass: "bg-muted text-muted-foreground border-none" });
       } else if (now >= start && now < end) {
-        setLiveStatus({ label: "Evento acontecendo", colorClass: "bg-green-600 animate-pulse shadow-lg shadow-green-500/20 text-white" });
+        setLiveStatus({ label: "Acontecendo agora", colorClass: "bg-green-600 animate-pulse text-white shadow-lg shadow-green-500/20", icon: Zap });
       } else if (diffStart <= 2 * 60 * 60 * 1000 && diffStart > 0) {
-        const totalMinutes = Math.floor(diffStart / (1000 * 60));
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-        const countdown = hours > 0 ? `${hours}h${minutes.toString().padStart(2, '0')}` : `${minutes}min`;
-        setLiveStatus({ label: `Começa em ${countdown}`, colorClass: "bg-secondary text-white" });
+        setLiveStatus({ label: "Começa em breve", colorClass: "bg-secondary text-white shadow-lg shadow-secondary/20", icon: Clock });
       } else if (isToday) {
-        setLiveStatus({ label: "Acontece hoje", colorClass: "bg-secondary text-white" });
+        setLiveStatus({ label: "Hoje", colorClass: "bg-secondary text-white" });
       } else {
         setLiveStatus(null);
       }
@@ -168,7 +143,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
             if (!viewerSnap.exists()) {
               await setDoc(viewerRef, { timestamp: serverTimestamp() });
               updateData.uniqueReach = increment(1);
-              
               const demoUpdate = getDemographicsUpdate();
               Object.assign(updateData, demoUpdate);
             }
@@ -180,9 +154,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
                 blockedBalance: increment(-costPerImpression)
               });
             }
-          }).catch((err) => {
-            console.error("Erro ao registrar impressão:", err)
-          })
+          });
           
           observer.disconnect()
         }
@@ -197,42 +169,17 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
     try {
-      let d: Date;
-      if (dateValue?.toDate) d = dateValue.toDate();
-      else if (dateValue instanceof Date) d = dateValue;
-      else d = new Date(dateValue);
-      if (isNaN(d.getTime())) return "A definir";
-      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+      let d: Date = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
     } catch (e) { return "A definir"; }
   };
 
   const formatTime = (dateValue: any) => {
     if (!dateValue) return "";
     try {
-      let d: Date;
-      if (dateValue?.toDate) d = dateValue.toDate();
-      else if (dateValue instanceof Date) d = dateValue;
-      else d = new Date(dateValue);
-      if (isNaN(d.getTime())) return "";
+      let d: Date = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
       return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     } catch (e) { return ""; }
-  };
-
-  const formattedDate = formatDate(event.date);
-  const formattedTime = formatTime(event.date);
-  
-  const username = event.organizer?.username || "evento";
-  const eventLink = `/${username}/${event.id}`;
-  const profileLink = `/${username}`;
-
-  const getPriceDisplay = () => {
-    if (event.isFree) return "Grátis";
-    if (event.batches && event.batches.length > 0) {
-      const prices = event.batches.map((b: any) => parseFloat(b.price) || 0);
-      const minPrice = Math.min(...prices);
-      return minPrice === 0 ? "Grátis" : `A partir de R$ ${minPrice.toFixed(2).replace('.', ',')}`;
-    }
-    return "Consulte";
   };
 
   const distance = React.useMemo(() => {
@@ -264,141 +211,97 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         }
       });
     }
-    router.push(eventLink)
+    router.push(`/${event.organizer?.username || 'evento'}/${event.id}`)
   }
-
-  const handleOrganizerClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    router.push(profileLink)
-  }
-
-  const categoryDisplay = event.categoryName || "Geral";
-  const isVerified = event.organizer?.verified === true || event.organizer?.isVerified === true;
 
   return (
     <Card 
       ref={cardRef}
       className={cn(
-        "group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[1.5rem] cursor-pointer relative",
-        isSponsored && "ring-2 ring-secondary/20 shadow-secondary/10",
-        isEnded && "opacity-70 grayscale-[0.8]"
+        "group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-2 hover:shadow-2xl rounded-[2rem] cursor-pointer relative",
+        isSponsored && "ring-2 ring-secondary/20",
+        isEnded && "opacity-60 grayscale"
       )}
       onClick={handleCardClick}
     >
       {isSponsored && !isEnded && (
         <div className="absolute top-0 right-0 z-20">
-          <Badge className="bg-primary text-white rounded-none rounded-bl-xl font-black text-[9px] uppercase px-3 py-1.5 flex items-center gap-1.5">
-            <Megaphone className="w-3 h-3 text-secondary" /> Patrocinado
+          <Badge className="bg-primary text-white rounded-none rounded-bl-2xl font-black text-[9px] uppercase px-4 py-2 flex items-center gap-1.5 shadow-lg">
+            <Megaphone className="w-3 h-3 text-secondary fill-secondary" /> Patrocinado
           </Badge>
         </div>
       )}
 
-      <div className="relative h-48 w-full bg-muted">
+      <div className="relative h-56 w-full bg-muted">
         <Image
           src={event.image || `https://picsum.photos/seed/${event.id}/600/400`}
           alt={event.title}
           fill
-          className={cn(
-            "object-cover transition-transform group-hover:scale-105",
-            isEnded && "grayscale"
-          )}
+          className="object-cover transition-transform duration-700 group-hover:scale-110"
           unoptimized
         />
         
-        <div className="absolute top-3 left-3 flex flex-col gap-2 z-10">
+        <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
           {liveStatus && (
-            <Badge className={cn("border-none shadow-xl px-3 py-1 text-[10px] font-black uppercase tracking-wider", liveStatus.colorClass)}>
+            <Badge className={cn("border-none shadow-xl px-4 py-1.5 text-[10px] font-black uppercase tracking-widest flex items-center gap-2", liveStatus.colorClass)}>
+              {liveStatus.icon && <liveStatus.icon className="w-3.5 h-3.5" />}
               {liveStatus.label}
             </Badge>
           )}
           {!isEnded && (
-            <>
-              <div className="flex items-center gap-2">
-                 <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/95 p-1 rounded-md shadow-sm" />
-                 <Badge className="bg-white/90 text-primary border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider">
-                   {categoryDisplay}
-                 </Badge>
-              </div>
-              <Badge className={cn("text-white border-none shadow-md px-3 py-1 text-[10px] font-black uppercase tracking-wider w-fit", event.isFree ? "bg-green-500" : "bg-primary")}>
-                {getPriceDisplay()}
-              </Badge>
-            </>
+            <div className="flex items-center gap-2">
+               <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/95 p-1.5 rounded-xl shadow-lg" />
+               <Badge className="bg-white/90 text-primary border-none shadow-lg px-4 py-1.5 text-[10px] font-black uppercase tracking-widest">
+                 {event.categoryName || "Geral"}
+               </Badge>
+            </div>
           )}
         </div>
 
         {distance !== null && !isEnded && (
-          <div className="absolute bottom-3 right-3">
-            <Badge className="bg-white/95 text-secondary border-none shadow-xl backdrop-blur-md px-3 py-1.5 text-[11px] font-black uppercase flex items-center gap-1.5 ring-2 ring-secondary/10">
+          <div className="absolute bottom-4 right-4">
+            <Badge className="bg-white/95 text-secondary border-none shadow-2xl px-4 py-2 text-[11px] font-black uppercase flex items-center gap-1.5 ring-2 ring-secondary/10">
               <Navigation className="w-3.5 h-3.5 fill-secondary" />
-              {distance < 1 ? `${(distance * 1000).toFixed(0)}m de você` : `${distance.toFixed(1)}km de você`}
+              {distance < 1 ? `${(distance * 1000).toFixed(0)}m` : `${distance.toFixed(1)}km`}
             </Badge>
           </div>
         )}
       </div>
-      <CardHeader className="p-4 pb-2">
-        <div className="flex justify-between items-start gap-2">
-          <h3 className={cn(
-            "text-lg font-bold line-clamp-1 group-hover:text-secondary transition-colors uppercase italic tracking-tight",
-            isEnded && "text-muted-foreground"
-          )}>
+
+      <CardContent className="p-6 space-y-4">
+        <div className="space-y-1">
+          <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary group-hover:text-secondary transition-colors line-clamp-1 leading-tight">
             {event.title}
           </h3>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">
+            {event.organizer?.name}
+          </p>
         </div>
-      </CardHeader>
-      <CardContent className="p-4 pt-0 space-y-3">
-        <div className="text-xs text-muted-foreground line-clamp-2 min-h-[2.5rem] font-medium leading-relaxed">
-          {renderFormattedText(event.shortDescription || event.description)}
+
+        <div className="flex items-center justify-between pt-4 border-t border-dashed border-border/60">
+           <div className="flex flex-col gap-0.5">
+              <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">Quando</p>
+              <div className="flex items-center gap-1.5 text-xs font-black text-primary">
+                 <Calendar className="w-3.5 h-3.5 text-secondary" />
+                 {formatDate(event.date)}
+                 <span className="opacity-30">|</span>
+                 <Clock className="w-3.5 h-3.5 text-secondary" />
+                 {formatTime(event.date)}
+              </div>
+           </div>
+           <div className="text-right">
+              <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">Onde</p>
+              <div className="flex items-center justify-end gap-1.5 text-xs font-black text-primary">
+                 <MapPin className="w-3.5 h-3.5 text-secondary" />
+                 <span className="truncate max-w-[120px]">{event.city}</span>
+              </div>
+           </div>
         </div>
-        <div className="space-y-2">
-          <div className="flex items-center gap-4 text-[10px] text-muted-foreground font-black uppercase tracking-tight">
-            <span className="flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-secondary" />
-              {formattedDate}
-            </span>
-            {formattedTime && (
-              <span className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-secondary" />
-                {formattedTime}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-black uppercase tracking-tight">
-            <MapPin className="w-3.5 h-3.5 text-secondary" />
-            <span className="line-clamp-1">{event.city || "Local não definido"}</span>
-          </div>
-        </div>
-      </CardContent>
-      <CardFooter className="p-4 pt-2 border-t border-border flex items-center justify-between">
-        <div 
-          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-          onClick={handleOrganizerClick}
-        >
-          <Avatar className="h-6 w-6 border border-secondary/20">
-            <AvatarImage src={event.organizer?.avatar} alt={event.organizer?.name} className="object-cover" />
-            <AvatarFallback className="text-[10px] font-bold bg-muted">
-              {event.organizer?.name?.charAt(0) || "O"}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase hover:text-secondary truncate max-w-[100px]">
-              {event.organizer?.name || "Organizador"}
-            </span>
-            {isVerified && <VerifiedBadge />}
-          </div>
-        </div>
-        
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className={cn(
-            "h-8 text-[10px] font-black uppercase gap-1.5 text-secondary hover:bg-secondary/10",
-            isEnded && "opacity-50"
-          )}
-        >
-          <Ticket className="w-3.5 h-3.5" />
-          {isEnded ? "Finalizado" : "Detalhes"}
+
+        <Button className="w-full h-12 bg-primary text-white font-black rounded-2xl uppercase italic text-[11px] gap-2 shadow-lg transition-all group-hover:bg-secondary group-hover:scale-[1.02]">
+           Garantir Presença <ArrowRight className="w-4 h-4" />
         </Button>
-      </CardFooter>
+      </CardContent>
     </Card>
   )
 }

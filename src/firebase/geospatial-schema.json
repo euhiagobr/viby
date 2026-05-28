@@ -1,0 +1,19 @@
+{
+  "collection": "events",
+  "geospatial_fields": {
+    "latitude": "number (coordenada GPS)",
+    "longitude": "number (coordenada GPS)",
+    "city": "string (indexado para fallback)",
+    "state": "string (indexado para fallback)",
+    "address_string": "string (para geocoding manual se necessário)"
+  },
+  "scoring_logic": {
+    "distance_weight": 0.45,
+    "time_weight": 0.40,
+    "popularity_weight": 0.15,
+    "decay_rules": {
+      "time": "Decaimento linear sobre 30 dias",
+      "distance": "Decaimento linear baseado no raio de busca do usuário"
+    }
+  }
+}
