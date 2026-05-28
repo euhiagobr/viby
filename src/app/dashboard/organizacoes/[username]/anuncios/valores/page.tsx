@@ -13,7 +13,8 @@ import {
   Info, 
   Zap, 
   ShieldCheck,
-  Loader2
+  Loader2,
+  Megaphone
 } from "lucide-react"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/financial-utils"
