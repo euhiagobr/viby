@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -6,7 +5,7 @@ import { OrganizerBio } from "./OrganizerBio";
 import { OrganizerSocials } from "./OrganizerSocials";
 import { OrganizerMap } from "./OrganizerMap";
 import { Card, CardContent } from "@/components/ui/card";
-import { Phone, Mail, Globe, MapPin, Building2, ExternalLink } from "lucide-react";
+import { Phone, Mail, Globe, MapPin, Building2, ExternalLink, Fingerprint, Map as MapIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface OrganizerAboutProps {
@@ -24,7 +23,55 @@ export function OrganizerAbout({ organization }: OrganizerAboutProps) {
       {/* 1. Manifesto / Bio */}
       <OrganizerBio bio={organization.bio} />
 
-      {/* 2. Contact Details (Only visible fields) */}
+      {/* 2. Dados Fiscais (Sempre visíveis conforme solicitado) */}
+      <section className="space-y-6">
+        <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Dados Institucionais</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="border-none shadow-sm rounded-3xl bg-white">
+            <CardContent className="p-6 flex items-center gap-4">
+              <div className="p-3 bg-primary/5 rounded-2xl text-primary">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Razão Social</p>
+                <p className="font-bold text-sm text-primary uppercase">{organization.legalName || organization.name}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-none shadow-sm rounded-3xl bg-white">
+            <CardContent className="p-6 flex items-center gap-4">
+              <div className="p-3 bg-primary/5 rounded-2xl text-primary">
+                <Fingerprint className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">CNPJ</p>
+                <p className="font-mono text-sm text-primary">{organization.cnpj || "---"}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      {/* 3. Localização (Bairro, Cidade e Estado sempre visíveis) */}
+      <section className="space-y-6">
+        <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Localização</h2>
+        <Card className="border-none shadow-sm rounded-3xl bg-white">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="p-3 bg-secondary/5 rounded-2xl text-secondary">
+              <MapIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Sede</p>
+              <p className="font-bold text-sm text-primary uppercase">
+                {organization.neighborhood ? `${organization.neighborhood}, ` : ""}
+                {organization.city} - {organization.state}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* 4. Contact Details (Only visible fields) */}
       {hasContactInfo && (
         <section className="space-y-6">
           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Canais de Atendimento</h2>
@@ -57,10 +104,10 @@ export function OrganizerAbout({ organization }: OrganizerAboutProps) {
         </section>
       )}
 
-      {/* 3. Social Networks */}
+      {/* 5. Social Networks */}
       <OrganizerSocials organization={organization} />
 
-      {/* 4. Physical Location (Only if showAddress is true) */}
+      {/* 6. Physical Location (Only if showAddress is true) */}
       {organization.showAddress && (
         <OrganizerMap organization={organization} />
       )}

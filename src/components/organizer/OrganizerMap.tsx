@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,6 +9,7 @@ interface OrganizerMapProps {
 }
 
 export function OrganizerMap({ organization }: OrganizerMapProps) {
+  // O componente do mapa físico (iframe) ainda exige rua/número
   if (!organization.street || !organization.city) return null;
 
   const addressStr = `${organization.street}, ${organization.number || ""} - ${organization.neighborhood || ""}, ${organization.city} - ${organization.state || ""}`;
@@ -22,7 +22,7 @@ export function OrganizerMap({ organization }: OrganizerMapProps) {
         <div className="p-2 bg-primary/5 rounded-lg text-primary">
           <MapPin className="w-5 h-5" />
         </div>
-        <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Onde nos Encontrar</h2>
+        <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Localização da Sede</h2>
       </div>
 
       <Card className="border-none shadow-sm rounded-[3rem] bg-white overflow-hidden p-0 relative">

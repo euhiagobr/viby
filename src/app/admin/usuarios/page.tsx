@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -48,7 +47,14 @@ import {
   Coins,
   ArrowDown,
   Lock,
-  Globe
+  Globe,
+  Eye,
+  EyeOff,
+  Phone,
+  Mail,
+  Instagram,
+  MapPin,
+  Fingerprint
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -58,6 +64,7 @@ import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -123,7 +130,6 @@ export default function AdminUsuariosPage() {
       return
     }
 
-    // Regras de Username: Min 5 chars, sem espaços ou especiais
     const regex = /^[a-zA-Z0-9._]+$/
     if (normalized.length < 5 || !regex.test(normalized)) {
       setUsernameStatus('invalid')
@@ -153,7 +159,6 @@ export default function AdminUsuariosPage() {
       const batch = writeBatch(db)
       const original = users?.find(u => u.id === editingUser.id)
       
-      // Sincronização de Username
       if (editingUser.username !== original?.username) {
         if (original?.username) {
           batch.delete(doc(db, "usernames", original.username.toLowerCase()))
@@ -172,7 +177,7 @@ export default function AdminUsuariosPage() {
       toast({ title: "Usuário atualizado!" })
       setIsEditUserOpen(false)
     } catch (e) { 
-      toast({ variant: "destructive", title: "Erro ao salvar", description: "Username pode estar em uso ou inválido." }) 
+      toast({ variant: "destructive", title: "Erro ao salvar" }) 
     } finally { 
       setIsSaving(false) 
     }
@@ -221,7 +226,6 @@ export default function AdminUsuariosPage() {
       }
       batch.delete(doc(db, type === 'user' ? "users" : "organizations", id))
       
-      // Limpeza de relações (Simplificada para o MVP)
       const followsQ = query(collection(db, "follows"), where(type === 'user' ? "followerId" : "followingId", "==", id))
       const followsSnap = await getDocs(followsQ)
       followsSnap.forEach(d => batch.delete(d.ref))
@@ -262,14 +266,12 @@ export default function AdminUsuariosPage() {
 
       for (const regDoc of regsSnap.docs) {
         const reg = regDoc.data()
-        // Só recalcula se não estiver em um repasse concluído ou bloqueado
         if (reg.payoutId || reg.payoutStatus === 'Concluído' || reg.payoutStatus === 'Bloqueado') continue
 
         const facePrice = reg.ticketBasePrice || 0;
         const buyerFeeAmount = reg.administrativeFeeAmount || 0;
         const totalPaidByCustomer = reg.price || (facePrice + buyerFeeAmount);
 
-        // Termos da Organização
         const oPercentVal = editingOrg.customFeeActive ? (editingOrg.customFeePercent ?? 10) : (globalFees?.organizerFeePercent ?? 10);
         const oMinVal = editingOrg.customFeeActive ? (editingOrg.customMinFee ?? 9.99) : (globalFees?.organizerMinFee ?? 9.99);
         const oMaxVal = editingOrg.customFeeActive ? (editingOrg.customMaxFee ?? 0) : 0;
@@ -280,12 +282,10 @@ export default function AdminUsuariosPage() {
 
         const newProducerNet = Number((facePrice - newProducerFee).toFixed(2));
 
-        // Stripe (Gateway)
         const stripePercent = (stripeSettings?.feePercent ?? 3.99) / 100;
         const stripeFixed = stripeSettings?.feeFixed ?? 0.39;
         const stripeFeeTotal = Number(((totalPaidByCustomer * stripePercent) + stripeFixed).toFixed(2));
 
-        // Viby Metrics
         const newVibyGross = Number((buyerFeeAmount + newProducerFee).toFixed(2));
         const newTaxAmount = Number((newVibyGross * 0.11).toFixed(2));
         const newVibyNet = Number((newVibyGross - stripeFeeTotal - newTaxAmount).toFixed(2));
@@ -418,7 +418,6 @@ export default function AdminUsuariosPage() {
         </Table>
       </Card>
 
-      {/* DIALOGS DE EDIÇÃO (MESMOS DO ANTERIOR, MAS COM VALIDAÇÕES REFORÇADAS) */}
       <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
         <DialogContent className="max-w-xl rounded-[2.5rem]">
            <DialogHeader>
@@ -474,108 +473,202 @@ export default function AdminUsuariosPage() {
       </Dialog>
 
       <Dialog open={isEditOrgOpen} onOpenChange={setIsEditOrgOpen}>
-        <DialogContent className="max-w-xl h-[90vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
+        <DialogContent className="max-w-3xl h-[90vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
            <DialogHeader className="p-8 border-b bg-muted/30">
-              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Editar Marca Comercial</DialogTitle>
-              <DialogDescription>Gestão de termos comerciais e identidade da marca.</DialogDescription>
+              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Gestão de Marca: {editingOrg?.name}</DialogTitle>
+              <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">Moderação total de itens e visibilidade.</DialogDescription>
            </DialogHeader>
-           <form onSubmit={handleUpdateOrg} className="flex-1 overflow-y-auto p-8 space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Nome da Marca</Label>
-                    <Input value={editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, name: e.target.value})} className="rounded-xl h-11" required />
-                 </div>
-                 <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label>
-                    <div className="relative">
-                       <Input 
-                         value={editingOrg?.username || ""} 
-                         onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} 
-                         className={cn(
-                           "rounded-xl h-11 pr-10",
-                           usernameStatus === 'valid' ? 'border-green-500' : usernameStatus === 'taken' ? 'border-destructive' : ''
-                         )} 
-                       />
-                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin opacity-40" /> : 
-                           usernameStatus === 'taken' ? <X className="w-4 h-4 text-destructive" /> : 
-                           usernameStatus === 'valid' ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : null}
+           
+           <form onSubmit={handleUpdateOrg} className="flex-1 overflow-hidden flex flex-col">
+              <ScrollArea className="flex-1 p-8">
+                 <div className="space-y-10 pb-10">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                       <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase opacity-60">Nome da Marca</Label>
+                          <Input value={editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, name: e.target.value})} className="rounded-xl h-11" required />
+                       </div>
+                       <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label>
+                          <div className="relative">
+                             <Input 
+                               value={editingOrg?.username || ""} 
+                               onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} 
+                               className={cn(
+                                 "rounded-xl h-11 pr-10",
+                                 usernameStatus === 'valid' ? 'border-green-500' : usernameStatus === 'taken' ? 'border-destructive' : ''
+                               )} 
+                             />
+                             <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin opacity-40" /> : 
+                                 usernameStatus === 'taken' ? <X className="w-4 h-4 text-destructive" /> : 
+                                 usernameStatus === 'valid' ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : null}
+                             </div>
+                          </div>
                        </div>
                     </div>
-                 </div>
-              </div>
 
-              <div className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border border-dashed">
-                 <div className="space-y-0.5">
-                    <p className="font-bold text-sm flex items-center gap-2">
-                       <VerifiedBadge /> Marca Verificada
-                    </p>
-                    <p className="text-[10px] text-muted-foreground uppercase font-black">Valida a autenticidade oficial</p>
-                 </div>
-                 <Switch 
-                   checked={editingOrg?.verified || false} 
-                   onCheckedChange={v => setEditingOrg({...editingOrg, verified: v})} 
-                 />
-              </div>
-
-              <Separator className="border-dashed" />
-
-              {/* RECALCULO DE TAXAS */}
-              <div className="space-y-6">
-                 <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                       <h3 className="font-black italic uppercase tracking-tighter text-secondary flex items-center gap-2">
-                          <Coins className="w-5 h-5" /> Acordo Comercial
+                    <div className="space-y-6">
+                       <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                          <Fingerprint className="w-4 h-4" /> Dados Fiscais (Públicos)
                        </h3>
-                       <p className="text-[10px] font-bold text-muted-foreground uppercase">Configure as taxas que esta marca pagará.</p>
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-2">
+                             <Label className="text-[10px] font-black uppercase opacity-60">Razão Social</Label>
+                             <Input value={editingOrg?.legalName || ""} onChange={e => setEditingOrg({...editingOrg, legalName: e.target.value})} className="rounded-xl" />
+                          </div>
+                          <div className="space-y-2">
+                             <Label className="text-[10px] font-black uppercase opacity-60">CNPJ</Label>
+                             <Input value={editingOrg?.cnpj || ""} onChange={e => setEditingOrg({...editingOrg, cnpj: e.target.value})} className="rounded-xl" />
+                          </div>
+                       </div>
                     </div>
-                    <Switch 
-                       checked={editingOrg?.customFeeActive || false} 
-                       onCheckedChange={v => setEditingOrg({...editingOrg, customFeeActive: v})} 
-                    />
-                 </div>
 
-                 {editingOrg?.customFeeActive && (
-                   <div className="space-y-6 animate-in slide-in-from-top-2 duration-300">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                           <Label className="text-[9px] font-black uppercase opacity-60">Taxa Produtor (%)</Label>
-                           <Input type="number" value={editingOrg?.customFeePercent ?? 10} onChange={e => setEditingOrg({...editingOrg, customFeePercent: parseFloat(e.target.value) || 0})} className="rounded-xl" />
-                        </div>
-                        <div className="space-y-2">
-                           <Label className="text-[9px] font-black uppercase opacity-60">Mínimo (R$)</Label>
-                           <Input type="number" value={editingOrg?.customMinFee ?? 9.99} onChange={e => setEditingOrg({...editingOrg, customMinFee: parseFloat(e.target.value) || 0})} className="rounded-xl" />
-                        </div>
-                        <div className="space-y-2">
-                           <Label className="text-[9px] font-black uppercase opacity-60">Máximo (R$)</Label>
-                           <Input type="number" value={editingOrg?.customMaxFee ?? 0} onChange={e => setEditingOrg({...editingOrg, customMaxFee: parseFloat(e.target.value) || 0})} className="rounded-xl" />
-                        </div>
-                      </div>
+                    <Separator className="border-dashed" />
 
-                      <div className="p-6 bg-secondary/5 rounded-3xl border-2 border-dashed border-secondary/20 space-y-4">
-                         <div className="flex items-start gap-4">
-                            <RefreshCw className={cn("w-6 h-6 text-secondary shrink-0 mt-1", isRecalculating && "animate-spin")} />
-                            <div className="space-y-1">
-                               <h4 className="font-black text-xs uppercase italic text-secondary">Sincronizar Vendas Pendentes</h4>
-                               <p className="text-[10px] text-muted-foreground leading-relaxed uppercase">Recalcular o líquido de vendas em custódia com as novas taxas.</p>
+                    <div className="space-y-6">
+                       <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                          <Eye className="w-4 h-4" /> Controle de Visibilidade
+                       </h3>
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <VisibilityToggle 
+                            label="Telefone / WhatsApp" 
+                            icon={Phone} 
+                            checked={editingOrg?.showPhone ?? true} 
+                            onChange={v => setEditingOrg({...editingOrg, showPhone: v})} 
+                          />
+                          <VisibilityToggle 
+                            label="E-mail de Contato" 
+                            icon={Mail} 
+                            checked={editingOrg?.showEmail ?? true} 
+                            onChange={v => setEditingOrg({...editingOrg, showEmail: v})} 
+                          />
+                          <VisibilityToggle 
+                            label="Site Oficial" 
+                            icon={Globe} 
+                            checked={editingOrg?.showWebsite ?? true} 
+                            onChange={v => setEditingOrg({...editingOrg, showWebsite: v})} 
+                          />
+                          <VisibilityToggle 
+                            label="Instagram" 
+                            icon={Instagram} 
+                            checked={editingOrg?.showInstagram ?? true} 
+                            onChange={v => setEditingOrg({...editingOrg, showInstagram: v})} 
+                          />
+                       </div>
+                       
+                       <div className="p-4 bg-primary/5 rounded-2xl border-2 border-dashed border-primary/10">
+                          <p className="text-[9px] font-black uppercase text-primary italic mb-3">Privacidade de Endereço</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <VisibilityToggle 
+                               label="Endereço Completo (Rua/Nº)" 
+                               icon={MapPin} 
+                               checked={editingOrg?.showAddress ?? true} 
+                               onChange={v => setEditingOrg({...editingOrg, showAddress: v})} 
+                             />
+                             <div className="p-3 flex items-center justify-between opacity-50 bg-muted rounded-xl">
+                                <div className="flex items-center gap-2">
+                                   <MapPin className="w-4 h-4" />
+                                   <span className="text-[10px] font-black uppercase">Bairro, Cidade e UF</span>
+                                </div>
+                                <Badge variant="outline" className="text-[8px] font-black uppercase border-green-200 text-green-600">Sempre Público</Badge>
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+
+                    <Separator className="border-dashed" />
+
+                    <div className="space-y-6">
+                       <div className="flex items-center justify-between">
+                          <div className="space-y-1">
+                             <h3 className="font-black italic uppercase tracking-tighter text-secondary flex items-center gap-2">
+                                <Coins className="w-5 h-5" /> Acordo Comercial
+                             </h3>
+                             <p className="text-[10px] font-bold text-muted-foreground uppercase">Configure as taxas que esta marca pagará.</p>
+                          </div>
+                          <Switch 
+                             checked={editingOrg?.customFeeActive || false} 
+                             onCheckedChange={v => setEditingOrg({...editingOrg, customFeeActive: v})} 
+                          />
+                       </div>
+
+                       {editingOrg?.customFeeActive && (
+                         <div className="space-y-6 animate-in slide-in-from-top-2 duration-300">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="space-y-2">
+                                 <Label className="text-[9px] font-black uppercase opacity-60">Taxa Produtor (%)</Label>
+                                 <Input type="number" value={editingOrg?.customFeePercent ?? 10} onChange={e => setEditingOrg({...editingOrg, customFeePercent: parseFloat(e.target.value) || 0})} className="rounded-xl" />
+                              </div>
+                              <div className="space-y-2">
+                                 <Label className="text-[9px] font-black uppercase opacity-60">Mínimo (R$)</Label>
+                                 <Input type="number" value={editingOrg?.customMinFee ?? 9.99} onChange={e => setEditingOrg({...editingOrg, customMinFee: parseFloat(e.target.value) || 0})} className="rounded-xl" />
+                              </div>
+                              <div className="space-y-2">
+                                 <Label className="text-[9px] font-black uppercase opacity-60">Máximo (R$)</Label>
+                                 <Input type="number" value={editingOrg?.customMaxFee ?? 0} onChange={e => setEditingOrg({...editingOrg, customMaxFee: parseFloat(e.target.value) || 0})} className="rounded-xl" />
+                              </div>
+                            </div>
+
+                            <div className="p-6 bg-secondary/5 rounded-3xl border-2 border-dashed border-secondary/20 space-y-4">
+                               <div className="flex items-start gap-4">
+                                  <RefreshCw className={cn("w-6 h-6 text-secondary shrink-0 mt-1", isRecalculating && "animate-spin")} />
+                                  <div className="space-y-1">
+                                     <h4 className="font-black text-xs uppercase italic text-secondary">Sincronizar Vendas Pendentes</h4>
+                                     <p className="text-[10px] text-muted-foreground leading-relaxed uppercase">Recalcular o líquido de vendas em custódia com as novas taxas.</p>
+                                  </div>
+                               </div>
+                               <Button type="button" onClick={handleRecalculateFees} disabled={isRecalculating} className="w-full h-11 rounded-xl bg-white border-2 border-secondary text-secondary font-black uppercase text-[10px] shadow-sm">
+                                  Confirmar Recálculo Retroativo
+                                </Button>
                             </div>
                          </div>
-                         <Button type="button" onClick={handleRecalculateFees} disabled={isRecalculating} className="w-full h-11 rounded-xl bg-white border-2 border-secondary text-secondary font-black uppercase text-[10px] shadow-sm">
-                            Confirmar Recálculo Retroativo
-                         </Button>
-                      </div>
-                   </div>
-                 )}
-              </div>
+                       )}
+                    </div>
+
+                    <div className="p-4 bg-muted/50 rounded-2xl border border-dashed flex items-center justify-between">
+                       <div className="space-y-0.5">
+                          <p className="text-sm font-bold flex items-center gap-2">
+                             <ShieldCheck className="w-4 h-4 text-blue-500" /> Selo de Verificada
+                          </p>
+                          <p className="text-[9px] text-muted-foreground uppercase font-black">Valida a autenticidade oficial da marca</p>
+                       </div>
+                       <Switch 
+                         checked={editingOrg?.verified || false} 
+                         onCheckedChange={v => setEditingOrg({...editingOrg, verified: v})} 
+                       />
+                    </div>
+                 </div>
+              </ScrollArea>
            </form>
+           
            <DialogFooter className="p-8 border-t bg-muted/30">
               <Button onClick={handleUpdateOrg} disabled={isSaving || usernameStatus === 'taken'} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
                  {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-                 Salvar Alterações de Marca
+                 Salvar Configurações da Marca
               </Button>
            </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+function VisibilityToggle({ label, icon: Icon, checked, onChange }: { label: string, icon: any, checked: boolean, onChange: (v: boolean) => void }) {
+  return (
+    <div className={cn(
+      "p-3 rounded-2xl border flex items-center justify-between transition-all",
+      checked ? "bg-white border-border shadow-sm" : "bg-muted/50 border-transparent opacity-60 grayscale-[0.5]"
+    )}>
+       <div className="flex items-center gap-3">
+          <div className={cn("p-1.5 rounded-lg", checked ? "bg-secondary/10 text-secondary" : "bg-muted text-muted-foreground")}>
+             <Icon className="w-3.5 h-3.5" />
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-tight">{label}</span>
+       </div>
+       <div className="flex items-center gap-2">
+          {checked ? <Eye className="w-3 h-3 text-green-600" /> : <EyeOff className="w-3 h-3 text-muted-foreground" />}
+          <Switch checked={checked} onCheckedChange={onChange} className="scale-75 origin-right" />
+       </div>
     </div>
   )
 }
