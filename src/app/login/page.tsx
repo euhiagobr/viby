@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -39,32 +38,31 @@ export default function LoginPage() {
       }
       return userDoc.data()?.email
     } catch (e) {
-      console.error("Erro ao verificar usuário Viby:", e)
       return null
     }
   }
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!auth || !db) return
 
     setLoading(true)
     try {
-      let emailToUse = identifier
+      let emailToUse = identifier.trim();
 
       if (!identifier.includes("@")) {
         const usernameRef = doc(db, "usernames", identifier.toLowerCase().trim().replace('@', ''))
         const usernameSnap = await getDoc(usernameRef)
         
         if (!usernameSnap.exists()) {
-          throw new Error("Nome de usuário não encontrado.")
+          throw new Error("Perfil não encontrado.")
         }
 
         const uid = usernameSnap.data().uid
         const userEmail = await verifyVibyUserAndGetEmail(uid)
         
         if (!userEmail) {
-          throw new Error("Acesso negado para esta plataforma.")
+          throw new Error("Acesso restrito.")
         }
         emailToUse = userEmail
       }
@@ -77,13 +75,21 @@ export default function LoginPage() {
         throw new Error(`Esta conta não pertence à ${siteName}.`)
       }
 
-      toast({ title: "Login realizado!", description: `Bem-vindo de volta à ${siteName}.` })
+      toast({ title: "Bem-vindo!", description: `Acesso autorizado em ${siteName}.` })
       router.push("/dashboard")
     } catch (error: any) {
+      // Filtro para erros de Firebase Auth para não expor detalhes técnicos
+      let msg = "Credenciais inválidas. Tente novamente."
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        msg = "E-mail ou senha incorretos."
+      } else if (error.message && !error.message.includes('PRIVATE KEY')) {
+        msg = error.message
+      }
+      
       toast({
         variant: "destructive",
-        title: "Erro ao entrar",
-        description: error.message || "Verifique suas credenciais."
+        title: "Falha no Acesso",
+        description: msg
       })
     } finally {
       setLoading(false)
@@ -101,8 +107,9 @@ export default function LoginPage() {
                 alt={siteName} 
                 width={120} 
                 height={40} 
-                className="h-8 w-auto object-contain" 
+                className="h-10 w-auto object-contain" 
                 priority 
+                unoptimized
               />
             ) : (
               <>
@@ -126,18 +133,7 @@ export default function LoginPage() {
         <Card className="w-full max-w-md border-none shadow-xl rounded-[2rem] overflow-hidden bg-white">
           <CardHeader className="space-y-1 flex flex-col items-center pt-10 pb-6">
             <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 overflow-hidden shadow-lg shadow-secondary/20">
-              {settings?.logoUrl ? (
-                <Image 
-                  src={settings.logoUrl} 
-                  alt={siteName} 
-                  width={48} 
-                  height={48} 
-                  className="w-full h-full object-contain p-2" 
-                  priority 
-                />
-              ) : (
-                <Globe className="text-white w-7 h-7" />
-              )}
+              <KeyRound className="text-white w-7 h-7" />
             </div>
             <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Acessar Clube</CardTitle>
             <CardDescription className="font-medium text-center">Entre com seu e-mail ou @username exclusivo.</CardDescription>
@@ -175,14 +171,10 @@ export default function LoginPage() {
                      required 
                      className="pl-10 h-12 rounded-xl border-dashed border-secondary/30"
                    />
-                   <div className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary">
-                      <KeyRound className="h-4 w-4" />
-                   </div>
                 </div>
               </div>
               <Button type="submit" className="w-full bg-secondary text-white hover:bg-secondary/90 font-black h-14 rounded-2xl shadow-xl shadow-secondary/20 uppercase italic mt-4" disabled={loading}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Entrar na {siteName}
+                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Entrar na Viby"}
               </Button>
             </form>
           </CardContent>

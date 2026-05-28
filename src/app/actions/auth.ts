@@ -1,48 +1,33 @@
 'use server';
 
-import { adminAuth, adminDb } from '@/lib/firebase/admin';
+import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin';
 import { sendPasswordResetLinkEmail } from './email';
 
 /**
- * @fileOverview Server Actions para autenticação administrativa.
+ * @fileOverview Server Actions para autenticação com proteção de segredos.
  */
 
-/**
- * Solicita a redefinição de senha gerando o link oficial do Firebase.
- */
 export async function requestPasswordReset(identifier: string) {
   try {
+    const db = getAdminDb();
+    const auth = getAdminAuth();
+    
     let email = identifier.trim().toLowerCase();
     let userName = "Usuário";
 
-    // 1. Resolver identificador (E-mail ou @Username)
     if (!identifier.includes("@")) {
       const normalizedUsername = identifier.replace('@', '').toLowerCase().trim();
-      const snap = await adminDb.collection("users").where("username", "==", normalizedUsername).get();
+      const snap = await db.collection("users").where("username", "==", normalizedUsername).limit(1).get();
       
       if (snap.empty) throw new Error("Usuário não encontrado.");
       
       const userData = snap.docs[0].data();
       email = userData.email;
       userName = userData.name || userData.displayName || "Usuário";
-    } else {
-      const snap = await adminDb.collection("users").where("email", "==", email).get();
-      if (!snap.empty) {
-        const userData = snap.docs[0].data();
-        userName = userData.name || userData.displayName || "Usuário";
-      }
     }
 
-    // 2. Gerar link oficial de redefinição de senha
-    let resetLink;
-    try {
-      resetLink = await adminAuth.generatePasswordResetLink(email);
-    } catch (adminError: any) {
-      console.error("Erro do Admin SDK ao gerar link:", adminError);
-      throw new Error("Falha ao gerar link de segurança. Verifique a configuração da Service Account.");
-    }
+    let resetLink = await auth.generatePasswordResetLink(email);
 
-    // 3. Disparar e-mail via SMTP
     const emailResult = await sendPasswordResetLinkEmail({
       to: email,
       userName,
@@ -51,12 +36,12 @@ export async function requestPasswordReset(identifier: string) {
     });
 
     if (!emailResult.success) {
-      throw new Error("Não foi possível enviar o e-mail de segurança.");
+      throw new Error("E-mail não pôde ser enviado.");
     }
 
     return { success: true, email };
   } catch (error: any) {
-    console.error("Erro na redefinição de senha:", error);
-    return { success: false, error: error.message };
+    console.error('[Auth Action Filtered]');
+    return { success: false, error: 'Falha na solicitação de segurança.' };
   }
 }

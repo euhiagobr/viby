@@ -3,7 +3,8 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Inicialização robusta do Firebase Admin SDK com limpeza profunda de chave PEM.
+ * @fileOverview Inicialização segura do Firebase Admin SDK.
+ * Protege contra exposição de chaves privadas em logs de erro.
  */
 
 function getAdminApp(): App {
@@ -16,12 +17,10 @@ function getAdminApp(): App {
   const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKeyRaw) {
-    console.error('[Admin SDK] Variáveis ausentes no processo.');
-    throw new Error(`Credenciais Admin ausentes no ambiente.`);
+    throw new Error('[Admin SDK] Variáveis de ambiente ausentes.');
   }
 
   try {
-    // Sanitização profunda da chave privada
     const privateKey = privateKeyRaw
       .replace(/^"|"$/g, '') 
       .replace(/\\n/g, '\n')
@@ -36,8 +35,9 @@ function getAdminApp(): App {
       projectId,
     }, 'admin-app');
   } catch (error: any) {
-    console.error('[Admin SDK] Erro de Inicialização Crítico:', error.message);
-    throw error;
+    // NUNCA logar o error.message aqui pois ele contém a chave PEM se a formatação estiver errada
+    console.error('[Admin SDK] Falha crítica na inicialização (Credenciais Inválidas)');
+    throw new Error('Falha na autenticação do servidor administrativo.');
   }
 }
 
