@@ -6,7 +6,7 @@ import { headers } from 'next/headers';
 import { sendPasswordResetLinkEmail } from './email';
 
 /**
- * @fileOverview Server Actions para recuperação de senha com debug estendido.
+ * @fileOverview Server Actions para recuperação de senha com normalização e logs.
  */
 
 const GENERATOR_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -24,40 +24,42 @@ export async function requestPasswordRecovery(identifier: string) {
     const auth = getAdminAuth();
     const db = getAdminDb();
     
-    let email = identifier.trim().toLowerCase();
-    let userName = "Usuário";
     const head = await headers();
     const ip = head.get('x-forwarded-for') || 'unknown';
     const userAgent = head.get('user-agent') || 'unknown';
 
     // 1. Resolver identificador (E-mail ou @Username)
     const isEmail = identifier.includes("@");
+    const searchField = isEmail ? "email" : "username";
+    const searchValue = identifier.replace('@', '').toLowerCase().trim();
+
     const userSnap = await db.collection("users")
-      .where(isEmail ? "email" : "username", "==", identifier.replace('@', '').toLowerCase().trim())
+      .where(searchField, "==", searchValue)
       .limit(1)
       .get();
     
     if (userSnap.empty) {
-      return { success: false, error: `Identificador não localizado: ${identifier}` }; 
+      console.warn(`[Recovery] Identificador não localizado: ${searchValue}`);
+      return { success: false, error: 'Usuário não encontrado em nossa base.' }; 
     }
 
     const userData = userSnap.docs[0].data();
-    email = userData.email;
-    userName = userData.name || userData.displayName || "Usuário";
+    const email = userData.email.toLowerCase().trim();
+    const userName = userData.name || userData.displayName || "Usuário";
 
     // 2. Verificar se o usuário existe no Firebase Auth
     try {
       await auth.getUserByEmail(email);
     } catch (e: any) {
-       return { success: false, error: `Autenticação falhou: Usuário ${email} não existe no Firebase Auth.` };
+       console.error(`[Recovery] Usuário existe no Firestore mas não no Auth: ${email}`);
+       return { success: false, error: 'Falha na integridade da conta. Contate o suporte.' };
     }
 
     // 3. Gerar código OTP e salvar
     const code = generateOTP();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); 
 
-    const codeRef = db.collection('password_reset_codes').doc();
-    await codeRef.set({
+    await db.collection('password_reset_codes').add({
       email,
       code,
       createdAt: FieldValue.serverTimestamp(),
@@ -68,6 +70,8 @@ export async function requestPasswordRecovery(identifier: string) {
       userAgent
     });
 
+    console.log(`[Recovery] Código gerado para ${email}: ${code}`);
+
     // 4. Enviar E-mail via SMTP
     const emailResult = await sendPasswordResetLinkEmail({
       to: email,
@@ -76,16 +80,13 @@ export async function requestPasswordRecovery(identifier: string) {
     });
 
     if (!emailResult.success) {
-      throw new Error(`Falha no SMTP: ${emailResult.error}`);
+      throw new Error(`Erro SMTP: ${emailResult.error}`);
     }
 
     return { success: true };
   } catch (error: any) {
-    console.error('[Recovery Failure Log]', error);
-    return { 
-      success: false, 
-      error: `ERRO TÉCNICO: ${error.message}${error.code ? ` (Code: ${error.code})` : ''}` 
-    };
+    console.error('[Recovery Error]', error);
+    return { success: false, error: `Erro no processamento: ${error.message}` };
   }
 }
 
@@ -95,21 +96,34 @@ export async function verifyRecoveryCode(email: string, code: string) {
     const normalizedEmail = email.trim().toLowerCase();
     const cleanCode = code.trim().toUpperCase();
 
+    console.log(`[Verify] Validando código para ${normalizedEmail}: ${cleanCode}`);
+
     const snapshot = await db.collection('password_reset_codes')
       .where('email', '==', normalizedEmail)
       .where('code', '==', cleanCode)
       .where('used', '==', false)
+      .orderBy('createdAt', 'desc')
       .limit(1)
       .get();
 
-    if (snapshot.empty) return { success: false, error: 'Código inválido.' };
+    if (snapshot.empty) {
+      console.warn(`[Verify] Código ${cleanCode} não encontrado ou já usado para ${normalizedEmail}`);
+      return { success: false, error: 'Código inválido ou já utilizado.' };
+    }
     
     const data = snapshot.docs[0].data();
-    if (data.expiresAt.toDate() < new Date()) return { success: false, error: 'Código expirado.' };
+    const expiration = data.expiresAt.toDate();
+    
+    if (expiration < new Date()) {
+      console.warn(`[Verify] Código ${cleanCode} expirou em ${expiration}`);
+      return { success: false, error: 'Este código expirou. Solicite um novo.' };
+    }
 
+    console.log(`[Verify] Código validado com sucesso para ${normalizedEmail}`);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: `Falha na validação: ${error.message}` };
+    console.error('[Verify Error]', error);
+    return { success: false, error: `Falha técnica: ${error.message}` };
   }
 }
 
@@ -117,17 +131,19 @@ export async function resetPasswordWithCode(email: string, code: string, passwor
   try {
     const db = getAdminDb();
     const auth = getAdminAuth();
+    const normalizedEmail = email.trim().toLowerCase();
+    const cleanCode = code.trim().toUpperCase();
     
     const snapshot = await db.collection('password_reset_codes')
-      .where('email', '==', email.toLowerCase())
-      .where('code', '==', code.toUpperCase())
+      .where('email', '==', normalizedEmail)
+      .where('code', '==', cleanCode)
       .where('used', '==', false)
       .limit(1)
       .get();
 
-    if (snapshot.empty) throw new Error("Código expirado ou já utilizado.");
+    if (snapshot.empty) throw new Error("Código inválido ou expirado.");
 
-    const userRecord = await auth.getUserByEmail(email);
+    const userRecord = await auth.getUserByEmail(normalizedEmail);
     await auth.updateUser(userRecord.uid, { password });
     
     await snapshot.docs[0].ref.update({ 
@@ -135,8 +151,10 @@ export async function resetPasswordWithCode(email: string, code: string, passwor
       usedAt: FieldValue.serverTimestamp() 
     });
 
+    console.log(`[Reset] Senha atualizada com sucesso para ${normalizedEmail}`);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: `Falha na redefinição: ${error.message}` };
+    console.error('[Reset Error]', error);
+    return { success: false, error: `Não foi possível trocar a senha: ${error.message}` };
   }
 }
