@@ -1,4 +1,4 @@
-import { getApps, initializeApp, cert, type App } from 'firebase-admin/app';
+import { getApps, initializeApp, credential, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 
@@ -13,21 +13,22 @@ function getAdminApp(): App {
 
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
+  let privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKeyRaw) {
-    throw new Error(`Credenciais Admin ausentes no ambiente. Verifique o arquivo .env.`);
+    console.error('[Admin SDK] Variáveis ausentes:', { projectId: !!projectId, clientEmail: !!clientEmail, privateKey: !!privateKeyRaw });
+    throw new Error(`Credenciais Admin ausentes no ambiente.`);
   }
 
   try {
-    // Sanitização profunda da chave privada
+    // Sanitização profunda da chave privada para tratar PEM inválido
     const privateKey = privateKeyRaw
-      .replace(/^"|"$/g, '') // remove aspas no início/fim
-      .replace(/\\n/g, '\n') // substitui \n literal por quebra de linha real
+      .replace(/^"|"$/g, '') 
+      .replace(/\\n/g, '\n')
       .trim();
 
     return initializeApp({
-      credential: cert({
+      credential: credential.cert({
         projectId,
         clientEmail,
         privateKey,
@@ -35,7 +36,7 @@ function getAdminApp(): App {
       projectId,
     }, 'admin-app');
   } catch (error: any) {
-    console.error('[Admin SDK] Erro de Inicialização:', error.message);
+    console.error('[Admin SDK] Erro de Inicialização Crítico:', error.message);
     throw error;
   }
 }
