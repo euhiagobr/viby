@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Calendar, MapPin, Clock, Ticket, Navigation, Megaphone, BadgeCheck, Zap } from "lucide-react"
+import { Calendar, MapPin, Clock, Ticket, Navigation, Megaphone, BadgeCheck, Zap, ArrowRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,7 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { calculateDistance, type Coordinates } from "@/lib/location-utils"
-import { useFirestore, useDoc, useAuth, useUser } from "@/firebase"
+import { useFirestore, useDoc, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
 import { doc, updateDoc, increment, serverTimestamp, getDoc, setDoc } from "firebase/firestore"
 import { AgeRatingBadge } from "@/lib/age-rating"
 
