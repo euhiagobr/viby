@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -11,7 +10,7 @@ import { toast } from "@/hooks/use-toast"
 import { verifyRecoveryCode, requestPasswordRecovery } from "@/app/actions/password-recovery"
 import Footer from "@/components/layout/Footer"
 
-export default function VerifyCodePage() {
+function VerifyCodeContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const email = searchParams.get("email") || ""
@@ -95,5 +94,13 @@ export default function VerifyCodePage() {
       </div>
       <Footer />
     </div>
+  )
+}
+
+export default function VerifyCodePage() {
+  return (
+    <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>}>
+      <VerifyCodeContent />
+    </React.Suspense>
   )
 }

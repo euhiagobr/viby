@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -12,7 +11,7 @@ import { toast } from "@/hooks/use-toast"
 import { resetPasswordWithCode } from "@/app/actions/password-recovery"
 import Footer from "@/components/layout/Footer"
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const email = searchParams.get("email") || ""
@@ -120,5 +119,13 @@ export default function ResetPasswordPage() {
       </div>
       <Footer />
     </div>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>}>
+      <ResetPasswordContent />
+    </React.Suspense>
   )
 }
