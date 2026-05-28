@@ -18,14 +18,22 @@ function getAdminApp(): App {
 
   if (!projectId || !clientEmail || !privateKeyRaw) {
     console.error('CRITICAL: Firebase Admin credentials missing in environment.');
-    // Retornamos um erro que será capturado pelas rotas, em vez de um objeto que quebrará chamadas de função
     throw new Error('FIREBASE_ADMIN_NOT_CONFIGURED');
   }
 
   try {
-    const privateKey = privateKeyRaw
-      .replace(/^"|"$/g, '')
-      .replace(/\\n/g, '\n');
+    // Tratamento robusto para chaves PEM (corrige erros comuns de escape \n e aspas)
+    let privateKey = privateKeyRaw
+      .replace(/^"|"$/g, '') // Remove aspas no início/fim
+      .replace(/\\n/g, '\n'); // Converte \n literais para quebras de linha reais
+
+    // Garante que a chave comece e termine corretamente
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+      privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}`;
+    }
+    if (!privateKey.includes('-----END PRIVATE KEY-----')) {
+      privateKey = `${privateKey}\n-----END PRIVATE KEY-----\n`;
+    }
 
     return initializeApp({
       credential: cert({
@@ -47,8 +55,7 @@ export const getAdminAuth = () => getAuth(getAdminApp());
 export const getAdminDb = () => getFirestore(getAdminApp(), 'eventosviby');
 
 /**
- * Proxies para manter compatibilidade com o código existente, 
- * garantindo que chamadas como .collection() não falhem por objeto nulo/vazio.
+ * Proxies para manter compatibilidade com o código existente.
  */
 export const adminAuth = {
   getUserByEmail: (email: string) => getAdminAuth().getUserByEmail(email),

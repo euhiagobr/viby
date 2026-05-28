@@ -18,7 +18,7 @@ async function logEmail(data: {
   type: string;
 }) {
   try {
-    // Usamos adminDb para consistência absoluta no servidor
+    // Usamos adminDb para consistência absoluta no servidor e bypass de regras de cliente
     await adminDb.collection('sent_emails').add({
       ...data,
       timestamp: FieldValue.serverTimestamp(),
