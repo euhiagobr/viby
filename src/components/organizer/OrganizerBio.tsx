@@ -40,7 +40,7 @@ export function OrganizerBio({ bio }: OrganizerBioProps) {
         <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
           <Sparkles className="w-5 h-5" />
         </div>
-        <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Manifesto & História</h2>
+        <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Sobre</h2>
       </div>
       
       <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden p-8 md:p-12 relative group">

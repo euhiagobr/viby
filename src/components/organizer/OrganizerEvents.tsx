@@ -17,7 +17,7 @@ export function OrganizerEvents({ events, title, isPast = false }: OrganizerEven
       <div className="space-y-1 px-2">
         <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">{title}</h2>
         <p className="text-muted-foreground font-medium">
-          {isPast ? "Reveja o que já aconteceu." : "Garanta seu lugar nos próximos lançamentos."}
+          {isPast ? "Reveja o que já aconteceu." : "Garante seu lugar nos próximos eventos."}
         </p>
       </div>
 
