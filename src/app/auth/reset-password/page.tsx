@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -14,7 +15,7 @@ import Footer from "@/components/layout/Footer"
 function ResetPasswordContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const email = searchParams.get("email") || ""
+  const requestId = searchParams.get("req") || ""
   const code = searchParams.get("code") || ""
 
   const [password, setPassword] = React.useState("")
@@ -23,8 +24,8 @@ function ResetPasswordContent() {
   const [success, setSuccess] = React.useState(false)
 
   React.useEffect(() => {
-    if (!email || !code) router.push("/auth/forgot-password")
-  }, [email, code, router])
+    if (!requestId || !code) router.push("/auth/forgot-password")
+  }, [requestId, code, router])
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,7 +36,7 @@ function ResetPasswordContent() {
 
     setLoading(true)
     try {
-      const result = await resetPasswordWithCode(email, code, password)
+      const result = await resetPasswordWithCode(requestId, code, password)
       if (result.success) {
         setSuccess(true)
         toast({ title: "Sucesso!", description: "Sua senha foi redefinida." })
@@ -82,7 +83,7 @@ function ResetPasswordContent() {
                <Lock className="w-8 h-8" />
             </div>
             <CardTitle className="text-3xl font-black italic uppercase tracking-tighter text-primary">Nova Senha</CardTitle>
-            <CardDescription className="text-center font-medium px-4">Crie uma senha forte de no mínimo 8 caracteres.</CardDescription>
+            <CardDescription className="text-center font-medium px-4">Crie uma senha forte de no mínimo 6 caracteres.</CardDescription>
           </CardHeader>
           <CardContent className="px-10 pb-6">
             <form onSubmit={handleReset} className="space-y-6">
@@ -110,7 +111,7 @@ function ResetPasswordContent() {
                   />
                 </div>
               </div>
-              <Button type="submit" disabled={loading || password.length < 8} className="w-full bg-secondary text-white font-black h-16 rounded-[1.5rem] shadow-xl uppercase italic text-lg transition-transform hover:scale-[1.02]">
+              <Button type="submit" disabled={loading || password.length < 6} className="w-full bg-secondary text-white font-black h-16 rounded-[1.5rem] shadow-xl uppercase italic text-lg transition-transform hover:scale-[1.02]">
                 {loading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : "Redefinir Senha"}
               </Button>
             </form>

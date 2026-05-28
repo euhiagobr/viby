@@ -2,9 +2,7 @@
 import CryptoJS from 'crypto-js';
 
 /**
- * @fileOverview Utilitários de criptografia.
- * ADVERTÊNCIA: A chave ENCRYPTION_KEY deve ser configurada via variáveis de ambiente.
- * A descriptografia deve ocorrer preferencialmente no servidor.
+ * @fileOverview Utilitários de criptografia e mascaramento de dados.
  */
 
 const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_CRYPTO_KEY || 'viby-secure-key-2024-proto';
@@ -53,4 +51,32 @@ export function maskCPF(cpf: string): string {
   const clean = cpf.replace(/\D/g, "");
   if (clean.length !== 11) return "***.***.***-**";
   return `***.${clean.substring(3, 6)} .***-**`;
+}
+
+/**
+ * Mascara o e-mail para privacidade (Ex: anitta@anitta.com.br -> an****@an****.***.**)
+ */
+export function maskEmail(email: string): string {
+  if (!email || !email.includes("@")) return email;
+  
+  const [local, domain] = email.split("@");
+  
+  // Mascara o local (antes do @)
+  const maskedLocal = local.length > 2 
+    ? local.substring(0, 2) + "*".repeat(local.length - 2)
+    : local + "*";
+
+  // Mascara o domínio parte por parte
+  const domainParts = domain.split(".");
+  const maskedDomainParts = domainParts.map((part, index) => {
+    if (index === 0) { // Primeira parte (ex: gmail, anitta)
+      return part.length > 2 
+        ? part.substring(0, 2) + "*".repeat(part.length - 2)
+        : part + "*";
+    }
+    // Extensões (ex: com, br)
+    return "*".repeat(part.length);
+  });
+
+  return `${maskedLocal}@${maskedDomainParts.join(".")}`;
 }

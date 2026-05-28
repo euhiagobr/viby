@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -13,15 +14,16 @@ import Footer from "@/components/layout/Footer"
 function VerifyCodeContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const email = searchParams.get("email") || ""
+  const requestId = searchParams.get("req") || ""
+  const maskedEmail = searchParams.get("display") || "seu e-mail"
 
   const [code, setCode] = React.useState("")
   const [loading, setLoading] = React.useState(false)
   const [resending, setResending] = React.useState(false)
 
   React.useEffect(() => {
-    if (!email) router.push("/auth/forgot-password")
-  }, [email, router])
+    if (!requestId) router.push("/auth/forgot-password")
+  }, [requestId, router])
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,10 +31,10 @@ function VerifyCodeContent() {
 
     setLoading(true)
     try {
-      const result = await verifyRecoveryCode(email, code)
+      const result = await verifyRecoveryCode(requestId, code)
       if (result.success) {
         toast({ title: "Código validado!", description: "Defina sua nova senha agora." })
-        router.push(`/auth/reset-password?email=${encodeURIComponent(email)}&code=${encodeURIComponent(code)}`)
+        router.push(`/auth/reset-password?req=${encodeURIComponent(requestId)}&code=${encodeURIComponent(code)}&display=${encodeURIComponent(maskedEmail)}`)
       } else {
         toast({ variant: "destructive", title: "Erro", description: result.error })
         setCode("")
@@ -41,22 +43,6 @@ function VerifyCodeContent() {
       toast({ variant: "destructive", title: "Erro", description: "Falha na verificação." })
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleResend = async () => {
-    setResending(true)
-    try {
-      const result = await requestPasswordRecovery(email)
-      if (result.success) {
-        toast({ title: "Código reenviado!" })
-      } else {
-        toast({ variant: "destructive", title: "Erro", description: result.error })
-      }
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro", description: "Falha ao reenviar." })
-    } finally {
-      setResending(false)
     }
   }
 
@@ -69,7 +55,7 @@ function VerifyCodeContent() {
                <ShieldCheck className="w-8 h-8" />
             </div>
             <CardTitle className="text-3xl font-black italic uppercase tracking-tighter text-primary">Verificação</CardTitle>
-            <CardDescription className="text-center font-medium px-4">Insira o código de 6 caracteres enviado para <strong>{email}</strong>.</CardDescription>
+            <CardDescription className="text-center font-medium px-4">Insira o código de 6 caracteres enviado para <strong>{maskedEmail}</strong>.</CardDescription>
           </CardHeader>
           <CardContent className="px-10 pb-6">
             <form onSubmit={handleVerify} className="space-y-8">
@@ -80,16 +66,6 @@ function VerifyCodeContent() {
               </Button>
             </form>
           </CardContent>
-          <CardFooter className="flex flex-col gap-4 border-t border-border mt-4 py-8 bg-muted/20 text-center">
-            <button 
-              onClick={handleResend}
-              disabled={resending}
-              className="text-xs font-bold text-secondary flex items-center gap-2 uppercase tracking-widest hover:underline disabled:opacity-50"
-            >
-              {resending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-              Não recebi o código
-            </button>
-          </CardFooter>
         </Card>
       </div>
       <Footer />

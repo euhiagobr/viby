@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -33,9 +34,9 @@ export default function RedefinirSenhaPage() {
     setLoading(true)
     try {
       const result = await requestPasswordRecovery(identifier)
-      if (result.success && result.email) {
+      if (result.success && result.requestId) {
         toast({ title: "Código enviado!", description: "Confira seu e-mail para validar o acesso." })
-        router.push(`/auth/verify-code?email=${encodeURIComponent(result.email)}`)
+        router.push(`/auth/verify-code?req=${encodeURIComponent(result.requestId)}&display=${encodeURIComponent(result.maskedEmail || "")}`)
       } else {
         toast({ variant: "destructive", title: "Erro na solicitação", description: result.error })
       }

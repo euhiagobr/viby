@@ -1,12 +1,14 @@
+
 'use server';
 
 import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { headers } from 'next/headers';
 import { sendPasswordResetLinkEmail } from './email';
+import { maskEmail } from '@/lib/crypto-utils';
 
 /**
- * @fileOverview Recuperação de senha com proteção contra vazamento de chaves.
+ * @fileOverview Recuperação de senha com proteção contra vazamento de chaves e privacidade de e-mail.
  */
 
 const GENERATOR_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -50,9 +52,9 @@ export async function requestPasswordRecovery(identifier: string) {
     await auth.getUserByEmail(resolvedEmail);
 
     const code = generateOTP();
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); 
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 60 minutos
 
-    await db.collection('password_reset_codes').add({
+    const docRef = await db.collection('password_reset_codes').add({
       email: resolvedEmail,
       code,
       createdAt: FieldValue.serverTimestamp(),
@@ -72,37 +74,36 @@ export async function requestPasswordRecovery(identifier: string) {
       return { success: false, error: 'Falha ao enviar e-mail. Tente novamente mais tarde.' };
     }
 
-    return { success: true, email: resolvedEmail };
+    // Retorna o ID da solicitação e o e-mail mascarado para o cliente
+    return { 
+      success: true, 
+      requestId: docRef.id,
+      maskedEmail: maskEmail(resolvedEmail) 
+    };
   } catch (error: any) {
     console.error('[Recovery Error Filtered]');
-    // Impede que o erro técnico (que pode conter a chave PEM) chegue ao frontend
     return { success: false, error: 'Falha técnica no servidor de autenticação.' };
   }
 }
 
-export async function verifyRecoveryCode(email: string, code: string) {
+export async function verifyRecoveryCode(requestId: string, code: string) {
   try {
     const db = getAdminDb();
-    const normalizedEmail = email.trim().toLowerCase();
     const cleanCode = code.trim().toUpperCase();
 
-    const snapshot = await db.collection('password_reset_codes')
-      .where('email', '==', normalizedEmail)
-      .where('used', '==', false)
-      .get();
+    const docRef = db.collection('password_reset_codes').doc(requestId);
+    const snap = await docRef.get();
 
-    if (snapshot.empty) {
-      return { success: false, error: 'Nenhum código pendente.' };
+    if (!snap.exists) {
+      return { success: false, error: 'Solicitação não encontrada.' };
     }
     
+    const data = snap.data();
     const now = new Date();
-    const validCodes = snapshot.docs
-      .map(d => d.data())
-      .filter((d: any) => d.code === cleanCode && d.expiresAt.toDate() > now);
 
-    if (validCodes.length === 0) {
-      return { success: false, error: 'Código incorreto ou expirado.' };
-    }
+    if (data?.used) return { success: false, error: 'Este código já foi utilizado.' };
+    if (data?.code !== cleanCode) return { success: false, error: 'Código incorreto.' };
+    if (data?.expiresAt.toDate() < now) return { success: false, error: 'Código expirado.' };
 
     return { success: true };
   } catch (error: any) {
@@ -110,27 +111,24 @@ export async function verifyRecoveryCode(email: string, code: string) {
   }
 }
 
-export async function resetPasswordWithCode(email: string, code: string, password: string) {
+export async function resetPasswordWithCode(requestId: string, code: string, password: string) {
   try {
     const db = getAdminDb();
     const auth = getAdminAuth();
-    const normalizedEmail = email.trim().toLowerCase();
     const cleanCode = code.trim().toUpperCase();
     
-    const snapshot = await db.collection('password_reset_codes')
-      .where('email', '==', normalizedEmail)
-      .where('code', '==', cleanCode)
-      .where('used', '==', false)
-      .limit(1)
-      .get();
+    const docRef = db.collection('password_reset_codes').doc(requestId);
+    const snap = await docRef.get();
 
-    if (snapshot.empty) throw new Error("Código inválido.");
+    if (!snap.exists) throw new Error("Solicitação inválida.");
 
-    const latestDoc = snapshot.docs[0];
-    const userRecord = await auth.getUserByEmail(normalizedEmail);
+    const data = snap.data();
+    if (data?.used || data?.code !== cleanCode) throw new Error("Validação falhou.");
+
+    const userRecord = await auth.getUserByEmail(data.email);
     
     await auth.updateUser(userRecord.uid, { password });
-    await latestDoc.ref.update({ used: true, usedAt: FieldValue.serverTimestamp() });
+    await docRef.update({ used: true, usedAt: FieldValue.serverTimestamp() });
 
     return { success: true };
   } catch (error: any) {
