@@ -1,19 +1,23 @@
 'use client';
 
 import { ReactNode } from 'react';
-import { auth, db, storage } from './index';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { firebaseConfig } from './config';
+// Importação direta dos arquivos de inicialização para evitar dependência circular com index.ts
+import { app } from './apps';
+import { auth } from './auth';
+import { db } from './database';
+import { storage } from './storage';
 import { FirebaseProvider } from './provider';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
+/**
+ * Provedor de cliente que garante a inicialização única do Firebase.
+ * Registra também o listener global de erros de permissão.
+ */
 export function FirebaseClientProvider({
   children,
 }: {
   children: ReactNode;
 }) {
-  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-
   return (
     <FirebaseProvider 
       firebaseApp={app}

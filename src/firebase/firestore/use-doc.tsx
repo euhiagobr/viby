@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -9,8 +8,6 @@ import {
   DocumentData,
   FirestoreError,
 } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 /**
  * Hook para escutar um documento do Firestore de forma estável.
@@ -32,7 +29,7 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
 
     setLoading(true);
     
-    let unsubscribe = () => {};
+    let unsubscribe: (() => void) | undefined;
 
     try {
       unsubscribe = onSnapshot(
@@ -64,6 +61,7 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
         }
       );
     } catch (err) {
+      console.error("[useDoc] Erro ao iniciar listener:", err);
       if (isMounted) {
         setData(null);
         setLoading(false);
@@ -72,7 +70,9 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
 
     return () => {
       isMounted = false;
-      unsubscribe();
+      if (unsubscribe && typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
     };
   }, [docRef]);
 

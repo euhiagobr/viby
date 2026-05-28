@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -9,12 +8,11 @@ import {
   DocumentData,
   FirestoreError,
 } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 /**
  * Hook para escutar coleções do Firestore de forma estável.
  * Implementa try/catch e silent fail para usuários deslogados.
+ * Reforçada a limpeza do listener para evitar erros de estado interno do SDK.
  */
 export function useCollection<T = DocumentData>(query: Query<T> | null) {
   const [data, setData] = useState<T[] | null>(null);
@@ -32,7 +30,7 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
 
     setLoading(true);
     
-    let unsubscribe = () => {};
+    let unsubscribe: (() => void) | undefined;
 
     try {
       unsubscribe = onSnapshot(
@@ -54,7 +52,7 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
 
           // Silent fail para erros de permissão em navegação pública
           if (serverError.code === 'permission-denied') {
-            console.warn(`[Firestore] Acesso negado ou restrito a: ${(query as any)._query?.path?.toString() || 'unknown'}. Retornando lista vazia.`);
+            console.warn(`[Firestore] Acesso negado ou restrito. Retornando lista vazia.`);
             setData([]);
           } else {
             console.error(`[Firestore Error] ${serverError.code}: ${serverError.message}`);
@@ -65,6 +63,7 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
         }
       );
     } catch (err) {
+      console.error("[useCollection] Erro ao iniciar listener:", err);
       if (isMounted) {
         setData([]);
         setLoading(false);
@@ -73,7 +72,9 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
 
     return () => {
       isMounted = false;
-      unsubscribe();
+      if (unsubscribe && typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
     };
   }, [query]);
 

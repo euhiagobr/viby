@@ -1,16 +1,15 @@
 'use client';
 
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import { firebaseConfig } from './config';
+/**
+ * @fileOverview Ponto de entrada central para o Firebase no cliente.
+ * Atua como um "barrel file" para re-exportar instâncias e hooks.
+ * As instâncias reais são inicializadas em arquivos separados para evitar dependências circulares.
+ */
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-
-export const auth = getAuth(app);
-export const db = getFirestore(app, "eventosviby");
-export const storage = getStorage(app);
+export { app } from './apps';
+export { auth } from './auth';
+export { db } from './database';
+export { storage } from './storage';
 
 export {
   FirebaseProvider,
