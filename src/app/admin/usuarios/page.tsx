@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -54,7 +55,9 @@ import {
   Mail,
   Instagram,
   MapPin,
-  Fingerprint
+  Fingerprint,
+  Type,
+  FileText
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -482,42 +485,75 @@ export default function AdminUsuariosPage() {
            <form onSubmit={handleUpdateOrg} className="flex-1 overflow-hidden flex flex-col">
               <ScrollArea className="flex-1 p-8">
                  <div className="space-y-10 pb-10">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                       <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase opacity-60">Nome da Marca</Label>
-                          <Input value={editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, name: e.target.value})} className="rounded-xl h-11" required />
-                       </div>
-                       <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label>
-                          <div className="relative">
-                             <Input 
-                               value={editingOrg?.username || ""} 
-                               onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} 
-                               className={cn(
-                                 "rounded-xl h-11 pr-10",
-                                 usernameStatus === 'valid' ? 'border-green-500' : usernameStatus === 'taken' ? 'border-destructive' : ''
-                               )} 
-                             />
-                             <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin opacity-40" /> : 
-                                 usernameStatus === 'taken' ? <X className="w-4 h-4 text-destructive" /> : 
-                                 usernameStatus === 'valid' ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : null}
+                    <div className="space-y-6">
+                       <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                          <Building2 className="w-4 h-4" /> Dados de Identidade
+                       </h3>
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-3">
+                             <div className="flex items-center justify-between">
+                                <Label className="text-[10px] font-black uppercase opacity-60">Nome da Marca</Label>
+                                <VisibilityToggleSwitch checked={editingOrg?.showName ?? true} onChange={v => setEditingOrg({...editingOrg, showName: v})} />
                              </div>
+                             <Input value={editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, name: e.target.value})} className="rounded-xl h-11" required />
+                          </div>
+                          <div className="space-y-2">
+                             <Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label>
+                             <div className="relative">
+                                <Input 
+                                  value={editingOrg?.username || ""} 
+                                  onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} 
+                                  className={cn(
+                                    "rounded-xl h-11 pr-10",
+                                    usernameStatus === 'valid' ? 'border-green-500' : usernameStatus === 'taken' ? 'border-destructive' : ''
+                                  )} 
+                                />
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                   {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin opacity-40" /> : 
+                                    usernameStatus === 'taken' ? <X className="w-4 h-4 text-destructive" /> : 
+                                    usernameStatus === 'valid' ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : null}
+                                </div>
+                             </div>
+                          </div>
+                       </div>
+                       
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-3">
+                             <div className="flex items-center justify-between">
+                                <Label className="text-[10px] font-black uppercase opacity-60">Tipo/Segmento</Label>
+                                <VisibilityToggleSwitch checked={editingOrg?.showType ?? true} onChange={v => setEditingOrg({...editingOrg, showType: v})} />
+                             </div>
+                             <Input value={editingOrg?.type || ""} onChange={e => setEditingOrg({...editingOrg, type: e.target.value})} className="rounded-xl" />
+                          </div>
+                          <div className="space-y-3">
+                             <div className="flex items-center justify-between">
+                                <Label className="text-[10px] font-black uppercase opacity-60">Bio / Manifesto</Label>
+                                <VisibilityToggleSwitch checked={editingOrg?.showBio ?? true} onChange={v => setEditingOrg({...editingOrg, showBio: v})} />
+                             </div>
+                             <Textarea value={editingOrg?.bio || ""} onChange={e => setEditingOrg({...editingOrg, bio: e.target.value})} className="rounded-xl h-10 min-h-[40px] resize-none" />
                           </div>
                        </div>
                     </div>
 
+                    <Separator className="border-dashed" />
+
                     <div className="space-y-6">
                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                          <Fingerprint className="w-4 h-4" /> Dados Fiscais (Públicos)
+                          <Fingerprint className="w-4 h-4" /> Dados Fiscais
                        </h3>
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="space-y-2">
-                             <Label className="text-[10px] font-black uppercase opacity-60">Razão Social</Label>
+                          <div className="space-y-3">
+                             <div className="flex items-center justify-between">
+                                <Label className="text-[10px] font-black uppercase opacity-60">Razão Social</Label>
+                                <VisibilityToggleSwitch checked={editingOrg?.showLegalName ?? true} onChange={v => setEditingOrg({...editingOrg, showLegalName: v})} />
+                             </div>
                              <Input value={editingOrg?.legalName || ""} onChange={e => setEditingOrg({...editingOrg, legalName: e.target.value})} className="rounded-xl" />
                           </div>
-                          <div className="space-y-2">
-                             <Label className="text-[10px] font-black uppercase opacity-60">CNPJ</Label>
+                          <div className="space-y-3">
+                             <div className="flex items-center justify-between">
+                                <Label className="text-[10px] font-black uppercase opacity-60">CNPJ</Label>
+                                <VisibilityToggleSwitch checked={editingOrg?.showCnpj ?? true} onChange={v => setEditingOrg({...editingOrg, showCnpj: v})} />
+                             </div>
                              <Input value={editingOrg?.cnpj || ""} onChange={e => setEditingOrg({...editingOrg, cnpj: e.target.value})} className="rounded-xl" />
                           </div>
                        </div>
@@ -527,7 +563,40 @@ export default function AdminUsuariosPage() {
 
                     <div className="space-y-6">
                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                          <Eye className="w-4 h-4" /> Controle de Visibilidade
+                          <MapPin className="w-4 h-4" /> Endereço e Localização
+                       </h3>
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <VisibilityToggle 
+                            label="Endereço Completo (Rua/Nº)" 
+                            icon={MapPin} 
+                            checked={editingOrg?.showAddress ?? true} 
+                            onChange={v => setEditingOrg({...editingOrg, showAddress: v})} 
+                          />
+                          <VisibilityToggle 
+                            label="Bairro" 
+                            icon={MapPin} 
+                            checked={editingOrg?.showNeighborhood ?? true} 
+                            onChange={v => setEditingOrg({...editingOrg, showNeighborhood: v})} 
+                          />
+                          <VisibilityToggle 
+                            label="Cidade e Estado" 
+                            icon={Globe} 
+                            checked={editingOrg?.showState ?? true} 
+                            onChange={v => setEditingOrg({...editingOrg, showState: v})} 
+                          />
+                       </div>
+                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="space-y-2"><Label className="text-[9px] uppercase opacity-40">CEP</Label><Input value={editingOrg?.cep || ""} onChange={e => setEditingOrg({...editingOrg, cep: e.target.value})} className="h-9 text-xs" /></div>
+                          <div className="md:col-span-2 space-y-2"><Label className="text-[9px] uppercase opacity-40">Rua/Logradouro</Label><Input value={editingOrg?.street || ""} onChange={e => setEditingOrg({...editingOrg, street: e.target.value})} className="h-9 text-xs" /></div>
+                          <div className="space-y-2"><Label className="text-[9px] uppercase opacity-40">Nº</Label><Input value={editingOrg?.number || ""} onChange={e => setEditingOrg({...editingOrg, number: e.target.value})} className="h-9 text-xs" /></div>
+                       </div>
+                    </div>
+
+                    <Separator className="border-dashed" />
+
+                    <div className="space-y-6">
+                       <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                          <Eye className="w-4 h-4" /> Canais de Contato
                        </h3>
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <VisibilityToggle 
@@ -554,25 +623,6 @@ export default function AdminUsuariosPage() {
                             checked={editingOrg?.showInstagram ?? true} 
                             onChange={v => setEditingOrg({...editingOrg, showInstagram: v})} 
                           />
-                       </div>
-                       
-                       <div className="p-4 bg-primary/5 rounded-2xl border-2 border-dashed border-primary/10">
-                          <p className="text-[9px] font-black uppercase text-primary italic mb-3">Privacidade de Endereço</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <VisibilityToggle 
-                               label="Endereço Completo (Rua/Nº)" 
-                               icon={MapPin} 
-                               checked={editingOrg?.showAddress ?? true} 
-                               onChange={v => setEditingOrg({...editingOrg, showAddress: v})} 
-                             />
-                             <div className="p-3 flex items-center justify-between opacity-50 bg-muted rounded-xl">
-                                <div className="flex items-center gap-2">
-                                   <MapPin className="w-4 h-4" />
-                                   <span className="text-[10px] font-black uppercase">Bairro, Cidade e UF</span>
-                                </div>
-                                <Badge variant="outline" className="text-[8px] font-black uppercase border-green-200 text-green-600">Sempre Público</Badge>
-                             </div>
-                          </div>
                        </div>
                     </div>
 
@@ -665,10 +715,16 @@ function VisibilityToggle({ label, icon: Icon, checked, onChange }: { label: str
           </div>
           <span className="text-[10px] font-black uppercase tracking-tight">{label}</span>
        </div>
-       <div className="flex items-center gap-2">
-          {checked ? <Eye className="w-3 h-3 text-green-600" /> : <EyeOff className="w-3 h-3 text-muted-foreground" />}
-          <Switch checked={checked} onCheckedChange={onChange} className="scale-75 origin-right" />
-       </div>
+       <VisibilityToggleSwitch checked={checked} onChange={onChange} />
+    </div>
+  )
+}
+
+function VisibilityToggleSwitch({ checked, onChange }: { checked: boolean, onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      {checked ? <Eye className="w-3 h-3 text-green-600" /> : <EyeOff className="w-3 h-3 text-muted-foreground" />}
+      <Switch checked={checked} onCheckedChange={onChange} className="scale-75 origin-right" />
     </div>
   )
 }

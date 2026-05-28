@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -5,7 +6,7 @@ import { OrganizerBio } from "./OrganizerBio";
 import { OrganizerSocials } from "./OrganizerSocials";
 import { OrganizerMap } from "./OrganizerMap";
 import { Card, CardContent } from "@/components/ui/card";
-import { Phone, Mail, Globe, MapPin, Building2, ExternalLink, Fingerprint, Map as MapIcon } from "lucide-react";
+import { Phone, Mail, Globe, MapPin, Building2, ExternalLink, Fingerprint, Map as MapIcon, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface OrganizerAboutProps {
@@ -18,58 +19,71 @@ export function OrganizerAbout({ organization }: OrganizerAboutProps) {
     (organization.showEmail && (organization.contactEmail || organization.email)) ||
     (organization.showWebsite && organization.website);
 
+  const hasFiscalData = (organization.showLegalName && organization.legalName) || (organization.showCnpj && organization.cnpj);
+  const showLocationCard = organization.showNeighborhood || organization.showState;
+
   return (
     <div className="grid grid-cols-1 gap-20">
       {/* 1. Manifesto / Bio */}
-      <OrganizerBio bio={organization.bio} />
+      {organization.showBio !== false && organization.bio && (
+        <OrganizerBio bio={organization.bio} />
+      )}
 
-      {/* 2. Dados Fiscais (Sempre visíveis conforme solicitado) */}
-      <section className="space-y-6">
-        <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Dados Institucionais</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* 2. Dados Fiscais */}
+      {hasFiscalData && (
+        <section className="space-y-6">
+          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Dados Institucionais</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {organization.showLegalName !== false && organization.legalName && (
+              <Card className="border-none shadow-sm rounded-3xl bg-white">
+                <CardContent className="p-6 flex items-center gap-4">
+                  <div className="p-3 bg-primary/5 rounded-2xl text-primary">
+                    <Building2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Razão Social</p>
+                    <p className="font-bold text-sm text-primary uppercase">{organization.legalName}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {organization.showCnpj !== false && organization.cnpj && (
+              <Card className="border-none shadow-sm rounded-3xl bg-white">
+                <CardContent className="p-6 flex items-center gap-4">
+                  <div className="p-3 bg-primary/5 rounded-2xl text-primary">
+                    <Fingerprint className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">CNPJ</p>
+                    <p className="font-mono text-sm text-primary">{organization.cnpj}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* 3. Localização (Bairro, Cidade e Estado controlados) */}
+      {showLocationCard && (
+        <section className="space-y-6">
+          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Localização</h2>
           <Card className="border-none shadow-sm rounded-3xl bg-white">
             <CardContent className="p-6 flex items-center gap-4">
-              <div className="p-3 bg-primary/5 rounded-2xl text-primary">
-                <Building2 className="w-5 h-5" />
+              <div className="p-3 bg-secondary/5 rounded-2xl text-secondary">
+                <MapIcon className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Razão Social</p>
-                <p className="font-bold text-sm text-primary uppercase">{organization.legalName || organization.name}</p>
+                <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Sede</p>
+                <p className="font-bold text-sm text-primary uppercase">
+                  {organization.showNeighborhood !== false && organization.neighborhood ? `${organization.neighborhood}, ` : ""}
+                  {organization.showState !== false ? `${organization.city} - ${organization.state}` : organization.city}
+                </p>
               </div>
             </CardContent>
           </Card>
-          <Card className="border-none shadow-sm rounded-3xl bg-white">
-            <CardContent className="p-6 flex items-center gap-4">
-              <div className="p-3 bg-primary/5 rounded-2xl text-primary">
-                <Fingerprint className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">CNPJ</p>
-                <p className="font-mono text-sm text-primary">{organization.cnpj || "---"}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      {/* 3. Localização (Bairro, Cidade e Estado sempre visíveis) */}
-      <section className="space-y-6">
-        <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Localização</h2>
-        <Card className="border-none shadow-sm rounded-3xl bg-white">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-secondary/5 rounded-2xl text-secondary">
-              <MapIcon className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Sede</p>
-              <p className="font-bold text-sm text-primary uppercase">
-                {organization.neighborhood ? `${organization.neighborhood}, ` : ""}
-                {organization.city} - {organization.state}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+        </section>
+      )}
 
       {/* 4. Contact Details (Only visible fields) */}
       {hasContactInfo && (
@@ -110,6 +124,14 @@ export function OrganizerAbout({ organization }: OrganizerAboutProps) {
       {/* 6. Physical Location (Only if showAddress is true) */}
       {organization.showAddress && (
         <OrganizerMap organization={organization} />
+      )}
+
+      {/* Placeholder se tudo estiver oculto */}
+      {!hasContactInfo && !hasFiscalData && !showLocationCard && !organization.showBio && !organization.showAddress && (
+        <Card className="border-none shadow-sm rounded-[3rem] bg-white p-20 text-center flex flex-col items-center gap-4 opacity-40">
+           <Lock className="w-12 h-12 text-primary" />
+           <p className="text-[10px] font-black uppercase tracking-[0.2em]">As informações detalhadas desta marca são privadas.</p>
+        </Card>
       )}
     </div>
   );

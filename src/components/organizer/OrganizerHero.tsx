@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { Share2, Globe, Instagram } from "lucide-react";
+import { Share2, Globe, Instagram, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,9 @@ export function OrganizerHero({
     }
   };
 
+  const showName = organization.showName !== false;
+  const showType = organization.showType !== false;
+
   return (
     <section className="relative w-full overflow-hidden">
       <div className="relative h-[40vh] md:h-[50vh] w-full">
@@ -45,7 +48,7 @@ export function OrganizerHero({
         ) : (
           <div className="w-full h-full bg-primary" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
       </div>
 
       <div className="container mx-auto px-4 -mt-24 md:-mt-32 relative z-10">
@@ -66,12 +69,18 @@ export function OrganizerHero({
 
             <div className="space-y-3 pb-2">
               <div className="flex flex-col gap-1">
-                <Badge className="w-fit mx-auto md:mx-0 bg-secondary text-white font-black uppercase text-[10px] tracking-widest px-3">
-                  {organization.type || "Produtor"}
-                </Badge>
+                {showType && (
+                  <Badge className="w-fit mx-auto md:mx-0 bg-secondary text-white font-black uppercase text-[10px] tracking-widest px-3">
+                    {organization.type || "Produtor"}
+                  </Badge>
+                )}
                 <div className="flex items-center justify-center md:justify-start gap-2">
                   <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-primary leading-none">
-                    {organization.name}
+                    {showName ? (organization.name || "Marca Viby") : (
+                      <div className="flex items-center gap-2 opacity-30">
+                        <EyeOff className="w-6 h-6" /> Nome Oculto
+                      </div>
+                    )}
                   </h1>
                   {organization.verified && <VerifiedBadge />}
                 </div>
@@ -95,12 +104,12 @@ export function OrganizerHero({
             <Button variant="outline" size="icon" className="rounded-2xl h-12 w-12 border-2" onClick={handleShare} title="Compartilhar">
               <Share2 className="w-5 h-5" />
             </Button>
-            {organization.website && (
+            {organization.showWebsite && organization.website && (
               <Button variant="outline" size="icon" className="rounded-2xl h-12 w-12 border-2" asChild title="Site Oficial">
                 <a href={organization.website} target="_blank" rel="noopener noreferrer"><Globe className="w-5 h-5" /></a>
               </Button>
             )}
-            {organization.instagram && (
+            {organization.showInstagram && organization.instagram && (
               <Button variant="outline" size="icon" className="rounded-2xl h-12 w-12 border-2" asChild title="Instagram">
                 <a href={`https://instagram.com/${organization.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer"><Instagram className="w-5 h-5" /></a>
               </Button>
