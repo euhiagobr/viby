@@ -107,12 +107,13 @@ service cloud.firestore {
 
     // --- COLEÇÕES PRIVADAS E FINANCEIRAS ---
     match /registrations/{regId} {
-      allow read: if isSignedIn() && (
+      // Permite leitura se for o dono, se for a marca OU se for um check-in público (para contador de público)
+      allow read: if resource.data.checkedIn == true || (isSignedIn() && (
         resource.data.userId == request.auth.uid || 
         resource.data.sharedWithUid == request.auth.uid ||
         hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin', 'finance']) || 
         isAdmin()
-      );
+      ));
       allow create: if isSignedIn();
       allow update: if isSignedIn(); 
       allow delete: if isAdmin();
@@ -146,6 +147,32 @@ service cloud.firestore {
       allow read: if isAdmin();
     }
 
+    // --- GAMIFICAÇÃO ---
+    match /user_gamification/{userId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /cultural_stats/{userId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /xp_logs/{logId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /badges/{badgeId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /user_badges/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /password_reset_codes/{docId} {
       allow read, write: if false; 
     }
@@ -156,7 +183,7 @@ service cloud.firestore {
     }
 
     match /{path=**}/partners/{partnerId} {
-      allow read: if isSignedIn();
+      allow read: if true;
     }
 
     match /{allPaths=**} {
