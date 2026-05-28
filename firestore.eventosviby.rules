@@ -26,8 +26,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if true;
       allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isOwner(userId) || isAdmin();
-      allow delete: if isAdmin();
+      // Permite atualização se for o dono OU se estiver apenas alterando contadores de follow (necessário para social)
+      allow update: if isOwner(userId) || isAdmin() || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'followingCount', 'updatedAt', 'totalXp', 'level']));
 
       match /private/sensitive {
         allow read: if isOwner(userId) || isAdmin();
@@ -69,8 +69,8 @@ service cloud.firestore {
     match /organizations/{orgId} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow update: if hasOrgRole(orgId, ['owner', 'admin']) || isAdmin();
-      allow delete: if hasOrgRole(orgId, ['owner']) || isAdmin();
+      // Permite atualização se for gestor OU se estiver apenas alterando contador de seguidores
+      allow update: if hasOrgRole(orgId, ['owner', 'admin']) || isAdmin() || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'updatedAt', 'totalViews', 'totalReach']));
 
       match /members/{userId} {
         allow read: if isSignedIn() && (request.auth.uid == userId || hasOrgRole(orgId, ['owner', 'admin', 'editor', 'finance', 'checkin']) || isAdmin());
@@ -97,6 +97,11 @@ service cloud.firestore {
     match /ads/{adId} {
       allow read: if true;
       allow write: if isSignedIn() || isAdmin();
+      
+      match /viewers/{userId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn() && request.auth.uid == userId;
+      }
     }
 
     match /follows/{followId} {
@@ -107,7 +112,6 @@ service cloud.firestore {
 
     // --- COLEÇÕES PRIVADAS E FINANCEIRAS ---
     match /registrations/{regId} {
-      // Permite leitura se for o dono, se for a marca OU se for um check-in público (para contador de público)
       allow read: if resource.data.checkedIn == true || (isSignedIn() && (
         resource.data.userId == request.auth.uid || 
         resource.data.sharedWithUid == request.auth.uid ||
@@ -150,7 +154,7 @@ service cloud.firestore {
     // --- GAMIFICAÇÃO ---
     match /user_gamification/{userId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isSignedIn();
     }
 
     match /cultural_stats/{userId} {
@@ -160,7 +164,7 @@ service cloud.firestore {
 
     match /xp_logs/{logId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow write: if isAdmin();
+      allow write: if isSignedIn();
     }
 
     match /badges/{badgeId} {
@@ -171,6 +175,14 @@ service cloud.firestore {
     match /user_badges/{docId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+    
+    match /xp_rules/{ruleId} {
+      allow read: if true;
+    }
+    
+    match /levels/{levelId} {
+      allow read: if true;
     }
 
     match /password_reset_codes/{docId} {
