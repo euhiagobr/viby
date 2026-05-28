@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -30,7 +29,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { 
   Loader2, 
   Search, 
@@ -42,7 +40,7 @@ import {
   Save,
   BadgeCheck,
   X,
-  RefreshCw,
+  RefreshCcw,
   CheckCircle2,
   ShieldCheck,
   Coins,
@@ -61,6 +59,7 @@ import {
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
