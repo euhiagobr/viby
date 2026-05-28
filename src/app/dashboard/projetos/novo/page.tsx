@@ -496,11 +496,14 @@ export default function NovoEventoPage() {
   }
 
   const handleCepBlur = async () => {
-    const cleanCep = address.cep.replace(/\D/g, "")
-    if (cleanCep.length !== 8) return
+    if (!address.cep) return;
+    const cleanCep = address.cep.replace(/\D/g, "");
+    if (cleanCep.length !== 8) return;
+    
     try {
-      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
-      const data = await response.json()
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await response.json();
+      
       if (!data.erro) {
         setAddress(prev => ({
           ...prev,
@@ -508,14 +511,14 @@ export default function NovoEventoPage() {
           neighborhood: data.bairro || "",
           city: data.localidade || "",
           state: data.uf || ""
-        }))
+        }));
       } else {
-        toast({ variant: "destructive", title: "CEP não encontrado" })
+        toast({ variant: "destructive", title: "CEP não encontrado" });
       }
     } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao buscar CEP" })
+      toast({ variant: "destructive", title: "Erro ao buscar CEP" });
     }
-  }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -645,9 +648,9 @@ export default function NovoEventoPage() {
           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Calendar className="w-5 h-5 text-secondary" /> Informações Básicas</CardTitle></CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Título</Label><Input name="title" required className="rounded-xl h-11" placeholder="Nome do seu evento" /></div>
+                <div className="space-y-2"><Label>Título</Label><Input name="title" required className="rounded-xl h-11" placeholder="Nome do seu evento" /></div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
+                  <Label>Categoria</Label>
                   <Select value={selectedCategory} onValueChange={setSelectedCategory} required>
                     <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent className="rounded-xl">{categories?.map((c: any) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}</SelectContent>
@@ -698,10 +701,10 @@ export default function NovoEventoPage() {
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input name="startDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Término</Label><Input name="endDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
+                <div className="space-y-2"><Label>Início</Label><Input name="startDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
+                <div className="space-y-2"><Label>Término</Label><Input name="endDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
              </div>
-             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Descrição</Label><Textarea name="description" className="min-h-[120px] rounded-xl border-dashed border-secondary/30" required placeholder="Fale tudo sobre a experiência..." /></div>
+             <div className="space-y-2"><Label>Descrição</Label><Textarea name="description" className="min-h-[120px] rounded-xl border-dashed border-secondary/30" required placeholder="Fale tudo sobre a experiência..." /></div>
           </CardContent>
         </Card>
 
@@ -791,26 +794,65 @@ export default function NovoEventoPage() {
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2rem]">
-          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Headquarters Address</CardTitle>
+             <CardDescription>Address is mandatory. Use toggles to hide sensitive details from public profile.</CardDescription>
+          </CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="cep" className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
-                  <Input value={address.cep} onChange={e => setAddress({...address, cep: e.target.value})} onBlur={handleCepBlur} placeholder="00000-000" required className="rounded-xl h-11" />
+                  <Input 
+                    id="cep" 
+                    value={address.cep}
+                    onChange={e => setAddress({...address, cep: e.target.value})}
+                    onBlur={handleCepBlur}
+                    placeholder="00000-000" 
+                    required
+                    className="rounded-xl h-11"
+                  />
                 </div>
-                <div className="md:col-span-3 space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Rua</Label><Input value={address.street} onChange={e => setAddress({...address, street: e.target.value})} required className="rounded-xl h-11" /></div>
+                <div className="md:col-span-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="street" className="text-[10px] font-black uppercase tracking-widest opacity-60">Street</Label>
+                    <div className="flex items-center gap-2">
+                       <span className="text-[8px] font-bold uppercase opacity-40">{address.showAddress !== false ? 'Public' : 'Hidden'}</span>
+                       <Switch checked={address.showAddress !== false} onCheckedChange={v => setAddress({...address, showAddress: v})} />
+                    </div>
+                  </div>
+                  <Input id="street" value={address.street} onChange={e => setAddress({...address, street: e.target.value})} required className="rounded-xl h-11" />
+                </div>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Número</Label><Input id="number" value={address.number} onChange={e => setAddress({...address, number: e.target.value})} required className="rounded-xl h-11" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label><Input id="complement" value={address.complement} onChange={e => setAddress({...address, complement: e.target.value})} className="rounded-xl h-11" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input id="neighborhood" value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} required className="rounded-xl h-11" /></div>
                 <div className="space-y-2">
-                   <Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label>
-                   <Input value={address.city} readOnly required className="rounded-xl h-11 bg-muted/30" />
+                  <Label htmlFor="number" className="text-[10px] font-black uppercase tracking-widest opacity-60">Number</Label>
+                  <Input id="number" value={address.number} onChange={e => setAddress({...address, number: e.target.value})} required className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                   <Label className="text-[10px] font-black uppercase opacity-60">UF</Label>
-                   <Input value={address.state} readOnly required className="rounded-xl h-11 bg-muted/30 w-16" />
+                  <Label htmlFor="complement" className="text-[10px] font-black uppercase tracking-widest opacity-60">Complement</Label>
+                  <Input id="complement" value={address.complement} onChange={e => setAddress({...address, complement: e.target.value})} className="rounded-xl h-11" />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="neighborhood" className="text-[10px] font-black uppercase tracking-widest opacity-60">Neighborhood</Label>
+                    <div className="flex items-center gap-2">
+                       <span className="text-[8px] font-bold uppercase opacity-40">{address.showNeighborhood !== false ? 'Public' : 'Hidden'}</span>
+                       <Switch checked={address.showNeighborhood !== false} onCheckedChange={v => setAddress({...address, showNeighborhood: v})} />
+                    </div>
+                  </div>
+                  <Input id="neighborhood" value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} required className="rounded-xl h-11" />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest opacity-60">City / State</Label>
+                    <div className="flex items-center gap-2">
+                       <span className="text-[8px] font-bold uppercase opacity-40">{address.showState !== false ? 'Public' : 'Hidden'}</span>
+                       <Switch checked={address.showState !== false} onCheckedChange={v => setAddress({...address, showState: v})} />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input id="city" value={address.city} readOnly required className="rounded-xl h-11 bg-muted/30" />
+                    <Input id="state" value={address.state} readOnly required className="rounded-xl h-11 bg-muted/30 w-16" />
+                  </div>
                 </div>
              </div>
           </CardContent>
@@ -1191,10 +1233,9 @@ export default function NovoEventoPage() {
       <Dialog open={isPercentDialogOpen} onOpenChange={setIsPercentDialogOpen}>
          <DialogContent className="max-w-sm rounded-[2.5rem]">
             <DialogHeader>
-               <div className="w-12 h-12 bg-secondary/10 rounded-xl flex items-center justify-center mb-2 mx-auto text-secondary">
-                  <Percent className="w-6 h-6" />
-               </div>
+               <div className="w-12 h-12 bg-secondary/10 rounded-xl flex items-center justify-center mb-2 mx-auto text-secondary"><Percent className="w-6 h-6" /></div>
                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Meia-Entrada Automática</DialogTitle>
+               <DialogDescription className="text-center font-medium">Qual a porcentagem da capacidade total você deseja reservar para meia-entrada?</DialogDescription>
             </DialogHeader>
             <div className="py-6 space-y-6">
                <div className="relative">
@@ -1209,10 +1250,9 @@ export default function NovoEventoPage() {
       <Dialog open={isBatchPercentDialogOpen} onOpenChange={setIsBatchPercentDialogOpen}>
          <DialogContent className="max-w-sm rounded-[2.5rem]">
             <DialogHeader>
-               <div className="w-12 h-12 bg-secondary/10 rounded-xl flex items-center justify-center mb-2 mx-auto text-secondary">
-                  <Percent className="w-6 h-6" />
-               </div>
+               <div className="w-12 h-12 bg-secondary/10 rounded-xl flex items-center justify-center mb-2 mx-auto text-secondary"><Percent className="w-6 h-6" /></div>
                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Meia por Lote</DialogTitle>
+               <DialogDescription className="text-center font-medium">Defina a porcentagem de cota de meia-entrada para este lote específico.</DialogDescription>
             </DialogHeader>
             <div className="py-6 space-y-4">
                <div className="relative">

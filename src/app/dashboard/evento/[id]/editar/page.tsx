@@ -358,11 +358,13 @@ export default function EditarEventoPage() {
 
   const handleCepBlur = async () => {
     if (!address.cep) return;
-    const cleanCep = address.cep.replace(/\D/g, "")
-    if (cleanCep.length !== 8) return
+    const cleanCep = address.cep.replace(/\D/g, "");
+    if (cleanCep.length !== 8) return;
+    
     try {
-      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
-      const data = await response.json()
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await response.json();
+      
       if (!data.erro) {
         setAddress(prev => ({
           ...prev,
@@ -370,14 +372,14 @@ export default function EditarEventoPage() {
           neighborhood: data.bairro || prev.neighborhood,
           city: data.localidade || prev.city,
           state: data.uf || prev.state
-        }))
+        }));
       } else {
-        toast({ variant: "destructive", title: "CEP não encontrado" })
+        toast({ variant: "destructive", title: "CEP não encontrado" });
       }
     } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao buscar endereço" })
+      toast({ variant: "destructive", title: "Erro ao buscar endereço" });
     }
-  }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -525,7 +527,7 @@ export default function EditarEventoPage() {
       </div>
 
       <form id="edit-event-form" onSubmit={handleSubmit} className="space-y-8">
-        <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden">
+        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
           <CardHeader className="bg-muted/30"><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5" /> Mídia</CardTitle></CardHeader>
           <CardContent className="p-8">
             <div className="relative aspect-video bg-muted rounded-[2rem] overflow-hidden cursor-pointer group" onClick={() => document.getElementById('edit-img-up')?.click()}>
@@ -695,14 +697,14 @@ export default function EditarEventoPage() {
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="space-y-2">
                    <Label htmlFor="cep" className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
-                   <Input value={address.cep} onChange={e => setAddress({...address, cep: e.target.value})} onBlur={handleCepBlur} placeholder="00000-000" className="rounded-xl h-11" />
+                   <Input id="cep" value={address.cep} onChange={e => setAddress({...address, cep: e.target.value})} onBlur={handleCepBlur} placeholder="00000-000" className="rounded-xl h-11" />
                 </div>
                 <div className="md:col-span-3 space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Rua</Label><Input value={address.street} onChange={e => setAddress({...address, street: e.target.value})} className="rounded-xl h-11" /></div>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Número</Label><Input value={address.number} onChange={e => setAddress({...address, number: e.target.value})} className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Número</Label><Input value={address.number} onChange={e => setAddress({...address, number: e.target.value})} required className="rounded-xl h-11" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label><Input value={address.complement} onChange={e => setAddress({...address, complement: e.target.value})} className="rounded-xl h-11" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} required className="rounded-xl h-11" /></div>
                 <div className="space-y-2">
                    <Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label>
                    <Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" />
