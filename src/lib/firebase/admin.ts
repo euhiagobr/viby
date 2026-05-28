@@ -4,7 +4,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Inicialização robusta do Firebase Admin SDK.
- * Trata erros de PEM e garante que as credenciais do .env sejam aplicadas corretamente.
+ * Tratamento radical para garantir que a chave PEM do .env funcione.
  */
 
 function getAdminApp(): App {
@@ -22,20 +22,11 @@ function getAdminApp(): App {
   }
 
   try {
-    // Limpeza profunda da chave privada para lidar com aspas e escapes de ambiente
+    // Sanitização profunda para lidar com caracteres de escape vindo do .env
     let privateKey = privateKeyRaw
-      .replace(/^"|"$/g, '') 
-      .replace(/\\n/g, '\n')
+      .replace(/^"|"$/g, '')      // Remove aspas externas caso existam
+      .replace(/\\n/g, '\n')      // Converte \n literal (string) em quebra de linha real
       .trim();
-
-    // Garante que a chave tenha as quebras de linha corretas se estiver vindo como uma única linha
-    if (!privateKey.includes('\n')) {
-      privateKey = privateKey.replace(/ /g, '\n');
-      // Repara os cabeçalhos que foram quebrados pelo replace de espaços
-      privateKey = privateKey
-        .replace('BEGIN\nPRIVATE\nKEY', 'BEGIN PRIVATE KEY')
-        .replace('END\nPRIVATE\nKEY', 'END PRIVATE KEY');
-    }
 
     return initializeApp({
       credential: cert({
@@ -46,19 +37,19 @@ function getAdminApp(): App {
       projectId,
     }, 'admin-app');
   } catch (error) {
-    console.error('[Admin SDK] Falha crítica na inicialização da chave privada:', error);
+    console.error('[Admin SDK] Falha crítica no parsing PEM da chave privada:', error);
     throw error;
   }
 }
 
 /**
- * Getters para instâncias administrativas com seleção explícita de database.
+ * Getters para instâncias administrativas com database isolado.
  */
 export const getAdminAuth = () => getAuth(getAdminApp());
 export const getAdminDb = () => getFirestore(getAdminApp(), 'eventosviby');
 
 /**
- * Proxies para compatibilidade legada.
+ * Proxies para compatibilidade legada em Server Actions.
  */
 export const adminAuth = {
   getUserByEmail: (email: string) => getAdminAuth().getUserByEmail(email),
