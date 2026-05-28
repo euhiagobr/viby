@@ -1,10 +1,9 @@
-
 "use client";
 
 import * as React from "react";
 import { useFirestore, useAuth, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase";
-import { doc, getDoc, collection, query, where, orderBy, limit } from "firebase/firestore";
-import { Loader2, Lock, ShieldCheck, HelpCircle, ArrowLeft } from "lucide-react";
+import { doc, getDoc, collection, query, where, orderBy, limit, collectionGroup, getDocs } from "firebase/firestore";
+import { Loader2, Lock, ShieldCheck, HelpCircle, ArrowLeft, Handshake } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -37,6 +36,10 @@ export default function ProfilePageClient({ username }: { username: string }) {
   const [profileType, setProfileType] = React.useState<'user' | 'organization' | null>(null);
   const [isOwner, setIsOwner] = React.useState(false);
   const [now, setNow] = React.useState<Date>(new Date());
+
+  // Estado para eventos em parceria
+  const [partnershipEvents, setPartnershipEvents] = React.useState<any[]>([]);
+  const [loadingPartnerships, setLoadingPartnerships] = React.useState(false);
 
   React.useEffect(() => {
     setNow(new Date());
@@ -93,7 +96,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
         const memberRef = doc(db, 'organizations', profileData.id, 'members', loggedUser.uid);
         const memberSnap = await getDoc(memberRef);
         if (memberSnap.exists()) {
-          // No contexto de organização, ser membro (qualquer role) permite ver métricas privadas
           setIsOwner(true);
         } else {
           setIsOwner(false);
@@ -117,6 +119,39 @@ export default function ProfilePageClient({ username }: { username: string }) {
   }, [db, profileData?.id, profileType]);
 
   const { data: orgEvents } = useCollection<any>(orgEventsQuery);
+
+  // Busca de Eventos em Parceria (Co-organização)
+  React.useEffect(() => {
+    if (!db || !profileData?.id || profileType !== 'organization') return;
+
+    const fetchPartnershipEvents = async () => {
+      setLoadingPartnerships(true);
+      try {
+        const q = query(
+          collectionGroup(db, 'partners'),
+          where('orgId', '==', profileData.id),
+          where('status', '==', 'accepted')
+        );
+        const snap = await getDocs(q);
+        
+        const eventPromises = snap.docs.map(async (d) => {
+          const eventId = d.ref.parent.parent?.id;
+          if (!eventId) return null;
+          const eSnap = await getDoc(doc(db, 'events', eventId));
+          return eSnap.exists() ? { id: eSnap.id, ...eSnap.data() } : null;
+        });
+
+        const results = await Promise.all(eventPromises);
+        setPartnershipEvents(results.filter(e => e !== null && e.status === 'Ativo'));
+      } catch (e) {
+        console.error("Erro ao buscar parcerias:", e);
+      } finally {
+        setLoadingPartnerships(false);
+      }
+    };
+
+    fetchPartnershipEvents();
+  }, [db, profileData?.id, profileType]);
 
   // Busca de Check-ins (Público Total Real)
   const attendeesQuery = useMemoFirebase(() => {
@@ -189,7 +224,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
     );
   }
 
-  // Fallback de Privacidade
   const isProfileHidden = (profileData.status === 'Desativado' || profileData.status === 'Exclusão Programada') && !isOwner;
   if (isProfileHidden) {
      return (
@@ -236,8 +270,9 @@ export default function ProfilePageClient({ username }: { username: string }) {
               <div className="container mx-auto px-4 mt-12 max-w-6xl">
                 <Tabs defaultValue="upcoming" className="w-full">
                   <div className="flex justify-center mb-12">
-                    <TabsList className="bg-muted/50 p-1 rounded-2xl h-14">
+                    <TabsList className="bg-muted/50 p-1 rounded-2xl h-14 overflow-x-auto flex-nowrap scrollbar-hide">
                       <TabsTrigger value="upcoming" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Agenda</TabsTrigger>
+                      <TabsTrigger value="partnerships" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Co-organizadores</TabsTrigger>
                       <TabsTrigger value="past" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Histórico</TabsTrigger>
                       <TabsTrigger value="about" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Sobre</TabsTrigger>
                     </TabsList>
@@ -246,6 +281,12 @@ export default function ProfilePageClient({ username }: { username: string }) {
                     <OrganizerEvents 
                       events={upcomingEvents} 
                       title="Próximos Eventos" 
+                    />
+                  </TabsContent>
+                  <TabsContent value="partnerships" className="animate-in fade-in duration-500">
+                    <OrganizerEvents 
+                      events={partnershipEvents} 
+                      title="Eventos em Co-realização" 
                     />
                   </TabsContent>
                   <TabsContent value="past" className="animate-in fade-in duration-500">
