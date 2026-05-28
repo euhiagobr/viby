@@ -105,6 +105,45 @@ export default function ProfilePageClient({ username }: { username: string }) {
     checkOwnership();
   }, [db, loggedUser, profileData, profileType]);
 
+  // Busca de Eventos da Organização
+  const orgEventsQuery = useMemoFirebase(() => {
+    if (!db || !profileData?.id || profileType !== 'organization') return null;
+    return query(
+      collection(db, "events"),
+      where("organizationId", "==", profileData.id),
+      where("status", "==", "Ativo")
+    );
+  }, [db, profileData?.id, profileType]);
+
+  const { data: orgEvents } = useCollection<any>(orgEventsQuery);
+
+  const { upcomingEvents, pastEvents } = React.useMemo(() => {
+    if (!orgEvents) return { upcomingEvents: [], pastEvents: [] };
+    const referenceDate = new Date();
+    
+    const upcoming = orgEvents.filter((e: any) => {
+      const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+      const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+      return end >= referenceDate;
+    }).sort((a, b) => {
+      const tA = a.date?.seconds || new Date(a.date).getTime();
+      const tB = b.date?.seconds || new Date(b.date).getTime();
+      return tA - tB;
+    });
+
+    const past = orgEvents.filter((e: any) => {
+      const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+      const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+      return end < referenceDate;
+    }).sort((a, b) => {
+      const tA = a.date?.seconds || new Date(a.date).getTime();
+      const tB = b.date?.seconds || new Date(b.date).getTime();
+      return tB - tA;
+    });
+
+    return { upcomingEvents: upcoming, pastEvents: past };
+  }, [orgEvents]);
+
   // Common Social Data
   const followersQuery = useMemoFirebase(() => {
     if (!db || !profileData?.id) return null;
@@ -144,7 +183,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
        <div className="min-h-screen flex flex-col items-center justify-center p-10 bg-[#f8fafc] text-center gap-6">
          <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center"><Lock className="w-10 h-10 text-muted-foreground opacity-30" /></div>
          <h1 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Perfil Privado</h1>
-         <p className="text-muted-foreground font-medium max-w-sm">Esta conta optou por suspender suas atividades temporariamente.</p>
+         <p className="text-muted-foreground font-medium max-sm">Esta conta optou por suspender suas atividades temporariamente.</p>
          <Button asChild className="bg-secondary text-white rounded-full px-12 h-14 font-black uppercase italic shadow-lg shadow-secondary/20"><Link href="/">Explorar Outros Perfis</Link></Button>
        </div>
      );
@@ -176,7 +215,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
               <OrganizerHero 
                 organization={profileData} 
                 realFollowersCount={followers?.length || 0}
-                realEventsCount={profileData.totalEvents || 0}
+                realEventsCount={upcomingEvents.length}
                 realAttendeesCount={profileData.totalAttendees || 0}
                 isOwner={isOwner}
               />
@@ -191,12 +230,12 @@ export default function ProfilePageClient({ username }: { username: string }) {
                   </div>
                   <TabsContent value="upcoming" className="animate-in fade-in duration-500">
                     <OrganizerEvents 
-                      events={[]} // Fetch events of this org
+                      events={upcomingEvents} 
                       title="Próximos Eventos" 
                     />
                   </TabsContent>
                   <TabsContent value="past" className="animate-in fade-in duration-500">
-                    <OrganizerEvents events={[]} title="Experiências Passadas" isPast />
+                    <OrganizerEvents events={pastEvents} title="Experiências Passadas" isPast />
                     <OrganizerGallery gallery={profileData.gallery || []} />
                   </TabsContent>
                   <TabsContent value="about" className="animate-in fade-in duration-500">
