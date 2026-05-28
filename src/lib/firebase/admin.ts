@@ -4,7 +4,6 @@ import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Inicialização robusta do Firebase Admin SDK.
- * Resolve erros PEM e credenciais inválidas tratando escapes de string.
  */
 
 function getAdminApp(): App {
@@ -17,11 +16,11 @@ function getAdminApp(): App {
   const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKeyRaw) {
-    throw new Error(`Configurações Admin ausentes no .env: ${[!projectId && 'ID', !clientEmail && 'Email', !privateKeyRaw && 'Key'].filter(Boolean).join(', ')}`);
+    throw new Error(`Credenciais Admin ausentes no ambiente. Verifique o arquivo .env.`);
   }
 
   try {
-    // Sanitização profunda da chave privada para tratar escapes de \n e aspas residuais
+    // Sanitização profunda da chave privada
     const privateKey = privateKeyRaw
       .replace(/^"|"$/g, '') // remove aspas no início/fim
       .replace(/\\n/g, '\n') // substitui \n literal por quebra de linha real
@@ -36,18 +35,15 @@ function getAdminApp(): App {
       projectId,
     }, 'admin-app');
   } catch (error: any) {
-    console.error('[Admin SDK] Falha Crítica na Inicialização:', error.message);
+    console.error('[Admin SDK] Erro de Inicialização:', error.message);
     throw error;
   }
 }
 
-/**
- * Getters dinâmicos para garantir inicialização preguiçosa (lazy) no servidor.
- */
 export const getAdminAuth = () => getAuth(getAdminApp());
 export const getAdminDb = () => getAdminFirestore(getAdminApp(), 'eventosviby');
 
-// Proxies para compatibilidade com código legado
+// Proxies para compatibilidade
 export const adminAuth = {
   getUserByEmail: (email: string) => getAdminAuth().getUserByEmail(email),
   generatePasswordResetLink: (email: string) => getAdminAuth().generatePasswordResetLink(email),

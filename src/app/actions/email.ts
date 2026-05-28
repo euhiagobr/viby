@@ -38,7 +38,7 @@ export async function getEmailConfig() {
 async function getTransporter() {
   const { smtpUser, smtpPass } = await getEmailConfig();
   if (!smtpUser || !smtpPass) {
-    throw new Error("SMTP não configurado no Painel Admin.");
+    throw new Error("SMTP não configurado no Painel Admin (Configurações > E-mail).");
   }
 
   return nodemailer.createTransport({
@@ -62,7 +62,7 @@ export async function sendPasswordResetLinkEmail(data: any) {
         <div style="background: #f1f5f9; padding: 30px; text-align: center; border-radius: 15px; font-size: 36px; font-weight: 900; letter-spacing: 8px; color: #2C52EE; border: 2px dashed #cbd5e1; margin: 20px 0;">
           ${data.otpCode}
         </div>
-        <p style="font-size: 13px; color: #64748b;">Válido por 15 minutos.</p>
+        <p style="font-size: 13px; color: #64748b;">Este código expira em 60 minutos.</p>
       </div>
     `;
 
@@ -86,6 +86,26 @@ export async function sendPasswordResetLinkEmail(data: any) {
   } catch (e: any) { 
     return { success: false, error: e.message }; 
   }
+}
+
+export async function sendTeamInvitationStatusEmail(data: any) {
+  try {
+    const transporter = await getTransporter();
+    const { smtpUser } = await getEmailConfig();
+    const htmlContent = `<div style="font-family: sans-serif; padding: 40px;"><h1>Viby System</h1><p>${data.userName} ${data.status === 'accepted' ? 'aceitou' : 'recusou'} o convite para ${data.orgName}.</p></div>`;
+    await transporter.sendMail({ from: `"Viby System" <${smtpUser}>`, to: data.to, subject: `📢 Atualização de Equipe: ${data.orgName}`, html: htmlContent });
+    return { success: true };
+  } catch (e: any) { return { success: false, error: e.message }; }
+}
+
+export async function sendTeamInvitationNoticeEmail(data: any) {
+  try {
+    const transporter = await getTransporter();
+    const { smtpUser } = await getEmailConfig();
+    const htmlContent = `<div style="font-family: sans-serif; padding: 40px;"><h1>Viby System</h1><p>Convite enviado para ${data.inviteeName} na organização ${data.orgName} como ${data.role}.</p></div>`;
+    await transporter.sendMail({ from: `"Viby System" <${smtpUser}>`, to: data.to, subject: `✉️ Convite Enviado: ${data.orgName}`, html: htmlContent });
+    return { success: true };
+  } catch (e: any) { return { success: false, error: e.message }; }
 }
 
 export async function sendPayoutConfirmedEmail(data: any) {
@@ -124,26 +144,6 @@ export async function sendTeamInvitationEmail(data: any) {
     const { smtpUser } = await getEmailConfig();
     const htmlContent = `<div style="font-family: sans-serif; padding: 40px;"><h1>Convite de Equipe</h1><p>Você foi convidado para gerenciar <b>${data.orgName}</b> como ${data.role}.</p></div>`;
     await transporter.sendMail({ from: `"Viby System" <${smtpUser}>`, to: data.to, subject: `🤝 Convite para Equipe: ${data.orgName}`, html: htmlContent });
-    return { success: true };
-  } catch (e: any) { return { success: false, error: e.message }; }
-}
-
-export async function sendTeamInvitationStatusEmail(data: any) {
-  try {
-    const transporter = await getTransporter();
-    const { smtpUser } = await getEmailConfig();
-    const htmlContent = `<div style="font-family: sans-serif; padding: 40px;"><h1>Viby System</h1><p>${data.userName} ${data.status === 'accepted' ? 'aceitou' : 'recusou'} o convite para ${data.orgName}.</p></div>`;
-    await transporter.sendMail({ from: `"Viby System" <${smtpUser}>`, to: data.to, subject: `📢 Atualização de Equipe: ${data.orgName}`, html: htmlContent });
-    return { success: true };
-  } catch (e: any) { return { success: false, error: e.message }; }
-}
-
-export async function sendTeamInvitationNoticeEmail(data: any) {
-  try {
-    const transporter = await getTransporter();
-    const { smtpUser } = await getEmailConfig();
-    const htmlContent = `<div style="font-family: sans-serif; padding: 40px;"><h1>Viby System</h1><p>Convite enviado para ${data.inviteeName} na organização ${data.orgName}.</p></div>`;
-    await transporter.sendMail({ from: `"Viby System" <${smtpUser}>`, to: data.to, subject: `✉️ Convite Enviado: ${data.orgName}`, html: htmlContent });
     return { success: true };
   } catch (e: any) { return { success: false, error: e.message }; }
 }
