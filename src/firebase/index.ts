@@ -2,8 +2,7 @@
 
 /**
  * @fileOverview Ponto de entrada central para o Firebase no cliente.
- * Atua como um "barrel file" para re-exportar instâncias e hooks.
- * As instâncias reais são inicializadas em arquivos separados para evitar dependências circulares.
+ * Atua como um "barrel file" para re-exportar instâncias e hooks estabilizados.
  */
 
 export { app } from './apps';
