@@ -213,8 +213,11 @@ export default function ProfilePageClient({ username }: { username: string }) {
     return <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
   }
 
-  // Tratamento de Perfil Indisponível (Excluído ou Banido)
-  if (!profileData || profileData.status === 'Bloqueado' || profileData.status === 'Excluído') {
+  // Tratamento de Perfil Indisponível (Excluído, Banido, Desativado ou em Exclusão)
+  const isUnavailable = !profileData || 
+    (['Bloqueado', 'Excluído', 'Desativado', 'Exclusão Programada'].includes(profileData.status) && !isOwner);
+
+  if (isUnavailable) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4 text-center selection:bg-secondary selection:text-white">
         <div className="relative w-full max-w-lg mb-12">
@@ -261,18 +264,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
         </div>
       </div>
     );
-  }
-
-  const isProfileHidden = (profileData.status === 'Desativado' || profileData.status === 'Exclusão Programada') && !isOwner;
-  if (isProfileHidden) {
-     return (
-       <div className="min-h-screen flex flex-col items-center justify-center p-10 bg-[#f8fafc] text-center gap-6">
-         <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center"><Lock className="w-10 h-10 text-muted-foreground opacity-30" /></div>
-         <h1 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Perfil Privado</h1>
-         <p className="text-muted-foreground font-medium max-sm">Esta conta optou por suspender suas atividades temporariamente.</p>
-         <Button asChild className="bg-secondary text-white rounded-full px-12 h-14 font-black uppercase italic shadow-lg shadow-secondary/20"><Link href="/">Explorar Outros Perfis</Link></Button>
-       </div>
-     );
   }
 
   return (
