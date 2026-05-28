@@ -8,46 +8,51 @@ import {
   DocumentData,
   FirestoreError,
 } from 'firebase/firestore';
+import { errorEmitter } from '../error-emitter';
+import { FirestorePermissionError } from '../errors';
 
 /**
  * Hook resiliente para escutar coleções do Firestore.
- * Aprimorado para evitar o erro de asserção interna ca9 (Unexpected state) 
- * através de controle estrito de montagem e encerramento de inscrições.
+ * Aprimorado com proteção tripla contra o erro ca9 e vazamento de memória.
  */
 export function useCollection<T = DocumentData>(query: Query<T> | null) {
   const [data, setData] = useState<T[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<FirestoreError | null>(null);
 
-  // Ref para rastrear se o componente ainda está montado e evitar atualizações de estado indevidas
-  const isMountedRef = useRef(true);
-  
-  // Ref para armazenar a função de cancelamento da subscrição atual
-  const unsubscribeRef = useRef<(() => void) | null>(null);
+  // Controle de estado e subscrição
+  const isMounted = useRef(true);
+  const unsubscribe = useRef<(() => void) | null>(null);
+  const lastQueryString = useRef<string | null>(null);
 
   useEffect(() => {
-    isMountedRef.current = true;
+    isMounted.current = true;
 
-    // Se não houver query, limpa os dados e encerra para evitar ativação de listeners
     if (!query) {
       setData([]);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
-    
-    // Inicia o listener em tempo real garantindo que limpamos qualquer subscrição anterior
-    try {
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-        unsubscribeRef.current = null;
-      }
+    // Evita re-inscrição se a query for idêntica (baseado na representação interna)
+    const currentQueryString = JSON.stringify(query);
+    if (unsubscribe.current && lastQueryString.current === currentQueryString) {
+      return;
+    }
 
-      const unsubscribe = onSnapshot(
+    setLoading(true);
+    lastQueryString.current = currentQueryString;
+
+    // Limpa subscrição anterior antes de iniciar nova
+    if (unsubscribe.current) {
+      unsubscribe.current();
+    }
+
+    try {
+      unsubscribe.current = onSnapshot(
         query,
         (snapshot: QuerySnapshot<T>) => {
-          if (!isMountedRef.current) return;
+          if (!isMounted.current) return;
           
           const items = snapshot.docs.map((doc) => ({
             ...(doc.data() as T),
@@ -58,34 +63,33 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
           setLoading(false);
           setError(null);
         },
-        (serverError: FirestoreError) => {
-          if (!isMountedRef.current) return;
+        async (serverError: FirestoreError) => {
+          if (!isMounted.current) return;
 
-          // Silencia erros de permissão comuns em navegação anônima (visto que a plataforma é pública)
           if (serverError.code === 'permission-denied') {
-            console.warn(`[Firestore] Acesso restrito silenciado.`);
+            const permissionError = new FirestorePermissionError({
+              path: 'collection_query',
+              operation: 'list',
+            });
+            errorEmitter.emit('permission-error', permissionError);
             setData([]);
           } else {
-            console.error(`[Firestore Error] ${serverError.code}: ${serverError.message}`);
+            console.error(`[Firestore Collection Error] ${serverError.code}`);
+            setError(serverError);
           }
-          
-          setError(serverError);
           setLoading(false);
         }
       );
-
-      unsubscribeRef.current = unsubscribe;
     } catch (e) {
-      console.error("[Firestore] Falha crítica ao iniciar onSnapshot:", e);
+      console.warn("[Firestore] Falha ao registrar listener de coleção.");
       setLoading(false);
     }
 
-    // Cleanup: Encerra o listener imediatamente ao desmontar ou mudar a query
     return () => {
-      isMountedRef.current = false;
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-        unsubscribeRef.current = null;
+      isMounted.current = false;
+      if (unsubscribe.current) {
+        unsubscribe.current();
+        unsubscribe.current = null;
       }
     };
   }, [query]);

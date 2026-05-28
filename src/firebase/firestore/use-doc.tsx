@@ -10,19 +10,20 @@ import {
 } from 'firebase/firestore';
 
 /**
- * Hook resiliente para escutar documentos únicos no Firestore.
- * Implementa proteção contra race conditions e o erro de asserção ca9 do SDK no Next.js 15.
+ * Hook resiliente para escutar documentos únicos.
+ * Implementa proteção contra race conditions e o erro de asserção ca9 do SDK.
  */
 export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<FirestoreError | null>(null);
 
-  const isMountedRef = useRef(true);
-  const unsubscribeRef = useRef<(() => void) | null>(null);
+  const isMounted = useRef(true);
+  const unsubscribe = useRef<(() => void) | null>(null);
+  const lastPath = useRef<string | null>(null);
 
   useEffect(() => {
-    isMountedRef.current = true;
+    isMounted.current = true;
 
     if (!docRef) {
       setData(null);
@@ -30,19 +31,23 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
       return;
     }
 
+    // Evita duplicidade se o caminho for o mesmo
+    if (unsubscribe.current && lastPath.current === docRef.path) {
+      return;
+    }
+
     setLoading(true);
+    lastPath.current = docRef.path;
+
+    if (unsubscribe.current) {
+      unsubscribe.current();
+    }
     
     try {
-      // Limpa listener anterior se existir
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-        unsubscribeRef.current = null;
-      }
-
-      const unsubscribe = onSnapshot(
+      unsubscribe.current = onSnapshot(
         docRef,
         (snapshot: DocumentSnapshot<T>) => {
-          if (!isMountedRef.current) return;
+          if (!isMounted.current) return;
 
           if (snapshot.exists()) {
             setData({ ...(snapshot.data() as T), id: snapshot.id });
@@ -54,30 +59,24 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
           setError(null);
         },
         (serverError: FirestoreError) => {
-          if (!isMountedRef.current) return;
-
-          if (serverError.code === 'permission-denied') {
-            setData(null);
-          } else {
-            console.error(`[Firestore Error] ${serverError.code}: ${serverError.message}`);
+          if (!isMounted.current) return;
+          if (serverError.code !== 'permission-denied') {
+            console.error(`[Firestore Doc Error] ${serverError.code}`);
           }
-          
+          setData(null);
           setError(serverError);
           setLoading(false);
         }
       );
-
-      unsubscribeRef.current = unsubscribe;
     } catch (e) {
-      console.error("[Firestore] Falha ao iniciar listener de documento:", e);
       setLoading(false);
     }
 
     return () => {
-      isMountedRef.current = false;
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-        unsubscribeRef.current = null;
+      isMounted.current = false;
+      if (unsubscribe.current) {
+        unsubscribe.current();
+        unsubscribe.current = null;
       }
     };
   }, [docRef]);
