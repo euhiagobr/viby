@@ -1,10 +1,10 @@
 import { getApps, initializeApp, cert, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase/firestore'; // Note: for named databases we often use standard getter logic with admin credentials
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Inicialização robusta do Firebase Admin SDK.
+ * Tratamento avançado de PEM para evitar erros de autenticação.
  */
 
 function getAdminApp(): App {
@@ -17,11 +17,16 @@ function getAdminApp(): App {
   const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKeyRaw) {
-    throw new Error(`Configurações de servidor incompletas no .env. Verifique FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL e FIREBASE_PRIVATE_KEY.`);
+    console.error('[Admin SDK] Variáveis de ambiente faltando:', {
+      projectId: !!projectId,
+      clientEmail: !!clientEmail,
+      privateKey: !!privateKeyRaw
+    });
+    throw new Error('MISSING_ADMIN_ENV_VARS');
   }
 
   try {
-    // Tratamento radical da chave privada vinda de strings ou .env
+    // Tratamento radical da chave privada
     const privateKey = privateKeyRaw
       .replace(/^"|"$/g, '')          // Remove aspas externas
       .replace(/\\n/g, '\n')          // Converte \n literal em quebra de linha real
@@ -36,19 +41,19 @@ function getAdminApp(): App {
       projectId,
     }, 'admin-app');
   } catch (error: any) {
-    console.error('[Admin SDK] Falha crítica na análise da chave privada:', error.message);
-    throw new Error(`Falha no parse da Private Key: ${error.message}`);
+    console.error('[Admin SDK] Falha ao parsear Private Key:', error.message);
+    throw error;
   }
 }
 
 /**
- * Getters para instâncias administrativas.
+ * Getters para instâncias administrativas reais.
  */
 export const getAdminAuth = () => getAuth(getAdminApp());
 export const getAdminDb = () => getAdminFirestore(getAdminApp(), 'eventosviby');
 
 /**
- * Proxies para compatibilidade.
+ * Proxies para compatibilidade com código legado que usa adminAuth.xxx
  */
 export const adminAuth = {
   getUserByEmail: (email: string) => getAdminAuth().getUserByEmail(email),
