@@ -21,7 +21,8 @@ import {
   Layers2,
   Copy,
   ChevronRight,
-  Zap
+  Zap,
+  AlertCircle
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -91,7 +92,6 @@ export function BilheteriaAdmin({
   const [numNewBatches, setNumNewBatches] = React.useState(1)
   const [cloneLastConfig, setCloneLastConfig] = React.useState(true)
 
-  // Sincroniza o primeiro lote se estiver vazio para os modos simplificados
   React.useEffect(() => {
     if (batches.length === 0 && mode !== 'none') {
       const defaultBatch: Batch = {
@@ -126,7 +126,7 @@ export function BilheteriaAdmin({
     if (lastBatch?.startDate && lastBatch?.endDate) {
       durationMs = new Date(lastBatch.endDate).getTime() - new Date(lastBatch.startDate).getTime()
     } else {
-      durationMs = 30 * 24 * 60 * 60 * 1000 // Default 30 dias
+      durationMs = 30 * 24 * 60 * 60 * 1000
     }
 
     for (let i = 0; i < numNewBatches; i++) {
@@ -143,8 +143,6 @@ export function BilheteriaAdmin({
         ticketTypes: cloneLastConfig ? lastBatch.ticketTypes.map(t => ({
           ...t,
           id: crypto.randomUUID(),
-          // Se for pool, mantemos o poolId do grupo para lógica de sobra, ou novo pool por lote?
-          // Regra: Pools são por lote.
           poolId: t.poolId ? crypto.randomUUID() : undefined
         })) : [
           { id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, proofDescription: "", description: "" }
@@ -158,7 +156,6 @@ export function BilheteriaAdmin({
     onBatchesChange(newBatchesList)
     setIsBatchGenModalOpen(false)
     
-    // Recalcular capacidade total somando todos os lotes
     const newTotal = newBatchesList.reduce((acc, b) => acc + b.capacidadeInicial, 0)
     onTotalCapacityChange(newTotal)
   }
@@ -177,7 +174,6 @@ export function BilheteriaAdmin({
       const cap = parseInt(value) || 0
       const batch = newBatches[idx]
       
-      // Se houver pool, redistribuir baseado no percentual de meia configurado
       const poolTickets = batch.ticketTypes.filter(t => !!t.poolId)
       if (poolTickets.length > 0 && batch.halfPricePercent) {
         const hQty = Math.floor(cap * (batch.halfPricePercent / 100))
@@ -244,7 +240,6 @@ export function BilheteriaAdmin({
     batch.halfPricePercent = halfPercent
     batch.ticketTypes[0].quantity = iQty
 
-    // Categorias padrão de meia entrada
     const meias = [
       { id: crypto.randomUUID(), name: "Meia Estudante", price: (batch.ticketTypes[0].price / 2) || 0, quantity: hQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, proofDescription: "Apresentar carteira de estudante válida.", description: "" },
       { id: crypto.randomUUID(), name: "Meia Idoso", price: (batch.ticketTypes[0].price / 2) || 0, quantity: hQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, proofDescription: "Documento oficial provando +60 anos.", description: "" },
@@ -464,7 +459,6 @@ export function BilheteriaAdmin({
         </CardContent>
       </Card>
 
-      {/* MODAL GERAÇÃO DE LOTES */}
       <Dialog open={isBatchGenModalOpen} onOpenChange={setIsBatchGenModalOpen}>
          <DialogContent className="rounded-[2.5rem] max-w-sm">
             <DialogHeader>
@@ -513,7 +507,6 @@ export function BilheteriaAdmin({
          </DialogContent>
       </Dialog>
 
-      {/* MODAL DE MEIA ENTRADA (Cotas) */}
       <Dialog open={isHalfPriceModalOpen} onOpenChange={setIsHalfPriceModalOpen}>
         <DialogContent className="rounded-[2.5rem] max-w-sm">
            <DialogHeader>
