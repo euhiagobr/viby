@@ -1,38 +1,18 @@
+
 'use server';
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { getAdminDb } from '@/lib/firebase/admin';
 
 /**
- * @fileOverview Server Actions para integração com Stripe utilizando o Admin SDK.
+ * @fileOverview Server Actions para integração com Stripe.
+ * Utiliza variáveis de ambiente para segurança e performance no servidor.
  */
 
-async function getStripeKeys() {
-  try {
-    const db = getAdminDb();
-    const stripeDoc = await db.collection('settings').doc('stripe').get();
-    
-    if (!stripeDoc.exists) {
-      console.warn('[Stripe Action] Documento settings/stripe não encontrado no Firestore.');
-      return { publishableKey: null, secretKey: null };
-    }
-
-    const data = stripeDoc.data();
-    return { 
-      publishableKey: data?.publishableKey || null, 
-      secretKey: data?.secretKey || null 
-    };
-  } catch (e) {
-    console.error("[Stripe Action] Erro ao buscar chaves no Firestore:", e);
-    return { publishableKey: null, secretKey: null };
-  }
-}
-
-async function getStripeInstance() {
-  const { secretKey } = await getStripeKeys();
+function getStripeInstance() {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
   if (!secretKey) {
-    throw new Error('Stripe não configurado no Painel Admin (Configurações > Pagamentos).');
+    throw new Error('STRIPE_SECRET_KEY não configurada no ambiente (.env).');
   }
   return new Stripe(secretKey);
 }
@@ -40,14 +20,17 @@ async function getStripeInstance() {
 export async function createCheckoutSession(data: any) {
   try {
     const origin = (await headers()).get('origin') || 'https://viby.club';
-    const stripe = await getStripeInstance();
+    const stripe = getStripeInstance();
     
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: data.lineItems || [{
         price_data: {
           currency: 'brl',
-          product_data: { name: data.eventTitle || 'Ingresso Viby' },
+          product_data: { 
+            name: data.eventTitle || 'Ingresso Viby',
+            images: data.eventImage ? [data.eventImage] : []
+          },
           unit_amount: Math.round(data.totalAmount),
         },
         quantity: 1,
@@ -69,7 +52,7 @@ export async function createCheckoutSession(data: any) {
 export async function createAdBalanceTopUpSession(data: any) {
   try {
     const origin = (await headers()).get('origin') || 'https://viby.club';
-    const stripe = await getStripeInstance();
+    const stripe = getStripeInstance();
     const totalToCharge = data.baseAmount * 1.21;
     
     const session = await stripe.checkout.sessions.create({
@@ -101,42 +84,9 @@ export async function createAdBalanceTopUpSession(data: any) {
   }
 }
 
-export async function createPlanUpgradeSession(data: any) {
-  try {
-    const origin = (await headers()).get('origin') || 'https://viby.club';
-    const stripe = await getStripeInstance();
-    
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'brl',
-          product_data: { name: `Viby ${data.planName}` },
-          unit_amount: Math.round(data.totalAmount),
-        },
-        quantity: 1,
-      }],
-      mode: 'payment',
-      customer_email: data.userEmail,
-      success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/checkout/cancelado`,
-      metadata: { 
-        type: 'plan_upgrade', 
-        userId: data.userId, 
-        plan: data.planId, 
-        cycle: data.billingCycle 
-      },
-    });
-    
-    return { url: session.url };
-  } catch (error: any) {
-    throw new Error(error.message || 'Erro ao gerar checkout do plano');
-  }
-}
-
 export async function getStripeSession(sessionId: string) {
   try {
-    const stripe = await getStripeInstance();
+    const stripe = getStripeInstance();
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     return { 
       id: session.id, 
