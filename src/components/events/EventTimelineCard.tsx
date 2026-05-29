@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -38,6 +37,7 @@ import { FirestorePermissionError } from "@/firebase/errors"
 import { AgeRatingBadge } from "@/lib/age-rating"
 import { RichText } from "@/components/ui/rich-text"
 import { MentionTextarea } from "@/components/ui/mention-textarea"
+import { EventInterest } from "./EventInterest"
 
 function CommentItem({ comment, eventId, isAdmin, onDelete }: { comment: any, eventId: string, isAdmin: boolean, onDelete: (id: string) => void }) {
   const db = useFirestore()
@@ -96,11 +96,6 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
   const [newComment, setNewComment] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
-  // Curtida
-  const likeRef = React.useMemo(() => (db && user && event.id) ? doc(db, "events", event.id, "likes", user.uid) : null, [db, user, event.id])
-  const { data: userLike } = useDoc<any>(likeRef)
-  const isLiked = !!userLike
-
   const eventDate = event.date?.toDate ? event.date.toDate() : new Date(event.date)
   const endDate = event.endDate?.toDate ? event.endDate.toDate() : (event.endDate ? new Date(event.endDate) : new Date(eventDate.getTime() + 4 * 60 * 60 * 1000))
   const isEnded = endDate < new Date()
@@ -120,18 +115,6 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
     const url = `${window.location.origin}${eventLink}`
     navigator.clipboard.writeText(url)
     toast({ title: "Link copiado!" })
-  }
-
-  const handleLike = async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!db || !user || !likeRef) return
-    if (isLiked) {
-      deleteDoc(likeRef).catch(() => toast({ variant: "destructive", title: "Erro ao descurtir" }))
-    } else {
-      setDoc(likeRef, { timestamp: serverTimestamp() })
-        .then(() => toast({ title: "Evento curtido!" }))
-        .catch(() => toast({ variant: "destructive", title: "Erro ao curtir" }))
-    }
   }
 
   const toggleComments = (e: React.MouseEvent) => {
@@ -235,9 +218,7 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
 
       <div className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" className={cn("h-10 w-10 rounded-full transition-all active:scale-125", isLiked && "text-red-500 bg-red-50")} onClick={handleLike}>
-            <Heart className={cn("w-6 h-6", isLiked && "fill-current")} />
-          </Button>
+          <EventInterest event={event} showButton={true} variant="default" className="gap-2" />
           <Button variant="ghost" size="icon" className={cn("h-10 w-10 rounded-full transition-colors", showComments && "text-secondary bg-secondary/10")} onClick={toggleComments}>
             <MessageCircle className="w-6 h-6" />
           </Button>

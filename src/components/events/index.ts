@@ -9,3 +9,4 @@ export * from './EventShare';
 export * from './EventStats';
 export * from './EventVisibility';
 export * from './Bilheteria';
+export * from './EventInterest';

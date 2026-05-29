@@ -13,6 +13,7 @@ import { calculateDistance, type Coordinates } from "@/lib/location-utils"
 import { useFirestore, useDoc, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
 import { doc, updateDoc, increment, serverTimestamp, getDoc, setDoc } from "firebase/firestore"
 import { AgeRatingBadge } from "@/lib/age-rating"
+import { EventInterest } from "./EventInterest"
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (
@@ -270,9 +271,12 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
       <CardContent className="p-6 space-y-4">
         <div className="space-y-1">
-          <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary group-hover:text-secondary transition-colors line-clamp-1 leading-tight">
-            {event.title}
-          </h3>
+          <div className="flex justify-between items-start gap-2">
+            <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary group-hover:text-secondary transition-colors line-clamp-1 leading-tight">
+              {event.title}
+            </h3>
+            <EventInterest event={event} showButton={false} variant="compact" />
+          </div>
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">
             {event.organizer?.name}
           </p>

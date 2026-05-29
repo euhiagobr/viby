@@ -23,7 +23,8 @@ import {
   EventSEO, 
   EventShare, 
   EventStats, 
-  BilheteriaPublic 
+  BilheteriaPublic,
+  EventInterest
 } from '@/components/events';
 
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
@@ -97,7 +98,11 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                    <EventShare title={event.title} url={`/${username}/${id}`} />
                 </div>
                 <h1 className="text-5xl md:text-7xl font-black text-foreground tracking-tighter uppercase italic leading-[0.8] drop-shadow-2xl">{event.title}</h1>
-                <EventStats views={event.viewsCount || 0} interested={event.interestedCount || 0} going={event.goingCount || 0} shares={event.sharesCount || 0} />
+                
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 py-4">
+                   <EventInterest event={event} />
+                   <EventStats views={event.viewsCount || 0} interested={event.interestedCount || 0} going={event.goingCount || 0} shares={event.sharesCount || 0} className="opacity-40" />
+                </div>
              </div>
 
              <Card className="border-none shadow-sm rounded-[2rem] bg-white p-10">
@@ -128,7 +133,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                      <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Bilheteria Externa</h2>
                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">As vendas para este evento ocorrem em uma plataforma terceira.</p>
                      <Button className="w-full h-16 bg-primary text-white font-black rounded-2xl uppercase italic gap-2" asChild>
-                        <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar Ingressos <ArrowRight className="w-5 h-5" /></a>
+                        <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Link de Ingressos <ArrowRight className="w-5 h-5" /></a>
                      </Button>
                   </Card>
                 )}
