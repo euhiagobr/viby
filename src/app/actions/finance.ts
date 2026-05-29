@@ -1,30 +1,18 @@
 'use server';
 
-import * as admin from 'firebase-admin';
-import { firebaseConfig } from '@/firebase/config';
+import { getAdminDb } from '@/lib/firebase/admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Server Actions para operações financeiras transacionais (Ledger).
- * Utiliza o Firebase Admin SDK para garantir atomicidade e bypass de Security Rules,
- * com validação manual de autorização.
+ * @fileOverview Server Actions para operações financeiras transacionais utilizando Admin SDK.
  */
-
-// Inicializa o Firebase Admin para o banco de dados específico 'eventosviby'
-function getVibyDb() {
-  if (admin.apps.length === 0) {
-    admin.initializeApp({
-      projectId: firebaseConfig.projectId,
-    });
-  }
-  return admin.firestore();
-}
 
 /**
  * Processa o estorno de um ingresso para a carteira Viby.
  * RESTRITO: Apenas organizadores ou admins podem EXECUTAR o estorno.
  */
 export async function processTicketRefund(registrationId: string, executorUid: string, reason: string) {
-  const db = getVibyDb();
+  const db = getAdminDb();
   
   try {
     return await db.runTransaction(async (transaction) => {
@@ -63,8 +51,8 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       if (totalPaid <= 0) {
         transaction.update(regRef, {
           status: 'cancelled',
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          cancelledAt: FieldValue.serverTimestamp(),
           cancelledBy: executorUid,
           cancelReason: reason
         });
@@ -81,8 +69,8 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       transaction.update(regRef, {
         status: 'cancelled',
         paymentStatus: 'refunded_wallet',
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        cancelledAt: FieldValue.serverTimestamp(),
         cancelledBy: executorUid,
         cancelReason: reason,
         refundAmount: refundAmount,
@@ -92,15 +80,15 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       // 2. Atualiza Saldo da Carteira (Ledger)
       const walletRef = db.collection("wallets").doc(userId);
       transaction.set(walletRef, {
-        balance: admin.firestore.FieldValue.increment(refundAmount),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        balance: FieldValue.increment(refundAmount),
+        updatedAt: FieldValue.serverTimestamp()
       }, { merge: true });
 
       // 3. Sincroniza walletBalance no perfil do usuário
       const userRef = db.collection("users").doc(userId);
       transaction.update(userRef, {
-        walletBalance: admin.firestore.FieldValue.increment(refundAmount),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        walletBalance: FieldValue.increment(refundAmount),
+        updatedAt: FieldValue.serverTimestamp()
       });
 
       // 4. Registra Transação no Ledger (wallet_transactions)
@@ -118,7 +106,7 @@ export async function processTicketRefund(registrationId: string, executorUid: s
           ticketBasePrice: ticketBasePrice,
           executorUid
         },
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
+        timestamp: FieldValue.serverTimestamp()
       });
 
       // 5. Atualiza Registro Fiscal (tax_tickets) se existir
@@ -128,7 +116,7 @@ export async function processTicketRefund(registrationId: string, executorUid: s
         transaction.update(taxDocs.docs[0].ref, {
           nfStatus: 'cancelado',
           status: 'cancelado',
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          updatedAt: FieldValue.serverTimestamp()
         });
       }
 
@@ -140,7 +128,7 @@ export async function processTicketRefund(registrationId: string, executorUid: s
         userId: executorUid,
         targetId: registrationId,
         description: `Estorno aprovado pelo organizador ${executorUid} para o usuário ${userId}. Valor: ${refundAmount}.`,
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
+        timestamp: FieldValue.serverTimestamp()
       });
 
       return { success: true, refundAmount };
