@@ -31,7 +31,7 @@ export class GlobalErrorBoundary extends Component<Props, State> {
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     const currentPath = typeof window !== 'undefined' ? window.location.pathname : 'unknown';
     
-    // Logar erro de renderização
+    // Logar erro de renderização no ErrorManager
     logSystemError({
       error,
       type: 'react_render_error',
@@ -44,7 +44,8 @@ export class GlobalErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
-      const userRole = typeof window !== 'undefined' ? localStorage.getItem('viby_user_role') : 'Desconhecido';
+      // Tentar recuperar o cargo salvo para exibição visual
+      const userRole = typeof window !== 'undefined' ? (localStorage.getItem('viby_user_role') || 'Visitante') : 'Visitante';
 
       return (
         <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-6 text-center">
@@ -79,7 +80,7 @@ export class GlobalErrorBoundary extends Component<Props, State> {
                        <User className="w-4 h-4 text-muted-foreground shrink-0" />
                        <div className="min-w-0">
                           <p className="text-[8px] font-black uppercase opacity-40 leading-none">Acesso do Usuário</p>
-                          <p className="text-[10px] font-bold truncate text-primary uppercase">{userRole || 'Visitante'}</p>
+                          <p className="text-[10px] font-bold truncate text-primary uppercase">{userRole}</p>
                        </div>
                     </div>
                  </div>

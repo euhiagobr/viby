@@ -14,7 +14,7 @@ import { FirestorePermissionError } from '../errors';
 
 /**
  * Hook resiliente para escutar coleções do Firestore.
- * Aprimorado para fornecer contextos de erro mais precisos.
+ * Aprimorado com lógica profunda de extração de path para melhor depuração no ErrorManager.
  */
 export function useCollection<T = DocumentData>(query: Query<T> | null) {
   const [data, setData] = useState<T[] | null>(null);
@@ -52,21 +52,34 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
         if (!isMounted.current) return;
 
         if (serverError.code === 'permission-denied') {
-          // Extração robusta do caminho da coleção
-          let path = 'collection_query';
+          // Extração ultra-robusta do caminho da coleção para o ErrorManager
+          let path = 'unknown_collection';
           try {
             const q = query as any;
-            if (q._query && q._query.path) {
-              path = q._query.path.segments.join('/');
-            } else if (q.path) {
+            // Tenta diversas propriedades internas onde o SDK v11 armazena o path
+            if (q.path) {
               path = q.path;
+            } else if (q._query?.path?.segments) {
+              path = q._query.path.segments.join('/');
+            } else if (q.query?.path?.segments) {
+              path = q.query.path.segments.join('/');
+            } else if (typeof q.toString === 'function') {
+              // Fallback para representação em string se disponível
+              const qStr = q.toString();
+              if (qStr.includes('Query(')) {
+                path = qStr.split('Query(')[1].split(')')[0];
+              }
             }
-          } catch (e) {}
+          } catch (e) {
+            console.warn("[Path Extraction Failed]", e);
+          }
           
           const permissionError = new FirestorePermissionError({
             path: path,
             operation: 'list',
           });
+          
+          // Emitir erro para o ErrorManager global
           errorEmitter.emit('permission-error', permissionError);
           setData([]);
         } else {
