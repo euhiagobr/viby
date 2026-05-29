@@ -34,35 +34,6 @@
     --sidebar-border: 210 20% 92%;
     --sidebar-ring: 210 100% 50%;
   }
-  .dark {
-    --background: 222 47% 7%;
-    --foreground: 0 0% 98%;
-    --card: 222 47% 10%;
-    --card-foreground: 0 0% 98%;
-    --popover: 222 47% 10%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 0%;
-    --secondary: 210 100% 50%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 222 47% 15%;
-    --muted-foreground: 210 10% 65%;
-    --accent: 210 100% 50%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 222 47% 15%;
-    --input: 222 47% 15%;
-    --ring: 210 100% 50%;
-    --sidebar-background: 222 47% 10%;
-    --sidebar-foreground: 0 0% 90%;
-    --sidebar-primary: 0 0% 100%;
-    --sidebar-primary-foreground: 0 0% 0%;
-    --sidebar-accent: 222 47% 15%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 222 47% 15%;
-    --sidebar-ring: 210 100% 50%;
-  }
 }
 
 @layer base {
@@ -78,23 +49,28 @@
   transition: stroke-dashoffset 1s linear;
 }
 
-/* Supressão total de indicadores de desenvolvimento do Next.js, Turbopack e Portals */
+/* Supressão total de indicadores de desenvolvimento do Next.js */
 nextjs-portal,
 #nextjs-portal,
 #nextjs-dev-indicator,
 .__next-dev-indicator,
 [data-nextjs-toast-wrapper],
 [data-nextjs-portal],
-#nextjs-build-activity,
-div[id^="__next-dev-indicator"],
-div[id^="nextjs-portal"] {
+#nextjs-build-activity {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
   opacity: 0 !important;
-  width: 0 !important;
-  height: 0 !important;
   z-index: -99999 !important;
-  position: absolute !important;
-  left: -9999px !important;
+}
+
+/* Estilos Globais do Leaflet */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.leaflet-default-icon-path {
+  background-image: url(https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png);
 }

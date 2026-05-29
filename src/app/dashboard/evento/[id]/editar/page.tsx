@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -68,7 +69,9 @@ export default function EditarEventoPage() {
         status: event.status || "Ativo",
         tags: event.tags || [],
         ageRatingCode: event.ageRating?.code || "free",
-        address: event.address || { street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" }
+        address: event.address || { street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "", latitude: -23.55052, longitude: -46.633308 },
+        isMultiLocation: event.isMultiLocation || false,
+        locations: event.locations || []
       })
       setTicketMode(event.ticketMode || 'free')
       setBatches(event.batches || [])
@@ -116,7 +119,23 @@ export default function EditarEventoPage() {
         updatedAt: serverTimestamp()
       }
 
-      // Limpar campos undefined para compatibilidade Firestore
+      // Sincronizar L1 com Address Raiz para compatibilidade
+      if (formData.isMultiLocation && formData.locations.length > 0) {
+        const L1 = formData.locations[0];
+        updateData.address = {
+          street: L1.street,
+          number: L1.number,
+          neighborhood: L1.neighborhood,
+          city: L1.city,
+          state: L1.state,
+          country: L1.country,
+          cep: L1.cep,
+          latitude: L1.latitude,
+          longitude: L1.longitude
+        };
+        updateData.city = L1.city;
+      }
+
       const cleanData = JSON.parse(JSON.stringify(updateData, (key, value) => value === undefined ? null : value));
 
       await updateDoc(eventRef, cleanData)
@@ -225,7 +244,14 @@ export default function EditarEventoPage() {
 
               <Card className="border-none shadow-sm rounded-[2rem]">
                 <CardContent className="p-8">
-                  <EventLocation address={formData.address} onChange={v => setFormData({...formData, address: v})} />
+                   <EventLocation 
+                     address={formData.address} 
+                     isMultiLocation={formData.isMultiLocation}
+                     locations={formData.locations}
+                     onChange={v => setFormData({...formData, address: v})} 
+                     onLocationsChange={v => setFormData({...formData, locations: v})}
+                     onToggleMultiLocation={v => setFormData({...formData, isMultiLocation: v})}
+                   />
                 </CardContent>
               </Card>
            </form>

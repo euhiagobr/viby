@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -54,7 +55,9 @@ export default function NovoEventoPage() {
     description: "",
     status: "Ativo",
     tags: [] as string[],
-    address: { street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" }
+    address: { street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "", latitude: -23.55052, longitude: -46.633308 },
+    isMultiLocation: false,
+    locations: [] as any[]
   })
 
   const [ticketMode, setTicketMode] = useState<any>('free')
@@ -185,7 +188,14 @@ export default function NovoEventoPage() {
 
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardContent className="p-8">
-             <EventLocation address={formData.address} onChange={v => setFormData({...formData, address: v})} />
+             <EventLocation 
+               address={formData.address} 
+               isMultiLocation={formData.isMultiLocation}
+               locations={formData.locations}
+               onChange={v => setFormData({...formData, address: v})} 
+               onLocationsChange={v => setFormData({...formData, locations: v})}
+               onToggleMultiLocation={v => setFormData({...formData, isMultiLocation: v})}
+             />
           </CardContent>
         </Card>
 

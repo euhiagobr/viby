@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -50,7 +51,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const { data: globalFees } = useDoc<any>(feesRef)
 
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db])
-  const { data: promotions } = useDoc<any>(promosRef)
+  const { data: promotions } = useDoc<any>( promosRef)
 
   // Verificar se o usuário atual é proprietário ou membro da organização para exibir as visualizações
   const memberQuery = useMemoFirebase(() => {
@@ -149,7 +150,12 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
              </Card>
 
              <EventDateTime startDate={event.date} endDate={event.endDate} isPublic />
-             <EventLocation address={event.address} isPublic />
+             <EventLocation 
+                address={event.address} 
+                locations={event.locations} 
+                isMultiLocation={event.isMultiLocation} 
+                isPublic 
+             />
 
              {event.type === 'interno' && (
                <BilheteriaPublic 
