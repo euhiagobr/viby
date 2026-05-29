@@ -1,42 +1,25 @@
 'use client';
 
 import * as React from 'react';
-import { useFirestore, useDoc, useFirebaseApp } from '@/firebase';
+import { useFirestore, useDoc } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { 
   Loader2, 
   Save, 
-  Layout, 
-  ImageIcon, 
-  Upload, 
   CreditCard, 
-  ShieldCheck,
-  Eye,
-  EyeOff,
-  Key,
+  Eye, 
+  EyeOff, 
   Info,
-  Mail,
-  Coins,
-  TrendingUp,
-  MousePointer2,
-  Lock,
-  X,
-  Map as MapIcon,
-  Percent,
-  Receipt,
-  Building2,
-  User,
+  Globe,
   Zap,
-  Globe
+  ShieldCheck,
+  CheckCircle2
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -45,7 +28,6 @@ import { cn } from '@/lib/utils';
 
 export default function AdminConfiguracoesPage() {
   const db = useFirestore();
-  const app = useFirebaseApp();
   
   const stripeRef = React.useMemo(() => (db ? doc(db, 'settings', 'stripe') : null), [db]);
   const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
@@ -71,26 +53,39 @@ export default function AdminConfiguracoesPage() {
   const handleSaveStripe = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!db) return;
+
+    // Validação de formato antes de enviar para o servidor
+    const cleanPK = stripePublishableKey.trim();
+    const cleanSK = stripeSecretKey.trim();
+
+    if (!cleanPK || !cleanSK) {
+      toast({ variant: "destructive", title: "Configuração incompleta", description: "Insira as chaves pública e secreta para ativar o checkout." });
+      return;
+    }
+
+    if (stripeMode === 'test' && (!cleanPK.startsWith('pk_test_') || !cleanSK.startsWith('sk_test_'))) {
+      toast({ variant: "destructive", title: "Modo de Teste Inválido", description: "As chaves devem iniciar com pk_test e sk_test." });
+      return;
+    }
+
+    if (stripeMode === 'live' && (!cleanPK.startsWith('pk_live_') || !cleanSK.startsWith('sk_live_'))) {
+      toast({ variant: "destructive", title: "Modo de Produção Inválido", description: "As chaves devem iniciar com pk_live e sk_live." });
+      return;
+    }
+
     setSaving(true);
 
     const stripeData = { 
-      publishableKey: stripePublishableKey.trim(), 
-      secretKey: stripeSecretKey.trim(),
+      publishableKey: cleanPK, 
+      secretKey: cleanSK,
       feePercent: parseFloat(stripeFeePercent) || 0,
       feeFixed: parseFloat(stripeFeeFixed) || 0,
       mode: stripeMode,
       updatedAt: serverTimestamp() 
     };
 
-    // Validação básica antes de salvar
-    if (!stripeData.publishableKey || !stripeData.secretKey) {
-      toast({ variant: "destructive", title: "Campos vazios", description: "Insira as chaves pública e secreta." });
-      setSaving(false);
-      return;
-    }
-
     setDoc(doc(db, 'settings', 'stripe'), stripeData, { merge: true })
-      .then(() => toast({ title: 'Configuração salva!', description: 'O sistema já está utilizando as novas chaves.' }))
+      .then(() => toast({ title: 'Configuração atualizada!', description: 'O gateway agora utiliza as novas credenciais dinâmicas.' }))
       .catch(async (error) => { 
         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'settings/stripe', operation: 'write', requestResourceData: stripeData })); 
       })
@@ -107,7 +102,7 @@ export default function AdminConfiguracoesPage() {
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
           <CreditCard className="w-8 h-8 text-secondary" /> Configurações de Pagamento
         </h1>
-        <p className="text-muted-foreground font-medium">As chaves inseridas aqui habilitam o checkout Stripe em tempo real.</p>
+        <p className="text-muted-foreground font-medium">Gestão dinâmica de chaves Stripe. Alterações refletem imediatamente no checkout.</p>
       </div>
 
       <form onSubmit={handleSaveStripe} className="space-y-6 max-w-2xl">
@@ -147,7 +142,7 @@ export default function AdminConfiguracoesPage() {
             <div className="p-4 bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 flex gap-4">
                <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                <p className="text-[10px] text-blue-800 font-bold uppercase leading-relaxed italic">
-                 As chaves são salvas no banco de dados isolado e protegidas por regras de servidor. A alteração é imediata para novos checkouts.
+                 As chaves são salvas no banco de dados isolado 'eventosviby'. Nenhuma chave é lida do arquivo .env.
                </p>
             </div>
 
@@ -173,7 +168,7 @@ export default function AdminConfiguracoesPage() {
           <div className="p-8 pt-0">
              <Button type="submit" disabled={saving} className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic hover:scale-[1.01] transition-all">
                 {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-                Atualizar Gateway Dinamicamente
+                Atualizar Gateway de Pagamento
              </Button>
           </div>
         </Card>

@@ -6,8 +6,7 @@ import { getAdminDb } from '@/lib/firebase/admin';
 
 /**
  * @fileOverview Serviço dinâmico do Stripe (Server-Side).
- * Busca TODAS as configurações do Firestore 'settings/stripe' em tempo real.
- * Nenhuma chave é lida do .env.
+ * Busca as chaves do Firestore em tempo real. Sem dependência de .env.
  */
 
 async function getStripeInstance() {
@@ -16,22 +15,21 @@ async function getStripeInstance() {
     const snap = await db.collection('settings').doc('stripe').get();
     
     if (!snap.exists) {
-      throw new Error('Configurações do Stripe não localizadas no Firestore (settings/stripe).');
+      throw new Error('Configurações do Stripe não localizadas. Vá em Admin > Configurações > Pagamentos.');
     }
 
     const data = snap.data();
     const secretKey = data?.secretKey?.trim();
 
     if (!secretKey) {
-      throw new Error('Secret Key do Stripe não configurada no Painel Admin.');
+      throw new Error('Secret Key do Stripe ausente no Banco de Dados.');
     }
 
-    // Validação de Formato (pk_test_, sk_test_, etc)
+    // Validação de segurança de formato
     if (!secretKey.startsWith('sk_test_') && !secretKey.startsWith('sk_live_')) {
-      throw new Error('Formato da Secret Key inválido. Deve começar com sk_test_ ou sk_live_.');
+      throw new Error('Formato da Secret Key inválido (deve iniciar com sk_test ou sk_live).');
     }
 
-    // Inicializa Stripe dinamicamente para esta requisição
     return new Stripe(secretKey, {
       apiVersion: '2024-12-18.acacia' as any,
       appInfo: {
@@ -40,8 +38,8 @@ async function getStripeInstance() {
       }
     });
   } catch (e: any) {
-    console.error("[Stripe Dynamic Init Error]:", e.message);
-    throw new Error(e.message || 'Erro crítico ao inicializar o gateway de pagamento.');
+    console.error("[Stripe Init Error]:", e.message);
+    throw new Error(e.message || 'Falha na inicialização do gateway de pagamento.');
   }
 }
 
@@ -50,9 +48,7 @@ export async function createCheckoutSession(data: any) {
     const head = await headers();
     const origin = head.get('origin') || 'https://viby.club';
     
-    // Instancia o Stripe com as chaves do banco
     const stripe = await getStripeInstance();
-    
     const userEmail = data.userEmail || "comprador@viby.club";
     
     const session = await stripe.checkout.sessions.create({
@@ -76,13 +72,13 @@ export async function createCheckoutSession(data: any) {
     });
     
     if (!session.url) {
-      throw new Error("Stripe não retornou uma URL de redirecionamento.");
+      throw new Error("O provedor de pagamentos não retornou uma URL válida.");
     }
 
     return { url: session.url };
   } catch (error: any) {
     console.error("[Stripe Session Error]:", error.message);
-    throw new Error(error.message || 'Erro ao processar o pagamento com o Stripe.');
+    return { success: false, error: error.message };
   }
 }
 
@@ -122,7 +118,7 @@ export async function createAdBalanceTopUpSession(data: any) {
     return { url: session.url };
   } catch (error: any) {
     console.error("[Stripe Ad TopUp Error]:", error.message);
-    throw new Error(error.message || 'Erro ao processar recarga no Stripe.');
+    return { success: false, error: error.message };
   }
 }
 
