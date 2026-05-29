@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -42,6 +41,10 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const orgRef = React.useMemo(() => (db && event?.organizationId) ? doc(db, 'organizations', event.organizationId) : null, [db, event?.organizationId])
   const { data: organization } = useDoc<any>(orgRef)
 
+  const settingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'site') : null), [db])
+  const { data: settings } = useDoc<any>(settingsRef)
+  const siteName = settings?.siteName || "Viby"
+
   const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db])
   const { data: globalFees } = useDoc<any>(feesRef)
 
@@ -80,7 +83,21 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
         <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full"><ArrowLeft className="w-5 h-5" /></Button>
-            <Link href="/" className="font-black italic uppercase tracking-tighter text-2xl text-primary">VIBY</Link>
+            <Link href="/" className="flex items-center gap-2 group">
+              {settings?.logoUrl ? (
+                <Image 
+                  src={settings.logoUrl} 
+                  alt={siteName} 
+                  width={120} 
+                  height={40} 
+                  className="h-9 w-auto object-contain transition-transform group-hover:scale-105" 
+                  priority 
+                  unoptimized 
+                />
+              ) : (
+                <span className="font-black italic uppercase tracking-tighter text-2xl text-primary">{siteName}</span>
+              )}
+            </Link>
           </div>
           <div className="flex items-center gap-4">
             <Button variant="outline" size="icon" className="rounded-full relative" asChild>
