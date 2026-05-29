@@ -24,7 +24,8 @@ import {
   EventShare, 
   EventStats, 
   BilheteriaPublic,
-  EventInterest
+  EventInterest,
+  EventCoOrganizers
 } from '@/components/events';
 
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
@@ -154,6 +155,8 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                       </div>
                    </div>
                 </Card>
+
+                <EventCoOrganizers eventId={id} currentOrgId={event.organizationId} isPublic />
              </div>
           </aside>
         </div>
