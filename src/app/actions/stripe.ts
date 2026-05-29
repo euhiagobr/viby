@@ -8,6 +8,7 @@ import { logSystemError } from '@/lib/error-manager';
 
 /**
  * @fileOverview Server Actions do Stripe com inicialização dinâmica e segura.
+ * Refatorado para evitar chamadas de Client-side code do server.
  */
 
 async function getStripeInstance() {
@@ -58,8 +59,9 @@ export async function createCheckoutSession(data: any) {
     
     return { success: true, url: session.url };
   } catch (error: any) {
+    // Log do erro tratado sem violar a barreira client/server
     const errorCode = await logSystemError({
-      error,
+      error: { message: error.message, stack: error.stack },
       type: 'stripe_checkout_failure',
       severity: 'error',
       metadata: { items: data.metadata?.registrationIds }

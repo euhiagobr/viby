@@ -1,12 +1,10 @@
-'use client';
-
-/**
- * @fileOverview ErrorManager robusto.
- * Migrado para utilizar exclusivamente o Client SDK para evitar falhas de token do Admin SDK no servidor.
- */
-
 import { db } from '@/firebase/database';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+
+/**
+ * @fileOverview ErrorManager Isomórfico.
+ * Removida a diretiva 'use client' para permitir chamadas do lado do servidor.
+ */
 
 export type ErrorSeverity = 'info' | 'warning' | 'error' | 'critical';
 
@@ -20,7 +18,15 @@ export function generateErrorCode(): string {
 }
 
 function getClientContext() {
-  if (typeof window === 'undefined') return { device: 'server', os: 'linux', pathname: 'server-action' };
+  if (typeof window === 'undefined') {
+    return { 
+      device: 'server', 
+      os: 'linux', 
+      pathname: 'server-action',
+      userAgent: 'Server-Side-Action',
+      browser: 'Node.js'
+    };
+  }
   
   const ua = window.navigator.userAgent;
   return {
@@ -55,16 +61,15 @@ export async function logSystemError(params: {
     metadata: metadata || null,
     userId: user?.uid || null,
     userEmail: user?.email || null,
-    browser: context.userAgent || 'Server',
-    os: context.os || 'Server',
-    device: context.device || 'server',
+    browser: context.browser,
+    os: context.os,
+    device: context.device,
     resolved: false,
-    status: 'pendente',
-    createdAt: new Date()
+    status: 'pendente'
   };
 
   try {
-    // Usamos o db singleton que agora é estável no servidor também
+    // Gravação segura no Firestore usando o Client SDK no servidor
     await addDoc(collection(db, 'system_logs'), {
       ...logData,
       createdAt: serverTimestamp()

@@ -1,11 +1,9 @@
-'use client';
-
-import { getFirestore, Firestore } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 import { app } from "./apps";
 
 /**
- * @fileOverview Instância estável do Firestore para o banco 'eventosviby'.
+ * @fileOverview Instância isomórfica do Firestore para o banco 'eventosviby'.
+ * Funciona tanto no Client quanto no Server (Server Actions).
  */
 
-// Exporta a instância diretamente para ser um singleton real em ambos os ambientes
 export const db = getFirestore(app, "eventosviby");

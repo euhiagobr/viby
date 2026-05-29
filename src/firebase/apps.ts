@@ -1,10 +1,9 @@
-'use client';
-
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { firebaseConfig } from "./config";
 
 /**
- * @fileOverview Inicialização robusta do Firebase App (Isomórfico: Client & Server).
+ * @fileOverview Inicialização isomórfica do Firebase App.
+ * Removida a diretiva 'use client' para permitir uso em Server Actions.
  */
 
 function initializeFirebaseApp(): FirebaseApp {

@@ -1,18 +1,14 @@
-
 'use server';
 
 import nodemailer from 'nodemailer';
-import { db } from '@/firebase';
+import { db } from '@/firebase/database';
 import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 /**
- * @fileOverview Serviço de e-mail (Server Action) utilizando credenciais do Firestore.
- * Migrado para o Client SDK para evitar falhas de token no ambiente do servidor.
+ * @fileOverview Serviço de e-mail (Server Action) utilizando o Singleton estável do db.
  */
 
 async function getTransporter() {
-  if (!db) throw new Error("Firestore não inicializado.");
-  
   const snap = await getDoc(doc(db, 'settings', 'email'));
   const data = snap.data();
 
@@ -30,7 +26,6 @@ async function getTransporter() {
 
 async function logEmail(data: any, sender: string) {
   try {
-    if (!db) return;
     await addDoc(collection(db, 'sent_emails'), {
       ...data,
       sender,
@@ -44,7 +39,7 @@ async function logEmail(data: any, sender: string) {
 export async function sendWelcomeEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(db!, 'settings', 'email'));
+    const snap = await getDoc(doc(db, 'settings', 'email'));
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
@@ -83,7 +78,7 @@ export async function sendWelcomeEmail(data: any) {
 export async function sendPasswordResetLinkEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(db!, 'settings', 'email'));
+    const snap = await getDoc(doc(db, 'settings', 'email'));
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
@@ -122,7 +117,7 @@ export async function sendPasswordResetLinkEmail(data: any) {
 export async function sendPayoutConfirmedEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(db!, 'settings', 'email'));
+    const snap = await getDoc(doc(db, 'settings', 'email'));
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
@@ -146,7 +141,7 @@ export async function sendPayoutConfirmedEmail(data: any) {
 export async function sendTicketEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(db!, 'settings', 'email'));
+    const snap = await getDoc(doc(db, 'settings', 'email'));
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
@@ -184,7 +179,7 @@ export async function sendTicketEmail(data: any) {
 export async function resendLoggedEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(db!, 'settings', 'email'));
+    const snap = await getDoc(doc(db, 'settings', 'email'));
     const smtpUser = snap.data()?.smtpUser;
 
     await transporter.sendMail({
@@ -203,7 +198,7 @@ export async function resendLoggedEmail(data: any) {
 export async function sendTeamInvitationEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(db!, 'settings', 'email'));
+    const snap = await getDoc(doc(db, 'settings', 'email'));
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
@@ -230,7 +225,7 @@ export async function sendTeamInvitationEmail(data: any) {
 export async function sendTeamInvitationNoticeEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(db!, 'settings', 'email'));
+    const snap = await getDoc(doc(db, 'settings', 'email'));
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
@@ -254,7 +249,7 @@ export async function sendTeamInvitationNoticeEmail(data: any) {
 export async function sendTeamInvitationStatusEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(db!, 'settings', 'email'));
+    const snap = await getDoc(doc(db, 'settings', 'email'));
     const smtpUser = snap.data()?.smtpUser;
 
     const statusText = data.status === 'accepted' ? 'ACEITOU' : 'RECUSOU';
