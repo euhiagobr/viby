@@ -1,10 +1,9 @@
-
 'use client';
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ShieldAlert, RefreshCw, Home, ArrowLeft } from 'lucide-react';
+import { ShieldAlert, RefreshCw, ArrowLeft, Globe, User } from 'lucide-react';
 import { logSystemError } from '@/lib/error-manager';
 
 interface Props {
@@ -14,19 +13,23 @@ interface Props {
 interface State {
   hasError: boolean;
   errorCode: string | null;
+  pathname: string | null;
 }
 
 export class GlobalErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
-    errorCode: null
+    errorCode: null,
+    pathname: null
   };
 
   public static getDerivedStateFromError(_: Error): State {
-    return { hasError: true, errorCode: null };
+    return { hasError: true, errorCode: null, pathname: typeof window !== 'undefined' ? window.location.pathname : null };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : 'unknown';
+    
     // Logar erro de renderização
     logSystemError({
       error,
@@ -34,7 +37,7 @@ export class GlobalErrorBoundary extends Component<Props, State> {
       severity: 'critical',
       metadata: { componentStack: errorInfo.componentStack }
     }).then(code => {
-      this.setState({ errorCode: code });
+      this.setState({ errorCode: code, pathname: currentPath });
     });
   }
 
@@ -55,9 +58,21 @@ export class GlobalErrorBoundary extends Component<Props, State> {
               </div>
             </div>
             <CardContent className="p-10 space-y-8">
-              <div className="p-6 bg-muted/30 rounded-2xl border border-dashed text-center">
-                <p className="text-[10px] font-black uppercase opacity-40 mb-1">Código do Erro</p>
-                <p className="text-xl font-mono font-black text-primary">{this.state.errorCode || 'GERANDO...'}</p>
+              <div className="space-y-4">
+                 <div className="p-4 bg-muted/30 rounded-2xl border border-dashed text-center">
+                    <p className="text-[10px] font-black uppercase opacity-40 mb-1">Código do Erro</p>
+                    <p className="text-lg font-mono font-black text-primary">{this.state.errorCode || 'GERANDO...'}</p>
+                 </div>
+
+                 <div className="grid grid-cols-1 gap-2">
+                    <div className="flex items-center gap-3 p-3 bg-muted/20 rounded-xl text-left border">
+                       <Globe className="w-4 h-4 text-muted-foreground shrink-0" />
+                       <div className="min-w-0">
+                          <p className="text-[8px] font-black uppercase opacity-40 leading-none">Página da Ocorrência</p>
+                          <p className="text-[10px] font-bold truncate text-primary">{this.state.pathname || 'Processando...'}</p>
+                       </div>
+                    </div>
+                 </div>
               </div>
               
               <p className="text-sm font-medium text-muted-foreground leading-relaxed">

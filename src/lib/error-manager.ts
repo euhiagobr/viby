@@ -45,8 +45,9 @@ export async function logSystemError(params: {
   component?: string;
   metadata?: any;
   user?: { uid: string; email: string | null } | null;
+  userRole?: string | null;
 }) {
-  const { error, type, severity = 'error', component, metadata, user } = params;
+  const { error, type, severity = 'error', component, metadata, user, userRole } = params;
   const code = generateErrorCode();
   const context = getClientContext();
 
@@ -61,6 +62,7 @@ export async function logSystemError(params: {
     metadata: metadata || null,
     userId: user?.uid || null,
     userEmail: user?.email || null,
+    userRole: userRole || 'guest',
     browser: context.browser,
     os: context.os,
     device: context.device,

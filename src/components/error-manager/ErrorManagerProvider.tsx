@@ -1,11 +1,11 @@
-
 'use client';
 
 import * as React from 'react';
-import { useAuth, useUser } from '@/firebase';
+import { useAuth, useUser, useFirestore, useDoc } from '@/firebase';
 import { logSystemError, ErrorSeverity } from '@/lib/error-manager';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
+import { doc } from 'firebase/firestore';
 
 interface ErrorManagerContextType {
   reportError: (params: { error: any; type: string; severity?: ErrorSeverity; metadata?: any }) => Promise<string>;
@@ -15,8 +15,13 @@ const ErrorManagerContext = React.createContext<ErrorManagerContextType | null>(
 
 export function ErrorManagerProvider({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
+  const db = useFirestore();
   const { user } = useUser(auth);
   const { toast } = useToast();
+
+  // Buscar perfil para capturar o cargo (role)
+  const profileRef = React.useMemo(() => (db && user) ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: profile } = useDoc<any>(profileRef);
 
   const reportError = React.useCallback(async (params: { 
     error: any; 
@@ -26,7 +31,8 @@ export function ErrorManagerProvider({ children }: { children: React.ReactNode }
   }) => {
     const code = await logSystemError({
       ...params,
-      user: user ? { uid: user.uid, email: user.email } : null
+      user: user ? { uid: user.uid, email: user.email } : null,
+      userRole: profile?.role || 'guest'
     });
 
     // Mostrar toast amigável
@@ -37,7 +43,7 @@ export function ErrorManagerProvider({ children }: { children: React.ReactNode }
     });
 
     return code;
-  }, [user, toast]);
+  }, [user, profile?.role, toast]);
 
   React.useEffect(() => {
     // Escutar erros globais do Firebase que já usam o errorEmitter
