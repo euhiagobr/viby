@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
 import { useFirestore, useAuth, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, updateDoc, increment, serverTimestamp, setDoc, deleteDoc, collection, query, where, getCountFromServer } from "firebase/firestore"
+import { doc, updateDoc, increment, serverTimestamp, setDoc, deleteDoc, collection, query, where } from "firebase/firestore"
 import { Heart, Users, Loader2, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -34,11 +35,10 @@ export function EventInterest({ event, className, showButton = true, variant = '
     (db && user && eventId) ? doc(db, "events", eventId, "interests", user.uid) : null, 
     [db, user, eventId]
   )
-  const { data: userInterest, loading: interestLoading } = useDoc<any>(interestRef)
+  const { data: userInterest } = useDoc<any>(interestRef)
   const isInterested = !!userInterest
 
-  // 2. Contador de Confirmados (Vendas Reais)
-  // Somente para eventos internos da Viby
+  // 2. Contador de Confirmados (Vendas Reais Confirmadas)
   const confirmedQuery = useMemoFirebase(() => {
     if (!db || !eventId || !isInternal) return null
     return query(
@@ -67,24 +67,12 @@ export function EventInterest({ event, className, showButton = true, variant = '
 
     try {
       const eventRef = doc(db, "events", eventId)
-      
       if (isInterested) {
-        // Desativar interesse
         await deleteDoc(interestRef!)
-        await updateDoc(eventRef, {
-          interestedCount: increment(-1),
-          updatedAt: serverTimestamp()
-        })
+        await updateDoc(eventRef, { interestedCount: increment(-1), updatedAt: serverTimestamp() })
       } else {
-        // Ativar interesse
-        await setDoc(interestRef!, {
-          userId: user.uid,
-          timestamp: serverTimestamp()
-        })
-        await updateDoc(eventRef, {
-          interestedCount: increment(1),
-          updatedAt: serverTimestamp()
-        })
+        await setDoc(interestRef!, { userId: user.uid, timestamp: serverTimestamp() })
+        await updateDoc(eventRef, { interestedCount: increment(1), updatedAt: serverTimestamp() })
         toast({ title: "Interesse registrado!" })
       }
     } catch (error: any) {
@@ -103,12 +91,12 @@ export function EventInterest({ event, className, showButton = true, variant = '
     return (
       <div className={cn("flex items-center gap-3", className)}>
         <div className="flex items-center gap-1 text-[10px] font-black uppercase text-muted-foreground">
-          <Heart className={cn("w-3 h-3", isInterested ? "fill-red-500 text-red-500" : "opacity-40")} />
+          <Heart className={cn("w-3.5 h-3.5", isInterested ? "fill-red-500 text-red-500" : "opacity-40")} />
           {event.interestedCount || 0}
         </div>
         {isInternal && (
           <div className="flex items-center gap-1 text-[10px] font-black uppercase text-secondary">
-            <Users className="w-3 h-3" />
+            <Users className="w-3.5 h-3.5" />
             {confirmedCount}
           </div>
         )}
@@ -125,28 +113,19 @@ export function EventInterest({ event, className, showButton = true, variant = '
           variant="outline"
           className={cn(
             "rounded-full px-6 h-11 font-black uppercase italic transition-all active:scale-95 gap-2 border-2",
-            isInterested 
-              ? "bg-red-50 border-red-200 text-red-500 hover:bg-red-100" 
-              : "border-secondary text-secondary hover:bg-secondary/5"
+            isInterested ? "bg-red-50 border-red-200 text-red-500" : "border-secondary text-secondary"
           )}
         >
-          {toggling ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Heart className={cn("w-4 h-4", isInterested && "fill-current")} />
-          )}
+          {toggling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Heart className={cn("w-4 h-4", isInterested && "fill-current")} />}
           {isInterested ? "Interessado" : "Tenho Interesse"}
         </Button>
       )}
 
       <div className="flex items-center gap-6">
         <div className="flex flex-col">
-          <span className="text-xl font-black text-primary leading-none">
-            {event.interestedCount || 0}
-          </span>
+          <span className="text-xl font-black text-primary leading-none">{event.interestedCount || 0}</span>
           <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest opacity-60">Interessados</span>
         </div>
-
         {isInternal && (
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5 text-xl font-black text-secondary leading-none">

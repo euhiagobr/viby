@@ -16,6 +16,7 @@ import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import { calculateDetailedVibyBreakdown } from "@/lib/financial-utils"
 import { processGamificationEvent } from "@/lib/gamification-service"
+import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 
 function CheckoutSucessoContent() {
   const searchParams = useSearchParams()
@@ -50,160 +51,119 @@ function CheckoutSucessoContent() {
         const userSnap = await getDoc(doc(db, "users", user.uid));
         const userData = userSnap.exists() ? userSnap.data() : null;
 
-        // Se houver saldo usado em uma recarga de anúncio
+        // Caso 1: Recarga de Anúncios
         if (metadata.type === 'ad_balance_topup') {
           const orgRef = doc(db, "organizations", metadata.orgId);
           const amountToCredit = parseFloat(metadata.baseAmount);
-          
           await updateDoc(orgRef, {
             adBalance: increment(amountToCredit),
             updatedAt: serverTimestamp()
           });
-
-          if (metadata.transactionId) {
-            const txRef = doc(db, 'organizations', metadata.orgId, 'transactions', metadata.transactionId);
-            await updateDoc(txRef, {
-              status: 'completed',
-              updatedAt: serverTimestamp(),
-              stripeSessionId: sessionId
-            });
+          toast({ title: "Saldo Recarregado!" });
+        } 
+        // Caso 2: Checkout de Pedido (Ingressos) - NOVO FLUXO
+        else if (metadata.type === 'order_checkout' && metadata.orderId) {
+          const orderRef = doc(db, "orders", metadata.orderId);
+          const orderSnap = await getDoc(orderRef);
+          
+          if (!orderSnap.exists()) {
+             throw new Error("Pedido não localizado.");
           }
 
-          toast({ title: "Saldo Recarregado!", description: `R$ ${amountToCredit.toFixed(2)} adicionados para anúncios.` });
-        }
-        // Se for checkout de carrinho (Ingressos)
-        else if (metadata.type === 'cart_checkout' || metadata.registrationId) {
-          const regIds = metadata.type === 'cart_checkout' 
-            ? metadata.registrationIds.split(",") 
-            : [metadata.registrationId];
-          
-          // Verificar se houve abatimento de saldo da carteira (parcial)
+          const orderData = orderSnap.data();
+          if (orderData.status === 'paid') {
+             // Já processado por webhook ou refresh anterior
+             setLoading(false);
+             return;
+          }
+
+          // 1. Abater saldo se usado
           const balanceUsed = parseFloat(metadata.balanceUsed || "0");
           if (balanceUsed > 0) {
-            const userRef = doc(db, "users", user.uid);
-            const walletRef = doc(db, "wallets", user.uid);
-
-            // Sincroniza ambos os documentos de saldo para garantir consistência no Ledger
-            await updateDoc(userRef, {
-              walletBalance: increment(-balanceUsed),
-              updatedAt: serverTimestamp()
-            });
-
-            await setDoc(walletRef, {
-              balance: increment(-balanceUsed),
-              updatedAt: serverTimestamp()
-            }, { merge: true });
-
-            // Registrar transação de carteira no histórico
+            await updateDoc(doc(db, "users", user.uid), { walletBalance: increment(-balanceUsed) });
+            await setDoc(doc(db, "wallets", user.uid), { balance: increment(-balanceUsed) }, { merge: true });
             await addDoc(collection(db, "wallet_transactions"), {
-              userId: user.uid,
-              amount: balanceUsed,
-              type: 'debit',
-              reason: 'compra_ingresso',
-              description: `Abatimento Checkout: ${regIds.length > 1 ? 'Múltiplos itens' : 'Ingresso'}`,
-              timestamp: serverTimestamp()
+              userId: user.uid, amount: balanceUsed, type: 'debit', reason: 'compra_ingresso', timestamp: serverTimestamp()
             });
           }
 
+          // 2. Carregar configurações de taxas para o snapshot financeiro
           const [stripeSettingsSnap, feesSettingsSnap, promosSnap] = await Promise.all([
             getDoc(doc(db, 'settings', 'stripe')),
             getDoc(doc(db, 'settings', 'fees')),
             getDoc(doc(db, 'settings', 'promotions'))
           ]);
 
-          const stripeSettings = stripeSettingsSnap.data();
-          const feesSettings = feesSettingsSnap.data();
-          const promotions = promosSnap.exists() ? promosSnap.data() : null;
-
-          for (let i = 0; i < regIds.length; i++) {
-            const regId = regIds[i];
-            const regRef = doc(db, "registrations", regId);
-            const regSnap = await getDoc(regRef);
+          // 3. Criar os tickets REAIS agora
+          for (let i = 0; i < orderData.items.length; i++) {
+            const item = orderData.items[i];
             
-            if (regSnap.exists()) {
-              const regData = regSnap.data();
-              if (regData.paymentStatus !== "Pago") {
-                const isFirst = i === 0;
-                const breakdown = calculateDetailedVibyBreakdown(
-                  regData.ticketBasePrice || 0,
-                  1,
-                  feesSettings,
-                  stripeSettings,
-                  isFirst,
-                  promotions
-                );
+            for (let j = 0; j < item.quantity; j++) {
+              const ticketCode = await generateUniqueTicketCode(db);
+              const breakdown = calculateDetailedVibyBreakdown(
+                item.price, 1, feesSettingsSnap.data(), stripeSettingsSnap.data(), (i === 0 && j === 0), promosSnap.data()
+              );
 
-                await updateDoc(regRef, {
-                  paymentStatus: "Pago",
-                  stripeSessionId: sessionId,
-                  updatedAt: serverTimestamp(),
-                  confirmedAt: serverTimestamp(),
-                  financialSnapshot: breakdown
-                });
+              const regRef = await addDoc(collection(db, "registrations"), {
+                eventId: item.eventId,
+                eventTitle: item.eventTitle,
+                eventImage: item.eventImage || '',
+                eventDate: item.eventDate,
+                eventCity: item.eventCity,
+                userId: user.uid,
+                userName: orderData.userName,
+                userEmail: orderData.userEmail,
+                ticketBasePrice: item.price,
+                price: item.financials.customerFinalPrice,
+                administrativeFeeAmount: item.financials.administrativeFeeAmount,
+                producerFeeAmount: item.financials.producerFeeAmount,
+                producerNetAmount: item.financials.producerNetAmount,
+                ticketTypeName: item.ticketTypeName,
+                batchName: item.batchName,
+                paymentStatus: "Pago",
+                status: "Ativo",
+                ticketCode,
+                stripeSessionId: sessionId,
+                orderId: metadata.orderId,
+                confirmedAt: serverTimestamp(),
+                financialSnapshot: breakdown,
+                timestamp: serverTimestamp()
+              });
 
-                const monthKey = new Date().toISOString().slice(0, 7);
-                const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toLocaleDateString('pt-BR');
+              // Registrar para ERP Fiscal
+              await addDoc(collection(db, "tax_tickets"), {
+                 registrationId: regRef.id,
+                 eventId: item.eventId,
+                 eventTitle: item.eventTitle,
+                 organizationId: item.organizationId,
+                 orgName: item.organizerUsername,
+                 buyerName: orderData.userName,
+                 ticketTypeName: item.ticketTypeName,
+                 totalFacePrice: item.price,
+                 vibyNetProfit: breakdown.vibyNet,
+                 taxAmount: breakdown.imposto,
+                 payoutToProducer: breakdown.payoutToProducer,
+                 monthKey: new Date().toISOString().slice(0, 7),
+                 nfStatus: 'pendente',
+                 timestamp: serverTimestamp()
+              });
 
-                await addDoc(collection(db, "tax_tickets"), {
-                   registrationId: regId,
-                   eventId: regData.eventId,
-                   eventTitle: regData.eventTitle || "Evento",
-                   organizationId: regData.organizationId,
-                   orgName: regData.organizer?.name || "Organização",
-                   orgCnpj: regData.organizer?.cnpj || "---",
-                   buyerName: regData.userName || "Comprador",
-                   buyerEmail: regData.userEmail || "",
-                   ticketTypeName: regData.ticketTypeName || "Geral",
-                   batchName: regData.batchName || "Único",
-                   sectorName: regData.sectorName || null,
-                   quantity: 1,
-                   unitPrice: breakdown.unitPrice,
-                   totalFacePrice: breakdown.totalFace,
-                   buyerFeeAmount: breakdown.buyerFeeTotal,
-                   organizerFeeAmount: breakdown.organizerFeeTotal,
-                   stripeFeePercentAmount: breakdown.stripeFeePercentAmount,
-                   stripeFeeFixedAmount: breakdown.stripeFeeFixedAmount,
-                   stripeFeeAmount: breakdown.stripeFeeTotal,
-                   vibyGrossProfit: breakdown.vibyGross,
-                   taxPercentUsed: 11,
-                   taxAmount: breakdown.imposto,
-                   vibyNetProfit: breakdown.vibyNet,
-                   payoutToProducer: breakdown.payoutToProducer,
-                   monthKey,
-                   nfDeadlineDate: lastDay,
-                   nfStatus: 'pendente',
-                   timestamp: serverTimestamp()
-                });
-
-                await processGamificationEvent(db, user.uid, 'on_ticket_purchase', {
-                  eventId: regData.eventId,
-                  eventTitle: regData.eventTitle,
-                  categoryName: regData.categoryName,
-                  city: regData.eventCity,
-                  orgName: regData.organizer?.name
-                }, regId, userData);
-
-                const eventDate = regData.eventDate?.toDate ? regData.eventDate.toDate().toLocaleString('pt-BR') : new Date(regData.eventDate).toLocaleString('pt-BR');
-                
-                await sendTicketEmail({
-                  to: regData.userEmail,
-                  userName: regData.attendeeName || regData.userName,
-                  eventTitle: regData.eventTitle,
-                  ticketCode: regData.ticketCode,
-                  eventDate: eventDate,
-                  eventCity: regData.eventCity || "Local Confirmado",
-                  sectorName: regData.sectorName,
-                  seatCode: regData.seatCode,
-                  batchName: regData.batchName,
-                  ticketTypeName: regData.ticketTypeName,
-                  voucherUrl: `https://viby.club/dashboard/ingressos/${regId}/voucher`,
-                  eventUrl: `https://viby.club/${regData.organizerUsername || 'evento'}/${regData.eventId}`
-                });
-              }
+              // E-mail de confirmação
+              await sendTicketEmail({
+                to: orderData.userEmail,
+                userName: orderData.userName,
+                eventTitle: item.eventTitle,
+                ticketCode: ticketCode,
+                eventDate: new Date(item.eventDate?.seconds * 1000 || item.eventDate).toLocaleString('pt-BR'),
+                voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher`
+              });
             }
           }
 
-          if (metadata.type === 'cart_checkout') clearCart();
+          // 4. Finalizar o pedido
+          await updateDoc(orderRef, { status: 'paid', stripeSessionId: sessionId, updatedAt: serverTimestamp() });
+          
+          clearCart();
           toast({ title: "Pagamento Confirmado!" });
         }
       } catch (error) {
@@ -237,7 +197,7 @@ function CheckoutSucessoContent() {
           <CardContent className="p-10 space-y-8 text-center">
             <div className="flex flex-col gap-3">
               <Button asChild className="h-14 bg-secondary text-white font-black rounded-2xl shadow-xl shadow-secondary/20 uppercase italic">
-                <Link href="/dashboard">Voltar para o Painel <ArrowRight className="ml-2 w-5 h-5" /></Link>
+                <Link href="/dashboard">Ir para Meus Ingressos <ArrowRight className="ml-2 w-5 h-5" /></Link>
               </Button>
             </div>
           </CardContent>
@@ -250,12 +210,7 @@ function CheckoutSucessoContent() {
 
 export default function CheckoutSucessoPage() {
   return (
-    <React.Suspense fallback={
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Carregando...</p>
-      </div>
-    }>
+    <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>}>
       <CheckoutSucessoContent />
     </React.Suspense>
   );
