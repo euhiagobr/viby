@@ -2,31 +2,35 @@
 'use server';
 
 import nodemailer from 'nodemailer';
+import { getAdminDb } from '@/lib/firebase/admin';
 
 /**
- * @fileOverview Serviço de e-mail utilizando Nodemailer com variáveis de ambiente.
+ * @fileOverview Serviço de e-mail utilizando Nodemailer com credenciais dinâmicas do Firestore.
  */
 
 async function getTransporter() {
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
+  const db = getAdminDb();
+  const snap = await db.collection('settings').doc('email').get();
+  const data = snap.data();
 
-  if (!smtpUser || !smtpPass) {
-    throw new Error("Configurações SMTP ausentes no ambiente (.env).");
+  if (!data?.smtpUser || !data?.smtpPass) {
+    throw new Error("Serviço de E-mail não configurado no painel Admin.");
   }
 
   return nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 465,
     secure: true,
-    auth: { user: smtpUser, pass: smtpPass },
+    auth: { user: data.smtpUser, pass: data.smtpPass },
   });
 }
 
 export async function sendPasswordResetLinkEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const smtpUser = process.env.SMTP_USER;
+    const db = getAdminDb();
+    const emailSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSnap.data()?.smtpUser;
 
     const htmlContent = `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 40px; border-radius: 20px;">
@@ -56,7 +60,10 @@ export async function sendPasswordResetLinkEmail(data: any) {
 export async function sendPayoutConfirmedEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const smtpUser = process.env.SMTP_USER;
+    const db = getAdminDb();
+    const emailSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSnap.data()?.smtpUser;
+
     const htmlContent = `
       <div style="font-family: sans-serif; padding: 40px;">
         <h1 style="color: #2C52EE;">Viby Finance</h1>
@@ -77,7 +84,10 @@ export async function sendPayoutConfirmedEmail(data: any) {
 export async function sendTicketEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const smtpUser = process.env.SMTP_USER;
+    const db = getAdminDb();
+    const emailSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSnap.data()?.smtpUser;
+
     const htmlContent = `
       <div style="font-family: sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 20px;">
         <h1 style="color: #2C52EE;">Seu Ingresso Chegou!</h1>
@@ -104,7 +114,10 @@ export async function sendTicketEmail(data: any) {
 export async function sendWelcomeEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const smtpUser = process.env.SMTP_USER;
+    const db = getAdminDb();
+    const emailSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSnap.data()?.smtpUser;
+
     const htmlContent = `
       <div style="font-family: sans-serif; padding: 40px;">
         <h1 style="color: #2C52EE;">Bem-vindo à ${data.siteName}!</h1>

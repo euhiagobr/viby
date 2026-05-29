@@ -3,24 +3,28 @@
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
+import { getAdminDb } from '@/lib/firebase/admin';
 
 /**
  * @fileOverview Server Actions para integração com Stripe.
- * Utiliza variáveis de ambiente para segurança e performance no servidor.
+ * Busca as chaves dinamicamente do Firestore para permitir configuração via painel Admin.
  */
 
-function getStripeInstance() {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
-  if (!secretKey) {
-    throw new Error('STRIPE_SECRET_KEY não configurada no ambiente (.env).');
+async function getStripeInstance() {
+  const db = getAdminDb();
+  const snap = await db.collection('settings').doc('stripe').get();
+  
+  if (!snap.exists || !snap.data()?.secretKey) {
+    throw new Error('Stripe não configurado. Vá em Painel Admin > Configurações > Pagamentos.');
   }
-  return new Stripe(secretKey);
+  
+  return new Stripe(snap.data()?.secretKey);
 }
 
 export async function createCheckoutSession(data: any) {
   try {
     const origin = (await headers()).get('origin') || 'https://viby.club';
-    const stripe = getStripeInstance();
+    const stripe = await getStripeInstance();
     
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -52,7 +56,7 @@ export async function createCheckoutSession(data: any) {
 export async function createAdBalanceTopUpSession(data: any) {
   try {
     const origin = (await headers()).get('origin') || 'https://viby.club';
-    const stripe = getStripeInstance();
+    const stripe = await getStripeInstance();
     const totalToCharge = data.baseAmount * 1.21;
     
     const session = await stripe.checkout.sessions.create({
@@ -86,7 +90,7 @@ export async function createAdBalanceTopUpSession(data: any) {
 
 export async function getStripeSession(sessionId: string) {
   try {
-    const stripe = getStripeInstance();
+    const stripe = await getStripeInstance();
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     return { 
       id: session.id, 
