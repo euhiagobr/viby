@@ -1,35 +1,15 @@
+'use client';
 
 /**
- * @fileOverview Core do sistema ErrorManager da Viby.
- * Responsável por processar erros, gerar códigos únicos e enviar logs para o Firestore.
+ * @fileOverview ErrorManager robusto.
+ * Migrado para utilizar exclusivamente o Client SDK para evitar falhas de token do Admin SDK no servidor.
  */
 
-import { db } from '@/firebase';
+import { db } from '@/firebase/database';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export type ErrorSeverity = 'info' | 'warning' | 'error' | 'critical';
 
-export interface ErrorLog {
-  code: string;
-  message: string;
-  stack?: string;
-  type: string;
-  severity: ErrorSeverity;
-  pathname?: string;
-  component?: string;
-  metadata?: any;
-  userId?: string;
-  userEmail?: string;
-  browser?: string;
-  os?: string;
-  device?: string;
-  resolved: boolean;
-  status: 'pendente' | 'em_analise' | 'resolvido' | 'ignorado';
-}
-
-/**
- * Gera um código de erro único e rastreável.
- */
 export function generateErrorCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let result = 'ERR-VIBY-';
@@ -39,11 +19,8 @@ export function generateErrorCode(): string {
   return result;
 }
 
-/**
- * Captura informações do ambiente do cliente.
- */
 function getClientContext() {
-  if (typeof window === 'undefined') return {};
+  if (typeof window === 'undefined') return { device: 'server', os: 'linux', pathname: 'server-action' };
   
   const ua = window.navigator.userAgent;
   return {
@@ -55,10 +32,6 @@ function getClientContext() {
   };
 }
 
-/**
- * Função principal para logar erros no Firestore.
- * Detecta automaticamente o ambiente (Client ou Server) e usa o método apropriado.
- */
 export async function logSystemError(params: {
   error: any;
   type: string;
@@ -77,7 +50,7 @@ export async function logSystemError(params: {
     stack: error?.stack || null,
     type,
     severity,
-    pathname: context.pathname || 'server-action',
+    pathname: context.pathname,
     component: component || 'N/A',
     metadata: metadata || null,
     userId: user?.uid || null,
@@ -87,28 +60,17 @@ export async function logSystemError(params: {
     device: context.device || 'server',
     resolved: false,
     status: 'pendente',
-    createdAt: new Date() // Usar Date() em vez de serverTimestamp() para garantir compatibilidade imediata
+    createdAt: new Date()
   };
 
   try {
-    // Se estiver rodando no servidor, tenta usar o Admin SDK para evitar erros de permissão
-    if (typeof window === 'undefined') {
-      const { getAdminDb } = await import('@/lib/firebase/admin');
-      const adminDb = getAdminDb();
-      await adminDb.collection('system_logs').add(logData);
-    } else {
-      // No cliente, usa o SDK padrão (as regras de segurança agora permitem gravação)
-      if (db) {
-        await addDoc(collection(db, 'system_logs'), {
-          ...logData,
-          createdAt: serverTimestamp()
-        });
-      }
-    }
+    // Usamos o db singleton que agora é estável no servidor também
+    await addDoc(collection(db, 'system_logs'), {
+      ...logData,
+      createdAt: serverTimestamp()
+    });
   } catch (e) {
-    console.error('[ErrorManager Critical Failure]', e);
-    // Fallback: log no console se o Firestore falhar
-    console.error('[Logged Error Code]', code, logData);
+    console.error('[ErrorManager Fallback]', code, logData);
   }
 
   return code;

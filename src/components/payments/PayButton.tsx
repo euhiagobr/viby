@@ -39,16 +39,10 @@ export function PayButton({
   const router = useRouter()
 
   const handleCheckout = async () => {
-    console.log("[TRACE-VIBY] UI: PayButton clicked.");
-    
-    if (items.length === 0 || loading) {
-      console.warn("[TRACE-VIBY] UI: Click ignored (empty cart or loading)");
-      return;
-    }
+    if (items.length === 0 || loading) return;
     
     setLoading(true)
     try {
-      console.log("[TRACE-VIBY] UI: Dispatching executeCheckoutFlow...");
       const result = await executeCheckoutFlow({
         user: profile,
         profile,
@@ -60,15 +54,18 @@ export function PayButton({
         useBalance
       })
 
-      if (result.type === 'stripe' && result.url) {
-        console.log("[TRACE-VIBY] UI: Redirecting to Stripe...");
+      if (result.type === 'free') {
+        onSuccess()
+        toast({ title: "Reserva confirmada!", description: "Seus ingressos gratuitos já estão disponíveis." })
+        router.push("/dashboard/ingressos")
+      } else if (result.type === 'stripe' && result.url) {
         window.location.href = result.url
       }
     } catch (e: any) {
-      console.error("[TRACE-VIBY] UI: executeCheckoutFlow crashed.", e);
+      console.error("[Checkout Failure]", e);
       reportError({
         error: e,
-        type: 'checkout_trace_failure',
+        type: 'checkout_pipeline_error',
         severity: 'error',
         metadata: { itemsCount: items.length, total: totals.total }
       })

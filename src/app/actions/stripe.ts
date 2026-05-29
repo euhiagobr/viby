@@ -1,52 +1,33 @@
-
 'use server';
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { db } from '@/firebase';
+import { db } from '@/firebase/database';
 import { doc, getDoc } from 'firebase/firestore';
 import { logSystemError } from '@/lib/error-manager';
 
 /**
- * @fileOverview Serviço dinâmico do Stripe (Server-Side).
- * Busca as chaves do Firestore (banco eventosviby) em tempo real.
- * Utiliza o Client SDK para evitar falhas de refresh token do Admin SDK.
+ * @fileOverview Server Actions do Stripe com inicialização dinâmica e segura.
  */
 
 async function getStripeInstance() {
   try {
-    if (!db) throw new Error('Firestore não inicializado.');
-    
     const snap = await getDoc(doc(db, 'settings', 'stripe'));
     
     if (!snap.exists()) {
-      throw new Error('Configurações do Stripe não localizadas no Painel Admin.');
+      throw new Error('Configurações do Stripe não localizadas no banco.');
     }
 
     const data = snap.data();
     const secretKey = data?.secretKey?.trim();
 
-    if (!secretKey) {
-      throw new Error('Secret Key do Stripe ausente no banco de dados.');
-    }
-
-    if (!secretKey.startsWith('sk_')) {
-      throw new Error('Secret Key inválida. Deve iniciar com sk_');
-    }
+    if (!secretKey) throw new Error('Secret Key do Stripe ausente.');
 
     return new Stripe(secretKey, {
       apiVersion: '2024-12-18.acacia' as any,
-      appInfo: {
-        name: 'Viby Club',
-        version: '3.0.0'
-      }
     });
   } catch (e: any) {
-    await logSystemError({
-      error: { message: e.message || 'Falha na inicialização do gateway.' },
-      type: 'stripe_init_failure',
-      severity: 'critical'
-    });
+    console.error("[Stripe Init Error]", e.message);
     throw e;
   }
 }
@@ -57,41 +38,33 @@ export async function createCheckoutSession(data: any) {
     const origin = head.get('origin') || 'https://viby.club';
     
     const stripe = await getStripeInstance();
-    const userEmail = data.userEmail || "comprador@viby.club";
     
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: data.lineItems || [{
         price_data: {
           currency: 'brl',
-          product_data: { 
-            name: data.eventTitle || 'Ingresso Viby',
-            images: (data.eventImage && data.eventImage.startsWith('http')) ? [data.eventImage] : []
-          },
+          product_data: { name: data.eventTitle || 'Ingresso Viby' },
           unit_amount: Math.round(data.totalAmount),
         },
         quantity: 1,
       }],
       mode: 'payment',
-      customer_email: userEmail,
+      customer_email: data.userEmail,
       success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/cancelado`,
       metadata: data.metadata,
     });
     
-    if (!session.url) {
-      throw new Error("Stripe não retornou URL válida.");
-    }
-
-    return { url: session.url };
+    return { success: true, url: session.url };
   } catch (error: any) {
-    await logSystemError({
-      error: { message: error.message },
-      type: 'stripe_checkout_error',
+    const errorCode = await logSystemError({
+      error,
+      type: 'stripe_checkout_failure',
       severity: 'error',
-      metadata: { checkoutData: { ...data, userEmail: 'HIDDEN' } }
+      metadata: { items: data.metadata?.registrationIds }
     });
-    return { success: false, error: error.message };
+    return { success: false, error: error.message, code: errorCode };
   }
 }
 
@@ -128,14 +101,8 @@ export async function createAdBalanceTopUpSession(data: any) {
       },
     });
     
-    return { url: session.url };
+    return { success: true, url: session.url };
   } catch (error: any) {
-    await logSystemError({
-      error: { message: error.message },
-      type: 'stripe_ad_topup_error',
-      severity: 'error',
-      metadata: { topupData: { ...data, userEmail: 'HIDDEN' } }
-    });
     return { success: false, error: error.message };
   }
 }
@@ -151,12 +118,6 @@ export async function getStripeSession(sessionId: string) {
       metadata: session.metadata 
     };
   } catch (error: any) {
-    await logSystemError({
-      error: { message: error.message },
-      type: 'stripe_session_retrieval_error',
-      severity: 'warning',
-      metadata: { sessionId }
-    });
     return null;
   }
 }
