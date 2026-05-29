@@ -1,4 +1,5 @@
-import { collection, query, where, getDocs, Firestore } from "firebase/firestore";
+import { query, where, getDocs, Firestore } from "firebase/firestore";
+import { safeCollection } from "./firestore-safe";
 
 export const generateTicketCode = (): string => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -15,7 +16,8 @@ export const generateUniqueTicketCode = async (db: Firestore): Promise<string> =
 
   while (attempts < maxAttempts) {
     const code = generateTicketCode();
-    const q = query(collection(db, "registrations"), where("ticketCode", "==", code));
+    // Usa o safeCollection para garantir que o db é válido
+    const q = query(safeCollection(db, "registrations"), where("ticketCode", "==", code));
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {

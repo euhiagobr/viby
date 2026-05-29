@@ -1,9 +1,8 @@
-
 "use client"
 
 import * as React from "react"
 import { useCart } from "@/contexts/CartContext"
-import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
+import { useAuth, useUser, useFirestore, useDoc, db as singletonDB } from "@/firebase"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -39,19 +38,23 @@ import Link from "next/link"
 import { formatCurrency, calculateFinancialBreakdown } from "@/lib/financial-utils"
 import { createCheckoutSession } from "@/app/actions/stripe"
 import { toast } from "@/hooks/use-toast"
-import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, limit, getDoc, updateDoc, increment, runTransaction } from "firebase/firestore"
+import { addDoc, serverTimestamp, query, where, getDocs, limit, getDoc, updateDoc, increment, runTransaction } from "firebase/firestore"
 import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 import { sendTicketEmail } from "@/app/actions/email"
 import { AgeRatingBadge } from "@/lib/age-rating"
 import { useErrorManager } from "@/components/error-manager/ErrorManagerProvider"
+import { safeCollection, safeDoc } from "@/lib/firestore-safe"
 
 export default function CarrinhoPage() {
   const { items, removeItem, updateQuantity, clearCart } = useCart()
   const router = useRouter()
-  const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
   const { reportError } = useErrorManager()
+  
+  // Prioriza o singleton db caso o hook useFirestore ainda não tenha retornado a instância
+  const hookDb = useFirestore()
+  const db = hookDb || singletonDB
   
   const [processing, setProcessing] = React.useState(false)
   const [isWaitingPayment, setIsWaitingPayment] = React.useState(false)
@@ -65,16 +68,16 @@ export default function CarrinhoPage() {
   const [orgsData, setOrgsData] = React.useState<Record<string, any>>({})
   const [loadingConfig, setLoadingConfig] = React.useState(true)
 
-  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
+  const userDocRef = React.useMemo(() => (db && user) ? safeDoc(db, "users", user.uid) : null, [db, user])
   const { data: profile } = useDoc<any>(userDocRef)
 
-  const walletRef = React.useMemo(() => (db && user) ? doc(db, "wallets", user.uid) : null, [db, user])
+  const walletRef = React.useMemo(() => (db && user) ? safeDoc(db, "wallets", user.uid) : null, [db, user])
   const { data: wallet } = useDoc<any>(walletRef)
 
-  const feesRef = React.useMemo(() => db ? doc(db, 'settings', 'fees') : null, [db])
+  const feesRef = React.useMemo(() => db ? safeDoc(db, 'settings', 'fees') : null, [db])
   const { data: globalFees } = useDoc<any>(feesRef)
 
-  const promosRef = React.useMemo(() => db ? doc(db, 'settings', 'promotions') : null, [db])
+  const promosRef = React.useMemo(() => db ? safeDoc(db, 'settings', 'promotions') : null, [db])
   const { data: promotions } = useDoc<any>(promosRef)
 
   React.useEffect(() => {
@@ -87,7 +90,7 @@ export default function CarrinhoPage() {
       const orgIds = Array.from(new Set(items.map(i => i.organizationId)))
       const results: Record<string, any> = {}
       for (const id of orgIds) {
-        const snap = await getDoc(doc(db, "organizations", id))
+        const snap = await getDoc(safeDoc(db, "organizations", id))
         if (snap.exists()) results[id] = snap.data()
       }
       setOrgsData(results)
@@ -137,7 +140,7 @@ export default function CarrinhoPage() {
     if (!db || !couponCode.trim()) return;
     setIsApplyingCoupon(true);
     try {
-      const q = query(collection(db, "coupons"), where("code", "==", couponCode.trim().toUpperCase()), where("status", "==", "Ativo"), limit(1));
+      const q = query(safeCollection(db, "coupons"), where("code", "==", couponCode.trim().toUpperCase()), where("status", "==", "Ativo"), limit(1));
       const snap = await getDocs(q);
       if (snap.empty) { toast({ variant: "destructive", title: "Cupom inválido" }); setAppliedCoupon(null); return; }
       const couponData = { id: snap.docs[0].id, ...snap.docs[0].data() };
@@ -167,13 +170,13 @@ export default function CarrinhoPage() {
       // Se for pagamento total via saldo, processamos no Ledger agora
       if (isFullBalanceOrder) {
         await runTransaction(db, async (transaction) => {
-          const walletRef = doc(db, "wallets", user.uid);
-          const userRef = doc(db, "users", user.uid);
+          const walletRef = safeDoc(db, "wallets", user.uid);
+          const userRef = safeDoc(db, "users", user.uid);
           const wSnap = await transaction.get(walletRef);
           if (!wSnap.exists() || (wSnap.data().balance || 0) < cartTotals.balanceUsed) throw new Error("Saldo insuficiente.");
           transaction.set(walletRef, { balance: increment(-cartTotals.balanceUsed), updatedAt: serverTimestamp() }, { merge: true });
           transaction.update(userRef, { walletBalance: increment(-cartTotals.balanceUsed), updatedAt: serverTimestamp() });
-          transaction.set(doc(collection(db, "wallet_transactions")), { userId: user.uid, amount: cartTotals.balanceUsed, type: 'debit', reason: 'compra_ingresso', description: `Compra Integral com Saldo`, timestamp: serverTimestamp() });
+          transaction.set(safeDoc(safeCollection(db, "wallet_transactions"), crypto.randomUUID()), { userId: user.uid, amount: cartTotals.balanceUsed, type: 'debit', reason: 'compra_ingresso', description: `Compra Integral com Saldo`, timestamp: serverTimestamp() });
         });
       }
 
@@ -185,7 +188,7 @@ export default function CarrinhoPage() {
 
         for (let i = 0; i < item.quantity; i++) {
           const ticketCode = await generateUniqueTicketCode(db);
-          const regRef = await addDoc(collection(db, "registrations"), {
+          const regRef = await addDoc(safeCollection(db, "registrations"), {
             ...item,
             userId: user.uid, userName: profile?.name || user.displayName || user.email || "Usuário", userEmail: user.email,
             ticketBasePrice: item.price, price: breakdown.customerFinalPrice, administrativeFeeAmount: breakdown.administrativeFeeAmount,
@@ -328,6 +331,25 @@ export default function CarrinhoPage() {
                     {cartTotals.balanceUsed > 0 && <div className="flex justify-between text-xs font-black uppercase text-secondary"><span>Abatimento Saldo</span><span>-{formatCurrency(cartTotals.balanceUsed)}</span></div>}
                     <Separator />
                     <div className="flex justify-between items-center"><span className="text-lg font-black uppercase italic">Total</span><span className="text-2xl font-black text-primary">{formatCurrency(cartTotals.total)}</span></div>
+                 </div>
+                 <div className="space-y-3">
+                   <div className="flex gap-2">
+                     <Input 
+                       placeholder="CUPOM" 
+                       value={couponCode} 
+                       onChange={e => setCouponCode(e.target.value.toUpperCase())}
+                       className="rounded-xl h-11 border-dashed font-black"
+                     />
+                     <Button variant="secondary" onClick={handleApplyCoupon} disabled={isApplyingCoupon} className="h-11 rounded-xl px-4">
+                       {isApplyingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : <TicketPercent className="w-4 h-4" />}
+                     </Button>
+                   </div>
+                   {appliedCoupon && (
+                     <Badge className="w-full bg-green-500 text-white justify-between px-3 h-8 rounded-lg border-none uppercase font-black text-[9px]">
+                        <span>CUPOM: {appliedCoupon.code}</span>
+                        <X className="w-3 h-3 cursor-pointer" onClick={() => setAppliedCoupon(null)} />
+                     </Badge>
+                   )}
                  </div>
                  <Button onClick={handleCheckout} disabled={processing || loadingConfig} className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg transition-all hover:scale-[1.02]">
                     {processing ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><CreditCard className="w-6 h-6 mr-2" /> Pagar Agora</>}

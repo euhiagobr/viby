@@ -1,38 +1,24 @@
 'use client';
 
-import { initializeFirestore, Firestore, getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, Firestore } from "firebase/firestore";
 import { app } from "./apps";
 
 /**
- * @fileOverview Gerenciamento ultra-seguro da instância do Firestore.
- * Implementa um Singleton que evita a re-inicialização do banco de dados 'eventosviby',
- * causa principal do erro INTERNAL ASSERTION FAILED (ca9) no Next.js 15.
+ * @fileOverview Gerenciamento estabilizado da instância do Firestore para o banco 'eventosviby'.
+ * Utiliza um padrão Singleton resiliente para evitar múltiplas inicializações e o erro ca9 do SDK v11.
  */
 
-const DATABASE_NAME = "eventosviby";
+const DATABASE_ID = "eventosviby";
 
-function getDbInstance(): Firestore {
-  // No servidor, criamos uma nova instância por requisição
-  if (typeof window === "undefined") {
-    return getFirestore(app, DATABASE_NAME);
-  }
+let firestoreInstance: Firestore;
 
-  // No cliente, persistimos a instância globalmente para evitar o erro de asserção ca9
-  // @ts-ignore
-  if (!globalThis.__VIBY_FIRESTORE_INSTANCE__) {
-    try {
-      // Usar initializeFirestore com configurações vazias é mais estável para bancos nomeados no v11
-      // @ts-ignore
-      globalThis.__VIBY_FIRESTORE_INSTANCE__ = initializeFirestore(app, {}, DATABASE_NAME);
-    } catch (e) {
-      // Se já estiver inicializado por outro meio, recuperamos a instância existente
-      // @ts-ignore
-      globalThis.__VIBY_FIRESTORE_INSTANCE__ = getFirestore(app, DATABASE_NAME);
-    }
-  }
-
-  // @ts-ignore
-  return globalThis.__VIBY_FIRESTORE_INSTANCE__;
+try {
+  // Tenta recuperar a instância já inicializada para o banco nomeado
+  firestoreInstance = getFirestore(app, DATABASE_ID);
+} catch (e) {
+  // Se não houver instância, inicializa uma nova
+  // Usar initializeFirestore é mais seguro para bancos nomeados no App Router
+  firestoreInstance = initializeFirestore(app, {}, DATABASE_ID);
 }
 
-export const db = getDbInstance();
+export const db = firestoreInstance;
