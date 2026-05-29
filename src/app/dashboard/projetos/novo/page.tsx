@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -104,7 +103,7 @@ export default function NovoEventoPage() {
     return getStorage(app, "gs://viby");
   }, [app])
 
-  const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
+  const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
 
   const [loading, setLoading] = useState(false)
@@ -170,7 +169,7 @@ export default function NovoEventoPage() {
     } catch (e) {}
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!db || !user || !currentOrg || !isAtLeastEditor) return
     if (eventType === 'externo' && !isValidUrl(externalUrl)) {
@@ -294,7 +293,7 @@ export default function NovoEventoPage() {
              </div>
              <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2"><Label>Início</Label><Input name="startDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
-                <div className="space-y-2"><Label>Fim</Label><Input name="endDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
+                <div className="space-y-2"><Label>Término</Label><Input name="endDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
              </div>
              <div className="space-y-2"><Label>Descrição</Label><Textarea value={description} onChange={e => setDescription(e.target.value)} required className="min-h-[120px] rounded-xl border-dashed" placeholder="Conte tudo sobre a experiência..." /></div>
           </CardContent>
@@ -342,7 +341,7 @@ export default function NovoEventoPage() {
         )}
 
         <Button type="submit" disabled={loading} className="w-full h-20 bg-secondary text-white font-black text-xl rounded-[2.5rem] shadow-xl uppercase italic hover:scale-[1.02] transition-all">
-          {loading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : "Publicar Experiência"}
+          {loading ? <Loader2 className="animate-spin mr-2" /> : "Publicar Experiência"}
         </Button>
       </form>
     </div>
