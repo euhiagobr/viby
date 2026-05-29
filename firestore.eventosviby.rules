@@ -17,6 +17,10 @@ service cloud.firestore {
         get(/databases/eventosviby/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    function isNotBlocked(data) {
+      return !data.keys().contains('status') || data.status != 'Bloqueado';
+    }
+
     function hasOrgRole(orgId, roles) {
       return isSignedIn() && 
         exists(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
@@ -26,8 +30,8 @@ service cloud.firestore {
     // --- REGRAS PÚBLICAS (Navegação sem login) ---
 
     match /events/{eventId} {
-      allow read: if true;
-      allow write: if isSignedIn(); 
+      allow read: if isNotBlocked(resource.data);
+      allow write: if isSignedIn() && isNotBlocked(get(/databases/eventosviby/documents/users/$(request.auth.uid)).data); 
 
       match /partners/{partnerId} {
         allow read: if true;
@@ -36,7 +40,7 @@ service cloud.firestore {
 
       match /comments/{commentId} {
         allow read: if true;
-        allow create: if isSignedIn();
+        allow create: if isSignedIn() && isNotBlocked(get(/databases/eventosviby/documents/users/$(request.auth.uid)).data);
         allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       }
 
@@ -47,8 +51,8 @@ service cloud.firestore {
     }
 
     match /organizations/{orgId} {
-      allow read: if true;
-      allow write: if isSignedIn();
+      allow read: if isNotBlocked(resource.data) || hasOrgRole(orgId, ['owner', 'admin', 'editor', 'finance', 'checkin']) || isAdmin();
+      allow write: if isSignedIn() && isNotBlocked(get(/databases/eventosviby/documents/users/$(request.auth.uid)).data);
 
       match /members/{userId} {
         allow read: if isSignedIn() && (request.auth.uid == userId || hasOrgRole(orgId, ['owner', 'admin', 'editor', 'finance', 'checkin']) || isAdmin());
@@ -88,7 +92,7 @@ service cloud.firestore {
     // --- REGRAS PRIVADAS (Usuários e Transações) ---
 
     match /users/{userId} {
-      allow read: if true;
+      allow read: if (isNotBlocked(resource.data)) || isOwner(userId) || isAdmin();
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isOwner(userId) || isAdmin();
 
@@ -108,9 +112,8 @@ service cloud.firestore {
     }
 
     match /registrations/{regId} {
-      // Permite listagem para contar interessados, mas protege dados sensíveis no get se necessário
       allow read: if true; 
-      allow create, update: if isSignedIn();
+      allow create, update: if isSignedIn() && isNotBlocked(get(/databases/eventosviby/documents/users/$(request.auth.uid)).data);
     }
 
     match /orders/{orderId} {
@@ -144,63 +147,6 @@ service cloud.firestore {
     match /xp_logs/{logId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow write: if isAdmin();
-    }
-
-    match /user_badges/{id} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /badges/{id} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // --- SISTEMA E ADMIN ---
-
-    match /system_logs/{logId} {
-      allow read: if isAdmin();
-      allow create: if true; 
-      allow update: if isAdmin();
-    }
-
-    match /sent_emails/{docId} {
-      allow read: if isAdmin();
-      allow create: if true;
-    }
-
-    match /tax_tickets/{docId} {
-      allow read: if isAdmin();
-      allow create: if true;
-    }
-
-    match /tax_ads/{docId} {
-      allow read: if isAdmin();
-      allow create: if true;
-    }
-
-    match /internal_expenses/{docId} {
-      allow read: if isAdmin();
-      allow create, update: if isAdmin();
-    }
-
-    match /settings/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /reports/{docId} {
-      allow read: if isAdmin();
-      allow create: if isSignedIn();
-    }
-
-    // --- COLLECTION GROUPS ---
-    match /{path=**}/members/{memberId} {
-      allow read, list: if isSignedIn();
-    }
-
-    match /{path=**}/partners/{partnerId} {
-      allow read, list: if true;
     }
 
     // Padrão de segurança para o resto

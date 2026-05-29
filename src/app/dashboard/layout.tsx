@@ -1,10 +1,11 @@
+
 "use client"
 
 import * as React from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
-import { Bell, Loader2, Plus, Building2, ShoppingCart, LogIn } from "lucide-react"
+import { Bell, Loader2, Plus, Building2, ShoppingCart, LogIn, ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
@@ -33,6 +34,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { totalCount } = useCart()
   const [checkingAccount, setCheckingAccount] = React.useState(true)
+  const [accountProfile, setAccountProfile] = React.useState<any>(null)
 
   // Lista de rotas protegidas que EXIGEM login imediato
   const protectedRoutes = [
@@ -47,8 +49,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   ];
 
   const isProtectedRoute = protectedRoutes.some(route => pathname?.startsWith(route));
-  // A página Explorar (/dashboard) agora é pública por padrão na navegação
-  const isExplorar = pathname === '/dashboard';
 
   const unreadQuery = useMemoFirebase(() => {
     if (!db || !user) return null
@@ -75,6 +75,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
         
         if (userSnap.exists()) {
           const userData = userSnap.data()
+          setAccountProfile(userData)
+
+          // 1. Reativação automática se desativado/em exclusão
           if (userData.status === 'Desativado' || userData.status === 'Exclusão Programada') {
             await updateDoc(userRef, {
               status: 'Ativo',
@@ -88,6 +91,11 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
               duration: 6000
             })
           }
+
+          // 2. Trava de Bloqueio: Se bloqueado, só acessa suporte
+          if (userData.status === 'Bloqueado' && pathname !== '/dashboard/suporte') {
+            router.replace('/dashboard/suporte')
+          }
         }
       } catch (e) {
         console.warn("Conta sem perfil Firestore ainda.");
@@ -99,10 +107,28 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     checkAccountStatus()
   }, [db, user, isInitialized, isProtectedRoute, pathname, router])
 
-  if (!isInitialized) {
+  if (!isInitialized || checkingAccount) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+      </div>
+    )
+  }
+
+  // Renderização Minimalista para Usuários Bloqueados
+  if (accountProfile?.status === 'Bloqueado' && pathname !== '/dashboard/suporte') {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#f8fafc] p-6 text-center">
+         <div className="w-24 h-24 bg-red-100 rounded-[2rem] flex items-center justify-center text-red-600 mb-8 shadow-xl">
+            <ShieldAlert className="w-12 h-12" />
+         </div>
+         <h1 className="text-4xl font-black uppercase italic tracking-tighter text-primary">Conta Bloqueada</h1>
+         <p className="text-muted-foreground font-medium max-w-sm mt-4 leading-relaxed">
+            Seu acesso foi suspenso por violação dos termos de uso. Você só pode acessar a central de suporte para contestar esta decisão.
+         </p>
+         <Button asChild className="mt-8 bg-primary text-white font-black rounded-xl h-14 px-10 uppercase italic shadow-lg">
+            <Link href="/dashboard/suporte">Contatar Suporte</Link>
+         </Button>
       </div>
     )
   }

@@ -198,16 +198,38 @@ export default function AdminUsuariosPage() {
     const newStatus = isBlocked ? 'Ativo' : 'Bloqueado'
     
     try {
-      await updateDoc(doc(db, type, id), {
+      const batch = writeBatch(db);
+      
+      // 1. Atualizar o alvo principal
+      batch.update(doc(db, type, id), {
         status: newStatus,
         updatedAt: serverTimestamp(),
         moderatedAt: serverTimestamp(),
         moderatedBy: "Admin"
-      })
+      });
+
+      // 2. Se for um usuário sendo bloqueado, bloqueia também suas organizações
+      if (type === 'users' && !isBlocked) {
+        const orgsQ = query(collection(db, "organizations"), where("createdBy", "==", id));
+        const orgsSnap = await getDocs(orgsQ);
+        orgsSnap.forEach(orgDoc => {
+          batch.update(orgDoc.ref, {
+            status: 'Bloqueado',
+            updatedAt: serverTimestamp(),
+            moderatedAt: serverTimestamp(),
+            moderatedBy: "Admin",
+            blockReason: "Proprietário da conta bloqueado."
+          });
+        });
+      }
+
+      await batch.commit();
       toast({ 
         title: isBlocked ? "Perfil Desbloqueado" : "Perfil Bloqueado", 
-        description: `O ${type === 'users' ? 'usuário' : 'perfil da marca'} agora está ${newStatus.toLowerCase()}.` 
-      })
+        description: isBlocked 
+          ? `O ${type === 'users' ? 'usuário' : 'perfil da marca'} agora está ativo.` 
+          : `Bloqueio aplicado${type === 'users' ? ' e estendido às suas marcas.' : '.'}` 
+      });
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na moderação" })
     }
@@ -584,8 +606,9 @@ export default function AdminUsuariosPage() {
                          value={editingUser?.username || ""} 
                          onChange={e => setEditingUser({...editingUser, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} 
                          className={cn(
-                           "rounded-xl h-11 pr-10",
-                           usernameStatus === 'valid' ? 'border-green-500' : usernameStatus === 'taken' ? 'border-destructive' : ''
+                           "rounded-xl h-11", 
+                           usernameStatus === 'valid' ? 'border-green-500 pr-10' : 
+                           usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-destructive pr-10' : 'pr-10'
                          )} 
                        />
                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
