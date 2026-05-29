@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -25,6 +26,7 @@ export interface CartItem {
   sectorName?: string;
   seatId?: string;
   seatCode?: string;
+  ageRating?: string;
 }
 
 interface CartContextType {
@@ -34,6 +36,7 @@ interface CartContextType {
   updateQuantity: (cartItemId: string, quantity: number) => void;
   clearCart: () => void;
   totalCount: number;
+  expiresAt: number | null;
 }
 
 const CartContext = createContext<CartContextType>({
@@ -43,29 +46,75 @@ const CartContext = createContext<CartContextType>({
   updateQuantity: () => {},
   clearCart: () => {},
   totalCount: 0,
+  expiresAt: null,
 });
+
+const CART_EXPIRATION_TIME = 10 * 60 * 1000; // 10 minutos em milissegundos
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
 
   // Load from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('viby_cart');
-    if (saved) {
+    const savedItems = localStorage.getItem('viby_cart');
+    const savedExpiry = localStorage.getItem('viby_cart_expiry');
+    
+    if (savedItems) {
       try {
-        setItems(JSON.parse(saved));
+        const parsedItems = JSON.parse(savedItems);
+        setItems(parsedItems);
+        
+        if (savedExpiry && parsedItems.length > 0) {
+          const expiry = parseInt(savedExpiry);
+          if (Date.now() > expiry) {
+            setItems([]);
+            setExpiresAt(null);
+            localStorage.removeItem('viby_cart');
+            localStorage.removeItem('viby_cart_expiry');
+          } else {
+            setExpiresAt(expiry);
+          }
+        }
       } catch (e) {
         console.error("Erro ao carregar carrinho", e);
       }
     }
   }, []);
 
+  // Monitor de Expiração
+  useEffect(() => {
+    if (items.length === 0) {
+      setExpiresAt(null);
+      localStorage.removeItem('viby_cart_expiry');
+      return;
+    }
+
+    const interval = setInterval(() => {
+      if (expiresAt && Date.now() > expiresAt) {
+        clearCart();
+        window.dispatchEvent(new CustomEvent('viby-cart-expired'));
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [items.length, expiresAt]);
+
   // Save to localStorage
   useEffect(() => {
     localStorage.setItem('viby_cart', JSON.stringify(items));
-  }, [items]);
+    if (expiresAt) {
+      localStorage.setItem('viby_cart_expiry', expiresAt.toString());
+    }
+  }, [items, expiresAt]);
+
+  const resetTimer = () => {
+    const newExpiry = Date.now() + CART_EXPIRATION_TIME;
+    setExpiresAt(newExpiry);
+  };
 
   const addItem = (item: CartItem) => {
+    resetTimer();
     setItems(prev => {
       const existing = prev.find(i => i.id === item.id);
       if (existing) {
@@ -76,7 +125,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const removeItem = (id: string) => {
-    setItems(prev => prev.filter(i => i.id !== id));
+    setItems(prev => {
+      const newList = prev.filter(i => i.id !== id);
+      if (newList.length === 0) {
+        setExpiresAt(null);
+        localStorage.removeItem('viby_cart_expiry');
+      }
+      return newList;
+    });
   };
 
   const updateQuantity = (id: string, quantity: number) => {
@@ -84,15 +140,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       removeItem(id);
       return;
     }
+    resetTimer();
     setItems(prev => prev.map(i => i.id === id ? { ...i, quantity } : i));
   };
 
-  const clearCart = () => setItems([]);
+  const clearCart = () => {
+    setItems([]);
+    setExpiresAt(null);
+    localStorage.removeItem('viby_cart_expiry');
+  };
 
   const totalCount = items.reduce((acc, i) => acc + i.quantity, 0);
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, totalCount }}>
+    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, totalCount, expiresAt }}>
       {children}
     </CartContext.Provider>
   );
