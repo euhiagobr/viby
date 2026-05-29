@@ -63,7 +63,8 @@ import {
   AtSign,
   AlertTriangle,
   UserPlus,
-  Handshake
+  Handshake,
+  ChevronRight
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -92,6 +93,15 @@ function VerifiedBadge({ className }: { className?: string }) {
   )
 }
 
+function VisibilityToggleSwitch({ checked, onChange }: { checked: boolean, onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      {checked ? <Eye className="w-3 h-3 text-green-600" /> : <EyeOff className="w-3 h-3 text-muted-foreground" />}
+      <Switch checked={checked} onCheckedChange={onChange} className="scale-75 origin-right" />
+    </div>
+  )
+}
+
 export default function AdminUsuariosPage() {
   const db = useFirestore()
   const app = useFirebaseApp()
@@ -111,12 +121,9 @@ export default function AdminUsuariosPage() {
   const [newOwnerUsername, setNewOwnerUsername] = React.useState("")
   
   const [isSaving, setIsSaving] = React.useState(false)
-  const [isRecalculating, setIsRecalculating] = React.useState(false)
-  const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
   const [checkingUsername, setCheckingUsername] = React.useState(false)
   const [usernameStatus, setUsernameStatus] = React.useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
 
-  // Estados para Gestão de Membros
   const [isAddMemberOpen, setIsAddMemberOpen] = React.useState(false)
   const [memberTargetUsername, setMemberTargetUsername] = React.useState("")
   const [memberTargetOrgId, setMemberTargetOrgId] = React.useState("")
@@ -128,40 +135,43 @@ export default function AdminUsuariosPage() {
   const orgsQuery = useMemoFirebase(() => db ? query(collection(db, "organizations"), orderBy("createdAt", "desc")) : null, [db])
   const { data: orgs, loading: loadingOrgs } = useCollection<any>(orgsQuery)
 
-  // Membros via Collection Group
   const membersGroupQuery = useMemoFirebase(() => db ? query(collectionGroup(db, "members")) : null, [db])
   const { data: allMemberships, loading: loadingMembers } = useCollection<any>(membersGroupQuery)
 
   const [fullMembersData, setFullMembersData] = React.useState<any[]>([])
   const [loadingMemberProfiles, setLoadingMemberProfiles] = React.useState(false)
 
-  // Enriquecer dados dos membros
   React.useEffect(() => {
     if (!allMemberships || !db) return;
     
     const enrich = async () => {
       setLoadingMemberProfiles(true)
-      const data = await Promise.all(allMemberships.map(async (m) => {
-        const orgId = m.ref.parent.parent?.id;
-        if (!orgId) return null;
+      try {
+        const data = await Promise.all(allMemberships.map(async (m) => {
+          const orgId = m.ref.parent.parent?.id;
+          if (!orgId) return null;
 
-        const [userSnap, orgSnap] = await Promise.all([
-          getDoc(doc(db, "users", m.userId)),
-          getDoc(doc(db, "organizations", orgId))
-        ])
+          const [userSnap, orgSnap] = await Promise.all([
+            getDoc(doc(db, "users", m.userId)),
+            getDoc(doc(db, "organizations", orgId))
+          ])
 
-        return {
-          id: m.id,
-          orgId,
-          userId: m.userId,
-          role: m.role,
-          status: m.status,
-          user: userSnap.exists() ? { id: userSnap.id, ...userSnap.data() } : null,
-          org: orgSnap.exists() ? { id: orgSnap.id, ...orgSnap.data() } : null
-        }
-      }))
-      setFullMembersData(data.filter(Boolean))
-      setLoadingMemberProfiles(false)
+          return {
+            id: m.id,
+            orgId,
+            userId: m.userId,
+            role: m.role,
+            status: m.status,
+            user: userSnap.exists() ? { id: userSnap.id, ...userSnap.data() } : null,
+            org: orgSnap.exists() ? { id: orgSnap.id, ...orgSnap.data() } : null
+          }
+        }))
+        setFullMembersData(data.filter(Boolean))
+      } catch (e) {
+        console.error("Erro ao carregar membros. Verifique se o índice composite para members foi criado.", e)
+      } finally {
+        setLoadingMemberProfiles(false)
+      }
     }
 
     enrich()
@@ -255,6 +265,67 @@ export default function AdminUsuariosPage() {
       toast({ variant: "destructive", title: "Erro ao salvar" }) 
     } finally { 
       setIsSaving(false) 
+    }
+  }
+
+  const handleUpdateOrg = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!db || !editingOrg || isSaving) return
+    setIsSaving(true)
+    try {
+      const batch = writeBatch(db)
+      const original = orgs?.find(o => o.id === editingOrg.id)
+      
+      if (editingOrg.username !== original?.username) {
+        if (original?.username) {
+          batch.delete(doc(db, "usernames", original.username.toLowerCase()))
+        }
+        batch.set(doc(db, "usernames", editingOrg.username.toLowerCase()), { 
+          uid: editingOrg.id, 
+          type: 'organization',
+          updatedAt: serverTimestamp()
+        })
+      }
+
+      const { id, ...data } = editingOrg
+      batch.update(doc(db, "organizations", id), { ...data, updatedAt: serverTimestamp() })
+      
+      await batch.commit()
+      toast({ title: "Organização atualizada!" })
+      setIsEditOrgOpen(false)
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao salvar marca" })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDeleteProfile = async (id: string, type: 'user' | 'organization', username: string) => {
+    if (!db || !confirm(`Tem certeza que deseja excluir permanentemente ${type === 'user' ? 'o usuário' : 'a marca'} @${username}?`)) return
+    
+    setIsSaving(true)
+    try {
+      const batch = writeBatch(db)
+      const coll = type === 'user' ? 'users' : 'organizations'
+      
+      batch.delete(doc(db, coll, id))
+      if (username) {
+        batch.delete(doc(db, "usernames", username.toLowerCase()))
+      }
+
+      // Se for usuário, remove vínculos de equipe onde ele aparece
+      if (type === 'user') {
+        const membersQ = query(collectionGroup(db, "members"), where("userId", "==", id))
+        const mSnap = await getDocs(membersQ)
+        mSnap.forEach(d => batch.delete(d.ref))
+      }
+
+      await batch.commit()
+      toast({ title: "Perfil removido com sucesso" })
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro na exclusão" })
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -850,29 +921,16 @@ export default function AdminUsuariosPage() {
                     </div>
                  </div>
               </ScrollArea>
+              
+              <DialogFooter className="p-8 border-t bg-muted/30">
+                 <Button type="submit" disabled={isSaving || usernameStatus === 'taken'} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
+                    Salvar Configurações da Marca
+                 </Button>
+              </DialogFooter>
            </form>
-           
-           <DialogFooter className="p-8 border-t bg-muted/30">
-              <Button onClick={handleUpdateOrg} disabled={isSaving || usernameStatus === 'taken'} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                 {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-                 Salvar Configurações da Marca
-              </Button>
-           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   )
-}
-
-function VisibilityToggleSwitch({ checked, onChange }: { checked: boolean, onChange: (v: boolean) => void }) {
-  return (
-    <div className="flex items-center gap-2">
-      {checked ? <Eye className="w-3 h-3 text-green-600" /> : <EyeOff className="w-3 h-3 text-muted-foreground" />}
-      <Switch checked={checked} onCheckedChange={onChange} className="scale-75 origin-right" />
-    </div>
-  )
-}
-
-function handleDeleteProfile(id: string, type: 'user' | 'organization', username: string) {
-  // Mantido para compatibilidade, mas removi o corpo para brevidade pois os fluxos principais foram refatorados
 }
