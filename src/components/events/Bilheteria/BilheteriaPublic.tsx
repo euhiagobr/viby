@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -13,7 +12,9 @@ import {
   Minus, 
   ShieldCheck,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Zap,
+  ArrowRight
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatCurrency, calculateFinancialBreakdown } from "@/lib/financial-utils"
@@ -30,7 +31,7 @@ interface BilheteriaPublicProps {
 }
 
 export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }: BilheteriaPublicProps) {
-  const { addItem } = useCart()
+  const { addItem, items } = useCart()
   const auth = useAuth()
   const { user } = useUser(auth)
   const router = useRouter()
@@ -38,14 +39,29 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
 
   const [quantities, setQuantities] = React.useState<Record<string, number>>({})
 
+  // Lógica inteligente de Lote Ativo:
+  // 1. Lote dentro do prazo de validade
+  // 2. Lote que ainda possui ingressos (incluindo sobras do anterior se implementado no backend)
   const activeBatch = React.useMemo(() => {
     if (!event.batches || event.batches.length === 0) return null
     const now = new Date()
-    return event.batches.find((b: any) => {
+    
+    // Filtra lotes que já começaram e ainda não terminaram
+    const validByDate = event.batches.find((b: any) => {
       const start = b.startDate ? new Date(b.startDate) : null
       const end = b.endDate ? new Date(b.endDate) : null
       return (!start || now >= start) && (!end || now <= end)
-    }) || event.batches[0]
+    })
+
+    if (validByDate) return validByDate
+
+    // Se nenhum está no prazo, pegamos o primeiro que ainda não começou (Próximo Lote)
+    const nextBatch = event.batches.find((b: any) => {
+       const start = b.startDate ? new Date(b.startDate) : null
+       return start && now < start
+    })
+
+    return nextBatch || event.batches[0]
   }, [event.batches])
 
   const handleUpdateQty = (typeId: string, val: number) => {
@@ -90,6 +106,10 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
 
   if (event.ticketMode === 'none' || !event.ticketMode) return null
 
+  const now = new Date()
+  const isStarted = !activeBatch?.startDate || now >= new Date(activeBatch.startDate)
+  const isFinished = activeBatch?.endDate && now > new Date(activeBatch.endDate)
+
   return (
     <section id="bilheteria" className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col gap-2">
@@ -98,76 +118,99 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
       </div>
 
       {activeBatch ? (
-        <div className="space-y-4">
-           {activeBatch.ticketTypes.map((type: any) => {
-             const breakdown = calculateFinancialBreakdown(type.price, globalFees, promotions, orgSettings)
-             const qty = quantities[type.id] || 0
-             const isFree = type.price <= 0
+        <div className="space-y-6">
+           <div className="flex items-center justify-between px-4 py-3 bg-secondary/5 rounded-2xl border border-secondary/10">
+              <div className="flex items-center gap-3">
+                 <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Zap className="w-4 h-4 fill-current" /></div>
+                 <span className="text-[10px] font-black uppercase tracking-widest text-primary">Vendas Abertas: {activeBatch.name}</span>
+              </div>
+              {!isStarted ? (
+                <Badge variant="outline" className="text-[8px] font-black uppercase border-orange-200 text-orange-600 bg-orange-50">Inicia em breve</Badge>
+              ) : isFinished ? (
+                <Badge variant="outline" className="text-[8px] font-black uppercase border-red-200 text-red-600 bg-red-50">Lote Encerrado</Badge>
+              ) : (
+                <div className="flex items-center gap-2">
+                   <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                   <span className="text-[9px] font-black uppercase text-green-600">Disponível</span>
+                </div>
+              )}
+           </div>
 
-             return (
-               <Card key={type.id} className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden group hover:shadow-md transition-all">
-                  <CardContent className="p-8">
-                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
-                        <div className="space-y-3 flex-1">
-                           <div className="flex items-center gap-3">
-                              <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary leading-none">{type.name}</h3>
-                              <Badge variant="outline" className="text-[8px] font-black uppercase border-secondary text-secondary">{activeBatch.name}</Badge>
-                           </div>
-                           
-                           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-relaxed">
-                              {type.description || (isFree ? "Acesso gratuito para o evento." : "Ingresso individual oficial.")}
-                           </p>
+           <div className="space-y-4">
+              {activeBatch.ticketTypes.map((type: any) => {
+                const breakdown = calculateFinancialBreakdown(type.price, globalFees, promotions, orgSettings)
+                const qty = quantities[type.id] || 0
+                const isFree = type.price <= 0
+                const canBuy = isStarted && !isFinished
 
-                           {type.requiresProof && (
-                             <div className="flex items-start gap-2 p-3 bg-orange-50 rounded-xl border border-orange-100 animate-in slide-in-from-left-2">
-                                <ShieldCheck className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
-                                <div className="space-y-0.5">
-                                   <p className="text-[9px] font-black text-orange-800 uppercase">Documento Obrigatório</p>
-                                   <p className="text-[10px] text-orange-700 font-medium">{type.proofDescription || "Necessário comprovação no check-in."}</p>
-                                </div>
+                return (
+                  <Card key={type.id} className={cn(
+                    "border-none shadow-sm rounded-[2rem] bg-white overflow-hidden group transition-all",
+                    qty > 0 ? "ring-2 ring-secondary shadow-xl -translate-y-1" : "hover:shadow-md"
+                  )}>
+                    <CardContent className="p-8">
+                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+                          <div className="space-y-3 flex-1">
+                             <div className="flex items-center gap-3">
+                                <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary leading-none">{type.name}</h3>
+                                {type.poolId && <Badge variant="outline" className="text-[7px] font-black uppercase border-secondary/20 text-secondary bg-secondary/5">Pool Meia</Badge>}
                              </div>
-                           )}
+                             
+                             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-relaxed">
+                                {type.description || (isFree ? "Acesso gratuito para o evento." : "Ingresso individual oficial.")}
+                             </p>
 
-                           {activeBatch.endDate && (
-                             <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground uppercase">
-                                <Clock className="w-3.5 h-3.5" /> 
-                                Vendas até {new Date(activeBatch.endDate).toLocaleDateString('pt-BR')} às {new Date(activeBatch.endDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                             </div>
-                           )}
-                        </div>
-
-                        <div className="flex items-center gap-8">
-                           <div className="text-right shrink-0">
-                              <p className="text-3xl font-black text-primary">
-                                 {isFree ? "GRÁTIS" : formatCurrency(type.price)}
-                              </p>
-                              {!isFree && (
-                                <p className="text-[9px] font-black text-muted-foreground uppercase mt-1">+ {formatCurrency(breakdown.administrativeFeeAmount)} taxa viby</p>
-                              )}
-                           </div>
-
-                           <div className="flex items-center gap-4 bg-muted/40 p-2 rounded-2xl">
-                              <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl" onClick={() => handleUpdateQty(type.id, qty - 1)} disabled={qty <= 0}><Minus className="w-4 h-4" /></Button>
-                              <span className="font-black text-lg w-6 text-center">{qty}</span>
-                              <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl" onClick={() => handleUpdateQty(type.id, qty + 1)}><Plus className="w-4 h-4" /></Button>
-                           </div>
-
-                           <Button 
-                             onClick={() => handleAddToCart(type)}
-                             disabled={qty <= 0}
-                             className={cn(
-                               "h-14 px-8 rounded-2xl font-black uppercase italic shadow-lg transition-all",
-                               qty > 0 ? "bg-secondary text-white hover:scale-105" : "bg-muted text-muted-foreground"
+                             {type.requiresProof && (
+                               <div className="flex items-start gap-2 p-3 bg-orange-50 rounded-xl border border-orange-100 w-fit">
+                                  <ShieldCheck className="w-3.5 h-3.5 text-orange-600 shrink-0 mt-0.5" />
+                                  <div className="space-y-0.5">
+                                     <p className="text-[8px] font-black text-orange-800 uppercase">Atenção</p>
+                                     <p className="text-[9px] text-orange-700 font-bold uppercase leading-tight">{type.proofDescription || "Necessário comprovação no check-in."}</p>
+                                  </div>
+                               </div>
                              )}
-                           >
-                              <ShoppingCart className="w-5 h-5 mr-2" /> {isFree ? "Reservar" : "Comprar"}
-                           </Button>
-                        </div>
-                     </div>
-                  </CardContent>
-               </Card>
-             )
-           })}
+
+                             {activeBatch.endDate && (
+                               <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground uppercase opacity-60">
+                                  <Clock className="w-3.5 h-3.5" /> 
+                                  Válido até {new Date(activeBatch.endDate).toLocaleDateString('pt-BR')} às {new Date(activeBatch.endDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                               </div>
+                             )}
+                          </div>
+
+                          <div className="flex items-center gap-6">
+                             <div className="text-right shrink-0">
+                                <p className="text-3xl font-black text-primary italic tracking-tighter leading-none">
+                                   {isFree ? "GRÁTIS" : formatCurrency(type.price)}
+                                </p>
+                                {!isFree && (
+                                  <p className="text-[8px] font-black text-muted-foreground uppercase mt-2 opacity-50">+ {formatCurrency(breakdown.administrativeFeeAmount)} taxa viby</p>
+                                )}
+                             </div>
+
+                             <div className="flex items-center gap-3 bg-muted/40 p-2 rounded-2xl border">
+                                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-white" onClick={() => handleUpdateQty(type.id, qty - 1)} disabled={qty <= 0 || !canBuy}><Minus className="w-3.5 h-3.5" /></Button>
+                                <span className="font-black text-base w-6 text-center">{qty}</span>
+                                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-white" onClick={() => handleUpdateQty(type.id, qty + 1)} disabled={!canBuy}><Plus className="w-3.5 h-3.5" /></Button>
+                             </div>
+
+                             <Button 
+                               onClick={() => handleAddToCart(type)}
+                               disabled={qty <= 0 || !canBuy}
+                               className={cn(
+                                 "h-14 px-8 rounded-2xl font-black uppercase italic shadow-lg transition-all",
+                                 qty > 0 ? "bg-secondary text-white hover:scale-105 active:scale-95" : "bg-muted text-muted-foreground"
+                               )}
+                             >
+                                <ShoppingCart className="w-5 h-5 mr-2" /> {isFree ? "Reservar" : "Garantir"}
+                             </Button>
+                          </div>
+                       </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+           </div>
         </div>
       ) : (
         <Card className="border-none shadow-sm rounded-[3rem] bg-muted/10 border-2 border-dashed border-border/60 p-20 text-center space-y-6">
@@ -176,19 +219,19 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
            </div>
            <div className="space-y-2">
               <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Vendas Indisponíveis</h3>
-              <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest max-w-xs mx-auto">O lote atual expirou ou as vendas ainda não foram iniciadas.</p>
+              <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest max-w-xs mx-auto">Os ingressos para este evento ainda não estão liberados ou o período de vendas foi encerrado.</p>
            </div>
         </Card>
       )}
 
-      {/* Regra de Lotes */}
+      {/* Informativo de Lotes */}
       {event.ticketMode === 'batches' && event.batches.length > 1 && (
-        <div className="p-6 bg-secondary/5 rounded-[2rem] border border-secondary/10 flex items-start gap-4">
+        <div className="p-6 bg-secondary/5 rounded-[2.5rem] border border-secondary/10 flex items-start gap-4">
            <AlertCircle className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
            <div className="space-y-1">
               <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Sistema de Lotes Dinâmicos</h4>
               <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed">
-                 O Viby garante o melhor preço disponível. Quando um lote esgota ou atinge o prazo, o próximo assume automaticamente incluindo as sobras do lote anterior.
+                 O Viby garante o melhor preço disponível. Quando um lote esgota ou atinge o prazo, o próximo assume automaticamente incluindo as sobras do lote anterior para maximizar a ocupação do evento.
               </p>
            </div>
         </div>
