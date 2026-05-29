@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -16,7 +15,8 @@ import {
   deleteField,
   where,
   getDocs,
-  limit
+  limit,
+  collectionGroup
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -208,18 +208,23 @@ export default function AdminUsuariosPage() {
         moderatedBy: "Admin"
       });
 
-      // 2. Se for um usuário sendo bloqueado, bloqueia também suas organizações
+      // 2. Se for um usuário sendo bloqueado, bloqueia também as marcas onde ele é PROPRIETÁRIO
       if (type === 'users' && !isBlocked) {
-        const orgsQ = query(collection(db, "organizations"), where("createdBy", "==", id));
-        const orgsSnap = await getDocs(orgsQ);
-        orgsSnap.forEach(orgDoc => {
-          batch.update(orgDoc.ref, {
-            status: 'Bloqueado',
-            updatedAt: serverTimestamp(),
-            moderatedAt: serverTimestamp(),
-            moderatedBy: "Admin",
-            blockReason: "Proprietário da conta bloqueado."
-          });
+        // Busca via collectionGroup por membros com papel 'owner'
+        const memberOrgsQ = query(collectionGroup(db, "members"), where("userId", "==", id), where("role", "==", "owner"));
+        const memberOrgsSnap = await getDocs(memberOrgsQ);
+        
+        memberOrgsSnap.forEach(memberDoc => {
+          const orgId = memberDoc.ref.parent.parent?.id;
+          if (orgId) {
+            batch.update(doc(db, "organizations", orgId), {
+              status: 'Bloqueado',
+              updatedAt: serverTimestamp(),
+              moderatedAt: serverTimestamp(),
+              moderatedBy: "Admin",
+              blockReason: "Titular da conta bloqueado."
+            });
+          }
         });
       }
 
@@ -228,9 +233,10 @@ export default function AdminUsuariosPage() {
         title: isBlocked ? "Perfil Desbloqueado" : "Perfil Bloqueado", 
         description: isBlocked 
           ? `O ${type === 'users' ? 'usuário' : 'perfil da marca'} agora está ativo.` 
-          : `Bloqueio aplicado${type === 'users' ? ' e estendido às suas marcas.' : '.'}` 
+          : `Bloqueio aplicado${type === 'users' ? ' e estendido às suas marcas de titularidade.' : '.'}` 
       });
     } catch (e) {
+      console.error("Erro na moderação:", e)
       toast({ variant: "destructive", title: "Erro na moderação" })
     }
   }
