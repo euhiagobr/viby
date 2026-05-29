@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Utilitários financeiros oficiais do Viby.
  * Implementa aritmética de centavos para precisão monetária e regras de retenção de taxas.
