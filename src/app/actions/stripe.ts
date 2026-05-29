@@ -5,32 +5,43 @@ import Stripe from 'stripe';
 import { getAdminDb } from '@/lib/firebase/admin';
 
 /**
- * @fileOverview Server Actions para integração dinâmica com Stripe.
- * Busca a Secret Key diretamente do Firestore (banco eventosviby) em cada requisição.
- * PROIBIDO o uso de process.env para chaves Stripe.
+ * @fileOverview Serviço dinâmico do Stripe (Server-Side).
+ * Busca TODAS as configurações do Firestore 'settings/stripe' em tempo real.
+ * Nenhuma chave é lida do .env.
  */
 
 async function getStripeInstance() {
   try {
     const db = getAdminDb();
     const snap = await db.collection('settings').doc('stripe').get();
-    const data = snap.data();
     
-    if (!snap.exists || !data?.secretKey) {
-      console.error("[Stripe Action] Configuração ausente em settings/stripe");
-      throw new Error('Configuração Stripe não encontrada no painel administrativo.');
+    if (!snap.exists) {
+      throw new Error('Configurações do Stripe não localizadas no Firestore (settings/stripe).');
     }
-    
-    // Inicializa Stripe dinamicamente com a chave salva no banco
-    return new Stripe(data.secretKey, {
+
+    const data = snap.data();
+    const secretKey = data?.secretKey?.trim();
+
+    if (!secretKey) {
+      throw new Error('Secret Key do Stripe não configurada no Painel Admin.');
+    }
+
+    // Validação de Formato (pk_test_, sk_test_, etc)
+    if (!secretKey.startsWith('sk_test_') && !secretKey.startsWith('sk_live_')) {
+      throw new Error('Formato da Secret Key inválido. Deve começar com sk_test_ ou sk_live_.');
+    }
+
+    // Inicializa Stripe dinamicamente para esta requisição
+    return new Stripe(secretKey, {
+      apiVersion: '2024-12-18.acacia' as any,
       appInfo: {
         name: 'Viby Club',
-        version: '2.1.0'
+        version: '3.0.0'
       }
     });
   } catch (e: any) {
-    console.error("[Stripe Action] Erro ao instanciar Stripe:", e.message);
-    throw new Error('Erro ao inicializar o gateway de pagamento. Verifique as chaves no Admin.');
+    console.error("[Stripe Dynamic Init Error]:", e.message);
+    throw new Error(e.message || 'Erro crítico ao inicializar o gateway de pagamento.');
   }
 }
 
@@ -38,9 +49,10 @@ export async function createCheckoutSession(data: any) {
   try {
     const head = await headers();
     const origin = head.get('origin') || 'https://viby.club';
+    
+    // Instancia o Stripe com as chaves do banco
     const stripe = await getStripeInstance();
     
-    // Busca e-mail do usuário se não fornecido
     const userEmail = data.userEmail || "comprador@viby.club";
     
     const session = await stripe.checkout.sessions.create({
@@ -63,10 +75,14 @@ export async function createCheckoutSession(data: any) {
       metadata: data.metadata,
     });
     
+    if (!session.url) {
+      throw new Error("Stripe não retornou uma URL de redirecionamento.");
+    }
+
     return { url: session.url };
   } catch (error: any) {
-    console.error("[Stripe Checkout Error]:", error.message);
-    throw new Error(error.message || 'Erro ao gerar sessão de pagamento.');
+    console.error("[Stripe Session Error]:", error.message);
+    throw new Error(error.message || 'Erro ao processar o pagamento com o Stripe.');
   }
 }
 
@@ -76,16 +92,18 @@ export async function createAdBalanceTopUpSession(data: any) {
     const origin = head.get('origin') || 'https://viby.club';
     const stripe = await getStripeInstance();
     
-    // Taxa de recarga de ads fixada em 21% conforme lógica atual
-    const totalToCharge = data.baseAmount * 1.21;
+    const amountToCharge = data.baseAmount * 1.21;
     
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{
         price_data: {
           currency: 'brl',
-          product_data: { name: `Recarga Ads - ${data.orgName}` },
-          unit_amount: Math.round(totalToCharge * 100),
+          product_data: { 
+            name: `Recarga Ads - ${data.orgName}`,
+            description: `Crédito de R$ ${data.baseAmount} + Encargos Fiscais (21%)`
+          },
+          unit_amount: Math.round(amountToCharge * 100),
         },
         quantity: 1,
       }],

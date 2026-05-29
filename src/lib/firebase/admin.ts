@@ -3,9 +3,9 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Inicialização robusta do Firebase Admin SDK.
- * Prioriza credenciais de ambiente, mas funciona com inicialização padrão
- * em ambientes Google Cloud (como App Hosting / Cloud Run).
+ * @fileOverview Inicialização ultra-robusta do Firebase Admin SDK.
+ * Configurada para acessar o banco de dados nomeado 'eventosviby' e funcionar 
+ * tanto em produção (App Hosting) quanto em ambientes de desenvolvimento.
  */
 
 function getAdminApp(): App {
@@ -13,10 +13,11 @@ function getAdminApp(): App {
   const existingAdmin = apps.find(a => a.name === 'admin-app');
   if (existingAdmin) return existingAdmin;
 
-  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'ong-desafios-3942a';
+  // Prioriza o Project ID do ambiente ou o padrão da Viby
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'ong-desafios-3942a';
 
   try {
-    // Tenta inicialização com variáveis de ambiente se disponíveis
+    // Tenta inicialização com credenciais de ambiente (se disponíveis)
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
@@ -36,15 +37,24 @@ function getAdminApp(): App {
       }, 'admin-app');
     }
     
-    // Fallback: Inicialização simples (funciona automaticamente em ambientes Google Cloud)
+    // Fallback: Inicialização padrão (funciona automaticamente no Google Cloud / Firebase App Hosting)
     return initializeApp({
       projectId
     }, 'admin-app');
   } catch (error: any) {
-    console.error('[Admin SDK] Erro crítico na inicialização:', error.message);
-    throw new Error('Falha na autenticação administrativa do servidor.');
+    console.error('[Admin SDK Error]:', error.message);
+    // Se falhar, tenta retornar o app padrão se existir como última alternativa
+    return apps.length > 0 ? apps[0] : initializeApp({ projectId }, 'admin-app');
   }
 }
 
 export const getAdminAuth = () => getAuth(getAdminApp());
-export const getAdminDb = () => getAdminFirestore(getAdminApp(), 'eventosviby');
+
+/**
+ * Retorna a instância do Firestore Admin para o banco 'eventosviby'.
+ */
+export const getAdminDb = () => {
+  const app = getAdminApp();
+  // No Firebase Admin SDK, passamos o databaseId como segundo argumento
+  return getAdminFirestore(app, 'eventosviby');
+};
