@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -208,23 +209,20 @@ export default function AdminUsuariosPage() {
         moderatedBy: "Admin"
       });
 
-      // 2. Se for um usuário sendo bloqueado, bloqueia também as marcas onde ele é PROPRIETÁRIO
+      // 2. Se for um usuário sendo bloqueado, bloqueia também as marcas onde ele é PROPRIETÁRIO ATUAL
+      // Usamos o campo 'ownerId' denormalizado para maior eficiência e evitar erro de índice
       if (type === 'users' && !isBlocked) {
-        // Busca via collectionGroup por membros com papel 'owner'
-        const memberOrgsQ = query(collectionGroup(db, "members"), where("userId", "==", id), where("role", "==", "owner"));
-        const memberOrgsSnap = await getDocs(memberOrgsQ);
+        const ownedOrgsQ = query(collection(db, "organizations"), where("ownerId", "==", id));
+        const ownedOrgsSnap = await getDocs(ownedOrgsQ);
         
-        memberOrgsSnap.forEach(memberDoc => {
-          const orgId = memberDoc.ref.parent.parent?.id;
-          if (orgId) {
-            batch.update(doc(db, "organizations", orgId), {
-              status: 'Bloqueado',
-              updatedAt: serverTimestamp(),
-              moderatedAt: serverTimestamp(),
-              moderatedBy: "Admin",
-              blockReason: "Titular da conta bloqueado."
-            });
-          }
+        ownedOrgsSnap.forEach(orgDoc => {
+          batch.update(orgDoc.ref, {
+            status: 'Bloqueado',
+            updatedAt: serverTimestamp(),
+            moderatedAt: serverTimestamp(),
+            moderatedBy: "Admin",
+            blockReason: "Titular da conta bloqueado."
+          });
         });
       }
 
@@ -237,7 +235,7 @@ export default function AdminUsuariosPage() {
       });
     } catch (e) {
       console.error("Erro na moderação:", e)
-      toast({ variant: "destructive", title: "Erro na moderação" })
+      toast({ variant: "destructive", title: "Erro na moderação", description: "Falha técnica ao aplicar status." })
     }
   }
 
@@ -264,7 +262,7 @@ export default function AdminUsuariosPage() {
         batch.update(membersSnap.docs[0].ref, { role: 'admin', updatedAt: serverTimestamp() })
       }
 
-      // 2. Definir novo dono
+      // 2. Definir novo dono na subcoleção
       const newMemberRef = doc(db, "organizations", transferOrg.id, "members", newOwnerUid)
       batch.set(newMemberRef, {
         userId: newOwnerUid,
@@ -274,8 +272,9 @@ export default function AdminUsuariosPage() {
         updatedAt: serverTimestamp()
       }, { merge: true })
 
-      // 3. Atualizar documento da org
+      // 3. Atualizar documento da org (incluindo ownerId para busca administrativa)
       batch.update(doc(db, "organizations", transferOrg.id), {
+        ownerId: newOwnerUid,
         updatedAt: serverTimestamp(),
         lastOwnerTransferAt: serverTimestamp()
       })

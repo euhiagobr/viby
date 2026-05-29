@@ -164,7 +164,11 @@ export default function NovaOrganizacaoPage() {
       try {
         const usernameRef = doc(db, "usernames", newUsername)
         const usernameSnap = await getDoc(usernameRef)
-        setUsernameStatus(usernameSnap.exists() ? 'taken' : 'valid')
+        if (usernameSnap.exists()) {
+          setUsernameStatus('taken')
+        } else {
+          setUsernameStatus('valid')
+        }
       } catch (e) {
         console.error(e)
       } finally {
@@ -173,7 +177,7 @@ export default function NovaOrganizacaoPage() {
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [formData.username, db, blockedData])
+  }, [username, db, blockedData])
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value;
@@ -264,6 +268,7 @@ export default function NovaOrganizacaoPage() {
           username: normalizedUsername,
           slug: normalizedUsername,
           createdBy: user.uid,
+          ownerId: user.uid, // Campo para busca administrativa eficiente
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           verified: false,
