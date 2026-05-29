@@ -1,24 +1,33 @@
 'use client';
 
-import { getFirestore, initializeFirestore, Firestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, Firestore, getApps } from "firebase/firestore";
 import { app } from "./apps";
 
 /**
- * @fileOverview Gerenciamento estabilizado da instância do Firestore para o banco 'eventosviby'.
- * Utiliza um padrão Singleton resiliente para evitar múltiplas inicializações e o erro ca9 do SDK v11.
+ * @fileOverview Gerenciamento ultra-estabilizado da instância do Firestore.
+ * Utiliza o banco de dados isolado 'eventosviby'.
+ * Implementa um Singleton resiliente para evitar múltiplas inicializações no App Router.
  */
 
 const DATABASE_ID = "eventosviby";
 
-let firestoreInstance: Firestore;
+let firestoreInstance: Firestore | null = null;
 
-try {
-  // Tenta recuperar a instância já inicializada para o banco nomeado
-  firestoreInstance = getFirestore(app, DATABASE_ID);
-} catch (e) {
-  // Se não houver instância, inicializa uma nova
-  // Usar initializeFirestore é mais seguro para bancos nomeados no App Router
-  firestoreInstance = initializeFirestore(app, {}, DATABASE_ID);
+export function getVibyDb(): Firestore {
+  if (firestoreInstance) return firestoreInstance;
+
+  try {
+    // Tenta obter a instância existente para evitar conflitos de inicialização múltipla
+    firestoreInstance = getFirestore(app, DATABASE_ID);
+  } catch (e) {
+    // Se falhar (ex: instância não existe), inicializa de forma limpa
+    firestoreInstance = initializeFirestore(app, {
+      ignoreUndefinedProperties: true,
+    }, DATABASE_ID);
+  }
+
+  return firestoreInstance;
 }
 
-export const db = firestoreInstance;
+// Exporta o singleton como db para compatibilidade legada
+export const db = getVibyDb();

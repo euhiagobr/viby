@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useCart } from "@/contexts/CartContext"
-import { useAuth, useUser, useFirestore, useDoc, db as singletonDB } from "@/firebase"
+import { useAuth, useUser, useFirestore, db as singletonDB } from "@/firebase"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -15,35 +15,23 @@ import {
   Trash2, 
   Plus, 
   Minus, 
-  CreditCard, 
   ArrowLeft, 
-  Calendar, 
-  MapPin, 
-  Info,
   Loader2,
   RefreshCw,
   TicketPercent,
-  CheckCircle2,
   X,
-  Layers,
-  Armchair,
-  Ticket,
   Wallet,
-  Coins,
-  ArrowRight,
   ShieldAlert
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { formatCurrency, calculateFinancialBreakdown } from "@/lib/financial-utils"
-import { createCheckoutSession } from "@/app/actions/stripe"
 import { toast } from "@/hooks/use-toast"
-import { addDoc, serverTimestamp, query, where, getDocs, limit, getDoc, updateDoc, increment, runTransaction } from "firebase/firestore"
-import { generateUniqueTicketCode } from "@/lib/ticket-utils"
-import { sendTicketEmail } from "@/app/actions/email"
-import { AgeRatingBadge } from "@/lib/age-rating"
+import { query, where, getDocs, limit, getDoc } from "firebase/firestore"
 import { useErrorManager } from "@/components/error-manager/ErrorManagerProvider"
 import { safeCollection, safeDoc } from "@/lib/firestore-safe"
+import { useDoc } from "@/firebase"
+import { PayNow } from "@/components/payments/PayNow"
 
 export default function CarrinhoPage() {
   const { items, removeItem, updateQuantity, clearCart } = useCart()
@@ -52,19 +40,15 @@ export default function CarrinhoPage() {
   const { user } = useUser(auth)
   const { reportError } = useErrorManager()
   
-  // Prioriza o singleton db caso o hook useFirestore ainda não tenha retornado a instância
   const hookDb = useFirestore()
   const db = hookDb || singletonDB
   
-  const [processing, setProcessing] = React.useState(false)
   const [isWaitingPayment, setIsWaitingPayment] = React.useState(false)
-  
   const [couponCode, setCouponCode] = React.useState("")
   const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null)
   const [isApplyingCoupon, setIsApplyingCoupon] = React.useState(false)
   const [useBalance, setUseBalance] = React.useState(false)
 
-  // Dados Auxiliares (Fees e Orgs)
   const [orgsData, setOrgsData] = React.useState<Record<string, any>>({})
   const [loadingConfig, setLoadingConfig] = React.useState(true)
 
@@ -152,119 +136,12 @@ export default function CarrinhoPage() {
     } finally { setIsApplyingCoupon(false); }
   }
 
-  const handleCheckout = async () => {
-    if (!user) return router.push("/login")
-    if (!db || items.length === 0 || processing || loadingConfig) return
-
-    setProcessing(true)
-    try {
-      const isFullBalanceOrder = cartTotals.total <= 0 && cartTotals.balanceUsed > 0;
-      const isFreeOrder = cartTotals.total <= 0 && cartTotals.balanceUsed === 0;
-
-      const registrationIds: string[] = [];
-      const lineItems: any[] = [];
-      
-      const totalQtyEligible = items.reduce((acc, i) => acc + (appliedCoupon && i.eventId === appliedCoupon.eventId ? i.quantity : 0), 0);
-      const discountPerUnit = totalQtyEligible > 0 ? (cartTotals.discount / totalQtyEligible) : 0;
-
-      // Se for pagamento total via saldo, processamos no Ledger agora
-      if (isFullBalanceOrder) {
-        await runTransaction(db, async (transaction) => {
-          const walletRef = safeDoc(db, "wallets", user.uid);
-          const userRef = safeDoc(db, "users", user.uid);
-          const wSnap = await transaction.get(walletRef);
-          if (!wSnap.exists() || (wSnap.data().balance || 0) < cartTotals.balanceUsed) throw new Error("Saldo insuficiente.");
-          transaction.set(walletRef, { balance: increment(-cartTotals.balanceUsed), updatedAt: serverTimestamp() }, { merge: true });
-          transaction.update(userRef, { walletBalance: increment(-cartTotals.balanceUsed), updatedAt: serverTimestamp() });
-          transaction.set(safeDoc(safeCollection(db, "wallet_transactions"), crypto.randomUUID()), { userId: user.uid, amount: cartTotals.balanceUsed, type: 'debit', reason: 'compra_ingresso', description: `Compra Integral com Saldo`, timestamp: serverTimestamp() });
-        });
-      }
-
-      // Preparar Ingressos
-      for (const item of items) {
-        const isEligible = appliedCoupon && item.eventId === appliedCoupon.eventId;
-        const discountedPrice = Math.max(0, item.price - (isEligible ? discountPerUnit : 0));
-        const breakdown = calculateFinancialBreakdown(discountedPrice, globalFees, promotions, orgsData[item.organizationId]);
-
-        for (let i = 0; i < item.quantity; i++) {
-          const ticketCode = await generateUniqueTicketCode(db);
-          const regRef = await addDoc(safeCollection(db, "registrations"), {
-            ...item,
-            userId: user.uid, userName: profile?.name || user.displayName || user.email || "Usuário", userEmail: user.email,
-            ticketBasePrice: item.price, price: breakdown.customerFinalPrice, administrativeFeeAmount: breakdown.administrativeFeeAmount,
-            producerFeeAmount: breakdown.producerFeeAmount, producerNetAmount: breakdown.producerNetAmount,
-            paymentStatus: (isFreeOrder || isFullBalanceOrder) ? "Disponível" : "Pendente",
-            confirmedAt: (isFreeOrder || isFullBalanceOrder) ? serverTimestamp() : null,
-            ticketCode, status: "Ativo", createdAt: serverTimestamp(), timestamp: serverTimestamp()
-          });
-          registrationIds.push(regRef.id);
-          
-          if (isFreeOrder || isFullBalanceOrder) {
-            await sendTicketEmail({ to: user.email!, userName: profile?.name || user.displayName || "Participante", eventTitle: item.eventTitle, ticketCode, eventDate: item.eventDate, eventCity: item.eventCity, voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher` });
-          }
-        }
-
-        if (!isFreeOrder && !isFullBalanceOrder) {
-          lineItems.push({
-            price_data: { currency: 'brl', product_data: { name: `${item.eventTitle} - ${item.ticketTypeName}`, images: item.eventImage ? [item.eventImage] : [] }, unit_amount: Math.round(breakdown.customerFinalPrice * 100) },
-            quantity: item.quantity
-          });
-        }
-      }
-
-      if (isFreeOrder || isFullBalanceOrder) {
-        clearCart();
-        toast({ title: "Sucesso!", description: "Seus ingressos já estão disponíveis." });
-        router.push("/dashboard/ingressos");
-      } else {
-        const result = await createCheckoutSession({
-          eventTitle: items.length > 1 ? "Múltiplos Ingressos" : items[0].eventTitle,
-          totalAmount: Math.round(cartTotals.total * 100),
-          userEmail: user.email!,
-          lineItems: cartTotals.balanceUsed > 0 ? undefined : lineItems,
-          metadata: { type: "cart_checkout", registrationIds: registrationIds.join(","), userId: user.uid, balanceUsed: cartTotals.balanceUsed.toString() }
-        });
-
-        if (result.url) { 
-          window.open(result.url, '_blank'); 
-          setIsWaitingPayment(true);
-        } else if (result.error) {
-           throw new Error(result.error);
-        }
-      }
-    } catch (e: any) {
-      reportError({ error: e, type: 'checkout_process_error', severity: 'error', metadata: { cartItems: items.length } });
-    } finally {
-      setProcessing(false)
-    }
-  }
-
   if (items.length === 0 && !isWaitingPayment) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center space-y-6">
         <ShoppingCart className="w-16 h-16 text-muted-foreground opacity-20" />
         <h2 className="text-2xl font-black uppercase italic">Carrinho Vazio</h2>
         <Button asChild className="bg-secondary text-white font-black rounded-full px-10 h-12 uppercase italic shadow-lg"><Link href="/dashboard">Explorar Eventos</Link></Button>
-      </div>
-    )
-  }
-
-  if (isWaitingPayment) {
-    return (
-      <div className="min-h-[80vh] flex flex-col items-center justify-center p-4">
-        <Card className="max-w-md w-full border-none shadow-2xl rounded-[3rem] overflow-hidden bg-white">
-           <div className="bg-primary p-12 flex flex-col items-center text-white gap-6">
-              <RefreshCw className="w-12 h-12 animate-spin text-secondary" />
-              <h2 className="text-2xl font-black uppercase italic text-center">Pagamento em Processamento</h2>
-           </div>
-           <CardContent className="p-10 text-center space-y-8">
-              <p className="text-sm font-medium text-muted-foreground uppercase leading-relaxed">Conclua o pagamento na aba que se abriu. Seu painel será atualizado automaticamente.</p>
-              <div className="flex flex-col gap-3">
-                 <Button variant="outline" className="h-12 rounded-xl font-bold" onClick={() => window.location.reload()}>Verificar Status</Button>
-                 <Button variant="ghost" className="text-[10px] font-black uppercase" onClick={() => setIsWaitingPayment(false)}>Voltar ao Carrinho</Button>
-              </div>
-           </CardContent>
-        </Card>
       </div>
     )
   }
@@ -351,9 +228,18 @@ export default function CarrinhoPage() {
                      </Badge>
                    )}
                  </div>
-                 <Button onClick={handleCheckout} disabled={processing || loadingConfig} className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg transition-all hover:scale-[1.02]">
-                    {processing ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><CreditCard className="w-6 h-6 mr-2" /> Pagar Agora</>}
-                 </Button>
+                 
+                 <PayNow 
+                   items={items}
+                   totals={cartTotals}
+                   profile={profile}
+                   orgsData={orgsData}
+                   globalFees={globalFees}
+                   promotions={promotions}
+                   useBalance={useBalance}
+                   onSuccess={() => clearCart()}
+                   disabled={loadingConfig}
+                 />
               </CardContent>
            </Card>
         </div>
