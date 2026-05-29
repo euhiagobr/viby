@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -6,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -19,9 +17,8 @@ import {
   ShieldCheck, 
   Layers, 
   Info,
-  ChevronDown,
-  ChevronUp,
-  Calendar
+  Calendar,
+  Layers2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -41,7 +38,7 @@ import {
   SelectValue 
 } from "@/components/ui/select"
 
-export type BilheteriaMode = 'none' | 'free' | 'paid_single' | 'batches' | 'sector_batches'
+export type BilheteriaMode = 'none' | 'free' | 'paid_single' | 'batches'
 
 interface TicketType {
   id: string
@@ -50,7 +47,7 @@ interface TicketType {
   quantity: number
   requiresProof: boolean
   proofDescription: string
-  poolId?: string // Estoque compartilhado (ex: Meias)
+  poolId?: string 
   poolName?: string
   description: string
 }
@@ -110,7 +107,7 @@ export function BilheteriaAdmin({
       }
       onBatchesChange([defaultBatch])
     }
-  }, [mode, batches.length, totalCapacity])
+  }, [mode, batches.length, totalCapacity, onBatchesChange])
 
   const handleAddBatch = () => {
     const newBatch: Batch = {
@@ -134,25 +131,19 @@ export function BilheteriaAdmin({
     const newBatches = [...batches]
     newBatches[idx] = { ...newBatches[idx], [field]: value }
     
-    // Se mudar a capacidade do lote, atualiza os ingressos base
     if (field === 'capacidadeInicial') {
       const cap = parseInt(value) || 0
       const batch = newBatches[idx]
-      if (batch.isHalfPriceEnabled) {
-        const hPercent = batch.halfPricePercent || 40
-        const hQty = Math.floor(cap * (hPercent / 100))
+      
+      // Recalcular estoques se houver pool
+      const poolTickets = batch.ticketTypes.filter(t => t.poolId)
+      if (poolTickets.length > 0 && batch.halfPricePercent) {
+        const hQty = Math.floor(cap * (batch.halfPricePercent / 100))
         const iQty = cap - hQty
-        // A inteira é sempre o primeiro
         batch.ticketTypes[0].quantity = iQty
-        // As meias compartilham o pool
-        batch.ticketTypes.slice(1).forEach(t => {
-          if (t.poolId) t.quantity = hQty
-        })
-      } else {
-        // Se não houver pool, o primeiro ingresso assume a capacidade total
-        if (batch.ticketTypes.length === 1) {
-          batch.ticketTypes[0].quantity = cap
-        }
+        poolTickets.forEach(t => t.quantity = hQty)
+      } else if (batch.ticketTypes.length === 1) {
+        batch.ticketTypes[0].quantity = cap
       }
     }
     onBatchesChange(newBatches)
@@ -179,6 +170,25 @@ export function BilheteriaAdmin({
     onBatchesChange(newBatches)
   }
 
+  const togglePool = (bIdx: number, tIdx: number) => {
+    const newBatches = [...batches]
+    const batch = newBatches[bIdx]
+    const ticket = batch.ticketTypes[tIdx]
+
+    if (ticket.poolId) {
+      ticket.poolId = undefined
+      ticket.poolName = undefined
+      ticket.quantity = batch.capacidadeInicial
+    } else {
+      // Encontrar ou criar um pool para este lote
+      const existingPool = batch.ticketTypes.find(t => t.poolId)
+      ticket.poolId = existingPool?.poolId || crypto.randomUUID()
+      ticket.poolName = existingPool?.poolName || "Estoque Compartilhado"
+      ticket.quantity = existingPool?.quantity || Math.floor(batch.capacidadeInicial * 0.4)
+    }
+    onBatchesChange(newBatches)
+  }
+
   const handleApplyHalfPrice = () => {
     if (activeBatchIdx === null) return
     const newBatches = [...batches]
@@ -192,9 +202,9 @@ export function BilheteriaAdmin({
     batch.ticketTypes[0].quantity = iQty
 
     const meias = [
-      { id: crypto.randomUUID(), name: "Meia Estudante", price: batch.ticketTypes[0].price / 2, quantity: hQty, poolId, poolName: "Cota Meia", requiresProof: true, proofDescription: "Necessário documento estudantil válido.", description: "" },
-      { id: crypto.randomUUID(), name: "Meia Idoso", price: batch.ticketTypes[0].price / 2, quantity: hQty, poolId, poolName: "Cota Meia", requiresProof: true, proofDescription: "Documento com foto provando +60 anos.", description: "" },
-      { id: crypto.randomUUID(), name: "Meia PCD", price: batch.ticketTypes[0].price / 2, quantity: hQty, poolId, poolName: "Cota Meia", requiresProof: true, proofDescription: "Laudo médico ou cartão benefício.", description: "" }
+      { id: crypto.randomUUID(), name: "Meia Estudante", price: (batch.ticketTypes[0].price / 2) || 0, quantity: hQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, proofDescription: "Apresentar carteira de estudante válida.", description: "" },
+      { id: crypto.randomUUID(), name: "Meia Idoso", price: (batch.ticketTypes[0].price / 2) || 0, quantity: hQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, proofDescription: "Documento oficial provando +60 anos.", description: "" },
+      { id: crypto.randomUUID(), name: "Meia PCD", price: (batch.ticketTypes[0].price / 2) || 0, quantity: hQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, proofDescription: "Laudo médico ou cartão PCD.", description: "" }
     ]
 
     batch.ticketTypes = [batch.ticketTypes[0], ...meias]
@@ -211,7 +221,7 @@ export function BilheteriaAdmin({
               <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
                 <Ticket className="w-5 h-5 text-secondary" /> Bilheteria Viby
               </CardTitle>
-              <CardDescription className="font-medium">Gestão de ingressos, lotes e meias-entradas.</CardDescription>
+              <CardDescription className="font-medium">Gestão inteligente de ingressos e estoques.</CardDescription>
             </div>
             <div className="bg-white p-1 rounded-xl border flex flex-wrap gap-1">
               {[
@@ -220,16 +230,17 @@ export function BilheteriaAdmin({
                 { id: 'paid_single', label: 'Único' },
                 { id: 'batches', label: 'Lotes' }
               ].map((m) => (
-                <Button 
+                <button 
                   key={m.id} 
                   type="button" 
-                  variant={mode === m.id ? 'secondary' : 'ghost'} 
-                  size="sm" 
-                  className="rounded-lg text-[9px] font-black uppercase px-3 h-8"
+                  className={cn(
+                    "rounded-lg text-[9px] font-black uppercase px-4 h-8 transition-all",
+                    mode === m.id ? "bg-secondary text-white shadow-md" : "text-muted-foreground hover:bg-muted"
+                  )}
                   onClick={() => onModeChange(m.id as BilheteriaMode)}
                 >
                   {m.label}
-                </Button>
+                </button>
               ))}
             </div>
           </div>
@@ -238,11 +249,10 @@ export function BilheteriaAdmin({
           {mode === 'none' ? (
             <div className="py-12 text-center space-y-4">
               <Info className="w-12 h-12 mx-auto text-muted-foreground opacity-20" />
-              <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">Evento apenas para divulgação. Nenhuma venda será processada.</p>
+              <p className="text-xs font-black text-muted-foreground uppercase tracking-widest italic">Nenhuma venda será processada neste evento.</p>
             </div>
           ) : (
             <div className="space-y-8">
-              {/* Capacidade Global */}
               <div className="flex flex-col items-center gap-4 text-center max-w-xs mx-auto">
                  <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Capacidade de Público</Label>
                  <Input 
@@ -277,23 +287,21 @@ export function BilheteriaAdmin({
                        </div>
                     </CardHeader>
                     <CardContent className="p-6 space-y-6">
-                       {/* Config do Lote */}
                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                           <div className="space-y-2">
                              <Label className="text-[10px] font-black uppercase opacity-60">Qtd do Lote</Label>
                              <Input type="number" value={batch.capacidadeInicial} onChange={(e) => handleUpdateBatch(bIdx, 'capacidadeInicial', e.target.value)} className="rounded-xl h-11 font-black" />
                           </div>
                           <div className="space-y-2">
-                             <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1.5"><Calendar className="w-3 h-3" /> Início</Label>
+                             <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1.5"><Calendar className="w-3 h-3" /> Vendas Iniciam</Label>
                              <Input type="datetime-local" value={batch.startDate} onChange={(e) => handleUpdateBatch(bIdx, 'startDate', e.target.value)} className="rounded-xl h-11 text-[10px]" />
                           </div>
                           <div className="space-y-2">
-                             <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Fim</Label>
+                             <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Vendas Encerram</Label>
                              <Input type="datetime-local" value={batch.endDate} onChange={(e) => handleUpdateBatch(bIdx, 'endDate', e.target.value)} className="rounded-xl h-11 text-[10px]" />
                           </div>
                        </div>
 
-                       {/* Ingressos do Lote */}
                        <div className="space-y-4 pt-4 border-t border-dashed">
                           <div className="flex items-center justify-between">
                              <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Categorias de Ingressos</h4>
@@ -302,45 +310,70 @@ export function BilheteriaAdmin({
                              </Button>
                           </div>
                           
-                          <div className="space-y-3">
+                          <div className="space-y-4">
                              {batch.ticketTypes.map((type: any, tIdx: number) => (
-                               <div key={type.id} className="p-5 bg-muted/20 rounded-2xl border flex flex-col gap-4">
-                                  <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
+                               <div key={type.id} className={cn(
+                                 "p-6 bg-muted/20 rounded-2xl border transition-all",
+                                 type.poolId ? "border-secondary/30 ring-1 ring-secondary/5" : "border-border/60"
+                               )}>
+                                  <div className="flex flex-col lg:flex-row gap-6 lg:items-end">
                                     <div className="flex-1 space-y-2">
-                                       <Label className="text-[8px] uppercase font-black opacity-40">Nome do Ingresso</Label>
-                                       <Input value={type.name} onChange={(e) => handleUpdateTicketType(bIdx, tIdx, 'name', e.target.value)} className="h-10 rounded-xl font-bold bg-white" />
+                                       <div className="flex items-center justify-between">
+                                          <Label className="text-[8px] uppercase font-black opacity-40">Identificação do Ingresso</Label>
+                                          <div className="flex items-center gap-2">
+                                             <span className="text-[8px] font-black uppercase opacity-40">Estoque Compartilhado?</span>
+                                             <Switch checked={!!type.poolId} onCheckedChange={() => togglePool(bIdx, tIdx)} className="scale-75 origin-right" />
+                                          </div>
+                                       </div>
+                                       <Input value={type.name} onChange={(e) => handleUpdateTicketType(bIdx, tIdx, 'name', e.target.value)} className="h-11 rounded-xl font-bold bg-white" />
                                     </div>
-                                    <div className="w-32 space-y-2">
-                                       <Label className="text-[8px] uppercase font-black opacity-40">Preço (R$)</Label>
-                                       <Input type="number" step="0.01" value={type.price} onChange={(e) => handleUpdateTicketType(bIdx, tIdx, 'price', parseFloat(e.target.value) || 0)} className="h-10 rounded-xl font-black text-secondary bg-white" />
+
+                                    <div className="w-full lg:w-32 space-y-2">
+                                       <Label className="text-[8px] uppercase font-black opacity-40">Valor (R$)</Label>
+                                       <Input type="number" step="0.01" value={type.price} onChange={(e) => handleUpdateTicketType(bIdx, tIdx, 'price', parseFloat(e.target.value) || 0)} className="h-11 rounded-xl font-black text-secondary bg-white" />
                                     </div>
+
+                                    <div className="w-full lg:w-32 space-y-2">
+                                       <Label className="text-[8px] uppercase font-black opacity-40">Quantidade</Label>
+                                       <div className="relative">
+                                          <Input 
+                                            type="number" 
+                                            value={type.quantity} 
+                                            onChange={(e) => !type.poolId && handleUpdateTicketType(bIdx, tIdx, 'quantity', parseInt(e.target.value) || 0)} 
+                                            disabled={!!type.poolId}
+                                            className={cn("h-11 rounded-xl font-black bg-white", type.poolId && "bg-muted/50 text-secondary pr-8")} 
+                                          />
+                                          {type.poolId && <Layers2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary/40" />}
+                                       </div>
+                                    </div>
+
                                     <div className="flex items-end gap-3 pb-1">
                                        <div className="flex flex-col items-center gap-1">
-                                          <Label className="text-[7px] uppercase font-black opacity-40">Doc.</Label>
+                                          <Label className="text-[7px] uppercase font-black opacity-40">Doc. Obrigatorio</Label>
                                           <Switch checked={type.requiresProof} onCheckedChange={(v) => handleUpdateTicketType(bIdx, tIdx, 'requiresProof', v)} />
                                        </div>
-                                       <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-destructive rounded-xl hover:bg-red-50" onClick={() => {
+                                       <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-destructive rounded-xl hover:bg-red-50" onClick={() => {
                                          const n = [...batches]; n[bIdx].ticketTypes.splice(tIdx, 1); onBatchesChange(n);
-                                       }}><Trash2 className="w-4 h-4" /></Button>
+                                       }}><Trash2 className="w-5 h-5" /></Button>
                                     </div>
                                   </div>
 
+                                  {type.poolId && (
+                                    <div className="mt-4 flex items-center gap-2 px-3 py-2 bg-secondary/5 rounded-xl border border-secondary/10 w-fit animate-in zoom-in-95">
+                                       <ShieldCheck className="w-3.5 h-3.5 text-secondary" />
+                                       <span className="text-[9px] font-black uppercase text-secondary">Vínculo: {type.poolName}</span>
+                                    </div>
+                                  )}
+
                                   {type.requiresProof && (
-                                    <div className="animate-in slide-in-from-top-2">
-                                       <Label className="text-[8px] uppercase font-black text-orange-600 ml-1">Descrição do Documento Obrigatório</Label>
+                                    <div className="mt-4 space-y-2 animate-in slide-in-from-top-2">
+                                       <Label className="text-[8px] font-black uppercase text-orange-600 ml-1">Regra do Documento</Label>
                                        <Input 
                                          value={type.proofDescription} 
                                          onChange={e => handleUpdateTicketType(bIdx, tIdx, 'proofDescription', e.target.value)}
-                                         placeholder="Ex: Apresentar 1kg de alimento ou carteira de estudante" 
-                                         className="h-9 rounded-xl text-xs bg-orange-50 border-orange-200" 
+                                         placeholder="Ex: 'Necessário 1kg de alimento' ou 'Apresentar vínculo escolar'" 
+                                         className="h-10 rounded-xl text-xs bg-orange-50 border-orange-200" 
                                        />
-                                    </div>
-                                  )}
-                                  
-                                  {type.poolId && (
-                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-secondary/5 rounded-lg border border-secondary/10 w-fit">
-                                       <ShieldCheck className="w-3 h-3 text-secondary" />
-                                       <span className="text-[8px] font-black uppercase text-secondary">Estoque em Pool: {type.poolName}</span>
                                     </div>
                                   )}
                                </div>
@@ -352,7 +385,7 @@ export function BilheteriaAdmin({
                 ))}
 
                 {mode === 'batches' && (
-                  <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic gap-2 hover:bg-muted" onClick={handleAddBatch}>
+                  <Button type="button" variant="outline" className="w-full h-16 rounded-[1.5rem] border-2 border-dashed font-black uppercase italic gap-2 hover:bg-muted" onClick={handleAddBatch}>
                     <Plus className="w-5 h-5" /> Adicionar Próximo Lote
                   </Button>
                 )}
@@ -365,24 +398,29 @@ export function BilheteriaAdmin({
       <Dialog open={isHalfPriceModalOpen} onOpenChange={setIsHalfPriceModalOpen}>
         <DialogContent className="rounded-[2.5rem] max-w-sm">
            <DialogHeader>
-              <div className="w-12 h-12 bg-secondary/10 rounded-xl flex items-center justify-center mb-2 mx-auto text-secondary">
-                 <Percent className="w-6 h-6" />
+              <div className="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center mb-2 mx-auto text-secondary shadow-inner">
+                 <Percent className="w-8 h-8" />
               </div>
-              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Cota de Meia-Entrada</DialogTitle>
-              <DialogDescription className="text-center font-medium">Defina a porcentagem da capacidade do lote reservada para meias.</DialogDescription>
+              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Cota Reservada</DialogTitle>
+              <DialogDescription className="text-center font-medium">Defina a porcentagem da capacidade do lote que será compartilhada entre as meias-entradas.</DialogDescription>
            </DialogHeader>
            <div className="py-6 space-y-6">
               <div className="relative">
-                 <Input type="number" value={halfPercent} onChange={e => setHalfPercent(parseInt(e.target.value) || 0)} className="h-20 text-5xl font-black text-center rounded-[1.5rem] border-secondary/20" />
-                 <span className="absolute right-6 top-1/2 -translate-y-1/2 text-2xl font-black text-muted-foreground opacity-30">%</span>
+                 <Input 
+                   type="number" 
+                   value={halfPercent} 
+                   onChange={e => setHalfPercent(parseInt(e.target.value) || 0)} 
+                   className="h-20 text-5xl font-black text-center rounded-[2rem] border-secondary/20 shadow-lg" 
+                 />
+                 <span className="absolute right-6 top-1/2 -translate-y-1/2 text-2xl font-black text-muted-foreground opacity-20">%</span>
               </div>
               <div className="p-4 bg-muted/50 rounded-2xl flex gap-3">
                  <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-                 <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">Serão geradas automaticamente as categorias Estudante, Idoso e PCD compartilhando o mesmo estoque.</p>
+                 <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">O sistema criará as categorias Estudante, Idoso e PCD compartilhando o mesmo estoque em pool.</p>
               </div>
            </div>
            <DialogFooter>
-             <Button onClick={handleApplyHalfPrice} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Confirmar Divisão</Button>
+             <Button onClick={handleApplyHalfPrice} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Gerar Estrutura de Lote</Button>
            </DialogFooter>
         </DialogContent>
       </Dialog>
