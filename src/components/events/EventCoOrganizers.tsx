@@ -19,7 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { 
   Handshake, 
@@ -150,9 +150,17 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
         <div className="grid grid-cols-1 gap-6">
            {acceptedPartners.map(p => (
              <Link key={p.id} href={`/${p.orgUsername}`} className="group flex items-center gap-4 hover:bg-muted/30 p-3 rounded-2xl transition-all border border-transparent hover:border-border">
-                <Avatar className="h-14 w-14 border-2 border-secondary/10 shrink-0">
-                   <AvatarImage src={p.orgAvatar} className="object-cover" />
-                   <AvatarFallback className="font-black bg-muted uppercase">{p.orgName?.charAt(0)}</AvatarFallback>
+                <Avatar className="h-14 w-14 border-2 border-secondary/10 shrink-0 overflow-hidden">
+                   {p.orgAvatar ? (
+                     <img 
+                       src={p.orgAvatar} 
+                       className="h-full w-full object-cover" 
+                       alt={p.orgName} 
+                       referrerPolicy="no-referrer"
+                     />
+                   ) : (
+                     <AvatarFallback className="font-black bg-muted uppercase">{p.orgName?.charAt(0)}</AvatarFallback>
+                   )}
                 </Avatar>
                 <div className="min-w-0 flex-1">
                    <p className="font-black text-sm uppercase italic text-primary flex items-center gap-1.5 leading-tight flex-wrap">
@@ -206,9 +214,12 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
                  {searchResults.map(org => (
                    <div key={org.id} className="flex items-center justify-between p-3 hover:bg-white rounded-xl transition-all">
                       <div className="flex items-center gap-3">
-                         <Avatar className="h-10 w-10 border shadow-sm">
-                            <AvatarImage src={org.avatar} className="object-cover" />
-                            <AvatarFallback className="font-bold">{org.name?.charAt(0)}</AvatarFallback>
+                         <Avatar className="h-10 w-10 border shadow-sm overflow-hidden">
+                            {org.avatar ? (
+                               <img src={org.avatar} className="h-full w-full object-cover" alt={org.name} referrerPolicy="no-referrer" />
+                            ) : (
+                               <AvatarFallback className="font-bold">{org.name?.charAt(0)}</AvatarFallback>
+                            )}
                          </Avatar>
                          <div className="flex flex-col">
                             <span className="text-sm font-bold">{org.name}</span>
@@ -242,9 +253,12 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
                       p.status === 'accepted' ? "bg-green-50/20 border-green-100" : "bg-muted/10 border-border/50"
                     )}>
                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
-                             <AvatarImage src={p.orgAvatar} className="object-cover" />
-                             <AvatarFallback className="font-bold uppercase">{p.orgName?.charAt(0)}</AvatarFallback>
+                          <Avatar className="h-10 w-10 overflow-hidden">
+                             {p.orgAvatar ? (
+                                <img src={p.orgAvatar} className="h-full w-full object-cover" alt={p.orgName} referrerPolicy="no-referrer" />
+                             ) : (
+                                <AvatarFallback className="font-bold uppercase">{p.orgName?.charAt(0)}</AvatarFallback>
+                             )}
                           </Avatar>
                           <div className="flex flex-col">
                              <span className="text-sm font-bold leading-tight line-clamp-1">{p.orgName}</span>
