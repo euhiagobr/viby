@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -68,7 +67,7 @@ export default function NovoEventoPage() {
       startDate: "", 
       endDate: "", 
       capacidadeInicial: 100, 
-      ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, description: "" }] 
+      ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, proofDescription: "", poolId: null, poolName: null, description: "" }] 
     }
   ])
   const [totalCapacity, setTotalCapacity] = useState(100)
@@ -125,28 +124,54 @@ export default function NovoEventoPage() {
         ...tags.map(normalizeText)
       ]
 
-      const eventData = {
-        title: formData.get("title") as string,
-        description,
-        date: formData.get("startDate") as string,
-        endDate: formData.get("endDate") as string,
-        categoryId: selectedCategory,
+      // Higienização para evitar undefined
+      const sanitizedBatches = (eventType === 'interno' ? batches : []).map(b => ({
+        ...b,
+        startDate: b.startDate || "",
+        endDate: b.endDate || "",
+        ticketTypes: (b.ticketTypes || []).map((t: any) => ({
+          ...t,
+          poolId: t.poolId || null,
+          poolName: t.poolName || null,
+          description: t.description || "",
+          proofDescription: t.proofDescription || ""
+        }))
+      }))
+
+      const eventData: any = {
+        title: formData.get("title") as string || "",
+        description: description || "",
+        date: formData.get("startDate") as string || "",
+        endDate: formData.get("endDate") as string || "",
+        categoryId: selectedCategory || "",
         categoryName: categories?.find(c => c.id === selectedCategory)?.name || "Outros",
         type: eventType,
         externalUrl: eventType === 'externo' ? externalUrl : null,
-        tags,
+        tags: tags || [],
         ageRating: { code: ageConfig.code, label: ageConfig.label, minimumAge: ageConfig.minimumAge },
         ticketMode: eventType === 'interno' ? ticketMode : 'none',
-        mapMode,
-        capacidadeTotal: totalCapacity,
-        batches: eventType === 'interno' ? batches : [],
-        address, 
+        mapMode: mapMode || 'none',
+        capacidadeTotal: Number(totalCapacity) || 0,
+        batches: sanitizedBatches,
+        address: {
+          ...address,
+          complement: address.complement || "",
+          number: address.number || ""
+        }, 
         image: uploadedImageUrl || "",
         organizationId: currentOrg.id, 
         organizerId: user.uid,
         organizer: { id: currentOrg.id, name: currentOrg.name, username: currentOrg.username, avatar: currentOrg.avatar || "" },
-        status: "Ativo", city: address.city, searchKeywords, createdAt: serverTimestamp()
+        status: "Ativo", city: address.city || "", searchKeywords, createdAt: serverTimestamp()
       }
+
+      // Remover campos undefined que possam ter sobrado
+      Object.keys(eventData).forEach(key => {
+        if (eventData[key] === undefined) {
+          delete eventData[key];
+        }
+      });
+
       await addDoc(collection(db, "events"), eventData)
       toast({ title: "Evento Publicado!" })
       router.push("/dashboard/organizacoes")

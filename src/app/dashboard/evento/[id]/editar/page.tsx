@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -147,25 +146,57 @@ export default function EditarEventoPage() {
       
       const ageRatingConfig = getAgeRatingConfig(selectedAgeRating);
 
+      // Limpeza de campos batches para evitar undefined no Firestore
+      const sanitizedBatches = (eventType === 'interno' ? batches : []).map(b => ({
+        ...b,
+        startDate: b.startDate || "",
+        endDate: b.endDate || "",
+        ticketTypes: (b.ticketTypes || []).map((t: any) => ({
+          ...t,
+          poolId: t.poolId || null,
+          poolName: t.poolName || null,
+          description: t.description || "",
+          proofDescription: t.proofDescription || ""
+        }))
+      }))
+
       const updateData: any = {
-        title: formData.get("title") as string,
-        description,
-        date: formData.get("startDate") as string,
-        endDate: formData.get("endDate") as string,
-        categoryId: selectedCategory,
+        title: formData.get("title") as string || "",
+        description: description || "",
+        date: formData.get("startDate") as string || "",
+        endDate: formData.get("endDate") as string || "",
+        categoryId: selectedCategory || "",
         categoryName: categories?.find(c => c.id === selectedCategory)?.name || "Outros",
         type: eventType,
         externalUrl: eventType === 'externo' ? externalUrl : null,
-        tags,
-        ageRating: { code: ageRatingConfig.code, label: ageRatingConfig.label, minimumAge: ageRatingConfig.minimumAge },
+        tags: tags || [],
+        ageRating: { 
+          code: ageRatingConfig.code, 
+          label: ageRatingConfig.label, 
+          minimumAge: ageRatingConfig.minimumAge 
+        },
         ticketMode: eventType === 'interno' ? ticketMode : 'none',
-        mapMode,
+        mapMode: mapMode || 'none',
         possuiMapa: mapMode !== 'none',
-        capacidadeTotal: totalCapacity,
-        batches: eventType === 'interno' ? batches : [],
-        address, image: uploadedImageUrl || event.image || "",
-        searchKeywords, updatedAt: serverTimestamp()
+        capacidadeTotal: Number(totalCapacity) || 0,
+        batches: sanitizedBatches,
+        address: {
+          ...address,
+          complement: address.complement || "",
+          number: address.number || ""
+        }, 
+        image: uploadedImageUrl || event.image || "",
+        searchKeywords, 
+        updatedAt: serverTimestamp()
       }
+
+      // Remover campos undefined que possam ter sobrado
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] === undefined) {
+          delete updateData[key];
+        }
+      });
+
       await updateDoc(eventRef, updateData)
       toast({ title: "Evento Atualizado!" })
       router.push("/dashboard/organizacoes")

@@ -53,8 +53,8 @@ interface TicketType {
   quantity: number
   requiresProof: boolean
   proofDescription: string
-  poolId?: string 
-  poolName?: string
+  poolId?: string | null
+  poolName?: string | null
   description: string
 }
 
@@ -113,6 +113,8 @@ export function BilheteriaAdmin({
             quantity: totalCapacity, 
             requiresProof: false, 
             proofDescription: "", 
+            poolId: null,
+            poolName: null,
             description: "" 
           }
         ]
@@ -132,7 +134,6 @@ export function BilheteriaAdmin({
     const n = parseInt(numNewBatchesInput) || 0
     if (n <= 0) return
     
-    // Inicializar preços com base no último lote
     const lastBatch = batches[batches.length - 1]
     const basePrice = lastBatch?.ticketTypes[0]?.price || 0
     const initialPrices: Record<number, string> = {}
@@ -172,8 +173,6 @@ export function BilheteriaAdmin({
         endDate: end.toISOString().slice(0, 16),
         capacidadeInicial: cloneLastConfig ? (lastBatch?.capacidadeInicial || 100) : 100,
         ticketTypes: cloneLastConfig ? lastBatch.ticketTypes.map((t, tIdx) => {
-          // Se for o primeiro tipo (Inteira), usa o preço do input
-          // Se for outros tipos (Meias), calcula 50% se for meia, ou mantém se for solidário
           let p = t.price
           if (tIdx === 0) {
             p = batchBasePrice
@@ -185,10 +184,11 @@ export function BilheteriaAdmin({
             ...t,
             id: crypto.randomUUID(),
             price: p,
-            poolId: t.poolId ? crypto.randomUUID() : undefined
+            poolId: t.poolId ? crypto.randomUUID() : null,
+            poolName: t.poolName || null
           }
         }) : [
-          { id: crypto.randomUUID(), name: "Inteira", price: batchBasePrice, quantity: 100, requiresProof: false, proofDescription: "", description: "" }
+          { id: crypto.randomUUID(), name: "Inteira", price: batchBasePrice, quantity: 100, requiresProof: false, proofDescription: "", poolId: null, poolName: null, description: "" }
         ]
       }
       
@@ -242,6 +242,8 @@ export function BilheteriaAdmin({
       quantity: batch.capacidadeInicial,
       requiresProof: false,
       proofDescription: "",
+      poolId: null,
+      poolName: null,
       description: ""
     })
     onBatchesChange(newBatches)
@@ -259,8 +261,8 @@ export function BilheteriaAdmin({
     const ticket = batch.ticketTypes[tIdx]
 
     if (ticket.poolId) {
-      ticket.poolId = undefined
-      ticket.poolName = undefined
+      ticket.poolId = null
+      ticket.poolName = null
       ticket.quantity = batch.capacidadeInicial
     } else {
       const existingPool = batch.ticketTypes.find(t => !!t.poolId)
