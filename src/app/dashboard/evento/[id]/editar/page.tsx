@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -56,10 +57,12 @@ import {
   CheckCircle2,
   AtSign,
   ShieldAlert,
-  AlertCircle
+  AlertCircle,
+  Globe,
+  Tag as TagIcon
 } from "lucide-react"
 import Link from "next/link"
-import { cn } from "@/lib/utils"
+import { cn, normalizeText, isValidUrl } from "@/lib/utils"
 import { Switch } from "@/components/ui/switch"
 import {
   Dialog,
@@ -73,7 +76,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { AGE_RATINGS, AgeRatingBadge, getAgeRatingConfig } from "@/lib/age-rating"
-import { MentionTextarea } from "@/components/ui/mention-textarea"
+import { EVENT_CATEGORIES, EVENT_TYPES } from "@/lib/constants"
 
 interface TicketType {
   id: string
@@ -102,13 +105,6 @@ interface Batch {
   halfPricePercent?: number
 }
 
-interface SectorWithBatches {
-  id: string
-  name: string
-  capacity: number
-  batches: Batch[]
-}
-
 export default function EditarEventoPage() {
   const params = useParams()
   const router = useRouter()
@@ -127,12 +123,6 @@ export default function EditarEventoPage() {
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
 
-  const partnersQuery = useMemoFirebase(() => {
-    if (!db || !eventId) return null;
-    return collection(db, 'events', eventId, 'partners');
-  }, [db, eventId]);
-  const { data: partners } = useCollection<any>(partnersQuery);
-
   const [loading, setLoading] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
@@ -140,46 +130,35 @@ export default function EditarEventoPage() {
   
   const [selectedCategory, setSelectedCategory] = useState("")
   const [selectedAgeRating, setSelectedAgeRating] = useState("free")
-  const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches' | 'sector_batches'>('none')
+  
+  // Fase 1: Novos Campos
+  const [eventType, setEventType] = useState("interno")
+  const [isFree, setIsFree] = useState(false)
+  const [externalUrl, setExternalUrl] = useState("")
+  const [eventCategories, setEventCategories] = useState<string[]>([])
+  const [tags, setTags] = useState<string[]>([])
+  const [tagInput, setTagInput] = useState("")
+
+  const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches'>('none')
   const [mapMode, setMapMode] = useState<'none' | 'setores' | 'assentos' | 'mesas'>('none')
   
   const [description, setDescription] = useState("")
   const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
 
-  // --- Parcerias ---
-  const [searchPartner, setSearchPartner] = useState("")
-  const [isSearchingPartner, setIsSearchingPartner] = useState(false)
-  const [foundPartner, setFoundPartner] = useState<any>(null)
-
-  // --- Valor Único ---
   const [singleCapacity, setSingleCapacity] = useState<number>(100)
-  const [singleSalesStart, setSingleSalesStart] = useState("")
-  const [singleSalesEnd, setSingleSalesEnd] = useState("")
-  const [isHalfPriceEnabled, setIsHalfPriceEnabled] = useState(false)
-  const [halfPricePercent, setHalfPricePercent] = useState(40)
-  const [isPercentDialogOpen, setIsPercentDialogOpen] = useState(false)
-  const [singleTicketTypes, setSingleTicketTypes] = useState<TicketType[]>([
-    { id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }
-  ])
-
-  // --- Lotes Globais ---
-  const [totalBatchCapacity, setTotalBatchCapacity] = useState<number>(500)
+  const [singleTicketTypes, setSingleTicketTypes] = useState<TicketType[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
-
-  // --- Setores e Lotes ---
-  const [sectorsWithBatches, setSectorsWithBatches] = useState<SectorWithBatches[]>([])
-
-  const [isBatchPercentDialogOpen, setIsBatchPercentDialogOpen] = useState(false)
-  const [activeBatchIdx, setActiveBatchIdx] = useState<{ sectorIdx?: number, batchIdx: number } | null>(null)
-  const [tempBatchPercent, setTempBatchPercent] = useState(40)
-  
-  // --- Gratuito ---
   const [freeCapacity, setFreeCapacity] = useState<number>(100)
 
   useEffect(() => {
     if (event) {
       setSelectedCategory(event.categoryId || "")
       setSelectedAgeRating(event.ageRating?.code || "free")
+      setEventType(event.type || "interno")
+      setIsFree(event.isFree || false)
+      setExternalUrl(event.externalUrl || "")
+      setEventCategories(event.categories || [])
+      setTags(event.tags || [])
       setTicketMode(event.ticketMode || 'none')
       setMapMode(event.mapMode || 'none')
       setImagePreview(event.image || null)
@@ -188,160 +167,14 @@ export default function EditarEventoPage() {
 
       if (event.ticketMode === 'batches') {
         setBatches(event.batches || [])
-        setTotalBatchCapacity(event.capacidadeTotal || 500)
-      } else if (event.ticketMode === 'sector_batches') {
-        setSectorsWithBatches(event.sectors || [])
       } else if (event.ticketMode === 'paid_single' && event.batches?.length > 0) {
-        const b = event.batches[0];
-        setSingleCapacity(b.capacidadeInicial || 100);
-        setSingleSalesStart(b.startDate || "");
-        setSingleSalesEnd(b.endDate || "");
-        setSingleTicketTypes(b.ticketTypes || []);
-        if (b.ticketTypes?.length > 1) {
-          setIsHalfPriceEnabled(true);
-          setHalfPricePercent(b.halfPricePercent || 40);
-        }
+        setSingleCapacity(event.batches[0].capacidadeInicial || 100)
+        setSingleTicketTypes(event.batches[0].ticketTypes || [])
       } else if (event.ticketMode === 'free' && event.batches?.length > 0) {
-        const b = event.batches[0];
-        setFreeCapacity(b.capacidadeInicial || 100);
+        setFreeCapacity(event.batches[0].capacidadeInicial || 100)
       }
     }
   }, [event])
-
-  const handleGlobalSave = () => {
-    const form = document.getElementById('edit-event-form') as HTMLFormElement;
-    if (form) {
-      if (form.requestSubmit) {
-        form.requestSubmit();
-      } else {
-        form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-      }
-    }
-  }
-
-  const handleLookupPartner = async () => {
-    if (!db || !searchPartner) return
-    setIsSearchingPartner(true)
-    setFoundPartner(null)
-    try {
-      const usernameRef = doc(db, "usernames", searchPartner.toLowerCase().replace('@', '').trim())
-      const usernameSnap = await getDoc(usernameRef)
-      if (usernameSnap.exists()) {
-        const { uid, type } = usernameSnap.data()
-        if (type === 'organization') {
-          const orgSnap = await getDoc(doc(db, "organizations", uid))
-          if (orgSnap.exists()) {
-            setFoundPartner({ id: orgSnap.id, ...orgSnap.data() })
-          }
-        }
-      } else {
-        toast({ variant: "destructive", title: "Organização não encontrada" })
-      }
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro na busca" })
-    } finally {
-      setIsSearchingPartner(false)
-    }
-  }
-
-  const handleInvitePartner = async () => {
-    if (!db || !foundPartner || !eventId || !event) return
-    try {
-      const partnerRef = doc(db, "events", eventId, "partners", foundPartner.id)
-      await setDoc(partnerRef, {
-        orgId: foundPartner.id,
-        orgName: foundPartner.name,
-        username: foundPartner.username,
-        avatar: foundPartner.avatar || "",
-        status: "pending",
-        invitedAt: serverTimestamp(),
-        inviterOrgId: event.organizationId,
-        inviterOrgName: event.organizer?.name || "Organizador",
-        eventTitle: event.title
-      })
-      toast({ title: "Convite enviado!", description: `Aguardando aceite de ${foundPartner.name}.` })
-      setFoundPartner(null)
-      setSearchPartner("")
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao convidar" })
-    }
-  }
-
-  const handleRemovePartner = async (partnerId: string) => {
-    if (!db || !eventId) return
-    try {
-      await deleteDoc(doc(db, "events", eventId, "partners", partnerId))
-      toast({ title: "Parceria removida" })
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao remover" })
-    }
-  }
-
-  const handleEnableHalfPrice = (percent: number) => {
-    setHalfPricePercent(percent);
-    setIsHalfPriceEnabled(true);
-    const poolId = crypto.randomUUID();
-    const halfQty = Math.floor(singleCapacity * (percent / 100));
-    const inteiraQty = singleCapacity - halfQty;
-
-    const defaultMeias: TicketType[] = [
-      { id: crypto.randomUUID(), name: "Meia Estudante", price: (singleTicketTypes[0]?.price || 0) / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
-      { id: crypto.randomUUID(), name: "Meia PCD", price: (singleTicketTypes[0]?.price || 0) / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" },
-      { id: crypto.randomUUID(), name: "Meia Idoso", price: (singleTicketTypes[0]?.price || 0) / 2, quantity: halfQty, poolId, poolName: "Cota Meia-Entrada", requiresProof: true, isLegalHalf: true, description: "" }
-    ];
-
-    setSingleTicketTypes([
-      { ...singleTicketTypes[0], quantity: inteiraQty },
-      ...defaultMeias
-    ]);
-    setIsPercentDialogOpen(false);
-  }
-
-  const handleEnableBatchHalfPrice = () => {
-    if (activeBatchIdx === null) return;
-    const percent = tempBatchPercent;
-    
-    if (activeBatchIdx.sectorIdx !== undefined) {
-      const sIdx = activeBatchIdx.sectorIdx;
-      const bIdx = activeBatchIdx.batchIdx;
-      const newSectors = [...sectorsWithBatches];
-      const sector = newSectors[sIdx];
-      const batch = sector.batches[bIdx];
-      const poolId = crypto.randomUUID();
-      const halfQty = Math.floor(batch.capacidadeInicial * (percent / 100));
-      const inteiraQty = batch.capacidadeInicial - halfQty;
-      const currentInteiraPrice = batch.ticketTypes[0]?.price || 100;
-
-      newSectors[sIdx].batches[bIdx].ticketTypes = [
-        { ...batch.ticketTypes[0], quantity: inteiraQty },
-        { id: crypto.randomUUID(), name: "Meia Estudante", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Setor", requiresProof: true, isLegalHalf: true, description: "" },
-        { id: crypto.randomUUID(), name: "Meia PCD", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Setor", requiresProof: true, isLegalHalf: true, description: "" }
-      ];
-      newSectors[sIdx].batches[bIdx].isHalfPriceEnabled = true;
-      newSectors[sIdx].batches[bIdx].halfPricePercent = percent;
-      setSectorsWithBatches(newSectors);
-    } else {
-      const bIdx = activeBatchIdx.batchIdx;
-      const n = [...batches];
-      const batch = n[bIdx];
-      const poolId = crypto.randomUUID();
-      const halfQty = Math.floor(batch.capacidadeInicial * (percent / 100));
-      const inteiraQty = batch.capacidadeInicial - halfQty;
-      const currentInteiraPrice = batch.ticketTypes[0]?.price || 100;
-
-      n[bIdx].ticketTypes = [
-        { ...batch.ticketTypes[0], quantity: inteiraQty },
-        { id: crypto.randomUUID(), name: "Meia Estudante", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Lote", requiresProof: true, isLegalHalf: true, description: "" },
-        { id: crypto.randomUUID(), name: "Meia PCD", price: currentInteiraPrice / 2, quantity: halfQty, poolId, poolName: "Cota Lote", requiresProof: true, isLegalHalf: true, description: "" }
-      ];
-      n[bIdx].isHalfPriceEnabled = true;
-      n[bIdx].halfPricePercent = percent;
-      setBatches(n);
-    }
-    
-    setIsBatchPercentDialogOpen(false);
-    setActiveBatchIdx(null);
-  }
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -356,42 +189,49 @@ export default function EditarEventoPage() {
     })
   }
 
-  const handleCepBlur = async () => {
-    if (!address.cep) return;
-    const cleanCep = address.cep.replace(/\D/g, "");
-    if (cleanCep.length !== 8) return;
-    
-    try {
-      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
-      const data = await response.json();
-      
-      if (!data.erro) {
-        setAddress(prev => ({
-          ...prev,
-          street: data.logradouro || prev.street,
-          neighborhood: data.bairro || prev.neighborhood,
-          city: data.localidade || prev.city,
-          state: data.uf || prev.state
-        }));
-      } else {
-        toast({ variant: "destructive", title: "CEP não encontrado" });
-      }
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao buscar endereço" });
-    }
-  };
+  const handleAddTag = () => {
+    const t = tagInput.trim().toLowerCase().replace(/#/g, "")
+    if (t && !tags.includes(t)) setTags([...tags, t]);
+    setTagInput("")
+  }
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const toggleCategory = (cat: string) => {
+    setEventCategories(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat])
+  }
+
+  const handleCepBlur = async () => {
+    const cleanCep = address.cep.replace(/\D/g, "")
+    if (cleanCep.length !== 8) return
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
+      const data = await response.json()
+      if (!data.erro) {
+        setAddress(prev => ({...prev, street: data.logradouro || "", neighborhood: data.bairro || "", city: data.localidade || "", state: data.uf || ""}))
+      }
+    } catch (e) {}
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!db || !eventRef || !currentOrg) return
+    if (eventType === 'externo' && !isValidUrl(externalUrl)) {
+      toast({ variant: "destructive", title: "URL Inválida", description: "Informe um link completo (http:// ou https://)." })
+      return
+    }
+
     setLoading(true)
-    const formData = new FormData(e.currentTarget)
+    const formData = new FormData(e.currentTarget as HTMLFormElement)
     try {
-      const cat = categories?.find(c => c.id === selectedCategory)
+      const searchKeywords = [
+        ...normalizeText(currentOrg.name).split(" "),
+        ...normalizeText(currentOrg.username).split(" "),
+        ...tags.map(normalizeText),
+        ...eventCategories.map(normalizeText)
+      ]
+      
       const ageRatingConfig = getAgeRatingConfig(selectedAgeRating);
       
       let finalBatches: any[] = []
-      let finalSectors: any[] = []
       let totalCapacity = 0
 
       if (ticketMode === 'free') {
@@ -405,113 +245,45 @@ export default function EditarEventoPage() {
         }]
       } else if (ticketMode === 'paid_single') {
         totalCapacity = singleCapacity
-        finalBatches = [{
-          id: 'single',
-          name: 'Lote Único',
-          startDate: singleSalesStart,
-          endDate: singleSalesEnd,
-          capacidadeInicial: singleCapacity,
-          capacidadeAtual: singleCapacity,
-          ticketTypes: singleTicketTypes,
-          halfPricePercent: halfPricePercent
-        }]
+        finalBatches = [{ id: 'single', name: 'Lote Único', capacidadeInicial: singleCapacity, capacidadeAtual: singleCapacity, ticketTypes: singleTicketTypes }]
       } else if (ticketMode === 'batches') {
         finalBatches = batches;
         totalCapacity = batches.reduce((acc, b) => acc + b.capacidadeInicial, 0);
-      } else if (ticketMode === 'sector_batches') {
-        finalSectors = sectorsWithBatches;
-        totalCapacity = sectorsWithBatches.reduce((acc, s) => acc + s.capacity, 0);
       }
 
       const updateData: any = {
         title: formData.get("title") as string,
-        description: description,
+        description,
         date: formData.get("startDate") as string,
         endDate: formData.get("endDate") as string,
         categoryId: selectedCategory,
-        categoryName: cat?.name || "Outros",
-        ageRating: {
-          code: ageRatingConfig.code,
-          label: ageRatingConfig.label,
-          minimumAge: ageRatingConfig.minimumAge,
-          isAdultsOnly: !!ageRatingConfig.isAdultsOnly
-        },
-        ticketMode,
+        categoryName: categories?.find(c => c.id === selectedCategory)?.name || "Outros",
+        type: eventType,
+        isFree,
+        externalUrl: eventType === 'externo' ? externalUrl : null,
+        categories: eventCategories,
+        tags,
+        ageRating: { code: ageRatingConfig.code, label: ageRatingConfig.label, minimumAge: ageRatingConfig.minimumAge },
+        ticketMode: eventType === 'interno' ? ticketMode : 'none',
         mapMode,
         possuiMapa: mapMode !== 'none',
         capacidadeTotal: totalCapacity,
-        batches: ticketMode === 'sector_batches' ? [] : finalBatches,
-        sectors: finalSectors,
-        address,
-        image: uploadedImageUrl || event.image || "",
-        updatedAt: serverTimestamp()
+        batches: eventType === 'interno' ? finalBatches : [],
+        address, image: uploadedImageUrl || event.image || "",
+        searchKeywords, updatedAt: serverTimestamp()
       }
       await updateDoc(eventRef, updateData)
       toast({ title: "Evento Atualizado!" })
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro", description: e.message })
+      toast({ variant: "destructive", title: "Erro ao salvar", description: e.message })
     } finally {
       setLoading(false)
     }
   }
 
-  // --- Funções Auxiliares para Bilheteria ---
-  const addBatch = () => {
-    const newB: Batch = { 
-      id: crypto.randomUUID(), 
-      name: `${batches.length + 1}º Lote`, 
-      startDate: "", 
-      endDate: "", 
-      capacidadeInicial: 100, 
-      capacidadeAtual: 100,
-      vendidos: 0,
-      restantes: 100,
-      migradosDoLoteAnterior: 0,
-      ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, isLegalHalf: false, description: "" }],
-      isHalfPriceEnabled: false,
-      halfPricePercent: 40
-    }
-    setBatches([...batches, newB])
-  }
-
-  const updateGlobalBatchField = (i: number, f: keyof Batch, v: any) => { 
-    const n = [...batches]; 
-    n[i] = { ...n[i], [f]: v } as any; 
-    if (f === 'capacidadeInicial') {
-      const cap = parseInt(v) || 0;
-      if (n[i].isHalfPriceEnabled) {
-        const hPercent = n[i].halfPricePercent || 40;
-        const hQty = Math.floor(cap * (hPercent / 100));
-        const iQty = cap - hQty;
-        if (n[i].ticketTypes[0]) n[i].ticketTypes[0].quantity = iQty;
-        for (let j = 1; j < n[i].ticketTypes.length; j++) n[i].ticketTypes[j].quantity = hQty;
-      } else {
-        if (n[i].ticketTypes[0]) n[i].ticketTypes[0].quantity = cap;
-      }
-    }
-    setBatches(n); 
-  }
-
-  const updateGlobalTicketTypeField = (bi: number, ti: number, f: string, v: any) => { 
-    const n = [...batches]; 
-    n[bi].ticketTypes[ti] = { ...n[bi].ticketTypes[ti], [f]: v }; 
-    setBatches(n); 
-  }
-
-  const addGlobalTicketType = (bi: number) => { 
-    const n = [...batches]; 
-    const b = n[bi];
-    const poolId = b.isHalfPriceEnabled ? (b.ticketTypes[1]?.poolId || crypto.randomUUID()) : undefined;
-    n[bi].ticketTypes.push({ id: crypto.randomUUID(), name: "Nova Meia", price: 50, quantity: b.isHalfPriceEnabled ? (b.ticketTypes[1]?.quantity || 0) : b.capacidadeInicial, poolId, poolName: b.isHalfPriceEnabled ? "Cota Lote" : undefined, requiresProof: true, isLegalHalf: true, description: "" }); 
-    setBatches(n); 
-  }
-
-  const removeGlobalBatch = (i: number) => { if(batches.length > 1) setBatches(batches.filter((_, idx) => idx !== i)) }
-  const removeTicketType = (bi: number, ti: number) => { const n = [...batches]; if(n[bi].ticketTypes.length > 1) { n[bi].ticketTypes.splice(ti, 1); setBatches(n); } }
-
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>
 
-  const supportsMap = ['paid_single', 'batches', 'sector_batches'].includes(ticketMode);
+  const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 text-foreground">
@@ -520,174 +292,96 @@ export default function EditarEventoPage() {
           <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
           <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Editar Evento</h1>
         </div>
-        <Button onClick={handleGlobalSave} disabled={loading} className="bg-primary text-white font-black rounded-full h-11 px-8 shadow-lg gap-2 uppercase italic">
+        <Button onClick={(e:any) => document.getElementById('edit-form')?.dispatchEvent(new Event('submit', {cancelable: true, bubbles: true}))} disabled={loading} className="bg-primary text-white font-black rounded-full h-11 px-8 shadow-lg gap-2 uppercase italic">
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           Salvar Alterações
         </Button>
       </div>
 
-      <form id="edit-event-form" onSubmit={handleSubmit} className="space-y-8">
-        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
-          <CardHeader className="bg-muted/30"><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5" /> Mídia</CardTitle></CardHeader>
-          <CardContent className="p-8">
-            <div className="relative aspect-video bg-muted rounded-[2rem] overflow-hidden cursor-pointer group" onClick={() => document.getElementById('edit-img-up')?.click()}>
-              {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" /> : <div className="h-full flex flex-col items-center justify-center opacity-30"><Upload className="w-10 h-10 mb-2" /></div>}
-              <input id="edit-img-up" type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+      <form id="edit-form" onSubmit={handleSubmit} className="space-y-8">
+        <Card className="overflow-hidden border-none shadow-sm rounded-[2rem]">
+          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5 text-secondary" /> Capa</CardTitle></CardHeader>
+          <CardContent className="px-6 pb-6">
+            <div className="relative aspect-video rounded-[1.5rem] bg-muted overflow-hidden cursor-pointer" onClick={() => document.getElementById('img-up')?.click()}>
+              {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" /> : <div className="flex flex-col items-center justify-center h-full opacity-20"><Upload className="w-10 h-10 mb-2" /></div>}
+              <input id="img-up" type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
             </div>
             {uploadProgress !== null && <Progress value={uploadProgress} className="h-1 mt-4" />}
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2.5rem]">
-          <CardHeader><CardTitle className="text-lg">Informações Básicas</CardTitle></CardHeader>
-          <CardContent className="p-8 space-y-6">
+          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Calendar className="w-5 h-5 text-secondary" /> Tipo e Configuração</CardTitle></CardHeader>
+          <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Título</Label><Input name="title" defaultValue={event?.title} required className="rounded-xl h-11" /></div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory} required>
-                    <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent className="rounded-xl">{categories?.map((c: any) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}</SelectContent>
-                  </Select>
+                   <Label className="text-[10px] font-black uppercase opacity-60">Tipo de Evento</Label>
+                   <Select value={eventType} onValueChange={setEventType}>
+                      <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                         {EVENT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                      </SelectContent>
+                   </Select>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border border-dashed">
+                   <div className="space-y-0.5"><p className="text-sm font-bold">Evento Gratuito?</p><p className="text-[9px] uppercase font-black opacity-40">Oculta valores e taxas</p></div>
+                   <Switch checked={isFree} onCheckedChange={setIsFree} />
                 </div>
              </div>
 
-             <div className="space-y-4 p-6 bg-muted/20 rounded-3xl border-2 border-dashed border-border/60">
-                <div className="flex items-center justify-between">
-                   <div className="space-y-1">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
-                         <ShieldAlert className="w-3.5 h-3.5 text-secondary" /> Classificação Indicativa
-                      </Label>
-                      <p className="text-[9px] text-muted-foreground font-bold uppercase">Mantenha a conformidade do seu evento.</p>
-                   </div>
-                   <AgeRatingBadge code={selectedAgeRating} showLabel className="bg-white p-2 rounded-xl shadow-sm border" />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                   {['free', 'not_recommended_18', 'adults_only_18'].map((code) => {
-                      const config = getAgeRatingConfig(code);
-                      const isSelected = selectedAgeRating === code;
-                      return (
-                        <Button 
-                          key={code} 
-                          type="button"
-                          variant={isSelected ? 'secondary' : 'outline'}
-                          className={cn(
-                            "h-auto py-4 flex-col gap-2 rounded-2xl border-2 transition-all",
-                            isSelected ? "border-secondary ring-4 ring-secondary/10" : "border-border/40"
-                          )}
-                          onClick={() => setSelectedAgeRating(code)}
-                        >
-                           <AgeRatingBadge code={code} />
-                           <div className="text-center">
-                              <p className="text-[9px] font-black uppercase tracking-tighter leading-tight">{config.description || config.label}</p>
-                           </div>
-                        </Button>
-                      );
-                   })}
+             {eventType === 'externo' && (
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-secondary">Link para Compra Externa</Label>
+                  <Input value={externalUrl} onChange={e => setExternalUrl(e.target.value)} placeholder="https://exemplo.com/ingressos" className="rounded-xl h-11" />
+               </div>
+             )}
+
+             <div className="space-y-4">
+                <Label className="text-[10px] font-black uppercase opacity-60">Categorias</Label>
+                <div className="flex flex-wrap gap-2">
+                   {EVENT_CATEGORIES.map(cat => (
+                     <Badge key={cat} variant={eventCategories.includes(cat) ? "secondary" : "outline"} className={cn("cursor-pointer h-7 px-3 text-[10px] font-bold uppercase", eventCategories.includes(cat) && "bg-secondary text-white border-none")} onClick={() => toggleCategory(cat)}>
+                        {cat}
+                     </Badge>
+                   ))}
                 </div>
              </div>
 
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input name="startDate" type="datetime-local" defaultValue={event?.date} required className="rounded-xl h-11 text-xs" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fim</Label><Input name="endDate" type="datetime-local" defaultValue={event?.endDate} required className="rounded-xl h-11 text-xs" /></div>
-             </div>
              <div className="space-y-2">
-                <Label className="flex justify-between items-center">
-                   <span className="text-[10px] font-black uppercase opacity-60">Descrição</span>
-                </Label>
-                <MentionTextarea 
-                  placeholder="Fale tudo sobre a experiência..." 
-                  value={description}
-                  onValueChange={setDescription}
-                  className="min-h-[150px] rounded-xl border-dashed border-secondary/30" 
-                  required 
-                />
+                <Label className="text-[10px] font-black uppercase opacity-60">Tags / Palavras-chave</Label>
+                <div className="flex gap-2">
+                   <Input value={tagInput} onChange={e => setTagInput(e.target.value)} placeholder="Adicionar tag" className="rounded-xl h-11" onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddTag())} />
+                   <Button type="button" onClick={handleAddTag} variant="outline" className="h-11 rounded-xl">Add</Button>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                   {tags.map(t => <Badge key={t} className="bg-primary/5 text-primary border-primary/10 gap-1 px-3 py-1">#{t} <X className="w-3 h-3 cursor-pointer" onClick={() => setTags(tags.filter(item => item !== t))} /></Badge>)}
+                </div>
              </div>
           </CardContent>
         </Card>
 
-        {/* --- CO-REALIZAÇÃO (PARCERIAS) --- */}
-        <Card className="border-none shadow-sm rounded-[2rem]">
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle className="text-lg flex items-center gap-2"><Handshake className="w-5 h-5 text-secondary" /> Co-realização</CardTitle>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="rounded-xl font-bold gap-1.5 uppercase text-[10px] h-9 border-dashed">
-                    <Plus className="w-3.5 h-3.5" /> Convidar Parceiro
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-md rounded-[2.5rem]">
-                  <DialogHeader>
-                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Buscar Organização</DialogTitle>
-                    <DialogDescription>As marcas adicionadas aqui serão notificadas para co-produzir o evento.</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-6 py-4">
-                    <div className="flex gap-2">
-                       <div className="relative flex-1">
-                          <Input 
-                            placeholder="username da marca" 
-                            value={searchPartner} 
-                            onChange={e => setSearchPartner(e.target.value.toLowerCase())}
-                            className="rounded-xl pl-9 h-12"
-                          />
-                          <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                       </div>
-                       <Button onClick={handleLookupPartner} disabled={isSearchingPartner} className="h-12 rounded-xl px-6 bg-secondary text-white font-bold">
-                          {isSearchingPartner ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                       </Button>
-                    </div>
-
-                    {foundPartner && (
-                      <div className="p-6 bg-muted/30 rounded-3xl border border-dashed flex items-center justify-between animate-in zoom-in-95">
-                         <div className="flex items-center gap-4">
-                            <Avatar className="h-12 w-12 border-2 border-background shadow-sm">
-                               <AvatarImage src={foundPartner.avatar} />
-                               <AvatarFallback>{foundPartner.name?.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div className="space-y-0.5">
-                               <p className="font-black text-sm uppercase italic tracking-tight">{foundPartner.name}</p>
-                               <p className="text-[10px] text-secondary font-bold uppercase tracking-widest">@{foundPartner.username}</p>
-                            </div>
-                         </div>
-                         <Button onClick={handleInvitePartner} className="bg-primary text-white font-black uppercase text-[10px] italic rounded-xl px-6">Convidar</Button>
-                      </div>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-            <CardDescription className="font-medium">Gerencie marcas parceiras que figuram na produção.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-             {partners && partners.length > 0 ? (
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                 {partners.map((p: any) => (
-                   <div key={p.id} className="p-4 bg-muted/20 rounded-2xl border border-border/50 flex items-center justify-between group">
-                      <div className="flex items-center gap-3">
-                         <Avatar className="h-8 w-8">
-                            <AvatarImage src={p.avatar} />
-                            <AvatarFallback>{p.orgName?.charAt(0)}</AvatarFallback>
-                         </Avatar>
-                         <div className="flex flex-col">
-                            <span className="font-bold text-xs">{p.orgName}</span>
-                            <Badge variant={p.status === 'accepted' ? 'secondary' : 'outline'} className="h-4 p-0 px-1 text-[8px] font-black uppercase">
-                               {p.status === 'accepted' ? 'Confirmado' : 'Pendente'}
-                            </Badge>
-                         </div>
-                      </div>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleRemovePartner(p.id)}>
-                         <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                   </div>
-                 ))}
-               </div>
-             ) : (
-               <div className="py-10 text-center border-2 border-dashed border-border/40 rounded-[1.5rem] opacity-30">
-                  <Handshake className="w-8 h-8 mx-auto mb-2" />
-                  <p className="text-[10px] font-black uppercase tracking-widest">Sem parceiros vinculados</p>
-               </div>
-             )}
+        <Card className="border-none shadow-sm rounded-[2.5rem]">
+          <CardHeader><CardTitle className="text-lg">Informações Gerais</CardTitle></CardHeader>
+          <CardContent className="space-y-6">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2"><Label>Título</Label><Input name="title" defaultValue={event?.title} required className="rounded-xl h-11" /></div>
+                <div className="space-y-2">
+                   <Label>Classificação</Label>
+                   <Select value={selectedAgeRating} onValueChange={setSelectedAgeRating}>
+                      <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                         <SelectItem value="free">Livre</SelectItem>
+                         <SelectItem value="not_recommended_18">18 Anos (Não recomendado)</SelectItem>
+                         <SelectItem value="adults_only_18">Proibido -18</SelectItem>
+                      </SelectContent>
+                   </Select>
+                </div>
+             </div>
+             <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2"><Label>Início</Label><Input name="startDate" type="datetime-local" defaultValue={event?.date} required className="rounded-xl h-11 text-xs" /></div>
+                <div className="space-y-2"><Label>Fim</Label><Input name="endDate" type="datetime-local" defaultValue={event?.endDate} required className="rounded-xl h-11 text-xs" /></div>
+             </div>
+             <div className="space-y-2"><Label>Descrição</Label><Textarea value={description} onChange={e => setDescription(e.target.value)} required className="min-h-[120px] rounded-xl border-dashed" /></div>
           </CardContent>
         </Card>
 
@@ -695,151 +389,43 @@ export default function EditarEventoPage() {
           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle></CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="space-y-2">
-                   <Label htmlFor="cep" className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
-                   <Input id="cep" value={address.cep} onChange={e => setAddress({...address, cep: e.target.value})} onBlur={handleCepBlur} placeholder="00000-000" className="rounded-xl h-11" />
-                </div>
-                <div className="md:col-span-3 space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Rua</Label><Input value={address.street} onChange={e => setAddress({...address, street: e.target.value})} className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label>CEP</Label><Input value={address.cep} onChange={e => setAddress({...address, cep: e.target.value})} onBlur={handleCepBlur} placeholder="00000-000" className="rounded-xl h-11" /></div>
+                <div className="md:col-span-3 space-y-2"><Label>Rua</Label><Input value={address.street} onChange={e => setAddress({...address, street: e.target.value})} required className="rounded-xl h-11" /></div>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Número</Label><Input value={address.number} onChange={e => setAddress({...address, number: e.target.value})} required className="rounded-xl h-11" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label><Input value={address.complement} onChange={e => setAddress({...address, complement: e.target.value})} className="rounded-xl h-11" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} required className="rounded-xl h-11" /></div>
-                <div className="space-y-2">
-                   <Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label>
-                   <Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" />
-                </div>
+                <div className="space-y-2"><Label>Cidade</Label><Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
+                <div className="space-y-2"><Label>UF</Label><Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
+                <div className="space-y-2"><Label>Bairro</Label><Input value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} required className="rounded-xl h-11" /></div>
+                <div className="space-y-2"><Label>Número</Label><Input value={address.number} onChange={e => setAddress({...address, number: e.target.value})} required className="rounded-xl h-11" /></div>
              </div>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
-          <CardHeader className="bg-muted/30 border-b">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1"><CardTitle className="text-lg flex items-center gap-2"><Ticket className="w-5 h-5 text-secondary" /> Bilheteria</CardTitle></div>
-              <div className="bg-white p-1 rounded-xl border flex flex-wrap gap-1">
-                {['none', 'free', 'paid_single', 'batches', 'sector_batches'].map((mode: any) => (
-                  <Button key={mode} type="button" variant={ticketMode === mode ? 'secondary' : 'ghost'} size="sm" className="rounded-lg text-[10px] font-black uppercase px-4" onClick={() => setTicketMode(mode)}>
-                    {mode === 'none' ? 'Sem Ingresso' : mode === 'free' ? 'Grátis' : mode === 'paid_single' ? 'Valor Único' : mode === 'batches' ? 'Lotes' : 'Setor e Lote'}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-8 space-y-8">
-            {ticketMode === 'free' && (
-               <div className="space-y-6 animate-in fade-in duration-300">
-                  <div className="p-6 bg-muted/20 rounded-2xl border-2 border-dashed border-border flex flex-col items-center gap-4">
-                     <Label className="text-xs font-black uppercase tracking-widest">Quantidade de Ingressos Gratuitos</Label>
-                     <Input type="number" value={freeCapacity} onChange={e => setFreeCapacity(parseInt(e.target.value) || 0)} className="h-14 text-2xl font-black rounded-xl text-center border-secondary/20 max-w-[200px]" />
-                  </div>
+        {eventType === 'interno' && (
+          <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
+            <CardHeader className="bg-muted/30 border-b"><CardTitle className="text-lg">Bilheteria Interna</CardTitle></CardHeader>
+            <CardContent className="p-8 space-y-8">
+               <div className="flex justify-center gap-1 bg-muted/50 p-1 rounded-xl w-fit mx-auto mb-8">
+                  {['free', 'paid_single', 'batches'].map(m => <Button key={m} type="button" variant={ticketMode === m ? "secondary" : "ghost"} size="sm" className="rounded-lg text-[10px] font-black uppercase px-6" onClick={() => setTicketMode(m as any)}>{m === 'free' ? 'Gratuito' : m === 'paid_single' ? 'Valor Único' : 'Lotes'}</Button>)}
                </div>
-            )}
 
-            {supportsMap && (
-              <div className="animate-in fade-in slide-in-from-top-4 duration-500 space-y-6 border-b border-dashed pb-8 mb-8">
-                <div className="space-y-1">
-                  <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                    <MapIcon className="w-4 h-4 text-secondary" /> Estrutura do Evento (Mapa)
-                  </h3>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {['none', 'setores', 'assentos', 'mesas'].map((m) => (
-                    <Button key={m} type="button" variant={mapMode === m ? 'secondary' : 'outline'} className={cn("h-24 flex-col gap-2 rounded-2xl border-dashed", mapMode === m && "border-solid ring-2 ring-secondary/20")} onClick={() => setMapMode(m as any)}>
-                      {m === 'none' ? <X className="w-6 h-6" /> : m === 'setores' ? <Layout className="w-6 h-6" /> : m === 'assentos' ? <Armchair className="w-6 h-6" /> : <Grid3X3 className="w-6 h-6" />}
-                      <span className="text-[10px] font-black uppercase">{m === 'none' ? 'Sem Mapa' : m.charAt(0).toUpperCase() + m.slice(1)}</span>
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {ticketMode === 'paid_single' && (
-               <div className="space-y-8 animate-in fade-in duration-300">
-                  <div className="p-8 bg-muted/20 rounded-[2rem] border-2 border-dashed border-border space-y-6">
-                     <div className="flex flex-col items-center gap-2">
-                        <Label className="text-xs font-black uppercase tracking-widest text-secondary">Capacidade do Evento</Label>
-                        <Input type="number" value={singleCapacity} onChange={e => setSingleCapacity(parseInt(e.target.value) || 0)} className="h-14 text-3xl font-black rounded-xl text-center border-secondary/20 max-w-[200px] bg-white" />
-                     </div>
-                     <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60 ml-1">Início</Label><Input type="datetime-local" value={singleSalesStart} onChange={e => setSingleSalesStart(e.target.value)} className="rounded-xl h-11 text-xs bg-white" /></div>
-                        <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60 ml-1">Fim</Label><Input type="datetime-local" value={singleSalesEnd} onChange={e => setSingleSalesEnd(e.target.value)} className="rounded-xl h-11 text-xs bg-white" /></div>
-                     </div>
-                  </div>
-                  <div className="p-6 bg-white rounded-3xl border shadow-sm grid grid-cols-12 gap-6 items-end">
-                     <div className="col-span-5 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Ingresso Principal</Label><Input value={singleTicketTypes[0]?.name || ""} onChange={e => { const n = [...singleTicketTypes]; n[0].name = e.target.value; setSingleTicketTypes(n); }} className="rounded-xl h-12 font-bold" /></div>
-                     <div className="col-span-3 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Quantidade</Label><Input value={singleTicketTypes[0]?.quantity || 0} readOnly className="rounded-xl h-12 font-black bg-muted/30" /></div>
-                     <div className="col-span-4 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Valor (R$)</Label><Input type="number" step="0.01" value={singleTicketTypes[0]?.price || 0} onChange={e => { const n = [...singleTicketTypes]; n[0].price = parseFloat(e.target.value) || 0; setSingleTicketTypes(n); }} className="rounded-xl h-12 font-black text-secondary" /></div>
-                  </div>
-                  <div className="flex justify-center"><Button type="button" variant={isHalfPriceEnabled ? "secondary" : "outline"} className="rounded-full px-8 h-12 font-black uppercase italic text-xs gap-2" onClick={() => setIsPercentDialogOpen(true)}><Sparkles className="w-4 h-4" /> {isHalfPriceEnabled ? "Ajustar Meia-Entrada" : "Habilitar Meia-Entrada"}</Button></div>
-               </div>
-            )}
-
-            {ticketMode === 'batches' && (
-              <div className="space-y-10 animate-in fade-in duration-500">
-                <div className="p-8 bg-muted/20 rounded-[2rem] border-2 border-dashed border-border space-y-4 text-center">
-                   <Label className="text-sm font-black uppercase tracking-widest text-primary">Capacidade Total</Label>
-                   <Input type="number" value={totalBatchCapacity} onChange={e => setTotalBatchCapacity(parseInt(e.target.value) || 0)} className="h-16 text-4xl font-black rounded-2xl text-center border-secondary/20 max-w-[250px] mx-auto bg-white" />
-                </div>
-                {batches.map((batch, bi) => (
-                  <div key={batch.id} className="p-6 rounded-[2rem] border-2 bg-muted/10 space-y-6 relative overflow-hidden">
-                     <div className="flex justify-between items-center relative z-10">
-                        <div className="flex items-center gap-3"><h3 className="font-black italic uppercase text-secondary text-xl">{batch.name}</h3><Badge variant="outline" className="text-[10px] font-bold uppercase">{batch.capacidadeInicial} Ingressos</Badge></div>
-                        <div className="flex gap-2">
-                           <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg text-[10px] font-black uppercase border-secondary text-secondary gap-1.5" onClick={() => { setActiveBatchIdx({ batchIdx: bi }); setTempBatchPercent(batch.halfPricePercent || 40); setIsBatchPercentDialogOpen(true); }}><Sparkles className="w-3 h-3" /> Gerar Meia</Button>
-                           <Button type="button" variant="ghost" size="icon" className="text-destructive rounded-full" onClick={() => removeGlobalBatch(bi)} disabled={batches.length === 1}><Trash2 className="w-4 h-4" /></Button>
-                        </div>
-                     </div>
-                     <div className="p-6 bg-white rounded-3xl border shadow-sm grid grid-cols-12 gap-6 items-end">
-                        <div className="col-span-5 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Ingresso Principal</Label><Input value={batch.ticketTypes[0]?.name || ""} onChange={e => updateGlobalBatchField(bi, 'name' as any, e.target.value)} className="rounded-xl h-11 font-bold" /></div>
-                        <div className="col-span-3 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Quantidade</Label><Input value={batch.ticketTypes[0]?.quantity || 0} readOnly className="rounded-xl h-11 font-black bg-muted/30" /></div>
-                        <div className="col-span-4 space-y-2"><Label className="text-[9px] uppercase font-black opacity-40 ml-1">Valor (R$)</Label><Input type="number" step="0.01" value={batch.ticketTypes[0]?.price || 0} onChange={e => updateGlobalTicketTypeField(bi, 0, 'price', parseFloat(e.target.value) || 0)} className="rounded-xl h-11 font-black text-secondary" /></div>
-                     </div>
-                  </div>
-                ))}
-                <Button type="button" variant="outline" className="w-full h-14 rounded-2xl border-dashed font-black uppercase italic" onClick={addBatch}><Plus className="w-5 h-5 mr-2" /> Adicionar Lote</Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Button type="submit" disabled={loading} className="w-full h-16 bg-secondary text-white font-black h-16 rounded-[2rem] shadow-xl uppercase italic">
-          {loading ? <Loader2 className="animate-spin mr-2" /> : "Salvar Alterações"}
-        </Button>
+               {ticketMode === 'free' ? (
+                 <div className="p-8 bg-muted/20 rounded-2xl border-2 border-dashed border-border flex flex-col items-center gap-4">
+                    <Label className="text-xs font-black uppercase tracking-widest">Quantidade de Ingressos Cortesia</Label>
+                    <Input type="number" value={freeCapacity} onChange={e => setFreeCapacity(parseInt(e.target.value) || 0)} className="h-16 text-3xl font-black rounded-2xl text-center border-secondary/20 max-w-[200px]" />
+                 </div>
+               ) : ticketMode === 'paid_single' ? (
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-muted/20 rounded-2xl border border-dashed">
+                    <div className="space-y-2"><Label>Capacidade</Label><Input type="number" value={singleCapacity} onChange={e => setSingleCapacity(parseInt(e.target.value) || 0)} className="h-11 rounded-xl font-bold" /></div>
+                    <div className="space-y-2"><Label>Preço (R$)</Label><Input type="number" step="0.01" value={singleTicketTypes[0]?.price} onChange={e => { const n = [...singleTicketTypes]; n[0].price = parseFloat(e.target.value) || 0; setSingleTicketTypes(n); }} className="h-11 rounded-xl font-black text-secondary" /></div>
+                 </div>
+               ) : (
+                 <div className="py-10 text-center border-2 border-dashed rounded-3xl opacity-40"><Ticket className="w-12 h-12 mx-auto mb-2" /><p className="text-xs font-bold uppercase tracking-widest">Use o painel para gerenciar os lotes existentes.</p></div>
+               )}
+            </CardContent>
+          </Card>
+        )}
       </form>
-
-      <Dialog open={isPercentDialogOpen} onOpenChange={setIsPercentDialogOpen}>
-         <DialogContent className="max-w-sm rounded-[2.5rem]">
-            <DialogHeader>
-               <div className="w-12 h-12 bg-secondary/10 rounded-xl flex items-center justify-center mb-2 mx-auto text-secondary"><Percent className="w-6 h-6" /></div>
-               <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Meia-Entrada Automática</DialogTitle>
-            </DialogHeader>
-            <div className="py-6 space-y-6">
-               <div className="relative">
-                  <Input type="number" value={halfPricePercent} onChange={e => setHalfPricePercent(parseInt(e.target.value) || 0)} className="h-20 text-5xl font-black text-center rounded-[1.5rem] border-secondary/20" />
-                  <span className="absolute right-6 top-1/2 -translate-y-1/2 text-2xl font-black text-muted-foreground opacity-30">%</span>
-               </div>
-            </div>
-            <DialogFooter><Button onClick={() => handleEnableHalfPrice(halfPricePercent)} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Configurar Cota</Button></DialogFooter>
-         </DialogContent>
-      </Dialog>
-
-      <Dialog open={isBatchPercentDialogOpen} onOpenChange={setIsBatchPercentDialogOpen}>
-         <DialogContent className="max-w-sm rounded-[2.5rem]">
-            <DialogHeader>
-               <div className="w-12 h-12 bg-secondary/10 rounded-xl flex items-center justify-center mb-2 mx-auto text-secondary"><Percent className="w-6 h-6" /></div>
-               <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Meia por Lote</DialogTitle>
-               <DialogDescription className="text-center font-medium">Defina a porcentagem de cota de meia-entrada para este lote específico.</DialogDescription>
-            </DialogHeader>
-            <div className="py-6 space-y-4">
-               <div className="relative">
-                  <Input type="number" value={tempBatchPercent} onChange={e => setTempBatchPercent(parseInt(e.target.value) || 0)} className="h-20 text-5xl font-black text-center rounded-[1.5rem] border-secondary/20" />
-                  <span className="absolute right-6 top-1/2 -translate-y-1/2 text-2xl font-black text-muted-foreground opacity-30">%</span>
-               </div>
-            </div>
-            <DialogFooter><Button onClick={handleEnableBatchHalfPrice} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Confirmar Cota</Button></DialogFooter>
-         </DialogContent>
-      </Dialog>
     </div>
   )
 }

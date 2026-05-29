@@ -22,6 +22,7 @@ import {
   serverTimestamp,
   increment,
   getDoc,
+  updateDoc
 } from 'firebase/firestore';
 import {
   Loader2,
@@ -736,14 +737,14 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
       toast({ title: "Ação necessária", description: "Faça login para interagir." });
       return;
     }
-    const interactionRef = doc(db, "events", id, "interactions", user.uid);
+    const interactionRef = doc(db!, "events", id, "interactions", user.uid);
     const snap = await getDoc(interactionRef);
     if (snap.exists() && snap.data().type === type) {
        toast({ title: "Você já marcou essa opção." });
        return;
     }
     await setDoc(interactionRef, { type, timestamp: serverTimestamp() });
-    await updateDoc(doc(db, "events", id), { [`${type}Count`]: increment(1) });
+    await updateDoc(doc(db!, "events", id), { [`${type}Count`]: increment(1) });
     toast({ title: type === 'going' ? "Presença Confirmada!" : "Interesse Registrado!" });
   }
 
@@ -937,8 +938,8 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
             <div className="lg:col-span-8 space-y-16">
               {/* INTERAÇÕES SOCIAIS */}
               <div className="flex flex-wrap items-center gap-4">
-                 <Button variant={isLiked ? "secondary" : "outline"} className="rounded-full h-12 px-6 gap-2 font-black uppercase italic text-xs shadow-sm" onClick={handleShare}>
-                    <Heart className={cn("w-4 h-4", isLiked && "fill-current")} /> Curtir ({event.likesCount || 0})
+                 <Button variant="outline" className="rounded-full h-12 px-6 gap-2 font-black uppercase italic text-xs shadow-sm" onClick={handleShare}>
+                    <Heart className="w-4 h-4" /> Curtir ({event.likesCount || 0})
                  </Button>
                  <Button variant="outline" className="rounded-full h-12 px-6 gap-2 font-black uppercase italic text-xs shadow-sm" onClick={() => handleInteraction('interested')}>
                     <Star className="w-4 h-4" /> Tenho Interesse ({event.interestedCount || 0})
@@ -1120,7 +1121,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 )}
 
                 {eventType === 'externo' && event.externalUrl && (
-                  <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden border-t-8 border-primary p-8 space-y-6">
+                  <Card className="border-none shadow-xl rounded-[3rem] bg-white overflow-hidden border-t-8 border-primary p-8 space-y-6">
                      <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Bilheteria Externa</h2>
                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">Este evento utiliza uma plataforma de vendas externa. Ao clicar, você será redirecionado.</p>
                      <Button className="w-full h-16 bg-primary text-white font-black rounded-2xl uppercase italic gap-2" asChild>
@@ -1130,7 +1131,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 )}
 
                 {eventType === 'divulgacao' && (
-                  <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden border-t-8 border-muted p-8 space-y-6">
+                  <Card className="border-none shadow-xl rounded-[3rem] bg-white overflow-hidden border-t-8 border-muted p-8 space-y-6">
                      <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Evento Informativo</h2>
                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">Este evento é apenas para divulgação. Fique atento às atualizações na página da marca.</p>
                      <Button variant="outline" className="w-full h-14 rounded-2xl font-black uppercase italic" onClick={() => handleInteraction('interested')}>Marcar Interesse</Button>
