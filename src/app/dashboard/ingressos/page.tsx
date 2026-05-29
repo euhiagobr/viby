@@ -81,16 +81,31 @@ export default function MeusIngressosPage() {
     )
   }
 
-  const pendingIncoming = (registrations || []).filter(r => r.sharedWithUid === user?.uid && r.transferStatus === 'pending');
-  const myOwned = (registrations || []).filter(r => 
-    (r.userId === user?.uid && !r.sharedWithUid) || 
-    (r.sharedWithUid === user?.uid && r.transferStatus === 'accepted')
-  );
-  const myHistorical = (registrations || []).filter(r => 
-    r.userId === user?.uid && 
-    r.sharedWithUid && 
-    r.sharedWithUid !== user?.uid
-  );
+  // Função auxiliar para comparar datas de compra (timestamp)
+  const sortByPurchaseDate = (a: any, b: any) => {
+    const timeA = a.timestamp?.seconds || a.createdAt?.seconds || 0;
+    const timeB = b.timestamp?.seconds || b.createdAt?.seconds || 0;
+    return timeB - timeA;
+  };
+
+  const pendingIncoming = (registrations || [])
+    .filter(r => r.sharedWithUid === user?.uid && r.transferStatus === 'pending')
+    .sort(sortByPurchaseDate);
+
+  const myOwned = (registrations || [])
+    .filter(r => 
+      (r.userId === user?.uid && !r.sharedWithUid) || 
+      (r.sharedWithUid === user?.uid && r.transferStatus === 'accepted')
+    )
+    .sort(sortByPurchaseDate);
+
+  const myHistorical = (registrations || [])
+    .filter(r => 
+      r.userId === user?.uid && 
+      r.sharedWithUid && 
+      r.sharedWithUid !== user?.uid
+    )
+    .sort(sortByPurchaseDate);
 
   return (
     <div className="space-y-8 pb-20">
