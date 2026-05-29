@@ -31,7 +31,6 @@ export function EventStats({ views, interested, going, shares, isOwner, classNam
        )}
 
        <StatItem icon={Heart} label="Interesse" value={interested} />
-       <StatItem icon={Users} label="Confirmados" value={going} />
        <StatItem icon={Share2} label="Shares" value={shares} />
     </div>
   )
