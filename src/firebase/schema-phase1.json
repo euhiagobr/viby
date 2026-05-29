@@ -1,0 +1,28 @@
+
+{
+  "collections": {
+    "events": {
+      "new_fields": {
+        "type": "string ('interno' | 'externo' | 'divulgacao') - default: 'interno'",
+        "isFree": "boolean - default: false",
+        "externalUrl": "string (URL validada para eventos externos)",
+        "categories": "array of strings (seleção múltipla)",
+        "tags": "array of strings",
+        "viewsCount": "number (contador incremental)",
+        "interestedCount": "number (contador incremental)",
+        "goingCount": "number (contador incremental)",
+        "sharesCount": "number (contador incremental)",
+        "searchKeywords": "array of strings (para busca aprimorada sem acento)"
+      }
+    },
+    "event_interactions": {
+      "id": "userId_eventId",
+      "fields": {
+        "userId": "string",
+        "eventId": "string",
+        "type": "string ('view' | 'interested' | 'going' | 'share')",
+        "timestamp": "timestamp"
+      }
+    }
+  }
+}

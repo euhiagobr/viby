@@ -22,11 +22,9 @@ service cloud.firestore {
         get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
     }
 
-    // --- COLEÇÕES PÚBLICAS ---
     match /users/{userId} {
       allow read: if true;
       allow create: if isSignedIn() && request.auth.uid == userId;
-      // Permite atualização se for o dono OU se estiver apenas alterando contadores de follow (necessário para social)
       allow update: if isOwner(userId) || isAdmin() || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'followingCount', 'updatedAt', 'totalXp', 'level']));
 
       match /private/sensitive {
@@ -38,7 +36,7 @@ service cloud.firestore {
     match /events/{eventId} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
+      allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewsCount', 'interestedCount', 'goingCount', 'sharesCount']));
       allow delete: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
       
       match /partners/{partnerId} {
@@ -56,6 +54,11 @@ service cloud.firestore {
         allow read: if true;
         allow write: if isSignedIn() && request.auth.uid == userId;
       }
+
+      match /interactions/{userId} {
+        allow read: if true;
+        allow write: if isSignedIn() && request.auth.uid == userId;
+      }
       
       match /setores/{setorId} {
         allow read: if true;
@@ -69,7 +72,6 @@ service cloud.firestore {
     match /organizations/{orgId} {
       allow read: if true;
       allow create: if isSignedIn();
-      // Permite atualização se for gestor OU se estiver apenas alterando contador de seguidores
       allow update: if hasOrgRole(orgId, ['owner', 'admin']) || isAdmin() || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'updatedAt', 'totalViews', 'totalReach']));
 
       match /members/{userId} {
@@ -110,7 +112,6 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
     }
 
-    // --- COLEÇÕES PRIVADAS E FINANCEIRAS ---
     match /registrations/{regId} {
       allow read: if resource.data.checkedIn == true || (isSignedIn() && (
         resource.data.userId == request.auth.uid || 
@@ -151,7 +152,6 @@ service cloud.firestore {
       allow read: if isAdmin();
     }
 
-    // --- GAMIFICAÇÃO ---
     match /user_gamification/{userId} {
       allow read: if true;
       allow write: if isSignedIn();
@@ -189,7 +189,6 @@ service cloud.firestore {
       allow read, write: if false; 
     }
 
-    // --- COLLECTION GROUPS ---
     match /{path=**}/members/{userId} {
       allow read: if isSignedIn() && request.auth.uid == userId;
     }

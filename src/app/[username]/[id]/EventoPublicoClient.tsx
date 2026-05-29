@@ -18,7 +18,10 @@ import {
   where,
   orderBy,
   addDoc,
+  setDoc,
   serverTimestamp,
+  increment,
+  getDoc,
 } from 'firebase/firestore';
 import {
   Loader2,
@@ -59,7 +62,11 @@ import {
   Lock,
   ShieldAlert,
   XCircle,
-  LogIn
+  LogIn,
+  Eye,
+  Heart,
+  Star,
+  ExternalLink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -101,21 +108,15 @@ import { AgeRatingBadge, AgeRatingWarning } from '@/lib/age-rating';
 import { UserNav } from '@/components/layout/UserNav';
 import { RichText } from '@/components/ui/rich-text';
 
-// --- COMPONENTES AUXILIARES ---
-
 function VerifiedBadge() {
-  return (
-    <BadgeCheck className="w-5 h-5 fill-blue-500 text-white" />
-  );
+  return <BadgeCheck className="w-5 h-5 fill-blue-500 text-white" />;
 }
 
 const renderFormattedText = (text: string) => {
   if (!text) return null;
-  
   return text.split(/\n\n+/).map((block, bIdx) => {
     const trimmed = block.trim();
     if (!trimmed) return null;
-
     if (trimmed.startsWith('# ')) {
       return (
         <h2 key={bIdx} className="text-5xl md:text-6xl font-black uppercase italic tracking-tighter mb-6 mt-4 text-primary leading-[0.9] drop-shadow-sm">
@@ -123,7 +124,6 @@ const renderFormattedText = (text: string) => {
         </h2>
       );
     }
-    
     if (trimmed.startsWith('## ')) {
       return (
         <h3 key={bIdx} className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter mb-4 mt-2 text-primary leading-[1]">
@@ -131,7 +131,6 @@ const renderFormattedText = (text: string) => {
         </h3>
       );
     }
-    
     return (
       <div key={bIdx} className="mb-6 last:mb-0 leading-relaxed text-lg md:text-xl font-medium text-foreground/80">
         <RichText content={trimmed} />
@@ -156,7 +155,6 @@ function ReportDialog({ eventId, eventTitle }: { eventId: string, eventTitle: st
     }
     setLoading(true);
     const formData = new FormData(e.currentTarget);
-    
     try {
       await addDoc(collection(db, "reports"), {
         targetId: eventId,
@@ -236,8 +234,6 @@ function ReportDialog({ eventId, eventTitle }: { eventId: string, eventTitle: st
     </Dialog>
   );
 }
-
-// --- COMPONENTES DA PÁGINA ---
 
 function EventHero({ event, isEnded }: { event: any, isEnded: boolean }) {
   const dateValue = event.startDate || event.date;
@@ -710,7 +706,10 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const [selectedTicketType, setSelectedTicketType] = React.useState<any>(null);
   const [quantity, setQuantity] = React.useState(1);
 
+  // Fase 1: Novos status e tipos
   const isActive = event?.status === 'Ativo';
+  const eventType = event?.type || 'interno';
+  const isFree = event?.isFree === true;
   
   const isEnded = React.useMemo(() => {
     if (!event) return false;
@@ -719,6 +718,34 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     const end = event.endDate?.toDate ? event.endDate.toDate() : (event.endDate ? new Date(event.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
     return end < now;
   }, [event]);
+
+  // Contadores sociais inteligentes
+  React.useEffect(() => {
+    if (!db || !id || !isActive) return;
+    const key = `viby_viewed_${id}`;
+    const lastView = localStorage.getItem(key);
+    const now = Date.now();
+    if (!lastView || now - parseInt(lastView) > 1000 * 60 * 30) {
+      updateDoc(doc(db, "events", id), { viewsCount: increment(1) });
+      localStorage.setItem(key, now.toString());
+    }
+  }, [db, id, isActive]);
+
+  const handleInteraction = async (type: 'interested' | 'going') => {
+    if (!user) {
+      toast({ title: "Ação necessária", description: "Faça login para interagir." });
+      return;
+    }
+    const interactionRef = doc(db, "events", id, "interactions", user.uid);
+    const snap = await getDoc(interactionRef);
+    if (snap.exists() && snap.data().type === type) {
+       toast({ title: "Você já marcou essa opção." });
+       return;
+    }
+    await setDoc(interactionRef, { type, timestamp: serverTimestamp() });
+    await updateDoc(doc(db, "events", id), { [`${type}Count`]: increment(1) });
+    toast({ title: type === 'going' ? "Presença Confirmada!" : "Interesse Registrado!" });
+  }
 
   const allAvailableTickets = React.useMemo(() => {
     if (!event) return [];
@@ -733,12 +760,10 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
       });
       return all;
     };
-    
     if (selectedSector && event.ticketMode === 'sector_batches') {
       const sectorDef = event.sectors?.find((s: any) => s.id === selectedSector.ticketLinkId);
       return sectorDef ? extractFromBatches(sectorDef.batches || []) : [];
     }
-    
     return extractFromBatches(event.batches || []);
   }, [event, selectedSector]);
 
@@ -772,12 +797,10 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
       router.push(`/login?redirect=${encodeURIComponent(pathname || '/')}`);
       return;
     }
-
     if (!event || !isActive || isEnded) {
       toast({ variant: "destructive", title: "Vendas encerradas", description: "Este evento não está mais aceitando novas inscrições." });
       return;
     }
-    
     if (selectedSector && selectedSector.tipo !== 'livre') {
       if (Object.keys(selectedSeats).length === 0) {
         toast({ variant: "destructive", title: "Selecione um lugar primeiro." });
@@ -798,7 +821,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
           ticketTypeName: ticketType.name,
           batchId: ticketType._batch.id,
           batchName: ticketType._batch.name,
-          price: ticketType.price,
+          price: isFree ? 0 : ticketType.price,
           quantity: 1,
           requiresProof: ticketType.requiresProof || false,
           sectorId: selectedSector.id,
@@ -829,7 +852,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
         ticketTypeName: selectedTicketType.name,
         batchId: selectedTicketType._batch.id,
         batchName: selectedTicketType._batch.name,
-        price: selectedTicketType.price,
+        price: isFree ? 0 : selectedTicketType.price,
         quantity,
         requiresProof: selectedTicketType.requiresProof || false,
         sectorId: selectedSector?.id || null,
@@ -846,6 +869,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     if (typeof window !== 'undefined') {
       const url = window.location.href;
       navigator.clipboard.writeText(url);
+      updateDoc(doc(db!, "events", id), { sharesCount: increment(1) });
       toast({ title: "Link copiado!", description: "Compartilhe o evento com seus amigos." });
     }
   }
@@ -855,17 +879,17 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     let fees = 0;
     if (selectedSector?.tipo !== 'livre' && selectedSector) {
       Object.values(selectedSeats).forEach(({ ticketType }) => {
-        const b = calculateFinancialBreakdown(ticketType.price, globalFees, promotions, organizationProfile);
-        subtotal += ticketType.price;
-        fees += b.administrativeFeeAmount;
+        const b = calculateFinancialBreakdown(isFree ? 0 : ticketType.price, globalFees, promotions, organizationProfile);
+        subtotal += isFree ? 0 : ticketType.price;
+        fees += isFree ? 0 : b.administrativeFeeAmount;
       });
     } else if (selectedTicketType) {
-      const b = calculateFinancialBreakdown(selectedTicketType.price, globalFees, promotions, organizationProfile);
-      subtotal = selectedTicketType.price * quantity;
-      fees = b.administrativeFeeAmount * quantity;
+      const b = calculateFinancialBreakdown(isFree ? 0 : selectedTicketType.price, globalFees, promotions, organizationProfile);
+      subtotal = (isFree ? 0 : selectedTicketType.price) * quantity;
+      fees = (isFree ? 0 : b.administrativeFeeAmount) * quantity;
     }
     return { subtotal, fees, total: subtotal + fees };
-  }, [selectedSector, selectedSeats, selectedTicketType, quantity, globalFees, promotions, organizationProfile]);
+  }, [selectedSector, selectedSeats, selectedTicketType, quantity, globalFees, promotions, organizationProfile, isFree]);
 
   if (eventLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
   if (!event) return null;
@@ -885,25 +909,21 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
             </Link>
           </div>
           <div className="flex items-center gap-4">
-            <Button variant="outline" size="icon" className="rounded-full relative border-2" asChild>
-              <Link href="/dashboard/carrinho">
-                <ShoppingCart className="w-5 h-5" />
-                {totalCount > 0 && <span className="absolute -top-2 -right-2 bg-secondary text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-lg border-2 border-white">{totalCount}</span>}
-              </Link>
-            </Button>
+            {eventType === 'interno' && (
+              <Button variant="outline" size="icon" className="rounded-full relative border-2" asChild>
+                <Link href="/dashboard/carrinho">
+                  <ShoppingCart className="w-5 h-5" />
+                  {totalCount > 0 && <span className="absolute -top-2 -right-2 bg-secondary text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-lg border-2 border-white">{totalCount}</span>}
+                </Link>
+              </Button>
+            )}
             <Button variant="outline" size="icon" className="rounded-full border-2" onClick={handleShare}>
               <Share2 className="w-5 h-5" />
             </Button>
-            {user ? (
-               <UserNav />
-            ) : (
+            {user ? <UserNav /> : (
               <div className="flex items-center gap-2">
-                 <Button asChild variant="ghost" className="text-[10px] font-black uppercase tracking-widest px-4 h-10 rounded-full">
-                    <Link href="/login">Entrar</Link>
-                 </Button>
-                 <Button asChild className="bg-primary text-white font-black uppercase text-[10px] italic rounded-full px-6 shadow-lg shadow-primary/10 h-10">
-                   <Link href="/cadastro">Criar Conta</Link>
-                 </Button>
+                 <Button asChild variant="ghost" className="text-[10px] font-black uppercase tracking-widest px-4 h-10 rounded-full"><Link href="/login">Entrar</Link></Button>
+                 <Button asChild className="bg-primary text-white font-black uppercase text-[10px] italic rounded-full px-6 shadow-lg shadow-primary/10 h-10"><Link href="/cadastro">Criar Conta</Link></Button>
               </div>
             )}
           </div>
@@ -915,7 +935,23 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
         <div className="max-w-7xl mx-auto px-4 py-16 md:py-24">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
             <div className="lg:col-span-8 space-y-16">
-              {/* CLASSIFICAÇÃO E ALERTAS */}
+              {/* INTERAÇÕES SOCIAIS */}
+              <div className="flex flex-wrap items-center gap-4">
+                 <Button variant={isLiked ? "secondary" : "outline"} className="rounded-full h-12 px-6 gap-2 font-black uppercase italic text-xs shadow-sm" onClick={handleShare}>
+                    <Heart className={cn("w-4 h-4", isLiked && "fill-current")} /> Curtir ({event.likesCount || 0})
+                 </Button>
+                 <Button variant="outline" className="rounded-full h-12 px-6 gap-2 font-black uppercase italic text-xs shadow-sm" onClick={() => handleInteraction('interested')}>
+                    <Star className="w-4 h-4" /> Tenho Interesse ({event.interestedCount || 0})
+                 </Button>
+                 <Button variant="outline" className="rounded-full h-12 px-6 gap-2 font-black uppercase italic text-xs shadow-sm" onClick={() => handleInteraction('going')}>
+                    <CheckCircle2 className="w-4 h-4" /> Vou nesse ({event.goingCount || 0})
+                 </Button>
+                 <div className="ml-auto flex items-center gap-2 text-[10px] font-black uppercase opacity-40">
+                    <Eye className="w-4 h-4" /> {event.viewsCount || 0} Visualizações
+                 </div>
+              </div>
+
+              {/* CLASSIFICAÇÃO */}
               <section className="space-y-6">
                  <div className="flex items-center gap-3 px-2">
                     <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><ShieldCheck className="w-5 h-5" /></div>
@@ -935,7 +971,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                  </div>
               </section>
 
-              {/* ORGANIZADOR CARD */}
+              {/* ORGANIZADOR */}
               <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden p-8 hover:shadow-xl transition-shadow group">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
                     <div className="flex items-center gap-8">
@@ -951,7 +987,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                         <Link href={`/${organizationProfile?.username || event.organizer?.username}`} className="text-xs font-black text-secondary uppercase hover:underline">Ver Perfil da Marca</Link>
                       </div>
                     </div>
-                    
                     {partners && partners.length > 0 && (
                       <div className="flex flex-col gap-3 md:border-l md:pl-8 border-border/40">
                          <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Em parceria com</p>
@@ -973,69 +1008,49 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                          </div>
                       </div>
                     )}
-
-                    <div className="flex items-center gap-2">
-                       <ReportDialog eventId={id} eventTitle={event.title} />
-                    </div>
+                    <div className="flex items-center gap-2"><ReportDialog eventId={id} eventTitle={event.title} /></div>
                   </div>
               </Card>
 
-              {/* DESCRIÇÃO CARD */}
+              {/* CATEGORIAS E TAGS */}
+              {(event.categories?.length > 0 || event.tags?.length > 0) && (
+                <div className="flex flex-wrap gap-2">
+                   {event.categories?.map((cat: string) => <Badge key={cat} variant="secondary" className="rounded-full px-4 py-1 text-[10px] font-black uppercase tracking-widest bg-secondary/10 text-secondary border-none">{cat}</Badge>)}
+                   {event.tags?.map((tag: string) => <Badge key={tag} variant="outline" className="rounded-full px-4 py-1 text-[10px] font-black uppercase tracking-widest">#{tag}</Badge>)}
+                </div>
+              )}
+
+              {/* DESCRIÇÃO */}
               <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden p-10 relative">
-                <div className="absolute top-0 right-0 p-8 opacity-5">
-                   <Info className="w-32 h-32 text-primary" />
-                </div>
-                <h3 className="text-xl font-black uppercase italic tracking-tighter mb-10 flex items-center gap-3">
-                  <Sparkles className="w-5 h-5 text-secondary" /> Informações do Evento
-                </h3>
-                <div className="space-y-2">
-                  {renderFormattedText(event.description)}
-                </div>
+                <h3 className="text-xl font-black uppercase italic tracking-tighter mb-10 flex items-center gap-3"><Sparkles className="w-5 h-5 text-secondary" /> Informações do Evento</h3>
+                <div className="space-y-2">{renderFormattedText(event.description)}</div>
               </Card>
 
-              {/* LOCALIZAÇÃO CARD */}
               <LocationSection event={event} />
 
-              {/* TICKETS SECTION */}
-              {event.ticketMode !== 'none' && (
+              {/* BILHETERIA E TICKET MODES */}
+              {eventType === 'interno' && event.ticketMode !== 'none' && (
                 <section id="tickets" className="space-y-10">
                   <div className="flex flex-col gap-2">
-                    <h2 className="text-4xl font-black italic uppercase tracking-tighter text-primary">Ingressos & Mapa</h2>
+                    <h2 className="text-4xl font-black italic uppercase tracking-tighter text-primary">{isFree ? "Reserva de Ingresso" : "Ingressos & Mapa"}</h2>
                     <p className="text-muted-foreground font-medium">Selecione a área desejada e escolha seus ingressos.</p>
                   </div>
-
                   {(!isActive || isEnded) && (
-                    <div className={cn(
-                      "p-10 text-center rounded-[2.5rem] border-2 border-dashed flex flex-col items-center gap-4",
-                      isEnded ? "bg-muted/30 border-muted" : "bg-orange-50 border-orange-200"
-                    )}>
+                    <div className={cn("p-10 text-center rounded-[2.5rem] border-2 border-dashed flex flex-col items-center gap-4", isEnded ? "bg-muted/30 border-muted" : "bg-orange-50 border-orange-200")}>
                       {isEnded ? <XCircle className="w-12 h-12 text-muted-foreground opacity-40" /> : <Lock className="w-12 h-12 text-orange-600 opacity-40" />}
                       <div className="space-y-1">
-                          <h4 className="text-xl font-black uppercase italic tracking-tighter">
-                            {isEnded ? "Evento Encerrado" : "Vendas Encerradas"}
-                          </h4>
-                          <p className="text-sm font-medium opacity-70">
-                            {isEnded ? "O evento já encerrou e não é mais possível adquirir ingressos." : "Este evento não está mais aceitando novas inscrições no momento."}
-                          </p>
+                          <h4 className="text-xl font-black uppercase italic tracking-tighter">{isEnded ? "Evento Encerrado" : "Vendas Encerradas"}</h4>
+                          <p className="text-sm font-medium opacity-70">{isEnded ? "O evento já encerrou e não é mais possível adquirir ingressos." : "Este evento não está mais aceitando novas inscrições no momento."}</p>
                       </div>
                     </div>
                   )}
-
                   {isActive && !isEnded && (
                     <>
                       {setores && setores.length > 0 ? (
-                        <div className="space-y-8 animate-in fade-in slide-in-from-top-4 duration-500">
-                          <VenueMap 
-                            event={event}
-                            setores={setores}
-                            selectedSectorId={selectedSector?.id || null}
-                            onSelectSector={(s) => { setSelectedSector(s); setSelectedTicketType(null); }}
-                            onToggleSeat={handleToggleSeat}
-                            selectedSeatIds={Object.keys(selectedSeats)}
-                          />
-
+                        <div className="space-y-8">
+                          <VenueMap event={event} setores={setores} selectedSectorId={selectedSector?.id || null} onSelectSector={(s) => { setSelectedSector(s); setSelectedTicketType(null); }} onToggleSeat={handleToggleSeat} selectedSeatIds={Object.keys(selectedSeats)} />
                           {selectedSector && (
-                            <div className="space-y-6 pt-6 animate-in zoom-in-95 duration-300">
+                            <div className="space-y-6 pt-6">
                               <div className="flex items-center justify-between px-2">
                                   <div className="flex items-center gap-3">
                                     <Badge style={{ backgroundColor: selectedSector.cor }} className="text-white px-4 py-1.5 rounded-full font-black uppercase text-[10px]">{selectedSector.nome}</Badge>
@@ -1043,84 +1058,38 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                                   </div>
                                   <Button variant="ghost" size="sm" onClick={() => { setSelectedSector(null); setSelectedTicketType(null); }} className="rounded-full text-[10px] font-black uppercase gap-2"><X className="w-4 h-4" /> Cancelar Seleção</Button>
                               </div>
-
                               {selectedSector.tipo === 'livre' ? (
                                   <div className="grid gap-4">
                                     {allAvailableTickets.map((type: any) => (
-                                      <TicketCard 
-                                        key={type.id}
-                                        type={type}
-                                        isSelected={selectedTicketType?.id === type.id}
-                                        onSelect={() => setSelectedTicketType(type)}
-                                        quantity={quantity}
-                                        onQuantityChange={setQuantity}
-                                        showQuantity={true}
-                                        promotions={promotions}
-                                        globalFees={globalFees}
-                                        orgSettings={organizationProfile}
-                                      />
+                                      <TicketCard key={type.id} type={type} isSelected={selectedTicketType?.id === type.id} onSelect={() => setSelectedTicketType(type)} quantity={quantity} onQuantityChange={setQuantity} showQuantity={true} promotions={promotions} globalFees={globalFees} orgSettings={organizationProfile} />
                                     ))}
                                   </div>
                               ) : (
                                   <div className="grid gap-4">
                                     {Object.values(selectedSeats).map(({ seat, ticketType }) => (
                                         <div key={seat.id} className="p-6 bg-secondary/5 rounded-3xl border-2 border-secondary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                          <div className="flex items-center gap-4">
-                                              <div className="p-3 bg-secondary rounded-2xl text-white">
-                                                <Armchair className="w-6 h-6" />
-                                              </div>
-                                              <div>
-                                                <p className="text-[9px] font-black uppercase text-secondary">Lugar Selecionado</p>
-                                                <p className="font-black text-xl italic uppercase text-primary">{seat.codigo} • {selectedSector.nome}</p>
-                                              </div>
-                                          </div>
-                                          
+                                          <div className="flex items-center gap-4"><div className="p-3 bg-secondary rounded-2xl text-white"><Armchair className="w-6 h-6" /></div><div><p className="text-[9px] font-black uppercase text-secondary">Lugar Selecionado</p><p className="font-black text-xl italic uppercase text-primary">{seat.codigo} • {selectedSector.nome}</p></div></div>
                                           <div className="flex items-center gap-6">
                                               <div className="space-y-1 min-w-[150px]">
                                                 <Label className="text-[8px] font-black uppercase opacity-40">Tipo de Ingresso</Label>
                                                 <Select value={ticketType.id} onValueChange={(val) => handleUpdateSeatType(seat.id, val)}>
-                                                    <SelectTrigger className="h-9 rounded-xl text-[10px] font-bold uppercase bg-white">
-                                                      <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="rounded-xl">
-                                                      {allAvailableTickets.map(t => (
-                                                        <SelectItem key={t.id} value={t.id} className="text-[10px] font-bold uppercase">{t.name}</SelectItem>
-                                                      ))}
-                                                    </SelectContent>
+                                                    <SelectTrigger className="h-9 rounded-xl text-[10px] font-bold uppercase bg-white"><SelectValue /></SelectTrigger>
+                                                    <SelectContent className="rounded-xl">{allAvailableTickets.map(t => (<SelectItem key={t.id} value={t.id} className="text-[10px] font-bold uppercase">{t.name}</SelectItem>))}</SelectContent>
                                                 </Select>
                                               </div>
-                                              <div className="text-right">
-                                                <p className="text-[9px] font-bold text-muted-foreground uppercase">{ticketType.name}</p>
-                                                <p className="font-black text-xl">{formatCurrency(ticketType.price)}</p>
-                                              </div>
+                                              <div className="text-right"><p className="text-[9px] font-bold text-muted-foreground uppercase">{ticketType.name}</p><p className="font-black text-xl">{formatCurrency(isFree ? 0 : ticketType.price)}</p></div>
                                           </div>
                                         </div>
                                     ))}
-                                    {Object.keys(selectedSeats).length === 0 && (
-                                      <div className="py-12 text-center bg-muted/20 rounded-[2rem] border-2 border-dashed border-border/40">
-                                          <p className="text-sm font-bold text-muted-foreground uppercase italic">Toque em uma cadeira no mapa para selecionar.</p>
-                                      </div>
-                                    )}
                                   </div>
                               )}
                             </div>
                           )}
                         </div>
                       ) : (
-                        <div className="grid gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                        <div className="grid gap-4">
                           {allAvailableTickets.map((type: any) => (
-                            <TicketCard 
-                              key={type.id}
-                              type={type}
-                              isSelected={selectedTicketType?.id === type.id}
-                              onSelect={() => setSelectedTicketType(type)}
-                              quantity={quantity}
-                              onQuantityChange={setQuantity}
-                              showQuantity={true}
-                              promotions={promotions}
-                              globalFees={globalFees}
-                              orgSettings={organizationProfile}
-                            />
+                            <TicketCard key={type.id} type={type} isSelected={selectedTicketType?.id === type.id} onSelect={() => setSelectedTicketType(type)} quantity={quantity} onQuantityChange={setQuantity} showQuantity={true} promotions={promotions} globalFees={globalFees} orgSettings={organizationProfile} />
                           ))}
                         </div>
                       )}
@@ -1130,78 +1099,47 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
               )}
             </div>
 
-            {/* SIDEBAR RESUMO */}
             <aside className="hidden lg:block lg:col-span-4">
               <div className="sticky top-28 space-y-8">
-                {event.ticketMode !== 'none' && (
-                  <Card className={cn(
-                    "border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden border-t-8 p-8 flex flex-col gap-8",
-                    isEnded ? "border-muted grayscale opacity-70" : "border-secondary"
-                  )}>
-                    <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-3">
-                      <ShoppingCart className="w-6 h-6 text-secondary" /> Pedido
-                    </h2>
-
-                    {isEnded ? (
-                      <div className="py-20 text-center space-y-4">
-                        <XCircle className="w-12 h-12 mx-auto text-muted-foreground opacity-20" />
-                        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">O evento já encerrou.</p>
-                      </div>
-                    ) : isActive ? (
-                      (selectedTicketType || Object.keys(selectedSeats).length > 0) ? (
+                {eventType === 'interno' && event.ticketMode !== 'none' && (
+                  <Card className={cn("border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden border-t-8 p-8 flex flex-col gap-8", isEnded ? "border-muted grayscale opacity-70" : "border-secondary")}>
+                    <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-3"><ShoppingCart className="w-6 h-6 text-secondary" /> {isFree ? "Reserva" : "Pedido"}</h2>
+                    {isEnded ? <div className="py-20 text-center space-y-4"><XCircle className="w-12 h-12 mx-auto text-muted-foreground opacity-20" /><p className="text-xs font-black uppercase tracking-widest text-muted-foreground">O evento já encerrou.</p></div> : 
+                     isActive ? ((selectedTicketType || Object.keys(selectedSeats).length > 0) ? (
                         <div className="space-y-8 animate-in zoom-in-95 duration-300">
                           <div className="space-y-4">
-                            <div className="flex justify-between text-xs font-bold uppercase opacity-60">
-                              <span>Subtotal</span>
-                              <span>{formatCurrency(totals.subtotal)}</span>
-                            </div>
-                            <div className="flex justify-between text-xs font-bold uppercase opacity-60">
-                              <span>Taxas Service</span>
-                              <span>{formatCurrency(totals.fees)}</span>
-                            </div>
+                            <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Subtotal</span><span>{formatCurrency(totals.subtotal)}</span></div>
+                            <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Taxas Service</span><span>{formatCurrency(totals.fees)}</span></div>
                             <Separator className="border-dashed" />
-                            <div className="flex justify-between items-center">
-                              <span className="text-xl font-black uppercase italic text-primary">Total</span>
-                              <span className="text-3xl font-black text-primary">{formatCurrency(totals.total)}</span>
-                            </div>
+                            <div className="flex justify-between items-center"><span className="text-xl font-black uppercase italic text-primary">Total</span><span className="text-3xl font-black text-primary">{formatCurrency(totals.total)}</span></div>
                           </div>
-
-                          <Button 
-                            onClick={handleAddToCart} 
-                            className="w-full h-20 bg-secondary text-white font-black rounded-3xl shadow-xl shadow-secondary/20 uppercase italic text-xl hover:scale-[1.02] transition-all group"
-                          >
-                            {user ? 'Adicionar ao Carrinho' : <><LogIn className="w-5 h-5 mr-2" /> Fazer Login para Comprar</>}
-                            <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                          </Button>
-
-                          <div className="p-4 bg-muted/30 rounded-2xl flex gap-3">
-                            <Timer className="w-4 h-4 text-secondary shrink-0 mt-1" />
-                            <p className="text-[10px] font-bold text-muted-foreground leading-tight uppercase">Após adicionar, o item ficará reservado por 15 minutos até a conclusão do pagamento.</p>
-                          </div>
+                          <Button onClick={handleAddToCart} className="w-full h-20 bg-secondary text-white font-black rounded-3xl shadow-xl shadow-secondary/20 uppercase italic text-xl hover:scale-[1.02] transition-all group">{user ? (isFree ? 'Garantir Ingresso' : 'Adicionar ao Carrinho') : <><LogIn className="w-5 h-5 mr-2" /> Fazer Login</>}<ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" /></Button>
                         </div>
-                      ) : (
-                        <div className="py-20 text-center space-y-6 opacity-30">
-                          <Ticket className="w-16 h-16 mx-auto text-secondary" />
-                          <p className="text-xs font-black uppercase tracking-[0.2em] max-w-[150px] mx-auto">Selecione um lugar ou ingresso no catálogo ao lado.</p>
-                        </div>
-                      )
-                    ) : (
-                      <div className="py-20 text-center space-y-4">
-                        <Lock className="w-12 h-12 mx-auto text-muted-foreground opacity-20" />
-                        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Vendas indisponíveis para este evento no momento.</p>
-                      </div>
-                    )}
+                      ) : <div className="py-20 text-center space-y-6 opacity-30"><Ticket className="w-16 h-16 mx-auto text-secondary" /><p className="text-xs font-black uppercase tracking-[0.2em] max-w-[150px] mx-auto">Selecione uma opção ao lado.</p></div>) : <div className="py-20 text-center space-y-4"><Lock className="w-12 h-12 mx-auto text-muted-foreground opacity-20" /><p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Vendas indisponíveis.</p></div>}
                   </Card>
                 )}
 
-                {/* INFO EXTRA */}
+                {eventType === 'externo' && event.externalUrl && (
+                  <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden border-t-8 border-primary p-8 space-y-6">
+                     <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Bilheteria Externa</h2>
+                     <p className="text-sm font-medium text-muted-foreground leading-relaxed">Este evento utiliza uma plataforma de vendas externa. Ao clicar, você será redirecionado.</p>
+                     <Button className="w-full h-16 bg-primary text-white font-black rounded-2xl uppercase italic gap-2" asChild>
+                        <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar Ingressos <ExternalLink className="w-5 h-5" /></a>
+                     </Button>
+                  </Card>
+                )}
+
+                {eventType === 'divulgacao' && (
+                  <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden border-t-8 border-muted p-8 space-y-6">
+                     <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Evento Informativo</h2>
+                     <p className="text-sm font-medium text-muted-foreground leading-relaxed">Este evento é apenas para divulgação. Fique atento às atualizações na página da marca.</p>
+                     <Button variant="outline" className="w-full h-14 rounded-2xl font-black uppercase italic" onClick={() => handleInteraction('interested')}>Marcar Interesse</Button>
+                  </Card>
+                )}
+
                 <div className="p-8 bg-primary text-white rounded-[3rem] shadow-xl space-y-6 relative overflow-hidden">
-                   <h4 className="text-[10px] font-black uppercase tracking-widest text-secondary flex items-center gap-2">
-                     <ShieldCheck className="w-4 h-4" /> Compra Segura Viby
-                   </h4>
-                   <p className="text-xs font-medium opacity-80 leading-relaxed">
-                     Seus dados e pagamentos são protegidos por criptografia de ponta a ponta via Stripe. Receba seu voucher oficial instantaneamente após a confirmação.
-                   </p>
+                   <h4 className="text-[10px] font-black uppercase tracking-widest text-secondary flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Compra Segura Viby</h4>
+                   <p className="text-xs font-medium opacity-80 leading-relaxed">Seus dados e pagamentos são protegidos por criptografia de ponta a ponta. Receba seu voucher oficial instantaneamente.</p>
                    <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-secondary/10 rounded-full blur-3xl" />
                 </div>
               </div>
@@ -1209,7 +1147,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
           </div>
         </div>
       </main>
-
       <Footer />
     </div>
   );
