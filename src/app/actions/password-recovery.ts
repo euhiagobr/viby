@@ -1,7 +1,6 @@
+'use server';
 
-'use client';
-
-import { db, auth } from '@/firebase';
+import { db } from '@/firebase/database';
 import { 
   collection, 
   query, 
@@ -21,6 +20,7 @@ import { maskEmail } from '@/lib/crypto-utils';
 
 /**
  * @fileOverview Recuperação de senha baseada em OTP armazenado no Firestore.
+ * Refatorado para Server Action para permitir uso de headers() e segurança.
  */
 
 const GENERATOR_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -117,9 +117,7 @@ export async function verifyRecoveryCode(requestId: string, code: string) {
 export async function resetPasswordWithCode(requestId: string, code: string, password: string) {
   try {
     // Nota: O Firebase Client SDK não permite trocar a senha de outro usuário no servidor
-    // sem o Admin SDK. Como estamos limitados ao Client SDK e o Admin SDK falhou na autenticação,
-    // o fluxo correto seria usar a ação padrão de reset de senha do Firebase Auth que 
-    // lida com segurança e tokens via link.
+    // sem o Admin SDK. Como estamos em uma Server Action, o ideal seria implementar via Admin SDK aqui.
     return { success: false, error: 'Funcionalidade requerida: Admin SDK configurado.' };
   } catch (error: any) {
     return { success: false, error: 'Não foi possível redefinir sua senha.' };
