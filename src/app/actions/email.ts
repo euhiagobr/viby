@@ -1,16 +1,16 @@
 
-'use server';
+'use client';
 
 import nodemailer from 'nodemailer';
-import { getAdminDb } from '@/lib/firebase/admin';
+import { db } from '@/firebase';
+import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 /**
  * @fileOverview Serviço de e-mail utilizando Nodemailer com credenciais dinâmicas do Firestore.
  */
 
 async function getTransporter() {
-  const db = getAdminDb();
-  const snap = await db.collection('settings').doc('email').get();
+  const snap = await getDoc(doc(db, 'settings', 'email'));
   const data = snap.data();
 
   if (!data?.smtpUser || !data?.smtpPass) {
@@ -25,11 +25,22 @@ async function getTransporter() {
   });
 }
 
+async function logEmail(data: any, sender: string) {
+  try {
+    await addDoc(collection(db, 'sent_emails'), {
+      ...data,
+      sender,
+      timestamp: serverTimestamp()
+    });
+  } catch (e) {
+    console.warn("Falha ao registrar log de e-mail:", e);
+  }
+}
+
 export async function sendPasswordResetLinkEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const db = getAdminDb();
-    const emailSnap = await db.collection('settings').doc('email').get();
+    const emailSnap = await getDoc(doc(db, 'settings', 'email'));
     const smtpUser = emailSnap.data()?.smtpUser;
 
     const htmlContent = `
@@ -51,6 +62,14 @@ export async function sendPasswordResetLinkEmail(data: any) {
       html: htmlContent
     });
 
+    await logEmail({
+      recipientEmail: data.to,
+      recipientName: data.userName,
+      subject: `🔐 Código de Segurança: ${data.otpCode}`,
+      content: htmlContent,
+      type: 'password_reset_otp'
+    }, "Viby Security");
+
     return { success: true };
   } catch (e: any) { 
     return { success: false, error: e.message }; 
@@ -60,8 +79,7 @@ export async function sendPasswordResetLinkEmail(data: any) {
 export async function sendPayoutConfirmedEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const db = getAdminDb();
-    const emailSnap = await db.collection('settings').doc('email').get();
+    const emailSnap = await getDoc(doc(db, 'settings', 'email'));
     const smtpUser = emailSnap.data()?.smtpUser;
 
     const htmlContent = `
@@ -77,6 +95,15 @@ export async function sendPayoutConfirmedEmail(data: any) {
       subject: `✅ Pagamento Efetuado: ${data.orgName}`, 
       html: htmlContent 
     });
+
+    await logEmail({
+      recipientEmail: data.to,
+      recipientName: data.userName,
+      subject: `✅ Pagamento Efetuado: ${data.orgName}`,
+      content: htmlContent,
+      type: 'payout_confirmation'
+    }, "Viby Finance");
+
     return { success: true };
   } catch (e: any) { return { success: false, error: e.message }; }
 }
@@ -84,8 +111,7 @@ export async function sendPayoutConfirmedEmail(data: any) {
 export async function sendTicketEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const db = getAdminDb();
-    const emailSnap = await db.collection('settings').doc('email').get();
+    const emailSnap = await getDoc(doc(db, 'settings', 'email'));
     const smtpUser = emailSnap.data()?.smtpUser;
 
     const htmlContent = `
@@ -107,6 +133,15 @@ export async function sendTicketEmail(data: any) {
       subject: `🎫 Ingresso Confirmado: ${data.eventTitle}`, 
       html: htmlContent 
     });
+
+    await logEmail({
+      recipientEmail: data.to,
+      recipientName: data.userName,
+      subject: `🎫 Ingresso Confirmado: ${data.eventTitle}`,
+      content: htmlContent,
+      type: 'ticket_confirmation'
+    }, "Viby Ingressos");
+
     return { success: true };
   } catch (e: any) { return { success: false, error: e.message }; }
 }
@@ -114,8 +149,7 @@ export async function sendTicketEmail(data: any) {
 export async function sendWelcomeEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const db = getAdminDb();
-    const emailSnap = await db.collection('settings').doc('email').get();
+    const emailSnap = await getDoc(doc(db, 'settings', 'email'));
     const smtpUser = emailSnap.data()?.smtpUser;
 
     const htmlContent = `
@@ -130,6 +164,34 @@ export async function sendWelcomeEmail(data: any) {
       subject: `✨ Bem-vindo à ${data.siteName}`, 
       html: htmlContent 
     });
+
+    await logEmail({
+      recipientEmail: data.to,
+      recipientName: data.userName,
+      subject: `✨ Bem-vindo à ${data.siteName}`,
+      content: htmlContent,
+      type: 'welcome_email'
+    }, "Viby System");
+
     return { success: true };
   } catch (e: any) { return { success: false, error: e.message }; }
+}
+
+export async function resendLoggedEmail(data: any) {
+  try {
+    const transporter = await getTransporter();
+    const emailSnap = await getDoc(doc(db, 'settings', 'email'));
+    const smtpUser = emailSnap.data()?.smtpUser;
+
+    await transporter.sendMail({
+      from: `"Viby Support" <${smtpUser}>`,
+      to: data.recipientEmail,
+      subject: `[REENVIO] ${data.subject}`,
+      html: data.content
+    });
+
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
 }

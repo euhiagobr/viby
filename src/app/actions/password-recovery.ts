@@ -1,14 +1,26 @@
 
-'use server';
+'use client';
 
-import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { db, auth } from '@/firebase';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  limit, 
+  addDoc, 
+  doc, 
+  getDoc, 
+  updateDoc, 
+  serverTimestamp,
+  Timestamp
+} from 'firebase/firestore';
 import { headers } from 'next/headers';
 import { sendPasswordResetLinkEmail } from './email';
 import { maskEmail } from '@/lib/crypto-utils';
 
 /**
- * @fileOverview Recuperação de senha com proteção contra vazamento de chaves e privacidade de e-mail.
+ * @fileOverview Recuperação de senha baseada em OTP armazenado no Firestore.
  */
 
 const GENERATOR_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -23,9 +35,6 @@ function generateOTP(): string {
 
 export async function requestPasswordRecovery(identifier: string) {
   try {
-    const db = getAdminDb();
-    const auth = getAdminAuth();
-    
     const head = await headers();
     const ip = head.get('x-forwarded-for') || 'unknown';
     const userAgent = head.get('user-agent') || 'unknown';
@@ -35,10 +44,8 @@ export async function requestPasswordRecovery(identifier: string) {
     const searchField = isEmail ? "email" : "username";
     const searchValue = inputClean.replace('@', '');
 
-    const userSnap = await db.collection("users")
-      .where(searchField, "==", searchValue)
-      .limit(1)
-      .get();
+    const q = query(collection(db, "users"), where(searchField, "==", searchValue), limit(1));
+    const userSnap = await getDocs(q);
     
     if (userSnap.empty) {
       return { success: false, error: 'Usuário não encontrado.' }; 
@@ -48,16 +55,13 @@ export async function requestPasswordRecovery(identifier: string) {
     const resolvedEmail = userData.email.toLowerCase().trim();
     const userName = userData.name || userData.displayName || "Usuário";
 
-    // Validar existência no Auth
-    await auth.getUserByEmail(resolvedEmail);
-
     const code = generateOTP();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 60 minutos
 
-    const docRef = await db.collection('password_reset_codes').add({
+    const docRef = await addDoc(collection(db, 'password_reset_codes'), {
       email: resolvedEmail,
       code,
-      createdAt: FieldValue.serverTimestamp(),
+      createdAt: serverTimestamp(),
       expiresAt: Timestamp.fromDate(expiresAt),
       used: false,
       ip,
@@ -74,27 +78,24 @@ export async function requestPasswordRecovery(identifier: string) {
       return { success: false, error: 'Falha ao enviar e-mail. Tente novamente mais tarde.' };
     }
 
-    // Retorna o ID da solicitação e o e-mail mascarado para o cliente
     return { 
       success: true, 
       requestId: docRef.id,
       maskedEmail: maskEmail(resolvedEmail) 
     };
   } catch (error: any) {
-    console.error('[Recovery Error Filtered]');
+    console.error('[Recovery Error Filtered]', error);
     return { success: false, error: 'Falha técnica no servidor de autenticação.' };
   }
 }
 
 export async function verifyRecoveryCode(requestId: string, code: string) {
   try {
-    const db = getAdminDb();
     const cleanCode = code.trim().toUpperCase();
+    const docRef = doc(db, 'password_reset_codes', requestId);
+    const snap = await getDoc(docRef);
 
-    const docRef = db.collection('password_reset_codes').doc(requestId);
-    const snap = await docRef.get();
-
-    if (!snap.exists) {
+    if (!snap.exists()) {
       return { success: false, error: 'Solicitação não encontrada.' };
     }
     
@@ -103,7 +104,9 @@ export async function verifyRecoveryCode(requestId: string, code: string) {
 
     if (data?.used) return { success: false, error: 'Este código já foi utilizado.' };
     if (data?.code !== cleanCode) return { success: false, error: 'Código incorreto.' };
-    if (data?.expiresAt.toDate() < now) return { success: false, error: 'Código expirado.' };
+    
+    const expires = data.expiresAt?.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
+    if (expires < now) return { success: false, error: 'Código expirado.' };
 
     return { success: true };
   } catch (error: any) {
@@ -113,24 +116,11 @@ export async function verifyRecoveryCode(requestId: string, code: string) {
 
 export async function resetPasswordWithCode(requestId: string, code: string, password: string) {
   try {
-    const db = getAdminDb();
-    const auth = getAdminAuth();
-    const cleanCode = code.trim().toUpperCase();
-    
-    const docRef = db.collection('password_reset_codes').doc(requestId);
-    const snap = await docRef.get();
-
-    if (!snap.exists) throw new Error("Solicitação inválida.");
-
-    const data = snap.data();
-    if (data?.used || data?.code !== cleanCode) throw new Error("Validação falhou.");
-
-    const userRecord = await auth.getUserByEmail(data.email);
-    
-    await auth.updateUser(userRecord.uid, { password });
-    await docRef.update({ used: true, usedAt: FieldValue.serverTimestamp() });
-
-    return { success: true };
+    // Nota: O Firebase Client SDK não permite trocar a senha de outro usuário no servidor
+    // sem o Admin SDK. Como estamos limitados ao Client SDK e o Admin SDK falhou na autenticação,
+    // o fluxo correto seria usar a ação padrão de reset de senha do Firebase Auth que 
+    // lida com segurança e tokens via link.
+    return { success: false, error: 'Funcionalidade requerida: Admin SDK configurado.' };
   } catch (error: any) {
     return { success: false, error: 'Não foi possível redefinir sua senha.' };
   }

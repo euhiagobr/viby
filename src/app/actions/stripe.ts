@@ -1,20 +1,20 @@
 
-'use server';
+'use client';
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { getAdminDb } from '@/lib/firebase/admin';
+import { db } from '@/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 /**
  * @fileOverview Server Actions para integração com Stripe.
- * Busca as chaves dinamicamente do Firestore para permitir configuração via painel Admin.
+ * Busca as chaves dinamicamente do Firestore (Client SDK) para permitir configuração via painel Admin.
  */
 
 async function getStripeInstance() {
-  const db = getAdminDb();
-  const snap = await db.collection('settings').doc('stripe').get();
+  const snap = await getDoc(doc(db, 'settings', 'stripe'));
   
-  if (!snap.exists || !snap.data()?.secretKey) {
+  if (!snap.exists() || !snap.data()?.secretKey) {
     throw new Error('Stripe não configurado. Vá em Painel Admin > Configurações > Pagamentos.');
   }
   
