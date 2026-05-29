@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -64,12 +63,13 @@ import {
   AlertTriangle,
   UserPlus,
   Handshake,
-  ChevronRight
+  ChevronRight,
+  Plus
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -168,7 +168,7 @@ export default function AdminUsuariosPage() {
         }))
         setFullMembersData(data.filter(Boolean))
       } catch (e) {
-        console.error("Erro ao carregar membros. Verifique se o índice composite para members foi criado.", e)
+        console.error("Erro ao carregar membros:", e)
       } finally {
         setLoadingMemberProfiles(false)
       }
@@ -313,7 +313,6 @@ export default function AdminUsuariosPage() {
         batch.delete(doc(db, "usernames", username.toLowerCase()))
       }
 
-      // Se for usuário, remove vínculos de equipe onde ele aparece
       if (type === 'user') {
         const membersQ = query(collectionGroup(db, "members"), where("userId", "==", id))
         const mSnap = await getDocs(membersQ)
@@ -635,7 +634,6 @@ export default function AdminUsuariosPage() {
                 </TableRow>
               ))
             ) : (
-              // ABA MEMBROS
               loadingMembers || loadingMemberProfiles ? (
                 <TableRow><TableCell colSpan={4} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
               ) : filteredMembers.length > 0 ? (
@@ -691,7 +689,6 @@ export default function AdminUsuariosPage() {
         </Table>
       </Card>
 
-      {/* DIALOG ADICIONAR MEMBRO GLOBAL */}
       <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
          <DialogContent className="rounded-[2.5rem] max-w-md">
             <DialogHeader>
@@ -742,7 +739,6 @@ export default function AdminUsuariosPage() {
          </DialogContent>
       </Dialog>
 
-      {/* DIALOG TRANSFERÊNCIA DE TITULARIDADE */}
       <Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
         <DialogContent className="max-w-md rounded-[2.5rem]">
            <DialogHeader>
