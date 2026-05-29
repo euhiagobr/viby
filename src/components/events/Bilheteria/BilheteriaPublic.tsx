@@ -39,29 +39,37 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
 
   const [quantities, setQuantities] = React.useState<Record<string, number>>({})
 
-  // Lógica inteligente de Lote Ativo:
-  // 1. Lote dentro do prazo de validade
-  // 2. Lote que ainda possui ingressos (incluindo sobras do anterior se implementado no backend)
+  // Lógica de Lote Ativo com ordenação e detecção de status
   const activeBatch = React.useMemo(() => {
     if (!event.batches || event.batches.length === 0) return null
     const now = new Date()
     
-    // Filtra lotes que já começaram e ainda não terminaram
-    const validByDate = event.batches.find((b: any) => {
+    // Ordenar lotes por data de início
+    const sortedBatches = [...event.batches].sort((a, b) => {
+      const dateA = a.startDate ? new Date(a.startDate).getTime() : 0
+      const dateB = b.startDate ? new Date(b.startDate).getTime() : 0
+      return dateA - dateB
+    })
+    
+    // 1. Tenta encontrar o lote que está ocorrendo agora
+    const current = sortedBatches.find((b: any) => {
       const start = b.startDate ? new Date(b.startDate) : null
       const end = b.endDate ? new Date(b.endDate) : null
       return (!start || now >= start) && (!end || now <= end)
     })
 
-    if (validByDate) return validByDate
+    if (current) return current
 
-    // Se nenhum está no prazo, pegamos o primeiro que ainda não começou (Próximo Lote)
-    const nextBatch = event.batches.find((b: any) => {
+    // 2. Se nenhum está ocorrendo, procura o PRÓXIMO a iniciar
+    const upcoming = sortedBatches.find((b: any) => {
        const start = b.startDate ? new Date(b.startDate) : null
        return start && now < start
     })
 
-    return nextBatch || event.batches[0]
+    if (upcoming) return upcoming
+
+    // 3. Fallback para o último se todos já passaram ou primeiro se não houver datas
+    return sortedBatches[sortedBatches.length - 1]
   }, [event.batches])
 
   const handleUpdateQty = (typeId: string, val: number) => {
@@ -107,8 +115,12 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
   if (event.ticketMode === 'none' || !event.ticketMode) return null
 
   const now = new Date()
-  const isStarted = !activeBatch?.startDate || now >= new Date(activeBatch.startDate)
-  const isFinished = activeBatch?.endDate && now > new Date(activeBatch.endDate)
+  const startDate = activeBatch?.startDate ? new Date(activeBatch.startDate) : null
+  const endDate = activeBatch?.endDate ? new Date(activeBatch.endDate) : null
+  
+  const isStarted = !startDate || now >= startDate
+  const isFinished = endDate && now > endDate
+  const isWaiting = startDate && now < startDate
 
   return (
     <section id="bilheteria" className="space-y-8 animate-in fade-in duration-500">
@@ -119,13 +131,31 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
 
       {activeBatch ? (
         <div className="space-y-6">
-           <div className="flex items-center justify-between px-4 py-3 bg-secondary/5 rounded-2xl border border-secondary/10">
+           <div className={cn(
+             "flex items-center justify-between px-4 py-3 rounded-2xl border transition-all",
+             isWaiting ? "bg-orange-50 border-orange-100" : "bg-secondary/5 border-secondary/10"
+           )}>
               <div className="flex items-center gap-3">
-                 <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Zap className="w-4 h-4 fill-current" /></div>
-                 <span className="text-[10px] font-black uppercase tracking-widest text-primary">Vendas Abertas: {activeBatch.name}</span>
+                 <div className={cn(
+                   "p-2 rounded-lg",
+                   isWaiting ? "bg-orange-100 text-orange-600" : "bg-secondary/10 text-secondary"
+                 )}>
+                    {isWaiting ? <Clock className="w-4 h-4" /> : <Zap className="w-4 h-4 fill-current" />}
+                 </div>
+                 <div className="flex flex-col">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-primary">
+                      {isWaiting ? "Vendas em Breve" : `Vendas Abertas: ${activeBatch.name}`}
+                    </span>
+                    {isWaiting && startDate && (
+                       <span className="text-[9px] font-bold text-orange-700 uppercase">
+                          Inicia em {startDate.toLocaleDateString('pt-BR')} às {startDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                       </span>
+                    )}
+                 </div>
               </div>
-              {!isStarted ? (
-                <Badge variant="outline" className="text-[8px] font-black uppercase border-orange-200 text-orange-600 bg-orange-50">Inicia em breve</Badge>
+              
+              {isWaiting ? (
+                <Badge variant="outline" className="text-[8px] font-black uppercase border-orange-200 text-orange-600 bg-white">Aguarde</Badge>
               ) : isFinished ? (
                 <Badge variant="outline" className="text-[8px] font-black uppercase border-red-200 text-red-600 bg-red-50">Lote Encerrado</Badge>
               ) : (
@@ -146,14 +176,15 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
                 return (
                   <Card key={type.id} className={cn(
                     "border-none shadow-sm rounded-[2rem] bg-white overflow-hidden group transition-all",
-                    qty > 0 ? "ring-2 ring-secondary shadow-xl -translate-y-1" : "hover:shadow-md"
+                    qty > 0 ? "ring-2 ring-secondary shadow-xl -translate-y-1" : "hover:shadow-md",
+                    isWaiting && "opacity-80 grayscale-[0.5]"
                   )}>
                     <CardContent className="p-8">
                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
                           <div className="space-y-3 flex-1">
                              <div className="flex items-center gap-3">
                                 <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary leading-none">{type.name}</h3>
-                                {type.poolId && <Badge variant="outline" className="text-[7px] font-black uppercase border-secondary/20 text-secondary bg-secondary/5">Pool Meia</Badge>}
+                                {type.poolId && <Badge variant="outline" className="text-[7px] font-black uppercase border-secondary/20 text-secondary bg-secondary/5">Estoque Compartilhado</Badge>}
                              </div>
                              
                              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-relaxed">
@@ -170,10 +201,10 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
                                </div>
                              )}
 
-                             {activeBatch.endDate && (
-                               <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground uppercase opacity-60">
+                             {isWaiting && startDate && (
+                               <div className="flex items-center gap-2 text-[9px] font-bold text-orange-600 uppercase">
                                   <Clock className="w-3.5 h-3.5" /> 
-                                  Válido até {new Date(activeBatch.endDate).toLocaleDateString('pt-BR')} às {new Date(activeBatch.endDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                  Disponível em breve
                                </div>
                              )}
                           </div>
@@ -202,7 +233,7 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
                                  qty > 0 ? "bg-secondary text-white hover:scale-105 active:scale-95" : "bg-muted text-muted-foreground"
                                )}
                              >
-                                <ShoppingCart className="w-5 h-5 mr-2" /> {isFree ? "Reservar" : "Garantir"}
+                                <ShoppingCart className="w-5 h-5 mr-2" /> {isWaiting ? "Em Breve" : (isFree ? "Reservar" : "Garantir")}
                              </Button>
                           </div>
                        </div>
