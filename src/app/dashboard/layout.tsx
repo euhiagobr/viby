@@ -8,7 +8,7 @@ import { AppSidebar } from "@/components/layout/AppSidebar"
 import { Bell, Loader2, Plus, Building2, ShoppingCart, LogIn, ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { collection, query, where, doc, getDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore"
 import { OrganizationProvider, useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { useCart } from "@/contexts/CartContext"
@@ -33,8 +33,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const { totalCount } = useCart()
-  const [checkingAccount, setCheckingAccount] = React.useState(true)
-  const [accountProfile, setAccountProfile] = React.useState<any>(null)
 
   // Lista de rotas protegidas que EXIGEM login imediato
   const protectedRoutes = [
@@ -50,6 +48,10 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   const isProtectedRoute = protectedRoutes.some(route => pathname?.startsWith(route));
 
+  // Escuta o perfil em tempo real para reagir a bloqueios/desbloqueios imediatamente
+  const profileRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
+  const { data: profile, loading: profileLoading } = useDoc<any>(profileRef)
+
   const unreadQuery = useMemoFirebase(() => {
     if (!db || !user) return null
     return query(collection(db, "notifications"), where("targetUid", "==", user.uid), where("read", "==", false))
@@ -57,57 +59,39 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const { data: unreadNotifications } = useCollection<any>(unreadQuery)
 
   React.useEffect(() => {
-    if (!isInitialized) return
+    if (!isInitialized || profileLoading) return
 
     if (!user && isProtectedRoute) {
       router.replace(`/login?redirect=${encodeURIComponent(pathname || '/dashboard')}`)
       return
     }
 
-    const checkAccountStatus = async () => {
-      if (!db || !user) {
-        setCheckingAccount(false);
-        return;
+    if (profile && user) {
+      // 1. Reativação automática se desativado/em exclusão
+      if (profile.status === 'Desativado' || profile.status === 'Exclusão Programada') {
+        const userRef = doc(db!, "users", user.uid)
+        updateDoc(userRef, {
+          status: 'Ativo',
+          deletionScheduledAt: deleteField(),
+          reactivatedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }).then(() => {
+          toast({
+            title: "Bem-vindo de volta!",
+            description: "Sua conta foi reativada automaticamente.",
+            duration: 6000
+          })
+        })
       }
-      try {
-        const userRef = doc(db, "users", user.uid)
-        const userSnap = await getDoc(userRef)
-        
-        if (userSnap.exists()) {
-          const userData = userSnap.data()
-          setAccountProfile(userData)
 
-          // 1. Reativação automática se desativado/em exclusão
-          if (userData.status === 'Desativado' || userData.status === 'Exclusão Programada') {
-            await updateDoc(userRef, {
-              status: 'Ativo',
-              deletionScheduledAt: deleteField(),
-              reactivatedAt: serverTimestamp(),
-              updatedAt: serverTimestamp()
-            })
-            toast({
-              title: "Bem-vindo de volta!",
-              description: "Sua conta foi reativada automaticamente.",
-              duration: 6000
-            })
-          }
-
-          // 2. Trava de Bloqueio: Se bloqueado, só acessa suporte
-          if (userData.status === 'Bloqueado' && pathname !== '/dashboard/suporte') {
-            router.replace('/dashboard/suporte')
-          }
-        }
-      } catch (e) {
-        console.warn("Conta sem perfil Firestore ainda.");
-      } finally {
-        setCheckingAccount(false)
+      // 2. Trava de Bloqueio: Se bloqueado, só acessa suporte
+      if (profile.status === 'Bloqueado' && pathname !== '/dashboard/suporte') {
+        router.replace('/dashboard/suporte')
       }
     }
+  }, [db, user, isInitialized, isProtectedRoute, pathname, router, profile, profileLoading])
 
-    checkAccountStatus()
-  }, [db, user, isInitialized, isProtectedRoute, pathname, router])
-
-  if (!isInitialized || checkingAccount) {
+  if (!isInitialized || (user && profileLoading)) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-secondary" />
@@ -116,7 +100,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   }
 
   // Renderização Minimalista para Usuários Bloqueados
-  if (accountProfile?.status === 'Bloqueado' && pathname !== '/dashboard/suporte') {
+  if (profile?.status === 'Bloqueado' && pathname !== '/dashboard/suporte') {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#f8fafc] p-6 text-center">
          <div className="w-24 h-24 bg-red-100 rounded-[2rem] flex items-center justify-center text-red-600 mb-8 shadow-xl">

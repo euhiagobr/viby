@@ -71,8 +71,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     let isMounted = true;
 
-    // GUARD: Só dispara a query se o Auth estiver PRONTO e houver um usuário logado
-    // Isso evita o erro "Missing or insufficient permissions" no carregamento inicial
     if (!isInitialized) return;
 
     if (!db || !user) {
@@ -86,7 +84,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
     setLoading(true);
 
-    // Utilizamos collectionGroup para encontrar documentos 'members' em qualquer subcoleção de org
     const membersQuery = query(collectionGroup(db, 'members'), where('userId', '==', user.uid));
     
     const unsubscribe = onSnapshot(membersQuery, 
@@ -98,9 +95,14 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             if (!orgId) return null;
 
             if (mData.status === 'accepted' || !mData.status) {
-              const orgSnap = await getDoc(doc(db, 'organizations', orgId));
-              if (orgSnap.exists()) {
-                return { id: orgSnap.id, ...orgSnap.data(), _memberData: mData } as Organization;
+              try {
+                const orgSnap = await getDoc(doc(db, 'organizations', orgId));
+                if (orgSnap.exists()) {
+                  return { id: orgSnap.id, ...orgSnap.data(), _memberData: mData } as Organization;
+                }
+              } catch (e) {
+                // Silencia erros de permissão para marcas bloqueadas, mas retorna null para não quebrar a lista
+                return null;
               }
             }
             return null;
@@ -111,8 +113,12 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             if (mData.status === 'pending') {
               const orgId = memberDoc.ref.parent.parent?.id;
               if (!orgId) return null;
-              const orgSnap = await getDoc(doc(db, 'organizations', orgId));
-              return orgSnap.exists() ? { id: orgSnap.id, orgName: orgSnap.data().name, ...mData } : null;
+              try {
+                const orgSnap = await getDoc(doc(db, 'organizations', orgId));
+                return orgSnap.exists() ? { id: orgSnap.id, orgName: orgSnap.data().name, ...mData } : null;
+              } catch (e) {
+                return null;
+              }
             }
             return null;
           });
@@ -129,7 +135,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
               if (updatedActive) {
                 const role = updatedActive._memberData?.role || null;
                 setUserRole(role);
-                if (role) localStorage.setItem('viby_user_role', role);
               }
             }
           }
@@ -140,7 +145,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         }
       },
       (error) => {
-        // Silenciamos erros de permissão aqui pois o hook de guard já trata
         if (isMounted) setLoading(false);
       }
     );
@@ -150,37 +154,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       unsubscribe();
     };
   }, [db, user, isInitialized]);
-
-  // Sincroniza convites de PARCERIA (Co-organização)
-  useEffect(() => {
-    if (!isInitialized || !db || organizations.length === 0) {
-      setPendingPartnerships([]);
-      return;
-    }
-
-    const orgIds = organizations.map(o => o.id);
-    try {
-      const partnersQuery = query(collectionGroup(db, 'partners'));
-
-      const unsubscribe = onSnapshot(partnersQuery, (snapshot) => {
-        const pData = snapshot.docs
-          .map(d => ({
-            id: d.id,
-            eventId: d.ref.parent.parent?.id,
-            ...d.data()
-          }))
-          .filter((p: any) => p.status === 'pending' && orgIds.includes(p.orgId));
-        
-        setPendingPartnerships(pData);
-      }, (error) => {
-        console.warn("Aguardando criação de índice de collectionGroup para 'partners'...", error.message);
-      });
-
-      return () => unsubscribe();
-    } catch (e) {
-      console.error("Erro ao iniciar listener de parcerias:", e);
-    }
-  }, [db, organizations, isInitialized]);
 
   // Sincroniza org atual baseada na URL ou memória
   useEffect(() => {
@@ -195,26 +168,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           setCurrentOrg(found);
           const role = found._memberData?.role || null;
           setUserRole(role);
-          if (role) localStorage.setItem('viby_user_role', role);
         }
-      } else {
-        const q = query(collection(db, 'organizations'), where('username', '==', usernameFromUrl), limit(1));
-        getDocs(q).then(async (snap) => {
-          if (!snap.empty) {
-            const orgDoc = snap.docs[0];
-            const memberRef = doc(db, 'organizations', orgDoc.id, 'members', user.uid);
-            const memberSnap = await getDoc(memberRef);
-            const mData = memberSnap.data();
-            
-            if (memberSnap.exists() && (mData?.status === 'accepted' || !mData?.status)) {
-              const orgData = { id: orgDoc.id, ...orgDoc.data(), _memberData: mData } as Organization;
-              setCurrentOrg(orgData);
-              const role = mData?.role || null;
-              setUserRole(role);
-              if (role) localStorage.setItem('viby_user_role', role);
-            }
-          }
-        });
       }
     } else {
       const savedOrgId = typeof window !== 'undefined' ? localStorage.getItem('viby_current_org') : null;
@@ -223,7 +177,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         setCurrentOrg(found);
         const role = found._memberData?.role || null;
         setUserRole(role);
-        if (role) localStorage.setItem('viby_user_role', role);
       }
     }
   }, [params?.username, organizations, db, user, loading, pathname, isInitialized]);

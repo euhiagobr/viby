@@ -209,29 +209,28 @@ export default function AdminUsuariosPage() {
         moderatedBy: "Admin"
       });
 
-      // 2. Se for um usuário sendo bloqueado, bloqueia também as marcas onde ele é PROPRIETÁRIO ATUAL
-      // Usamos o campo 'ownerId' denormalizado para maior eficiência e evitar erro de índice
-      if (type === 'users' && !isBlocked) {
+      // 2. Se for um usuário (Bloqueio ou Desbloqueio), agir em cascata sobre as marcas
+      if (type === 'users') {
         const ownedOrgsQ = query(collection(db, "organizations"), where("ownerId", "==", id));
         const ownedOrgsSnap = await getDocs(ownedOrgsQ);
         
         ownedOrgsSnap.forEach(orgDoc => {
           batch.update(orgDoc.ref, {
-            status: 'Bloqueado',
+            status: newStatus,
             updatedAt: serverTimestamp(),
             moderatedAt: serverTimestamp(),
             moderatedBy: "Admin",
-            blockReason: "Titular da conta bloqueado."
+            blockReason: newStatus === 'Bloqueado' ? "Titular da conta bloqueado." : deleteField()
           });
         });
       }
 
       await batch.commit();
       toast({ 
-        title: isBlocked ? "Perfil Desbloqueado" : "Perfil Bloqueado", 
+        title: isBlocked ? "Perfil Ativado" : "Perfil Bloqueado", 
         description: isBlocked 
-          ? `O ${type === 'users' ? 'usuário' : 'perfil da marca'} agora está ativo.` 
-          : `Bloqueio aplicado${type === 'users' ? ' e estendido às suas marcas de titularidade.' : '.'}` 
+          ? `O ${type === 'users' ? 'usuário e suas marcas agora estão ativos' : 'perfil da marca agora está ativo'}.` 
+          : `O ${type === 'users' ? 'usuário e suas marcas foram suspensos' : 'perfil da marca foi suspenso'}.` 
       });
     } catch (e) {
       console.error("Erro na moderação:", e)
@@ -496,7 +495,7 @@ export default function AdminUsuariosPage() {
                         size="icon" 
                         className={cn("h-8 w-8 rounded-lg", user.status === 'Bloqueado' ? "text-green-600 hover:bg-green-50" : "text-orange-500 hover:bg-orange-50")}
                         onClick={() => handleToggleBlock(user.id, user.status, 'users')}
-                        title={user.status === 'Bloqueado' ? "Desbloquear" : "Bloquear"}
+                        title={user.status === 'Bloqueado' ? "Desbloquear tudo" : "Bloquear tudo"}
                       >
                          {user.status === 'Bloqueado' ? <CheckCircle2 className="w-4 h-4" /> : <ShieldBan className="w-4 h-4" />}
                       </Button>
@@ -514,7 +513,7 @@ export default function AdminUsuariosPage() {
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10 border shadow-sm">
                         <AvatarImage src={org.avatar} className="object-cover" />
-                        <AvatarFallback className="font-black uppercase">{org.name?.charAt(0)}</AvatarFallback>
+                        <AvatarFallback className="font-bold uppercase">{org.name?.charAt(0)}</AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col">
                         <span className="font-bold text-sm">{org.name}</span>
