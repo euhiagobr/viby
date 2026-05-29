@@ -22,7 +22,9 @@ import {
   Copy,
   ChevronRight,
   Zap,
-  AlertCircle
+  AlertCircle,
+  ArrowRight,
+  ChevronLeft
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -89,8 +91,11 @@ export function BilheteriaAdmin({
   const [activeBatchIdx, setActiveBatchIdx] = React.useState<number | null>(null)
   const [halfPercent, setHalfPercent] = React.useState(40)
   
-  const [numNewBatches, setNumNewBatches] = React.useState(1)
+  // Estados para Escalonamento de Lotes
+  const [batchGenStep, setBatchGenStep] = React.useState<'count' | 'prices'>('count')
+  const [numNewBatchesInput, setNumNewBatchesInput] = React.useState("1")
   const [cloneLastConfig, setCloneLastConfig] = React.useState(true)
+  const [newBatchPrices, setNewBatchPrices] = React.useState<Record<number, string>>({})
 
   React.useEffect(() => {
     if (batches.length === 0 && mode !== 'none') {
@@ -116,7 +121,32 @@ export function BilheteriaAdmin({
     }
   }, [mode, batches.length, totalCapacity, onBatchesChange])
 
+  const handleOpenBatchGen = () => {
+    setBatchGenStep('count')
+    setNumNewBatchesInput("1")
+    setNewBatchPrices({})
+    setIsBatchGenModalOpen(true)
+  }
+
+  const handleGoToPrices = () => {
+    const n = parseInt(numNewBatchesInput) || 0
+    if (n <= 0) return
+    
+    // Inicializar preços com base no último lote
+    const lastBatch = batches[batches.length - 1]
+    const basePrice = lastBatch?.ticketTypes[0]?.price || 0
+    const initialPrices: Record<number, string> = {}
+    
+    for (let i = 0; i < n; i++) {
+      initialPrices[i] = basePrice.toString()
+    }
+    
+    setNewBatchPrices(initialPrices)
+    setBatchGenStep('prices')
+  }
+
   const handleGenerateBatches = () => {
+    const n = parseInt(numNewBatchesInput) || 0
     const lastBatch = batches[batches.length - 1]
     const newBatchesList = [...batches]
     
@@ -129,10 +159,11 @@ export function BilheteriaAdmin({
       durationMs = 30 * 24 * 60 * 60 * 1000
     }
 
-    for (let i = 0; i < numNewBatches; i++) {
+    for (let i = 0; i < n; i++) {
       const batchNum = newBatchesList.length + 1
       const start = new Date(lastEndDate)
       const end = new Date(start.getTime() + durationMs)
+      const batchBasePrice = parseFloat(newBatchPrices[i]) || 0
       
       const newBatch: Batch = {
         id: crypto.randomUUID(),
@@ -140,12 +171,24 @@ export function BilheteriaAdmin({
         startDate: start.toISOString().slice(0, 16),
         endDate: end.toISOString().slice(0, 16),
         capacidadeInicial: cloneLastConfig ? (lastBatch?.capacidadeInicial || 100) : 100,
-        ticketTypes: cloneLastConfig ? lastBatch.ticketTypes.map(t => ({
-          ...t,
-          id: crypto.randomUUID(),
-          poolId: t.poolId ? crypto.randomUUID() : undefined
-        })) : [
-          { id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, proofDescription: "", description: "" }
+        ticketTypes: cloneLastConfig ? lastBatch.ticketTypes.map((t, tIdx) => {
+          // Se for o primeiro tipo (Inteira), usa o preço do input
+          // Se for outros tipos (Meias), calcula 50% se for meia, ou mantém se for solidário
+          let p = t.price
+          if (tIdx === 0) {
+            p = batchBasePrice
+          } else if (t.poolId || t.name.toLowerCase().includes('meia')) {
+            p = batchBasePrice / 2
+          }
+
+          return {
+            ...t,
+            id: crypto.randomUUID(),
+            price: p,
+            poolId: t.poolId ? crypto.randomUUID() : undefined
+          }
+        }) : [
+          { id: crypto.randomUUID(), name: "Inteira", price: batchBasePrice, quantity: 100, requiresProof: false, proofDescription: "", description: "" }
         ]
       }
       
@@ -445,7 +488,7 @@ export function BilheteriaAdmin({
                     type="button" 
                     variant="outline" 
                     className="w-full h-20 rounded-[2.5rem] border-2 border-dashed font-black uppercase italic gap-3 hover:bg-muted/50 hover:border-secondary/40 hover:text-secondary transition-all group" 
-                    onClick={() => setIsBatchGenModalOpen(true)}
+                    onClick={handleOpenBatchGen}
                   >
                     <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center group-hover:bg-secondary group-hover:text-white transition-colors">
                        <Plus className="w-5 h-5" />
@@ -468,42 +511,84 @@ export function BilheteriaAdmin({
                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center text-primary">Escalonar Lotes</DialogTitle>
                <DialogDescription className="text-center font-medium">Configure a progressão automática de vendas.</DialogDescription>
             </DialogHeader>
-            <div className="py-6 space-y-8">
-               <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Quantos novos lotes criar?</Label>
-                  <div className="grid grid-cols-4 gap-2">
-                     {[1, 2, 3, 5].map(n => (
-                        <Button 
-                           key={n} 
-                           type="button" 
-                           variant={numNewBatches === n ? 'secondary' : 'outline'} 
-                           className="font-black h-12 rounded-xl"
-                           onClick={() => setNumNewBatches(n)}
-                        >
-                           {n}
-                        </Button>
-                     ))}
-                  </div>
-               </div>
 
-               <div className="flex items-center justify-between p-5 bg-muted/30 rounded-2xl border border-dashed">
-                  <div className="space-y-0.5">
-                     <p className="font-bold text-xs">Clonar Estrutura?</p>
-                     <p className="text-[9px] text-muted-foreground uppercase font-medium leading-tight">Mantém as categorias e pools do lote anterior.</p>
-                  </div>
-                  <Switch checked={cloneLastConfig} onCheckedChange={setCloneLastConfig} />
-               </div>
+            {batchGenStep === 'count' ? (
+              <div className="py-6 space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+                 <div className="space-y-3">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Quantos novos lotes criar?</Label>
+                    <div className="flex gap-2 items-center">
+                       <Input 
+                         type="number" 
+                         value={numNewBatchesInput} 
+                         onChange={e => setNumNewBatchesInput(e.target.value)} 
+                         className="h-12 text-xl font-black text-center rounded-xl border-secondary/20"
+                       />
+                       <div className="grid grid-cols-2 gap-1">
+                          {[2, 3].map(n => (
+                            <Button 
+                              key={n} 
+                              type="button" 
+                              variant="outline" 
+                              size="sm"
+                              className="font-black h-8 rounded-lg text-[10px]"
+                              onClick={() => setNumNewBatchesInput(n.toString())}
+                            >
+                              +{n}
+                            </Button>
+                          ))}
+                       </div>
+                    </div>
+                 </div>
 
-               <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
-                  <Clock className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-                  <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed italic">As datas serão calculadas automaticamente seguindo a duração do último lote configurado.</p>
-               </div>
-            </div>
-            <DialogFooter>
-               <Button onClick={handleGenerateBatches} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic hover:scale-105 transition-transform">
-                  Gerar Estrutura de Vendas
-               </Button>
-            </DialogFooter>
+                 <div className="flex items-center justify-between p-5 bg-muted/30 rounded-2xl border border-dashed">
+                    <div className="space-y-0.5">
+                       <p className="font-bold text-xs">Clonar Estrutura?</p>
+                       <p className="text-[9px] text-muted-foreground uppercase font-medium leading-tight">Mantém as categorias e pools do lote anterior.</p>
+                    </div>
+                    <Switch checked={cloneLastConfig} onCheckedChange={setCloneLastConfig} />
+                 </div>
+
+                 <Button 
+                   onClick={handleGoToPrices} 
+                   disabled={parseInt(numNewBatchesInput) <= 0}
+                   className="w-full bg-primary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic gap-2"
+                 >
+                   Próximo Passo <ArrowRight className="w-4 h-4" />
+                 </Button>
+              </div>
+            ) : (
+              <div className="py-6 space-y-6 animate-in fade-in slide-in-from-left-4 duration-300">
+                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Defina os valores das Inteiras</p>
+                 
+                 <div className="space-y-4 max-h-[300px] overflow-y-auto px-1 custom-scrollbar">
+                    {Array.from({ length: parseInt(numNewBatchesInput) }).map((_, i) => (
+                      <div key={i} className="space-y-2">
+                        <Label className="text-[9px] font-black uppercase opacity-40 px-1">{batches.length + i + 1}º Lote (Inteira)</Label>
+                        <div className="relative">
+                           <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-secondary text-sm">R$</span>
+                           <Input 
+                             type="number" 
+                             step="0.01" 
+                             value={newBatchPrices[i] || "0"} 
+                             onChange={e => setNewBatchPrices({...newBatchPrices, [i]: e.target.value})}
+                             className="h-12 pl-12 text-lg font-black rounded-xl border-secondary/20"
+                           />
+                        </div>
+                      </div>
+                    ))}
+                 </div>
+
+                 <div className="flex gap-3">
+                    <Button variant="ghost" onClick={() => setBatchGenStep('count')} className="rounded-xl font-bold uppercase text-[10px]"><ChevronLeft className="w-4 h-4 mr-1" /> Voltar</Button>
+                    <Button 
+                      onClick={handleGenerateBatches} 
+                      className="flex-1 bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic hover:scale-105 transition-transform"
+                    >
+                      Gerar Lotes agora
+                    </Button>
+                 </div>
+              </div>
+            )}
          </DialogContent>
       </Dialog>
 
