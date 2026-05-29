@@ -2,10 +2,10 @@
 "use client"
 
 import * as React from "react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, addDoc, serverTimestamp, doc, orderBy } from "firebase/firestore"
+import { collection, addDoc, serverTimestamp, query, orderBy } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -22,15 +22,12 @@ import {
   Upload, 
   Calendar, 
   ImageIcon,
-  Save,
   MapPin,
-  X,
-  Plus
+  X
 } from "lucide-react"
 import Link from "next/link"
-import { cn, normalizeText, isValidUrl } from "@/lib/utils"
+import { normalizeText, isValidUrl } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
-import { MentionTextarea } from "@/components/ui/mention-textarea"
 import { EVENT_TYPES } from "@/lib/constants"
 import { getAgeRatingConfig } from "@/lib/age-rating"
 import { BilheteriaAdmin, type BilheteriaMode } from "@/components/events/Bilheteria"
@@ -71,7 +68,7 @@ export default function NovoEventoPage() {
       startDate: "", 
       endDate: "", 
       capacidadeInicial: 100, 
-      ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false }] 
+      ticketTypes: [{ id: crypto.randomUUID(), name: "Inteira", price: 100, quantity: 100, requiresProof: false, description: "" }] 
     }
   ])
   const [totalCapacity, setTotalCapacity] = useState(100)
@@ -84,12 +81,18 @@ export default function NovoEventoPage() {
     if (!file || !storage || !user) return
     setImagePreview(URL.createObjectURL(file))
     setUploadProgress(0)
-    const storageRef = ref(storage, `events/${user.uid}/${Date.now()}_${file.name}`)
+    const storageRef = ref(storage, `events/${user.uid}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`)
     const uploadTask = uploadBytesResumable(storageRef, file)
     uploadTask.on('state_changed', (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), () => setUploadProgress(null), async () => {
       const url = await getDownloadURL(uploadTask.snapshot.ref)
       setUploadedImageUrl(url); setUploadProgress(null)
     })
+  }
+
+  const handleAddTag = () => {
+    const t = tagInput.trim().toLowerCase().replace(/#/g, "")
+    if (t && !tags.includes(t)) setTags([...tags, t]);
+    setTagInput("")
   }
 
   const handleCepBlur = async () => {
@@ -107,10 +110,21 @@ export default function NovoEventoPage() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!db || !user || !currentOrg || !isAtLeastEditor) return
+    if (eventType === 'externo' && !isValidUrl(externalUrl)) {
+      toast({ variant: "destructive", title: "URL Inválida", description: "Informe um link completo (http:// ou https://)." })
+      return
+    }
+
     setLoading(true)
     const formData = new FormData(e.currentTarget)
     try {
       const ageConfig = getAgeRatingConfig(selectedAgeRating)
+      const searchKeywords = [
+        ...normalizeText(currentOrg.name).split(" "),
+        ...normalizeText(currentOrg.username).split(" "),
+        ...tags.map(normalizeText)
+      ]
+
       const eventData = {
         title: formData.get("title") as string,
         description,
@@ -131,7 +145,7 @@ export default function NovoEventoPage() {
         organizationId: currentOrg.id, 
         organizerId: user.uid,
         organizer: { id: currentOrg.id, name: currentOrg.name, username: currentOrg.username, avatar: currentOrg.avatar || "" },
-        status: "Ativo", city: address.city, createdAt: serverTimestamp()
+        status: "Ativo", city: address.city, searchKeywords, createdAt: serverTimestamp()
       }
       await addDoc(collection(db, "events"), eventData)
       toast({ title: "Evento Publicado!" })
@@ -155,7 +169,7 @@ export default function NovoEventoPage() {
           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5 text-secondary" /> Capa</CardTitle></CardHeader>
           <CardContent className="px-6 pb-6">
             <div className="relative aspect-video rounded-[1.5rem] bg-muted overflow-hidden cursor-pointer" onClick={() => document.getElementById('img-up')?.click()}>
-              {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" /> : <div className="flex flex-col items-center justify-center h-full opacity-20"><Upload className="w-10 h-10 mb-2" /><p className="text-[10px] font-black uppercase">Carregar Foto</p></div>}
+              {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" /> : <div className="flex flex-col items-center justify-center h-full opacity-20"><Upload className="w-10 h-10 mb-2" /><p className="text-[10px] font-black uppercase">Carregar Foto</p></div>}
               <input id="img-up" type="file" className="hidden" onChange={handleImageChange} />
             </div>
             {uploadProgress !== null && <Progress value={uploadProgress} className="h-1 mt-4" />}
@@ -163,7 +177,7 @@ export default function NovoEventoPage() {
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2.5rem]">
-           <CardHeader><CardTitle className="text-lg">Informações Básicas</CardTitle></CardHeader>
+           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Calendar className="w-5 h-5 text-secondary" /> Tipo e Categoria</CardTitle></CardHeader>
            <CardContent className="space-y-6">
               <div className="grid grid-cols-2 gap-6">
                  <div className="space-y-2">
@@ -174,20 +188,55 @@ export default function NovoEventoPage() {
                     </Select>
                  </div>
                  <div className="space-y-2">
-                   <Label>Categoria</Label>
+                   <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                      <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                      <SelectContent className="rounded-xl">{categories?.map((c: any) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}</SelectContent>
                    </Select>
                  </div>
               </div>
-              <div className="space-y-2"><Label>Título</Label><Input name="title" required className="rounded-xl h-11" /></div>
-              {eventType === 'externo' && <div className="space-y-2"><Label>URL Externa</Label><Input value={externalUrl} onChange={e => setExternalUrl(e.target.value)} placeholder="https://..." className="rounded-xl h-11" /></div>}
-              <div className="grid grid-cols-2 gap-6">
-                 <div className="space-y-2"><Label>Início</Label><Input name="startDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
-                 <div className="space-y-2"><Label>Fim</Label><Input name="endDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
-              </div>
-              <div className="space-y-2"><Label>Descrição</Label><MentionTextarea value={description} onValueChange={setDescription} required className="min-h-[120px] rounded-xl border-dashed" /></div>
+
+              {eventType === 'externo' && <div className="space-y-2 animate-in slide-in-from-top-2"><Label className="text-[10px] font-black uppercase text-secondary">URL Externa</Label><Input value={externalUrl} onChange={e => setExternalUrl(e.target.value)} placeholder="https://..." className="rounded-xl h-11" /></div>}
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase opacity-60">Tags / Palavras-chave</Label>
+                <div className="flex gap-2">
+                   <Input value={tagInput} onChange={e => setTagInput(e.target.value)} placeholder="Ex: openbar, universitário" className="rounded-xl h-11" onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddTag())} />
+                   <Button type="button" onClick={handleAddTag} variant="outline" className="h-11 rounded-xl">Adicionar</Button>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                   {tags.map(t => <Badge key={t} className="bg-primary/5 text-primary border-primary/10 gap-1 px-3 py-1">#{t} <X className="w-3 h-3 cursor-pointer" onClick={() => setTags(tags.filter(item => item !== t))} /></Badge>)}
+                </div>
+             </div>
+           </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm rounded-[2.5rem]">
+          <CardHeader><CardTitle className="text-lg">Informações Gerais</CardTitle></CardHeader>
+          <CardContent className="space-y-6">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2"><Label>Título</Label><Input name="title" required className="rounded-xl h-11" /></div>
+                <div className="space-y-2">
+                   <Label>Classificação</Label>
+                   <Select value={selectedAgeRating} onValueChange={setSelectedAgeRating}>
+                      <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                         <SelectItem value="free">Livre</SelectItem>
+                         <SelectItem value="10">10 Anos</SelectItem>
+                         <SelectItem value="12">12 Anos</SelectItem>
+                         <SelectItem value="14">14 Anos</SelectItem>
+                         <SelectItem value="16">16 Anos</SelectItem>
+                         <SelectItem value="not_recommended_18">18 Anos (Não recomendado)</SelectItem>
+                         <SelectItem value="adults_only_18">Proibido -18</SelectItem>
+                      </SelectContent>
+                   </Select>
+                </div>
+             </div>
+             <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2"><Label>Início</Label><Input name="startDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
+                <div className="space-y-2"><Label>Fim</Label><Input name="endDate" type="datetime-local" required className="rounded-xl h-11 text-xs" /></div>
+             </div>
+             <div className="space-y-2"><Label>Descrição</Label><Textarea value={description} onChange={e => setDescription(e.target.value)} required className="min-h-[120px] rounded-xl border-dashed" /></div>
            </CardContent>
         </Card>
 

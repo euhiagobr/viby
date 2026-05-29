@@ -2,44 +2,32 @@
 'use client';
 
 import * as React from 'react';
-import { useParams, useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   useDoc,
   useFirestore,
   useAuth,
-  useUser,
-  useCollection,
-  useMemoFirebase,
+  useUser
 } from '@/firebase';
 import {
   doc,
-  collection,
-  query,
-  where,
   increment,
-  updateDoc,
-  getDoc,
-  setDoc,
-  serverTimestamp
+  updateDoc
 } from 'firebase/firestore';
 import {
   Loader2,
   ArrowLeft,
-  Share2,
   Calendar,
   MapPin,
   Clock,
   ExternalLink,
   ShieldCheck,
-  Eye,
-  Heart,
-  Star,
-  CheckCircle2,
-  Ticket
+  Ticket,
+  BadgeCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -50,6 +38,7 @@ import { UserNav } from '@/components/layout/UserNav';
 import { RichText } from '@/components/ui/rich-text';
 import { BilheteriaPublic } from '@/components/events/Bilheteria';
 import { useCart } from '@/contexts/CartContext';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
   const router = useRouter()
@@ -84,7 +73,8 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   if (eventLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-secondary" /></div>
   if (!event) return null
 
-  const isEnded = new Date(event.endDate || event.date) < new Date()
+  const eventStart = event.date?.toDate ? event.date.toDate() : new Date(event.date);
+  const isEnded = new Date(event.endDate || eventStart.getTime() + 4*60*60*1000) < new Date()
 
   return (
     <div className="min-h-screen bg-background pb-32">
@@ -121,8 +111,8 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 </div>
                 <h1 className="text-5xl md:text-7xl font-black text-foreground tracking-tighter uppercase italic leading-[0.8] drop-shadow-2xl">{event.title}</h1>
                 <div className="flex flex-wrap items-center gap-6 text-muted-foreground font-black text-[10px] uppercase tracking-widest bg-white/10 backdrop-blur-md p-6 rounded-[2rem] w-fit shadow-2xl">
-                   <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-secondary" /> {new Date(event.date).toLocaleDateString('pt-BR')}</div>
-                   <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-secondary" /> {new Date(event.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                   <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-secondary" /> {eventStart.toLocaleDateString('pt-BR')}</div>
+                   <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-secondary" /> {eventStart.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
                    <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-secondary" /> {event.city}</div>
                 </div>
              </div>
@@ -131,6 +121,13 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 <h3 className="text-xl font-black uppercase italic tracking-tighter mb-8 flex items-center gap-3 text-primary"><ShieldCheck className="w-5 h-5 text-secondary" /> Informações</h3>
                 <div className="text-lg md:text-xl font-medium text-foreground/80 leading-relaxed">
                    <RichText content={event.description} />
+                   {event.tags && event.tags.length > 0 && (
+                     <div className="flex flex-wrap gap-2 mt-8">
+                       {event.tags.map((tag: string) => (
+                         <Badge key={tag} variant="secondary" className="bg-muted text-muted-foreground border-none font-bold text-[10px] uppercase">#{tag}</Badge>
+                       ))}
+                     </div>
+                   )}
                 </div>
              </Card>
 
@@ -170,13 +167,18 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                          <AvatarImage src={organization?.avatar} className="object-cover" />
                          <AvatarFallback className="font-black bg-muted">{organization?.name?.charAt(0)}</AvatarFallback>
                       </Avatar>
-                      <div>
+                      <div className="min-w-0">
                          <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Realização</p>
-                         <h4 className="font-black text-lg uppercase italic text-primary">{organization?.name}</h4>
+                         <h4 className="font-black text-lg uppercase italic text-primary truncate flex items-center gap-1.5">
+                           {organization?.name}
+                           {(organization?.verified || organization?.isVerified) && <BadgeCheck className="w-4 h-4 fill-blue-500 text-white" />}
+                         </h4>
                          <Link href={`/${organization?.username}`} className="text-[9px] font-black text-secondary uppercase hover:underline">Ver Perfil da Marca</Link>
                       </div>
                    </div>
                 </Card>
+
+                <AgeRatingWarning code={event.ageRating?.code} />
              </div>
           </aside>
         </div>

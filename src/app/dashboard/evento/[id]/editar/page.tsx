@@ -10,15 +10,8 @@ import {
   doc, 
   collection, 
   serverTimestamp, 
-  deleteField, 
   query, 
-  where, 
-  getDocs, 
-  setDoc, 
-  deleteDoc,
-  orderBy,
-  getDoc,
-  writeBatch
+  orderBy
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -35,75 +28,17 @@ import {
   ArrowLeft, 
   Upload, 
   Calendar, 
-  Ticket, 
   ImageIcon,
   Save,
   MapPin,
-  X,
-  Plus,
-  Sparkles,
-  Trash2,
-  ArrowDown,
-  InfoIcon,
-  Layout,
-  Armchair,
-  Grid3X3,
-  Map as MapIcon,
-  Percent,
-  Clock,
-  Settings2,
-  Handshake,
-  Search,
-  CheckCircle2,
-  AtSign,
-  ShieldAlert,
-  AlertCircle,
-  Globe,
-  Tag as TagIcon
+  X
 } from "lucide-react"
 import Link from "next/link"
-import { cn, normalizeText, isValidUrl } from "@/lib/utils"
-import { Switch } from "@/components/ui/switch"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { normalizeText, isValidUrl } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
-import { AGE_RATINGS, AgeRatingBadge, getAgeRatingConfig } from "@/lib/age-rating"
-import { EVENT_CATEGORIES, EVENT_TYPES } from "@/lib/constants"
-
-interface TicketType {
-  id: string
-  name: string
-  price: number
-  quantity: number
-  requiresProof: boolean
-  isLegalHalf: boolean
-  description: string
-  poolId?: string
-  poolName?: string
-}
-
-interface Batch {
-  id: string
-  name: string
-  startDate: string
-  endDate: string
-  capacidadeInicial: number
-  capacidadeAtual: number
-  vendidos: number
-  restantes: number
-  migradosDoLoteAnterior: number
-  ticketTypes: TicketType[]
-  isHalfPriceEnabled?: boolean
-  halfPricePercent?: number
-}
+import { getAgeRatingConfig } from "@/lib/age-rating"
+import { EVENT_TYPES } from "@/lib/constants"
+import { BilheteriaAdmin, type BilheteriaMode } from "@/components/events/Bilheteria"
 
 export default function EditarEventoPage() {
   const params = useParams()
@@ -136,16 +71,14 @@ export default function EditarEventoPage() {
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState("")
 
-  const [ticketMode, setTicketMode] = useState<'none' | 'free' | 'paid_single' | 'batches'>('none')
+  const [ticketMode, setTicketMode] = useState<BilheteriaMode>('none')
   const [mapMode, setMapMode] = useState<'none' | 'setores' | 'assentos' | 'mesas'>('none')
   
   const [description, setDescription] = useState("")
   const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
 
-  const [singleCapacity, setSingleCapacity] = useState<number>(100)
-  const [singleTicketTypes, setSingleTicketTypes] = useState<TicketType[]>([])
-  const [batches, setBatches] = useState<Batch[]>([])
-  const [freeCapacity, setFreeCapacity] = useState<number>(100)
+  const [batches, setBatches] = useState<any[]>([])
+  const [totalCapacity, setTotalCapacity] = useState<number>(100)
 
   useEffect(() => {
     if (event) {
@@ -154,20 +87,13 @@ export default function EditarEventoPage() {
       setEventType(event.type || "interno")
       setExternalUrl(event.externalUrl || "")
       setTags(event.tags || [])
-      setTicketMode(event.ticketMode || 'none')
+      setTicketMode((event.ticketMode as BilheteriaMode) || 'none')
       setMapMode(event.mapMode || 'none')
       setImagePreview(event.image || null)
       setDescription(event.description || "")
+      setTotalCapacity(event.capacidadeTotal || 100)
       if (event.address) setAddress({ ...address, ...event.address })
-
-      if (event.ticketMode === 'batches') {
-        setBatches(event.batches || [])
-      } else if (event.ticketMode === 'paid_single' && event.batches?.length > 0) {
-        setSingleCapacity(event.batches[0].capacidadeInicial || 100)
-        setSingleTicketTypes(event.batches[0].ticketTypes || [])
-      } else if (event.ticketMode === 'free' && event.batches?.length > 0) {
-        setFreeCapacity(event.batches[0].capacidadeInicial || 100)
-      }
+      if (event.batches) setBatches(event.batches)
     }
   }, [event])
 
@@ -220,26 +146,6 @@ export default function EditarEventoPage() {
       ]
       
       const ageRatingConfig = getAgeRatingConfig(selectedAgeRating);
-      
-      let finalBatches: any[] = []
-      let totalCapacity = 0
-
-      if (ticketMode === 'free') {
-        totalCapacity = freeCapacity
-        finalBatches = [{
-          id: 'free',
-          name: 'Ingresso Gratuito',
-          capacidadeInicial: freeCapacity,
-          capacidadeAtual: freeCapacity,
-          ticketTypes: [{ id: 'free_type', name: 'Gratuito', price: 0, quantity: freeCapacity, requiresProof: false, isLegalHalf: false, description: '' }]
-        }]
-      } else if (ticketMode === 'paid_single') {
-        totalCapacity = singleCapacity
-        finalBatches = [{ id: 'single', name: 'Lote Único', capacidadeInicial: singleCapacity, capacidadeAtual: singleCapacity, ticketTypes: singleTicketTypes }]
-      } else if (ticketMode === 'batches') {
-        finalBatches = batches;
-        totalCapacity = batches.reduce((acc, b) => acc + b.capacidadeInicial, 0);
-      }
 
       const updateData: any = {
         title: formData.get("title") as string,
@@ -256,12 +162,13 @@ export default function EditarEventoPage() {
         mapMode,
         possuiMapa: mapMode !== 'none',
         capacidadeTotal: totalCapacity,
-        batches: eventType === 'interno' ? finalBatches : [],
+        batches: eventType === 'interno' ? batches : [],
         address, image: uploadedImageUrl || event.image || "",
         searchKeywords, updatedAt: serverTimestamp()
       }
       await updateDoc(eventRef, updateData)
       toast({ title: "Evento Atualizado!" })
+      router.push("/dashboard/organizacoes")
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro ao salvar", description: e.message })
     } finally {
@@ -271,8 +178,6 @@ export default function EditarEventoPage() {
 
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>
 
-  const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
-
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 text-foreground">
       <div className="flex items-center justify-between">
@@ -280,7 +185,7 @@ export default function EditarEventoPage() {
           <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
           <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Editar Evento</h1>
         </div>
-        <Button onClick={(e:any) => document.getElementById('edit-form')?.dispatchEvent(new Event('submit', {cancelable: true, bubbles: true}))} disabled={loading} className="bg-primary text-white font-black rounded-full h-11 px-8 shadow-lg gap-2 uppercase italic">
+        <Button onClick={() => document.getElementById('edit-form')?.dispatchEvent(new Event('submit', {cancelable: true, bubbles: true}))} disabled={loading} className="bg-primary text-white font-black rounded-full h-11 px-8 shadow-lg gap-2 uppercase italic">
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           Salvar Alterações
         </Button>
@@ -291,7 +196,7 @@ export default function EditarEventoPage() {
           <CardHeader><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5 text-secondary" /> Capa</CardTitle></CardHeader>
           <CardContent className="px-6 pb-6">
             <div className="relative aspect-video rounded-[1.5rem] bg-muted overflow-hidden cursor-pointer" onClick={() => document.getElementById('img-up')?.click()}>
-              {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" /> : <div className="flex flex-col items-center justify-center h-full opacity-20"><Upload className="w-10 h-10 mb-2" /></div>}
+              {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" /> : <div className="flex flex-col items-center justify-center h-full opacity-20"><Upload className="w-10 h-10 mb-2" /></div>}
               <input id="img-up" type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
             </div>
             {uploadProgress !== null && <Progress value={uploadProgress} className="h-1 mt-4" />}
@@ -299,7 +204,7 @@ export default function EditarEventoPage() {
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2.5rem]">
-          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Calendar className="w-5 h-5 text-secondary" /> Tipo e Configuração</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Calendar className="w-5 h-5 text-secondary" /> Configuração</CardTitle></CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
@@ -308,6 +213,15 @@ export default function EditarEventoPage() {
                       <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
                       <SelectContent className="rounded-xl">
                          {EVENT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                      </SelectContent>
+                   </Select>
+                </div>
+                <div className="space-y-2">
+                   <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
+                   <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                         {categories?.map((c: any) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
                       </SelectContent>
                    </Select>
                 </div>
@@ -344,6 +258,10 @@ export default function EditarEventoPage() {
                       <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
                       <SelectContent className="rounded-xl">
                          <SelectItem value="free">Livre</SelectItem>
+                         <SelectItem value="10">10 Anos</SelectItem>
+                         <SelectItem value="12">12 Anos</SelectItem>
+                         <SelectItem value="14">14 Anos</SelectItem>
+                         <SelectItem value="16">16 Anos</SelectItem>
                          <SelectItem value="not_recommended_18">18 Anos (Não recomendado)</SelectItem>
                          <SelectItem value="adults_only_18">Proibido -18</SelectItem>
                       </SelectContent>
@@ -375,28 +293,14 @@ export default function EditarEventoPage() {
         </Card>
 
         {eventType === 'interno' && (
-          <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden">
-            <CardHeader className="bg-muted/30 border-b"><CardTitle className="text-lg">Bilheteria Interna</CardTitle></CardHeader>
-            <CardContent className="p-8 space-y-8">
-               <div className="flex justify-center gap-1 bg-muted/50 p-1 rounded-xl w-fit mx-auto mb-8">
-                  {['free', 'paid_single', 'batches'].map(m => <Button key={m} type="button" variant={ticketMode === m ? "secondary" : "ghost"} size="sm" className="rounded-lg text-[10px] font-black uppercase px-6" onClick={() => setTicketMode(m as any)}>{m === 'free' ? 'Gratuito' : m === 'paid_single' ? 'Valor Único' : 'Lotes'}</Button>)}
-               </div>
-
-               {ticketMode === 'free' ? (
-                 <div className="p-8 bg-muted/20 rounded-2xl border-2 border-dashed border-border flex flex-col items-center gap-4">
-                    <Label className="text-xs font-black uppercase tracking-widest">Quantidade de Ingressos Cortesia</Label>
-                    <Input type="number" value={freeCapacity} onChange={e => setFreeCapacity(parseInt(e.target.value) || 0)} className="h-16 text-3xl font-black rounded-2xl text-center border-secondary/20 max-w-[200px]" />
-                 </div>
-               ) : ticketMode === 'paid_single' ? (
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-muted/20 rounded-2xl border border-dashed">
-                    <div className="space-y-2"><Label>Capacidade</Label><Input type="number" value={singleCapacity} onChange={e => setSingleCapacity(parseInt(e.target.value) || 0)} className="h-11 rounded-xl font-bold" /></div>
-                    <div className="space-y-2"><Label>Preço (R$)</Label><Input type="number" step="0.01" value={singleTicketTypes[0]?.price} onChange={e => { const n = [...singleTicketTypes]; n[0].price = parseFloat(e.target.value) || 0; setSingleTicketTypes(n); }} className="h-11 rounded-xl font-black text-secondary" /></div>
-                 </div>
-               ) : (
-                 <div className="py-10 text-center border-2 border-dashed rounded-3xl opacity-40"><Ticket className="w-12 h-12 mx-auto mb-2" /><p className="text-xs font-bold uppercase tracking-widest">Use o painel para gerenciar os lotes existentes.</p></div>
-               )}
-            </CardContent>
-          </Card>
+          <BilheteriaAdmin 
+            mode={ticketMode} 
+            onModeChange={setTicketMode}
+            batches={batches}
+            onBatchesChange={setBatches}
+            totalCapacity={totalCapacity}
+            onTotalCapacityChange={setTotalCapacity}
+          />
         )}
       </form>
     </div>
