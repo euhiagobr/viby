@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -42,6 +43,7 @@ import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, limit,
 import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 import { sendTicketEmail } from "@/app/actions/email"
 import { AgeRatingBadge } from "@/lib/age-rating"
+import { useErrorManager } from "@/components/error-manager/ErrorManagerProvider"
 
 export default function CarrinhoPage() {
   const { items, removeItem, updateQuantity, clearCart } = useCart()
@@ -49,6 +51,7 @@ export default function CarrinhoPage() {
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
+  const { reportError } = useErrorManager()
   
   const [processing, setProcessing] = React.useState(false)
   const [isWaitingPayment, setIsWaitingPayment] = React.useState(false)
@@ -141,7 +144,9 @@ export default function CarrinhoPage() {
       if (couponData.validUntil && new Date(couponData.validUntil) < new Date()) { toast({ variant: "destructive", title: "Cupom expirado" }); return; }
       if (!items.some(item => item.eventId === couponData.eventId)) { toast({ variant: "destructive", title: "Evento não correspondente" }); return; }
       setAppliedCoupon(couponData); toast({ title: "Cupom aplicado!" });
-    } catch (e) { toast({ variant: "destructive", title: "Erro no cupom" }); } finally { setIsApplyingCoupon(false); }
+    } catch (e) { 
+      reportError({ error: e, type: 'coupon_apply_error', severity: 'warning' });
+    } finally { setIsApplyingCoupon(false); }
   }
 
   const handleCheckout = async () => {
@@ -209,22 +214,23 @@ export default function CarrinhoPage() {
         toast({ title: "Sucesso!", description: "Seus ingressos já estão disponíveis." });
         router.push("/dashboard/ingressos");
       } else {
-        // Redireciona para o Stripe usando as chaves dinâmicas
         const result = await createCheckoutSession({
           eventTitle: items.length > 1 ? "Múltiplos Ingressos" : items[0].eventTitle,
           totalAmount: Math.round(cartTotals.total * 100),
           userEmail: user.email!,
-          lineItems: cartTotals.balanceUsed > 0 ? undefined : lineItems, // Usa o total consolidado se houver abatimento de saldo
+          lineItems: cartTotals.balanceUsed > 0 ? undefined : lineItems,
           metadata: { type: "cart_checkout", registrationIds: registrationIds.join(","), userId: user.uid, balanceUsed: cartTotals.balanceUsed.toString() }
         });
 
         if (result.url) { 
           window.open(result.url, '_blank'); 
           setIsWaitingPayment(true);
+        } else if (result.error) {
+           throw new Error(result.error);
         }
       }
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Checkout Indisponível", description: e.message });
+      reportError({ error: e, type: 'checkout_process_error', severity: 'error', metadata: { cartItems: items.length } });
     } finally {
       setProcessing(false)
     }

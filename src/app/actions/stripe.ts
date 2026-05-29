@@ -17,14 +17,14 @@ async function getStripeInstance() {
     const snap = await db.collection('settings').doc('stripe').get();
     
     if (!snap.exists) {
-      throw new Error('Configurações do Stripe não localizadas.');
+      throw new Error('Configurações do Stripe não localizadas no Painel Admin.');
     }
 
     const data = snap.data();
     const secretKey = data?.secretKey?.trim();
 
     if (!secretKey) {
-      throw new Error('Secret Key do Stripe ausente.');
+      throw new Error('Secret Key do Stripe ausente no banco de dados.');
     }
 
     return new Stripe(secretKey, {
@@ -35,12 +35,13 @@ async function getStripeInstance() {
       }
     });
   } catch (e: any) {
+    // Importante: Não passar o objeto de erro inteiro se ele contiver a secret key
     await logSystemError({
-      error: e,
+      error: { message: e.message || 'Falha na inicialização do gateway.' },
       type: 'stripe_init_failure',
       severity: 'critical'
     });
-    throw new Error(e.message || 'Falha na inicialização do gateway.');
+    throw e;
   }
 }
 
@@ -79,10 +80,10 @@ export async function createCheckoutSession(data: any) {
     return { url: session.url };
   } catch (error: any) {
     await logSystemError({
-      error,
+      error: { message: error.message },
       type: 'stripe_checkout_error',
       severity: 'error',
-      metadata: { checkoutData: data }
+      metadata: { checkoutData: { ...data, userEmail: 'HIDDEN' } }
     });
     return { success: false, error: error.message };
   }
@@ -124,10 +125,10 @@ export async function createAdBalanceTopUpSession(data: any) {
     return { url: session.url };
   } catch (error: any) {
     await logSystemError({
-      error,
+      error: { message: error.message },
       type: 'stripe_ad_topup_error',
       severity: 'error',
-      metadata: { topupData: data }
+      metadata: { topupData: { ...data, userEmail: 'HIDDEN' } }
     });
     return { success: false, error: error.message };
   }
@@ -145,7 +146,7 @@ export async function getStripeSession(sessionId: string) {
     };
   } catch (error: any) {
     await logSystemError({
-      error,
+      error: { message: error.message },
       type: 'stripe_session_retrieval_error',
       severity: 'warning',
       metadata: { sessionId }
