@@ -3,8 +3,9 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Inicialização segura do Firebase Admin SDK.
- * Ajustado para tentar credenciais de ambiente ou configuração padrão.
+ * @fileOverview Inicialização robusta do Firebase Admin SDK.
+ * Prioriza credenciais de ambiente, mas funciona com inicialização padrão
+ * em ambientes Google Cloud (como App Hosting / Cloud Run).
  */
 
 function getAdminApp(): App {
@@ -13,12 +14,13 @@ function getAdminApp(): App {
   if (existingAdmin) return existingAdmin;
 
   const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'ong-desafios-3942a';
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
   try {
-    // Se as chaves estiverem no ambiente, usa Service Account
-    if (projectId && clientEmail && privateKeyRaw) {
+    // Tenta inicialização com variáveis de ambiente se disponíveis
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
+
+    if (clientEmail && privateKeyRaw) {
       const privateKey = privateKeyRaw
         .replace(/^"|"$/g, '') 
         .replace(/\\n/g, '\n')
@@ -34,13 +36,13 @@ function getAdminApp(): App {
       }, 'admin-app');
     }
     
-    // Caso contrário, tenta inicialização simples (funciona em alguns ambientes Cloud)
+    // Fallback: Inicialização simples (funciona automaticamente em ambientes Google Cloud)
     return initializeApp({
       projectId
     }, 'admin-app');
   } catch (error: any) {
-    console.error('[Admin SDK] Erro na inicialização');
-    throw new Error('Falha na autenticação do servidor administrativo.');
+    console.error('[Admin SDK] Erro crítico na inicialização:', error.message);
+    throw new Error('Falha na autenticação administrativa do servidor.');
   }
 }
 

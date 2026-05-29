@@ -1,12 +1,11 @@
-
-import Stripe from 'stripe';
-
 /**
- * Este arquivo é mantido para compatibilidade, mas as Server Actions 
- * agora buscam a chave dinamicamente do banco de dados para evitar 
- * dependência de variáveis de ambiente no Firebase Studio.
- * Removido apiVersion explícito para evitar erros de compatibilidade.
+ * @fileOverview Limpeza do arquivo de inicialização estática do Stripe.
+ * Conforme o novo OBJETIVO, o Stripe deve ser instanciado dinamicamente
+ * dentro das Server Actions, buscando as chaves do Firestore em cada requisição.
+ * PROIBIDO: const stripe = new Stripe(process.env...)
  */
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  typescript: true,
-});
+
+// Este arquivo é mantido apenas como referência de tipos se necessário,
+// mas a lógica real foi movida para @/app/actions/stripe.ts
+
+export const dynamic = 'force-dynamic';
