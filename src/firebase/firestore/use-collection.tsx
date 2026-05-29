@@ -28,6 +28,7 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
 
     // Se a query for nula, o hook fica em estado de espera (útil para aguardar o Auth)
     if (!query) {
+      setLoading(false);
       return;
     }
 
