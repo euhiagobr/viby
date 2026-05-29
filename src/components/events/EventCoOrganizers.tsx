@@ -2,7 +2,7 @@
 "use client"
 
 import * as React from "react"
-import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useDoc } from "@/firebase"
 import { 
   collection, 
   query, 
@@ -19,7 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { 
   Handshake, 
@@ -45,6 +45,50 @@ interface EventCoOrganizersProps {
   className?: string
 }
 
+/**
+ * Componente interno para renderizar cada parceiro individualmente buscando os dados mais recentes.
+ */
+function PartnerItem({ partner }: { partner: any }) {
+  const db = useFirestore();
+  const orgRef = React.useMemo(() => db ? doc(db, "organizations", partner.orgId) : null, [db, partner.orgId]);
+  const { data: organization, loading } = useDoc<any>(orgRef);
+
+  if (loading) return (
+    <div className="flex items-center gap-4 p-3 animate-pulse">
+      <div className="h-14 w-14 rounded-full bg-muted" />
+      <div className="flex-1 space-y-2">
+        <div className="h-4 w-3/4 bg-muted rounded" />
+        <div className="h-3 w-1/2 bg-muted rounded" />
+      </div>
+    </div>
+  );
+  
+  if (!organization) return null;
+
+  return (
+    <Link 
+      href={`/${organization.username}`} 
+      className="group flex items-center gap-4 hover:bg-muted/30 p-3 rounded-2xl transition-all border border-transparent hover:border-border"
+    >
+      <Avatar className="h-14 w-14 border-2 border-secondary/10 shrink-0 overflow-hidden">
+         <AvatarImage src={organization.avatar} className="object-cover" />
+         <AvatarFallback className="font-black bg-muted uppercase">
+           {organization.name?.charAt(0)}
+         </AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+         <p className="font-black text-sm uppercase italic text-primary flex items-center gap-1.5 leading-tight flex-wrap">
+            {organization.name}
+            {(organization.verified || organization.isVerified) && <BadgeCheck className="w-4 h-4 fill-blue-500 text-white shrink-0" />}
+         </p>
+         <p className="text-[9px] font-black text-secondary uppercase tracking-widest mt-1 group-hover:underline">
+           Ver Perfil da Marca
+         </p>
+      </div>
+    </Link>
+  );
+}
+
 export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }: EventCoOrganizersProps) {
   const db = useFirestore()
   const auth = useAuth()
@@ -55,7 +99,6 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
   const [searchResults, setSearchResults] = React.useState<any[]>([])
   const [isActionLoading, setIsActionLoading] = React.useState<string | null>(null)
 
-  // Consulta de Parceiros do Evento
   const partnersQuery = useMemoFirebase(() => {
     if (!db || !eventId) return null
     return collection(db, "events", eventId, "partners")
@@ -147,29 +190,9 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
         <h3 className="text-xl font-black uppercase italic tracking-tighter mb-6 flex items-center gap-3 text-primary border-b border-dashed pb-4">
           <Handshake className="w-5 h-5 text-secondary" /> Co-realização
         </h3>
-        <div className="grid grid-cols-1 gap-6">
+        <div className="grid grid-cols-1 gap-4">
            {acceptedPartners.map(p => (
-             <Link key={p.id} href={`/${p.orgUsername}`} className="group flex items-center gap-4 hover:bg-muted/30 p-3 rounded-2xl transition-all border border-transparent hover:border-border">
-                <Avatar className="h-14 w-14 border-2 border-secondary/10 shrink-0 overflow-hidden">
-                   {p.orgAvatar ? (
-                     <img 
-                       src={p.orgAvatar} 
-                       className="h-full w-full object-cover" 
-                       alt={p.orgName} 
-                       referrerPolicy="no-referrer"
-                     />
-                   ) : (
-                     <AvatarFallback className="font-black bg-muted uppercase">{p.orgName?.charAt(0)}</AvatarFallback>
-                   )}
-                </Avatar>
-                <div className="min-w-0 flex-1">
-                   <p className="font-black text-sm uppercase italic text-primary flex items-center gap-1.5 leading-tight flex-wrap">
-                      {p.orgName}
-                      <BadgeCheck className="w-4 h-4 fill-blue-500 text-white shrink-0" />
-                   </p>
-                   <p className="text-[9px] font-black text-secondary uppercase tracking-widest mt-1 group-hover:underline">Ver Perfil da Marca</p>
-                </div>
-             </Link>
+             <PartnerItem key={p.id} partner={p} />
            ))}
         </div>
       </Card>
@@ -189,7 +212,6 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
         </div>
       </CardHeader>
       <CardContent className="p-8 space-y-8">
-         {/* Busca */}
          <div className="space-y-3">
             <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Buscar por @username</Label>
             <div className="flex gap-2">
@@ -208,18 +230,14 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
                </Button>
             </div>
             
-            {/* Resultados da Busca */}
             {searchResults.length > 0 && (
               <div className="mt-2 p-2 bg-muted/20 rounded-2xl border border-dashed animate-in slide-in-from-top-2">
                  {searchResults.map(org => (
                    <div key={org.id} className="flex items-center justify-between p-3 hover:bg-white rounded-xl transition-all">
                       <div className="flex items-center gap-3">
                          <Avatar className="h-10 w-10 border shadow-sm overflow-hidden">
-                            {org.avatar ? (
-                               <img src={org.avatar} className="h-full w-full object-cover" alt={org.name} referrerPolicy="no-referrer" />
-                            ) : (
-                               <AvatarFallback className="font-bold">{org.name?.charAt(0)}</AvatarFallback>
-                            )}
+                            <AvatarImage src={org.avatar} className="object-cover" />
+                            <AvatarFallback className="font-bold">{org.name?.charAt(0)}</AvatarFallback>
                          </Avatar>
                          <div className="flex flex-col">
                             <span className="text-sm font-bold">{org.name}</span>
@@ -241,7 +259,6 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
             )}
          </div>
 
-         {/* Listagem de Parceiros Atuais */}
          <div className="space-y-4">
             <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Integrantes do Projeto</h4>
             {partnersLoading ? <div className="py-4 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-secondary" /></div> : 
@@ -254,11 +271,8 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
                     )}>
                        <div className="flex items-center gap-3">
                           <Avatar className="h-10 w-10 overflow-hidden">
-                             {p.orgAvatar ? (
-                                <img src={p.orgAvatar} className="h-full w-full object-cover" alt={p.orgName} referrerPolicy="no-referrer" />
-                             ) : (
-                                <AvatarFallback className="font-bold uppercase">{p.orgName?.charAt(0)}</AvatarFallback>
-                             )}
+                             <AvatarImage src={p.orgAvatar} className="object-cover" />
+                             <AvatarFallback className="font-bold uppercase">{p.orgName?.charAt(0)}</AvatarFallback>
                           </Avatar>
                           <div className="flex flex-col">
                              <span className="text-sm font-bold leading-tight line-clamp-1">{p.orgName}</span>

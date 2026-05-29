@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -141,15 +142,15 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
 
                 <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-8">
                    <div className="flex items-center gap-4">
-                      <Avatar className="h-16 w-16 border-2 border-secondary/10">
+                      <Avatar className="h-16 w-16 border-2 border-secondary/10 shrink-0">
                          <AvatarImage src={organization?.avatar} className="object-cover" />
                          <AvatarFallback className="font-black bg-muted">{organization?.name?.charAt(0)}</AvatarFallback>
                       </Avatar>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                          <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Realização</p>
-                         <h4 className="font-black text-lg uppercase italic text-primary truncate flex items-center gap-1.5">
+                         <h4 className="font-black text-lg uppercase italic text-primary leading-tight flex-wrap flex items-center gap-1.5">
                            {organization?.name}
-                           {(organization?.verified || organization?.isVerified) && <BadgeCheck className="w-4 h-4 fill-blue-500 text-white" />}
+                           {(organization?.verified || organization?.isVerified) && <BadgeCheck className="w-4 h-4 fill-blue-500 text-white shrink-0" />}
                          </h4>
                          <Link href={`/${organization?.username}`} className="text-[9px] font-black text-secondary uppercase hover:underline">Ver Perfil da Marca</Link>
                       </div>
