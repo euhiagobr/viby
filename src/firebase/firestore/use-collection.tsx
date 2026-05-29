@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -13,14 +14,13 @@ import { FirestorePermissionError } from '../errors';
 
 /**
  * Hook resiliente para escutar coleções do Firestore.
- * Aprimorado para evitar o erro ca9 e vazamentos de memória.
+ * Aprimorado para fornecer contextos de erro mais precisos.
  */
 export function useCollection<T = DocumentData>(query: Query<T> | null) {
   const [data, setData] = useState<T[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<FirestoreError | null>(null);
 
-  // Controle de montagem para evitar atualizações em componentes destruídos
   const isMounted = useRef(true);
 
   useEffect(() => {
@@ -52,8 +52,11 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
         if (!isMounted.current) return;
 
         if (serverError.code === 'permission-denied') {
+          // Tentar extrair o caminho da coleção se possível para o log
+          const path = (query as any)._query?.path?.segments?.join('/') || 'collection_query';
+          
           const permissionError = new FirestorePermissionError({
-            path: 'collection_query',
+            path: path,
             operation: 'list',
           });
           errorEmitter.emit('permission-error', permissionError);
