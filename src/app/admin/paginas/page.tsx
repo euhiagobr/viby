@@ -57,7 +57,8 @@ import {
   TrendingUp,
   Plus,
   Layout,
-  X
+  X,
+  User
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -96,22 +97,50 @@ export default function AdminPaginasPage() {
   const orgsQuery = useMemoFirebase(() => db ? query(collection(db, "organizations"), orderBy("createdAt", "desc")) : null, [db])
   const { data: orgs, loading: loadingOrgs } = useCollection<any>(orgsQuery)
 
+  const [enrichedOrgs, setEnrichedOrgs] = React.useState<any[]>([])
+
+  // Efeito para buscar usernames dos proprietários
+  React.useEffect(() => {
+    if (!orgs || !db) return;
+
+    const fetchOwners = async () => {
+      const ownersToFetch = Array.from(new Set(orgs.map(o => o.ownerId).filter(Boolean)));
+      const ownerMap: Record<string, any> = {};
+
+      await Promise.all(ownersToFetch.map(async (uid) => {
+        try {
+          const snap = await getDoc(doc(db, "users", uid as string));
+          if (snap.exists()) ownerMap[uid as string] = snap.data();
+        } catch (e) {}
+      }));
+
+      setEnrichedOrgs(orgs.map(o => ({
+        ...o,
+        ownerProfile: o.ownerId ? ownerMap[o.ownerId] : null
+      })));
+    };
+
+    fetchOwners();
+  }, [orgs, db]);
+
   const filteredOrgs = React.useMemo(() => {
-    if (!orgs) return []
-    return orgs.filter(o => {
+    const list = enrichedOrgs.length > 0 ? enrichedOrgs : (orgs || []);
+    return list.filter(o => {
       const matchSearch = (o.name?.toLowerCase() || "").includes(search.toLowerCase()) || 
-                          (o.username?.toLowerCase() || "").includes(search.toLowerCase());
+                          (o.username?.toLowerCase() || "").includes(search.toLowerCase()) ||
+                          (o.ownerProfile?.name?.toLowerCase() || "").includes(search.toLowerCase()) ||
+                          (o.ownerProfile?.username?.toLowerCase() || "").includes(search.toLowerCase());
       const matchType = activeTypeFilter === 'all' || o.type === activeTypeFilter;
       return matchSearch && matchType && o.status !== 'Excluído';
     })
-  }, [orgs, search, activeTypeFilter])
+  }, [enrichedOrgs, orgs, search, activeTypeFilter])
 
   const handleUpdateOrg = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!db || !editingOrg || isSaving) return
     setIsSaving(true)
     try {
-      const { id, ...data } = editingOrg
+      const { id, ownerProfile, ...data } = editingOrg
       await updateDoc(doc(db, "organizations", id), { ...data, updatedAt: serverTimestamp() })
       toast({ title: "Página atualizada!" })
       setIsEditOrgOpen(false)
@@ -205,8 +234,8 @@ export default function AdminPaginasPage() {
           <TableHeader className="bg-muted/30">
             <TableRow>
               <TableHead className="font-black uppercase text-[9px] tracking-widest p-6">Marca / Identidade</TableHead>
+              <TableHead className="font-black uppercase text-[9px] tracking-widest">Proprietário</TableHead>
               <TableHead className="font-black uppercase text-[9px] tracking-widest">Categoria</TableHead>
-              <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Membros</TableHead>
               <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Status</TableHead>
               <TableHead className="text-right font-black uppercase text-[9px] tracking-widest p-6">Ações</TableHead>
             </TableRow>
@@ -225,8 +254,13 @@ export default function AdminPaginasPage() {
                     </div>
                   </div>
                 </TableCell>
+                <TableCell>
+                   <div className="flex flex-col">
+                      <span className="text-xs font-bold text-primary">{org.ownerProfile?.name || "N/A"}</span>
+                      <span className="text-[10px] text-muted-foreground">@{org.ownerProfile?.username || "---"}</span>
+                   </div>
+                </TableCell>
                 <TableCell><Badge variant="outline" className="text-[8px] font-black uppercase border-secondary/20 text-secondary">{org.type || 'Geral'}</Badge></TableCell>
-                <TableCell className="text-center font-bold text-xs">{(org.membersCount || 1)}</TableCell>
                 <TableCell className="text-center">
                    <Badge className={cn("text-[8px] font-black uppercase h-5", org.status === 'Bloqueado' ? "bg-red-500" : "bg-green-500")}>{org.status || 'Ativo'}</Badge>
                 </TableCell>
@@ -304,6 +338,24 @@ function OrgMembersList({ orgId }: { orgId: string }) {
 
   const membersQuery = useMemoFirebase(() => orgId && db ? collection(db, "organizations", orgId, "members") : null, [db, orgId])
   const { data: members, loading } = useCollection<any>(membersQuery)
+  
+  const [membersWithProfiles, setMembersWithProfiles] = React.useState<any[]>([])
+  
+  React.useEffect(() => {
+    if (!members || !db) return
+    const fetch = async () => {
+      const results = await Promise.all(members.map(async (m) => {
+        try {
+          const uSnap = await getDoc(doc(db, "users", m.userId))
+          return { ...m, profile: uSnap.exists() ? uSnap.data() : null }
+        } catch (e) {
+          return { ...m, profile: null }
+        }
+      }))
+      setMembersWithProfiles(results)
+    }
+    fetch()
+  }, [members, db])
 
   const handleAdd = async () => {
     if (!db || !orgId || !newMemberUser) return
@@ -332,10 +384,19 @@ function OrgMembersList({ orgId }: { orgId: string }) {
           <Input placeholder="Vincular @username..." value={newMemberUser} onChange={e => setNewMemberUser(e.target.value)} className="rounded-xl h-10" />
           <Button type="button" size="sm" onClick={handleAdd} disabled={adding} className="bg-secondary text-white font-bold h-10 px-4 rounded-xl uppercase text-[10px]">Adicionar</Button>
        </div>
-       <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-          {members?.map(m => (
+       <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+          {membersWithProfiles.map(m => (
             <div key={m.userId} className="flex items-center justify-between p-3 bg-muted/20 rounded-xl border">
-               <span className="text-xs font-bold text-primary truncate max-w-[150px]">ID: {m.userId.slice(0, 8)}...</span>
+               <div className="flex items-center gap-3">
+                  <Avatar className="h-8 w-8 border border-background shadow-sm">
+                    <AvatarImage src={m.profile?.avatar} className="object-cover" />
+                    <AvatarFallback className="text-[10px] font-bold bg-muted">{m.profile?.name?.charAt(0) || "U"}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col">
+                     <span className="text-xs font-bold text-primary truncate max-w-[120px]">{m.profile?.name || "Usuário"}</span>
+                     <span className="text-[10px] text-muted-foreground font-medium">@{m.profile?.username || m.userId.slice(0, 8)}</span>
+                  </div>
+               </div>
                <div className="flex items-center gap-3">
                   <Badge variant="secondary" className="text-[8px] font-black uppercase">{m.role}</Badge>
                   <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleRemove(m.userId)}><X className="w-3 h-3" /></Button>
