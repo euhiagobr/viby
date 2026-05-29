@@ -1,7 +1,8 @@
+
 "use client"
 
 import * as React from "react"
-import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { 
   collection, 
   query, 
@@ -15,11 +16,8 @@ import {
   deleteField,
   where,
   getDocs,
-  limit,
-  collectionGroup,
-  setDoc
+  limit
 } from "firebase/firestore"
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { 
   Table, 
@@ -36,146 +34,39 @@ import {
   Loader2, 
   Search, 
   Users, 
-  Building2, 
   User as UserIcon,
   Trash2,
   Edit,
   Save,
   BadgeCheck,
   X,
-  RefreshCw,
   CheckCircle2,
   ShieldCheck,
-  Coins,
   Lock,
-  Globe,
   Eye,
   EyeOff,
-  Phone,
-  Mail,
-  Instagram,
-  MapPin,
-  Fingerprint,
-  ArrowRightLeft,
-  ShieldAlert,
   ShieldBan,
   AtSign,
-  AlertTriangle,
-  UserPlus,
-  Handshake,
-  ChevronRight,
-  Plus
+  AlertTriangle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Progress } from "@/components/ui/progress"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
-import { Separator } from "@/components/ui/separator"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
-const ROLES = [
-  { value: 'owner', label: 'Proprietário' },
-  { value: 'admin', label: 'Administrador' },
-  { value: 'editor', label: 'Editor' },
-  { value: 'finance', label: 'Financeiro' },
-  { value: 'checkin', label: 'Check-in' },
-];
-
-function VerifiedBadge({ className }: { className?: string }) {
-  return (
-    <BadgeCheck className={cn("w-5 h-5 fill-blue-500 text-white", className)} />
-  )
-}
-
-function VisibilityToggleSwitch({ checked, onChange }: { checked: boolean, onChange: (v: boolean) => void }) {
-  return (
-    <div className="flex items-center gap-2">
-      {checked ? <Eye className="w-3 h-3 text-green-600" /> : <EyeOff className="w-3 h-3 text-muted-foreground" />}
-      <Switch checked={checked} onCheckedChange={onChange} className="scale-75 origin-right" />
-    </div>
-  )
-}
-
 export default function AdminUsuariosPage() {
   const db = useFirestore()
-  const app = useFirebaseApp()
-  const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
-
   const [search, setSearch] = React.useState("")
-  const [activeTab, setActiveTab] = React.useState("usuarios")
   
   const [editingUser, setEditingUser] = React.useState<any>(null)
   const [isEditUserOpen, setIsEditUserOpen] = React.useState(false)
-
-  const [editingOrg, setEditingOrg] = React.useState<any>(null)
-  const [isEditOrgOpen, setIsEditOrgOpen] = React.useState(false)
-  
-  const [transferOrg, setTransferOrg] = React.useState<any>(null)
-  const [isTransferOpen, setIsTransferOpen] = React.useState(false)
-  const [newOwnerUsername, setNewOwnerUsername] = React.useState("")
-  
   const [isSaving, setIsSaving] = React.useState(false)
-  const [checkingUsername, setCheckingUsername] = React.useState(false)
-  const [usernameStatus, setUsernameStatus] = React.useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
-
-  const [isAddMemberOpen, setIsAddMemberOpen] = React.useState(false)
-  const [memberTargetUsername, setMemberTargetUsername] = React.useState("")
-  const [memberTargetOrgId, setMemberTargetOrgId] = React.useState("")
-  const [memberTargetRole, setMemberTargetRole] = React.useState("editor")
 
   const usersQuery = useMemoFirebase(() => db ? query(collection(db, "users"), orderBy("createdAt", "desc")) : null, [db])
   const { data: users, loading: loadingUsers } = useCollection<any>(usersQuery)
-
-  const orgsQuery = useMemoFirebase(() => db ? query(collection(db, "organizations"), orderBy("createdAt", "desc")) : null, [db])
-  const { data: orgs, loading: loadingOrgs } = useCollection<any>(orgsQuery)
-
-  const membersGroupQuery = useMemoFirebase(() => db ? query(collectionGroup(db, "members")) : null, [db])
-  const { data: allMemberships, loading: loadingMembers } = useCollection<any>(membersGroupQuery)
-
-  const [fullMembersData, setFullMembersData] = React.useState<any[]>([])
-  const [loadingMemberProfiles, setLoadingMemberProfiles] = React.useState(false)
-
-  React.useEffect(() => {
-    if (!allMemberships || !db) return;
-    
-    const enrich = async () => {
-      setLoadingMemberProfiles(true)
-      try {
-        const data = await Promise.all(allMemberships.map(async (m) => {
-          const orgId = m.ref.parent.parent?.id;
-          if (!orgId) return null;
-
-          const [userSnap, orgSnap] = await Promise.all([
-            getDoc(doc(db, "users", m.userId)),
-            getDoc(doc(db, "organizations", orgId))
-          ])
-
-          return {
-            id: m.id,
-            orgId,
-            userId: m.userId,
-            role: m.role,
-            status: m.status,
-            user: userSnap.exists() ? { id: userSnap.id, ...userSnap.data() } : null,
-            org: orgSnap.exists() ? { id: orgSnap.id, ...orgSnap.data() } : null
-          }
-        }))
-        setFullMembersData(data.filter(Boolean))
-      } catch (e) {
-        console.error("Erro ao carregar membros:", e)
-      } finally {
-        setLoadingMemberProfiles(false)
-      }
-    }
-
-    enrich()
-  }, [allMemberships, db])
 
   const filteredUsers = React.useMemo(() => {
     if (!users) return []
@@ -186,79 +77,13 @@ export default function AdminUsuariosPage() {
     )
   }, [users, search])
 
-  const filteredOrgs = React.useMemo(() => {
-    if (!orgs) return []
-    return orgs.filter(o => 
-      (o.name?.toLowerCase() || "").includes(search.toLowerCase()) || 
-      (o.username?.toLowerCase() || "").includes(search.toLowerCase())
-    )
-  }, [orgs, search])
-
-  const filteredMembers = React.useMemo(() => {
-    return fullMembersData.filter(m => 
-      (m.user?.name?.toLowerCase() || "").includes(search.toLowerCase()) ||
-      (m.user?.username?.toLowerCase() || "").includes(search.toLowerCase()) ||
-      (m.org?.name?.toLowerCase() || "").includes(search.toLowerCase())
-    )
-  }, [fullMembersData, search])
-
-  React.useEffect(() => {
-    if (!db) return
-    const target = activeTab === 'usuarios' ? editingUser : editingOrg
-    if (!target?.username) return
-
-    const normalized = target.username.toLowerCase().trim()
-    const original = (activeTab === 'usuarios' ? users?.find(u => u.id === target.id) : orgs?.find(o => o.id === target.id))?.username
-
-    if (normalized === original) {
-      setUsernameStatus('idle')
-      return
-    }
-
-    const regex = /^[a-zA-Z0-9._]+$/
-    if (normalized.length < 5 || !regex.test(normalized)) {
-      setUsernameStatus('invalid')
-      return
-    }
-
-    setCheckingUsername(true)
-    const timer = setTimeout(async () => {
-      try {
-        const usernameRef = doc(db, "usernames", normalized)
-        const usernameSnap = await getDoc(usernameRef)
-        setUsernameStatus(usernameSnap.exists() ? 'taken' : 'valid')
-      } catch (e) {
-        console.error(e)
-      } finally {
-        setCheckingUsername(false)
-      }
-    }, 500)
-    return () => clearTimeout(timer)
-  }, [editingUser?.username, editingOrg?.username, activeTab, db, users, orgs])
-
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!db || !editingUser || isSaving) return
     setIsSaving(true)
     try {
-      const batch = writeBatch(db)
-      const original = users?.find(u => u.id === editingUser.id)
-      
-      if (editingUser.username !== original?.username) {
-        if (original?.username) {
-          batch.delete(doc(db, "usernames", original.username.toLowerCase()))
-        }
-        batch.set(doc(db, "usernames", editingUser.username.toLowerCase()), { 
-          uid: editingUser.id, 
-          type: 'user',
-          updatedAt: serverTimestamp()
-        })
-      }
-
       const { id, ...data } = editingUser
-      batch.update(doc(db, "users", id), { ...data, updatedAt: serverTimestamp() })
-      
-      await batch.commit()
+      await updateDoc(doc(db, "users", id), { ...data, updatedAt: serverTimestamp() })
       toast({ title: "Usuário atualizado!" })
       setIsEditUserOpen(false)
     } catch (e) { 
@@ -268,59 +93,18 @@ export default function AdminUsuariosPage() {
     }
   }
 
-  const handleUpdateOrg = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!db || !editingOrg || isSaving) return
-    setIsSaving(true)
-    try {
-      const batch = writeBatch(db)
-      const original = orgs?.find(o => o.id === editingOrg.id)
-      
-      if (editingOrg.username !== original?.username) {
-        if (original?.username) {
-          batch.delete(doc(db, "usernames", original.username.toLowerCase()))
-        }
-        batch.set(doc(db, "usernames", editingOrg.username.toLowerCase()), { 
-          uid: editingOrg.id, 
-          type: 'organization',
-          updatedAt: serverTimestamp()
-        })
-      }
-
-      const { id, ...data } = editingOrg
-      batch.update(doc(db, "organizations", id), { ...data, updatedAt: serverTimestamp() })
-      
-      await batch.commit()
-      toast({ title: "Organização atualizada!" })
-      setIsEditOrgOpen(false)
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao salvar marca" })
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const handleDeleteProfile = async (id: string, type: 'user' | 'organization', username: string) => {
-    if (!db || !confirm(`Tem certeza que deseja excluir permanentemente ${type === 'user' ? 'o usuário' : 'a marca'} @${username}?`)) return
+  const handleDeleteUser = async (id: string, username: string) => {
+    if (!db || !confirm(`Tem certeza que deseja excluir permanentemente o usuário @${username}?`)) return
     
     setIsSaving(true)
     try {
       const batch = writeBatch(db)
-      const coll = type === 'user' ? 'users' : 'organizations'
-      
-      batch.delete(doc(db, coll, id))
+      batch.delete(doc(db, "users", id))
       if (username) {
         batch.delete(doc(db, "usernames", username.toLowerCase()))
       }
-
-      if (type === 'user') {
-        const membersQ = query(collectionGroup(db, "members"), where("userId", "==", id))
-        const mSnap = await getDocs(membersQ)
-        mSnap.forEach(d => batch.delete(d.ref))
-      }
-
       await batch.commit()
-      toast({ title: "Perfil removido com sucesso" })
+      toast({ title: "Usuário removido" })
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na exclusão" })
     } finally {
@@ -328,7 +112,7 @@ export default function AdminUsuariosPage() {
     }
   }
 
-  const handleToggleBlock = async (id: string, currentStatus: string, type: 'users' | 'organizations') => {
+  const handleToggleBlock = async (id: string, currentStatus: string) => {
     if (!db) return
     const isBlocked = currentStatus === 'Bloqueado'
     const newStatus = isBlocked ? 'Ativo' : 'Bloqueado'
@@ -336,447 +120,122 @@ export default function AdminUsuariosPage() {
     try {
       const batch = writeBatch(db);
       
-      batch.update(doc(db, type, id), {
+      batch.update(doc(db, "users", id), {
         status: newStatus,
         updatedAt: serverTimestamp(),
         moderatedAt: serverTimestamp(),
         moderatedBy: "Admin",
-        blockReason: newStatus === 'Bloqueado' ? (type === 'users' ? "Titular da conta bloqueado." : "Ação administrativa direta.") : deleteField()
+        blockReason: newStatus === 'Bloqueado' ? "Titular da conta bloqueado por moderação." : deleteField()
       });
 
-      if (type === 'users') {
-        const ownedOrgsQ = query(collection(db, "organizations"), where("ownerId", "==", id));
-        const ownedOrgsSnap = await getDocs(ownedOrgsQ);
-        
-        ownedOrgsSnap.forEach(orgDoc => {
-          batch.update(orgDoc.ref, {
-            status: newStatus,
-            updatedAt: serverTimestamp(),
-            moderatedAt: serverTimestamp(),
-            moderatedBy: "Admin",
-            blockReason: newStatus === 'Bloqueado' ? "Titular da conta bloqueado." : deleteField()
-          });
+      const ownedOrgsQ = query(collection(db, "organizations"), where("ownerId", "==", id));
+      const ownedOrgsSnap = await getDocs(ownedOrgsQ);
+      
+      ownedOrgsSnap.forEach(orgDoc => {
+        batch.update(orgDoc.ref, {
+          status: newStatus,
+          updatedAt: serverTimestamp(),
+          moderatedAt: serverTimestamp(),
+          moderatedBy: "Admin",
+          blockReason: newStatus === 'Bloqueado' ? "Titular da conta bloqueado." : deleteField()
         });
-      }
+      });
 
       await batch.commit();
-      toast({ title: isBlocked ? "Ativado" : "Bloqueado" });
+      toast({ title: isBlocked ? "Usuário Ativado" : "Usuário Bloqueado" });
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na moderação" })
-    }
-  }
-
-  const handleTransferOwnership = async () => {
-    if (!db || !transferOrg || !newOwnerUsername) return
-    setIsSaving(true)
-    
-    try {
-      const cleanUser = newOwnerUsername.toLowerCase().trim().replace('@', '')
-      const uSnap = await getDoc(doc(db, "usernames", cleanUser))
-      
-      if (!uSnap.exists() || uSnap.data().type !== 'user') {
-        throw new Error("Usuário de destino não encontrado.")
-      }
-
-      const newOwnerUid = uSnap.data().uid
-      const batch = writeBatch(db)
-
-      const membersQ = query(collection(db, "organizations", transferOrg.id, "members"), where("role", "==", "owner"), limit(1))
-      const membersSnap = await getDocs(membersQ)
-      
-      if (!membersSnap.empty) {
-        batch.update(membersSnap.docs[0].ref, { role: 'admin', updatedAt: serverTimestamp() })
-      }
-
-      const newMemberRef = doc(db, "organizations", transferOrg.id, "members", newOwnerUid)
-      batch.set(newMemberRef, {
-        userId: newOwnerUid,
-        role: 'owner',
-        status: 'accepted',
-        transferredAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      }, { merge: true })
-
-      batch.update(doc(db, "organizations", transferOrg.id), {
-        ownerId: newOwnerUid,
-        updatedAt: serverTimestamp()
-      })
-
-      await batch.commit()
-      toast({ title: "Titularidade Transferida!" })
-      setIsTransferOpen(false)
-      setNewOwnerUsername("")
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Falha na transferência", description: e.message })
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const handleUpdateMemberRole = async (member: any, newRole: string) => {
-    if (!db) return
-    try {
-      await updateDoc(doc(db, "organizations", member.orgId, "members", member.userId), {
-        role: newRole,
-        updatedAt: serverTimestamp()
-      })
-      toast({ title: "Cargo atualizado!" })
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao atualizar" })
-    }
-  }
-
-  const handleRemoveMember = async (member: any) => {
-    if (!db) return
-    if (member.role === 'owner') {
-      toast({ variant: "destructive", title: "Ação negada", description: "O proprietário não pode ser removido da equipe por aqui. Use a transferência de titularidade." })
-      return
-    }
-    if (!confirm("Remover este membro da equipe da marca?")) return
-    try {
-      await deleteDoc(doc(db, "organizations", member.orgId, "members", member.userId))
-      toast({ title: "Membro removido" })
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao remover" })
-    }
-  }
-
-  const handleAddMemberGlobal = async () => {
-    if (!db || !memberTargetUsername || !memberTargetOrgId) return
-    setIsSaving(true)
-    try {
-      const cleanUser = memberTargetUsername.toLowerCase().trim().replace('@', '')
-      const uSnap = await getDoc(doc(db, "usernames", cleanUser))
-      
-      if (!uSnap.exists() || uSnap.data().type !== 'user') {
-        throw new Error("Usuário não encontrado.")
-      }
-
-      const targetUid = uSnap.data().uid
-      const memberRef = doc(db, "organizations", memberTargetOrgId, "members", targetUid)
-      
-      await setDoc(memberRef, {
-        userId: targetUid,
-        role: memberTargetRole,
-        status: 'accepted',
-        addedBy: 'Admin',
-        createdAt: serverTimestamp()
-      })
-
-      toast({ title: "Membro adicionado!" })
-      setIsAddMemberOpen(false)
-      setMemberTargetUsername("")
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Falha ao adicionar", description: e.message })
-    } finally {
-      setIsSaving(false)
     }
   }
 
   return (
     <div className="space-y-8 pb-20">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">Gestão de Identidades</h1>
-        <p className="text-muted-foreground font-medium">Controle administrativo sobre usuários, marcas e equipes.</p>
+        <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
+          <Users className="w-8 h-8 text-secondary" /> Gestão de Usuários
+        </h1>
+        <p className="text-muted-foreground font-medium">Controle administrativo sobre perfis pessoais da plataforma.</p>
       </div>
 
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
-            placeholder="Buscar por nome, @username ou marca..." 
+            placeholder="Buscar por nome, @username ou e-mail..." 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10 rounded-xl h-11"
           />
         </div>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-fit">
-          <TabsList className="bg-muted/50 p-1 rounded-xl h-11">
-            <TabsTrigger value="usuarios" className="rounded-lg px-6 font-bold gap-2"><UserIcon className="w-4 h-4" /> Usuários</TabsTrigger>
-            <TabsTrigger value="paginas" className="rounded-lg px-6 font-bold gap-2"><Building2 className="w-4 h-4" /> Páginas</TabsTrigger>
-            <TabsTrigger value="membros" className="rounded-lg px-6 font-bold gap-2"><Users className="w-4 h-4" /> Membros</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="px-4 py-2 bg-muted/50 rounded-xl border text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+          {filteredUsers.length} Usuários Encontrados
+        </div>
       </div>
 
       <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
         <Table>
           <TableHeader className="bg-muted/30">
             <TableRow>
-              {activeTab === 'usuarios' && (
-                <>
-                  <TableHead className="font-black uppercase text-[10px] tracking-widest p-6">Usuário</TableHead>
-                  <TableHead className="font-black uppercase text-[10px] tracking-widest">Cargo Plataforma</TableHead>
-                  <TableHead className="text-center font-black uppercase text-[10px] tracking-widest">Verificado</TableHead>
-                  <TableHead className="text-right font-black uppercase text-[10px] tracking-widest p-6">Ações</TableHead>
-                </>
-              )}
-              {activeTab === 'paginas' && (
-                <>
-                  <TableHead className="font-black uppercase text-[10px] tracking-widest p-6">Marca</TableHead>
-                  <TableHead className="font-black uppercase text-[10px] tracking-widest">Status Público</TableHead>
-                  <TableHead className="text-center font-black uppercase text-[10px] tracking-widest">Verificado</TableHead>
-                  <TableHead className="text-right font-black uppercase text-[10px] tracking-widest p-6">Ações</TableHead>
-                </>
-              )}
-              {activeTab === 'membros' && (
-                <>
-                  <TableHead className="font-black uppercase text-[10px] tracking-widest p-6">Colaborador</TableHead>
-                  <TableHead className="font-black uppercase text-[10px] tracking-widest">Organização</TableHead>
-                  <TableHead className="font-black uppercase text-[10px] tracking-widest">Papel na Equipe</TableHead>
-                  <TableHead className="text-right font-black uppercase text-[10px] tracking-widest p-6">
-                    <Button onClick={() => setIsAddMemberOpen(true)} size="sm" className="bg-secondary text-white font-bold h-7 rounded-lg text-[9px] uppercase gap-1.5 shadow-sm">
-                       <Plus className="w-3 h-3" /> Vincular Membro
-                    </Button>
-                  </TableHead>
-                </>
-              )}
+              <TableHead className="font-black uppercase text-[10px] tracking-widest p-6">Usuário</TableHead>
+              <TableHead className="font-black uppercase text-[10px] tracking-widest">E-mail</TableHead>
+              <TableHead className="font-black uppercase text-[10px] tracking-widest">Cargo</TableHead>
+              <TableHead className="text-center font-black uppercase text-[10px] tracking-widest">Status</TableHead>
+              <TableHead className="text-right font-black uppercase text-[10px] tracking-widest p-6">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {activeTab === 'usuarios' ? (
-              loadingUsers ? (
-                <TableRow><TableCell colSpan={4} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
-              ) : filteredUsers.map(user => (
-                <TableRow key={user.id} className={cn("hover:bg-muted/5 transition-colors", user.status === 'Bloqueado' && "bg-destructive/[0.02] opacity-75")}>
-                  <TableCell className="p-6">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 border shadow-sm">
-                        <AvatarImage src={user.avatar} className="object-cover" />
-                        <AvatarFallback className="font-black uppercase">{user.name?.charAt(0) || "U"}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col">
-                        <span className="font-bold text-sm">{user.name}</span>
-                        <div className="flex items-center gap-2">
-                           <span className="text-[10px] text-secondary font-bold">@{user.username}</span>
-                           {user.status === 'Bloqueado' && <Badge variant="destructive" className="h-3 px-1.5 text-[7px] font-black uppercase">Bloqueado</Badge>}
-                        </div>
+            {loadingUsers ? (
+              <TableRow><TableCell colSpan={5} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
+            ) : filteredUsers.map(user => (
+              <TableRow key={user.id} className={cn("hover:bg-muted/5 transition-colors", user.status === 'Bloqueado' && "bg-destructive/[0.02] opacity-75")}>
+                <TableCell className="p-6">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10 border shadow-sm">
+                      <AvatarImage src={user.avatar} className="object-cover" />
+                      <AvatarFallback className="font-black uppercase">{user.name?.charAt(0) || "U"}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                      <span className="font-bold text-sm">{user.name}</span>
+                      <div className="flex items-center gap-2">
+                         <span className="text-[10px] text-secondary font-bold">@{user.username}</span>
+                         {user.isVerified && <BadgeCheck className="w-3 h-3 fill-blue-500 text-white" />}
                       </div>
                     </div>
-                  </TableCell>
-                  <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase border-primary/20 text-primary">{user.role || 'user'}</Badge></TableCell>
-                  <TableCell className="text-center">{user.isVerified && <VerifiedBadge className="mx-auto" />}</TableCell>
-                  <TableCell className="p-6 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingUser(user); setIsEditUserOpen(true); }}><Edit className="w-4 h-4" /></Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className={cn("h-8 w-8 rounded-lg", user.status === 'Bloqueado' ? "text-green-600 hover:bg-green-50" : "text-orange-500 hover:bg-orange-50")}
-                        onClick={() => handleToggleBlock(user.id, user.status, 'users')}
-                        title={user.status === 'Bloqueado' ? "Desbloquear Usuário" : "Bloquear Usuário e Marcas"}
-                      >
-                         {user.status === 'Bloqueado' ? <CheckCircle2 className="w-4 h-4" /> : <ShieldBan className="w-4 h-4" />}
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-lg hover:bg-destructive/10" onClick={() => handleDeleteProfile(user.id, 'user', user.username)}><Trash2 className="w-4 h-4" /></Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : activeTab === 'paginas' ? (
-              loadingOrgs ? (
-                <TableRow><TableCell colSpan={4} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
-              ) : filteredOrgs.map(org => (
-                <TableRow key={org.id} className={cn("hover:bg-muted/5 transition-colors", org.status === 'Bloqueado' && "bg-destructive/[0.02] opacity-75")}>
-                  <TableCell className="p-6">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 border shadow-sm">
-                        <AvatarImage src={org.avatar} className="object-cover" />
-                        <AvatarFallback className="font-bold uppercase">{org.name?.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col">
-                        <span className="font-bold text-sm">{org.name}</span>
-                        <div className="flex flex-col gap-0.5 mt-0.5">
-                           <span className="text-[10px] text-secondary font-bold">@{org.username}</span>
-                           {org.status === 'Bloqueado' && (
-                             <div className="flex items-center gap-1 text-[8px] font-black uppercase text-red-500">
-                               <ShieldAlert className="w-2.5 h-2.5" />
-                               {org.blockReason || "Ação de Moderação"}
-                             </div>
-                           )}
-                        </div>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={org.status === 'Bloqueado' ? 'destructive' : 'outline'} className={cn(
-                      "text-[9px] font-black uppercase px-2 h-6",
-                      org.status === 'Ativo' ? "border-secondary text-secondary" : ""
-                    )}>
-                      {org.status || 'Ativo'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-center">{org.verified && <VerifiedBadge className="mx-auto" />}</TableCell>
-                  <TableCell className="p-6 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingOrg(org); setIsEditOrgOpen(true); }}><Edit className="w-4 h-4" /></Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-primary rounded-lg hover:bg-primary/5" 
-                        onClick={() => { setTransferOrg(org); setIsTransferOpen(true); }}
-                        title="Transferir Titularidade"
-                      >
-                         <ArrowRightLeft className="w-4 h-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className={cn("h-8 w-8 rounded-lg", org.status === 'Bloqueado' ? "text-green-600 hover:bg-green-50" : "text-orange-500 hover:bg-orange-50")}
-                        onClick={() => handleToggleBlock(org.id, org.status, 'organizations')}
-                        title={org.status === 'Bloqueado' ? "Desbloquear Marca" : "Bloquear Marca"}
-                      >
-                         {org.status === 'Bloqueado' ? <CheckCircle2 className="w-4 h-4" /> : <ShieldBan className="w-4 h-4" />}
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-lg hover:bg-destructive/10" onClick={() => handleDeleteProfile(org.id, 'organization', org.username)}><Trash2 className="w-4 h-4" /></Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              loadingMembers || loadingMemberProfiles ? (
-                <TableRow><TableCell colSpan={4} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
-              ) : filteredMembers.length > 0 ? (
-                filteredMembers.map((m, idx) => (
-                  <TableRow key={idx} className="hover:bg-muted/5 transition-colors">
-                    <TableCell className="p-6">
-                       <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9 border">
-                             <AvatarImage src={m.user?.avatar} />
-                             <AvatarFallback className="font-bold uppercase">{m.user?.name?.charAt(0) || 'U'}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex flex-col">
-                             <span className="font-bold text-xs">{m.user?.name || "Usuário não localizado"}</span>
-                             <span className="text-[9px] text-secondary font-black uppercase">@{m.user?.username || m.userId.slice(0,8)}</span>
-                          </div>
-                       </div>
-                    </TableCell>
-                    <TableCell>
-                       <div className="flex items-center gap-2">
-                          <Building2 className="w-3 h-3 text-muted-foreground" />
-                          <span className="font-black text-[10px] uppercase italic text-primary">{m.org?.name || "Marca não localizada"}</span>
-                       </div>
-                    </TableCell>
-                    <TableCell>
-                       <Select value={m.role} onValueChange={(val) => handleUpdateMemberRole(m, val)}>
-                          <SelectTrigger className="h-8 rounded-lg text-[9px] font-black uppercase border-secondary/20 text-secondary bg-secondary/5 w-32">
-                             <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="rounded-xl">
-                             {ROLES.map(role => (
-                               <SelectItem key={role.value} value={role.value} className="text-[10px] font-black uppercase">{role.label}</SelectItem>
-                             ))}
-                          </SelectContent>
-                       </Select>
-                    </TableCell>
-                    <TableCell className="p-6 text-right">
-                       <Button 
-                         variant="ghost" 
-                         size="icon" 
-                         className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full" 
-                         onClick={() => handleRemoveMember(m)}
-                       >
-                          <Trash2 className="w-4 h-4" />
-                       </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow><TableCell colSpan={4} className="py-20 text-center opacity-30 italic text-sm">Nenhum vínculo de equipe encontrado.</TableCell></TableRow>
-              )
-            )}
+                  </div>
+                </TableCell>
+                <TableCell className="text-xs font-medium text-muted-foreground">{user.email}</TableCell>
+                <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase border-primary/20 text-primary">{user.role || 'user'}</Badge></TableCell>
+                <TableCell className="text-center">
+                  <Badge variant={user.status === 'Bloqueado' ? 'destructive' : 'outline'} className="text-[8px] font-black uppercase h-5">
+                    {user.status || 'Ativo'}
+                  </Badge>
+                </TableCell>
+                <TableCell className="p-6 text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingUser(user); setIsEditUserOpen(true); }}><Edit className="w-4 h-4" /></Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className={cn("h-8 w-8 rounded-lg", user.status === 'Bloqueado' ? "text-green-600 hover:bg-green-50" : "text-orange-500 hover:bg-orange-50")}
+                      onClick={() => handleToggleBlock(user.id, user.status)}
+                      title={user.status === 'Bloqueado' ? "Desbloquear Usuário" : "Bloquear Usuário"}
+                    >
+                       {user.status === 'Bloqueado' ? <CheckCircle2 className="w-4 h-4" /> : <ShieldBan className="w-4 h-4" />}
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-lg hover:bg-destructive/10" onClick={() => handleDeleteUser(user.id, user.username)}><Trash2 className="w-4 h-4" /></Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </Card>
 
-      <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
-         <DialogContent className="rounded-[2.5rem] max-w-md">
-            <DialogHeader>
-               <div className="mx-auto w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center mb-2 text-secondary">
-                  <UserPlus className="w-8 h-8" />
-               </div>
-               <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Vincular Colaborador</DialogTitle>
-               <DialogDescription className="text-center font-medium">Adicione qualquer usuário a uma equipe de marca.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-6 py-4">
-               <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Username do Usuário (@)</Label>
-                  <Input 
-                    placeholder="Ex: @joao_silva" 
-                    value={memberTargetUsername} 
-                    onChange={e => setMemberTargetUsername(e.target.value)} 
-                    className="rounded-xl h-11"
-                  />
-               </div>
-               <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Escolher Organização</Label>
-                  <Select value={memberTargetOrgId} onValueChange={setMemberTargetOrgId}>
-                     <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione a marca" /></SelectTrigger>
-                     <SelectContent className="rounded-xl max-h-60">
-                        {orgs?.map(org => (
-                          <SelectItem key={org.id} value={org.id} className="font-bold text-xs uppercase">{org.name}</SelectItem>
-                        ))}
-                     </SelectContent>
-                  </Select>
-               </div>
-               <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Cargo / Função</Label>
-                  <Select value={memberTargetRole} onValueChange={setMemberTargetRole}>
-                     <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                     <SelectContent className="rounded-xl">
-                        {ROLES.map(role => (
-                          <SelectItem key={role.value} value={role.value} className="font-black text-[10px] uppercase">{role.label}</SelectItem>
-                        ))}
-                     </SelectContent>
-                  </Select>
-               </div>
-            </div>
-            <DialogFooter>
-               <Button onClick={handleAddMemberGlobal} disabled={isSaving || !memberTargetUsername || !memberTargetOrgId} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                  {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Confirmar Vínculo"}
-               </Button>
-            </DialogFooter>
-         </DialogContent>
-      </Dialog>
-
-      <Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
-        <DialogContent className="max-w-md rounded-[2.5rem]">
-           <DialogHeader>
-              <div className="mx-auto w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center mb-2 text-primary shadow-inner">
-                 <ArrowRightLeft className="w-8 h-8" />
-              </div>
-              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Transferir Titularidade</DialogTitle>
-              <DialogDescription className="text-center font-medium">Você está alterando o proprietário legal da marca <strong>{transferOrg?.name}</strong>.</DialogDescription>
-           </DialogHeader>
-           <div className="space-y-6 py-4">
-              <div className="space-y-2">
-                 <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><AtSign className="w-3 h-3" /> Username do Novo Dono</Label>
-                 <Input 
-                   placeholder="Ex: @novo_dono" 
-                   value={newOwnerUsername}
-                   onChange={e => setNewOwnerUsername(e.target.value)}
-                   className="h-12 rounded-xl"
-                 />
-                 <p className="text-[9px] text-muted-foreground font-medium italic">O usuário deve estar cadastrado na Viby como perfil pessoal.</p>
-              </div>
-
-              <div className="p-4 bg-orange-50 rounded-2xl border-2 border-dashed border-orange-200 flex gap-3">
-                 <ShieldAlert className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
-                 <p className="text-[10px] text-orange-800 font-bold uppercase leading-relaxed">O antigo dono será automaticamente rebaixado para o cargo de Administrador.</p>
-              </div>
-           </div>
-           <DialogFooter>
-              <Button onClick={handleTransferOwnership} disabled={isSaving || !newOwnerUsername} className="w-full bg-primary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                 {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Confirmar Transferência"}
-              </Button>
-           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
         <DialogContent className="max-w-xl rounded-[2.5rem]">
            <DialogHeader>
-              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Editar Perfil Pessoal</DialogTitle>
+              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Editar Usuário</DialogTitle>
+              <DialogDescription>Ajuste permissões e dados básicos do perfil pessoal.</DialogDescription>
            </DialogHeader>
            <form onSubmit={handleUpdateUser} className="space-y-6 py-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -785,32 +244,23 @@ export default function AdminUsuariosPage() {
                     <Input value={editingUser?.name || ""} onChange={e => setEditingUser({...editingUser, name: e.target.value})} className="rounded-xl h-11" required />
                  </div>
                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label>
-                    <div className="relative">
-                       <Input 
-                         value={editingUser?.username || ""} 
-                         onChange={e => setEditingUser({...editingUser, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} 
-                         className={cn(
-                           "rounded-xl h-11", 
-                           usernameStatus === 'valid' ? 'border-green-500 pr-10' : 
-                           usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-destructive pr-10' : 'pr-10'
-                         )} 
-                       />
-                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin opacity-40" /> : 
-                           usernameStatus === 'taken' ? <X className="w-4 h-4 text-destructive" /> : 
-                           usernameStatus === 'valid' ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : null}
-                       </div>
-                    </div>
+                    <Label className="text-[10px] font-black uppercase opacity-60">Cargo de Sistema</Label>
+                    <Select value={editingUser?.role || "user"} onValueChange={v => setEditingUser({...editingUser, role: v})}>
+                       <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                       <SelectContent>
+                          <SelectItem value="user">Usuário Comum</SelectItem>
+                          <SelectItem value="admin">Administrador Global</SelectItem>
+                       </SelectContent>
+                    </Select>
                  </div>
               </div>
 
               <div className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border border-dashed">
                  <div className="space-y-0.5">
                     <p className="font-bold text-sm flex items-center gap-2">
-                       <ShieldCheck className="w-4 h-4 text-blue-500" /> Selo de Verificação
+                       <ShieldCheck className="w-4 h-4 text-blue-500" /> Selo Verificado
                     </p>
-                    <p className="text-[10px] text-muted-foreground uppercase font-black">Habilita o badge oficial no perfil</p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-black">Identidade confirmada pela Viby</p>
                  </div>
                  <Switch 
                    checked={editingUser?.isVerified || false} 
@@ -819,109 +269,9 @@ export default function AdminUsuariosPage() {
               </div>
 
               <DialogFooter>
-                 <Button type="submit" disabled={isSaving || usernameStatus === 'taken'} className="w-full bg-primary text-white font-black h-12 rounded-xl uppercase italic shadow-lg">
+                 <Button type="submit" disabled={isSaving} className="w-full bg-primary text-white font-black h-12 rounded-xl shadow-lg uppercase italic">
                     {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-                    Confirmar Alterações
-                 </Button>
-              </DialogFooter>
-           </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isEditOrgOpen} onOpenChange={setIsEditOrgOpen}>
-        <DialogContent className="max-w-3xl h-[90vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
-           <DialogHeader className="p-8 border-b bg-muted/30">
-              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Gestão de Marca: {editingOrg?.name}</DialogTitle>
-              <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">Moderação total de itens e visibilidade.</DialogDescription>
-           </DialogHeader>
-           
-           <form onSubmit={handleUpdateOrg} className="flex-1 overflow-hidden flex flex-col">
-              <ScrollArea className="flex-1 p-8">
-                 <div className="space-y-10 pb-10">
-                    <div className="space-y-6">
-                       <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                          <Building2 className="w-4 h-4" /> Dados de Identidade
-                       </h3>
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="space-y-3">
-                             <div className="flex items-center justify-between">
-                                <Label className="text-[10px] font-black uppercase opacity-60">Nome da Marca</Label>
-                                <VisibilityToggleSwitch checked={editingOrg?.showName ?? true} onChange={v => setEditingOrg({...editingOrg, showName: v})} />
-                             </div>
-                             <Input value={editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, name: e.target.value})} className="rounded-xl h-11" required />
-                          </div>
-                          <div className="space-y-2">
-                             <Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label>
-                             <div className="relative">
-                                <Input 
-                                  value={editingOrg?.username || ""} 
-                                  onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} 
-                                  className={cn(
-                                    "rounded-xl h-11 pr-10",
-                                    usernameStatus === 'valid' ? 'border-green-500' : usernameStatus === 'taken' ? 'border-destructive' : ''
-                                  )} 
-                                />
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                   {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin opacity-40" /> : 
-                                    usernameStatus === 'taken' ? <X className="w-4 h-4 text-destructive" /> : 
-                                    usernameStatus === 'valid' ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : null}
-                                </div>
-                             </div>
-                          </div>
-                       </div>
-                    </div>
-
-                    <Separator className="border-dashed" />
-
-                    <div className="space-y-6">
-                       <div className="flex items-center justify-between">
-                          <div className="space-y-1">
-                             <h3 className="font-black italic uppercase tracking-tighter text-secondary flex items-center gap-2">
-                                <Coins className="w-5 h-5" /> Acordo Comercial
-                             </h3>
-                             <p className="text-[10px] font-bold text-muted-foreground uppercase">Configure as taxas que esta marca pagará.</p>
-                          </div>
-                          <Switch 
-                             checked={editingOrg?.customFeeActive || false} 
-                             onCheckedChange={v => setEditingOrg({...editingOrg, customFeeActive: v})} 
-                          />
-                       </div>
-
-                       {editingOrg?.customFeeActive && (
-                         <div className="space-y-6 animate-in slide-in-from-top-2 duration-300">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div className="space-y-2">
-                                 <Label className="text-[9px] font-black uppercase opacity-60">Taxa Produtor (%)</Label>
-                                 <Input type="number" value={editingOrg?.customFeePercent ?? 10} onChange={e => setEditingOrg({...editingOrg, customFeePercent: parseFloat(e.target.value) || 0})} className="rounded-xl" />
-                              </div>
-                              <div className="space-y-2">
-                                 <Label className="text-[9px] font-black uppercase opacity-60">Mínimo (R$)</Label>
-                                 <Input type="number" value={editingOrg?.customMinFee ?? 9.99} onChange={e => setEditingOrg({...editingOrg, customMinFee: parseFloat(e.target.value) || 0})} className="rounded-xl" />
-                              </div>
-                            </div>
-                         </div>
-                       )}
-                    </div>
-
-                    <div className="p-4 bg-muted/50 rounded-2xl border border-dashed flex items-center justify-between">
-                       <div className="space-y-0.5">
-                          <p className="text-sm font-bold flex items-center gap-2">
-                             <ShieldCheck className="w-4 h-4 text-blue-500" /> Selo de Verificada
-                          </p>
-                          <p className="text-[9px] text-muted-foreground uppercase font-black">Valida a autenticidade oficial da marca</p>
-                       </div>
-                       <Switch 
-                         checked={editingOrg?.verified || false} 
-                         onCheckedChange={v => setEditingOrg({...editingOrg, verified: v})} 
-                       />
-                    </div>
-                 </div>
-              </ScrollArea>
-              
-              <DialogFooter className="p-8 border-t bg-muted/30">
-                 <Button type="submit" disabled={isSaving || usernameStatus === 'taken'} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-                    Salvar Configurações da Marca
+                    Salvar Alterações
                  </Button>
               </DialogFooter>
            </form>

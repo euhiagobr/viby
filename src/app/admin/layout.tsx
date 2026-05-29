@@ -27,7 +27,8 @@ import {
   UserCheck,
   Zap,
   Ticket,
-  Terminal
+  Terminal,
+  Building2
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -101,6 +102,8 @@ export default function AdminLayout({
   const navItems = [
     { title: 'Painel', url: '/admin', icon: LayoutDashboard },
     { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays },
+    { title: 'Páginas', url: '/admin/paginas', icon: Building2 },
+    { title: 'Usuários', url: '/admin/usuarios', icon: Users },
     { title: 'Operação Ingressos', url: '/admin/ingressos', icon: Ticket },
     { title: 'Anúncios', url: '/admin/anuncios', icon: Megaphone },
     { title: 'Campanhas', url: '/admin/campanhas', icon: Zap },
@@ -114,7 +117,6 @@ export default function AdminLayout({
     { title: 'Denúncias', url: '/admin/denuncias', icon: ShieldAlert },
     { title: 'Suporte', url: '/admin/suporte', icon: LifeBuoy },
     { title: 'Categorias', url: '/admin/categorias', icon: Tag },
-    { title: 'Usuários', url: '/admin/usuarios', icon: Users },
     { title: 'Configurações', url: '/admin/configuracoes', icon: SettingsIcon },
   ];
 
