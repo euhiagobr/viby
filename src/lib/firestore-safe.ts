@@ -8,44 +8,34 @@ import {
   DocumentReference,
   DocumentData,
   getDoc,
-  setDoc,
   updateDoc,
-  addDoc,
-  deleteDoc
+  addDoc
 } from "firebase/firestore";
-import { logSystemError } from "./error-manager";
+import { db as singletonDb } from "@/firebase/database";
 
 /**
- * @fileOverview Wrappers seguros para o Firestore SDK.
- * Garante que o banco de dados seja uma instância válida antes de qualquer operação.
- * Integração profunda com o ErrorManager para rastreio de falhas de inicialização.
+ * @fileOverview Wrappers de segurança para o Firestore.
+ * Prioriza a instância estável do banco de dados para evitar erros de inicialização.
  */
 
-function validateFirestore(db: any): db is Firestore {
-  const isValid = !!db && typeof db === 'object' && (db.type === 'firestore' || !!db._databaseId || !!db.firestore);
-  if (!isValid) {
-    console.error("[Firestore Safe] Erro: Tentativa de uso do Firestore com instância inválida.", db);
+function getValidDb(providedDb?: Firestore | null): Firestore {
+  // Se o db passado for válido, usa ele, senão usa o singleton garantido
+  if (providedDb && (providedDb as any).type === 'firestore') {
+    return providedDb;
   }
-  return isValid;
+  return singletonDb;
 }
 
 export function safeCollection(db: Firestore | null, path: string): CollectionReference<DocumentData> {
-  if (!validateFirestore(db)) {
-    const error = new Error(`Falha crítica: collection() recebeu instância inválida para o caminho "${path}"`);
-    throw error;
-  }
-  return collection(db, path);
+  const validDb = getValidDb(db);
+  return collection(validDb, path);
 }
 
 export function safeDoc(db: Firestore | null, path: string, ...pathSegments: string[]): DocumentReference<DocumentData> {
-  if (!validateFirestore(db)) {
-    const error = new Error(`Falha crítica: doc() recebeu instância inválida para o caminho "${path}"`);
-    throw error;
-  }
-  return doc(db, path, ...pathSegments);
+  const validDb = getValidDb(db);
+  return doc(validDb, path, ...pathSegments);
 }
 
-// Helpers para operações comuns com tratamento de erro
 export async function safeAddDoc(db: Firestore | null, path: string, data: any) {
   const coll = safeCollection(db, path);
   return addDoc(coll, data);

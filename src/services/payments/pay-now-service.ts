@@ -7,10 +7,11 @@ import { generateUniqueTicketCode } from "@/lib/ticket-utils";
 import { calculateFinancialBreakdown } from "@/lib/financial-utils";
 import { sendTicketEmail } from "@/app/actions/email";
 import { CartItem } from "@/contexts/CartContext";
+import { db as staticDb } from "@/firebase/database";
 
 /**
- * @fileOverview PayNowService - O núcleo de processamento de pagamentos da Viby.
- * Orquestra a criação de pedidos, reserva de saldo e integração com o Stripe.
+ * @fileOverview PayNowService - Processamento central de pagamentos.
+ * Refatorado para garantir o uso de instâncias válidas de banco de dados.
  */
 
 export interface CheckoutOptions {
@@ -32,10 +33,15 @@ export interface CheckoutOptions {
   onError?: (error: any) => void;
 }
 
-export async function processPayNow(db: Firestore, options: CheckoutOptions) {
+export async function processPayNow(db: Firestore | null, options: CheckoutOptions) {
   const { user, profile, items, totals, globalFees, promotions, orgsData } = options;
+  
+  // Garante uma instância de banco de dados mesmo que o contexto falhe
+  const firestore = db || staticDb;
 
-  if (!user || !db) throw new Error("Usuário ou banco de dados não disponível.");
+  if (!user || !firestore) {
+    throw new Error("Sistema de autenticação ou banco de dados indisponível.");
+  }
 
   const isFullBalanceOrder = totals.total <= 0 && totals.balanceUsed > 0;
   const isFreeOrder = totals.total <= 0 && totals.balanceUsed === 0;
@@ -43,11 +49,11 @@ export async function processPayNow(db: Firestore, options: CheckoutOptions) {
   const registrationIds: string[] = [];
   const lineItems: any[] = [];
 
-  // 1. Processar Saldo da Carteira se necessário
+  // 1. Processar Saldo da Carteira (Se aplicável)
   if (isFullBalanceOrder) {
-    await runTransaction(db, async (transaction) => {
-      const walletRef = safeDoc(db, "wallets", user.uid);
-      const userRef = safeDoc(db, "users", user.uid);
+    await runTransaction(firestore, async (transaction) => {
+      const walletRef = safeDoc(firestore, "wallets", user.uid);
+      const userRef = safeDoc(firestore, "users", user.uid);
       const wSnap = await transaction.get(walletRef);
       
       if (!wSnap.exists() || (wSnap.data().balance || 0) < totals.balanceUsed) {
@@ -64,24 +70,24 @@ export async function processPayNow(db: Firestore, options: CheckoutOptions) {
         updatedAt: serverTimestamp() 
       });
 
-      const txRef = safeDoc(safeCollection(db, "wallet_transactions"), crypto.randomUUID());
+      const txRef = safeDoc(firestore, "wallet_transactions", crypto.randomUUID());
       transaction.set(txRef, { 
         userId: user.uid, 
         amount: totals.balanceUsed, 
         type: 'debit', 
         reason: 'compra_ingresso', 
-        description: `Compra Integral com Saldo`, 
+        description: `Compra com Saldo: ${items.length > 1 ? 'Múltiplos itens' : items[0].eventTitle}`, 
         timestamp: serverTimestamp() 
       });
     });
   }
 
-  // 2. Criar Registros e Preparar Stripe
+  // 2. Criar Registros e Preparar Checkout
   for (const item of items) {
     const breakdown = calculateFinancialBreakdown(item.price, globalFees, promotions, orgsData[item.organizationId]);
 
     for (let i = 0; i < item.quantity; i++) {
-      const ticketCode = await generateUniqueTicketCode(db);
+      const ticketCode = await generateUniqueTicketCode(firestore);
       
       const regData = {
         ...item,
@@ -101,17 +107,17 @@ export async function processPayNow(db: Firestore, options: CheckoutOptions) {
         timestamp: serverTimestamp()
       };
 
-      // Usando wrapper seguro para evitar crash
-      const regRef = await addDoc(safeCollection(db, "registrations"), regData);
+      const regRef = await addDoc(safeCollection(firestore, "registrations"), regData);
       registrationIds.push(regRef.id);
       
       if (isFreeOrder || isFullBalanceOrder) {
+        const d = item.eventDate?.toDate ? item.eventDate.toDate() : new Date(item.eventDate);
         await sendTicketEmail({ 
           to: user.email!, 
           userName: profile?.name || user.displayName || "Participante", 
           eventTitle: item.eventTitle, 
           ticketCode, 
-          eventDate: item.eventDate, 
+          eventDate: d.toLocaleString('pt-BR'), 
           eventCity: item.eventCity, 
           voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher` 
         });
@@ -133,27 +139,27 @@ export async function processPayNow(db: Firestore, options: CheckoutOptions) {
     }
   }
 
-  // 3. Finalizar Fluxo
   if (isFreeOrder || isFullBalanceOrder) {
     return { type: 'internal', registrationIds };
-  } else {
-    const result = await createCheckoutSession({
-      eventTitle: items.length > 1 ? "Múltiplos Ingressos" : items[0].eventTitle,
-      totalAmount: Math.round(totals.total * 100),
-      userEmail: user.email!,
-      lineItems: totals.balanceUsed > 0 ? undefined : lineItems,
-      metadata: { 
-        type: "cart_checkout", 
-        registrationIds: registrationIds.join(","), 
-        userId: user.uid, 
-        balanceUsed: totals.balanceUsed.toString() 
-      }
-    });
+  }
 
-    if (result.url) {
-      return { type: 'stripe', url: result.url };
-    } else {
-      throw new Error(result.error || "Erro ao gerar link de pagamento.");
+  // 3. Checkout Stripe
+  const stripeResult = await createCheckoutSession({
+    eventTitle: items.length > 1 ? "Múltiplos Ingressos" : items[0].eventTitle,
+    totalAmount: Math.round(totals.total * 100),
+    userEmail: user.email!,
+    lineItems: totals.balanceUsed > 0 ? undefined : lineItems,
+    metadata: { 
+      type: "cart_checkout", 
+      registrationIds: registrationIds.join(","), 
+      userId: user.uid, 
+      balanceUsed: totals.balanceUsed.toString() 
     }
+  });
+
+  if (stripeResult.url) {
+    return { type: 'stripe', url: stripeResult.url };
+  } else {
+    throw new Error(stripeResult.error || "Falha ao gerar link de pagamento.");
   }
 }

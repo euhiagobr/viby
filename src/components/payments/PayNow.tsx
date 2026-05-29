@@ -3,9 +3,9 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { CreditCard, Loader2 } from "lucide-react"
-import { useAuth, useUser, useFirestore } from "@/firebase"
+import { useAuth, useUser, useFirestore, db as singletonDb } from "@/firebase"
 import { useErrorManager } from "@/components/error-manager/ErrorManagerProvider"
-import { processPayNow, CheckoutOptions } from "@/services/payments/pay-now-service"
+import { processPayNow } from "@/services/payments/pay-now-service"
 import { useRouter } from "next/navigation"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -24,8 +24,7 @@ interface PayNowProps {
 }
 
 /**
- * @fileOverview PayNow Component - O botão inteligente de pagamentos da Viby.
- * Encapsula toda a complexidade do processamento de checkout.
+ * @fileOverview PayNow Component - O botão de pagamento com proteção contra instâncias nulas.
  */
 export function PayNow({ 
   items, 
@@ -40,11 +39,13 @@ export function PayNow({
   disabled
 }: PayNowProps) {
   const [loading, setLoading] = React.useState(false)
-  const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
   const { reportError } = useErrorManager()
   const router = useRouter()
+  
+  // Obtém o DB do contexto, mas o PayNowService usará o singleton como fallback
+  const hookDb = useFirestore()
 
   const handlePay = async () => {
     if (!user) {
@@ -52,11 +53,12 @@ export function PayNow({
       return
     }
 
-    if (!db || items.length === 0 || loading) return
+    if (items.length === 0 || loading) return
 
     setLoading(true)
     try {
-      const result = await processPayNow(db, {
+      // Passa o hookDb (pode ser null) e o service lida com o fallback estável
+      const result = await processPayNow(hookDb, {
         user,
         profile,
         items,
@@ -69,18 +71,19 @@ export function PayNow({
 
       if (result.type === 'internal') {
         onSuccess()
-        toast({ title: "Inscrição concluída!", description: "Seus ingressos já estão disponíveis." })
+        toast({ title: "Confirmado!", description: "Sua reserva foi concluída com sucesso." })
         router.push("/dashboard/ingressos")
       } else if (result.type === 'stripe' && result.url) {
         window.open(result.url, '_blank')
-        toast({ title: "Aguardando pagamento", description: "Conclua a operação na nova aba." })
+        toast({ title: "Pagamento Iniciado", description: "Conclua a transação na página do Stripe." })
       }
     } catch (e: any) {
+      console.error("[PayNow Error]", e);
       reportError({ 
         error: e, 
-        type: 'pay_now_failure', 
+        type: 'checkout_process_failure', 
         severity: 'error', 
-        metadata: { itemsCount: items.length, total: totals.total } 
+        metadata: { items: items.length, amount: totals.total } 
       })
     } finally {
       setLoading(false)
