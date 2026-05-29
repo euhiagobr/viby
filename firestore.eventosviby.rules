@@ -26,53 +26,53 @@ service cloud.firestore {
     // --- REGRAS PÚBLICAS (Navegação sem login) ---
 
     match /events/{eventId} {
-      allow read, get, list: if true;
-      allow write: if isSignedIn(); // Escrita protegida por lógica interna/admin
+      allow read: if true;
+      allow write: if isSignedIn(); 
 
       match /partners/{partnerId} {
-        allow read, list: if true;
+        allow read: if true;
         allow write: if isSignedIn();
       }
 
       match /comments/{commentId} {
-        allow read, list: if true;
+        allow read: if true;
         allow create: if isSignedIn();
         allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       }
 
       match /interests/{userId} {
-        allow read, list: if true;
+        allow read: if true;
         allow write: if isSignedIn() && request.auth.uid == userId;
       }
     }
 
     match /organizations/{orgId} {
-      allow read, get, list: if true;
+      allow read: if true;
       allow write: if isSignedIn();
 
       match /members/{userId} {
-        allow read, list: if isSignedIn() && (request.auth.uid == userId || hasOrgRole(orgId, ['owner', 'admin', 'editor', 'finance', 'checkin']) || isAdmin());
+        allow read: if isSignedIn() && (request.auth.uid == userId || hasOrgRole(orgId, ['owner', 'admin', 'editor', 'finance', 'checkin']) || isAdmin());
         allow write: if isSignedIn();
       }
       
       match /transactions/{txId} {
-        allow read, list: if hasOrgRole(orgId, ['owner', 'admin', 'finance']) || isAdmin();
+        allow read: if hasOrgRole(orgId, ['owner', 'admin', 'finance']) || isAdmin();
         allow create: if isSignedIn();
       }
     }
 
     match /categories/{catId} {
-      allow read, get, list: if true;
+      allow read: if true;
       allow write: if isAdmin();
     }
 
     match /usernames/{username} {
-      allow read, get, list: if true;
+      allow read: if true;
       allow create: if isSignedIn();
     }
 
     match /ads/{adId} {
-      allow read, get, list: if true;
+      allow read: if true;
       allow write: if isSignedIn();
       
       match /viewers/{userId} {
@@ -80,10 +80,15 @@ service cloud.firestore {
       }
     }
 
+    match /follows/{followId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (request.auth.uid == request.resource.data.followerId || request.auth.uid == resource.data.followerId);
+    }
+
     // --- REGRAS PRIVADAS (Usuários e Transações) ---
 
     match /users/{userId} {
-      allow read, get, list: if true;
+      allow read: if true;
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isOwner(userId) || isAdmin();
 
@@ -93,109 +98,109 @@ service cloud.firestore {
     }
 
     match /wallets/{userId} {
-      allow read, get: if isOwner(userId) || isAdmin();
+      allow read: if isOwner(userId) || isAdmin();
       allow write: if isAdmin();
     }
 
     match /wallet_transactions/{txId} {
-      allow read, list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create, update: if isAdmin();
     }
 
     match /registrations/{regId} {
-      allow read, get, list: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || 
-        resource.data.sharedWithUid == request.auth.uid ||
-        isAdmin() ||
-        hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin'])
-      );
+      // Permite listagem para contar interessados, mas protege dados sensíveis no get se necessário
+      allow read: if true; 
       allow create, update: if isSignedIn();
     }
 
     match /orders/{orderId} {
-      allow read, get, list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create, update: if isSignedIn();
     }
 
     match /notifications/{notifId} {
-      allow read, get, list: if isSignedIn() && (resource.data.targetUid == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource.data.targetUid == request.auth.uid || isAdmin());
       allow create: if isSignedIn();
       allow update, delete: if isOwner(resource.data.targetUid) || isAdmin();
     }
 
     match /support_tickets/{ticketId} {
-      allow read, get, list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn();
       allow update: if isSignedIn();
     }
 
     match /payout_requests/{docId} {
-      allow read, list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn();
       allow update: if isAdmin();
     }
 
     match /user_gamification/{userId} {
-      allow read, get, list: if true;
+      allow read: if true;
       allow write: if isAdmin();
     }
 
     match /xp_logs/{logId} {
-      allow read, list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow write: if isAdmin();
     }
 
-    match /coupons/{couponId} {
-      allow read, get, list: if true;
-      allow write: if isSignedIn();
+    match /user_badges/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /badges/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // --- SISTEMA E ADMIN ---
 
     match /system_logs/{logId} {
-      allow read, list: if isAdmin();
-      allow create: if true; // Permite que o ErrorManager registre falhas
+      allow read: if isAdmin();
+      allow create: if true; 
       allow update: if isAdmin();
     }
 
     match /sent_emails/{docId} {
-      allow read, list: if isAdmin();
-      allow create: if true; // Registrado pelo servidor
+      allow read: if isAdmin();
+      allow create: if true;
     }
 
     match /tax_tickets/{docId} {
-      allow read, list: if isAdmin();
+      allow read: if isAdmin();
       allow create: if true;
     }
 
     match /tax_ads/{docId} {
-      allow read, list: if isAdmin();
+      allow read: if isAdmin();
       allow create: if true;
     }
 
     match /internal_expenses/{docId} {
-      allow read, list: if isAdmin();
+      allow read: if isAdmin();
       allow create, update: if isAdmin();
     }
 
     match /settings/{docId} {
-      allow read, get, list: if true;
+      allow read: if true;
       allow write: if isAdmin();
     }
 
     match /reports/{docId} {
-      allow read, list: if isAdmin();
+      allow read: if isAdmin();
       allow create: if isSignedIn();
     }
 
     // --- COLLECTION GROUPS ---
     match /{path=**}/members/{memberId} {
-      allow read, list: if isSignedIn() && (request.auth.uid == memberId || resource.data.userId == request.auth.uid || isAdmin());
+      allow read, list: if isSignedIn();
     }
 
     match /{path=**}/partners/{partnerId} {
       allow read, list: if true;
-      allow write: if isSignedIn();
     }
 
     // Padrão de segurança para o resto

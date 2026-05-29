@@ -53,22 +53,28 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
 
         if (serverError.code === 'permission-denied') {
           // Extração ultra-robusta do caminho da coleção para o ErrorManager
-          let path = 'unknown_collection';
+          let path = 'collection_query';
           try {
             const q = query as any;
             
-            // Tentativas de extração via SDK v11 Internals
+            // Tentativa 1: Modular SDK structure (v9/v11)
             if (q._query?.path?.segments) {
               path = q._query.path.segments.join('/');
-            } else if (q.query?.path?.segments) {
+            } 
+            // Tentativa 2: Outra estrutura comum do SDK
+            else if (q.query?.path?.segments) {
               path = q.query.path.segments.join('/');
-            } else if (q.path) {
+            }
+            // Tentativa 3: Caminho direto se disponível
+            else if (q.path) {
               path = q.path;
-            } else if (typeof q.toString === 'function') {
+            }
+            // Tentativa 4: String representation
+            else if (typeof q.toString === 'function') {
               const qStr = q.toString();
-              if (qStr.includes('Query(')) {
-                path = qStr.split('Query(')[1].split(')')[0];
-              }
+              // Extrai o nome da coleção de strings como "Query(users/123/items)"
+              const match = qStr.match(/Query\((.*?)\)/);
+              if (match) path = match[1];
             }
           } catch (e) {
             console.warn("[Path Extraction Failed]", e);
