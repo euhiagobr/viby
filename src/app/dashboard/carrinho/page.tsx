@@ -2,79 +2,52 @@
 
 import * as React from "react"
 import { useCart } from "@/contexts/CartContext"
-import { useAuth, useUser, useFirestore, db as singletonDB } from "@/firebase"
-import { useRouter } from "next/navigation"
+import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
+import { doc, getDoc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { 
   ShoppingCart, 
   Trash2, 
   Plus, 
   Minus, 
-  ArrowLeft, 
   Loader2,
-  RefreshCw,
-  TicketPercent,
-  X,
-  Wallet,
-  ShieldAlert
+  ShieldAlert,
+  Wallet
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { formatCurrency, calculateFinancialBreakdown } from "@/lib/financial-utils"
-import { toast } from "@/hooks/use-toast"
-import { query, where, getDocs, limit, getDoc } from "firebase/firestore"
-import { useErrorManager } from "@/components/error-manager/ErrorManagerProvider"
-import { safeCollection, safeDoc } from "@/lib/firestore-safe"
-import { useDoc } from "@/firebase"
-import { PayNow } from "@/components/payments/PayNow"
+import { PayButton } from "@/components/payments/PayButton"
 
 export default function CarrinhoPage() {
   const { items, removeItem, updateQuantity, clearCart } = useCart()
-  const router = useRouter()
+  const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
-  const { reportError } = useErrorManager()
   
-  const hookDb = useFirestore()
-  const db = hookDb || singletonDB
-  
-  const [isWaitingPayment, setIsWaitingPayment] = React.useState(false)
-  const [couponCode, setCouponCode] = React.useState("")
-  const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null)
-  const [isApplyingCoupon, setIsApplyingCoupon] = React.useState(false)
   const [useBalance, setUseBalance] = React.useState(false)
-
   const [orgsData, setOrgsData] = React.useState<Record<string, any>>({})
   const [loadingConfig, setLoadingConfig] = React.useState(true)
 
-  const userDocRef = React.useMemo(() => (db && user) ? safeDoc(db, "users", user.uid) : null, [db, user])
-  const { data: profile } = useDoc<any>(userDocRef)
-
-  const walletRef = React.useMemo(() => (db && user) ? safeDoc(db, "wallets", user.uid) : null, [db, user])
-  const { data: wallet } = useDoc<any>(walletRef)
-
-  const feesRef = React.useMemo(() => db ? safeDoc(db, 'settings', 'fees') : null, [db])
-  const { data: globalFees } = useDoc<any>(feesRef)
-
-  const promosRef = React.useMemo(() => db ? safeDoc(db, 'settings', 'promotions') : null, [db])
-  const { data: promotions } = useDoc<any>(promosRef)
+  const { data: profile } = useDoc<any>(React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user]))
+  const { data: wallet } = useDoc<any>(React.useMemo(() => (db && user) ? doc(db, "wallets", user.uid) : null, [db, user]))
+  const { data: globalFees } = useDoc<any>(React.useMemo(() => db ? doc(db, 'settings', 'fees') : null, [db]))
+  const { data: promotions } = useDoc<any>(React.useMemo(() => db ? doc(db, 'settings', 'promotions') : null, [db]))
 
   React.useEffect(() => {
     if (!db || items.length === 0) {
       setLoadingConfig(false)
       return
     }
-
     const fetchData = async () => {
       const orgIds = Array.from(new Set(items.map(i => i.organizationId)))
       const results: Record<string, any> = {}
       for (const id of orgIds) {
-        const snap = await getDoc(safeDoc(db, "organizations", id))
+        const snap = await getDoc(doc(db, "organizations", id))
         if (snap.exists()) results[id] = snap.data()
       }
       setOrgsData(results)
@@ -84,59 +57,21 @@ export default function CarrinhoPage() {
   }, [db, items])
 
   const walletBalance = wallet?.balance || 0
-  const hasRestrictedEvents = items.some(item => (item as any).ageRating && (item as any).ageRating !== 'free');
+  const hasRestrictedEvents = items.some(item => (item as any).ageRating && (item as any).ageRating !== 'free')
 
   const cartTotals = React.useMemo(() => {
-    let subtotal = 0;
-    let discount = 0;
-    let fees = 0;
-
-    items.forEach(item => { subtotal += item.price * item.quantity; });
-
-    if (appliedCoupon && items.length > 0) {
-      const validItems = items.filter(i => i.eventId === appliedCoupon.eventId);
-      if (validItems.length > 0) {
-        const eventSubtotal = validItems.reduce((acc, i) => acc + (i.price * i.quantity), 0);
-        if (appliedCoupon.discountType === 'percentage') discount = eventSubtotal * (appliedCoupon.discountValue / 100);
-        else if (appliedCoupon.discountType === 'fixed') discount = Math.min(appliedCoupon.discountValue, eventSubtotal);
-        else if (appliedCoupon.discountType === 'free_ticket') discount = Math.min(...validItems.map(i => i.price));
-      }
-    }
-
-    const totalQtyEligible = items.reduce((acc, i) => acc + (appliedCoupon && i.eventId === appliedCoupon.eventId ? i.quantity : 0), 0);
-    const discountPerUnit = totalQtyEligible > 0 ? (discount / totalQtyEligible) : 0;
-
-    items.forEach(item => {
-      const isEligible = appliedCoupon && item.eventId === appliedCoupon.eventId;
-      const discountedUnitPrice = Math.max(0, item.price - (isEligible ? discountPerUnit : 0));
-      const res = calculateFinancialBreakdown(discountedUnitPrice, globalFees, promotions, orgsData[item.organizationId]);
+    let subtotal = 0; let fees = 0;
+    items.forEach(item => { 
+      subtotal += item.price * item.quantity;
+      const res = calculateFinancialBreakdown(item.price, globalFees, promotions, orgsData[item.organizationId]);
       fees += res.administrativeFeeAmount * item.quantity;
     });
-
-    const totalBeforeBalance = Number(((subtotal - discount) + fees).toFixed(2));
+    const totalBeforeBalance = Number((subtotal + fees).toFixed(2));
     const balanceUsed = useBalance ? Math.min(walletBalance, totalBeforeBalance) : 0;
-    const finalTotal = Number((totalBeforeBalance - balanceUsed).toFixed(2));
+    return { subtotal, fees, balanceUsed, total: Number((totalBeforeBalance - balanceUsed).toFixed(2)) };
+  }, [items, globalFees, promotions, orgsData, useBalance, walletBalance]);
 
-    return { subtotal, fees, discount, balanceUsed, total: finalTotal };
-  }, [items, appliedCoupon, globalFees, promotions, orgsData, useBalance, walletBalance]);
-
-  const handleApplyCoupon = async () => {
-    if (!db || !couponCode.trim()) return;
-    setIsApplyingCoupon(true);
-    try {
-      const q = query(safeCollection(db, "coupons"), where("code", "==", couponCode.trim().toUpperCase()), where("status", "==", "Ativo"), limit(1));
-      const snap = await getDocs(q);
-      if (snap.empty) { toast({ variant: "destructive", title: "Cupom inválido" }); setAppliedCoupon(null); return; }
-      const couponData = { id: snap.docs[0].id, ...snap.docs[0].data() };
-      if (couponData.validUntil && new Date(couponData.validUntil) < new Date()) { toast({ variant: "destructive", title: "Cupom expirado" }); return; }
-      if (!items.some(item => item.eventId === couponData.eventId)) { toast({ variant: "destructive", title: "Evento não correspondente" }); return; }
-      setAppliedCoupon(couponData); toast({ title: "Cupom aplicado!" });
-    } catch (e) { 
-      reportError({ error: e, type: 'coupon_apply_error', severity: 'warning' });
-    } finally { setIsApplyingCoupon(false); }
-  }
-
-  if (items.length === 0 && !isWaitingPayment) {
+  if (items.length === 0) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center space-y-6">
         <ShoppingCart className="w-16 h-16 text-muted-foreground opacity-20" />
@@ -204,41 +139,21 @@ export default function CarrinhoPage() {
                  <div className="space-y-4">
                     <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Subtotal</span><span>{formatCurrency(cartTotals.subtotal)}</span></div>
                     <div className="flex justify-between text-xs font-bold uppercase opacity-60"><span>Taxas Adm.</span><span>{formatCurrency(cartTotals.fees)}</span></div>
-                    {cartTotals.discount > 0 && <div className="flex justify-between text-xs font-black uppercase text-green-600"><span>Desconto</span><span>-{formatCurrency(cartTotals.discount)}</span></div>}
                     {cartTotals.balanceUsed > 0 && <div className="flex justify-between text-xs font-black uppercase text-secondary"><span>Abatimento Saldo</span><span>-{formatCurrency(cartTotals.balanceUsed)}</span></div>}
                     <Separator />
                     <div className="flex justify-between items-center"><span className="text-lg font-black uppercase italic">Total</span><span className="text-2xl font-black text-primary">{formatCurrency(cartTotals.total)}</span></div>
                  </div>
-                 <div className="space-y-3">
-                   <div className="flex gap-2">
-                     <Input 
-                       placeholder="CUPOM" 
-                       value={couponCode} 
-                       onChange={e => setCouponCode(e.target.value.toUpperCase())}
-                       className="rounded-xl h-11 border-dashed font-black"
-                     />
-                     <Button variant="secondary" onClick={handleApplyCoupon} disabled={isApplyingCoupon} className="h-11 rounded-xl px-4">
-                       {isApplyingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : <TicketPercent className="w-4 h-4" />}
-                     </Button>
-                   </div>
-                   {appliedCoupon && (
-                     <Badge className="w-full bg-green-500 text-white justify-between px-3 h-8 rounded-lg border-none uppercase font-black text-[9px]">
-                        <span>CUPOM: {appliedCoupon.code}</span>
-                        <X className="w-3 h-3 cursor-pointer" onClick={() => setAppliedCoupon(null)} />
-                     </Badge>
-                   )}
-                 </div>
                  
-                 <PayNow 
-                   items={items}
-                   totals={cartTotals}
-                   profile={profile}
-                   orgsData={orgsData}
-                   globalFees={globalFees}
-                   promotions={promotions}
-                   useBalance={useBalance}
-                   onSuccess={() => clearCart()}
-                   disabled={loadingConfig}
+                 <PayButton 
+                    items={items}
+                    totals={cartTotals}
+                    profile={profile}
+                    orgsData={orgsData}
+                    globalFees={globalFees}
+                    promotions={promotions}
+                    useBalance={useBalance}
+                    onSuccess={clearCart}
+                    disabled={loadingConfig}
                  />
               </CardContent>
            </Card>
