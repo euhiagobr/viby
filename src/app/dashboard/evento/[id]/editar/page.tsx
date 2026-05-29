@@ -3,41 +3,26 @@
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
-import { useDoc, useFirestore, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
-import { 
-  updateDoc, 
-  doc, 
-  collection, 
-  serverTimestamp, 
-  query, 
-  orderBy
-} from "firebase/firestore"
+import { useDoc, useFirestore, useAuth, useUser, useFirebaseApp } from "@/firebase"
+import { updateDoc, doc, serverTimestamp } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
-import { 
-  Loader2, 
-  ArrowLeft, 
-  Upload, 
-  Calendar, 
-  ImageIcon,
-  Save,
-  MapPin,
-  X
-} from "lucide-react"
+import { Loader2, ArrowLeft, Save } from "lucide-react"
 import Link from "next/link"
-import { normalizeText, isValidUrl } from "@/lib/utils"
+import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
-import { getAgeRatingConfig } from "@/lib/age-rating"
-import { EVENT_TYPES } from "@/lib/constants"
-import { BilheteriaAdmin, type BilheteriaMode } from "@/components/events/Bilheteria"
+import { 
+  EventHeader, 
+  EventType, 
+  EventDateTime, 
+  EventDescription, 
+  EventLocation, 
+  EventTags, 
+  EventVisibility,
+  BilheteriaAdmin
+} from "@/components/events"
 
 export default function EditarEventoPage() {
   const params = useParams()
@@ -47,283 +32,143 @@ export default function EditarEventoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const app = useFirebaseApp()
-  const { currentOrg, userRole } = useCurrentOrganization()
+  const { currentOrg } = useCurrentOrganization()
+  const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
 
   const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
 
-  const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
-  
-  const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
-  const { data: categories } = useCollection<any>(categoriesQuery)
-
   const [loading, setLoading] = useState(false)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
-  const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   
-  const [selectedCategory, setSelectedCategory] = useState("")
-  const [selectedAgeRating, setSelectedAgeRating] = useState("free")
-  
-  const [eventType, setEventType] = useState("interno")
-  const [externalUrl, setExternalUrl] = useState("")
-  const [tags, setTags] = useState<string[]>([])
-  const [tagInput, setTagInput] = useState("")
-
-  const [ticketMode, setTicketMode] = useState<BilheteriaMode>('none')
-  const [mapMode, setMapMode] = useState<'none' | 'setores' | 'assentos' | 'mesas'>('none')
-  
-  const [description, setDescription] = useState("")
-  const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" })
-
+  const [formData, setFormData] = useState<any>(null)
+  const [ticketMode, setTicketMode] = useState<any>('free')
   const [batches, setBatches] = useState<any[]>([])
-  const [totalCapacity, setTotalCapacity] = useState<number>(100)
+  const [totalCapacity, setTotalCapacity] = useState(100)
 
   useEffect(() => {
     if (event) {
-      setSelectedCategory(event.categoryId || "")
-      setSelectedAgeRating(event.ageRating?.code || "free")
-      setEventType(event.type || "interno")
-      setExternalUrl(event.externalUrl || "")
-      setTags(event.tags || [])
-      setTicketMode((event.ticketMode as BilheteriaMode) || 'none')
-      setMapMode(event.mapMode || 'none')
-      setImagePreview(event.image || null)
-      setDescription(event.description || "")
+      setFormData({
+        title: event.title || "",
+        image: event.image || "",
+        type: event.type || "interno",
+        externalUrl: event.externalUrl || "",
+        categoryId: event.categoryId || "",
+        startDate: event.date || "",
+        endDate: event.endDate || "",
+        description: event.description || "",
+        status: event.status || "Ativo",
+        tags: event.tags || [],
+        address: event.address || { street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" }
+      })
+      setTicketMode(event.ticketMode || 'free')
+      setBatches(event.batches || [])
       setTotalCapacity(event.capacidadeTotal || 100)
-      if (event.address) setAddress({ ...address, ...event.address })
-      if (event.batches) setBatches(event.batches)
     }
   }, [event])
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !storage || !user) return
-    setImagePreview(URL.createObjectURL(file))
+  const handleImageUpload = async (file: File) => {
+    if (!storage || !user) return
     setUploadProgress(0)
-    const storageRef = ref(storage, `events/${user.uid}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`)
+    const storageRef = ref(storage, `events/${user.uid}/${Date.now()}_${file.name}`)
     const uploadTask = uploadBytesResumable(storageRef, file)
-    uploadTask.on('state_changed', (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), () => setUploadProgress(null), async () => {
-      const url = await getDownloadURL(uploadTask.snapshot.ref)
-      setUploadedImageUrl(url); setUploadProgress(null)
-    })
-  }
-
-  const handleAddTag = () => {
-    const t = tagInput.trim().toLowerCase().replace(/#/g, "")
-    if (t && !tags.includes(t)) setTags([...tags, t]);
-    setTagInput("")
-  }
-
-  const handleCepBlur = async () => {
-    const cleanCep = address.cep.replace(/\D/g, "")
-    if (cleanCep.length !== 8) return
-    try {
-      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
-      const data = await response.json()
-      if (!data.erro) {
-        setAddress(prev => ({...prev, street: data.logradouro || "", neighborhood: data.bairro || "", city: data.localidade || "", state: data.uf || ""}))
+    uploadTask.on('state_changed', 
+      (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), 
+      () => setUploadProgress(null), 
+      async () => {
+        const url = await getDownloadURL(uploadTask.snapshot.ref)
+        setFormData((prev: any) => ({ ...prev, image: url }))
+        setUploadProgress(null)
       }
-    } catch (e) {}
+    )
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!db || !eventRef || !currentOrg) return
-    if (eventType === 'externo' && !isValidUrl(externalUrl)) {
-      toast({ variant: "destructive", title: "URL Inválida", description: "Informe um link completo (http:// ou https://)." })
-      return
-    }
 
     setLoading(true)
-    const formData = new FormData(e.currentTarget as HTMLFormElement)
     try {
       const searchKeywords = [
         ...normalizeText(currentOrg.name).split(" "),
-        ...normalizeText(currentOrg.username).split(" "),
-        ...tags.map(normalizeText)
+        ...normalizeText(formData.title).split(" ")
       ]
-      
-      const ageRatingConfig = getAgeRatingConfig(selectedAgeRating);
 
-      // Limpeza de campos batches para evitar undefined no Firestore
-      const sanitizedBatches = (eventType === 'interno' ? batches : []).map(b => ({
-        ...b,
-        startDate: b.startDate || "",
-        endDate: b.endDate || "",
-        ticketTypes: (b.ticketTypes || []).map((t: any) => ({
-          ...t,
-          poolId: t.poolId || null,
-          poolName: t.poolName || null,
-          description: t.description || "",
-          proofDescription: t.proofDescription || ""
-        }))
-      }))
-
-      const updateData: any = {
-        title: formData.get("title") as string || "",
-        description: description || "",
-        date: formData.get("startDate") as string || "",
-        endDate: formData.get("endDate") as string || "",
-        categoryId: selectedCategory || "",
-        categoryName: categories?.find(c => c.id === selectedCategory)?.name || "Outros",
-        type: eventType,
-        externalUrl: eventType === 'externo' ? externalUrl : null,
-        tags: tags || [],
-        ageRating: { 
-          code: ageRatingConfig.code, 
-          label: ageRatingConfig.label, 
-          minimumAge: ageRatingConfig.minimumAge 
-        },
-        ticketMode: eventType === 'interno' ? ticketMode : 'none',
-        mapMode: mapMode || 'none',
-        possuiMapa: mapMode !== 'none',
-        capacidadeTotal: Number(totalCapacity) || 0,
-        batches: sanitizedBatches,
-        address: {
-          ...address,
-          complement: address.complement || "",
-          number: address.number || ""
-        }, 
-        image: uploadedImageUrl || event.image || "",
-        searchKeywords, 
+      const updateData = {
+        ...formData,
+        date: formData.startDate,
+        ticketMode: formData.type === 'interno' ? ticketMode : 'none',
+        capacidadeTotal: totalCapacity,
+        batches: formData.type === 'interno' ? batches : [],
+        searchKeywords,
         updatedAt: serverTimestamp()
       }
-
-      // Remover campos undefined que possam ter sobrado
-      Object.keys(updateData).forEach(key => {
-        if (updateData[key] === undefined) {
-          delete updateData[key];
-        }
-      });
 
       await updateDoc(eventRef, updateData)
       toast({ title: "Evento Atualizado!" })
       router.push("/dashboard/organizacoes")
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro ao salvar", description: e.message })
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Erro ao salvar", description: error.message })
     } finally {
       setLoading(false)
     }
   }
 
-  if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>
+  if (eventLoading || !formData) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-20 text-foreground">
+    <div className="max-w-4xl mx-auto space-y-8 pb-20">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
           <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Editar Evento</h1>
         </div>
-        <Button onClick={() => document.getElementById('edit-form')?.dispatchEvent(new Event('submit', {cancelable: true, bubbles: true}))} disabled={loading} className="bg-primary text-white font-black rounded-full h-11 px-8 shadow-lg gap-2 uppercase italic">
+        <Button onClick={handleSubmit} disabled={loading} className="bg-primary text-white font-black rounded-full h-11 px-8 shadow-lg gap-2 uppercase italic">
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           Salvar Alterações
         </Button>
       </div>
 
-      <form id="edit-form" onSubmit={handleSubmit} className="space-y-8">
-        <Card className="overflow-hidden border-none shadow-sm rounded-[2rem]">
-          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5 text-secondary" /> Capa</CardTitle></CardHeader>
-          <CardContent className="px-6 pb-6">
-            <div className="relative aspect-video rounded-[1.5rem] bg-muted overflow-hidden cursor-pointer" onClick={() => document.getElementById('img-up')?.click()}>
-              {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" /> : <div className="flex flex-col items-center justify-center h-full opacity-20"><Upload className="w-10 h-10 mb-2" /></div>}
-              <input id="img-up" type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
-            </div>
-            {uploadProgress !== null && <Progress value={uploadProgress} className="h-1 mt-4" />}
-          </CardContent>
-        </Card>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        <EventHeader 
+          title={formData.title} 
+          onTitleChange={v => setFormData({...formData, title: v})}
+          image={formData.image}
+          onImageUpload={handleImageUpload}
+          uploadProgress={uploadProgress}
+        />
 
         <Card className="border-none shadow-sm rounded-[2.5rem]">
-          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Calendar className="w-5 h-5 text-secondary" /> Configuração</CardTitle></CardHeader>
-          <CardContent className="space-y-6">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                   <Label className="text-[10px] font-black uppercase opacity-60">Tipo de Evento</Label>
-                   <Select value={eventType} onValueChange={setEventType}>
-                      <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                         {EVENT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                      </SelectContent>
-                   </Select>
-                </div>
-                <div className="space-y-2">
-                   <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
-                   <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                         {categories?.map((c: any) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
-                      </SelectContent>
-                   </Select>
-                </div>
-             </div>
+           <CardContent className="p-8 space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                 <EventType 
+                   value={formData.type} 
+                   onChange={v => setFormData({...formData, type: v})}
+                   externalUrl={formData.externalUrl}
+                   onExternalUrlChange={v => setFormData({...formData, externalUrl: v})}
+                 />
+                 <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
+              </div>
+              
+              <EventDateTime 
+                startDate={formData.startDate} 
+                endDate={formData.endDate}
+                onStartDateChange={v => setFormData({...formData, startDate: v})}
+                onEndDateChange={v => setFormData({...formData, endDate: v})}
+              />
 
-             {eventType === 'externo' && (
-               <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-secondary">Link para Compra Externa</Label>
-                  <Input value={externalUrl} onChange={e => setExternalUrl(e.target.value)} placeholder="https://exemplo.com/ingressos" className="rounded-xl h-11" />
-               </div>
-             )}
-
-             <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase opacity-60">Tags / Palavras-chave</Label>
-                <div className="flex gap-2">
-                   <Input value={tagInput} onChange={e => setTagInput(e.target.value)} placeholder="Adicionar tag" className="rounded-xl h-11" onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddTag())} />
-                   <Button type="button" onClick={handleAddTag} variant="outline" className="h-11 rounded-xl">Add</Button>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-2">
-                   {tags.map(t => <Badge key={t} className="bg-primary/5 text-primary border-primary/10 gap-1 px-3 py-1">#{t} <X className="w-3 h-3 cursor-pointer" onClick={() => setTags(tags.filter(item => item !== t))} /></Badge>)}
-                </div>
-             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm rounded-[2.5rem]">
-          <CardHeader><CardTitle className="text-lg">Informações Gerais</CardTitle></CardHeader>
-          <CardContent className="space-y-6">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2"><Label>Título</Label><Input name="title" defaultValue={event?.title} required className="rounded-xl h-11" /></div>
-                <div className="space-y-2">
-                   <Label>Classificação</Label>
-                   <Select value={selectedAgeRating} onValueChange={setSelectedAgeRating}>
-                      <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                         <SelectItem value="free">Livre</SelectItem>
-                         <SelectItem value="10">10 Anos</SelectItem>
-                         <SelectItem value="12">12 Anos</SelectItem>
-                         <SelectItem value="14">14 Anos</SelectItem>
-                         <SelectItem value="16">16 Anos</SelectItem>
-                         <SelectItem value="not_recommended_18">18 Anos (Não recomendado)</SelectItem>
-                         <SelectItem value="adults_only_18">Proibido -18</SelectItem>
-                      </SelectContent>
-                   </Select>
-                </div>
-             </div>
-             <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-2"><Label>Início</Label><Input name="startDate" type="datetime-local" defaultValue={event?.date} required className="rounded-xl h-11 text-xs" /></div>
-                <div className="space-y-2"><Label>Fim</Label><Input name="endDate" type="datetime-local" defaultValue={event?.endDate} required className="rounded-xl h-11 text-xs" /></div>
-             </div>
-             <div className="space-y-2"><Label>Descrição</Label><Textarea value={description} onChange={e => setDescription(e.target.value)} required className="min-h-[120px] rounded-xl border-dashed" /></div>
-          </CardContent>
+              <EventDescription value={formData.description} onChange={v => setFormData({...formData, description: v})} />
+              <EventTags tags={formData.tags} onChange={v => setFormData({...formData, tags: v})} />
+           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2rem]">
-          <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Localização</CardTitle></CardHeader>
-          <CardContent className="space-y-6">
-             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="space-y-2"><Label>CEP</Label><Input value={address.cep} onChange={e => setAddress({...address, cep: e.target.value})} onBlur={handleCepBlur} placeholder="00000-000" className="rounded-xl h-11" /></div>
-                <div className="md:col-span-3 space-y-2"><Label>Rua</Label><Input value={address.street} onChange={e => setAddress({...address, street: e.target.value})} required className="rounded-xl h-11" /></div>
-             </div>
-             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div className="space-y-2"><Label>Cidade</Label><Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
-                <div className="space-y-2"><Label>UF</Label><Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30 w-16" /></div>
-                <div className="space-y-2"><Label>Bairro</Label><Input value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} required className="rounded-xl h-11" /></div>
-                <div className="space-y-2"><Label>Número</Label><Input value={address.number} onChange={e => setAddress({...address, number: e.target.value})} required className="rounded-xl h-11" /></div>
-             </div>
+          <CardContent className="p-8">
+             <EventLocation address={formData.address} onChange={v => setFormData({...formData, address: v})} />
           </CardContent>
         </Card>
 
-        {eventType === 'interno' && (
+        {formData.type === 'interno' && (
           <BilheteriaAdmin 
             mode={ticketMode} 
             onModeChange={setTicketMode}

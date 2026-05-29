@@ -1,44 +1,30 @@
-
 'use client';
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  useDoc,
-  useFirestore,
-  useAuth,
-  useUser
-} from '@/firebase';
-import {
-  doc,
-  increment,
-  updateDoc
-} from 'firebase/firestore';
-import {
-  Loader2,
-  ArrowLeft,
-  Calendar,
-  MapPin,
-  Clock,
-  ExternalLink,
-  ShieldCheck,
-  Ticket,
-  BadgeCheck
-} from 'lucide-react';
+import { useDoc, useFirestore, useAuth, useUser } from '@/firebase';
+import { doc, increment, updateDoc } from 'firebase/firestore';
+import { Loader2, ArrowLeft, Calendar, MapPin, Clock, Ticket, BadgeCheck, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import Footer from '@/components/layout/Footer';
-import { AgeRatingBadge, AgeRatingWarning } from '@/lib/age-rating';
 import { UserNav } from '@/components/layout/UserNav';
-import { RichText } from '@/components/ui/rich-text';
-import { BilheteriaPublic } from '@/components/events/Bilheteria';
 import { useCart } from '@/contexts/CartContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { 
+  EventDescription, 
+  EventTags, 
+  EventDateTime, 
+  EventLocation, 
+  EventSEO, 
+  EventShare, 
+  EventStats, 
+  BilheteriaPublic 
+} from '@/components/events';
 
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
   const router = useRouter()
@@ -73,11 +59,12 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   if (eventLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-secondary" /></div>
   if (!event) return null
 
-  const eventStart = event.date?.toDate ? event.date.toDate() : new Date(event.date);
-  const isEnded = new Date(event.endDate || eventStart.getTime() + 4*60*60*1000) < new Date()
+  const isEnded = new Date(event.endDate || new Date(event.date).getTime() + 4*60*60*1000) < new Date()
 
   return (
     <div className="min-h-screen bg-background pb-32">
+      <EventSEO event={event} username={username} />
+      
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-2xl border-b border-border/40">
         <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
           <div className="flex items-center gap-6">
@@ -106,30 +93,23 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
           <div className="lg:col-span-8 space-y-12">
              <div className="space-y-6">
                 <div className="flex flex-wrap gap-2">
-                   <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white p-2 rounded-xl shadow-xl border" />
                    <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase tracking-widest px-4 rounded-full shadow-lg">{event.categoryName || 'Evento'}</Badge>
+                   <EventShare title={event.title} url={`/${username}/${id}`} />
                 </div>
                 <h1 className="text-5xl md:text-7xl font-black text-foreground tracking-tighter uppercase italic leading-[0.8] drop-shadow-2xl">{event.title}</h1>
-                <div className="flex flex-wrap items-center gap-6 text-muted-foreground font-black text-[10px] uppercase tracking-widest bg-white/10 backdrop-blur-md p-6 rounded-[2rem] w-fit shadow-2xl">
-                   <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-secondary" /> {eventStart.toLocaleDateString('pt-BR')}</div>
-                   <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-secondary" /> {eventStart.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
-                   <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-secondary" /> {event.city}</div>
-                </div>
+                <EventStats views={event.viewsCount || 0} interested={event.interestedCount || 0} going={event.goingCount || 0} shares={event.sharesCount || 0} />
              </div>
 
              <Card className="border-none shadow-sm rounded-[2rem] bg-white p-10">
                 <h3 className="text-xl font-black uppercase italic tracking-tighter mb-8 flex items-center gap-3 text-primary"><ShieldCheck className="w-5 h-5 text-secondary" /> Informações</h3>
-                <div className="text-lg md:text-xl font-medium text-foreground/80 leading-relaxed">
-                   <RichText content={event.description} />
-                   {event.tags && event.tags.length > 0 && (
-                     <div className="flex flex-wrap gap-2 mt-8">
-                       {event.tags.map((tag: string) => (
-                         <Badge key={tag} variant="secondary" className="bg-muted text-muted-foreground border-none font-bold text-[10px] uppercase">#{tag}</Badge>
-                       ))}
-                     </div>
-                   )}
+                <div className="space-y-8">
+                   <EventDescription value={event.description} isPublic />
+                   <EventTags tags={event.tags} isPublic />
                 </div>
              </Card>
+
+             <EventDateTime startDate={event.date} endDate={event.endDate} isPublic />
+             <EventLocation address={event.address} isPublic />
 
              {event.type === 'interno' && (
                <BilheteriaPublic 
@@ -148,16 +128,8 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                      <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Bilheteria Externa</h2>
                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">As vendas para este evento ocorrem em uma plataforma terceira.</p>
                      <Button className="w-full h-16 bg-primary text-white font-black rounded-2xl uppercase italic gap-2" asChild>
-                        <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar Ingressos <ExternalLink className="w-5 h-5" /></a>
+                        <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar Ingressos <ArrowRight className="w-5 h-5" /></a>
                      </Button>
-                  </Card>
-                )}
-
-                {event.type === 'divulgacao' && (
-                  <Card className="border-none shadow-xl rounded-[2.5rem] bg-white p-8 border-t-8 border-muted space-y-6">
-                     <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Evento Informativo</h2>
-                     <p className="text-sm font-medium text-muted-foreground leading-relaxed">Fique atento às atualizações do organizador para novos detalhes.</p>
-                     <Button variant="outline" className="w-full h-14 rounded-2xl font-black uppercase italic" onClick={() => toast({ title: "Interesse registrado!" })}>Marcar Interesse</Button>
                   </Card>
                 )}
 
@@ -177,8 +149,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                       </div>
                    </div>
                 </Card>
-
-                <AgeRatingWarning code={event.ageRating?.code} />
              </div>
           </aside>
         </div>
