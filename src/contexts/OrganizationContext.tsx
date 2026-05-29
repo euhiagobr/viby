@@ -122,7 +122,9 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             if (currentOrg) {
               const updatedActive = orgsData.find(o => o.id === currentOrg.id);
               if (updatedActive) {
-                setUserRole(updatedActive._memberData?.role || null);
+                const role = updatedActive._memberData?.role || null;
+                setUserRole(role);
+                if (role) localStorage.setItem('viby_user_role', role);
               }
             }
           }
@@ -152,8 +154,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     }
 
     const orgIds = organizations.map(o => o.id);
-    // Para protótipo, removemos filtros que exigem índices compostos em collectionGroups para evitar crashes
-    // Filtramos o status pendente em memória
     try {
       const partnersQuery = query(collectionGroup(db, 'partners'));
 
@@ -188,7 +188,9 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       if (found) {
         if (currentOrg?.id !== found.id) {
           setCurrentOrg(found);
-          setUserRole(found._memberData?.role || null);
+          const role = found._memberData?.role || null;
+          setUserRole(role);
+          if (role) localStorage.setItem('viby_user_role', role);
         }
       } else {
         const q = query(collection(db, 'organizations'), where('username', '==', usernameFromUrl), limit(1));
@@ -202,7 +204,9 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             if (memberSnap.exists() && (mData?.status === 'accepted' || !mData?.status)) {
               const orgData = { id: orgDoc.id, ...orgDoc.data(), _memberData: mData } as Organization;
               setCurrentOrg(orgData);
-              setUserRole(mData?.role || null);
+              const role = mData?.role || null;
+              setUserRole(role);
+              if (role) localStorage.setItem('viby_user_role', role);
             }
           }
         });
@@ -212,7 +216,9 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       const found = organizations.find(o => o.id === savedOrgId) || organizations[0];
       if (found && currentOrg?.id !== found.id) {
         setCurrentOrg(found);
-        setUserRole(found._memberData?.role || null);
+        const role = found._memberData?.role || null;
+        setUserRole(role);
+        if (role) localStorage.setItem('viby_user_role', role);
       }
     }
   }, [params?.username, organizations, db, user, loading, pathname]);
@@ -227,11 +233,15 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
   const handleSetCurrentOrg = (org: Organization | null) => {
     setCurrentOrg(org);
-    setUserRole(org?._memberData?.role || null);
+    const role = org?._memberData?.role || null;
+    setUserRole(role);
+    if (role) localStorage.setItem('viby_user_role', role);
+
     if (org) {
       localStorage.setItem('viby_current_org', org.id);
     } else {
       localStorage.removeItem('viby_current_org');
+      localStorage.removeItem('viby_user_role');
     }
   };
 

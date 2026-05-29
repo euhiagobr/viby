@@ -52,8 +52,16 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
         if (!isMounted.current) return;
 
         if (serverError.code === 'permission-denied') {
-          // Tentar extrair o caminho da coleção se possível para o log
-          const path = (query as any)._query?.path?.segments?.join('/') || 'collection_query';
+          // Extração robusta do caminho da coleção
+          let path = 'collection_query';
+          try {
+            const q = query as any;
+            if (q._query && q._query.path) {
+              path = q._query.path.segments.join('/');
+            } else if (q.path) {
+              path = q.path;
+            }
+          } catch (e) {}
           
           const permissionError = new FirestorePermissionError({
             path: path,

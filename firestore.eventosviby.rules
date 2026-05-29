@@ -22,6 +22,17 @@ service cloud.firestore {
         get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
     }
 
+    // --- APOIO A COLLECTION GROUP QUERIES ---
+    match /{path=**}/members/{memberId} {
+      allow read: if isSignedIn() && (request.auth.uid == memberId || isAdmin());
+    }
+
+    match /{path=**}/partners/{partnerId} {
+      allow read: if true;
+    }
+
+    // --- REGRAS POR COLEÇÃO ---
+
     // Configurações Globais
     match /settings/{docId} {
       allow read: if true;

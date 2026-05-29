@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
@@ -43,6 +44,8 @@ export class GlobalErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
+      const userRole = typeof window !== 'undefined' ? localStorage.getItem('viby_user_role') : 'Desconhecido';
+
       return (
         <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-6 text-center">
           <Card className="max-w-md w-full border-none shadow-2xl rounded-[3rem] overflow-hidden bg-white">
@@ -70,6 +73,13 @@ export class GlobalErrorBoundary extends Component<Props, State> {
                        <div className="min-w-0">
                           <p className="text-[8px] font-black uppercase opacity-40 leading-none">Página da Ocorrência</p>
                           <p className="text-[10px] font-bold truncate text-primary">{this.state.pathname || 'Processando...'}</p>
+                       </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 bg-muted/20 rounded-xl text-left border">
+                       <User className="w-4 h-4 text-muted-foreground shrink-0" />
+                       <div className="min-w-0">
+                          <p className="text-[8px] font-black uppercase opacity-40 leading-none">Acesso do Usuário</p>
+                          <p className="text-[10px] font-bold truncate text-primary uppercase">{userRole || 'Visitante'}</p>
                        </div>
                     </div>
                  </div>
