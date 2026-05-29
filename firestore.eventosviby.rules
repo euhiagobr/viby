@@ -22,6 +22,12 @@ service cloud.firestore {
         get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
     }
 
+    // Permitir leitura pública das configurações para que o servidor/actions consigam ler chaves
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /users/{userId} {
       allow read: if true;
       allow create: if isSignedIn() && request.auth.uid == userId;

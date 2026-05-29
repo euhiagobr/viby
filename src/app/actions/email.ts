@@ -1,18 +1,22 @@
+
 'use server';
 
 import nodemailer from 'nodemailer';
-import { getAdminDb } from '@/lib/firebase/admin';
+import { db } from '@/firebase';
+import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 /**
  * @fileOverview Serviço de e-mail (Server Action) utilizando credenciais do Firestore.
+ * Migrado para o Client SDK para evitar falhas de token no ambiente do servidor.
  */
 
 async function getTransporter() {
-  const db = getAdminDb();
-  const snap = await db.collection('settings').doc('email').get();
+  if (!db) throw new Error("Firestore não inicializado.");
+  
+  const snap = await getDoc(doc(db, 'settings', 'email'));
   const data = snap.data();
 
-  if (!snap.exists || !data?.smtpUser || !data?.smtpPass) {
+  if (!snap.exists() || !data?.smtpUser || !data?.smtpPass) {
     throw new Error("Serviço de E-mail não configurado no painel Admin.");
   }
 
@@ -26,23 +30,61 @@ async function getTransporter() {
 
 async function logEmail(data: any, sender: string) {
   try {
-    const db = getAdminDb();
-    await db.collection('sent_emails').add({
+    if (!db) return;
+    await addDoc(collection(db, 'sent_emails'), {
       ...data,
       sender,
-      timestamp: new Date()
+      timestamp: serverTimestamp()
     });
   } catch (e) {
     console.warn("Falha ao registrar log de e-mail");
   }
 }
 
+export async function sendWelcomeEmail(data: any) {
+  try {
+    const transporter = await getTransporter();
+    const snap = await getDoc(doc(db!, 'settings', 'email'));
+    const smtpUser = snap.data()?.smtpUser;
+
+    const htmlContent = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #eee; border-radius: 20px;">
+        <h1 style="color: #2C52EE; font-style: italic; text-transform: uppercase; letter-spacing: -1px;">${data.siteName || "Viby"}</h1>
+        <h2>Bem-vindo ao Clube!</h2>
+        <p>Olá, <strong>${data.userName}</strong>. Sua conta foi criada com sucesso.</p>
+        <p>A partir de agora você pode descobrir eventos exclusivos, seguir suas marcas favoritas e garantir ingressos com segurança total.</p>
+        <div style="margin-top: 30px;">
+          <a href="https://viby.club/dashboard" style="background: #2C52EE; color: white; padding: 16px 32px; border-radius: 12px; text-decoration: none; font-weight: bold; display: inline-block;">Explorar Eventos</a>
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"${data.siteName || "Viby"} Club" <${smtpUser}>`,
+      to: data.to,
+      subject: `👋 Bem-vindo à ${data.siteName || "Viby"}!`,
+      html: htmlContent
+    });
+
+    await logEmail({
+      recipientEmail: data.to,
+      recipientName: data.userName,
+      subject: `👋 Bem-vindo à ${data.siteName || "Viby"}!`,
+      content: htmlContent,
+      type: 'welcome_email'
+    }, `${data.siteName || "Viby"} System`);
+
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
 export async function sendPasswordResetLinkEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const db = getAdminDb();
-    const emailSnap = await db.collection('settings').doc('email').get();
-    const smtpUser = emailSnap.data()?.smtpUser;
+    const snap = await getDoc(doc(db!, 'settings', 'email'));
+    const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 20px;">
@@ -80,9 +122,8 @@ export async function sendPasswordResetLinkEmail(data: any) {
 export async function sendPayoutConfirmedEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const db = getAdminDb();
-    const emailSnap = await db.collection('settings').doc('email').get();
-    const smtpUser = emailSnap.data()?.smtpUser;
+    const snap = await getDoc(doc(db!, 'settings', 'email'));
+    const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
       <div style="font-family: sans-serif; padding: 40px;">
@@ -105,9 +146,8 @@ export async function sendPayoutConfirmedEmail(data: any) {
 export async function sendTicketEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const db = getAdminDb();
-    const emailSnap = await db.collection('settings').doc('email').get();
-    const smtpUser = emailSnap.data()?.smtpUser;
+    const snap = await getDoc(doc(db!, 'settings', 'email'));
+    const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
       <div style="font-family: sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 20px;">
@@ -144,9 +184,8 @@ export async function sendTicketEmail(data: any) {
 export async function resendLoggedEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const db = getAdminDb();
-    const emailSnap = await db.collection('settings').doc('email').get();
-    const smtpUser = emailSnap.data()?.smtpUser;
+    const snap = await getDoc(doc(db!, 'settings', 'email'));
+    const smtpUser = snap.data()?.smtpUser;
 
     await transporter.sendMail({
       from: `"Viby Support" <${smtpUser}>`,
@@ -159,4 +198,81 @@ export async function resendLoggedEmail(data: any) {
   } catch (e: any) {
     return { success: false, error: e.message };
   }
+}
+
+export async function sendTeamInvitationEmail(data: any) {
+  try {
+    const transporter = await getTransporter();
+    const snap = await getDoc(doc(db!, 'settings', 'email'));
+    const smtpUser = snap.data()?.smtpUser;
+
+    const htmlContent = `
+      <div style="font-family: sans-serif; padding: 40px; border: 1px solid #eee; border-radius: 20px;">
+        <h1 style="color: #2C52EE;">Viby.Club</h1>
+        <h2>Convite de Equipe</h2>
+        <p>Você foi convidado por <strong>${data.inviterName}</strong> para ser <strong>${data.role}</strong> na organização <strong>${data.orgName}</strong>.</p>
+        <p>Acesse seu painel para aceitar o convite e começar a colaborar.</p>
+        <a href="https://viby.club/dashboard/solicitacoes" style="display: inline-block; padding: 12px 24px; background: #2C52EE; color: white; border-radius: 10px; text-decoration: none; font-weight: bold; margin-top: 20px;">Ver Solicitações</a>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Viby Team" <${smtpUser}>`,
+      to: data.to,
+      subject: `🤝 Convite para Equipe: ${data.orgName}`,
+      html: htmlContent
+    });
+
+    return { success: true };
+  } catch (e: any) { return { success: false, error: e.message }; }
+}
+
+export async function sendTeamInvitationNoticeEmail(data: any) {
+  try {
+    const transporter = await getTransporter();
+    const snap = await getDoc(doc(db!, 'settings', 'email'));
+    const smtpUser = snap.data()?.smtpUser;
+
+    const htmlContent = `
+      <div style="font-family: sans-serif; padding: 40px; border: 1px solid #eee; border-radius: 20px;">
+        <h1 style="color: #2C52EE;">Viby.Club</h1>
+        <p>Seu convite para <strong>${data.inviteeName}</strong> ingressar na equipe de <strong>${data.orgName}</strong> como <strong>${data.role}</strong> foi enviado com sucesso.</p>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Viby Team" <${smtpUser}>`,
+      to: data.to,
+      subject: `📩 Convite Enviado: ${data.inviteeName}`,
+      html: htmlContent
+    });
+
+    return { success: true };
+  } catch (e: any) { return { success: false, error: e.message }; }
+}
+
+export async function sendTeamInvitationStatusEmail(data: any) {
+  try {
+    const transporter = await getTransporter();
+    const snap = await getDoc(doc(db!, 'settings', 'email'));
+    const smtpUser = snap.data()?.smtpUser;
+
+    const statusText = data.status === 'accepted' ? 'ACEITOU' : 'RECUSOU';
+
+    const htmlContent = `
+      <div style="font-family: sans-serif; padding: 40px; border: 1px solid #eee; border-radius: 20px;">
+        <h1 style="color: #2C52EE;">Viby.Club</h1>
+        <p><strong>${data.userName}</strong> <strong>${statusText}</strong> seu convite para a organização <strong>${data.orgName}</strong>.</p>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Viby Team" <${smtpUser}>`,
+      to: data.to,
+      subject: `🔔 Atualização de Convite: ${data.orgName}`,
+      html: htmlContent
+    });
+
+    return { success: true };
+  } catch (e: any) { return { success: false, error: e.message }; }
 }

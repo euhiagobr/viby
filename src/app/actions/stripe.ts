@@ -3,20 +3,23 @@
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { getAdminDb } from '@/lib/firebase/admin';
+import { db } from '@/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import { logSystemError } from '@/lib/error-manager';
 
 /**
  * @fileOverview Serviço dinâmico do Stripe (Server-Side).
- * Busca as chaves do Firestore em tempo real. Sem dependência de .env.
+ * Busca as chaves do Firestore (banco eventosviby) em tempo real.
+ * Utiliza o Client SDK para evitar falhas de refresh token do Admin SDK.
  */
 
 async function getStripeInstance() {
   try {
-    const db = getAdminDb();
-    const snap = await db.collection('settings').doc('stripe').get();
+    if (!db) throw new Error('Firestore não inicializado.');
     
-    if (!snap.exists) {
+    const snap = await getDoc(doc(db, 'settings', 'stripe'));
+    
+    if (!snap.exists()) {
       throw new Error('Configurações do Stripe não localizadas no Painel Admin.');
     }
 
@@ -27,6 +30,10 @@ async function getStripeInstance() {
       throw new Error('Secret Key do Stripe ausente no banco de dados.');
     }
 
+    if (!secretKey.startsWith('sk_')) {
+      throw new Error('Secret Key inválida. Deve iniciar com sk_');
+    }
+
     return new Stripe(secretKey, {
       apiVersion: '2024-12-18.acacia' as any,
       appInfo: {
@@ -35,7 +42,6 @@ async function getStripeInstance() {
       }
     });
   } catch (e: any) {
-    // Importante: Não passar o objeto de erro inteiro se ele contiver a secret key
     await logSystemError({
       error: { message: e.message || 'Falha na inicialização do gateway.' },
       type: 'stripe_init_failure',
