@@ -11,7 +11,8 @@ import { db as staticDb } from "@/firebase/database";
 
 /**
  * @fileOverview PayNowService - Processamento central de pagamentos.
- * Refatorado para garantir o uso de instâncias válidas de banco de dados.
+ * Refatorado para garantir o uso de instâncias válidas de banco de dados,
+ * seguindo o padrão que já funciona na recarga de saldo de anúncios.
  */
 
 export interface CheckoutOptions {
@@ -33,10 +34,10 @@ export interface CheckoutOptions {
   onError?: (error: any) => void;
 }
 
-export async function processPayNow(db: Firestore | null, options: CheckoutOptions) {
+export async function processPayNow(db: any, options: CheckoutOptions) {
   const { user, profile, items, totals, globalFees, promotions, orgsData } = options;
   
-  // Garante uma instância de banco de dados mesmo que o contexto falhe
+  // Garante uma instância de banco de dados estável (Singleton como fallback primário)
   const firestore = db || staticDb;
 
   if (!user || !firestore) {

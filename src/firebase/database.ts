@@ -14,10 +14,11 @@ let firestoreInstance: Firestore | null = null;
 
 function initializeVibyDb(): Firestore {
   if (typeof window === 'undefined') {
-    // No servidor, retornamos a inicialização padrão
+    // No servidor (SSR), retornamos a inicialização padrão
     return getFirestore(app, DATABASE_ID);
   }
 
+  // No cliente, garantimos um singleton para evitar erros de inicialização múltipla (ca9)
   if (!firestoreInstance) {
     firestoreInstance = getFirestore(app, DATABASE_ID);
   }
