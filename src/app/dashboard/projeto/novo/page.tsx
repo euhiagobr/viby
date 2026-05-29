@@ -23,6 +23,9 @@ import {
   EventVisibility,
   BilheteriaAdmin
 } from "@/components/events"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { getAgeRatingConfig } from "@/lib/age-rating"
 
 export default function NovoEventoPage() {
   const router = useRouter()
@@ -30,8 +33,11 @@ export default function NovoEventoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const app = useFirebaseApp()
-  const { currentOrg, userRole } = useCurrentOrganization()
+  const { currentOrg } = useCurrentOrganization()
   const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
+
+  const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
+  const { data: categories } = useCollection<any>(categoriesQuery)
 
   const [loading, setLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
@@ -42,6 +48,7 @@ export default function NovoEventoPage() {
     type: "interno",
     externalUrl: "",
     categoryId: "",
+    ageRatingCode: "free",
     startDate: "",
     endDate: "",
     description: "",
@@ -81,15 +88,19 @@ export default function NovoEventoPage() {
         ...normalizeText(formData.title).split(" ")
       ]
 
+      const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
+
       const eventData: any = {
         ...formData,
         organizationId: currentOrg.id,
         organizerId: user.uid,
         organizer: { id: currentOrg.id, name: currentOrg.name, username: currentOrg.username, avatar: currentOrg.avatar || "" },
         ticketMode: formData.type === 'interno' ? ticketMode : 'none',
+        ageRating: { code: ageRatingConfig.code, label: ageRatingConfig.label, minimumAge: ageRatingConfig.minimumAge },
         capacidadeTotal: totalCapacity,
         batches: formData.type === 'interno' ? batches : [],
         searchKeywords,
+        date: formData.startDate,
         createdAt: serverTimestamp()
       }
 
@@ -131,6 +142,33 @@ export default function NovoEventoPage() {
                    onExternalUrlChange={v => setFormData({...formData, externalUrl: v})}
                  />
                  <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-2">
+                   <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
+                   <Select value={formData.categoryId} onValueChange={v => setFormData({...formData, categoryId: v})}>
+                      <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                         {categories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                      </SelectContent>
+                   </Select>
+                </div>
+                <div className="space-y-2">
+                   <Label className="text-[10px] font-black uppercase opacity-60">Classificação</Label>
+                   <Select value={formData.ageRatingCode} onValueChange={v => setFormData({...formData, ageRatingCode: v})}>
+                      <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        <SelectItem value="free">Livre</SelectItem>
+                        <SelectItem value="10">10 Anos</SelectItem>
+                        <SelectItem value="12">12 Anos</SelectItem>
+                        <SelectItem value="14">14 Anos</SelectItem>
+                        <SelectItem value="16">16 Anos</SelectItem>
+                        <SelectItem value="not_recommended_18">18 Anos (Não recomendado)</SelectItem>
+                        <SelectItem value="adults_only_18">Proibido -18</SelectItem>
+                      </SelectContent>
+                   </Select>
+                </div>
               </div>
               
               <EventDateTime 
