@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -11,6 +10,12 @@ import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 interface EventInterestProps {
   event: any
@@ -128,18 +133,31 @@ export function EventInterest({ event, className, showButton = true, variant = '
   return (
     <div className={cn("flex flex-wrap items-center gap-4", className)}>
       {showButton && (
-        <Button
-          onClick={handleToggleInterest}
-          disabled={toggling}
-          variant="outline"
-          className={cn(
-            "rounded-full px-6 h-11 font-black uppercase italic transition-all active:scale-95 gap-2 border-2",
-            isInterested ? "bg-red-50 border-red-200 text-red-500" : "border-secondary text-secondary"
-          )}
-        >
-          {toggling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Heart className={cn("w-4 h-4", isInterested && "fill-current")} />}
-          {isInterested ? "Interessado" : "Tenho Interesse"}
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={handleToggleInterest}
+                disabled={toggling}
+                variant="outline"
+                size="icon"
+                className={cn(
+                  "rounded-full h-11 w-11 font-black transition-all active:scale-95 border-2",
+                  isInterested ? "bg-red-50 border-red-200 text-red-500" : "border-secondary text-secondary"
+                )}
+              >
+                {toggling ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Heart className={cn("w-5 h-5", isInterested && "fill-current")} />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="rounded-xl font-bold uppercase text-[10px] px-3 py-1.5 shadow-xl">
+              <p>{isInterested ? "Interessado" : "Tenho Interesse"}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
 
       <div className="flex items-center gap-8">
