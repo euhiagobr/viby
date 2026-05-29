@@ -1,9 +1,7 @@
-
 'use client';
 
-import { serverTimestamp, increment, doc, setDoc, collection } from "firebase/date-fns"; // Erro de import detectado no trace, corrigindo para firestore
+import { serverTimestamp, increment, doc, setDoc, collection, addDoc, updateDoc } from "firebase/firestore";
 import { db as staticDb } from "@/firebase/database";
-import { addDoc } from "firebase/firestore";
 import { FirestoreService } from "@/lib/firestore-safe";
 import { createCheckoutSession } from "@/app/actions/stripe";
 import { generateUniqueTicketCode } from "@/lib/ticket-utils";
