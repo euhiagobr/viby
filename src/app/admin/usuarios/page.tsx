@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -41,12 +42,10 @@ import {
   Save,
   BadgeCheck,
   X,
-  RefreshCcw,
   RefreshCw,
   CheckCircle2,
   ShieldCheck,
   Coins,
-  ArrowDown,
   Lock,
   Globe,
   Eye,
@@ -56,8 +55,10 @@ import {
   Instagram,
   MapPin,
   Fingerprint,
-  Type,
-  FileText
+  ArrowRightLeft,
+  ShieldAlert,
+  ShieldBan,
+  AtSign
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -91,6 +92,10 @@ export default function AdminUsuariosPage() {
 
   const [editingOrg, setEditingOrg] = React.useState<any>(null)
   const [isEditOrgOpen, setIsEditOrgOpen] = React.useState(false)
+  
+  const [transferOrg, setTransferOrg] = React.useState<any>(null)
+  const [isTransferOpen, setIsTransferOpen] = React.useState(false)
+  const [newOwnerUsername, setNewOwnerUsername] = React.useState("")
   
   const [isSaving, setIsSaving] = React.useState(false)
   const [isRecalculating, setIsRecalculating] = React.useState(false)
@@ -184,6 +189,77 @@ export default function AdminUsuariosPage() {
       toast({ variant: "destructive", title: "Erro ao salvar" }) 
     } finally { 
       setIsSaving(false) 
+    }
+  }
+
+  const handleToggleBlock = async (id: string, currentStatus: string, type: 'users' | 'organizations') => {
+    if (!db) return
+    const isBlocked = currentStatus === 'Bloqueado'
+    const newStatus = isBlocked ? 'Ativo' : 'Bloqueado'
+    
+    try {
+      await updateDoc(doc(db, type, id), {
+        status: newStatus,
+        updatedAt: serverTimestamp(),
+        moderatedAt: serverTimestamp(),
+        moderatedBy: "Admin"
+      })
+      toast({ 
+        title: isBlocked ? "Perfil Desbloqueado" : "Perfil Bloqueado", 
+        description: `O ${type === 'users' ? 'usuário' : 'perfil da marca'} agora está ${newStatus.toLowerCase()}.` 
+      })
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro na moderação" })
+    }
+  }
+
+  const handleTransferOwnership = async () => {
+    if (!db || !transferOrg || !newOwnerUsername) return
+    setIsSaving(true)
+    
+    try {
+      const cleanUser = newOwnerUsername.toLowerCase().trim().replace('@', '')
+      const uSnap = await getDoc(doc(db, "usernames", cleanUser))
+      
+      if (!uSnap.exists() || uSnap.data().type !== 'user') {
+        throw new Error("Usuário de destino não encontrado ou inválido.")
+      }
+
+      const newOwnerUid = uSnap.data().uid
+      const batch = writeBatch(db)
+
+      // 1. Localizar antigo dono para rebaixar
+      const membersQ = query(collection(db, "organizations", transferOrg.id, "members"), where("role", "==", "owner"), limit(1))
+      const membersSnap = await getDocs(membersQ)
+      
+      if (!membersSnap.empty) {
+        batch.update(membersSnap.docs[0].ref, { role: 'admin', updatedAt: serverTimestamp() })
+      }
+
+      // 2. Definir novo dono
+      const newMemberRef = doc(db, "organizations", transferOrg.id, "members", newOwnerUid)
+      batch.set(newMemberRef, {
+        userId: newOwnerUid,
+        role: 'owner',
+        status: 'accepted',
+        transferredAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true })
+
+      // 3. Atualizar documento da org
+      batch.update(doc(db, "organizations", transferOrg.id), {
+        updatedAt: serverTimestamp(),
+        lastOwnerTransferAt: serverTimestamp()
+      })
+
+      await batch.commit()
+      toast({ title: "Titularidade Transferida!", description: `O controle de ${transferOrg.name} agora pertence a @${cleanUser}.` })
+      setIsTransferOpen(false)
+      setNewOwnerUsername("")
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Falha na transferência", description: e.message })
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -367,7 +443,7 @@ export default function AdminUsuariosPage() {
               loadingUsers ? (
                 <TableRow><TableCell colSpan={4} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
               ) : filteredUsers.map(user => (
-                <TableRow key={user.id} className="hover:bg-muted/5 transition-colors">
+                <TableRow key={user.id} className={cn("hover:bg-muted/5 transition-colors", user.status === 'Bloqueado' && "bg-destructive/[0.02] opacity-75")}>
                   <TableCell className="p-6">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10 border shadow-sm">
@@ -376,7 +452,10 @@ export default function AdminUsuariosPage() {
                       </Avatar>
                       <div className="flex flex-col">
                         <span className="font-bold text-sm">{user.name}</span>
-                        <span className="text-[10px] text-secondary font-bold">@{user.username}</span>
+                        <div className="flex items-center gap-2">
+                           <span className="text-[10px] text-secondary font-bold">@{user.username}</span>
+                           {user.status === 'Bloqueado' && <Badge variant="destructive" className="h-3 px-1.5 text-[7px] font-black uppercase">Bloqueado</Badge>}
+                        </div>
                       </div>
                     </div>
                   </TableCell>
@@ -385,6 +464,15 @@ export default function AdminUsuariosPage() {
                   <TableCell className="p-6 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingUser(user); setIsEditUserOpen(true); }}><Edit className="w-4 h-4" /></Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className={cn("h-8 w-8 rounded-lg", user.status === 'Bloqueado' ? "text-green-600 hover:bg-green-50" : "text-orange-500 hover:bg-orange-50")}
+                        onClick={() => handleToggleBlock(user.id, user.status, 'users')}
+                        title={user.status === 'Bloqueado' ? "Desbloquear" : "Bloquear"}
+                      >
+                         {user.status === 'Bloqueado' ? <CheckCircle2 className="w-4 h-4" /> : <ShieldBan className="w-4 h-4" />}
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-lg hover:bg-destructive/10" onClick={() => handleDeleteProfile(user.id, 'user', user.username)}><Trash2 className="w-4 h-4" /></Button>
                     </div>
                   </TableCell>
@@ -394,7 +482,7 @@ export default function AdminUsuariosPage() {
               loadingOrgs ? (
                 <TableRow><TableCell colSpan={4} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
               ) : filteredOrgs.map(org => (
-                <TableRow key={org.id} className="hover:bg-muted/5 transition-colors">
+                <TableRow key={org.id} className={cn("hover:bg-muted/5 transition-colors", org.status === 'Bloqueado' && "bg-destructive/[0.02] opacity-75")}>
                   <TableCell className="p-6">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10 border shadow-sm">
@@ -403,7 +491,10 @@ export default function AdminUsuariosPage() {
                       </Avatar>
                       <div className="flex flex-col">
                         <span className="font-bold text-sm">{org.name}</span>
-                        <span className="text-[10px] text-secondary font-bold">@{org.username}</span>
+                        <div className="flex items-center gap-2">
+                           <span className="text-[10px] text-secondary font-bold">@{org.username}</span>
+                           {org.status === 'Bloqueado' && <Badge variant="destructive" className="h-3 px-1.5 text-[7px] font-black uppercase">Bloqueado</Badge>}
+                        </div>
                       </div>
                     </div>
                   </TableCell>
@@ -412,6 +503,24 @@ export default function AdminUsuariosPage() {
                   <TableCell className="p-6 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingOrg(org); setIsEditOrgOpen(true); }}><Edit className="w-4 h-4" /></Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-primary rounded-lg hover:bg-primary/5" 
+                        onClick={() => { setTransferOrg(org); setIsTransferOpen(true); }}
+                        title="Transferir Titularidade"
+                      >
+                         <ArrowRightLeft className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className={cn("h-8 w-8 rounded-lg", org.status === 'Bloqueado' ? "text-green-600 hover:bg-green-50" : "text-orange-500 hover:bg-orange-50")}
+                        onClick={() => handleToggleBlock(org.id, org.status, 'organizations')}
+                        title={org.status === 'Bloqueado' ? "Desbloquear" : "Bloquear"}
+                      >
+                         {org.status === 'Bloqueado' ? <CheckCircle2 className="w-4 h-4" /> : <ShieldBan className="w-4 h-4" />}
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-lg hover:bg-destructive/10" onClick={() => handleDeleteProfile(org.id, 'organization', org.username)}><Trash2 className="w-4 h-4" /></Button>
                     </div>
                   </TableCell>
@@ -421,6 +530,41 @@ export default function AdminUsuariosPage() {
           </TableBody>
         </Table>
       </Card>
+
+      {/* DIALOG TRANSFERÊNCIA DE TITULARIDADE */}
+      <Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
+        <DialogContent className="max-w-md rounded-[2.5rem]">
+           <DialogHeader>
+              <div className="mx-auto w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center mb-2 text-primary shadow-inner">
+                 <ArrowRightLeft className="w-8 h-8" />
+              </div>
+              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Transferir Titularidade</DialogTitle>
+              <DialogDescription className="text-center font-medium">Você está alterando o proprietário legal da marca <strong>{transferOrg?.name}</strong>.</DialogDescription>
+           </DialogHeader>
+           <div className="space-y-6 py-4">
+              <div className="space-y-2">
+                 <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><AtSign className="w-3 h-3" /> Username do Novo Dono</Label>
+                 <Input 
+                   placeholder="Ex: @novo_dono" 
+                   value={newOwnerUsername}
+                   onChange={e => setNewOwnerUsername(e.target.value)}
+                   className="h-12 rounded-xl"
+                 />
+                 <p className="text-[9px] text-muted-foreground font-medium italic">O usuário deve estar cadastrado na Viby como perfil pessoal.</p>
+              </div>
+
+              <div className="p-4 bg-orange-50 rounded-2xl border-2 border-dashed border-orange-200 flex gap-3">
+                 <ShieldAlert className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+                 <p className="text-[10px] text-orange-800 font-bold uppercase leading-relaxed">O antigo dono será automaticamente rebaixado para o cargo de Administrador.</p>
+              </div>
+           </div>
+           <DialogFooter>
+              <Button onClick={handleTransferOwnership} disabled={isSaving || !newOwnerUsername} className="w-full bg-primary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                 {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Confirmar Transferência"}
+              </Button>
+           </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
         <DialogContent className="max-w-xl rounded-[2.5rem]">
