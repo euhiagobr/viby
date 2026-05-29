@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useDoc, useFirestore, useAuth, useUser } from '@/firebase';
 import { doc, increment, updateDoc } from 'firebase/firestore';
-import { Loader2, ArrowLeft, Calendar, MapPin, Clock, Ticket, BadgeCheck, ShieldCheck } from 'lucide-react';
+import { Loader2, ArrowLeft, Calendar, MapPin, Clock, Ticket, BadgeCheck, ShieldCheck, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -95,7 +95,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
              <div className="space-y-6">
                 <div className="flex flex-wrap gap-2">
                    <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase tracking-widest px-4 rounded-full shadow-lg">{event.categoryName || 'Evento'}</Badge>
-                   <EventShare title={event.title} url={`/${username}/${id}`} />
+                   <EventShare eventId={id} title={event.title} url={`/${username}/${id}`} />
                 </div>
                 <h1 className="text-5xl md:text-7xl font-black text-foreground tracking-tighter uppercase italic leading-[0.8] drop-shadow-2xl">{event.title}</h1>
                 
