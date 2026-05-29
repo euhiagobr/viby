@@ -3,13 +3,13 @@
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
-import { useDoc, useFirestore, useAuth, useUser, useFirebaseApp } from "@/firebase"
+import { useDoc, useFirestore, useAuth, useUser, useFirebaseApp, useMemoFirebase, useCollection } from "@/firebase"
 import { updateDoc, doc, serverTimestamp, collection, query, orderBy } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, Save, Handshake, LayoutGrid, Settings2 } from "lucide-react"
+import { Loader2, ArrowLeft, Save, Handshake, LayoutGrid, Settings2, Ticket } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -25,6 +25,8 @@ import {
   EventCoOrganizers
 } from "@/components/events"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 
 export default function EditarEventoPage() {
   const params = useParams()
@@ -34,7 +36,7 @@ export default function EditarEventoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const app = useFirebaseApp()
-  const { currentOrg, userRole } = useCurrentOrganization()
+  const { currentOrg } = useCurrentOrganization()
   const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
 
   const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
@@ -110,7 +112,7 @@ export default function EditarEventoPage() {
         updatedAt: serverTimestamp()
       }
 
-      // Limpar campos undefined
+      // Limpar campos undefined para compatibilidade Firestore
       const cleanData = JSON.parse(JSON.stringify(updateData, (key, value) => value === undefined ? null : value));
 
       await updateDoc(eventRef, cleanData)
