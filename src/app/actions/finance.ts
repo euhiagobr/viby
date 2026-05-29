@@ -1,66 +1,50 @@
 'use server';
 
-import { getAdminDb } from '@/lib/firebase/admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getFirestore, doc, collection, addDoc, serverTimestamp, runTransaction, increment } from "firebase/firestore";
+import { firebaseConfig } from "@/firebase/config";
 
 /**
- * @fileOverview Server Actions para operações financeiras transacionais utilizando Admin SDK.
+ * @fileOverview Server Actions para operações financeiras transacionais utilizando o SDK padrão.
  */
+
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const db = getFirestore(app, "eventosviby");
 
 /**
  * Processa o estorno de um ingresso para a carteira Viby.
- * RESTRITO: Apenas organizadores ou admins podem EXECUTAR o estorno.
  */
 export async function processTicketRefund(registrationId: string, executorUid: string, reason: string) {
-  const db = getAdminDb();
-  
   try {
-    return await db.runTransaction(async (transaction) => {
-      const regRef = db.collection("registrations").doc(registrationId);
+    return await runTransaction(db, async (transaction) => {
+      const regRef = doc(db, "registrations", registrationId);
       const regSnap = await transaction.get(regRef);
 
-      if (!regSnap.exists) throw new Error("Registro não encontrado.");
+      if (!regSnap.exists()) throw new Error("Registro não encontrado.");
       const regData = regSnap.data()!;
 
-      // --- VALIDAÇÃO DE SEGURANÇA MANUAL ---
-      const userSnap = await transaction.get(db.collection("users").doc(executorUid));
-      const isAdmin = userSnap.exists && userSnap.data()?.role === 'admin';
+      // --- VALIDAÇÃO DE SEGURANÇA ---
+      const userSnap = await transaction.get(doc(db, "users", executorUid));
+      const isAdmin = userSnap.exists() && userSnap.data()?.role === 'admin';
       
       const memberSnap = await transaction.get(
-        db.collection("organizations").doc(regData.organizationId).collection("members").doc(executorUid)
+        doc(db, "organizations", regData.organizationId, "members", executorUid)
       );
-      const isOrgManager = memberSnap.exists && ['owner', 'admin', 'editor'].includes(memberSnap.data()?.role);
+      const isOrgManager = memberSnap.exists() && ['owner', 'admin', 'editor'].includes(memberSnap.data()?.role);
 
-      // Trava: O próprio comprador NÃO PODE executar o estorno (apenas solicitar)
       if (!isAdmin && !isOrgManager) {
-        throw new Error("Apenas o organizador do evento ou administradores podem aprovar estornos.");
+        throw new Error("Acesso negado para executar estorno.");
       }
 
-      // --- VALIDAÇÃO DE STATUS ---
       if (regData.status === 'cancelled' || regData.paymentStatus === 'refunded_wallet') {
-        throw new Error("Este ingresso já foi estornado ou cancelado.");
+        throw new Error("Este ingresso já foi estornado.");
       }
 
       if (regData.checkedIn) {
         throw new Error("Ingressos já utilizados não podem ser estornados.");
       }
 
-      const totalPaid = regData.price || 0;
       const ticketBasePrice = regData.ticketBasePrice || 0;
-
-      if (totalPaid <= 0) {
-        transaction.update(regRef, {
-          status: 'cancelled',
-          updatedAt: FieldValue.serverTimestamp(),
-          cancelledAt: FieldValue.serverTimestamp(),
-          cancelledBy: executorUid,
-          cancelReason: reason
-        });
-        return { success: true, isFree: true };
-      }
-
-      // Devolução do Valor de Face (ticketBasePrice)
-      const refundAmount = ticketBasePrice;
       const userId = regData.userId;
 
       if (!userId) throw new Error("Dono do ingresso não identificado.");
@@ -69,69 +53,39 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       transaction.update(regRef, {
         status: 'cancelled',
         paymentStatus: 'refunded_wallet',
-        updatedAt: FieldValue.serverTimestamp(),
-        cancelledAt: FieldValue.serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        cancelledAt: serverTimestamp(),
         cancelledBy: executorUid,
         cancelReason: reason,
-        refundAmount: refundAmount,
-        refundStatus: 'approved'
+        refundAmount: ticketBasePrice
       });
 
       // 2. Atualiza Saldo da Carteira (Ledger)
-      const walletRef = db.collection("wallets").doc(userId);
+      const walletRef = doc(db, "wallets", userId);
       transaction.set(walletRef, {
-        balance: FieldValue.increment(refundAmount),
-        updatedAt: FieldValue.serverTimestamp()
+        balance: increment(ticketBasePrice),
+        updatedAt: serverTimestamp()
       }, { merge: true });
 
-      // 3. Sincroniza walletBalance no perfil do usuário
-      const userRef = db.collection("users").doc(userId);
+      // 3. Sincroniza walletBalance no perfil
+      const userRef = doc(db, "users", userId);
       transaction.update(userRef, {
-        walletBalance: FieldValue.increment(refundAmount),
-        updatedAt: FieldValue.serverTimestamp()
+        walletBalance: increment(ticketBasePrice),
+        updatedAt: serverTimestamp()
       });
 
-      // 4. Registra Transação no Ledger (wallet_transactions)
-      const txRef = db.collection("wallet_transactions").doc();
+      // 4. Registra Transação
+      const txRef = doc(collection(db, "wallet_transactions"));
       transaction.set(txRef, {
         userId,
-        amount: refundAmount,
+        amount: ticketBasePrice,
         type: 'credit',
         reason: 'ticket_refund',
         description: `Estorno Aprovado: ${regData.eventTitle}`,
-        metadata: {
-          registrationId,
-          eventId: regData.eventId,
-          totalPaidAtPurchase: totalPaid,
-          ticketBasePrice: ticketBasePrice,
-          executorUid
-        },
-        timestamp: FieldValue.serverTimestamp()
+        timestamp: serverTimestamp()
       });
 
-      // 5. Atualiza Registro Fiscal (tax_tickets) se existir
-      const taxQuery = db.collection("tax_tickets").where("registrationId", "==", registrationId).limit(1);
-      const taxDocs = await taxQuery.get();
-      if (!taxDocs.empty) {
-        transaction.update(taxDocs.docs[0].ref, {
-          nfStatus: 'cancelado',
-          status: 'cancelado',
-          updatedAt: FieldValue.serverTimestamp()
-        });
-      }
-
-      // 6. Log de Auditoria
-      const auditRef = db.collection("financial_logs").doc();
-      transaction.set(auditRef, {
-        action: 'refund',
-        category: 'payout',
-        userId: executorUid,
-        targetId: registrationId,
-        description: `Estorno aprovado pelo organizador ${executorUid} para o usuário ${userId}. Valor: ${refundAmount}.`,
-        timestamp: FieldValue.serverTimestamp()
-      });
-
-      return { success: true, refundAmount };
+      return { success: true, refundAmount: ticketBasePrice };
     });
   } catch (error: any) {
     console.error("Erro na transação de estorno:", error);

@@ -1,19 +1,22 @@
 'use server';
 
 import nodemailer from 'nodemailer';
-import { getAdminDb } from '@/lib/firebase/admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { firebaseConfig } from "@/firebase/config";
 
 /**
- * @fileOverview Serviço de e-mail unificado via Nodemailer e Firebase Admin.
+ * @fileOverview Serviço de e-mail unificado via Nodemailer e Firebase SDK padrão.
  */
+
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const db = getFirestore(app, "eventosviby");
 
 async function logEmail(data: any) {
   try {
-    const db = getAdminDb();
-    await db.collection('sent_emails').add({
+    await addDoc(collection(db, 'sent_emails'), {
       ...data,
-      timestamp: FieldValue.serverTimestamp(),
+      timestamp: serverTimestamp(),
     });
   } catch (e) {
     console.error('[Email Service] Falha ao logar e-mail:', e);
@@ -22,9 +25,8 @@ async function logEmail(data: any) {
 
 export async function getEmailConfig() {
   try {
-    const db = getAdminDb();
-    const emailDoc = await db.collection('settings').doc('email').get();
-    if (!emailDoc.exists) return { smtpUser: null, smtpPass: null };
+    const emailDoc = await getDoc(doc(db, 'settings', 'email'));
+    if (!emailDoc.exists()) return { smtpUser: null, smtpPass: null };
     const data = emailDoc.data();
     return {
       smtpUser: data?.smtpUser || null,
@@ -122,7 +124,15 @@ export async function sendTicketEmail(data: any) {
   try {
     const transporter = await getTransporter();
     const { smtpUser } = await getEmailConfig();
-    const htmlContent = `<div style="font-family: sans-serif; padding: 40px;"><h1>Seu Ingresso Chegou!</h1><p>Evento: ${data.eventTitle}</p><p>Código: ${data.ticketCode}</p><a href="${data.voucherUrl}">Abrir Voucher</a></div>`;
+    const htmlContent = `
+      <div style="font-family: sans-serif; padding: 40px;">
+        <h1>Seu Ingresso Chegou!</h1>
+        <p>Evento: ${data.eventTitle}</p>
+        <p>Participante: ${data.userName}</p>
+        <p>Código: ${data.ticketCode}</p>
+        <a href="${data.voucherUrl}">Abrir Voucher Digital</a>
+      </div>
+    `;
     await transporter.sendMail({ from: `"Viby Ingressos" <${smtpUser}>`, to: data.to, subject: `🎫 Ingresso Confirmado: ${data.eventTitle}`, html: htmlContent });
     return { success: true };
   } catch (e: any) { return { success: false, error: e.message }; }
@@ -156,5 +166,3 @@ export async function resendLoggedEmail(emailData: any) {
     return { success: true };
   } catch (e: any) { return { success: false, error: e.message }; }
 }
-
-export async function sendCartPendingEmail(data: any) { return { success: true }; }

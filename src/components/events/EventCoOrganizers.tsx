@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -45,9 +44,6 @@ interface EventCoOrganizersProps {
   className?: string
 }
 
-/**
- * Componente interno para renderizar cada parceiro individualmente buscando os dados mais recentes.
- */
 function PartnerItem({ partner }: { partner: any }) {
   const db = useFirestore();
   const orgRef = React.useMemo(() => db ? doc(db, "organizations", partner.orgId) : null, [db, partner.orgId]);
@@ -67,7 +63,7 @@ function PartnerItem({ partner }: { partner: any }) {
 
   return (
     <Link 
-      href={`/${organization.username}`} 
+      href={`/${organization.username || partner.orgUsername}`} 
       className="group flex items-center gap-4 hover:bg-muted/30 p-3 rounded-2xl transition-all border border-transparent hover:border-border"
     >
       <Avatar className="h-14 w-14 border-2 border-secondary/10 shrink-0 overflow-hidden">

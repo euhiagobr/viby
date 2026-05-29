@@ -2,18 +2,22 @@
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { getAdminDb } from '@/lib/firebase/admin';
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { firebaseConfig } from "@/firebase/config";
 
 /**
- * @fileOverview Server Actions para integração com Stripe utilizando Admin SDK.
+ * @fileOverview Server Actions para integração com Stripe utilizando o SDK padrão do Firebase.
  */
+
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const db = getFirestore(app, "eventosviby");
 
 async function getStripeKeys() {
   try {
-    const db = getAdminDb();
-    const stripeDoc = await db.collection('settings').doc('stripe').get();
+    const stripeDoc = await getDoc(doc(db, 'settings', 'stripe'));
     
-    if (!stripeDoc.exists) {
+    if (!stripeDoc.exists()) {
       console.warn('[Stripe Action] Documento settings/stripe não encontrado no Firestore.');
       return { publishableKey: null, secretKey: null };
     }
@@ -34,7 +38,7 @@ async function getStripeInstance() {
   if (!secretKey) {
     throw new Error('Stripe não configurado no Painel Admin (Configurações > Pagamentos).');
   }
-  return new Stripe(secretKey, { typescript: true });
+  return new Stripe(secretKey);
 }
 
 export async function createCheckoutSession(data: any) {
@@ -131,34 +135,6 @@ export async function createPlanUpgradeSession(data: any) {
     return { url: session.url };
   } catch (error: any) {
     throw new Error(error.message || 'Erro ao gerar checkout do plano');
-  }
-}
-
-export async function createAdPaymentSession(data: any) {
-  try {
-    const origin = (await headers()).get('origin') || 'https://viby.club';
-    const stripe = await getStripeInstance();
-    
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'brl',
-          product_data: { name: `Impulsionamento: ${data.eventTitle}` },
-          unit_amount: Math.round(data.totalAmount),
-        },
-        quantity: 1,
-      }],
-      mode: 'payment',
-      customer_email: data.userEmail,
-      success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/checkout/cancelado`,
-      metadata: { type: 'ad_payment', adId: data.adId, userId: data.userId },
-    });
-    
-    return { url: session.url };
-  } catch (error: any) {
-    throw new Error(error.message || 'Erro ao gerar checkout do anúncio');
   }
 }
 
