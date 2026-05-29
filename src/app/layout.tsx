@@ -4,6 +4,8 @@ import './globals.css';
 import {Toaster} from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
 import { CartProvider } from '@/contexts/CartContext';
+import { ErrorManagerProvider } from '@/components/error-manager/ErrorManagerProvider';
+import { GlobalErrorBoundary } from '@/components/error-manager/GlobalErrorBoundary';
 
 export const metadata: Metadata = {
   title: {
@@ -58,12 +60,16 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased bg-[#f8fafc] text-[#000000] flex flex-col min-h-screen">
         <FirebaseClientProvider>
-          <CartProvider>
-            <div className="flex-1 flex flex-col">
-              {children}
-            </div>
-            <Toaster />
-          </CartProvider>
+          <ErrorManagerProvider>
+            <GlobalErrorBoundary>
+              <CartProvider>
+                <div className="flex-1 flex flex-col">
+                  {children}
+                </div>
+                <Toaster />
+              </CartProvider>
+            </GlobalErrorBoundary>
+          </ErrorManagerProvider>
         </FirebaseClientProvider>
       </body>
     </html>

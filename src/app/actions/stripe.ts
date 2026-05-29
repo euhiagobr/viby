@@ -1,8 +1,10 @@
+
 'use server';
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
 import { getAdminDb } from '@/lib/firebase/admin';
+import { logSystemError } from '@/lib/error-manager';
 
 /**
  * @fileOverview Serviço dinâmico do Stripe (Server-Side).
@@ -15,19 +17,14 @@ async function getStripeInstance() {
     const snap = await db.collection('settings').doc('stripe').get();
     
     if (!snap.exists) {
-      throw new Error('Configurações do Stripe não localizadas. Vá em Admin > Configurações > Pagamentos.');
+      throw new Error('Configurações do Stripe não localizadas.');
     }
 
     const data = snap.data();
     const secretKey = data?.secretKey?.trim();
 
     if (!secretKey) {
-      throw new Error('Secret Key do Stripe ausente no Banco de Dados.');
-    }
-
-    // Validação de segurança de formato
-    if (!secretKey.startsWith('sk_test_') && !secretKey.startsWith('sk_live_')) {
-      throw new Error('Formato da Secret Key inválido (deve iniciar com sk_test ou sk_live).');
+      throw new Error('Secret Key do Stripe ausente.');
     }
 
     return new Stripe(secretKey, {
@@ -38,8 +35,12 @@ async function getStripeInstance() {
       }
     });
   } catch (e: any) {
-    console.error("[Stripe Init Error]:", e.message);
-    throw new Error(e.message || 'Falha na inicialização do gateway de pagamento.');
+    await logSystemError({
+      error: e,
+      type: 'stripe_init_failure',
+      severity: 'critical'
+    });
+    throw new Error(e.message || 'Falha na inicialização do gateway.');
   }
 }
 
@@ -72,12 +73,17 @@ export async function createCheckoutSession(data: any) {
     });
     
     if (!session.url) {
-      throw new Error("O provedor de pagamentos não retornou uma URL válida.");
+      throw new Error("Stripe não retornou URL válida.");
     }
 
     return { url: session.url };
   } catch (error: any) {
-    console.error("[Stripe Session Error]:", error.message);
+    await logSystemError({
+      error,
+      type: 'stripe_checkout_error',
+      severity: 'error',
+      metadata: { checkoutData: data }
+    });
     return { success: false, error: error.message };
   }
 }
@@ -117,7 +123,12 @@ export async function createAdBalanceTopUpSession(data: any) {
     
     return { url: session.url };
   } catch (error: any) {
-    console.error("[Stripe Ad TopUp Error]:", error.message);
+    await logSystemError({
+      error,
+      type: 'stripe_ad_topup_error',
+      severity: 'error',
+      metadata: { topupData: data }
+    });
     return { success: false, error: error.message };
   }
 }
@@ -132,8 +143,13 @@ export async function getStripeSession(sessionId: string) {
       amount_total: session.amount_total, 
       metadata: session.metadata 
     };
-  } catch (error) {
-    console.error("[Stripe Session Retrieval Error]:", sessionId);
+  } catch (error: any) {
+    await logSystemError({
+      error,
+      type: 'stripe_session_retrieval_error',
+      severity: 'warning',
+      metadata: { sessionId }
+    });
     return null;
   }
 }

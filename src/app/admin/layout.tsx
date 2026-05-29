@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -25,7 +26,8 @@ import {
   SendHorizontal,
   UserCheck,
   Zap,
-  Ticket
+  Ticket,
+  Terminal
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -107,6 +109,7 @@ export default function AdminLayout({
     { title: 'Financeiro (Contas)', url: '/admin/financeiro', icon: Landmark },
     { title: 'Presença', url: '/admin/presenca', icon: UserCheck },
     { title: 'Extrato Global', url: '/admin/extrato', icon: Receipt },
+    { title: 'Logs do Sistema', url: '/admin/logs', icon: Terminal },
     { title: 'E-mails Enviados', url: '/admin/notificacoes', icon: Mail },
     { title: 'Denúncias', url: '/admin/denuncias', icon: ShieldAlert },
     { title: 'Suporte', url: '/admin/suporte', icon: LifeBuoy },
