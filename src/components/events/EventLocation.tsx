@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { MapPin, Navigation } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -94,7 +95,7 @@ export function EventLocation({ address, onChange, isPublic }: EventLocationProp
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={address.city || ""} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
-        <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Estado (UF)</Label><Input value={address.state || ""} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
+        <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Estado (UF)</Label><Input value={address.state || ""} readOnly className="rounded-xl h-11 bg-muted/30 w-16" /></div>
         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={address.neighborhood || ""} onChange={e => onChange?.({...address, neighborhood: e.target.value})} required className="rounded-xl h-11" /></div>
         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Número</Label><Input value={address.number || ""} onChange={e => onChange?.({...address, number: e.target.value})} required className="rounded-xl h-11" /></div>
       </div>
