@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -143,22 +144,22 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
 
     return (
       <Card className={cn("border-none shadow-sm rounded-[2rem] bg-white p-8", className)}>
-        <h3 className="text-xl font-black uppercase italic tracking-tighter mb-6 flex items-center gap-3 text-primary">
+        <h3 className="text-xl font-black uppercase italic tracking-tighter mb-6 flex items-center gap-3 text-primary border-b border-dashed pb-4">
           <Handshake className="w-5 h-5 text-secondary" /> Co-realização
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6">
            {acceptedPartners.map(p => (
-             <Link key={p.id} href={`/${p.orgUsername}`} className="group flex items-center gap-4 hover:bg-muted/30 p-2 rounded-2xl transition-all">
-                <Avatar className="h-12 w-12 border-2 border-secondary/10 group-hover:scale-105 transition-transform">
+             <Link key={p.id} href={`/${p.orgUsername}`} className="group flex items-center gap-4 hover:bg-muted/30 p-3 rounded-2xl transition-all border border-transparent hover:border-border">
+                <Avatar className="h-14 w-14 border-2 border-secondary/10 shrink-0">
                    <AvatarImage src={p.orgAvatar} className="object-cover" />
-                   <AvatarFallback className="font-black bg-muted">{p.orgName?.charAt(0)}</AvatarFallback>
+                   <AvatarFallback className="font-black bg-muted uppercase">{p.orgName?.charAt(0)}</AvatarFallback>
                 </Avatar>
-                <div className="min-w-0">
-                   <p className="font-black text-sm uppercase italic text-primary truncate flex items-center gap-1.5">
+                <div className="min-w-0 flex-1">
+                   <p className="font-black text-sm uppercase italic text-primary flex items-center gap-1.5 leading-tight flex-wrap">
                       {p.orgName}
-                      <BadgeCheck className="w-3.5 h-3.5 fill-blue-500 text-white" />
+                      <BadgeCheck className="w-4 h-4 fill-blue-500 text-white shrink-0" />
                    </p>
-                   <p className="text-[9px] font-black text-secondary uppercase">Ver Perfil</p>
+                   <p className="text-[9px] font-black text-secondary uppercase tracking-widest mt-1 group-hover:underline">Ver Perfil da Marca</p>
                 </div>
              </Link>
            ))}
@@ -185,7 +186,7 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
             <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Buscar por @username</Label>
             <div className="flex gap-2">
                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input 
                     placeholder="Ex: @vibe_night" 
                     value={searchTerm}
@@ -243,10 +244,10 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
                        <div className="flex items-center gap-3">
                           <Avatar className="h-10 w-10">
                              <AvatarImage src={p.orgAvatar} className="object-cover" />
-                             <AvatarFallback className="font-bold">{p.orgName?.charAt(0)}</AvatarFallback>
+                             <AvatarFallback className="font-bold uppercase">{p.orgName?.charAt(0)}</AvatarFallback>
                           </Avatar>
                           <div className="flex flex-col">
-                             <span className="text-sm font-bold leading-tight">{p.orgName}</span>
+                             <span className="text-sm font-bold leading-tight line-clamp-1">{p.orgName}</span>
                              <div className="flex items-center gap-2">
                                 <span className="text-[9px] text-muted-foreground font-black uppercase">@{p.orgUsername}</span>
                                 {p.status === 'pending' ? (
