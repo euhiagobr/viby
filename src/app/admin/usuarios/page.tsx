@@ -59,7 +59,8 @@ import {
   ArrowRightLeft,
   ShieldAlert,
   ShieldBan,
-  AtSign
+  AtSign,
+  AlertTriangle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -206,7 +207,8 @@ export default function AdminUsuariosPage() {
         status: newStatus,
         updatedAt: serverTimestamp(),
         moderatedAt: serverTimestamp(),
-        moderatedBy: "Admin"
+        moderatedBy: "Admin",
+        blockReason: newStatus === 'Bloqueado' ? "Ação administrativa direta." : deleteField()
       });
 
       // 2. Se for um usuário (Bloqueio ou Desbloqueio), agir em cascata sobre as marcas
@@ -474,7 +476,7 @@ export default function AdminUsuariosPage() {
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10 border shadow-sm">
                         <AvatarImage src={user.avatar} className="object-cover" />
-                        <AvatarFallback className="font-black uppercase">{user.name?.charAt(0)}</AvatarFallback>
+                        <AvatarFallback className="font-black uppercase">{user.name?.charAt(0) || "U"}</AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col">
                         <span className="font-bold text-sm">{user.name}</span>
@@ -517,14 +519,26 @@ export default function AdminUsuariosPage() {
                       </Avatar>
                       <div className="flex flex-col">
                         <span className="font-bold text-sm">{org.name}</span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col gap-0.5 mt-0.5">
                            <span className="text-[10px] text-secondary font-bold">@{org.username}</span>
-                           {org.status === 'Bloqueado' && <Badge variant="destructive" className="h-3 px-1.5 text-[7px] font-black uppercase">Bloqueado</Badge>}
+                           {org.status === 'Bloqueado' && (
+                             <div className="flex items-center gap-1 text-[8px] font-black uppercase text-red-500">
+                               <ShieldAlert className="w-2.5 h-2.5" />
+                               {org.blockReason || "Ação de Moderação"}
+                             </div>
+                           )}
                         </div>
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase border-secondary/20 text-secondary">{org.status || 'Ativo'}</Badge></TableCell>
+                  <TableCell>
+                    <Badge variant={org.status === 'Bloqueado' ? 'destructive' : 'outline'} className={cn(
+                      "text-[9px] font-black uppercase px-2 h-6",
+                      org.status === 'Ativo' ? "border-secondary text-secondary" : ""
+                    )}>
+                      {org.status || 'Ativo'}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-center">{org.verified && <VerifiedBadge className="mx-auto" />}</TableCell>
                   <TableCell className="p-6 text-right">
                     <div className="flex items-center justify-end gap-1">
@@ -543,7 +557,7 @@ export default function AdminUsuariosPage() {
                         size="icon" 
                         className={cn("h-8 w-8 rounded-lg", org.status === 'Bloqueado' ? "text-green-600 hover:bg-green-50" : "text-orange-500 hover:bg-orange-50")}
                         onClick={() => handleToggleBlock(org.id, org.status, 'organizations')}
-                        title={org.status === 'Bloqueado' ? "Desbloquear" : "Bloquear"}
+                        title={org.status === 'Bloqueado' ? "Desbloquear Marca" : "Bloquear Marca"}
                       >
                          {org.status === 'Bloqueado' ? <CheckCircle2 className="w-4 h-4" /> : <ShieldBan className="w-4 h-4" />}
                       </Button>
