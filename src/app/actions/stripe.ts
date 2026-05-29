@@ -1,29 +1,30 @@
-
-'use client';
+'use server';
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { db } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { getAdminDb } from '@/lib/firebase/admin';
 
 /**
  * @fileOverview Server Actions para integração com Stripe.
- * Busca as chaves dinamicamente do Firestore (Client SDK) para permitir configuração via painel Admin.
+ * Busca as chaves do Firestore via Admin SDK para garantir segurança e acesso.
  */
 
 async function getStripeInstance() {
-  const snap = await getDoc(doc(db, 'settings', 'stripe'));
+  const db = getAdminDb();
+  const snap = await db.collection('settings').doc('stripe').get();
+  const data = snap.data();
   
-  if (!snap.exists() || !snap.data()?.secretKey) {
-    throw new Error('Stripe não configurado. Vá em Painel Admin > Configurações > Pagamentos.');
+  if (!snap.exists || !data?.secretKey) {
+    throw new Error('Stripe não configurado no Painel Admin.');
   }
   
-  return new Stripe(snap.data()?.secretKey);
+  return new Stripe(data.secretKey);
 }
 
 export async function createCheckoutSession(data: any) {
   try {
-    const origin = (await headers()).get('origin') || 'https://viby.club';
+    const head = await headers();
+    const origin = head.get('origin') || 'https://viby.club';
     const stripe = await getStripeInstance();
     
     const session = await stripe.checkout.sessions.create({
@@ -48,14 +49,15 @@ export async function createCheckoutSession(data: any) {
     
     return { url: session.url };
   } catch (error: any) {
-    console.error("[Stripe Action] Checkout Error:", error);
+    console.error("[Stripe Action] Error:", error.message);
     throw new Error(error.message || 'Erro ao gerar sessão de pagamento.');
   }
 }
 
 export async function createAdBalanceTopUpSession(data: any) {
   try {
-    const origin = (await headers()).get('origin') || 'https://viby.club';
+    const head = await headers();
+    const origin = head.get('origin') || 'https://viby.club';
     const stripe = await getStripeInstance();
     const totalToCharge = data.baseAmount * 1.21;
     
@@ -83,7 +85,6 @@ export async function createAdBalanceTopUpSession(data: any) {
     
     return { url: session.url };
   } catch (error: any) {
-    console.error("[Stripe Action] TopUp Error:", error);
     throw new Error(error.message || 'Erro ao processar recarga no Stripe.');
   }
 }
@@ -99,7 +100,6 @@ export async function getStripeSession(sessionId: string) {
       metadata: session.metadata 
     };
   } catch (error) {
-    console.error("[Stripe Action] Retrieve Session Error:", error);
     return null;
   }
 }

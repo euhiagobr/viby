@@ -4,7 +4,7 @@ import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 
 /**
  * @fileOverview Inicialização segura do Firebase Admin SDK.
- * Protege contra exposição de chaves privadas em logs de erro.
+ * Ajustado para tentar credenciais de ambiente ou configuração padrão.
  */
 
 function getAdminApp(): App {
@@ -12,47 +12,37 @@ function getAdminApp(): App {
   const existingAdmin = apps.find(a => a.name === 'admin-app');
   if (existingAdmin) return existingAdmin;
 
-  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'ong-desafios-3942a';
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
 
-  if (!projectId || !clientEmail || !privateKeyRaw) {
-    throw new Error('[Admin SDK] Variáveis de ambiente ausentes.');
-  }
-
   try {
-    const privateKey = privateKeyRaw
-      .replace(/^"|"$/g, '') 
-      .replace(/\\n/g, '\n')
-      .trim();
+    // Se as chaves estiverem no ambiente, usa Service Account
+    if (projectId && clientEmail && privateKeyRaw) {
+      const privateKey = privateKeyRaw
+        .replace(/^"|"$/g, '') 
+        .replace(/\\n/g, '\n')
+        .trim();
 
-    return initializeApp({
-      credential: credential.cert({
+      return initializeApp({
+        credential: credential.cert({
+          projectId,
+          clientEmail,
+          privateKey,
+        }),
         projectId,
-        clientEmail,
-        privateKey,
-      }),
-      projectId,
+      }, 'admin-app');
+    }
+    
+    // Caso contrário, tenta inicialização simples (funciona em alguns ambientes Cloud)
+    return initializeApp({
+      projectId
     }, 'admin-app');
   } catch (error: any) {
-    // NUNCA logar o error.message aqui pois ele contém a chave PEM se a formatação estiver errada
-    console.error('[Admin SDK] Falha crítica na inicialização (Credenciais Inválidas)');
+    console.error('[Admin SDK] Erro na inicialização');
     throw new Error('Falha na autenticação do servidor administrativo.');
   }
 }
 
 export const getAdminAuth = () => getAuth(getAdminApp());
 export const getAdminDb = () => getAdminFirestore(getAdminApp(), 'eventosviby');
-
-export const adminAuth = {
-  getUserByEmail: (email: string) => getAdminAuth().getUserByEmail(email),
-  generatePasswordResetLink: (email: string) => getAdminAuth().generatePasswordResetLink(email),
-  updateUser: (uid: string, data: any) => getAdminAuth().updateUser(uid, data),
-} as any;
-
-export const adminDb = {
-  collection: (path: string) => getAdminDb().collection(path),
-  batch: () => getAdminDb().batch(),
-  doc: (path: string) => getAdminDb().doc(path),
-  runTransaction: (fn: any) => getAdminDb().runTransaction(fn),
-} as any;
