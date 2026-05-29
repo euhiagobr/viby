@@ -16,7 +16,6 @@ import {
   where,
   getDocs,
   limit,
-  collectionGroup,
   setDoc,
   deleteDoc
 } from "firebase/firestore"
@@ -56,14 +55,15 @@ import {
   UserX,
   Handshake,
   TrendingUp,
-  Plus
+  Plus,
+  Layout,
+  X
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "@/hooks/use-toast"
@@ -90,9 +90,6 @@ export default function AdminPaginasPage() {
   const [transferOrg, setTransferOrg] = React.useState<any>(null)
   const [isTransferOpen, setIsTransferOpen] = React.useState(false)
   const [newOwnerUsername, setNewOwnerUsername] = React.useState("")
-  
-  const [isMembersOpen, setIsMembersOpen] = React.useState(false)
-  const [selectedOrgIdForMembers, setSelectedOrgIdForMembers] = React.useState<string | null>(null)
   
   const [isSaving, setIsSaving] = React.useState(false)
 
@@ -276,7 +273,7 @@ export default function AdminPaginasPage() {
                     <Separator className="border-dashed" />
                     <section className="space-y-6">
                        <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Users className="w-4 h-4" /> Equipe Vinculada</h3>
-                       <OrgMembersList orgId={editingOrg?.id} isSaving={isSaving} />
+                       <OrgMembersList orgId={editingOrg?.id} />
                     </section>
                  </div>
               </ScrollArea>
@@ -300,7 +297,7 @@ export default function AdminPaginasPage() {
   )
 }
 
-function OrgMembersList({ orgId, isSaving }: { orgId: string, isSaving: boolean }) {
+function OrgMembersList({ orgId }: { orgId: string }) {
   const db = useFirestore()
   const [newMemberUser, setNewMemberUser] = React.useState("")
   const [adding, setAdding] = React.useState(false)
