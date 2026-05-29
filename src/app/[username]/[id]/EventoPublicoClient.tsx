@@ -3,8 +3,8 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useDoc, useFirestore, useAuth, useUser } from '@/firebase';
-import { doc, increment, updateDoc } from 'firebase/firestore';
+import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from '@/firebase';
+import { doc, increment, updateDoc, collection, query, where } from 'firebase/firestore';
 import { Loader2, ArrowLeft, Calendar, MapPin, Clock, Ticket, BadgeCheck, ShieldCheck, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +47,14 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
 
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db])
   const { data: promotions } = useDoc<any>(promosRef)
+
+  // Verificar se o usuário atual é proprietário ou membro da organização para exibir as visualizações
+  const memberQuery = useMemoFirebase(() => {
+    if (!db || !user || !event?.organizationId) return null;
+    return query(collection(db, 'organizations', event.organizationId, 'members'), where('userId', '==', user.uid));
+  }, [db, user, event?.organizationId]);
+  const { data: membership } = useCollection<any>(memberQuery);
+  const isOwner = membership && membership.length > 0;
 
   React.useEffect(() => {
     if (!db || !id || event?.status !== 'Ativo') return
@@ -103,7 +111,13 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 py-4">
                    <EventInterest event={event} />
-                   <EventStats views={event.viewsCount || 0} interested={event.interestedCount || 0} going={event.goingCount || 0} shares={event.sharesCount || 0} className="opacity-40" />
+                   <EventStats 
+                     views={event.viewsCount || 0} 
+                     interested={event.interestedCount || 0} 
+                     going={event.goingCount || 0} 
+                     shares={event.sharesCount || 0} 
+                     isOwner={isOwner}
+                   />
                 </div>
              </div>
 
