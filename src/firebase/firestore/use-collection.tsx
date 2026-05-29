@@ -26,9 +26,8 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
   useEffect(() => {
     isMounted.current = true;
 
+    // Se a query for nula, o hook fica em estado de espera (útil para aguardar o Auth)
     if (!query) {
-      setData([]);
-      setLoading(false);
       return;
     }
 
@@ -56,15 +55,15 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
           let path = 'unknown_collection';
           try {
             const q = query as any;
-            // Tenta diversas propriedades internas onde o SDK v11 armazena o path
-            if (q.path) {
-              path = q.path;
-            } else if (q._query?.path?.segments) {
+            
+            // Tentativas de extração via SDK v11 Internals
+            if (q._query?.path?.segments) {
               path = q._query.path.segments.join('/');
             } else if (q.query?.path?.segments) {
               path = q.query.path.segments.join('/');
+            } else if (q.path) {
+              path = q.path;
             } else if (typeof q.toString === 'function') {
-              // Fallback para representação em string se disponível
               const qStr = q.toString();
               if (qStr.includes('Query(')) {
                 path = qStr.split('Query(')[1].split(')')[0];
@@ -79,7 +78,6 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
             operation: 'list',
           });
           
-          // Emitir erro para o ErrorManager global
           errorEmitter.emit('permission-error', permissionError);
           setData([]);
         } else {

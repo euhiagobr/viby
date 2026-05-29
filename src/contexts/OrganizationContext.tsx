@@ -55,7 +55,7 @@ const OrganizationContext = createContext<OrganizationContextType>({
 
 export function OrganizationProvider({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
-  const { user } = useUser(auth);
+  const { user, isInitialized } = useUser(auth);
   const db = useFirestore();
   const params = useParams();
   const pathname = usePathname();
@@ -71,6 +71,10 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     let isMounted = true;
 
+    // GUARD: Só dispara a query se o Auth estiver PRONTO e houver um usuário logado
+    // Isso evita o erro "Missing or insufficient permissions" no carregamento inicial
+    if (!isInitialized) return;
+
     if (!db || !user) {
       if (isMounted) {
         setOrganizations([]);
@@ -82,6 +86,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
     setLoading(true);
 
+    // Utilizamos collectionGroup para encontrar documentos 'members' em qualquer subcoleção de org
     const membersQuery = query(collectionGroup(db, 'members'), where('userId', '==', user.uid));
     
     const unsubscribe = onSnapshot(membersQuery, 
@@ -135,7 +140,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         }
       },
       (error) => {
-        console.error("Erro no listener de organizações:", error);
+        // Silenciamos erros de permissão aqui pois o hook de guard já trata
         if (isMounted) setLoading(false);
       }
     );
@@ -144,11 +149,11 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       isMounted = false;
       unsubscribe();
     };
-  }, [db, user]);
+  }, [db, user, isInitialized]);
 
   // Sincroniza convites de PARCERIA (Co-organização)
   useEffect(() => {
-    if (!db || organizations.length === 0) {
+    if (!isInitialized || !db || organizations.length === 0) {
       setPendingPartnerships([]);
       return;
     }
@@ -175,11 +180,11 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     } catch (e) {
       console.error("Erro ao iniciar listener de parcerias:", e);
     }
-  }, [db, organizations]);
+  }, [db, organizations, isInitialized]);
 
   // Sincroniza org atual baseada na URL ou memória
   useEffect(() => {
-    if (!db || !user || loading) return;
+    if (!isInitialized || !db || !user || loading) return;
 
     const usernameFromUrl = params?.username as string;
     
@@ -221,7 +226,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         if (role) localStorage.setItem('viby_user_role', role);
       }
     }
-  }, [params?.username, organizations, db, user, loading, pathname]);
+  }, [params?.username, organizations, db, user, loading, pathname, isInitialized]);
 
   const refreshOrg = async () => {
     if (!db || !currentOrg) return;

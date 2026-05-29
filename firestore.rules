@@ -16,17 +16,9 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    function getRole(orgId) {
-      return get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role;
-    }
-
-    function hasRole(orgId, roles) {
-      return isSignedIn() && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)) && getRole(orgId) in roles;
-    }
-
-    // --- LEITURA PÚBLICA ---
+    // --- LEITURA PÚBLICA TOTAL ---
     match /users/{userId} {
-      allow read: if true;
+      allow read, get, list: if true;
       allow write: if isUser(userId) || isAdmin();
       
       match /private/sensitive {
@@ -35,76 +27,59 @@ service cloud.firestore {
     }
 
     match /organizations/{orgId} {
-      allow read: if true;
+      allow read, get, list: if true;
       allow create: if isSignedIn();
-      allow update: if hasRole(orgId, ['owner', 'admin']) || isAdmin();
-      allow delete: if hasRole(orgId, ['owner']) || isAdmin();
+      allow update: if isSignedIn() || isAdmin();
+      allow delete: if isAdmin();
 
       match /members/{userId} {
-        allow read: if isSignedIn() && (request.auth.uid == userId || hasRole(orgId, ['owner', 'admin']) || isAdmin());
-        allow write: if hasRole(orgId, ['owner', 'admin']) || isAdmin();
+        allow read, list: if isSignedIn();
+        allow write: if isSignedIn() || isAdmin();
       }
     }
 
     match /events/{eventId} {
-      allow read: if true;
+      allow read, get, list: if true;
       allow create: if isSignedIn();
-      allow update: if hasRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
-      allow delete: if hasRole(resource.data.organizationId, ['owner', 'admin']) || isAdmin();
+      allow update, delete: if isSignedIn() || isAdmin();
       
       match /comments/{commentId} {
-        allow read: if true;
+        allow read, list: if true;
         allow create: if isSignedIn();
         allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      }
-      
-      match /likes/{userId} {
-        allow read: if true;
-        allow write: if isSignedIn() && request.auth.uid == userId;
-      }
-
-      match /partners/{partnerId} {
-        allow read: if true;
-        allow write: if isSignedIn();
       }
     }
 
     match /categories/{catId} {
-      allow read: if true;
+      allow read, get, list: if true;
     }
 
     match /usernames/{username} {
-      allow read: if true;
+      allow read, get, list: if true;
       allow create: if isSignedIn();
       allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
     }
 
     match /ads/{adId} {
-      allow read: if true;
+      allow read, get, list: if true;
       allow write: if isSignedIn() || isAdmin();
     }
 
     // --- PRIVADO ---
     match /registrations/{regId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.sharedWithUid == request.auth.uid || isAdmin());
+      allow read, get, list: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() || isAdmin();
     }
 
     match /notifications/{notifId} {
-      allow read: if isSignedIn() && resource.data.targetUid == request.auth.uid;
+      allow read, get, list: if isSignedIn() && resource.data.targetUid == request.auth.uid;
       allow create: if isSignedIn();
       allow update, delete: if isSignedIn() && resource.data.targetUid == request.auth.uid;
     }
 
-    match /follows/{followId} {
-      allow read: if true;
-      allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
-    }
-
     match /{allPaths=**} {
-      allow read: if isAdmin();
+      allow read, list: if isAdmin();
       allow write: if isAdmin();
     }
   }
