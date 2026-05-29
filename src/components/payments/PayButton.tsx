@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
-import { CreditCard, Loader2, ShoppingCart, Zap, ExternalLink } from "lucide-react"
+import { CreditCard, Loader2, Zap } from "lucide-react"
 import { executeCheckoutFlow } from "@/services/payments/pay-button-service"
 import { useErrorManager } from "@/components/error-manager/ErrorManagerProvider"
 import { useRouter } from "next/navigation"
@@ -22,10 +22,6 @@ interface PayButtonProps {
   className?: string
 }
 
-/**
- * @fileOverview PayButton - O novo componente central de pagamentos da Viby.
- * Substitui o PayNow com uma arquitetura modular e estável.
- */
 export function PayButton({ 
   items, 
   totals, 
@@ -43,13 +39,18 @@ export function PayButton({
   const router = useRouter()
 
   const handleCheckout = async () => {
-    if (items.length === 0 || loading) return
+    console.log("[TRACE-VIBY] UI: PayButton clicked.");
+    
+    if (items.length === 0 || loading) {
+      console.warn("[TRACE-VIBY] UI: Click ignored (empty cart or loading)");
+      return;
+    }
     
     setLoading(true)
     try {
-      // Executa o fluxo orquestrado no service
+      console.log("[TRACE-VIBY] UI: Dispatching executeCheckoutFlow...");
       const result = await executeCheckoutFlow({
-        user: profile, // Passamos o perfil que contém o UID e email
+        user: profile,
         profile,
         items,
         totals,
@@ -59,18 +60,15 @@ export function PayButton({
         useBalance
       })
 
-      if (result.type === 'internal') {
-        onSuccess()
-        toast({ title: "Reserva confirmada!", description: "Seus ingressos já estão na sua conta." })
-        router.push("/dashboard/ingressos")
-      } else if (result.type === 'stripe' && result.url) {
-        // Redireciona para o Stripe Checkout (Hosted Page para máxima estabilidade)
+      if (result.type === 'stripe' && result.url) {
+        console.log("[TRACE-VIBY] UI: Redirecting to Stripe...");
         window.location.href = result.url
       }
     } catch (e: any) {
+      console.error("[TRACE-VIBY] UI: executeCheckoutFlow crashed.", e);
       reportError({
         error: e,
-        type: 'checkout_flow_failure',
+        type: 'checkout_trace_failure',
         severity: 'error',
         metadata: { itemsCount: items.length, total: totals.total }
       })

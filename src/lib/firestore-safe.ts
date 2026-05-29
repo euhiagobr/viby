@@ -11,74 +11,67 @@ import {
   updateDoc,
   setDoc,
   getDoc,
-  deleteDoc,
   serverTimestamp
 } from "firebase/firestore";
 import { db as singletonDb } from "@/firebase/database";
-import { logSystemError } from "./error-manager";
 
 /**
- * @fileOverview FirestoreService - Wrapper de segurança global.
- * Centraliza e valida todas as operações do banco para evitar erros de inicialização.
+ * @fileOverview TRACE: Wrapper de Segurança e Auditoria do Firestore.
+ * NUNCA remova os logs deste arquivo até que o erro ca9 seja resolvido.
  */
 
-function validateDb(providedDb?: any): Firestore {
-  // Sempre prioriza a instância estável se a provida for nula ou inválida
-  const validDb = providedDb || singletonDb;
+function validateDb(providedDb: any, source: string): Firestore {
+  console.group(`[TRACE-VIBY] Validation: Firestore Access from ${source}`);
   
-  if (!validDb || typeof validDb !== 'object') {
-    const errorMsg = "Instância do Firestore inválida ou não inicializada.";
-    logSystemError({
-      error: new Error(errorMsg),
-      type: 'firestore_init_error',
-      severity: 'critical'
-    });
-    throw new Error(errorMsg);
+  const targetDb = providedDb || singletonDb;
+  
+  console.log("Input DB:", providedDb ? "PROVIDED" : "FALLBACK TO SINGLETON");
+  console.log("DB Typeof:", typeof targetDb);
+  console.log("DB Constructor:", targetDb?.constructor?.name);
+  console.log("DB Object Keys:", Object.keys(targetDb || {}).slice(0, 5));
+  
+  // A verificação abaixo é o que o SDK do Firebase faz internamente
+  const isValid = targetDb && typeof targetDb === 'object' && targetDb.type === 'firestore';
+  
+  console.log("Is Valid Instance?:", isValid ? "YES" : "NO - CRITICAL ERROR IMMINENT");
+  
+  if (!isValid) {
+    console.error("[TRACE-VIBY] INVALID DB DETECTED. Printing Stack Trace...");
+    console.trace(); // Imprime a pilha de chamadas para saber quem enviou o lixo
   }
   
-  return validDb;
+  console.groupEnd();
+  
+  return targetDb as Firestore;
 }
 
 export const FirestoreService = {
   collection: (path: string, providedDb?: any): CollectionReference<DocumentData> => {
-    return collection(validateDb(providedDb), path);
+    const validDb = validateDb(providedDb, `collection(${path})`);
+    return collection(validDb, path);
   },
 
   doc: (path: string, ...segments: string[]): DocumentReference<DocumentData> => {
-    return doc(validateDb(), path, ...segments);
+    const validDb = validateDb(null, `doc(${path})`); // Sempre usa singleton para doc por segurança
+    return doc(validDb, path, ...segments);
   },
 
   add: async (path: string, data: any) => {
-    const colRef = collection(validateDb(), path);
+    console.log(`[TRACE-VIBY] Op: Adding doc to ${path}`);
+    const colRef = FirestoreService.collection(path);
     return addDoc(colRef, {
       ...data,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
-  },
-
-  update: async (path: string, id: string, data: any) => {
-    const docRef = doc(validateDb(), path, id);
-    return updateDoc(docRef, {
-      ...data,
-      updatedAt: serverTimestamp()
-    });
-  },
-
-  set: async (path: string, id: string, data: any, options = { merge: true }) => {
-    const docRef = doc(validateDb(), path, id);
-    return setDoc(docRef, {
-      ...data,
-      updatedAt: serverTimestamp()
-    }, options);
-  },
-
-  get: async (path: string, id: string) => {
-    const docRef = doc(validateDb(), path, id);
-    return getDoc(docRef);
   }
 };
 
-// Mantemos as funções individuais para compatibilidade, mas agora usando o Service interno
-export function safeCollection(db: any, path: string) { return FirestoreService.collection(path, db); }
-export function safeDoc(db: any, path: string, ...segments: string[]) { return FirestoreService.doc(path, ...segments); }
+// Funções de compatibilidade também trackeadas
+export function safeCollection(providedDb: any, path: string) {
+  return FirestoreService.collection(path, providedDb);
+}
+
+export function safeDoc(providedDb: any, path: string, ...segments: string[]) {
+  return FirestoreService.doc(path, ...segments);
+}
