@@ -17,7 +17,8 @@ import {
   where,
   getDocs,
   limit,
-  collectionGroup
+  collectionGroup,
+  setDoc
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -60,13 +61,15 @@ import {
   ShieldAlert,
   ShieldBan,
   AtSign,
-  AlertTriangle
+  AlertTriangle,
+  UserPlus,
+  Handshake
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
@@ -74,6 +77,14 @@ import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+
+const ROLES = [
+  { value: 'owner', label: 'Proprietário' },
+  { value: 'admin', label: 'Administrador' },
+  { value: 'editor', label: 'Editor' },
+  { value: 'finance', label: 'Financeiro' },
+  { value: 'checkin', label: 'Check-in' },
+];
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (
@@ -105,11 +116,56 @@ export default function AdminUsuariosPage() {
   const [checkingUsername, setCheckingUsername] = React.useState(false)
   const [usernameStatus, setUsernameStatus] = React.useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
 
+  // Estados para Gestão de Membros
+  const [isAddMemberOpen, setIsAddMemberOpen] = React.useState(false)
+  const [memberTargetUsername, setMemberTargetUsername] = React.useState("")
+  const [memberTargetOrgId, setMemberTargetOrgId] = React.useState("")
+  const [memberTargetRole, setMemberTargetRole] = React.useState("editor")
+
   const usersQuery = useMemoFirebase(() => db ? query(collection(db, "users"), orderBy("createdAt", "desc")) : null, [db])
   const { data: users, loading: loadingUsers } = useCollection<any>(usersQuery)
 
   const orgsQuery = useMemoFirebase(() => db ? query(collection(db, "organizations"), orderBy("createdAt", "desc")) : null, [db])
   const { data: orgs, loading: loadingOrgs } = useCollection<any>(orgsQuery)
+
+  // Membros via Collection Group
+  const membersGroupQuery = useMemoFirebase(() => db ? query(collectionGroup(db, "members")) : null, [db])
+  const { data: allMemberships, loading: loadingMembers } = useCollection<any>(membersGroupQuery)
+
+  const [fullMembersData, setFullMembersData] = React.useState<any[]>([])
+  const [loadingMemberProfiles, setLoadingMemberProfiles] = React.useState(false)
+
+  // Enriquecer dados dos membros
+  React.useEffect(() => {
+    if (!allMemberships || !db) return;
+    
+    const enrich = async () => {
+      setLoadingMemberProfiles(true)
+      const data = await Promise.all(allMemberships.map(async (m) => {
+        const orgId = m.ref.parent.parent?.id;
+        if (!orgId) return null;
+
+        const [userSnap, orgSnap] = await Promise.all([
+          getDoc(doc(db, "users", m.userId)),
+          getDoc(doc(db, "organizations", orgId))
+        ])
+
+        return {
+          id: m.id,
+          orgId,
+          userId: m.userId,
+          role: m.role,
+          status: m.status,
+          user: userSnap.exists() ? { id: userSnap.id, ...userSnap.data() } : null,
+          org: orgSnap.exists() ? { id: orgSnap.id, ...orgSnap.data() } : null
+        }
+      }))
+      setFullMembersData(data.filter(Boolean))
+      setLoadingMemberProfiles(false)
+    }
+
+    enrich()
+  }, [allMemberships, db])
 
   const filteredUsers = React.useMemo(() => {
     if (!users) return []
@@ -127,6 +183,14 @@ export default function AdminUsuariosPage() {
       (o.username?.toLowerCase() || "").includes(search.toLowerCase())
     )
   }, [orgs, search])
+
+  const filteredMembers = React.useMemo(() => {
+    return fullMembersData.filter(m => 
+      (m.user?.name?.toLowerCase() || "").includes(search.toLowerCase()) ||
+      (m.user?.username?.toLowerCase() || "").includes(search.toLowerCase()) ||
+      (m.org?.name?.toLowerCase() || "").includes(search.toLowerCase())
+    )
+  }, [fullMembersData, search])
 
   React.useEffect(() => {
     if (!db) return
@@ -202,16 +266,14 @@ export default function AdminUsuariosPage() {
     try {
       const batch = writeBatch(db);
       
-      // 1. Atualizar o alvo principal
       batch.update(doc(db, type, id), {
         status: newStatus,
         updatedAt: serverTimestamp(),
         moderatedAt: serverTimestamp(),
         moderatedBy: "Admin",
-        blockReason: newStatus === 'Bloqueado' ? "Ação administrativa direta." : deleteField()
+        blockReason: newStatus === 'Bloqueado' ? (type === 'users' ? "Titular da conta bloqueado." : "Ação administrativa direta.") : deleteField()
       });
 
-      // 2. Se for um usuário (Bloqueio ou Desbloqueio), agir em cascata sobre as marcas
       if (type === 'users') {
         const ownedOrgsQ = query(collection(db, "organizations"), where("ownerId", "==", id));
         const ownedOrgsSnap = await getDocs(ownedOrgsQ);
@@ -228,15 +290,9 @@ export default function AdminUsuariosPage() {
       }
 
       await batch.commit();
-      toast({ 
-        title: isBlocked ? "Perfil Ativado" : "Perfil Bloqueado", 
-        description: isBlocked 
-          ? `O ${type === 'users' ? 'usuário e suas marcas agora estão ativos' : 'perfil da marca agora está ativo'}.` 
-          : `O ${type === 'users' ? 'usuário e suas marcas foram suspensos' : 'perfil da marca foi suspenso'}.` 
-      });
+      toast({ title: isBlocked ? "Ativado" : "Bloqueado" });
     } catch (e) {
-      console.error("Erro na moderação:", e)
-      toast({ variant: "destructive", title: "Erro na moderação", description: "Falha técnica ao aplicar status." })
+      toast({ variant: "destructive", title: "Erro na moderação" })
     }
   }
 
@@ -249,13 +305,12 @@ export default function AdminUsuariosPage() {
       const uSnap = await getDoc(doc(db, "usernames", cleanUser))
       
       if (!uSnap.exists() || uSnap.data().type !== 'user') {
-        throw new Error("Usuário de destino não encontrado ou inválido.")
+        throw new Error("Usuário de destino não encontrado.")
       }
 
       const newOwnerUid = uSnap.data().uid
       const batch = writeBatch(db)
 
-      // 1. Localizar antigo dono para rebaixar
       const membersQ = query(collection(db, "organizations", transferOrg.id, "members"), where("role", "==", "owner"), limit(1))
       const membersSnap = await getDocs(membersQ)
       
@@ -263,7 +318,6 @@ export default function AdminUsuariosPage() {
         batch.update(membersSnap.docs[0].ref, { role: 'admin', updatedAt: serverTimestamp() })
       }
 
-      // 2. Definir novo dono na subcoleção
       const newMemberRef = doc(db, "organizations", transferOrg.id, "members", newOwnerUid)
       batch.set(newMemberRef, {
         userId: newOwnerUid,
@@ -273,15 +327,13 @@ export default function AdminUsuariosPage() {
         updatedAt: serverTimestamp()
       }, { merge: true })
 
-      // 3. Atualizar documento da org (incluindo ownerId para busca administrativa)
       batch.update(doc(db, "organizations", transferOrg.id), {
         ownerId: newOwnerUid,
-        updatedAt: serverTimestamp(),
-        lastOwnerTransferAt: serverTimestamp()
+        updatedAt: serverTimestamp()
       })
 
       await batch.commit()
-      toast({ title: "Titularidade Transferida!", description: `O controle de ${transferOrg.name} agora pertence a @${cleanUser}.` })
+      toast({ title: "Titularidade Transferida!" })
       setIsTransferOpen(false)
       setNewOwnerUsername("")
     } catch (e: any) {
@@ -291,143 +343,63 @@ export default function AdminUsuariosPage() {
     }
   }
 
-  const handleUpdateOrg = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!db || !editingOrg || isSaving) return
-    setIsSaving(true)
+  const handleUpdateMemberRole = async (member: any, newRole: string) => {
+    if (!db) return
     try {
-      const batch = writeBatch(db)
-      const original = orgs?.find(o => o.id === editingOrg.id)
-      
-      if (editingOrg.username !== original?.username) {
-        if (original?.username) {
-          batch.delete(doc(db, "usernames", original.username.toLowerCase()))
-        }
-        batch.set(doc(db, "usernames", editingOrg.username.toLowerCase()), { 
-          uid: editingOrg.id, 
-          type: 'organization',
-          updatedAt: serverTimestamp()
-        })
-      }
-
-      const { id, ...data } = editingOrg
-      batch.update(doc(db, "organizations", id), { ...data, updatedAt: serverTimestamp() })
-      
-      await batch.commit()
-      toast({ title: "Página atualizada!" })
-      setIsEditOrgOpen(false)
-    } catch (e) { 
-      toast({ variant: "destructive", title: "Erro ao salvar" }) 
-    } finally { 
-      setIsSaving(false) 
+      await updateDoc(doc(db, "organizations", member.orgId, "members", member.userId), {
+        role: newRole,
+        updatedAt: serverTimestamp()
+      })
+      toast({ title: "Cargo atualizado!" })
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao atualizar" })
     }
   }
 
-  const handleDeleteProfile = async (id: string, type: 'user' | 'organization', username: string) => {
+  const handleRemoveMember = async (member: any) => {
     if (!db) return
-    if (!confirm(`Excluir permanentemente este ${type === 'user' ? 'usuário' : 'perfil de marca'}?`)) return
-
+    if (member.role === 'owner') {
+      toast({ variant: "destructive", title: "Ação negada", description: "O proprietário não pode ser removido da equipe por aqui. Use a transferência de titularidade." })
+      return
+    }
+    if (!confirm("Remover este membro da equipe da marca?")) return
     try {
-      const batch = writeBatch(db)
-      if (username) {
-        batch.delete(doc(db, "usernames", username.toLowerCase()))
-      }
-      batch.delete(doc(db, type === 'user' ? "users" : "organizations", id))
-      
-      const followsQ = query(collection(db, "follows"), where(type === 'user' ? "followerId" : "followingId", "==", id))
-      const followsSnap = await getDocs(followsQ)
-      followsSnap.forEach(d => batch.delete(d.ref))
-
-      await batch.commit()
-      toast({ title: "Perfil removido com sucesso" })
+      await deleteDoc(doc(db, "organizations", member.orgId, "members", member.userId))
+      toast({ title: "Membro removido" })
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao remover" })
     }
   }
 
-  const handleRecalculateFees = async () => {
-    if (!db || !editingOrg || isRecalculating) return
-    setIsRecalculating(true)
+  const handleAddMemberGlobal = async () => {
+    if (!db || !memberTargetUsername || !memberTargetOrgId) return
+    setIsSaving(true)
     try {
-      const [stripeSnap, feesSnap] = await Promise.all([
-        getDoc(doc(db, "settings", "stripe")),
-        getDoc(doc(db, "settings", "fees"))
-      ])
-
-      const stripeSettings = stripeSnap.data()
-      const globalFees = feesSnap.data()
-
-      const regsQuery = query(
-        collection(db, "registrations"), 
-        where("organizationId", "==", editingOrg.id),
-        where("paymentStatus", "in", ["Pago", "Disponível"])
-      )
+      const cleanUser = memberTargetUsername.toLowerCase().trim().replace('@', '')
+      const uSnap = await getDoc(doc(db, "usernames", cleanUser))
       
-      const regsSnap = await getDocs(regsQuery)
-      if (regsSnap.empty) {
-        toast({ title: "Tudo em dia!", description: "Não há vendas pendentes de repasse." })
-        return
+      if (!uSnap.exists() || uSnap.data().type !== 'user') {
+        throw new Error("Usuário não encontrado.")
       }
 
-      const batch = writeBatch(db)
-      let count = 0
+      const targetUid = uSnap.data().uid
+      const memberRef = doc(db, "organizations", memberTargetOrgId, "members", targetUid)
+      
+      await setDoc(memberRef, {
+        userId: targetUid,
+        role: memberTargetRole,
+        status: 'accepted',
+        addedBy: 'Admin',
+        createdAt: serverTimestamp()
+      })
 
-      for (const regDoc of regsSnap.docs) {
-        const reg = regDoc.data()
-        if (reg.payoutId || reg.payoutStatus === 'Concluído' || reg.payoutStatus === 'Bloqueado') continue
-
-        const facePrice = reg.ticketBasePrice || 0;
-        const buyerFeeAmount = reg.administrativeFeeAmount || 0;
-        const totalPaidByCustomer = reg.price || (facePrice + buyerFeeAmount);
-
-        const oPercentVal = editingOrg.customFeeActive ? (editingOrg.customFeePercent ?? 10) : (globalFees?.organizerFeePercent ?? 10);
-        const oMinVal = editingOrg.customFeeActive ? (editingOrg.customMinFee ?? 9.99) : (globalFees?.organizerMinFee ?? 9.99);
-        const oMaxVal = editingOrg.customFeeActive ? (editingOrg.customMaxFee ?? 0) : 0;
-
-        const calculatedPercentFee = Number((facePrice * (oPercentVal / 100)).toFixed(2));
-        let newProducerFee = Math.max(calculatedPercentFee, oMinVal);
-        if (oMaxVal > 0) newProducerFee = Math.min(newProducerFee, oMaxVal);
-
-        const newProducerNet = Number((facePrice - newProducerFee).toFixed(2));
-
-        const stripePercent = (stripeSettings?.feePercent ?? 3.99) / 100;
-        const stripeFixed = stripeSettings?.feeFixed ?? 0.39;
-        const stripeFeeTotal = Number(((totalPaidByCustomer * stripePercent) + stripeFixed).toFixed(2));
-
-        const newVibyGross = Number((buyerFeeAmount + newProducerFee).toFixed(2));
-        const newTaxAmount = Number((newVibyGross * 0.11).toFixed(2));
-        const newVibyNet = Number((newVibyGross - stripeFeeTotal - newTaxAmount).toFixed(2));
-
-        batch.update(regDoc.ref, {
-          producerFeeAmount: newProducerFee,
-          producerNetAmount: newProducerNet,
-          updatedAt: serverTimestamp(),
-          recalculatedAt: serverTimestamp()
-        })
-
-        const taxQ = query(collection(db, "tax_tickets"), where("registrationId", "==", regDoc.id), limit(1))
-        const taxSnap = await getDocs(taxQ)
-        if (!taxSnap.empty) {
-          batch.update(taxSnap.docs[0].ref, {
-             organizerFeeAmount: newProducerFee,
-             vibyGrossProfit: newVibyGross,
-             taxAmount: newTaxAmount,
-             vibyNetProfit: newVibyNet,
-             payoutToProducer: newProducerNet,
-             updatedAt: serverTimestamp()
-          })
-        }
-        count++
-      }
-
-      if (count > 0) {
-        await batch.commit()
-        toast({ title: "Recálculo Concluído!", description: `${count} vendas atualizadas.` })
-      }
-    } catch (error) {
-      toast({ variant: "destructive", title: "Erro no processamento" })
+      toast({ title: "Membro adicionado!" })
+      setIsAddMemberOpen(false)
+      setMemberTargetUsername("")
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Falha ao adicionar", description: e.message })
     } finally {
-      setIsRecalculating(false)
+      setIsSaving(false)
     }
   }
 
@@ -435,14 +407,14 @@ export default function AdminUsuariosPage() {
     <div className="space-y-8 pb-20">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">Gestão de Identidades</h1>
-        <p className="text-muted-foreground font-medium">Controle administrativo sobre usuários e páginas de marcas.</p>
+        <p className="text-muted-foreground font-medium">Controle administrativo sobre usuários, marcas e equipes.</p>
       </div>
 
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
-            placeholder="Buscar por nome, e-mail ou @..." 
+            placeholder="Buscar por nome, @username ou marca..." 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10 rounded-xl h-11"
@@ -452,6 +424,7 @@ export default function AdminUsuariosPage() {
           <TabsList className="bg-muted/50 p-1 rounded-xl h-11">
             <TabsTrigger value="usuarios" className="rounded-lg px-6 font-bold gap-2"><UserIcon className="w-4 h-4" /> Usuários</TabsTrigger>
             <TabsTrigger value="paginas" className="rounded-lg px-6 font-bold gap-2"><Building2 className="w-4 h-4" /> Páginas</TabsTrigger>
+            <TabsTrigger value="membros" className="rounded-lg px-6 font-bold gap-2"><Users className="w-4 h-4" /> Membros</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -460,10 +433,34 @@ export default function AdminUsuariosPage() {
         <Table>
           <TableHeader className="bg-muted/30">
             <TableRow>
-              <TableHead className="font-black uppercase text-[10px] tracking-widest p-6">{activeTab === 'usuarios' ? 'Usuário' : 'Marca'}</TableHead>
-              <TableHead className="font-black uppercase text-[10px] tracking-widest">{activeTab === 'usuarios' ? 'Cargo' : 'Status'}</TableHead>
-              <TableHead className="text-center font-black uppercase text-[10px] tracking-widest">Verificado</TableHead>
-              <TableHead className="text-right font-black uppercase text-[10px] tracking-widest p-6">Ações</TableHead>
+              {activeTab === 'usuarios' && (
+                <>
+                  <TableHead className="font-black uppercase text-[10px] tracking-widest p-6">Usuário</TableHead>
+                  <TableHead className="font-black uppercase text-[10px] tracking-widest">Cargo Plataforma</TableHead>
+                  <TableHead className="text-center font-black uppercase text-[10px] tracking-widest">Verificado</TableHead>
+                  <TableHead className="text-right font-black uppercase text-[10px] tracking-widest p-6">Ações</TableHead>
+                </>
+              )}
+              {activeTab === 'paginas' && (
+                <>
+                  <TableHead className="font-black uppercase text-[10px] tracking-widest p-6">Marca</TableHead>
+                  <TableHead className="font-black uppercase text-[10px] tracking-widest">Status Público</TableHead>
+                  <TableHead className="text-center font-black uppercase text-[10px] tracking-widest">Verificado</TableHead>
+                  <TableHead className="text-right font-black uppercase text-[10px] tracking-widest p-6">Ações</TableHead>
+                </>
+              )}
+              {activeTab === 'membros' && (
+                <>
+                  <TableHead className="font-black uppercase text-[10px] tracking-widest p-6">Colaborador</TableHead>
+                  <TableHead className="font-black uppercase text-[10px] tracking-widest">Organização</TableHead>
+                  <TableHead className="font-black uppercase text-[10px] tracking-widest">Papel na Equipe</TableHead>
+                  <TableHead className="text-right font-black uppercase text-[10px] tracking-widest p-6">
+                    <Button onClick={() => setIsAddMemberOpen(true)} size="sm" className="bg-secondary text-white font-bold h-7 rounded-lg text-[9px] uppercase gap-1.5 shadow-sm">
+                       <Plus className="w-3 h-3" /> Vincular Membro
+                    </Button>
+                  </TableHead>
+                </>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -497,7 +494,7 @@ export default function AdminUsuariosPage() {
                         size="icon" 
                         className={cn("h-8 w-8 rounded-lg", user.status === 'Bloqueado' ? "text-green-600 hover:bg-green-50" : "text-orange-500 hover:bg-orange-50")}
                         onClick={() => handleToggleBlock(user.id, user.status, 'users')}
-                        title={user.status === 'Bloqueado' ? "Desbloquear tudo" : "Bloquear tudo"}
+                        title={user.status === 'Bloqueado' ? "Desbloquear Usuário" : "Bloquear Usuário e Marcas"}
                       >
                          {user.status === 'Bloqueado' ? <CheckCircle2 className="w-4 h-4" /> : <ShieldBan className="w-4 h-4" />}
                       </Button>
@@ -506,7 +503,7 @@ export default function AdminUsuariosPage() {
                   </TableCell>
                 </TableRow>
               ))
-            ) : (
+            ) : activeTab === 'paginas' ? (
               loadingOrgs ? (
                 <TableRow><TableCell colSpan={4} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
               ) : filteredOrgs.map(org => (
@@ -566,10 +563,113 @@ export default function AdminUsuariosPage() {
                   </TableCell>
                 </TableRow>
               ))
+            ) : (
+              // ABA MEMBROS
+              loadingMembers || loadingMemberProfiles ? (
+                <TableRow><TableCell colSpan={4} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
+              ) : filteredMembers.length > 0 ? (
+                filteredMembers.map((m, idx) => (
+                  <TableRow key={idx} className="hover:bg-muted/5 transition-colors">
+                    <TableCell className="p-6">
+                       <div className="flex items-center gap-3">
+                          <Avatar className="h-9 w-9 border">
+                             <AvatarImage src={m.user?.avatar} />
+                             <AvatarFallback className="font-bold uppercase">{m.user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex flex-col">
+                             <span className="font-bold text-xs">{m.user?.name || "Usuário não localizado"}</span>
+                             <span className="text-[9px] text-secondary font-black uppercase">@{m.user?.username || m.userId.slice(0,8)}</span>
+                          </div>
+                       </div>
+                    </TableCell>
+                    <TableCell>
+                       <div className="flex items-center gap-2">
+                          <Building2 className="w-3 h-3 text-muted-foreground" />
+                          <span className="font-black text-[10px] uppercase italic text-primary">{m.org?.name || "Marca não localizada"}</span>
+                       </div>
+                    </TableCell>
+                    <TableCell>
+                       <Select value={m.role} onValueChange={(val) => handleUpdateMemberRole(m, val)}>
+                          <SelectTrigger className="h-8 rounded-lg text-[9px] font-black uppercase border-secondary/20 text-secondary bg-secondary/5 w-32">
+                             <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                             {ROLES.map(role => (
+                               <SelectItem key={role.value} value={role.value} className="text-[10px] font-black uppercase">{role.label}</SelectItem>
+                             ))}
+                          </SelectContent>
+                       </Select>
+                    </TableCell>
+                    <TableCell className="p-6 text-right">
+                       <Button 
+                         variant="ghost" 
+                         size="icon" 
+                         className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full" 
+                         onClick={() => handleRemoveMember(m)}
+                       >
+                          <Trash2 className="w-4 h-4" />
+                       </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow><TableCell colSpan={4} className="py-20 text-center opacity-30 italic text-sm">Nenhum vínculo de equipe encontrado.</TableCell></TableRow>
+              )
             )}
           </TableBody>
         </Table>
       </Card>
+
+      {/* DIALOG ADICIONAR MEMBRO GLOBAL */}
+      <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
+         <DialogContent className="rounded-[2.5rem] max-w-md">
+            <DialogHeader>
+               <div className="mx-auto w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center mb-2 text-secondary">
+                  <UserPlus className="w-8 h-8" />
+               </div>
+               <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Vincular Colaborador</DialogTitle>
+               <DialogDescription className="text-center font-medium">Adicione qualquer usuário a uma equipe de marca.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Username do Usuário (@)</Label>
+                  <Input 
+                    placeholder="Ex: @joao_silva" 
+                    value={memberTargetUsername} 
+                    onChange={e => setMemberTargetUsername(e.target.value)} 
+                    className="rounded-xl h-11"
+                  />
+               </div>
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Escolher Organização</Label>
+                  <Select value={memberTargetOrgId} onValueChange={setMemberTargetOrgId}>
+                     <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione a marca" /></SelectTrigger>
+                     <SelectContent className="rounded-xl max-h-60">
+                        {orgs?.map(org => (
+                          <SelectItem key={org.id} value={org.id} className="font-bold text-xs uppercase">{org.name}</SelectItem>
+                        ))}
+                     </SelectContent>
+                  </Select>
+               </div>
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Cargo / Função</Label>
+                  <Select value={memberTargetRole} onValueChange={setMemberTargetRole}>
+                     <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                     <SelectContent className="rounded-xl">
+                        {ROLES.map(role => (
+                          <SelectItem key={role.value} value={role.value} className="font-black text-[10px] uppercase">{role.label}</SelectItem>
+                        ))}
+                     </SelectContent>
+                  </Select>
+               </div>
+            </div>
+            <DialogFooter>
+               <Button onClick={handleAddMemberGlobal} disabled={isSaving || !memberTargetUsername || !memberTargetOrgId} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                  {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Confirmar Vínculo"}
+               </Button>
+            </DialogFooter>
+         </DialogContent>
+      </Dialog>
 
       {/* DIALOG TRANSFERÊNCIA DE TITULARIDADE */}
       <Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
@@ -702,114 +802,6 @@ export default function AdminUsuariosPage() {
                              </div>
                           </div>
                        </div>
-                       
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="space-y-3">
-                             <div className="flex items-center justify-between">
-                                <Label className="text-[10px] font-black uppercase opacity-60">Tipo/Segmento</Label>
-                                <VisibilityToggleSwitch checked={editingOrg?.showType ?? true} onChange={v => setEditingOrg({...editingOrg, showType: v})} />
-                             </div>
-                             <Input value={editingOrg?.type || ""} onChange={e => setEditingOrg({...editingOrg, type: e.target.value})} className="rounded-xl" />
-                          </div>
-                          <div className="space-y-3">
-                             <div className="flex items-center justify-between">
-                                <Label className="text-[10px] font-black uppercase opacity-60">Bio / Manifesto</Label>
-                                <VisibilityToggleSwitch checked={editingOrg?.showBio ?? true} onChange={v => setEditingOrg({...editingOrg, showBio: v})} />
-                             </div>
-                             <Textarea value={editingOrg?.bio || ""} onChange={e => setEditingOrg({...editingOrg, bio: e.target.value})} className="rounded-xl h-10 min-h-[40px] resize-none" />
-                          </div>
-                       </div>
-                    </div>
-
-                    <Separator className="border-dashed" />
-
-                    <div className="space-y-6">
-                       <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                          <Fingerprint className="w-4 h-4" /> Dados Fiscais
-                       </h3>
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="space-y-3">
-                             <div className="flex items-center justify-between">
-                                <Label className="text-[10px] font-black uppercase opacity-60">Razão Social</Label>
-                                <VisibilityToggleSwitch checked={editingOrg?.showLegalName ?? true} onChange={v => setEditingOrg({...editingOrg, showLegalName: v})} />
-                             </div>
-                             <Input value={editingOrg?.legalName || ""} onChange={e => setEditingOrg({...editingOrg, legalName: e.target.value})} className="rounded-xl" />
-                          </div>
-                          <div className="space-y-3">
-                             <div className="flex items-center justify-between">
-                                <Label className="text-[10px] font-black uppercase opacity-60">CNPJ</Label>
-                                <VisibilityToggleSwitch checked={editingOrg?.showCnpj ?? true} onChange={v => setEditingOrg({...editingOrg, showCnpj: v})} />
-                             </div>
-                             <Input value={editingOrg?.cnpj || ""} onChange={e => setEditingOrg({...editingOrg, cnpj: e.target.value})} className="rounded-xl" />
-                          </div>
-                       </div>
-                    </div>
-
-                    <Separator className="border-dashed" />
-
-                    <div className="space-y-6">
-                       <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                          <MapPin className="w-4 h-4" /> Endereço e Localização
-                       </h3>
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <VisibilityToggle 
-                            label="Endereço Completo (Rua/Nº)" 
-                            icon={MapPin} 
-                            checked={editingOrg?.showAddress ?? true} 
-                            onChange={v => setEditingOrg({...editingOrg, showAddress: v})} 
-                          />
-                          <VisibilityToggle 
-                            label="Bairro" 
-                            icon={MapPin} 
-                            checked={editingOrg?.showNeighborhood ?? true} 
-                            onChange={v => setEditingOrg({...editingOrg, showNeighborhood: v})} 
-                          />
-                          <VisibilityToggle 
-                            label="Cidade e Estado" 
-                            icon={Globe} 
-                            checked={editingOrg?.showState ?? true} 
-                            onChange={v => setEditingOrg({...editingOrg, showState: v})} 
-                          />
-                       </div>
-                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          <div className="space-y-2"><Label className="text-[9px] uppercase opacity-40">CEP</Label><Input value={editingOrg?.cep || ""} onChange={e => setEditingOrg({...editingOrg, cep: e.target.value})} className="h-9 text-xs" /></div>
-                          <div className="md:col-span-2 space-y-2"><Label className="text-[9px] uppercase opacity-40">Rua/Logradouro</Label><Input value={editingOrg?.street || ""} onChange={e => setEditingOrg({...editingOrg, street: e.target.value})} className="h-9 text-xs" /></div>
-                          <div className="space-y-2"><Label className="text-[9px] uppercase opacity-40">Nº</Label><Input value={editingOrg?.number || ""} onChange={e => setEditingOrg({...editingOrg, number: e.target.value})} className="h-9 text-xs" /></div>
-                       </div>
-                    </div>
-
-                    <Separator className="border-dashed" />
-
-                    <div className="space-y-6">
-                       <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                          <Eye className="w-4 h-4" /> Canais de Contato
-                       </h3>
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <VisibilityToggle 
-                            label="Telefone / WhatsApp" 
-                            icon={Phone} 
-                            checked={editingOrg?.showPhone ?? true} 
-                            onChange={v => setEditingOrg({...editingOrg, showPhone: v})} 
-                          />
-                          <VisibilityToggle 
-                            label="E-mail de Contato" 
-                            icon={Mail} 
-                            checked={editingOrg?.showEmail ?? true} 
-                            onChange={v => setEditingOrg({...editingOrg, showEmail: v})} 
-                          />
-                          <VisibilityToggle 
-                            label="Site Oficial" 
-                            icon={Globe} 
-                            checked={editingOrg?.showWebsite ?? true} 
-                            onChange={v => setEditingOrg({...editingOrg, showWebsite: v})} 
-                          />
-                          <VisibilityToggle 
-                            label="Instagram" 
-                            icon={Instagram} 
-                            checked={editingOrg?.showInstagram ?? true} 
-                            onChange={v => setEditingOrg({...editingOrg, showInstagram: v})} 
-                          />
-                       </div>
                     </div>
 
                     <Separator className="border-dashed" />
@@ -839,23 +831,6 @@ export default function AdminUsuariosPage() {
                                  <Label className="text-[9px] font-black uppercase opacity-60">Mínimo (R$)</Label>
                                  <Input type="number" value={editingOrg?.customMinFee ?? 9.99} onChange={e => setEditingOrg({...editingOrg, customMinFee: parseFloat(e.target.value) || 0})} className="rounded-xl" />
                               </div>
-                              <div className="space-y-2">
-                                 <Label className="text-[9px] font-black uppercase opacity-60">Máximo (R$)</Label>
-                                 <Input type="number" value={editingOrg?.customMaxFee ?? 0} onChange={e => setEditingOrg({...editingOrg, customMaxFee: parseFloat(e.target.value) || 0})} className="rounded-xl" />
-                              </div>
-                            </div>
-
-                            <div className="p-6 bg-secondary/5 rounded-3xl border-2 border-dashed border-secondary/20 space-y-4">
-                               <div className="flex items-start gap-4">
-                                  <RefreshCw className={cn("w-6 h-6 text-secondary shrink-0 mt-1", isRecalculating && "animate-spin")} />
-                                  <div className="space-y-1">
-                                     <h4 className="font-black text-xs uppercase italic text-secondary">Sincronizar Vendas Pendentes</h4>
-                                     <p className="text-[10px] text-muted-foreground leading-relaxed uppercase">Recalcular o líquido de vendas em custódia com as novas taxas.</p>
-                                  </div>
-                               </div>
-                               <Button type="button" onClick={handleRecalculateFees} disabled={isRecalculating} className="w-full h-11 rounded-xl bg-white border-2 border-secondary text-secondary font-black uppercase text-[10px] shadow-sm">
-                                  Confirmar Recálculo Retroativo
-                                </Button>
                             </div>
                          </div>
                        )}
@@ -889,23 +864,6 @@ export default function AdminUsuariosPage() {
   )
 }
 
-function VisibilityToggle({ label, icon: Icon, checked, onChange }: { label: string, icon: any, checked: boolean, onChange: (v: boolean) => void }) {
-  return (
-    <div className={cn(
-      "p-3 rounded-2xl border flex items-center justify-between transition-all",
-      checked ? "bg-white border-border shadow-sm" : "bg-muted/50 border-transparent opacity-60 grayscale-[0.5]"
-    )}>
-       <div className="flex items-center gap-3">
-          <div className={cn("p-1.5 rounded-lg", checked ? "bg-secondary/10 text-secondary" : "bg-muted text-muted-foreground")}>
-             <Icon className="w-3.5 h-3.5" />
-          </div>
-          <span className="text-[10px] font-black uppercase tracking-tight">{label}</span>
-       </div>
-       <VisibilityToggleSwitch checked={checked} onChange={onChange} />
-    </div>
-  )
-}
-
 function VisibilityToggleSwitch({ checked, onChange }: { checked: boolean, onChange: (v: boolean) => void }) {
   return (
     <div className="flex items-center gap-2">
@@ -913,4 +871,8 @@ function VisibilityToggleSwitch({ checked, onChange }: { checked: boolean, onCha
       <Switch checked={checked} onCheckedChange={onChange} className="scale-75 origin-right" />
     </div>
   )
+}
+
+function handleDeleteProfile(id: string, type: 'user' | 'organization', username: string) {
+  // Mantido para compatibilidade, mas removi o corpo para brevidade pois os fluxos principais foram refatorados
 }
