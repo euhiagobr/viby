@@ -57,6 +57,7 @@ function getClientContext() {
 
 /**
  * Função principal para logar erros no Firestore.
+ * Detecta automaticamente o ambiente (Client ou Server) e usa o método apropriado.
  */
 export async function logSystemError(params: {
   error: any;
@@ -70,29 +71,39 @@ export async function logSystemError(params: {
   const code = generateErrorCode();
   const context = getClientContext();
 
-  const logData: Omit<ErrorLog, 'createdAt'> & { createdAt: any } = {
+  const logData = {
     code,
     message: error?.message || String(error),
     stack: error?.stack || null,
     type,
     severity,
-    pathname: context.pathname,
-    component,
+    pathname: context.pathname || 'server-action',
+    component: component || 'N/A',
     metadata: metadata || null,
     userId: user?.uid || null,
     userEmail: user?.email || null,
-    browser: context.userAgent,
-    os: context.os,
-    device: context.device,
+    browser: context.userAgent || 'Server',
+    os: context.os || 'Server',
+    device: context.device || 'server',
     resolved: false,
     status: 'pendente',
-    createdAt: serverTimestamp()
+    createdAt: new Date() // Usar Date() em vez de serverTimestamp() para garantir compatibilidade imediata
   };
 
   try {
-    // Tenta salvar no Firestore do banco 'eventosviby'
-    if (db) {
-      await addDoc(collection(db, 'system_logs'), logData);
+    // Se estiver rodando no servidor, tenta usar o Admin SDK para evitar erros de permissão
+    if (typeof window === 'undefined') {
+      const { getAdminDb } = await import('@/lib/firebase/admin');
+      const adminDb = getAdminDb();
+      await adminDb.collection('system_logs').add(logData);
+    } else {
+      // No cliente, usa o SDK padrão (as regras de segurança agora permitem gravação)
+      if (db) {
+        await addDoc(collection(db, 'system_logs'), {
+          ...logData,
+          createdAt: serverTimestamp()
+        });
+      }
     }
   } catch (e) {
     console.error('[ErrorManager Critical Failure]', e);

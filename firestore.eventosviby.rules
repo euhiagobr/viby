@@ -188,6 +188,12 @@ service cloud.firestore {
     match /password_reset_codes/{docId} {
       allow read, write: if false; 
     }
+    
+    match /system_logs/{logId} {
+      allow create: if true;
+      allow read: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
 
     match /{path=**}/members/{userId} {
       allow read: if isSignedIn() && request.auth.uid == userId;
