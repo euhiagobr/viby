@@ -600,9 +600,11 @@ function TicketCard({
 
              <div className="text-right shrink-0">
                <p className="text-3xl font-black text-primary">{formatCurrency(type.price)}</p>
-               <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-1">
-                 + {formatCurrency(breakdown.administrativeFeeAmount)} taxa viby
-               </p>
+               {type.price > 0 && (
+                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-1">
+                   + {formatCurrency(breakdown.administrativeFeeAmount)} taxa viby
+                 </p>
+               )}
              </div>
           </div>
         </div>
@@ -707,10 +709,8 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const [selectedTicketType, setSelectedTicketType] = React.useState<any>(null);
   const [quantity, setQuantity] = React.useState(1);
 
-  // Fase 1: Novos status e tipos
-  const isActive = event?.status === 'Ativo';
   const eventType = event?.type || 'interno';
-  const isFree = event?.isFree === true;
+  const isActive = event?.status === 'Ativo';
   
   const isEnded = React.useMemo(() => {
     if (!event) return false;
@@ -720,7 +720,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     return end < now;
   }, [event]);
 
-  // Contadores sociais inteligentes
   React.useEffect(() => {
     if (!db || !id || !isActive) return;
     const key = `viby_viewed_${id}`;
@@ -822,7 +821,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
           ticketTypeName: ticketType.name,
           batchId: ticketType._batch.id,
           batchName: ticketType._batch.name,
-          price: isFree ? 0 : ticketType.price,
+          price: ticketType.price,
           quantity: 1,
           requiresProof: ticketType.requiresProof || false,
           sectorId: selectedSector.id,
@@ -853,7 +852,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
         ticketTypeName: selectedTicketType.name,
         batchId: selectedTicketType._batch.id,
         batchName: selectedTicketType._batch.name,
-        price: isFree ? 0 : selectedTicketType.price,
+        price: selectedTicketType.price,
         quantity,
         requiresProof: selectedTicketType.requiresProof || false,
         sectorId: selectedSector?.id || null,
@@ -880,17 +879,17 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     let fees = 0;
     if (selectedSector?.tipo !== 'livre' && selectedSector) {
       Object.values(selectedSeats).forEach(({ ticketType }) => {
-        const b = calculateFinancialBreakdown(isFree ? 0 : ticketType.price, globalFees, promotions, organizationProfile);
-        subtotal += isFree ? 0 : ticketType.price;
-        fees += isFree ? 0 : b.administrativeFeeAmount;
+        const b = calculateFinancialBreakdown(ticketType.price, globalFees, promotions, organizationProfile);
+        subtotal += ticketType.price;
+        fees += b.administrativeFeeAmount;
       });
     } else if (selectedTicketType) {
-      const b = calculateFinancialBreakdown(isFree ? 0 : selectedTicketType.price, globalFees, promotions, organizationProfile);
-      subtotal = (isFree ? 0 : selectedTicketType.price) * quantity;
-      fees = (isFree ? 0 : b.administrativeFeeAmount) * quantity;
+      const b = calculateFinancialBreakdown(selectedTicketType.price, globalFees, promotions, organizationProfile);
+      subtotal = selectedTicketType.price * quantity;
+      fees = b.administrativeFeeAmount * quantity;
     }
     return { subtotal, fees, total: subtotal + fees };
-  }, [selectedSector, selectedSeats, selectedTicketType, quantity, globalFees, promotions, organizationProfile, isFree]);
+  }, [selectedSector, selectedSeats, selectedTicketType, quantity, globalFees, promotions, organizationProfile]);
 
   if (eventLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
   if (!event) return null;
@@ -936,7 +935,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
         <div className="max-w-7xl mx-auto px-4 py-16 md:py-24">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
             <div className="lg:col-span-8 space-y-16">
-              {/* INTERAÇÕES SOCIAIS */}
               <div className="flex flex-wrap items-center gap-4">
                  <Button variant="outline" className="rounded-full h-12 px-6 gap-2 font-black uppercase italic text-xs shadow-sm" onClick={handleShare}>
                     <Heart className="w-4 h-4" /> Curtir ({event.likesCount || 0})
@@ -952,7 +950,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                  </div>
               </div>
 
-              {/* CLASSIFICAÇÃO */}
               <section className="space-y-6">
                  <div className="flex items-center gap-3 px-2">
                     <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><ShieldCheck className="w-5 h-5" /></div>
@@ -972,7 +969,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                  </div>
               </section>
 
-              {/* ORGANIZADOR */}
               <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden p-8 hover:shadow-xl transition-shadow group">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
                     <div className="flex items-center gap-8">
@@ -1013,27 +1009,28 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                   </div>
               </Card>
 
-              {/* CATEGORIAS E TAGS */}
-              {(event.categories?.length > 0 || event.tags?.length > 0) && (
-                <div className="flex flex-wrap gap-2">
-                   {event.categories?.map((cat: string) => <Badge key={cat} variant="secondary" className="rounded-full px-4 py-1 text-[10px] font-black uppercase tracking-widest bg-secondary/10 text-secondary border-none">{cat}</Badge>)}
-                   {event.tags?.map((tag: string) => <Badge key={tag} variant="outline" className="rounded-full px-4 py-1 text-[10px] font-black uppercase tracking-widest">#{tag}</Badge>)}
-                </div>
-              )}
-
-              {/* DESCRIÇÃO */}
               <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden p-10 relative">
                 <h3 className="text-xl font-black uppercase italic tracking-tighter mb-10 flex items-center gap-3"><Sparkles className="w-5 h-5 text-secondary" /> Informações do Evento</h3>
-                <div className="space-y-2">{renderFormattedText(event.description)}</div>
+                <div className="space-y-6">
+                  <div className="space-y-2">{renderFormattedText(event.description)}</div>
+                  {event.tags && event.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-4">
+                      {event.tags.map((tag: string) => (
+                        <Badge key={tag} variant="outline" className="rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest border-secondary/20 text-secondary">
+                          #{tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </Card>
 
               <LocationSection event={event} />
 
-              {/* BILHETERIA E TICKET MODES */}
               {eventType === 'interno' && event.ticketMode !== 'none' && (
                 <section id="tickets" className="space-y-10">
                   <div className="flex flex-col gap-2">
-                    <h2 className="text-4xl font-black italic uppercase tracking-tighter text-primary">{isFree ? "Reserva de Ingresso" : "Ingressos & Mapa"}</h2>
+                    <h2 className="text-4xl font-black italic uppercase tracking-tighter text-primary">Ingressos & Mapa</h2>
                     <p className="text-muted-foreground font-medium">Selecione a área desejada e escolha seus ingressos.</p>
                   </div>
                   {(!isActive || isEnded) && (
@@ -1078,7 +1075,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                                                     <SelectContent className="rounded-xl">{allAvailableTickets.map(t => (<SelectItem key={t.id} value={t.id} className="text-[10px] font-bold uppercase">{t.name}</SelectItem>))}</SelectContent>
                                                 </Select>
                                               </div>
-                                              <div className="text-right"><p className="text-[9px] font-bold text-muted-foreground uppercase">{ticketType.name}</p><p className="font-black text-xl">{formatCurrency(isFree ? 0 : ticketType.price)}</p></div>
+                                              <div className="text-right"><p className="text-[9px] font-bold text-muted-foreground uppercase">{ticketType.name}</p><p className="font-black text-xl">{formatCurrency(ticketType.price)}</p></div>
                                           </div>
                                         </div>
                                     ))}
@@ -1104,7 +1101,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
               <div className="sticky top-28 space-y-8">
                 {eventType === 'interno' && event.ticketMode !== 'none' && (
                   <Card className={cn("border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden border-t-8 p-8 flex flex-col gap-8", isEnded ? "border-muted grayscale opacity-70" : "border-secondary")}>
-                    <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-3"><ShoppingCart className="w-6 h-6 text-secondary" /> {isFree ? "Reserva" : "Pedido"}</h2>
+                    <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-3"><ShoppingCart className="w-6 h-6 text-secondary" /> Pedido</h2>
                     {isEnded ? <div className="py-20 text-center space-y-4"><XCircle className="w-12 h-12 mx-auto text-muted-foreground opacity-20" /><p className="text-xs font-black uppercase tracking-widest text-muted-foreground">O evento já encerrou.</p></div> : 
                      isActive ? ((selectedTicketType || Object.keys(selectedSeats).length > 0) ? (
                         <div className="space-y-8 animate-in zoom-in-95 duration-300">
@@ -1114,7 +1111,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                             <Separator className="border-dashed" />
                             <div className="flex justify-between items-center"><span className="text-xl font-black uppercase italic text-primary">Total</span><span className="text-3xl font-black text-primary">{formatCurrency(totals.total)}</span></div>
                           </div>
-                          <Button onClick={handleAddToCart} className="w-full h-20 bg-secondary text-white font-black rounded-3xl shadow-xl shadow-secondary/20 uppercase italic text-xl hover:scale-[1.02] transition-all group">{user ? (isFree ? 'Garantir Ingresso' : 'Adicionar ao Carrinho') : <><LogIn className="w-5 h-5 mr-2" /> Fazer Login</>}<ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" /></Button>
+                          <Button onClick={handleAddToCart} className="w-full h-20 bg-secondary text-white font-black rounded-3xl shadow-xl shadow-secondary/20 uppercase italic text-xl hover:scale-[1.02] transition-all group">{user ? 'Adicionar ao Carrinho' : <><LogIn className="w-5 h-5 mr-2" /> Fazer Login</>}<ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" /></Button>
                         </div>
                       ) : <div className="py-20 text-center space-y-6 opacity-30"><Ticket className="w-16 h-16 mx-auto text-secondary" /><p className="text-xs font-black uppercase tracking-[0.2em] max-w-[150px] mx-auto">Selecione uma opção ao lado.</p></div>) : <div className="py-20 text-center space-y-4"><Lock className="w-12 h-12 mx-auto text-muted-foreground opacity-20" /><p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Vendas indisponíveis.</p></div>}
                   </Card>

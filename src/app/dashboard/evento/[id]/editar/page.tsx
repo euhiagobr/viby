@@ -131,11 +131,8 @@ export default function EditarEventoPage() {
   const [selectedCategory, setSelectedCategory] = useState("")
   const [selectedAgeRating, setSelectedAgeRating] = useState("free")
   
-  // Fase 1: Novos Campos
   const [eventType, setEventType] = useState("interno")
-  const [isFree, setIsFree] = useState(false)
   const [externalUrl, setExternalUrl] = useState("")
-  const [eventCategories, setEventCategories] = useState<string[]>([])
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState("")
 
@@ -155,9 +152,7 @@ export default function EditarEventoPage() {
       setSelectedCategory(event.categoryId || "")
       setSelectedAgeRating(event.ageRating?.code || "free")
       setEventType(event.type || "interno")
-      setIsFree(event.isFree || false)
       setExternalUrl(event.externalUrl || "")
-      setEventCategories(event.categories || [])
       setTags(event.tags || [])
       setTicketMode(event.ticketMode || 'none')
       setMapMode(event.mapMode || 'none')
@@ -195,10 +190,6 @@ export default function EditarEventoPage() {
     setTagInput("")
   }
 
-  const toggleCategory = (cat: string) => {
-    setEventCategories(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat])
-  }
-
   const handleCepBlur = async () => {
     const cleanCep = address.cep.replace(/\D/g, "")
     if (cleanCep.length !== 8) return
@@ -225,8 +216,7 @@ export default function EditarEventoPage() {
       const searchKeywords = [
         ...normalizeText(currentOrg.name).split(" "),
         ...normalizeText(currentOrg.username).split(" "),
-        ...tags.map(normalizeText),
-        ...eventCategories.map(normalizeText)
+        ...tags.map(normalizeText)
       ]
       
       const ageRatingConfig = getAgeRatingConfig(selectedAgeRating);
@@ -259,9 +249,7 @@ export default function EditarEventoPage() {
         categoryId: selectedCategory,
         categoryName: categories?.find(c => c.id === selectedCategory)?.name || "Outros",
         type: eventType,
-        isFree,
         externalUrl: eventType === 'externo' ? externalUrl : null,
-        categories: eventCategories,
         tags,
         ageRating: { code: ageRatingConfig.code, label: ageRatingConfig.label, minimumAge: ageRatingConfig.minimumAge },
         ticketMode: eventType === 'interno' ? ticketMode : 'none',
@@ -323,10 +311,6 @@ export default function EditarEventoPage() {
                       </SelectContent>
                    </Select>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border border-dashed">
-                   <div className="space-y-0.5"><p className="text-sm font-bold">Evento Gratuito?</p><p className="text-[9px] uppercase font-black opacity-40">Oculta valores e taxas</p></div>
-                   <Switch checked={isFree} onCheckedChange={setIsFree} />
-                </div>
              </div>
 
              {eventType === 'externo' && (
@@ -335,17 +319,6 @@ export default function EditarEventoPage() {
                   <Input value={externalUrl} onChange={e => setExternalUrl(e.target.value)} placeholder="https://exemplo.com/ingressos" className="rounded-xl h-11" />
                </div>
              )}
-
-             <div className="space-y-4">
-                <Label className="text-[10px] font-black uppercase opacity-60">Categorias</Label>
-                <div className="flex flex-wrap gap-2">
-                   {EVENT_CATEGORIES.map(cat => (
-                     <Badge key={cat} variant={eventCategories.includes(cat) ? "secondary" : "outline"} className={cn("cursor-pointer h-7 px-3 text-[10px] font-bold uppercase", eventCategories.includes(cat) && "bg-secondary text-white border-none")} onClick={() => toggleCategory(cat)}>
-                        {cat}
-                     </Badge>
-                   ))}
-                </div>
-             </div>
 
              <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase opacity-60">Tags / Palavras-chave</Label>
@@ -394,7 +367,7 @@ export default function EditarEventoPage() {
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="space-y-2"><Label>Cidade</Label><Input value={address.city} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
-                <div className="space-y-2"><Label>UF</Label><Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
+                <div className="space-y-2"><Label>UF</Label><Input value={address.state} readOnly className="rounded-xl h-11 bg-muted/30 w-16" /></div>
                 <div className="space-y-2"><Label>Bairro</Label><Input value={address.neighborhood} onChange={e => setAddress({...address, neighborhood: e.target.value})} required className="rounded-xl h-11" /></div>
                 <div className="space-y-2"><Label>Número</Label><Input value={address.number} onChange={e => setAddress({...address, number: e.target.value})} required className="rounded-xl h-11" /></div>
              </div>

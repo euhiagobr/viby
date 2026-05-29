@@ -115,11 +115,8 @@ export default function NovoEventoPage() {
   const [selectedCategory, setSelectedCategory] = useState("")
   const [selectedAgeRating, setSelectedAgeRating] = useState("free")
   
-  // Fase 1: Novos Campos
   const [eventType, setEventType] = useState("interno")
-  const [isFree, setIsFree] = useState(false)
   const [externalUrl, setExternalUrl] = useState("")
-  const [eventCategories, setEventCategories] = useState<string[]>([])
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState("")
 
@@ -161,10 +158,6 @@ export default function NovoEventoPage() {
     setTagInput("")
   }
 
-  const toggleCategory = (cat: string) => {
-    setEventCategories(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat])
-  }
-
   const handleCepBlur = async () => {
     const cleanCep = address.cep.replace(/\D/g, "")
     if (cleanCep.length !== 8) return
@@ -186,27 +179,25 @@ export default function NovoEventoPage() {
     }
 
     setLoading(true)
+    const formData = new FormData(e.currentTarget as HTMLFormElement)
     try {
       const searchKeywords = [
         ...normalizeText(currentOrg.name).split(" "),
         ...normalizeText(currentOrg.username).split(" "),
-        ...tags.map(normalizeText),
-        ...eventCategories.map(normalizeText)
+        ...tags.map(normalizeText)
       ]
 
       const ageRatingConfig = getAgeRatingConfig(selectedAgeRating);
       
       const eventData = {
-        title: (e.target as any).title.value,
+        title: formData.get("title") as string,
         description,
-        date: (e.target as any).startDate.value,
-        endDate: (e.target as any).endDate.value,
+        date: formData.get("startDate") as string,
+        endDate: formData.get("endDate") as string,
         categoryId: selectedCategory,
         categoryName: categories?.find(c => c.id === selectedCategory)?.name || "Outros",
         type: eventType,
-        isFree,
         externalUrl: eventType === 'externo' ? externalUrl : null,
-        categories: eventCategories,
         tags,
         ageRating: { code: ageRatingConfig.code, label: ageRatingConfig.label, minimumAge: ageRatingConfig.minimumAge },
         ticketMode: eventType === 'interno' ? ticketMode : 'none',
@@ -262,10 +253,6 @@ export default function NovoEventoPage() {
                       </SelectContent>
                    </Select>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border border-dashed">
-                   <div className="space-y-0.5"><p className="text-sm font-bold">Evento Gratuito?</p><p className="text-[9px] uppercase font-black opacity-40">Oculta valores e taxas</p></div>
-                   <Switch checked={isFree} onCheckedChange={setIsFree} />
-                </div>
              </div>
 
              {eventType === 'externo' && (
@@ -274,17 +261,6 @@ export default function NovoEventoPage() {
                   <Input value={externalUrl} onChange={e => setExternalUrl(e.target.value)} placeholder="https://exemplo.com/ingressos" className="rounded-xl h-11 border-secondary/20" />
                </div>
              )}
-
-             <div className="space-y-4">
-                <Label className="text-[10px] font-black uppercase opacity-60">Categorias (Múltipla Seleção)</Label>
-                <div className="flex flex-wrap gap-2">
-                   {EVENT_CATEGORIES.map(cat => (
-                     <Badge key={cat} variant={eventCategories.includes(cat) ? "secondary" : "outline"} className={cn("cursor-pointer h-7 px-3 text-[10px] font-bold uppercase transition-all", eventCategories.includes(cat) && "bg-secondary text-white border-none")} onClick={() => toggleCategory(cat)}>
-                        {cat}
-                     </Badge>
-                   ))}
-                </div>
-             </div>
 
              <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase opacity-60">Tags / Palavras-chave</Label>
