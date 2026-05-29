@@ -1,28 +1,15 @@
 'use client';
 
-import { getFirestore, Firestore, getApps } from "firebase/firestore";
+import { getFirestore, Firestore } from "firebase/firestore";
 import { app } from "./apps";
 
 /**
- * @fileOverview Gerenciamento ultra-estabilizado da instância do Firestore.
- * Singleton resiliente para garantir que o banco 'eventosviby' seja instanciado uma única vez.
+ * @fileOverview Gerenciamento simplificado e estável da instância do Firestore.
+ * Garante que o banco 'eventosviby' seja instanciado corretamente e exportado como singleton.
  */
 
 const DATABASE_ID = "eventosviby";
 
-let firestoreInstance: Firestore | null = null;
-
-function initializeVibyDb(): Firestore {
-  if (typeof window === 'undefined') {
-    // No servidor (SSR), retornamos a inicialização padrão
-    return getFirestore(app, DATABASE_ID);
-  }
-
-  // No cliente, garantimos um singleton para evitar erros de inicialização múltipla (ca9)
-  if (!firestoreInstance) {
-    firestoreInstance = getFirestore(app, DATABASE_ID);
-  }
-  return firestoreInstance;
-}
-
-export const db = initializeVibyDb();
+// Exportamos a instância diretamente. O Firebase SDK gerencia internamente 
+// a persistência da instância única por ID de banco de dados.
+export const db = getFirestore(app, DATABASE_ID);

@@ -1,6 +1,11 @@
 'use client';
 
-import { Firestore, serverTimestamp, increment, runTransaction, addDoc, doc, collection } from "firebase/firestore";
+import { 
+  serverTimestamp, 
+  increment, 
+  runTransaction, 
+  addDoc 
+} from "firebase/firestore";
 import { safeCollection, safeDoc } from "@/lib/firestore-safe";
 import { createCheckoutSession } from "@/app/actions/stripe";
 import { generateUniqueTicketCode } from "@/lib/ticket-utils";
@@ -11,8 +16,7 @@ import { db as staticDb } from "@/firebase/database";
 
 /**
  * @fileOverview PayNowService - Processamento central de pagamentos.
- * Refatorado para garantir o uso de instâncias válidas de banco de dados,
- * seguindo o padrão que já funciona na recarga de saldo de anúncios.
+ * Refatorado para ignorar o parâmetro 'db' de hooks e usar o singleton estático estável.
  */
 
 export interface CheckoutOptions {
@@ -34,14 +38,14 @@ export interface CheckoutOptions {
   onError?: (error: any) => void;
 }
 
-export async function processPayNow(db: any, options: CheckoutOptions) {
+export async function processPayNow(_dbUnused: any, options: CheckoutOptions) {
   const { user, profile, items, totals, globalFees, promotions, orgsData } = options;
   
-  // Garante uma instância de banco de dados estável (Singleton como fallback primário)
-  const firestore = db || staticDb;
+  // SEMPRE utiliza a instância estática estável para transações críticas
+  const firestore = staticDb;
 
   if (!user || !firestore) {
-    throw new Error("Sistema de autenticação ou banco de dados indisponível.");
+    throw new Error("Usuário não autenticado ou banco de dados indisponível.");
   }
 
   const isFullBalanceOrder = totals.total <= 0 && totals.balanceUsed > 0;

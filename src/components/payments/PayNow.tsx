@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { CreditCard, Loader2 } from "lucide-react"
-import { useAuth, useUser, useFirestore, db as singletonDb } from "@/firebase"
+import { useAuth, useUser } from "@/firebase"
 import { useErrorManager } from "@/components/error-manager/ErrorManagerProvider"
 import { processPayNow } from "@/services/payments/pay-now-service"
 import { useRouter } from "next/navigation"
@@ -24,7 +24,7 @@ interface PayNowProps {
 }
 
 /**
- * @fileOverview PayNow Component - O botão de pagamento com proteção contra instâncias nulas.
+ * @fileOverview PayNow Component - O botão de pagamento agora utiliza a instância estática estável do banco.
  */
 export function PayNow({ 
   items, 
@@ -43,9 +43,6 @@ export function PayNow({
   const { user } = useUser(auth)
   const { reportError } = useErrorManager()
   const router = useRouter()
-  
-  // Obtém o DB do contexto, mas o PayNowService usará o singleton como fallback
-  const hookDb = useFirestore()
 
   const handlePay = async () => {
     if (!user) {
@@ -57,8 +54,8 @@ export function PayNow({
 
     setLoading(true)
     try {
-      // Passa o hookDb (pode ser null) e o service lida com o fallback estável
-      const result = await processPayNow(hookDb, {
+      // Bypassing hookDb - o service utilizará o staticDb estático automaticamente
+      const result = await processPayNow(null, {
         user,
         profile,
         items,
