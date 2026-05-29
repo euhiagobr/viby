@@ -4,12 +4,12 @@ import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useFirebaseApp } from "@/firebase"
-import { updateDoc, doc, serverTimestamp } from "firebase/firestore"
+import { updateDoc, doc, serverTimestamp, collection, query, orderBy } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, Save } from "lucide-react"
+import { Loader2, ArrowLeft, Save, Handshake, LayoutGrid, Settings2 } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -21,8 +21,10 @@ import {
   EventLocation, 
   EventTags, 
   EventVisibility,
-  BilheteriaAdmin
+  BilheteriaAdmin,
+  EventCoOrganizers
 } from "@/components/events"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function EditarEventoPage() {
   const params = useParams()
@@ -32,11 +34,14 @@ export default function EditarEventoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const app = useFirebaseApp()
-  const { currentOrg } = useCurrentOrganization()
+  const { currentOrg, userRole } = useCurrentOrganization()
   const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
 
   const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
+
+  const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
+  const { data: categories } = useCollection<any>(categoriesQuery)
 
   const [loading, setLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
@@ -59,6 +64,7 @@ export default function EditarEventoPage() {
         description: event.description || "",
         status: event.status || "Ativo",
         tags: event.tags || [],
+        ageRatingCode: event.ageRating?.code || "free",
         address: event.address || { street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "" }
       })
       setTicketMode(event.ticketMode || 'free')
@@ -104,7 +110,10 @@ export default function EditarEventoPage() {
         updatedAt: serverTimestamp()
       }
 
-      await updateDoc(eventRef, updateData)
+      // Limpar campos undefined
+      const cleanData = JSON.parse(JSON.stringify(updateData, (key, value) => value === undefined ? null : value));
+
+      await updateDoc(eventRef, cleanData)
       toast({ title: "Evento Atualizado!" })
       router.push("/dashboard/organizacoes")
     } catch (error: any) {
@@ -114,71 +123,115 @@ export default function EditarEventoPage() {
     }
   }
 
-  if (eventLoading || !formData) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>
+  if (eventLoading || !formData) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-20">
+    <div className="max-w-5xl mx-auto space-y-8 pb-20">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
-          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Editar Evento</h1>
+          <div>
+             <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Painel do Evento</h1>
+             <p className="text-xs font-bold text-secondary uppercase tracking-widest">{formData.title}</p>
+          </div>
         </div>
         <Button onClick={handleSubmit} disabled={loading} className="bg-primary text-white font-black rounded-full h-11 px-8 shadow-lg gap-2 uppercase italic">
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          Salvar Alterações
+          Salvar Tudo
         </Button>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        <EventHeader 
-          title={formData.title} 
-          onTitleChange={v => setFormData({...formData, title: v})}
-          image={formData.image}
-          onImageUpload={handleImageUpload}
-          uploadProgress={uploadProgress}
-        />
+      <Tabs defaultValue="geral" className="space-y-8">
+        <div className="flex justify-center">
+           <TabsList className="bg-muted/50 p-1 rounded-2xl h-14">
+              <TabsTrigger value="geral" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">
+                 <Settings2 className="w-4 h-4" /> Informações
+              </TabsTrigger>
+              <TabsTrigger value="bilheteria" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">
+                 <Ticket className="w-4 h-4" /> Bilheteria
+              </TabsTrigger>
+              <TabsTrigger value="parceiros" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">
+                 <Handshake className="w-4 h-4" /> Co-realização
+              </TabsTrigger>
+           </TabsList>
+        </div>
 
-        <Card className="border-none shadow-sm rounded-[2.5rem]">
-           <CardContent className="p-8 space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                 <EventType 
-                   value={formData.type} 
-                   onChange={v => setFormData({...formData, type: v})}
-                   externalUrl={formData.externalUrl}
-                   onExternalUrlChange={v => setFormData({...formData, externalUrl: v})}
-                 />
-                 <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
-              </div>
-              
-              <EventDateTime 
-                startDate={formData.startDate} 
-                endDate={formData.endDate}
-                onStartDateChange={v => setFormData({...formData, startDate: v})}
-                onEndDateChange={v => setFormData({...formData, endDate: v})}
+        <TabsContent value="geral" className="space-y-8 animate-in fade-in duration-500">
+           <form onSubmit={handleSubmit} className="space-y-8">
+              <EventHeader 
+                title={formData.title} 
+                onTitleChange={v => setFormData({...formData, title: v})}
+                image={formData.image}
+                onImageUpload={handleImageUpload}
+                uploadProgress={uploadProgress}
               />
 
-              <EventDescription value={formData.description} onChange={v => setFormData({...formData, description: v})} />
-              <EventTags tags={formData.tags} onChange={v => setFormData({...formData, tags: v})} />
-           </CardContent>
-        </Card>
+              <Card className="border-none shadow-sm rounded-[2.5rem]">
+                <CardContent className="p-8 space-y-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <EventType 
+                        value={formData.type} 
+                        onChange={v => setFormData({...formData, type: v})}
+                        externalUrl={formData.externalUrl}
+                        onExternalUrlChange={v => setFormData({...formData, externalUrl: v})}
+                      />
+                      <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
+                    </div>
 
-        <Card className="border-none shadow-sm rounded-[2rem]">
-          <CardContent className="p-8">
-             <EventLocation address={formData.address} onChange={v => setFormData({...formData, address: v})} />
-          </CardContent>
-        </Card>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
+                      <Select value={formData.categoryId} onValueChange={v => setFormData({...formData, categoryId: v})}>
+                          <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            {categories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                          </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <EventDateTime 
+                      startDate={formData.startDate} 
+                      endDate={formData.endDate}
+                      onStartDateChange={v => setFormData({...formData, startDate: v})}
+                      onEndDateChange={v => setFormData({...formData, endDate: v})}
+                    />
 
-        {formData.type === 'interno' && (
-          <BilheteriaAdmin 
-            mode={ticketMode} 
-            onModeChange={setTicketMode}
-            batches={batches}
-            onBatchesChange={setBatches}
-            totalCapacity={totalCapacity}
-            onTotalCapacityChange={setTotalCapacity}
-          />
-        )}
-      </form>
+                    <EventDescription value={formData.description} onChange={v => setFormData({...formData, description: v})} />
+                    <EventTags tags={formData.tags} onChange={v => setFormData({...formData, tags: v})} />
+                </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-sm rounded-[2rem]">
+                <CardContent className="p-8">
+                  <EventLocation address={formData.address} onChange={v => setFormData({...formData, address: v})} />
+                </CardContent>
+              </Card>
+           </form>
+        </TabsContent>
+
+        <TabsContent value="bilheteria" className="animate-in fade-in duration-500">
+           {formData.type === 'interno' ? (
+             <BilheteriaAdmin 
+               mode={ticketMode} 
+               onModeChange={setTicketMode}
+               batches={batches}
+               onBatchesChange={setBatches}
+               totalCapacity={totalCapacity}
+               onTotalCapacityChange={setTotalCapacity}
+             />
+           ) : (
+             <Card className="border-none shadow-sm rounded-[2rem] p-20 text-center flex flex-col items-center gap-4 opacity-40">
+                <Ticket className="w-12 h-12 text-primary" />
+                <p className="text-xs font-black uppercase tracking-[0.2em]">Bilheteria desativada para eventos externos ou de divulgação.</p>
+             </Card>
+           )}
+        </TabsContent>
+
+        <TabsContent value="parceiros" className="animate-in fade-in duration-500">
+           {currentOrg && (
+             <EventCoOrganizers eventId={eventId} currentOrgId={currentOrg.id} />
+           )}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
