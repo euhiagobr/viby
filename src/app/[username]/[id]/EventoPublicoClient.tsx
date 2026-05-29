@@ -27,6 +27,7 @@ import {
   EventInterest,
   EventCoOrganizers
 } from '@/components/events';
+import { AgeRatingBadge } from '@/lib/age-rating';
 
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
   const router = useRouter()
@@ -121,7 +122,8 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
           <div className="lg:col-span-8 space-y-12">
              <div className="space-y-6">
                 <div className="flex flex-wrap gap-2">
-                   <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase tracking-widest px-4 rounded-full shadow-lg">{event.categoryName || 'Evento'}</Badge>
+                   <AgeRatingBadge code={event.ageRating?.code || 'free'} showLabel className="bg-white/80 backdrop-blur-md shadow-sm px-3 py-1 rounded-full border" />
+                   <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase tracking-widest px-4 rounded-full shadow-lg h-8 flex items-center">{event.categoryName || 'Evento'}</Badge>
                    <EventShare eventId={id} title={event.title} url={`/${username}/${id}`} />
                 </div>
                 <h1 className="text-5xl md:text-7xl font-black text-foreground tracking-tighter uppercase italic leading-[0.8] drop-shadow-2xl">{event.title}</h1>
