@@ -1,22 +1,19 @@
 'use server';
 
 import nodemailer from 'nodemailer';
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { firebaseConfig } from "@/firebase/config";
+import { getAdminDb } from '@/lib/firebase/admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Serviço de e-mail unificado via Nodemailer e Firebase SDK padrão.
+ * @fileOverview Serviço de e-mail utilizando Admin SDK para persistência e Nodemailer para transporte.
  */
-
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app, "eventosviby");
 
 async function logEmail(data: any) {
   try {
-    await addDoc(collection(db, 'sent_emails'), {
+    const db = getAdminDb();
+    await db.collection('sent_emails').add({
       ...data,
-      timestamp: serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
     });
   } catch (e) {
     console.error('[Email Service] Falha ao logar e-mail:', e);
@@ -25,8 +22,9 @@ async function logEmail(data: any) {
 
 export async function getEmailConfig() {
   try {
-    const emailDoc = await getDoc(doc(db, 'settings', 'email'));
-    if (!emailDoc.exists()) return { smtpUser: null, smtpPass: null };
+    const db = getAdminDb();
+    const emailDoc = await db.collection('settings').doc('email').get();
+    if (!emailDoc.exists) return { smtpUser: null, smtpPass: null };
     const data = emailDoc.data();
     return {
       smtpUser: data?.smtpUser || null,
@@ -40,7 +38,7 @@ export async function getEmailConfig() {
 async function getTransporter() {
   const { smtpUser, smtpPass } = await getEmailConfig();
   if (!smtpUser || !smtpPass) {
-    throw new Error("SMTP não configurado no Painel Admin (Configurações > E-mail).");
+    throw new Error("SMTP não configurado no Painel Admin.");
   }
 
   return nodemailer.createTransport({

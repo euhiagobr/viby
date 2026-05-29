@@ -2,22 +2,18 @@
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, doc, getDoc } from "firebase/firestore";
-import { firebaseConfig } from "@/firebase/config";
+import { getAdminDb } from '@/lib/firebase/admin';
 
 /**
- * @fileOverview Server Actions para integração com Stripe utilizando o SDK padrão do Firebase.
+ * @fileOverview Server Actions para integração com Stripe utilizando o Admin SDK.
  */
-
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app, "eventosviby");
 
 async function getStripeKeys() {
   try {
-    const stripeDoc = await getDoc(doc(db, 'settings', 'stripe'));
+    const db = getAdminDb();
+    const stripeDoc = await db.collection('settings').doc('stripe').get();
     
-    if (!stripeDoc.exists()) {
+    if (!stripeDoc.exists) {
       console.warn('[Stripe Action] Documento settings/stripe não encontrado no Firestore.');
       return { publishableKey: null, secretKey: null };
     }
