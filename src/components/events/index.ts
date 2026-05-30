@@ -11,3 +11,4 @@ export * from './EventVisibility';
 export * from './Bilheteria';
 export * from './EventInterest';
 export * from './EventCoOrganizers';
+export * from './EventRecurrence';

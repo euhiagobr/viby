@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -10,7 +9,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, Save, Handshake, LayoutGrid, Settings2, Ticket } from "lucide-react"
+import { Loader2, ArrowLeft, Save, Handshake, LayoutGrid, Settings2, Ticket, RefreshCw } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -23,7 +22,8 @@ import {
   EventTags, 
   EventVisibility,
   BilheteriaAdmin,
-  EventCoOrganizers
+  EventCoOrganizers,
+  EventRecurrence
 } from "@/components/events"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -71,7 +71,10 @@ export default function EditarEventoPage() {
         ageRatingCode: event.ageRating?.code || "free",
         address: event.address || { street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "", latitude: -23.55052, longitude: -46.633308 },
         isMultiLocation: event.isMultiLocation || false,
-        locations: event.locations || []
+        locations: event.locations || [],
+        isRecurring: event.isRecurring || false,
+        frequency: event.frequency || "weekly",
+        recurringEndDate: event.recurringEndDate || ""
       })
       setTicketMode(event.ticketMode || 'free')
       setBatches(event.batches || [])
@@ -119,7 +122,7 @@ export default function EditarEventoPage() {
         updatedAt: serverTimestamp()
       }
 
-      // Sincronizar L1 com Address Raiz para compatibilidade e SEO
+      // Sincronizar L1 com Address Raiz
       if (formData.isMultiLocation && formData.locations.length > 0) {
         const L1 = formData.locations[0];
         updateData.address = {
@@ -137,7 +140,6 @@ export default function EditarEventoPage() {
         updateData.latitude = L1.latitude;
         updateData.longitude = L1.longitude;
       } else {
-        // Se não for multi, garantir que lat/lng da raiz venha do address único
         updateData.latitude = formData.address.latitude;
         updateData.longitude = formData.address.longitude;
         updateData.city = formData.address.city;
@@ -175,9 +177,12 @@ export default function EditarEventoPage() {
 
       <Tabs defaultValue="geral" className="space-y-8">
         <div className="flex justify-center">
-           <TabsList className="bg-muted/50 p-1 rounded-2xl h-14">
+           <TabsList className="bg-muted/50 p-1 rounded-2xl h-14 overflow-x-auto">
               <TabsTrigger value="geral" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">
                  <Settings2 className="w-4 h-4" /> Informações
+              </TabsTrigger>
+              <TabsTrigger value="recorrencia" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">
+                 <RefreshCw className="w-4 h-4" /> Recorrência
               </TabsTrigger>
               <TabsTrigger value="bilheteria" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">
                  <Ticket className="w-4 h-4" /> Bilheteria
@@ -258,6 +263,21 @@ export default function EditarEventoPage() {
                 onToggleMultiLocation={v => setFormData({...formData, isMultiLocation: v})}
               />
            </form>
+        </TabsContent>
+
+        <TabsContent value="recorrencia" className="animate-in fade-in duration-500">
+           <Card className="border-none shadow-sm rounded-[2.5rem]">
+              <CardContent className="p-8">
+                 <EventRecurrence 
+                   isRecurring={formData.isRecurring}
+                   onIsRecurringChange={v => setFormData({...formData, isRecurring: v})}
+                   frequency={formData.frequency}
+                   onFrequencyChange={v => setFormData({...formData, frequency: v})}
+                   recurringEndDate={formData.recurringEndDate}
+                   onRecurringEndDateChange={v => setFormData({...formData, recurringEndDate: v})}
+                 />
+              </CardContent>
+           </Card>
         </TabsContent>
 
         <TabsContent value="bilheteria" className="animate-in fade-in duration-500">

@@ -1,11 +1,10 @@
-
 'use client';
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, increment, updateDoc, collection, query, where } from 'firebase/firestore';
-import { Loader2, ArrowLeft, Calendar, MapPin, Clock, Ticket, BadgeCheck, ShieldCheck, ArrowRight } from 'lucide-react';
+import { doc, increment, updateDoc, collection, query, where, orderBy } from 'firebase/firestore';
+import { Loader2, ArrowLeft, Calendar, MapPin, Clock, Ticket, BadgeCheck, ShieldCheck, ArrowRight, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -60,6 +59,20 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const { data: membership } = useCollection<any>(memberQuery);
   const isOwner = membership && membership.length > 0;
 
+  // Ocorrências se for recorrente
+  const occurrencesQuery = useMemoFirebase(() => {
+    if (!db || !event?.isRecurring) return null;
+    return query(
+      collection(db, 'recurring_occurrences'),
+      where('parentId', '==', id),
+      where('status', '==', 'active'),
+      orderBy('date', 'asc')
+    );
+  }, [db, id, event?.isRecurring]);
+  const { data: occurrences } = useCollection<any>(occurrencesQuery);
+
+  const [selectedOccurrence, setSelectedOccurrence] = React.useState<any>(null);
+
   React.useEffect(() => {
     if (!db || !id || event?.status !== 'Ativo') return
     const key = `viby_v_${id}`
@@ -86,15 +99,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
             <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full"><ArrowLeft className="w-5 h-5" /></Button>
             <Link href="/" className="flex items-center gap-2 group">
               {settings?.logoUrl ? (
-                <Image 
-                  src={settings.logoUrl} 
-                  alt={siteName} 
-                  width={120} 
-                  height={40} 
-                  className="h-9 w-auto object-contain transition-transform group-hover:scale-105" 
-                  priority 
-                  unoptimized 
-                />
+                <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-9 w-auto object-contain transition-transform group-hover:scale-105" priority unoptimized />
               ) : (
                 <span className="font-black italic uppercase tracking-tighter text-2xl text-primary">{siteName}</span>
               )}
@@ -124,6 +129,11 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 <div className="flex flex-wrap gap-2">
                    <AgeRatingBadge code={event.ageRating?.code || 'free'} showLabel className="bg-white/80 backdrop-blur-md shadow-sm px-3 py-1 rounded-full border" />
                    <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase tracking-widest px-4 rounded-full shadow-lg h-8 flex items-center">{event.categoryName || 'Evento'}</Badge>
+                   {event.isRecurring && (
+                     <Badge className="bg-white text-primary border-none text-[10px] font-black uppercase flex items-center gap-1.5 px-4 rounded-full shadow-lg h-8">
+                       <RefreshCw className="w-3 h-3 text-secondary animate-spin-slow" /> Evento Recorrente
+                     </Badge>
+                   )}
                    <EventShare eventId={id} title={event.title} url={`/${username}/${id}`} />
                 </div>
                 <h1 className="text-5xl md:text-7xl font-black text-foreground tracking-tighter uppercase italic leading-[0.8] drop-shadow-2xl">{event.title}</h1>
@@ -148,7 +158,81 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 </div>
              </Card>
 
-             <EventDateTime startDate={event.date} endDate={event.endDate} isPublic />
+             {event.isRecurring && occurrences && occurrences.length > 0 && (
+               <section className="space-y-6">
+                  <div className="flex items-center gap-3 px-2">
+                    <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
+                      <Calendar className="w-5 h-5" />
+                    </div>
+                    <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Próximas Datas</h2>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                     {occurrences.slice(0, 6).map((occ: any) => (
+                       <button 
+                         key={occ.id} 
+                         onClick={() => setSelectedOccurrence(occ)}
+                         className={cn(
+                           "p-6 rounded-[2rem] border-2 transition-all text-left space-y-2 group",
+                           selectedOccurrence?.id === occ.id 
+                             ? "border-secondary bg-secondary/5 ring-4 ring-secondary/10 shadow-xl" 
+                             : "border-border/60 bg-white hover:border-secondary/40"
+                         )}
+                       >
+                          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-secondary transition-colors">
+                            {new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long' })}
+                          </p>
+                          <p className="text-2xl font-black text-primary italic leading-none">
+                            {new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                          </p>
+                          <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground uppercase pt-1">
+                             <Clock className="w-3 h-3 text-secondary" /> {occ.startTime}
+                          </div>
+                       </button>
+                     ))}
+                     {occurrences.length > 6 && (
+                       <Button variant="ghost" asChild className="h-auto p-6 rounded-[2rem] border-2 border-dashed border-border/60 flex flex-col gap-2 uppercase font-black italic">
+                          <Link href={`/recorrente/serie/${id}`}>
+                             <Plus className="w-6 h-6 text-secondary" /> Ver Toda a Agenda
+                          </Link>
+                       </Button>
+                     )}
+                  </div>
+               </section>
+             )}
+
+             {(!event.isRecurring || selectedOccurrence) && event.type === 'interno' && (
+               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  {selectedOccurrence && (
+                    <div className="mb-6 p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 flex items-center justify-between">
+                       <div className="flex items-center gap-4">
+                          <div className="p-3 bg-secondary text-white rounded-2xl shadow-lg">
+                             <Calendar className="w-6 h-6" />
+                          </div>
+                          <div>
+                             <p className="text-[10px] font-black uppercase tracking-widest text-secondary">Data Selecionada</p>
+                             <p className="text-lg font-black text-primary uppercase italic">
+                               {new Date(selectedOccurrence.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                             </p>
+                          </div>
+                       </div>
+                       <Button variant="ghost" size="sm" className="rounded-xl font-bold uppercase text-[9px]" onClick={() => setSelectedOccurrence(null)}>Trocar Data</Button>
+                    </div>
+                  )}
+                  <BilheteriaPublic 
+                    event={{
+                      ...event,
+                      occurrenceId: selectedOccurrence?.id,
+                      title: selectedOccurrence ? `${event.title} (${new Date(selectedOccurrence.date + 'T12:00:00').toLocaleDateString('pt-BR')})` : event.title,
+                      isSoldOut: selectedOccurrence?.ingressosVendidos >= selectedOccurrence?.capacidadeMaxima
+                    }} 
+                    globalFees={globalFees} 
+                    promotions={promotions} 
+                    orgSettings={organization} 
+                  />
+               </div>
+             )}
+
+             {!event.isRecurring && <EventDateTime startDate={event.date} endDate={event.endDate} isPublic />}
              
              <EventLocation 
                 address={event.address} 
@@ -156,15 +240,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 isMultiLocation={event.isMultiLocation} 
                 isPublic 
              />
-
-             {event.type === 'interno' && (
-               <BilheteriaPublic 
-                 event={event} 
-                 globalFees={globalFees} 
-                 promotions={promotions} 
-                 orgSettings={organization} 
-               />
-             )}
           </div>
 
           <aside className="lg:col-span-4 space-y-8">

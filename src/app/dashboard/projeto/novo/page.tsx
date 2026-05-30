@@ -1,11 +1,10 @@
-
 "use client"
 
 import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, addDoc, serverTimestamp, query, orderBy } from "firebase/firestore"
+import { collection, addDoc, serverTimestamp, query, orderBy, doc } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -22,11 +21,13 @@ import {
   EventLocation, 
   EventTags, 
   EventVisibility,
-  BilheteriaAdmin
+  BilheteriaAdmin,
+  EventRecurrence
 } from "@/components/events"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { getAgeRatingConfig } from "@/lib/age-rating"
+import { generateOccurrences } from "@/services/recurring-event-service"
 
 export default function NovoEventoPage() {
   const router = useRouter()
@@ -57,7 +58,10 @@ export default function NovoEventoPage() {
     tags: [] as string[],
     address: { street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "", latitude: -23.55052, longitude: -46.633308 },
     isMultiLocation: false,
-    locations: [] as any[]
+    locations: [] as any[],
+    isRecurring: false,
+    frequency: "weekly",
+    recurringEndDate: ""
   })
 
   const [ticketMode, setTicketMode] = useState<any>('free')
@@ -107,7 +111,25 @@ export default function NovoEventoPage() {
         createdAt: serverTimestamp()
       }
 
-      await addDoc(collection(db, "events"), eventData)
+      const docRef = await addDoc(collection(db, "events"), eventData)
+
+      // Se for recorrente, gerar as ocorrências agora
+      if (formData.isRecurring && formData.recurringEndDate) {
+        await generateOccurrences(db, docRef.id, {
+          name: formData.title,
+          description: formData.description,
+          organizationId: currentOrg.id,
+          organizerName: currentOrg.name,
+          frequency: formData.frequency as any,
+          startDate: formData.startDate.split('T')[0],
+          endDate: formData.recurringEndDate,
+          startTime: formData.startDate.split('T')[1],
+          endTime: formData.endDate.split('T')[1],
+          capacidadeMaxima: totalCapacity
+        });
+        toast({ title: "Agenda Recorrente Gerada!" });
+      }
+
       toast({ title: "Evento Publicado!" })
       router.push("/dashboard/organizacoes")
     } catch (error: any) {
@@ -179,6 +201,15 @@ export default function NovoEventoPage() {
                 endDate={formData.endDate}
                 onStartDateChange={v => setFormData({...formData, startDate: v})}
                 onEndDateChange={v => setFormData({...formData, endDate: v})}
+              />
+
+              <EventRecurrence 
+                isRecurring={formData.isRecurring}
+                onIsRecurringChange={v => setFormData({...formData, isRecurring: v})}
+                frequency={formData.frequency}
+                onFrequencyChange={v => setFormData({...formData, frequency: v})}
+                recurringEndDate={formData.recurringEndDate}
+                onRecurringEndDateChange={v => setFormData({...formData, recurringEndDate: v})}
               />
 
               <EventDescription value={formData.description} onChange={v => setFormData({...formData, description: v})} />
