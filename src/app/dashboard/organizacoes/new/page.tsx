@@ -137,7 +137,7 @@ export default function NovaOrganizacaoPage() {
 
   const storage = React.useMemo(() => {
     if (!app) return null;
-    return getStorage(app, 'gs://viby');
+    return getStorage(app, "gs://viby");
   }, [app])
 
   useEffect(() => {
@@ -177,7 +177,7 @@ export default function NovaOrganizacaoPage() {
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [username, db, blockedData])
+  }, [formData.username, db, blockedData])
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value;
