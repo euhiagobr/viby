@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useFirestore, useAuth, useUser } from "@/firebase"
-import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp, getDoc } from "firebase/firestore"
+import { collection, query, where, getDocs, doc, serverTimestamp, getDoc, runTransaction } from "firebase/firestore"
 import { Html5Qrcode } from "html5-qrcode"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -57,11 +57,9 @@ export default function AdminScannerPage() {
         await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, (decodedText) => {
           stopCamera();
           try {
-             // Tenta tratar como JSON (Novo QR dinâmico)
              const data = JSON.parse(decodedText);
              validateTicket(data.code || data.reg);
           } catch(e) {
-             // Fallback para texto puro
              validateTicket(decodedText);
           }
         }, () => {});
@@ -100,11 +98,7 @@ export default function AdminScannerPage() {
            if (oSnap.exists()) {
               const occ = oSnap.data();
               setOccData(occ);
-              
-              // Ajuste de fuso horário para comparação de data YYYY-MM-DD
-              const today = new Date().toLocaleDateString('en-CA'); // Retorna YYYY-MM-DD no fuso local
-              
-              // Bloqueio se a data do ingresso for diferente da data de hoje
+              const today = new Date().toLocaleDateString('en-CA');
               if (occ.date !== today) {
                 invalidOccurrence = true;
               }
@@ -121,17 +115,47 @@ export default function AdminScannerPage() {
   const handleConfirmCheckIn = async () => {
     if (!db || !ticketData || !currentUser) return
     setIsValidating(true)
+    
     try {
-      await updateDoc(doc(db, "registrations", ticketData.id), {
-        checkedIn: true,
-        checkedInAt: serverTimestamp(),
-        checkedInBy: currentUser.uid,
-        status: "Utilizado"
+      const regRef = doc(db, "registrations", ticketData.id)
+      
+      // CORREÇÃO 1: Check-in Transacional Atômico
+      await runTransaction(db, async (transaction) => {
+        const regSnap = await transaction.get(regRef)
+        if (!regSnap.exists()) throw new Error("Registro de ingresso não localizado.")
+        
+        const currentData = regSnap.data()
+        
+        // Proteção contra múltiplos check-ins simultâneos
+        if (currentData.checkedIn) {
+          throw new Error("ESTE INGRESSO JÁ FOI UTILIZADO.")
+        }
+
+        // Validação de segurança de status na transação
+        const isCancelled = currentData.status === 'cancelled' || currentData.paymentStatus === 'refunded_wallet';
+        if (isCancelled) {
+          throw new Error("INGRESSO INVÁLIDO: Consta como cancelado ou estornado no banco.")
+        }
+
+        transaction.update(regRef, {
+          checkedIn: true,
+          checkedInAt: serverTimestamp(),
+          checkedInBy: currentUser.uid,
+          status: "Utilizado",
+          updatedAt: serverTimestamp()
+        })
       })
+
+      // Gatilho Gamificação
       await processGamificationEvent(db, ticketData.userId, 'on_checkin', { eventTitle: ticketData.eventTitle }, ticketData.id);
+      
       setTicketData({ ...ticketData, checkedIn: true })
-      toast({ title: "Check-in realizado!" })
-    } catch (err) { toast({ variant: "destructive", title: "Erro no check-in" }) }
+      toast({ title: "Check-in realizado com sucesso!" })
+    } catch (err: any) { 
+      const msg = err.message || "Erro desconhecido na validação."
+      setError(msg)
+      toast({ variant: "destructive", title: "Falha Crítica", description: msg }) 
+    }
     finally { setIsValidating(false) }
   }
 
@@ -174,14 +198,13 @@ export default function AdminScannerPage() {
 
       {error && (
         <Card className="mx-4 border-destructive bg-destructive/5 rounded-[2.5rem] p-12 flex flex-col items-center text-center gap-6">
-          <XCircle className="w-20 h-20 text-destructive" /><h3 className="font-black text-2xl uppercase italic">Erro de Validação</h3><p className="text-sm">{error}</p>
-          <Button variant="outline" onClick={resetScanner} className="rounded-xl border-destructive text-destructive uppercase text-xs">Voltar</Button>
+          <XCircle className="w-20 h-20 text-destructive" /><h3 className="font-black text-2xl uppercase italic">Erro de Validação</h3><p className="text-sm font-bold text-destructive uppercase">{error}</p>
+          <Button variant="outline" onClick={resetScanner} className="rounded-xl border-destructive text-destructive uppercase text-xs font-black">Tentar outro ingresso</Button>
         </Card>
       )}
 
       {ticketData && (
         <div className="px-4">
-           {/* CASO: CANCELADO */}
            {ticketData.isCancelled && (
              <Card className="border-none shadow-2xl rounded-[3rem] bg-destructive text-white p-12 text-center space-y-6">
                 <XCircle className="w-20 h-20 mx-auto opacity-40" />
@@ -191,20 +214,18 @@ export default function AdminScannerPage() {
              </Card>
            )}
 
-           {/* CASO: DATA INCORRETA (RECORRENTE) */}
            {!ticketData.isCancelled && ticketData.invalidOccurrence && (
              <Card className="border-none shadow-2xl rounded-[3rem] bg-orange-500 text-white p-12 text-center space-y-6">
                 <ShieldAlert className="w-20 h-20 mx-auto opacity-40" />
                 <h2 className="text-4xl font-black uppercase italic tracking-tighter leading-none">DATA INCORRETA</h2>
                 <p className="font-medium opacity-90 text-sm">Este ingresso é válido exclusivamente para o dia:<br/><strong className="text-2xl">{new Date(occData.date + 'T12:00:00').toLocaleDateString('pt-BR')}</strong></p>
                 <div className="p-4 bg-black/10 rounded-2xl border border-white/20">
-                   <p className="text-[10px] font-black uppercase">HOJE É: {new Date().toLocaleDateString('pt-BR')}</p>
+                   <p className="text-[10px] font-black uppercase">O EVENTO DE HOJE NÃO ACEITA ESTE TICKET</p>
                 </div>
-                <Button variant="outline" onClick={resetScanner} className="border-white text-white hover:bg-white hover:text-orange-50 rounded-xl">Voltar</Button>
+                <Button variant="outline" onClick={resetScanner} className="border-white text-white hover:bg-white hover:text-orange-50 rounded-xl font-black uppercase text-xs">Voltar</Button>
              </Card>
            )}
 
-           {/* CASO: VÁLIDO OU UTILIZADO */}
            {!ticketData.isCancelled && !ticketData.invalidOccurrence && (
              <Card className={cn("overflow-hidden shadow-2xl rounded-[2.5rem] border-none bg-white", ticketData.checkedIn ? "ring-4 ring-orange-500/20" : "ring-4 ring-green-500/20")}>
                <CardHeader className={cn("p-8", ticketData.checkedIn ? "bg-orange-500 text-white" : "bg-green-500 text-white")}>
