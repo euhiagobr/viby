@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -27,32 +26,37 @@ export interface CartItem {
   seatId?: string;
   seatCode?: string;
   ageRating?: string;
+  occurrenceId?: string | null;
 }
 
 interface CartContextType {
   items: CartItem[];
   addItem: (item: CartItem) => void;
+  addMultipleItems: (items: CartItem[]) => void;
   removeItem: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, quantity: number) => void;
   clearCart: () => void;
   totalCount: number;
   expiresAt: number | null;
+  setItems: (items: CartItem[]) => void;
 }
 
 const CartContext = createContext<CartContextType>({
   items: [],
   addItem: () => {},
+  addMultipleItems: () => {},
   removeItem: () => {},
   updateQuantity: () => {},
   clearCart: () => {},
   totalCount: 0,
   expiresAt: null,
+  setItems: () => {},
 });
 
-const CART_EXPIRATION_TIME = 10 * 60 * 1000; // 10 minutos em milissegundos
+const CART_EXPIRATION_TIME = 5 * 60 * 1000; // 5 minutos em milissegundos
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([]);
+  const [items, setItemsState] = useState<CartItem[]>([]);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
 
   // Load from localStorage
@@ -63,17 +67,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (savedItems) {
       try {
         const parsedItems = JSON.parse(savedItems);
-        setItems(parsedItems);
-        
-        if (savedExpiry && parsedItems.length > 0) {
-          const expiry = parseInt(savedExpiry);
-          if (Date.now() > expiry) {
-            setItems([]);
-            setExpiresAt(null);
-            localStorage.removeItem('viby_cart');
-            localStorage.removeItem('viby_cart_expiry');
-          } else {
-            setExpiresAt(expiry);
+        if (parsedItems.length > 0) {
+          setItemsState(parsedItems);
+          if (savedExpiry) {
+            const expiry = parseInt(savedExpiry);
+            if (Date.now() > expiry) {
+              clearCart();
+            } else {
+              setExpiresAt(expiry);
+            }
           }
         }
       } catch (e) {
@@ -105,6 +107,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('viby_cart', JSON.stringify(items));
     if (expiresAt) {
       localStorage.setItem('viby_cart_expiry', expiresAt.toString());
+    } else {
+      localStorage.removeItem('viby_cart_expiry');
     }
   }, [items, expiresAt]);
 
@@ -115,7 +119,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const addItem = (item: CartItem) => {
     resetTimer();
-    setItems(prev => {
+    setItemsState(prev => {
       const existing = prev.find(i => i.id === item.id);
       if (existing) {
         return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + item.quantity } : i);
@@ -124,8 +128,24 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const addMultipleItems = (newItems: CartItem[]) => {
+    resetTimer();
+    setItemsState(prev => {
+      let current = [...prev];
+      newItems.forEach(item => {
+        const idx = current.findIndex(i => i.id === item.id);
+        if (idx > -1) {
+          current[idx] = { ...current[idx], quantity: current[idx].quantity + item.quantity };
+        } else {
+          current.push(item);
+        }
+      });
+      return current;
+    });
+  }
+
   const removeItem = (id: string) => {
-    setItems(prev => {
+    setItemsState(prev => {
       const newList = prev.filter(i => i.id !== id);
       if (newList.length === 0) {
         setExpiresAt(null);
@@ -141,19 +161,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     resetTimer();
-    setItems(prev => prev.map(i => i.id === id ? { ...i, quantity } : i));
+    setItemsState(prev => prev.map(i => i.id === id ? { ...i, quantity } : i));
   };
 
   const clearCart = () => {
-    setItems([]);
+    setItemsState([]);
     setExpiresAt(null);
+    localStorage.removeItem('viby_cart');
     localStorage.removeItem('viby_cart_expiry');
   };
 
   const totalCount = items.reduce((acc, i) => acc + i.quantity, 0);
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, totalCount, expiresAt }}>
+    <CartContext.Provider value={{ items, addItem, addMultipleItems, removeItem, updateQuantity, clearCart, totalCount, expiresAt, setItems: setItemsState }}>
       {children}
     </CartContext.Provider>
   );

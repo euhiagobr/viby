@@ -4,7 +4,6 @@ import {
   serverTimestamp, 
   increment, 
   doc, 
-  setDoc, 
   collection, 
   addDoc, 
   updateDoc, 
@@ -12,15 +11,13 @@ import {
   getDoc
 } from "firebase/firestore";
 import { db as staticDb } from "@/firebase/database";
-import { FirestoreService } from "@/lib/firestore-safe";
 import { createCheckoutSession } from "@/app/actions/stripe";
-import { generateUniqueTicketCode } from "@/lib/ticket-utils";
 import { calculateFinancialBreakdown } from "@/lib/financial-utils";
 import { CartItem } from "@/contexts/CartContext";
 
 /**
  * @fileOverview Orquestrador de Pagamentos Viby - Nova Arquitetura de Integridade.
- * ATUALIZADO: Controle atômico de capacidade para eventos gratuitos.
+ * Inclui validação final de disponibilidade e lotes antes do checkout.
  */
 
 export interface PayButtonOptions {
@@ -37,15 +34,26 @@ export interface PayButtonOptions {
 export async function executeCheckoutFlow(options: PayButtonOptions) {
   const { user, profile, items, totals, globalFees, promotions, orgsData } = options;
 
-  console.log("[TRACE-VIBY] Checkout Flow Pipeline");
   if (!user) throw new Error("Usuário não identificado.");
+
+  // VALIDAÇÃO PRÉ-CHECKOUT: Garante que os lotes e capacidades ainda estão válidos
+  for (const item of items) {
+    const eSnap = await getDoc(doc(staticDb, "events", item.eventId));
+    if (!eSnap.exists()) throw new Error(`O evento ${item.eventTitle} não está mais disponível.`);
+    
+    const event = eSnap.data();
+    const batch = event.batches?.find((b: any) => b.id === item.batchId);
+    const type = batch?.ticketTypes?.find((t: any) => t.id === item.ticketTypeId);
+
+    if (!batch || !type || type.quantity < item.quantity) {
+      throw new Error(`A disponibilidade para o lote "${item.batchName}" do evento "${item.eventTitle}" mudou. Por favor, revise seu carrinho.`);
+    }
+  }
   
   const isFreeOrder = totals.total <= 0 && totals.balanceUsed === 0;
 
   // PASSO 1: Para ordens gratuitas, fluxo atômico para respeitar capacidade
   if (isFreeOrder) {
-    console.log("STEP: Processing FREE Order with Atomic Transaction");
-    
     return await runTransaction(staticDb, async (transaction) => {
       const targets: Record<string, { ref: any, parentRef?: any, qty: number }> = {};
       
@@ -61,7 +69,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
         targets[key].qty += (item.quantity || 1);
       }
 
-      // Validar capacidade de todos os alvos
       for (const key in targets) {
         const target = targets[key];
         const snap = await transaction.get(target.ref);
@@ -75,7 +82,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
           throw new Error(`Infelizmente não há mais vagas para ${data.name || data.title}.`);
         }
 
-        // Incrementar contadores
         transaction.update(target.ref, { 
           ingressosVendidos: increment(target.qty),
           updatedAt: serverTimestamp()
@@ -89,7 +95,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
         }
       }
 
-      // Emitir registros
       const registrationIds: string[] = [];
       for (const item of items) {
         for (let i = 0; i < item.quantity; i++) {
@@ -128,7 +133,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   }
 
   // PASSO 2: Para ordens PAGAS, criamos um registro de PEDIDO (Order)
-  console.log("STEP: Creating Pending Order");
   const orderData = {
     userId: user.uid,
     userEmail: user.email,
@@ -150,7 +154,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   const orderRef = await addDoc(collection(staticDb, "orders"), orderData);
 
   // PASSO 3: Iniciar Sessão no Stripe com o OrderID no metadata
-  console.log("STEP: Preparing Stripe Session");
   const stripeResult = await createCheckoutSession({
     eventTitle: items.length > 1 ? "Múltiplos Ingressos" : items[0].eventTitle,
     totalAmount: Math.round(totals.total * 100),
