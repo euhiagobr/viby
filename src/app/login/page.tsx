@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { signInWithEmailAndPassword, signOut } from "firebase/auth"
-import { doc, getDoc } from "firebase/firestore"
+import { doc, getDoc, setDoc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -38,19 +38,16 @@ export default function LoginPage() {
 
   /**
    * Verifica se o UID existe na coleção /users do banco eventosviby
-   * Retorna o e-mail associado para realizar o login no Auth.
    */
   const verifyVibyUserAndGetEmail = async (uid: string) => {
     if (!db) return null
     try {
       const userDoc = await getDoc(doc(db, "users", uid))
       if (!userDoc.exists()) {
-        console.warn(`[Login Guard] UID ${uid} not found in 'eventosviby' database.`);
         return null
       }
       return userDoc.data()?.email
     } catch (e: any) {
-      console.error("[Login Guard Error]", e.message);
       return null
     }
   }
@@ -73,33 +70,48 @@ export default function LoginPage() {
           throw new Error("Perfil não encontrado na rede Viby.")
         }
 
-        const uid = usernameSnap.data().uid
-        const userEmail = await verifyVibyUserAndGetEmail(uid)
+        const uData = usernameSnap.data();
         
-        if (!userEmail) {
-          throw new Error("Sua conta não foi localizada no banco de dados principal.")
+        // Tentamos usar o e-mail cacheado no índice de usernames
+        if (uData.email) {
+          emailToUse = uData.email;
+        } else {
+          // Fallback para contas antigas (tenta ler do perfil se público)
+          const userEmail = await verifyVibyUserAndGetEmail(uData.uid)
+          if (!userEmail) {
+            throw new Error("Sua conta não pôde ser resolvida via username. Tente entrar com e-mail.")
+          }
+          emailToUse = userEmail
         }
-        emailToUse = userEmail
       }
 
       // Fluxo 2: Autenticação Firebase Auth
       const userCredential = await signInWithEmailAndPassword(auth, emailToUse, password)
       
-      // Validação Pós-Login: Garantir que o usuário autenticado tem um perfil no banco eventosviby
-      const userDoc = await getDoc(doc(db, "users", userCredential.user.uid))
+      // Validação Pós-Login: Garantir que o perfil existe no Firestore
+      const userDocRef = doc(db, "users", userCredential.user.uid);
+      const userDoc = await getDoc(userDocRef);
       
       if (!userDoc.exists()) {
         await signOut(auth)
-        throw new Error(`Acesso Negado: Esta conta está registrada no sistema global, mas não possui um perfil ativo na base de dados ${siteName}.`)
+        throw new Error(`Acesso Negado: Perfil não localizado na base ${siteName}.`)
       }
 
-      // Sucesso
+      const userData = userDoc.data();
+
+      // AUTO-REPARO: Se o usuário logou e o índice de usernames não tem o e-mail, atualizamos agora
+      if (userData.username) {
+        const idxRef = doc(db, "usernames", userData.username.toLowerCase());
+        const idxSnap = await getDoc(idxRef);
+        if (idxSnap.exists() && !idxSnap.data().email) {
+          await setDoc(idxRef, { email: emailToUse }, { merge: true });
+        }
+      }
+
       toast({ title: "Bem-vindo!", description: `Acesso autorizado em ${siteName}.` })
       router.push("/dashboard")
       
     } catch (error: any) {
-      console.error("[Login Process Failure]", error.code, error.message);
-      
       let msg = "Credenciais inválidas. Tente novamente."
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
         msg = "E-mail ou senha incorretos."

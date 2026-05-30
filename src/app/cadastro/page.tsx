@@ -182,7 +182,7 @@ export default function CadastroPage() {
         uid: user.uid,
         name,
         username: normalizedUsername,
-        email,
+        email: email.toLowerCase().trim(),
         birthDate,
         gender,
         avatar: `https://picsum.photos/seed/${user.uid}/100/100`,
@@ -207,7 +207,8 @@ export default function CadastroPage() {
           throw new Error("Nome de usuário acaba de ser ocupado.")
         }
 
-        transaction.set(usernameRef, { uid: user.uid, type: 'user' })
+        // Armazenamos o e-mail no índice para agilizar login por username
+        transaction.set(usernameRef, { uid: user.uid, type: 'user', email: email.toLowerCase().trim() })
         transaction.set(userRef, userData)
 
         const followRef1 = doc(db, "follows", `${user.uid}_${officialOrgId}`)
