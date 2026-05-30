@@ -11,6 +11,7 @@ import { Loader2, Calendar, Clock, Share2, ArrowLeft, RefreshCw, AlertTriangle, 
 import Link from 'next/link';
 import Footer from '@/components/layout/Footer';
 import { BilheteriaPublic } from '@/components/events/Bilheteria/BilheteriaPublic';
+import { cn } from '@/lib/utils';
 
 export default function PublicOccurrencePage() {
   const params = useParams();
@@ -21,7 +22,8 @@ export default function PublicOccurrencePage() {
   const occRef = React.useMemo(() => (db ? doc(db, 'recurring_occurrences', id) : null), [db, id]);
   const { data: occ, loading: occLoading } = useDoc<any>(occRef);
 
-  const seriesRef = React.useMemo(() => (db && occ?.parentId) ? doc(db, 'recurring_events', occ.parentId) : null, [db, occ?.parentId]);
+  // Busca o pai na coleção 'events' (onde o dashboard salva) em vez de 'recurring_events'
+  const seriesRef = React.useMemo(() => (db && occ?.parentId) ? doc(db, 'events', occ.parentId) : null, [db, occ?.parentId]);
   const { data: series } = useDoc<any>(seriesRef);
 
   const feesRef = React.useMemo(() => db ? doc(db, 'settings', 'fees') : null, [db]);
@@ -40,14 +42,16 @@ export default function PublicOccurrencePage() {
   const isSoldOut = occ.capacidadeMaxima > 0 && occ.ingressosVendidos >= occ.capacidadeMaxima;
 
   // Injetar dados da ocorrência nos dados do evento para o componente de bilheteria
+  // Garantimos que o organizationId e organizer sejam repassados da série ou da ocorrência
   const eventProxy = {
     ...series,
     id: occ.parentId,
-    title: `${series?.name} - ${new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR')}`,
+    organizationId: series?.organizationId || occ.organizationId,
+    organizer: series?.organizer || { name: occ.organizerName, id: occ.organizationId },
+    title: `${series?.name || occ.name} - ${new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR')}`,
     date: occ.date,
     occurrenceId: occ.id,
     isRecurring: true,
-    // Passamos a capacidade da ocorrência para o proxy
     isSoldOut: isSoldOut
   };
 
@@ -69,7 +73,7 @@ export default function PublicOccurrencePage() {
                 <Badge className={cn("text-white font-black uppercase text-[9px] px-4 h-6 border-none", isSoldOut ? "bg-orange-500" : "bg-secondary")}>
                   {isSoldOut ? "Lotação Máxima Atingida" : "Inscrições Abertas"}
                 </Badge>
-                <h1 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter leading-none">{series?.name}</h1>
+                <h1 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter leading-none">{series?.name || occ.name}</h1>
               </div>
             </div>
             <CardContent className="p-10">

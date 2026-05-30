@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as React from 'react';
@@ -15,8 +14,16 @@ import Footer from '@/components/layout/Footer';
 async function getSeriesData(id: string) {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
   const db = getFirestore(app, "eventosviby");
-  const seriesRef = doc(db, 'recurring_events', id);
-  const snap = await getDoc(seriesRef);
+  
+  // Busca na coleção principal 'events'
+  const seriesRef = doc(db, 'events', id);
+  let snap = await getDoc(seriesRef);
+  
+  // Fallback para 'recurring_events' se for um registro antigo/admin
+  if (!snap.exists()) {
+    snap = await getDoc(doc(db, 'recurring_events', id));
+  }
+  
   if (!snap.exists()) return null;
 
   // Consulta sem orderBy para evitar necessidade de índice composto
@@ -39,7 +46,12 @@ export default async function SeriesPublicPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const series = await getSeriesData(id);
 
-  if (!series) return <div className="min-h-screen flex items-center justify-center">Série não encontrada</div>;
+  if (!series) return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center">
+       <h1 className="text-2xl font-bold">Série não encontrada</h1>
+       <Button asChild><Link href="/">Voltar ao Início</Link></Button>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">

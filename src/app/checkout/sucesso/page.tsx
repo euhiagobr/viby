@@ -14,8 +14,6 @@ import { useCart } from "@/contexts/CartContext"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import { calculateDetailedVibyBreakdown } from "@/lib/financial-utils"
-import { processGamificationEvent } from "@/lib/gamification-service"
-import { generateUniqueTicketCode } from "@/lib/ticket-utils"
 
 function CheckoutSucessoContent() {
   const searchParams = useSearchParams()
@@ -46,9 +44,6 @@ function CheckoutSucessoContent() {
           router.push('/dashboard');
           return;
         }
-
-        const userSnap = await getDoc(doc(db, "users", user.uid));
-        const userData = userSnap.exists() ? userSnap.data() : null;
 
         // Caso 1: Recarga de Anúncios
         if (metadata.type === 'ad_balance_topup') {
@@ -93,8 +88,21 @@ function CheckoutSucessoContent() {
           for (let i = 0; i < orderData.items.length; i++) {
             const item = orderData.items[i];
             
+            // Verificação de Integridade de Organização
+            let orgId = item.organizationId;
+            let orgName = item.organizerUsername || "Organização";
+
+            // Se for recorrente e estiver faltando orgId, tenta buscar na ocorrência
+            if (!orgId && item.occurrenceId) {
+               const occSnap = await getDoc(doc(db, "recurring_occurrences", item.occurrenceId));
+               if (occSnap.exists()) {
+                  orgId = occSnap.data().organizationId;
+                  orgName = occSnap.data().orgUsername || orgName;
+               }
+            }
+
             for (let j = 0; j < item.quantity; j++) {
-              const ticketCode = await generateUniqueTicketCode(db);
+              const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
               const breakdown = calculateDetailedVibyBreakdown(
                 item.price, 1, feesSettingsSnap.data(), stripeSettingsSnap.data(), (i === 0 && j === 0), promosSnap.data()
               );
@@ -103,11 +111,12 @@ function CheckoutSucessoContent() {
                 eventId: item.eventId,
                 eventTitle: item.eventTitle,
                 eventImage: item.eventImage || '',
-                eventDate: item.eventDate, // Mantém raw (string ou timestamp)
+                eventDate: item.eventDate,
                 eventCity: item.eventCity,
                 userId: user.uid,
                 userName: orderData.userName,
                 userEmail: orderData.userEmail,
+                organizationId: orgId, // Garantindo o vínculo financeiro
                 ticketBasePrice: item.price,
                 price: item.financials.customerFinalPrice,
                 administrativeFeeAmount: item.financials.administrativeFeeAmount,
@@ -127,12 +136,13 @@ function CheckoutSucessoContent() {
                 timestamp: serverTimestamp()
               });
 
+              // Registro Fiscal para ERP
               await addDoc(collection(db, "tax_tickets"), {
                  registrationId: regRef.id,
                  eventId: item.eventId,
                  eventTitle: item.eventTitle,
-                 organizationId: item.organizationId,
-                 orgName: item.organizerUsername,
+                 organizationId: orgId,
+                 orgName: orgName,
                  buyerName: orderData.userName,
                  ticketTypeName: item.ticketTypeName,
                  totalFacePrice: item.price,
@@ -144,14 +154,12 @@ function CheckoutSucessoContent() {
                  timestamp: serverTimestamp()
               });
 
-              // Contabilizar venda na ocorrência se recorrente
               if (item.occurrenceId) {
                 await updateDoc(doc(db, "recurring_occurrences", item.occurrenceId), {
                   ingressosVendidos: increment(1)
                 });
               }
 
-              // Preparar dados para o e-mail (usar date parsing robusto)
               let displayDate = "Data a confirmar";
               try {
                 const d = item.eventDate?.toDate ? item.eventDate.toDate() : new Date(item.eventDate);
@@ -187,7 +195,7 @@ function CheckoutSucessoContent() {
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-screen gap-4">
       <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Confirmando transação...</p>
+      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Finalizando transação...</p>
     </div>
   )
 
