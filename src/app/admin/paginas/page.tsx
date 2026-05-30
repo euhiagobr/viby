@@ -1,7 +1,8 @@
+
 "use client"
 
 import * as React from "react"
-import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp, useAuth } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from "@/firebase"
 import { 
   collection, 
   query, 
@@ -121,30 +122,40 @@ export default function AdminPaginasPage() {
   const orgsQuery = useMemoFirebase(() => db ? query(collection(db, "organizations"), orderBy("createdAt", "desc")) : null, [db])
   const { data: orgs, loading: loadingOrgs } = useCollection<any>(orgsQuery)
 
-  const orgsIdsString = React.useMemo(() => orgs?.map(o => o.ownerId).filter(Boolean).sort().join(',') || '', [orgs]);
-  
+  // Sincronização Inteligente de Perfis de Proprietários
+  const ownerIds = React.useMemo(() => {
+    if (!orgs) return [];
+    return Array.from(new Set(orgs.map(o => o.ownerId).filter(Boolean)));
+  }, [orgs]);
+
+  const ownerIdsString = ownerIds.sort().join(',');
+
   React.useEffect(() => {
-    if (!orgs || !db || !orgsIdsString) return;
+    if (!db || !ownerIds.length) return;
 
-    const fetchOwners = async () => {
-      const ownersToFetch = Array.from(new Set(orgs.map(o => o.ownerId).filter(Boolean)))
-        .filter(uid => !ownerProfilesCache[uid]);
+    const fetchNewOwners = async () => {
+      const missingIds = ownerIds.filter(id => !ownerProfilesCache[id]);
+      if (missingIds.length === 0) return;
 
-      if (ownersToFetch.length === 0) return;
-
-      const newProfiles: Record<string, any> = { ...ownerProfilesCache };
-      await Promise.all(ownersToFetch.map(async (uid) => {
+      const newBatch: Record<string, any> = {};
+      await Promise.all(missingIds.map(async (id) => {
         try {
-          const snap = await getDoc(doc(db, "users", uid as string));
-          if (snap.exists()) newProfiles[uid as string] = snap.data();
-        } catch (e) {}
+          const snap = await getDoc(doc(db, "users", id as string));
+          if (snap.exists()) {
+            newBatch[id as string] = snap.data();
+          }
+        } catch (e) {
+          console.warn(`[Owner Fetch Error] UID: ${id}`, e);
+        }
       }));
 
-      setOwnerProfilesCache(newProfiles);
+      if (Object.keys(newBatch).length > 0) {
+        setOwnerProfilesCache(prev => ({ ...prev, ...newBatch }));
+      }
     };
 
-    fetchOwners();
-  }, [orgsIdsString, db]);
+    fetchNewOwners();
+  }, [db, ownerIdsString]);
 
   const filteredOrgs = React.useMemo(() => {
     if (!orgs) return [];
@@ -155,11 +166,14 @@ export default function AdminPaginasPage() {
         ownerProfile: o.ownerId ? ownerProfilesCache[o.ownerId] : null
       }))
       .filter(o => {
-        const matchSearch = (o.name?.toLowerCase() || "").includes(search.toLowerCase()) || 
-                            (o.username?.toLowerCase() || "").includes(search.toLowerCase()) ||
-                            (o.ownerProfile?.name?.toLowerCase() || "").includes(search.toLowerCase()) ||
-                            (o.ownerProfile?.username?.toLowerCase() || "").includes(search.toLowerCase());
+        const nameMatch = (o.name || "").toLowerCase().includes(search.toLowerCase());
+        const userMatch = (o.username || "").toLowerCase().includes(search.toLowerCase());
+        const ownerMatch = (o.ownerProfile?.name || "").toLowerCase().includes(search.toLowerCase());
+        const ownerUserMatch = (o.ownerProfile?.username || "").toLowerCase().includes(search.toLowerCase());
+        
+        const matchSearch = !search || nameMatch || userMatch || ownerMatch || ownerUserMatch;
         const matchType = activeTypeFilter === 'all' || o.type === activeTypeFilter;
+        
         return matchSearch && matchType;
       });
   }, [orgs, ownerProfilesCache, search, activeTypeFilter]);
@@ -249,26 +263,42 @@ export default function AdminPaginasPage() {
     setIsSaving(true)
     try {
       const cleanUser = newOwnerUsername.toLowerCase().trim().replace('@', '')
-      const uSnap = await getDoc(doc(db, "usernames", cleanUser))
-      if (!uSnap.exists() || uSnap.data().type !== 'user') throw new Error("Usuário não encontrado.")
-
-      const newOwnerUid = uSnap.data().uid
+      const uSnap = await getDocs(query(collection(db, "users"), where("username", "==", cleanUser), limit(1)))
+      
+      if (uSnap.empty) throw new Error("Usuário não encontrado.")
+      
+      const newOwnerUid = uSnap.docs[0].id
+      const newOwnerData = uSnap.docs[0].data()
       const batch = writeBatch(db)
 
+      // 1. Rebaixar owner antigo se existir
       const membersQ = query(collection(db, "organizations", transferOrg.id, "members"), where("role", "==", "owner"), limit(1))
       const membersSnap = await getDocs(membersQ)
-      if (!membersSnap.empty) batch.update(membersSnap.docs[0].ref, { role: 'admin', updatedAt: serverTimestamp() })
+      if (!membersSnap.empty) {
+        batch.update(membersSnap.docs[0].ref, { role: 'admin', updatedAt: serverTimestamp() })
+      }
 
+      // 2. Definir novo owner na subcoleção
       batch.set(doc(db, "organizations", transferOrg.id, "members", newOwnerUid), {
         userId: newOwnerUid, role: 'owner', status: 'accepted', updatedAt: serverTimestamp()
       }, { merge: true })
 
+      // 3. Atualizar ownerId no documento principal
       batch.update(doc(db, "organizations", transferOrg.id), { ownerId: newOwnerUid, updatedAt: serverTimestamp() })
+      
       await batch.commit()
+      
+      // Atualizar cache local para refletir na interface sem reload
+      setOwnerProfilesCache(prev => ({ ...prev, [newOwnerUid]: newOwnerData }));
+      
       toast({ title: "Titularidade Transferida!" })
       setIsTransferOpen(false)
-    } catch (e: any) { toast({ variant: "destructive", title: "Falha", description: e.message }) }
-    finally { setIsSaving(false) }
+      setNewOwnerUsername("")
+    } catch (e: any) { 
+      toast({ variant: "destructive", title: "Falha", description: e.message }) 
+    } finally { 
+      setIsSaving(false) 
+    }
   }
 
   return (
@@ -283,7 +313,7 @@ export default function AdminPaginasPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="relative md:col-span-2">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Nome, @username ou slug..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 rounded-xl h-11" />
+          <Input placeholder="Nome, @username ou dono..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 rounded-xl h-11" />
         </div>
         <Select value={activeTypeFilter} onValueChange={setActiveTypeFilter}>
           <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Categoria" /></SelectTrigger>
@@ -296,7 +326,7 @@ export default function AdminPaginasPage() {
           </SelectContent>
         </Select>
         <div className="flex items-center justify-center bg-muted/50 rounded-xl border text-[10px] font-black uppercase text-muted-foreground">
-          {filteredOrgs.length} Páginas Ativas
+          {filteredOrgs.length} Páginas Encontradas
         </div>
       </div>
 
@@ -349,7 +379,7 @@ export default function AdminPaginasPage() {
         </Table>
       </Card>
 
-      {/* DIALOG EDIÇÃO COMPLETA - TODOS OS DADOS */}
+      {/* DIALOG EDIÇÃO COMPLETA */}
       <Dialog open={isEditOrgOpen} onOpenChange={setIsEditOrgOpen}>
         <DialogContent className="max-w-4xl h-[90vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
            <DialogHeader className="p-8 border-b bg-muted/30">
@@ -358,7 +388,7 @@ export default function AdminPaginasPage() {
                     <Avatar className="h-14 w-14 border shadow-md"><AvatarImage src={editingOrg?.avatar} className="object-cover" /><AvatarFallback className="font-black">{editingOrg?.name?.charAt(0)}</AvatarFallback></Avatar>
                     <div>
                        <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">{editingOrg?.name}</DialogTitle>
-                       <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">Controle total sobre dados, visibilidade e equipe.</DialogDescription>
+                       <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">Painel Administrativo de Organização</DialogDescription>
                     </div>
                  </div>
                  <Badge className={cn("uppercase text-[10px] font-black h-6", editingOrg?.status === 'Bloqueado' ? "bg-red-500" : "bg-green-500")}>{editingOrg?.status || 'Ativo'}</Badge>
@@ -381,7 +411,6 @@ export default function AdminPaginasPage() {
                  <div className="flex-1 overflow-hidden">
                     <ScrollArea className="h-full">
                        <div className="p-8 pb-20">
-                          {/* ABA GERAL */}
                           <TabsContent value="geral" className="space-y-8 mt-0">
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome de Exibição</Label><Input value={editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, name: e.target.value})} className="rounded-xl h-11" required /></div>
@@ -390,89 +419,71 @@ export default function AdminPaginasPage() {
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label><Input value={editingOrg?.type || ""} onChange={e => setEditingOrg({...editingOrg, type: e.target.value})} className="rounded-xl h-11" /></div>
                              </div>
                              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bio / Descrição</Label><Textarea value={editingOrg?.bio || ""} onChange={e => setEditingOrg({...editingOrg, bio: e.target.value})} className="min-h-[100px] rounded-xl resize-none" /></div>
-                             
                              <Separator className="border-dashed" />
-                             
                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Selo Verificado</Label><div className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-dashed"><ShieldCheck className="w-5 h-5 text-blue-500" /><span className="text-xs font-bold uppercase flex-1">Oficial</span><Switch checked={editingOrg?.verified || false} onCheckedChange={v => setEditingOrg({...editingOrg, verified: v})} /></div></div>
-                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Status de Rede</Label><Select value={editingOrg?.status || "Ativo"} onValueChange={v => setEditingOrg({...editingOrg, status: v})}><SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger><SelectContent className="rounded-xl"><SelectItem value="Ativo">Ativo / Público</SelectItem><SelectItem value="Privado">Privado</SelectItem><SelectItem value="Bloqueado">Suspenso</SelectItem></SelectContent></Select></div>
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Analytics Público</Label><div className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-dashed"><TrendingUp className="w-5 h-5 text-secondary" /><span className="text-xs font-bold uppercase flex-1">Exibir métricas</span><Switch checked={editingOrg?.showStats ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showStats: v})} /></div></div>
                              </div>
                           </TabsContent>
 
-                          {/* ABA VISUAL */}
                           <TabsContent value="visual" className="space-y-8 mt-0">
                              <div className="space-y-6">
-                                <Label className="text-[10px] font-black uppercase opacity-60">Logo da Marca (Quadrada)</Label>
+                                <Label className="text-[10px] font-black uppercase opacity-60">Logo da Marca</Label>
                                 <div className="flex items-center gap-6">
                                    <div className="relative group">
                                       <Avatar className="h-32 w-32 border-4 border-background shadow-xl rounded-[2rem] overflow-hidden">
                                          <AvatarImage src={editingOrg?.avatar} className="object-cover" />
                                          <AvatarFallback className="text-4xl font-black bg-muted">{editingOrg?.name?.charAt(0)}</AvatarFallback>
                                       </Avatar>
-                                      <label htmlFor="admin-edit-logo" className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-[2rem] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-[2rem]"><Camera className="w-8 h-8" /></label>
+                                      <label htmlFor="admin-edit-logo" className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-[2rem] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"><Camera className="w-8 h-8" /></label>
                                       <input id="admin-edit-logo" type="file" className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'avatar')} />
                                    </div>
                                    <div className="flex-1 space-y-2">
-                                      <p className="text-xs font-medium text-muted-foreground leading-relaxed">Formatos recomendados: JPG, PNG ou WEBP. Tamanho sugerido: 500x500px.</p>
+                                      <p className="text-xs font-medium text-muted-foreground">Formatos: JPG, PNG, WEBP.</p>
                                       <Input value={editingOrg?.avatar || ""} onChange={e => setEditingOrg({...editingOrg, avatar: e.target.value})} className="rounded-xl h-10 text-xs" placeholder="URL da Logo" />
                                    </div>
                                 </div>
 
-                                <Label className="text-[10px] font-black uppercase opacity-60 block mt-10">Banner / Capa (Retangular)</Label>
-                                <div className="relative h-48 bg-muted rounded-[2rem] overflow-hidden border-2 border-dashed border-border group">
+                                <Label className="text-[10px] font-black uppercase opacity-60 block mt-10">Banner / Capa</Label>
+                                <div className="relative h-48 bg-muted rounded-[2rem] overflow-hidden border-2 border-dashed group">
                                    {editingOrg?.banner ? <img src={editingOrg.banner} className="w-full h-full object-cover" /> : null}
                                    <label htmlFor="admin-edit-banner" className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                                      <Upload className="w-10 h-10 mb-2" />
-                                      <span className="text-[10px] font-black uppercase tracking-widest">Trocar Capa</span>
+                                      <Upload className="w-10 h-10 mb-2" /><span className="text-[10px] font-black uppercase tracking-widest">Trocar Capa</span>
                                    </label>
                                    <input id="admin-edit-banner" type="file" className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'banner')} />
                                 </div>
                                 {uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}
-                                <Input value={editingOrg?.banner || ""} onChange={e => setEditingOrg({...editingOrg, banner: e.target.value})} className="rounded-xl h-10 text-xs" placeholder="URL da Capa" />
                              </div>
                           </TabsContent>
 
-                          {/* ABA FISCAL */}
                           <TabsContent value="fiscal" className="space-y-8 mt-0">
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Razão Social</Label><Input value={editingOrg?.legalName || ""} onChange={e => setEditingOrg({...editingOrg, legalName: e.target.value})} className="rounded-xl h-11" /></div>
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">CNPJ</Label><Input value={editingOrg?.cnpj || ""} onChange={e => setEditingOrg({...editingOrg, cnpj: e.target.value})} className="rounded-xl h-11" placeholder="00.000.000/0000-00" /></div>
                              </div>
-                             <div className="p-4 bg-blue-50 border-2 border-dashed border-blue-200 rounded-2xl flex gap-4">
-                                <ShieldCheck className="w-6 h-6 text-blue-600 shrink-0 mt-0.5" />
-                                <p className="text-xs text-blue-800 font-medium leading-relaxed uppercase">Estes dados são usados para faturamento, contratos e recebimento de saques bancários. Devem ser fidedignos ao cadastro oficial da Receita Federal.</p>
-                             </div>
                           </TabsContent>
 
-                          {/* ABA ENDEREÇO */}
                           <TabsContent value="endereco" className="space-y-8 mt-0">
                              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">CEP</Label><Input value={editingOrg?.cep || ""} onChange={e => setEditingOrg({...editingOrg, cep: e.target.value})} onBlur={handleCepBlur} className="rounded-xl h-11" /></div>
-                                <div className="md:col-span-3 space-y-2">
-                                   <div className="flex items-center justify-between"><Label className="text-[10px] font-black uppercase opacity-60">Logradouro / Rua</Label><div className="flex items-center gap-2"><span className="text-[8px] font-bold opacity-40 uppercase">Exibir no Perfil?</span><Switch checked={editingOrg?.showAddress ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showAddress: v})} /></div></div>
-                                   <Input value={editingOrg?.street || ""} onChange={e => setEditingOrg({...editingOrg, street: e.target.value})} className="rounded-xl h-11" />
-                                </div>
+                                <div className="md:col-span-3 space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Rua / Logradouro</Label><Input value={editingOrg?.street || ""} onChange={e => setEditingOrg({...editingOrg, street: e.target.value})} className="rounded-xl h-11" /></div>
                              </div>
                              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Número</Label><Input value={editingOrg?.number || ""} onChange={e => setEditingOrg({...editingOrg, number: e.target.value})} className="rounded-xl h-11" /></div>
-                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label><Input value={editingOrg?.complement || ""} onChange={e => setEditingOrg({...editingOrg, complement: e.target.value})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nº</Label><Input value={editingOrg?.number || ""} onChange={e => setEditingOrg({...editingOrg, number: e.target.value})} className="rounded-xl h-11" /></div>
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={editingOrg?.neighborhood || ""} onChange={e => setEditingOrg({...editingOrg, neighborhood: e.target.value})} className="rounded-xl h-11" /></div>
-                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label><div className="flex gap-2"><Input value={editingOrg?.city || ""} onChange={e => setEditingOrg({...editingOrg, city: e.target.value})} className="rounded-xl h-11" /><Input value={editingOrg?.state || ""} onChange={e => setEditingOrg({...editingOrg, state: e.target.value})} maxLength={2} className="rounded-xl h-11 w-14" /></div></div>
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label><div className="flex gap-2"><Input value={editingOrg?.city || ""} readOnly className="rounded-xl h-11 bg-muted/30" /><Input value={editingOrg?.state || ""} readOnly className="rounded-xl h-11 bg-muted/30 w-14" /></div></div>
                              </div>
                           </TabsContent>
 
-                          {/* ABA SOCIAL / CONTATO */}
                           <TabsContent value="social" className="space-y-8 mt-0">
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="space-y-3"><div className="flex items-center justify-between"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp Comercial</Label><Switch checked={editingOrg?.showPhone ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showPhone: v})} /></div><Input value={editingOrg?.phone || ""} onChange={e => setEditingOrg({...editingOrg, phone: e.target.value})} className="rounded-xl h-11" /></div>
-                                <div className="space-y-3"><div className="flex items-center justify-between"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail Público</Label><Switch checked={editingOrg?.showEmail ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showEmail: v})} /></div><Input value={editingOrg?.contactEmail || ""} onChange={e => setEditingOrg({...editingOrg, contactEmail: e.target.value})} className="rounded-xl h-11" /></div>
-                                <div className="space-y-3"><div className="flex items-center justify-between"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Site Oficial</Label><Switch checked={editingOrg?.showWebsite ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showWebsite: v})} /></div><Input value={editingOrg?.website || ""} onChange={e => setEditingOrg({...editingOrg, website: e.target.value})} className="rounded-xl h-11" /></div>
-                                <div className="space-y-3"><div className="flex items-center justify-between"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram</Label><Switch checked={editingOrg?.showInstagram ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showInstagram: v})} /></div><Input value={editingOrg?.instagram || ""} onChange={e => setEditingOrg({...editingOrg, instagram: e.target.value})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-3"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp</Label><Input value={editingOrg?.phone || ""} onChange={e => setEditingOrg({...editingOrg, phone: e.target.value})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-3"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail Público</Label><Input value={editingOrg?.contactEmail || ""} onChange={e => setEditingOrg({...editingOrg, contactEmail: e.target.value})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-3"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Site</Label><Input value={editingOrg?.website || ""} onChange={e => setEditingOrg({...editingOrg, website: e.target.value})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-3"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram</Label><Input value={editingOrg?.instagram || ""} onChange={e => setEditingOrg({...editingOrg, instagram: e.target.value})} className="rounded-xl h-11" /></div>
                              </div>
                           </TabsContent>
 
-                          {/* ABA EQUIPE */}
                           <TabsContent value="membros" className="space-y-8 mt-0">
                              <OrgMembersList orgId={editingOrg?.id} />
                           </TabsContent>
@@ -492,11 +503,11 @@ export default function AdminPaginasPage() {
 
       {/* DIALOG TRANSFERÊNCIA */}
       <Dialog open={!!isTransferOpen} onOpenChange={setIsTransferOpen}>
-        <DialogContent className="max-w-md rounded-[2.5rem]">
+        <DialogContent className="rounded-[2.5rem] max-w-sm">
            <DialogHeader><DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Transferir Titularidade</DialogTitle></DialogHeader>
            <div className="space-y-6 py-4">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Username do Novo Owner (@)</Label><Input placeholder="Ex: @joaosilva" value={newOwnerUsername} onChange={e => setNewOwnerUsername(e.target.value)} className="h-12 rounded-xl" /></div>
-              <div className="p-4 bg-orange-50 rounded-2xl border-2 border-dashed border-orange-200 text-[10px] text-orange-800 font-bold uppercase leading-relaxed italic">O proprietário atual será rebaixado para Administrador e o novo titular terá controle total sobre finanças e equipe.</div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Username do Novo Dono (@)</Label><Input placeholder="Ex: @joaosilva" value={newOwnerUsername} onChange={e => setNewOwnerUsername(e.target.value)} className="h-12 rounded-xl" /></div>
+              <div className="p-4 bg-orange-50 rounded-2xl border-2 border-dashed border-orange-200 text-[10px] text-orange-800 font-bold uppercase leading-relaxed italic">O dono antigo será rebaixado para administrador.</div>
            </div>
            <DialogFooter><Button onClick={handleTransferOwnership} disabled={isSaving || !newOwnerUsername} className="w-full bg-primary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">{isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : "Confirmar Transferência"}</Button></DialogFooter>
         </DialogContent>
@@ -541,9 +552,10 @@ function OrgMembersList({ orgId }: { orgId: string }) {
     setAdding(true)
     try {
       const cleanUser = newMemberUser.toLowerCase().trim().replace('@', '')
-      const uSnap = await getDoc(doc(db, "usernames", cleanUser))
-      if (!uSnap.exists()) throw new Error("Usuário não encontrado.")
-      await setDoc(doc(db, "organizations", orgId, "members", uSnap.data().uid), { userId: uSnap.data().uid, role: 'editor', status: 'accepted', updatedAt: serverTimestamp() })
+      const uSnap = await getDocs(query(collection(db, "users"), where("username", "==", cleanUser), limit(1)))
+      if (uSnap.empty) throw new Error("Usuário não encontrado.")
+      const uid = uSnap.docs[0].id
+      await setDoc(doc(db, "organizations", orgId, "members", uid), { userId: uid, role: 'editor', status: 'accepted', updatedAt: serverTimestamp() })
       setNewMemberUser(""); toast({ title: "Membro adicionado!" })
     } catch (e: any) { toast({ variant: "destructive", title: "Erro", description: e.message }) }
     finally { setAdding(false) }
@@ -561,9 +573,9 @@ function OrgMembersList({ orgId }: { orgId: string }) {
     if (!db || !orgId || !memberToDecline) return
     try {
        await deleteDoc(doc(db, "organizations", orgId, "members", memberToDecline.userId))
-       toast({ title: "Membro removido da equipe." })
+       toast({ title: "Membro removido." })
        setMemberToDecline(null)
-    } catch (e) { toast({ variant: "destructive", title: "Erro ao remover" }) }
+    } catch (e) { toast({ variant: "destructive", title: "Erro" }) }
   }
 
   if (loading) return <div className="flex justify-center py-4"><Loader2 className="animate-spin h-5 w-5 text-secondary" /></div>
