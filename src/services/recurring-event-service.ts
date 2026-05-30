@@ -1,5 +1,3 @@
-'use server';
-
 import { 
   addDays, 
   addWeeks, 
@@ -9,12 +7,12 @@ import {
   parseISO, 
   format 
 } from 'date-fns';
-import { getAdminDb } from '@/lib/firebase/admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { db } from '@/firebase/database';
+import { collection, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 
 /**
  * @fileOverview Serviço de lógica para geração de ocorrências de eventos recorrentes.
- * Refatorado para usar o Admin SDK, eliminando erros de serialização de instância de banco.
+ * Refatorado para Client SDK para evitar erros de autenticação do Admin SDK em ambientes restritos.
  */
 
 export type RecurrenceType = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly';
@@ -33,10 +31,13 @@ export interface RecurringEventInput {
   maxOccurrences?: number;
 }
 
+/**
+ * Gera as ocorrências individuais de uma série recorrente.
+ * Executado no lado do cliente utilizando a sessão ativa do usuário.
+ */
 export async function generateOccurrences(parentId: string, input: RecurringEventInput) {
-  const db = getAdminDb();
-  const batch = db.batch();
-  const occurrencesRef = db.collection('recurring_occurrences');
+  const batch = writeBatch(db);
+  const occurrencesRef = collection(db, 'recurring_occurrences');
   
   let currentDate = parseISO(input.startDate);
   // Default de 6 meses se não houver data final, para evitar loops infinitos
@@ -45,14 +46,14 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
   
   let count = 0;
 
-  // Trava de segurança: se a data inicial for inválida, aborta para evitar loop infinito
+  // Trava de segurança: se a data inicial for inválida, aborta
   if (isNaN(currentDate.getTime())) {
     console.error("[Recurrence Error] Invalid start date provided.");
     return 0;
   }
 
   while (isBefore(currentDate, finalDate) && count < max) {
-    const occRef = occurrencesRef.doc();
+    const occRef = doc(occurrencesRef);
     const dateStr = format(currentDate, 'yyyy-MM-dd');
     
     batch.set(occRef, {
@@ -67,7 +68,7 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
       ingressosVendidos: 0,
       checkinsRealizados: 0,
       order: count,
-      createdAt: FieldValue.serverTimestamp()
+      createdAt: serverTimestamp()
     });
 
     // Avançar a data baseado na frequência
@@ -78,10 +79,10 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
       case 'biweekly': currentDate = addWeeks(currentDate, 2); break;
       case 'monthly': currentDate = addMonths(currentDate, 1); break;
       case 'yearly': currentDate = addYears(currentDate, 1); break;
-      default: currentDate = addDays(currentDate, 1); // Fallback de segurança
+      default: currentDate = addDays(currentDate, 1);
     }
 
-    // Trava final de segurança: se a data não avançou por algum erro matemático, para o loop
+    // Trava final de segurança para evitar loop infinito
     if (currentDate.getTime() <= previousDate.getTime()) break;
     
     count++;

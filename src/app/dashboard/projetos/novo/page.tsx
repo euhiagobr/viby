@@ -111,7 +111,7 @@ export default function NovoEventoPage() {
         createdAt: serverTimestamp()
       }
 
-      // Limpeza de dados para evitar erros de serialização no Firestore
+      // Limpeza de dados para evitar erros de serialização
       const cleanData = JSON.parse(JSON.stringify(eventData, (key, value) => 
         value === undefined ? null : value
       ));
@@ -140,9 +140,7 @@ export default function NovoEventoPage() {
       toast({ 
         variant: "destructive", 
         title: "Erro ao publicar", 
-        description: error.message === "Maximum call stack size exceeded" 
-          ? "Erro de processamento de dados. Tente novamente." 
-          : error.message 
+        description: error.message 
       })
     } finally {
       setLoading(false)
