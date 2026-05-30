@@ -1,16 +1,15 @@
-
 "use client"
 
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useFirebaseApp, useMemoFirebase, useCollection } from "@/firebase"
-import { updateDoc, doc, serverTimestamp, collection, query, orderBy, getDocs, where } from "firebase/firestore"
+import { updateDoc, doc, serverTimestamp, collection, query, orderBy, getDocs, where, limit } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, Save, Handshake, LayoutGrid, Settings2, Ticket, RefreshCw } from "lucide-react"
+import { Loader2, ArrowLeft, Save, Handshake, LayoutGrid, Settings2, Ticket, RefreshCw, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -50,6 +49,7 @@ export default function EditarEventoPage() {
   const { data: categories } = useCollection<any>(categoriesQuery)
 
   const [loading, setLoading] = useState(false)
+  const [isGeneratingOccurrences, setIsGeneratingOccurrences] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   
   const [formData, setFormData] = useState<any>(null)
@@ -100,6 +100,30 @@ export default function EditarEventoPage() {
     )
   }
 
+  const handleManualGenerateAgenda = async () => {
+    if (!db || !currentOrg || !formData.isRecurring || !formData.recurringEndDate) return;
+    setIsGeneratingOccurrences(true);
+    try {
+      const count = await generateOccurrences(eventId, {
+        name: formData.title,
+        description: formData.description,
+        organizationId: currentOrg.id,
+        organizerName: currentOrg.name,
+        frequency: formData.frequency as any,
+        startDate: formData.startDate.split('T')[0],
+        endDate: formData.recurringEndDate,
+        startTime: formData.startDate.split('T')[1] || "19:00",
+        endTime: formData.endDate.split('T')[1] || "22:00",
+        capacidadeMaxima: totalCapacity
+      });
+      toast({ title: "Agenda Atualizada!", description: `${count} datas foram geradas.` });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao gerar agenda", description: e.message });
+    } finally {
+      setIsGeneratingOccurrences(false);
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!db || !eventRef || !currentOrg) return
@@ -124,7 +148,12 @@ export default function EditarEventoPage() {
         updatedAt: serverTimestamp()
       }
 
-      // Sincronizar L1 com Address Raiz
+      // Sincronização com campos Raiz para busca e listagem
+      updateData.city = formData.address.city || "";
+      updateData.location = formData.address.neighborhood || formData.address.street || "";
+      updateData.latitude = formData.address.latitude || -23.55052;
+      updateData.longitude = formData.address.longitude || -46.633308;
+
       if (formData.isMultiLocation && formData.locations.length > 0) {
         const L1 = formData.locations[0];
         updateData.address = {
@@ -139,34 +168,17 @@ export default function EditarEventoPage() {
           longitude: L1.longitude
         };
         updateData.city = L1.city;
-        updateData.latitude = L1.latitude;
-        updateData.longitude = L1.longitude;
-      } else {
-        updateData.latitude = formData.address.latitude;
-        updateData.longitude = formData.address.longitude;
-        updateData.city = formData.address.city;
+        updateData.location = L1.neighborhood || L1.street;
       }
 
       const cleanData = JSON.parse(JSON.stringify(updateData, (key, value) => value === undefined ? null : value));
+      await updateDoc(eventRef, cleanData);
 
-      await updateDoc(eventRef, cleanData)
-
-      // Se ativou recorrência agora, gerar ocorrências caso não existam
+      // Auto-gerar se não houver nenhuma
       if (formData.isRecurring && formData.recurringEndDate) {
         const occSnap = await getDocs(query(collection(db, 'recurring_occurrences'), where('parentId', '==', eventId), limit(1)));
         if (occSnap.empty) {
-          await generateOccurrences(eventId, {
-            name: formData.title,
-            description: formData.description,
-            organizationId: currentOrg.id,
-            organizerName: currentOrg.name,
-            frequency: formData.frequency as any,
-            startDate: formData.startDate.split('T')[0],
-            endDate: formData.recurringEndDate,
-            startTime: formData.startDate.split('T')[1] || "19:00",
-            endTime: formData.endDate.split('T')[1] || "22:00",
-            capacidadeMaxima: totalCapacity
-          });
+          await handleManualGenerateAgenda();
         }
       }
 
@@ -185,7 +197,7 @@ export default function EditarEventoPage() {
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
+          <Button variant="ghost" size="icon" asChild><Link href={`/dashboard/organizacoes/${currentOrg?.username}/events`}><ArrowLeft className="w-5 h-5" /></Link></Button>
           <div>
              <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Painel do Evento</h1>
              <p className="text-xs font-bold text-secondary uppercase tracking-widest">{formData.title}</p>
@@ -287,7 +299,7 @@ export default function EditarEventoPage() {
            </form>
         </TabsContent>
 
-        <TabsContent value="recorrencia" className="animate-in fade-in duration-500">
+        <TabsContent value="recorrencia" className="animate-in fade-in duration-500 space-y-6">
            <Card className="border-none shadow-sm rounded-[2.5rem]">
               <CardContent className="p-8">
                  <EventRecurrence 
@@ -300,6 +312,23 @@ export default function EditarEventoPage() {
                  />
               </CardContent>
            </Card>
+
+           {formData.isRecurring && (
+              <div className="flex flex-col items-center gap-4 p-8 bg-white rounded-[2rem] border-2 border-dashed border-secondary/20 text-center">
+                 <div className="space-y-1">
+                    <h4 className="text-lg font-black uppercase italic text-primary">Gestão de Agenda</h4>
+                    <p className="text-xs text-muted-foreground font-medium max-w-sm uppercase">Se você alterou a frequência ou a data limite, clique abaixo para reconstruir as datas.</p>
+                 </div>
+                 <Button 
+                   onClick={handleManualGenerateAgenda} 
+                   disabled={isGeneratingOccurrences || !formData.recurringEndDate}
+                   className="bg-secondary text-white font-black rounded-xl h-12 px-10 gap-2 shadow-lg hover:scale-105 transition-transform"
+                 >
+                    {isGeneratingOccurrences ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                    Regerar Agenda de Ocorrências
+                 </Button>
+              </div>
+           )}
         </TabsContent>
 
         <TabsContent value="bilheteria" className="animate-in fade-in duration-500">
@@ -315,7 +344,7 @@ export default function EditarEventoPage() {
            ) : (
              <Card className="border-none shadow-sm rounded-[2rem] p-20 text-center flex flex-col items-center gap-4 opacity-40">
                 <Ticket className="w-12 h-12 text-primary" />
-                <p className="text-xs font-black uppercase tracking-[0.2em]">Bilheteria desativada para eventos externos ou de divulgação.</p>
+                <p className="text-xs font-black uppercase tracking-[0.2em]">Bilheteria desativada para este tipo de evento.</p>
              </Card>
            )}
         </TabsContent>

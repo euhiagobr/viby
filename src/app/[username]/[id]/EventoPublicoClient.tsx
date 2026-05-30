@@ -60,15 +60,15 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const { data: membership } = useCollection<any>(memberQuery);
   const isOwner = membership && membership.length > 0;
 
-  // Ocorrências se for recorrente
+  // Ocorrências se for recorrente - USA O UID REAL DO EVENTO
   const occurrencesQuery = useMemoFirebase(() => {
-    if (!db || !event?.isRecurring) return null;
+    if (!db || !event?.isRecurring || !event?.id) return null;
     return query(
       collection(db, 'recurring_occurrences'),
-      where('parentId', '==', id),
+      where('parentId', '==', event.id),
       where('status', '==', 'active')
     );
-  }, [db, id, event?.isRecurring]);
+  }, [db, event?.id, event?.isRecurring]);
   
   const { data: rawOccurrences, loading: occLoading } = useCollection<any>(occurrencesQuery);
 
@@ -201,7 +201,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                        ))}
                        {occurrences.length > 6 && (
                          <Button variant="ghost" asChild className="h-auto p-6 rounded-[2rem] border-2 border-dashed border-border/60 flex flex-col gap-2 uppercase font-black italic hover:bg-muted/50">
-                            <Link href={`/recorrente/serie/${id}`}>
+                            <Link href={`/recorrente/serie/${event.id}`}>
                                <Plus className="w-6 h-6 text-secondary" /> Ver Toda a Agenda
                             </Link>
                          </Button>
@@ -212,8 +212,8 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                        <CalendarX className="w-8 h-8 text-muted-foreground opacity-30" />
                        <p className="text-xs font-bold text-muted-foreground uppercase">Nenhuma data disponível no momento</p>
                        {isOwner && (
-                         <Button asChild size="sm" variant="link" className="text-secondary font-black uppercase text-[10px]">
-                            <Link href={`/dashboard/evento/${id}/editar`}>Gerar Ocorrências na Agenda</Link>
+                         <Button asChild size="sm" variant="outline" className="text-secondary font-black uppercase text-[10px] border-secondary/20 mt-2">
+                            <Link href={`/dashboard/evento/${event.id}/editar`}>Gerar Ocorrências na Agenda</Link>
                          </Button>
                        )}
                     </div>

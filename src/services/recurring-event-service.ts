@@ -8,11 +8,10 @@ import {
   format 
 } from 'date-fns';
 import { db } from '@/firebase/database';
-import { collection, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, writeBatch, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 
 /**
  * @fileOverview Serviço de lógica para geração de ocorrências de eventos recorrentes.
- * Refatorado para Client SDK para evitar erros de autenticação do Admin SDK em ambientes restritos.
  */
 
 export type RecurrenceType = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly';
@@ -33,26 +32,37 @@ export interface RecurringEventInput {
 
 /**
  * Gera as ocorrências individuais de uma série recorrente.
- * Executado no lado do cliente utilizando a sessão ativa do usuário.
  */
 export async function generateOccurrences(parentId: string, input: RecurringEventInput) {
+  // 1. Limpar ocorrências existentes para evitar duplicidade ao re-gerar
+  try {
+    const oldOccsQ = query(collection(db, 'recurring_occurrences'), where('parentId', '==', parentId));
+    const oldSnap = await getDocs(oldOccsQ);
+    if (!oldSnap.empty) {
+      const deleteBatch = writeBatch(db);
+      oldSnap.forEach(d => deleteBatch.delete(d.ref));
+      await deleteBatch.commit();
+    }
+  } catch (e) {
+    console.warn("[Recurrence] Falha ao limpar agenda antiga, prosseguindo...");
+  }
+
   const batch = writeBatch(db);
   const occurrencesRef = collection(db, 'recurring_occurrences');
   
   let currentDate = parseISO(input.startDate);
-  // Default de 6 meses se não houver data final, para evitar loops infinitos
+  // Default de 6 meses se não houver data final
   const finalDate = input.endDate ? parseISO(input.endDate) : addMonths(currentDate, 6);
-  const max = input.maxOccurrences || 100;
+  const max = input.maxOccurrences || 150;
   
   let count = 0;
 
-  // Trava de segurança: se a data inicial for inválida, aborta
   if (isNaN(currentDate.getTime())) {
-    console.error("[Recurrence Error] Invalid start date provided.");
+    console.error("[Recurrence Error] Data inicial inválida.");
     return 0;
   }
 
-  while (isBefore(currentDate, finalDate) && count < max) {
+  while ((isBefore(currentDate, finalDate) || format(currentDate, 'yyyy-MM-dd') === input.endDate) && count < max) {
     const occRef = doc(occurrencesRef);
     const dateStr = format(currentDate, 'yyyy-MM-dd');
     
@@ -71,7 +81,6 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
       createdAt: serverTimestamp()
     });
 
-    // Avançar a data baseado na frequência
     const previousDate = new Date(currentDate);
     switch (input.frequency) {
       case 'daily': currentDate = addDays(currentDate, 1); break;
@@ -82,9 +91,7 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
       default: currentDate = addDays(currentDate, 1);
     }
 
-    // Trava final de segurança para evitar loop infinito
     if (currentDate.getTime() <= previousDate.getTime()) break;
-    
     count++;
   }
 
