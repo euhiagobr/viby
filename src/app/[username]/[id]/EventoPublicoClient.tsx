@@ -53,7 +53,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db])
   const { data: promotions } = useDoc<any>( promosRef)
 
-  // Verificar se o usuário atual é proprietário ou membro da organização para exibir as visualizações
   const memberQuery = useMemoFirebase(() => {
     if (!db || !user || !event?.organizationId) return null;
     return query(collection(db, 'organizations', event.organizationId, 'members'), where('userId', '==', user.uid));
@@ -78,7 +77,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const isEnded = new Date(event.endDate || new Date(event.date).getTime() + 4*60*60*1000) < new Date()
 
   return (
-    <div className="min-h-screen bg-background pb-32">
+    <div className="min-h-screen bg-background pb-32 selection:bg-secondary selection:text-white">
       <EventSEO event={event} username={username} />
       
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-2xl border-b border-border/40">
@@ -150,6 +149,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
              </Card>
 
              <EventDateTime startDate={event.date} endDate={event.endDate} isPublic />
+             
              <EventLocation 
                 address={event.address} 
                 locations={event.locations} 
@@ -173,7 +173,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                   <Card className="border-none shadow-xl rounded-[2.5rem] bg-white p-8 border-t-8 border-primary space-y-6">
                      <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Bilheteria Externa</h2>
                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">As vendas para este evento ocorrem em uma plataforma terceira.</p>
-                     <Button className="w-full h-16 bg-primary text-white font-black rounded-2xl uppercase italic gap-2" asChild>
+                     <Button className="w-full h-16 bg-primary text-white font-black rounded-2xl uppercase italic gap-2 shadow-lg transition-transform active:scale-95" asChild>
                         <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Link de Ingressos <ArrowRight className="w-5 h-5" /></a>
                      </Button>
                   </Card>

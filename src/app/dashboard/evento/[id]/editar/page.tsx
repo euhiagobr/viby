@@ -119,7 +119,7 @@ export default function EditarEventoPage() {
         updatedAt: serverTimestamp()
       }
 
-      // Sincronizar L1 com Address Raiz para compatibilidade
+      // Sincronizar L1 com Address Raiz para compatibilidade e SEO
       if (formData.isMultiLocation && formData.locations.length > 0) {
         const L1 = formData.locations[0];
         updateData.address = {
@@ -134,6 +134,13 @@ export default function EditarEventoPage() {
           longitude: L1.longitude
         };
         updateData.city = L1.city;
+        updateData.latitude = L1.latitude;
+        updateData.longitude = L1.longitude;
+      } else {
+        // Se não for multi, garantir que lat/lng da raiz venha do address único
+        updateData.latitude = formData.address.latitude;
+        updateData.longitude = formData.address.longitude;
+        updateData.city = formData.address.city;
       }
 
       const cleanData = JSON.parse(JSON.stringify(updateData, (key, value) => value === undefined ? null : value));
@@ -242,18 +249,14 @@ export default function EditarEventoPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-none shadow-sm rounded-[2rem]">
-                <CardContent className="p-8">
-                   <EventLocation 
-                     address={formData.address} 
-                     isMultiLocation={formData.isMultiLocation}
-                     locations={formData.locations}
-                     onChange={v => setFormData({...formData, address: v})} 
-                     onLocationsChange={v => setFormData({...formData, locations: v})}
-                     onToggleMultiLocation={v => setFormData({...formData, isMultiLocation: v})}
-                   />
-                </CardContent>
-              </Card>
+              <EventLocation 
+                address={formData.address} 
+                isMultiLocation={formData.isMultiLocation}
+                locations={formData.locations}
+                onChange={v => setFormData({...formData, address: v})} 
+                onLocationsChange={v => setFormData({...formData, locations: v})}
+                onToggleMultiLocation={v => setFormData({...formData, isMultiLocation: v})}
+              />
            </form>
         </TabsContent>
 

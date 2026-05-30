@@ -17,12 +17,14 @@ import {
   CheckCircle2,
   Calendar,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Map as MapIcon
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { LocationMap } from "./LocationMap"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
 import {
   Tooltip,
   TooltipContent,
@@ -86,10 +88,10 @@ export function EventLocation({
   isPublic 
 }: EventLocationProps) {
   const [isSearching, setIsSearching] = React.useState<string | null>(null);
-  const [activeTab, setActiveTab] = React.useState<Date>(new Date());
+  const [currentTime, setCurrentTime] = React.useState<Date>(new Date());
 
   React.useEffect(() => {
-    const timer = setInterval(() => setActiveTab(new Date()), 60000);
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
@@ -131,11 +133,10 @@ export function EventLocation({
   const handleUpdateLocation = (index: number, field: string, value: any) => {
     let finalValue = value;
     
-    // Tratamento especial para coordenadas para garantir que sejam números
     if (field === 'latitude' || field === 'longitude') {
       if (typeof value === 'string') {
         finalValue = value === "" ? 0 : parseFloat(value);
-        if (isNaN(finalValue)) return; // Ignora se não for um número válido durante a digitação
+        if (isNaN(finalValue)) return;
       }
     }
 
@@ -149,7 +150,6 @@ export function EventLocation({
   };
 
   const handleCoordsChange = (index: number, lat: number, lng: number) => {
-    // Quando o mapa retorna coordenadas (dragging), atualizamos o estado
     if (isMultiLocation) {
       const newLocs = [...locations];
       newLocs[index] = { ...newLocs[index], latitude: lat, longitude: lng };
@@ -160,27 +160,21 @@ export function EventLocation({
   };
 
   if (isPublic) {
-    const now = new Date();
-    
     const sortedLocs = [...locations].sort((a, b) => a.order - b.order);
     
-    const activeLoc = isMultiLocation ? sortedLocs.find(loc => {
-      const start = new Date(loc.startAt);
-      const end = new Date(loc.endAt);
-      return now >= start && now <= end;
-    }) || sortedLocs[0] : null;
-
-    const nextLoc = isMultiLocation ? sortedLocs.find(loc => new Date(loc.startAt) > now) : null;
-
-    const renderLocationBlock = (loc: any, isMain: boolean = true) => {
-      const addr = isMultiLocation ? `${loc.street}, ${loc.number} - ${loc.neighborhood}, ${loc.city}` : `${address.street}, ${address.number} - ${address.neighborhood}, ${address.city}`;
+    const renderLocationBlock = (loc: any, isCurrent: boolean, isNext: boolean) => {
+      const addr = isMultiLocation 
+        ? `${loc.street}, ${loc.number} - ${loc.neighborhood}, ${loc.city}` 
+        : `${address.street}, ${address.number} - ${address.neighborhood}, ${address.city}`;
+      
       const lat = isMultiLocation ? loc.latitude : address.latitude || -23.55052;
       const lng = isMultiLocation ? loc.longitude : address.longitude || -46.633308;
+      const title = isMultiLocation ? (loc.title || "Ponto de Encontro") : (address.neighborhood || "Local do Evento");
 
       return (
-        <Card className={cn(
-          "border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden",
-          !isMain && "opacity-60 bg-muted/30"
+        <Card key={loc?.id || 'single'} className={cn(
+          "border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden transition-all",
+          (!isCurrent && isMultiLocation) && "opacity-60 bg-muted/30"
         )}>
           <div className="h-64 w-full">
             <LocationMap latitude={lat} longitude={lng} interactive={false} onChange={() => {}} />
@@ -188,27 +182,37 @@ export function EventLocation({
           <CardContent className="p-8 space-y-6">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div className="space-y-1">
-                   {isMain ? (
-                     <Badge className="bg-green-600 text-white border-none text-[9px] font-black uppercase px-3 py-1 mb-2 animate-pulse">
-                        Acontecendo agora em:
-                     </Badge>
-                   ) : (
-                     <Badge variant="outline" className="text-[9px] font-black uppercase px-3 py-1 mb-2 border-dashed">
-                        Próxima parada:
-                     </Badge>
+                   {isMultiLocation && (
+                     <div className="flex gap-2 mb-2">
+                        {isCurrent ? (
+                          <Badge className="bg-green-600 text-white border-none text-[9px] font-black uppercase px-3 py-1 animate-pulse">
+                             Acontecendo Agora
+                          </Badge>
+                        ) : isNext ? (
+                          <Badge variant="outline" className="text-[9px] font-black uppercase px-3 py-1 border-dashed">
+                             Próxima Parada
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-[9px] font-black uppercase px-3 py-1 opacity-50">
+                             Programação
+                          </Badge>
+                        )}
+                     </div>
                    )}
                    <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary">
-                     {isMultiLocation ? (loc.title || "Local do Evento") : (address.neighborhood || "Local Confirmado")}
+                     {title}
                    </h3>
                    <p className="text-sm font-medium text-muted-foreground leading-relaxed">{addr}</p>
-                   {isMultiLocation && (
+                   
+                   {isMultiLocation && loc.startAt && (
                      <div className="flex items-center gap-2 mt-2 text-[10px] font-black uppercase text-secondary">
                         <Clock className="w-3.5 h-3.5" />
-                        {new Date(loc.startAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} até {new Date(loc.endAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(loc.startAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} 
+                        {loc.endAt && ` às ${new Date(loc.endAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
                      </div>
                    )}
                 </div>
-                <Button asChild variant="outline" className="rounded-xl font-black uppercase italic text-[10px] gap-2 border-secondary text-secondary">
+                <Button asChild variant="outline" className="rounded-xl font-black uppercase italic text-[10px] gap-2 border-secondary text-secondary hover:bg-secondary hover:text-white transition-all">
                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`} target="_blank">
                       <Navigation className="w-4 h-4 fill-current" /> Abrir GPS
                    </a>
@@ -223,35 +227,34 @@ export function EventLocation({
       <div className="space-y-10">
         <div className="flex items-center gap-3 px-2">
           <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
-            <MapPin className="w-5 h-5" />
+            <MapIcon className="w-5 h-5" />
           </div>
-          <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Itinerário / Localização</h2>
+          <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">
+            {isMultiLocation ? "Itinerário do Evento" : "Localização"}
+          </h2>
         </div>
 
         <div className="space-y-8">
            {isMultiLocation ? (
-             <>
-                {activeLoc && renderLocationBlock(activeLoc, true)}
-                {nextLoc && (
-                  <div className="space-y-6">
-                    <Separator className="border-dashed" />
-                    {renderLocationBlock(nextLoc, false)}
-                  </div>
-                )}
-             </>
-           ) : renderLocationBlock(null, true)}
+             sortedLocs.map((loc, idx) => {
+                const start = new Date(loc.startAt);
+                const end = new Date(loc.endAt);
+                const isCurrent = currentTime >= start && currentTime <= end;
+                const isNext = currentTime < start && (!sortedLocs[idx-1] || currentTime > new Date(sortedLocs[idx-1].endAt));
+                
+                return renderLocationBlock(loc, isCurrent, isNext);
+             })
+           ) : renderLocationBlock(null, true, false)}
         </div>
       </div>
     );
   }
 
   const renderLocationForm = (loc: any, index: number, isMulti: boolean) => {
-    const isL1 = index === 0;
-    const isL2 = index === 1;
     const currentLoc = isMulti ? loc : address;
 
     return (
-      <div className={cn("space-y-6 p-8 rounded-[2rem] border-2 border-dashed bg-white", isMulti ? "border-secondary/20" : "border-border/60")}>
+      <div key={isMulti ? loc.id : 'single'} className={cn("space-y-6 p-8 rounded-[2rem] border-2 border-dashed bg-white", isMulti ? "border-secondary/20" : "border-border/60")}>
         <div className="flex items-center justify-between mb-4">
            <div className="flex items-center gap-3">
               <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-black italic", isMulti ? "bg-secondary text-white" : "bg-primary text-white")}>
@@ -262,7 +265,17 @@ export function EventLocation({
               </h3>
            </div>
            {isMulti && (
-             <Badge variant="outline" className="text-[9px] font-black uppercase h-6 px-3">Configuração Individual</Badge>
+             <Button 
+               variant="ghost" 
+               size="icon" 
+               className="text-destructive hover:bg-red-50 rounded-full"
+               onClick={() => {
+                 const newList = locations.filter((_, i) => i !== index);
+                 onLocationsChange?.(newList);
+               }}
+             >
+                <X className="w-5 h-5" />
+             </Button>
            )}
         </div>
 
@@ -274,7 +287,7 @@ export function EventLocation({
                   <Input 
                     value={currentLoc.title || ""} 
                     onChange={e => handleUpdateLocation(index, 'title', e.target.value)}
-                    placeholder="Ex: Praça da Redenção"
+                    placeholder="Ex: Praça da Matriz"
                     className="rounded-xl h-11"
                   />
                 </div>
@@ -304,7 +317,7 @@ export function EventLocation({
                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nº</Label><Input value={currentLoc.number || ""} onChange={e => handleUpdateLocation(index, 'number', e.target.value)} required className="rounded-xl h-11" /></div>
                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={currentLoc.neighborhood || ""} onChange={e => handleUpdateLocation(index, 'neighborhood', e.target.value)} required className="rounded-xl h-11" /></div>
                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={currentLoc.city || ""} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
-                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">UF</Label><Input value={currentLoc.state || ""} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
+                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">UF</Label><Input value={currentLoc.state || ""} readOnly className="rounded-xl h-11 bg-muted/30 w-16" /></div>
               </div>
 
               {isMulti && (
@@ -323,8 +336,8 @@ export function EventLocation({
 
            <div className="space-y-3">
               <Label className="text-[10px] font-black uppercase opacity-60 flex justify-between items-center">
-                 Ajuste Fino do Marcador (Pin)
-                 <span className="text-[8px] opacity-40">Arraste o pin no mapa ou ajuste os valores</span>
+                 Ajuste do Pin no Mapa
+                 <span className="text-[8px] opacity-40">Arraste para precisão total</span>
               </Label>
               <div className="h-[280px] w-full rounded-2xl overflow-hidden border-2 border-muted relative">
                  <LocationMap 
@@ -363,17 +376,17 @@ export function EventLocation({
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8">
       <Card className="border-none shadow-sm rounded-[2rem] bg-muted/30 overflow-hidden">
         <CardContent className="p-8">
            <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                  <div className="p-3 bg-white rounded-2xl shadow-sm text-secondary">
-                    <Navigation className="w-6 h-6" />
+                    <MapIcon className="w-6 h-6" />
                  </div>
                  <div>
-                    <h2 className="text-xl font-black uppercase italic tracking-tighter">Logística do Evento</h2>
-                    <p className="text-xs font-medium text-muted-foreground">Defina um ou mais locais para a experiência.</p>
+                    <h2 className="text-xl font-black uppercase italic tracking-tighter">Itinerário e Logística</h2>
+                    <p className="text-xs font-medium text-muted-foreground">O evento possui mais de um local ou é itinerante?</p>
                  </div>
               </div>
               <div className="flex items-center gap-4 bg-white px-6 py-3 rounded-2xl shadow-sm border border-border/40">
@@ -381,7 +394,7 @@ export function EventLocation({
                     <Tooltip>
                       <TooltipTrigger asChild>
                          <div className="flex items-center gap-3">
-                            <Label className="text-[10px] font-black uppercase tracking-widest cursor-help">Dois locais?</Label>
+                            <Label className="text-[10px] font-black uppercase tracking-widest cursor-help">Múltiplos Locais?</Label>
                             <Switch 
                                checked={isMultiLocation} 
                                onCheckedChange={(val) => {
@@ -395,8 +408,11 @@ export function EventLocation({
                             />
                          </div>
                       </TooltipTrigger>
-                      <TooltipContent className="rounded-xl p-3 max-w-xs">
-                         <p className="text-[10px] font-bold uppercase leading-relaxed">Habilita um evento com dois locais e horários diferentes. Útil para desfiles, paradas ou eventos itinerantes.</p>
+                      <TooltipContent className="rounded-xl p-3 max-w-xs shadow-2xl border-none">
+                         <p className="text-[10px] font-bold uppercase leading-relaxed">
+                            Ative para eventos que mudam de lugar (ex: Trios elétricos, paradas, tours). 
+                            O público verá qual local é o atual baseando-se no horário.
+                         </p>
                       </TooltipContent>
                     </Tooltip>
                  </TooltipProvider>
@@ -405,22 +421,31 @@ export function EventLocation({
         </CardContent>
       </Card>
 
-      {isMultiLocation ? (
-        <div className="space-y-8">
-           {locations.map((loc, idx) => (
-             <React.Fragment key={loc.id}>
-                {renderLocationForm(loc, idx, true)}
-             </React.Fragment>
-           ))}
-        </div>
-      ) : renderLocationForm(null, 0, false)}
+      <div className="space-y-8">
+         {isMultiLocation ? (
+           <>
+              {locations.map((loc, idx) => renderLocationForm(loc, idx, true))}
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="w-full h-14 rounded-2xl border-2 border-dashed border-secondary/30 text-secondary font-black uppercase text-[10px] gap-2 hover:bg-secondary/5"
+                onClick={() => {
+                  const newLoc = { ...DEFAULT_LOCATION, id: `loc_${Date.now()}`, order: locations.length };
+                  onLocationsChange?.([...locations, newLoc]);
+                }}
+              >
+                <Plus className="w-4 h-4" /> Adicionar Parada no Itinerário
+              </Button>
+           </>
+         ) : renderLocationForm(null, 0, false)}
+      </div>
 
       <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
          <Zap className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
          <div className="space-y-1">
-            <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Geolocalização Inteligente</h4>
+            <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Mapa Inteligente Ativo</h4>
             <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">
-               O Viby exibirá automaticamente o mapa e endereço correto para o seu público de acordo com o horário da programação. Certifique-se de que os horários não se sobrepõem.
+               O Viby exibirá para o público o local correto baseando-se no horário da programação. Certifique-se de que os horários de cada parada estão corretos.
             </p>
          </div>
       </div>
