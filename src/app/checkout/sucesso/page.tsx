@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -115,7 +114,8 @@ function CheckoutSucessoContent() {
               try {
                 if (item.occurrenceId) {
                   const dateStr = typeof item.eventDate === 'string' ? item.eventDate : "";
-                  fiscalTitle = `${item.eventTitle} (${new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR')})`;
+                  const formattedDate = new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR');
+                  fiscalTitle = `${item.eventTitle} (${formattedDate})`;
                   displayDateForEmail = new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
                 } else {
                   const d = item.eventDate?.toDate ? item.eventDate.toDate() : new Date(item.eventDate);

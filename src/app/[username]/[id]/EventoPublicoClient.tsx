@@ -263,6 +263,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                         event={{
                           ...event,
                           occurrenceId: selectedOccurrence?.id,
+                          date: selectedOccurrence ? selectedOccurrence.date : event.date,
                           title: selectedOccurrence ? `${event.title} (${new Date(selectedOccurrence.date + 'T12:00:00').toLocaleDateString('pt-BR')})` : event.title,
                           isSoldOut: selectedOccurrence?.ingressosVendidos >= selectedOccurrence?.capacidadeMaxima
                         }} 

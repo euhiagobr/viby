@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -23,7 +22,8 @@ import {
   Timer,
   Info,
   AlertCircle,
-  ShieldCheck
+  ShieldCheck,
+  Calendar
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -223,6 +223,12 @@ export default function CarrinhoPage() {
                                       {item.requiresProof && <Badge variant="outline" className="text-[8px] font-black uppercase h-5 border-orange-200 text-orange-600">Meia/Social</Badge>}
                                    </div>
                                    <h3 className="font-black text-xl uppercase italic tracking-tighter text-primary leading-none group-hover:text-secondary transition-colors">{item.eventTitle}</h3>
+                                   {item.occurrenceId && (
+                                     <div className="flex items-center gap-1.5 text-[10px] font-black text-secondary uppercase mt-1">
+                                        <Calendar className="w-3 h-3" />
+                                        Data: {new Date(item.eventDate + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                     </div>
+                                   )}
                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{item.ticketTypeName}</p>
                                 </div>
                                 <Button variant="ghost" size="icon" className="h-10 w-10 text-destructive hover:bg-red-50 rounded-full" onClick={() => removeItem(item.id)}>
