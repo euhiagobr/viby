@@ -2,7 +2,7 @@
 "use client"
 
 import * as React from "react"
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp, useAuth } from "@/firebase"
 import { 
   collection, 
   query, 
@@ -19,6 +19,7 @@ import {
   setDoc,
   deleteDoc
 } from "firebase/firestore"
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { 
   Table, 
@@ -53,12 +54,17 @@ import {
   Layers,
   ChevronRight,
   UserX,
-  Handshake,
-  TrendingUp,
   Plus,
   Layout,
   X,
-  User
+  User,
+  Camera,
+  Upload,
+  Phone,
+  Mail,
+  Instagram,
+  Fingerprint,
+  MapPin
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -67,6 +73,19 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Switch } from "@/components/ui/switch"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Progress } from "@/components/ui/progress"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
@@ -82,6 +101,9 @@ const ORG_ROLES = [
 
 export default function AdminPaginasPage() {
   const db = useFirestore()
+  const app = useFirebaseApp()
+  const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
+
   const [search, setSearch] = React.useState("")
   const [activeTypeFilter, setActiveTypeFilter] = React.useState("all")
   
@@ -93,12 +115,12 @@ export default function AdminPaginasPage() {
   const [newOwnerUsername, setNewOwnerUsername] = React.useState("")
   
   const [isSaving, setIsSaving] = React.useState(false)
+  const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
   const [ownerProfilesCache, setOwnerProfilesCache] = React.useState<Record<string, any>>({})
 
   const orgsQuery = useMemoFirebase(() => db ? query(collection(db, "organizations"), orderBy("createdAt", "desc")) : null, [db])
   const { data: orgs, loading: loadingOrgs } = useCollection<any>(orgsQuery)
 
-  // Efeito para carregar perfis de proprietários de forma estável
   const orgsIdsString = React.useMemo(() => orgs?.map(o => o.ownerId).filter(Boolean).sort().join(',') || '', [orgs]);
   
   React.useEffect(() => {
@@ -157,6 +179,48 @@ export default function AdminPaginasPage() {
       setIsSaving(false) 
     }
   }
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'banner') => {
+    const file = e.target.files?.[0]
+    if (!file || !storage || !editingOrg) return
+
+    setUploadProgress(0)
+    try {
+      const fileName = `organizations/${editingOrg.id}/${type}_${Date.now()}`
+      const storageRef = ref(storage, fileName)
+      const uploadTask = uploadBytesResumable(storageRef, file)
+
+      uploadTask.on('state_changed', 
+        (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+        () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }) },
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+          setEditingOrg((prev: any) => ({ ...prev, [type]: downloadURL }))
+          setUploadProgress(null)
+          toast({ title: `${type === 'avatar' ? 'Logo' : 'Capa'} atualizada no rascunho!` })
+        }
+      )
+    } catch (err) { setUploadProgress(null) }
+  }
+
+  const handleCepBlur = async () => {
+    if (!editingOrg?.cep) return;
+    const cleanCep = editingOrg.cep.replace(/\D/g, "");
+    if (cleanCep.length !== 8) return;
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await response.json();
+      if (!data.erro) {
+        setEditingOrg((prev: any) => ({
+          ...prev,
+          street: data.logradouro || prev.street,
+          neighborhood: data.bairro || prev.neighborhood,
+          city: data.localidade || prev.city,
+          state: data.uf || prev.state
+        }));
+      }
+    } catch (e) {}
+  };
 
   const handleToggleBlock = async (id: string, currentStatus: string) => {
     if (!db) return
@@ -285,40 +349,143 @@ export default function AdminPaginasPage() {
         </Table>
       </Card>
 
-      {/* DIALOG EDIÇÃO COMPLETA */}
+      {/* DIALOG EDIÇÃO COMPLETA - TODOS OS DADOS */}
       <Dialog open={isEditOrgOpen} onOpenChange={setIsEditOrgOpen}>
         <DialogContent className="max-w-4xl h-[90vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
            <DialogHeader className="p-8 border-b bg-muted/30">
-              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Painel de Moderação: {editingOrg?.name}</DialogTitle>
-              <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">Controle total sobre dados, visibilidade e equipe.</DialogDescription>
-           </DialogHeader>
-           <form onSubmit={handleUpdateOrg} className="flex-1 overflow-hidden flex flex-col">
-              <ScrollArea className="flex-1 p-8">
-                 <div className="space-y-10 pb-10">
-                    <section className="space-y-6">
-                       <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Globe className="w-4 h-4" /> Dados de Acesso e URL</h3>
-                       <div className="grid grid-cols-2 gap-6">
-                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label><Input value={editingOrg?.username || ""} onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} className="rounded-xl h-11" /></div>
-                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Slug (URL)</Label><Input value={editingOrg?.slug || ""} onChange={e => setEditingOrg({...editingOrg, slug: e.target.value.toLowerCase().replace(/\s+/g, "-")})} className="rounded-xl h-11" /></div>
-                       </div>
-                    </section>
-                    <Separator className="border-dashed" />
-                    <section className="space-y-6">
-                       <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Layout className="w-4 h-4" /> Visibilidade e Status</h3>
-                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Selo Verificado</Label><div className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-dashed"><ShieldCheck className="w-5 h-5 text-blue-500" /><span className="text-xs font-bold uppercase flex-1">Oficial</span><Switch checked={editingOrg?.verified || false} onCheckedChange={v => setEditingOrg({...editingOrg, verified: v})} /></div></div>
-                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Status de Rede</Label><Select value={editingOrg?.status || "Ativo"} onValueChange={v => setEditingOrg({...editingOrg, status: v})}><SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger><SelectContent className="rounded-xl"><SelectItem value="Ativo">Ativo / Público</SelectItem><SelectItem value="Privado">Privado (Invisível Busca)</SelectItem><SelectItem value="Bloqueado">Suspenso</SelectItem></SelectContent></Select></div>
-                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Analytics Público</Label><div className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-dashed"><TrendingUp className="w-5 h-5 text-secondary" /><span className="text-xs font-bold uppercase flex-1">Exibir métricas</span><Switch checked={editingOrg?.showStats ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showStats: v})} /></div></div>
-                       </div>
-                    </section>
-                    <Separator className="border-dashed" />
-                    <section className="space-y-6">
-                       <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Users className="w-4 h-4" /> Equipe Vinculada</h3>
-                       <OrgMembersList orgId={editingOrg?.id} />
-                    </section>
+              <div className="flex justify-between items-start">
+                 <div className="flex items-center gap-4">
+                    <Avatar className="h-14 w-14 border shadow-md"><AvatarImage src={editingOrg?.avatar} className="object-cover" /><AvatarFallback className="font-black">{editingOrg?.name?.charAt(0)}</AvatarFallback></Avatar>
+                    <div>
+                       <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">{editingOrg?.name}</DialogTitle>
+                       <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">Controle total sobre dados, visibilidade e equipe.</DialogDescription>
+                    </div>
                  </div>
-              </ScrollArea>
-              <DialogFooter className="p-8 border-t bg-muted/30"><Button type="submit" disabled={isSaving} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">{isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />} Salvar Todas as Alterações</Button></DialogFooter>
+                 <Badge className={cn("uppercase text-[10px] font-black h-6", editingOrg?.status === 'Bloqueado' ? "bg-red-500" : "bg-green-500")}>{editingOrg?.status || 'Ativo'}</Badge>
+              </div>
+           </DialogHeader>
+           
+           <form onSubmit={handleUpdateOrg} className="flex-1 overflow-hidden flex flex-col">
+              <Tabs defaultValue="geral" className="flex-1 flex flex-col overflow-hidden">
+                 <div className="px-8 bg-muted/10 border-b">
+                    <TabsList className="bg-transparent p-0 h-14 w-full justify-start gap-8">
+                       <TabsTrigger value="geral" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Informações</TabsTrigger>
+                       <TabsTrigger value="visual" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Identidade</TabsTrigger>
+                       <TabsTrigger value="fiscal" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Fiscais</TabsTrigger>
+                       <TabsTrigger value="endereco" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Localização</TabsTrigger>
+                       <TabsTrigger value="social" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Contatos</TabsTrigger>
+                       <TabsTrigger value="membros" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Equipe</TabsTrigger>
+                    </TabsList>
+                 </div>
+
+                 <div className="flex-1 overflow-hidden">
+                    <ScrollArea className="h-full">
+                       <div className="p-8 pb-20">
+                          {/* ABA GERAL */}
+                          <TabsContent value="geral" className="space-y-8 mt-0">
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome de Exibição</Label><Input value={editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, name: e.target.value})} className="rounded-xl h-11" required /></div>
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label><Input value={editingOrg?.username || ""} onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Slug (URL)</Label><Input value={editingOrg?.slug || ""} onChange={e => setEditingOrg({...editingOrg, slug: e.target.value.toLowerCase().replace(/\s+/g, "-")})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label><Input value={editingOrg?.type || ""} onChange={e => setEditingOrg({...editingOrg, type: e.target.value})} className="rounded-xl h-11" /></div>
+                             </div>
+                             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bio / Descrição</Label><Textarea value={editingOrg?.bio || ""} onChange={e => setEditingOrg({...editingOrg, bio: e.target.value})} className="min-h-[100px] rounded-xl resize-none" /></div>
+                             
+                             <Separator className="border-dashed" />
+                             
+                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Selo Verificado</Label><div className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-dashed"><ShieldCheck className="w-5 h-5 text-blue-500" /><span className="text-xs font-bold uppercase flex-1">Oficial</span><Switch checked={editingOrg?.verified || false} onCheckedChange={v => setEditingOrg({...editingOrg, verified: v})} /></div></div>
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Status de Rede</Label><Select value={editingOrg?.status || "Ativo"} onValueChange={v => setEditingOrg({...editingOrg, status: v})}><SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger><SelectContent className="rounded-xl"><SelectItem value="Ativo">Ativo / Público</SelectItem><SelectItem value="Privado">Privado</SelectItem><SelectItem value="Bloqueado">Suspenso</SelectItem></SelectContent></Select></div>
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Analytics Público</Label><div className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-dashed"><TrendingUp className="w-5 h-5 text-secondary" /><span className="text-xs font-bold uppercase flex-1">Exibir métricas</span><Switch checked={editingOrg?.showStats ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showStats: v})} /></div></div>
+                             </div>
+                          </TabsContent>
+
+                          {/* ABA VISUAL */}
+                          <TabsContent value="visual" className="space-y-8 mt-0">
+                             <div className="space-y-6">
+                                <Label className="text-[10px] font-black uppercase opacity-60">Logo da Marca (Quadrada)</Label>
+                                <div className="flex items-center gap-6">
+                                   <div className="relative group">
+                                      <Avatar className="h-32 w-32 border-4 border-background shadow-xl rounded-[2rem] overflow-hidden">
+                                         <AvatarImage src={editingOrg?.avatar} className="object-cover" />
+                                         <AvatarFallback className="text-4xl font-black bg-muted">{editingOrg?.name?.charAt(0)}</AvatarFallback>
+                                      </Avatar>
+                                      <label htmlFor="admin-edit-logo" className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-[2rem]"><Camera className="w-8 h-8" /></label>
+                                      <input id="admin-edit-logo" type="file" className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'avatar')} />
+                                   </div>
+                                   <div className="flex-1 space-y-2">
+                                      <p className="text-xs font-medium text-muted-foreground leading-relaxed">Formatos recomendados: JPG, PNG ou WEBP. Tamanho sugerido: 500x500px.</p>
+                                      <Input value={editingOrg?.avatar || ""} onChange={e => setEditingOrg({...editingOrg, avatar: e.target.value})} className="rounded-xl h-10 text-xs" placeholder="URL da Logo" />
+                                   </div>
+                                </div>
+
+                                <Label className="text-[10px] font-black uppercase opacity-60 block mt-10">Banner / Capa (Retangular)</Label>
+                                <div className="relative h-48 bg-muted rounded-[2rem] overflow-hidden border-2 border-dashed border-border group">
+                                   {editingOrg?.banner ? <img src={editingOrg.banner} className="w-full h-full object-cover" /> : null}
+                                   <label htmlFor="admin-edit-banner" className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                                      <Upload className="w-10 h-10 mb-2" />
+                                      <span className="text-[10px] font-black uppercase tracking-widest">Trocar Capa</span>
+                                   </label>
+                                   <input id="admin-edit-banner" type="file" className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'banner')} />
+                                </div>
+                                {uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}
+                                <Input value={editingOrg?.banner || ""} onChange={e => setEditingOrg({...editingOrg, banner: e.target.value})} className="rounded-xl h-10 text-xs" placeholder="URL da Capa" />
+                             </div>
+                          </TabsContent>
+
+                          {/* ABA FISCAL */}
+                          <TabsContent value="fiscal" className="space-y-8 mt-0">
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Razão Social</Label><Input value={editingOrg?.legalName || ""} onChange={e => setEditingOrg({...editingOrg, legalName: e.target.value})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">CNPJ</Label><Input value={editingOrg?.cnpj || ""} onChange={e => setEditingOrg({...editingOrg, cnpj: e.target.value})} className="rounded-xl h-11" placeholder="00.000.000/0000-00" /></div>
+                             </div>
+                             <div className="p-4 bg-blue-50 border-2 border-dashed border-blue-200 rounded-2xl flex gap-4">
+                                <ShieldCheck className="w-6 h-6 text-blue-600 shrink-0 mt-0.5" />
+                                <p className="text-xs text-blue-800 font-medium leading-relaxed uppercase">Estes dados são usados para faturamento, contratos e recebimento de saques bancários. Devem ser fidedignos ao cadastro oficial da Receita Federal.</p>
+                             </div>
+                          </TabsContent>
+
+                          {/* ABA ENDEREÇO */}
+                          <TabsContent value="endereco" className="space-y-8 mt-0">
+                             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">CEP</Label><Input value={editingOrg?.cep || ""} onChange={e => setEditingOrg({...editingOrg, cep: e.target.value})} onBlur={handleCepBlur} className="rounded-xl h-11" /></div>
+                                <div className="md:col-span-3 space-y-2">
+                                   <div className="flex items-center justify-between"><Label className="text-[10px] font-black uppercase opacity-60">Logradouro / Rua</Label><div className="flex items-center gap-2"><span className="text-[8px] font-bold opacity-40 uppercase">Exibir no Perfil?</span><Switch checked={editingOrg?.showAddress ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showAddress: v})} /></div></div>
+                                   <Input value={editingOrg?.street || ""} onChange={e => setEditingOrg({...editingOrg, street: e.target.value})} className="rounded-xl h-11" />
+                                </div>
+                             </div>
+                             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Número</Label><Input value={editingOrg?.number || ""} onChange={e => setEditingOrg({...editingOrg, number: e.target.value})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label><Input value={editingOrg?.complement || ""} onChange={e => setEditingOrg({...editingOrg, complement: e.target.value})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={editingOrg?.neighborhood || ""} onChange={e => setEditingOrg({...editingOrg, neighborhood: e.target.value})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label><div className="flex gap-2"><Input value={editingOrg?.city || ""} onChange={e => setEditingOrg({...editingOrg, city: e.target.value})} className="rounded-xl h-11" /><Input value={editingOrg?.state || ""} onChange={e => setEditingOrg({...editingOrg, state: e.target.value})} maxLength={2} className="rounded-xl h-11 w-14" /></div></div>
+                             </div>
+                          </TabsContent>
+
+                          {/* ABA SOCIAL / CONTATO */}
+                          <TabsContent value="social" className="space-y-8 mt-0">
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-3"><div className="flex items-center justify-between"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp Comercial</Label><Switch checked={editingOrg?.showPhone ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showPhone: v})} /></div><Input value={editingOrg?.phone || ""} onChange={e => setEditingOrg({...editingOrg, phone: e.target.value})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-3"><div className="flex items-center justify-between"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail Público</Label><Switch checked={editingOrg?.showEmail ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showEmail: v})} /></div><Input value={editingOrg?.contactEmail || ""} onChange={e => setEditingOrg({...editingOrg, contactEmail: e.target.value})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-3"><div className="flex items-center justify-between"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Site Oficial</Label><Switch checked={editingOrg?.showWebsite ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showWebsite: v})} /></div><Input value={editingOrg?.website || ""} onChange={e => setEditingOrg({...editingOrg, website: e.target.value})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-3"><div className="flex items-center justify-between"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram</Label><Switch checked={editingOrg?.showInstagram ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showInstagram: v})} /></div><Input value={editingOrg?.instagram || ""} onChange={e => setEditingOrg({...editingOrg, instagram: e.target.value})} className="rounded-xl h-11" /></div>
+                             </div>
+                          </TabsContent>
+
+                          {/* ABA EQUIPE */}
+                          <TabsContent value="membros" className="space-y-8 mt-0">
+                             <OrgMembersList orgId={editingOrg?.id} />
+                          </TabsContent>
+                       </div>
+                    </ScrollArea>
+                 </div>
+              </Tabs>
+              
+              <DialogFooter className="p-8 border-t bg-muted/30">
+                 <Button type="submit" disabled={isSaving || uploadProgress !== null} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic text-lg">
+                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />} Salvar Todas as Alterações
+                 </Button>
+              </DialogFooter>
            </form>
         </DialogContent>
       </Dialog>
@@ -342,6 +509,7 @@ function OrgMembersList({ orgId }: { orgId: string }) {
   const db = useFirestore()
   const [newMemberUser, setNewMemberUser] = React.useState("")
   const [adding, setAdding] = React.useState(false)
+  const [memberToDecline, setMemberToDecline] = React.useState<any>(null)
 
   const membersQuery = useMemoFirebase(() => orgId && db ? collection(db, "organizations", orgId, "members") : null, [db, orgId])
   const { data: members, loading } = useCollection<any>(membersQuery)
@@ -381,40 +549,83 @@ function OrgMembersList({ orgId }: { orgId: string }) {
     finally { setAdding(false) }
   }
 
-  const handleRemove = async (uid: string) => {
-    if (!db || !orgId || !confirm("Remover acesso?")) return
-    await deleteDoc(doc(db, "organizations", orgId, "members", uid))
-    toast({ title: "Acesso removido" })
+  const handleUpdateRole = async (uid: string, role: string) => {
+    if (!db || !orgId) return
+    try {
+       await updateDoc(doc(db, "organizations", orgId, "members", uid), { role, updatedAt: serverTimestamp() })
+       toast({ title: "Cargo atualizado!" })
+    } catch (e) { toast({ variant: "destructive", title: "Erro" }) }
+  }
+
+  const handleRemove = async () => {
+    if (!db || !orgId || !memberToDecline) return
+    try {
+       await deleteDoc(doc(db, "organizations", orgId, "members", memberToDecline.userId))
+       toast({ title: "Membro removido da equipe." })
+       setMemberToDecline(null)
+    } catch (e) { toast({ variant: "destructive", title: "Erro ao remover" }) }
   }
 
   if (loading) return <div className="flex justify-center py-4"><Loader2 className="animate-spin h-5 w-5 text-secondary" /></div>
 
   return (
-    <div className="space-y-4">
-       <div className="flex gap-2">
-          <Input placeholder="Vincular @username..." value={newMemberUser} onChange={e => setNewMemberUser(e.target.value)} className="rounded-xl h-10" />
-          <Button type="button" size="sm" onClick={handleAdd} disabled={adding} className="bg-secondary text-white font-bold h-10 px-4 rounded-xl uppercase text-[10px]">Adicionar</Button>
+    <div className="space-y-6">
+       <div className="space-y-2">
+          <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Vincular Colaborador</Label>
+          <div className="flex gap-2">
+             <div className="relative flex-1">
+                <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
+                <Input placeholder="username" value={newMemberUser} onChange={e => setNewMemberUser(e.target.value)} className="rounded-xl h-11 pl-9 border-dashed border-secondary/30" />
+             </div>
+             <Button type="button" onClick={handleAdd} disabled={adding} className="bg-secondary text-white font-black h-11 px-6 rounded-xl uppercase text-[10px] italic shadow-lg">
+                {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : "Vincular"}
+             </Button>
+          </div>
        </div>
-       <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+
+       <div className="space-y-3">
           {membersWithProfiles.map(m => (
-            <div key={m.userId} className="flex items-center justify-between p-3 bg-muted/20 rounded-xl border">
+            <div key={m.userId} className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border group hover:bg-white hover:shadow-sm transition-all">
                <div className="flex items-center gap-3">
-                  <Avatar className="h-8 w-8 border border-background shadow-sm">
+                  <Avatar className="h-10 w-10 border-2 border-background shadow-sm">
                     <AvatarImage src={m.profile?.avatar} className="object-cover" />
-                    <AvatarFallback className="text-[10px] font-bold bg-muted">{m.profile?.name?.charAt(0) || "U"}</AvatarFallback>
+                    <AvatarFallback className="font-black bg-muted">{m.profile?.name?.charAt(0) || "U"}</AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col">
-                     <span className="text-xs font-bold text-primary truncate max-w-[120px]">{m.profile?.name || "Usuário"}</span>
-                     <span className="text-[10px] text-muted-foreground font-medium">@{m.profile?.username || m.userId.slice(0, 8)}</span>
+                     <span className="text-sm font-bold text-primary truncate max-w-[150px]">{m.profile?.name || "Usuário"}</span>
+                     <span className="text-[10px] text-secondary font-black uppercase">@{m.profile?.username}</span>
                   </div>
                </div>
-               <div className="flex items-center gap-3">
-                  <Badge variant="secondary" className="text-[8px] font-black uppercase">{m.role}</Badge>
-                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleRemove(m.userId)}><X className="w-3 h-3" /></Button>
+               <div className="flex items-center gap-2">
+                  <Select value={m.role} onValueChange={(v) => handleUpdateRole(m.userId, v)}>
+                     <SelectTrigger className="h-8 rounded-lg text-[9px] font-black uppercase w-28 border-secondary/20 text-secondary bg-secondary/5"><SelectValue /></SelectTrigger>
+                     <SelectContent className="rounded-xl">
+                        {ORG_ROLES.map(role => <SelectItem key={role.value} value={role.value} className="text-[10px] font-bold uppercase">{role.label}</SelectItem>)}
+                     </SelectContent>
+                  </Select>
+                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-red-50 rounded-lg" onClick={() => setMemberToDecline(m)}>
+                     <Trash2 className="w-4 h-4" />
+                  </Button>
                </div>
             </div>
           ))}
        </div>
+
+       <AlertDialog open={!!memberToDecline} onOpenChange={(o) => !o && setMemberToDecline(null)}>
+          <AlertDialogContent className="rounded-[2.5rem]">
+             <AlertDialogHeader>
+                <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-2 text-destructive"><UserX className="w-8 h-8" /></div>
+                <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter text-center">Remover Membro?</AlertDialogTitle>
+                <AlertDialogDescription className="text-center font-medium">
+                   Tem certeza que deseja revogar o acesso de <strong>{memberToDecline?.profile?.name}</strong>? Ele não poderá mais gerenciar esta marca.
+                </AlertDialogDescription>
+             </AlertDialogHeader>
+             <AlertDialogFooter>
+                <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleRemove} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] px-8">Confirmar Remoção</AlertDialogAction>
+             </AlertDialogFooter>
+          </AlertDialogContent>
+       </AlertDialog>
     </div>
   )
 }
