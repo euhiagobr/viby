@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -64,7 +63,8 @@ import {
   Mail,
   Instagram,
   Fingerprint,
-  MapPin
+  MapPin,
+  TrendingUp
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -410,7 +410,7 @@ export default function AdminPaginasPage() {
                                          <AvatarImage src={editingOrg?.avatar} className="object-cover" />
                                          <AvatarFallback className="text-4xl font-black bg-muted">{editingOrg?.name?.charAt(0)}</AvatarFallback>
                                       </Avatar>
-                                      <label htmlFor="admin-edit-logo" className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-[2rem]"><Camera className="w-8 h-8" /></label>
+                                      <label htmlFor="admin-edit-logo" className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-[2rem] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-[2rem]"><Camera className="w-8 h-8" /></label>
                                       <input id="admin-edit-logo" type="file" className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'avatar')} />
                                    </div>
                                    <div className="flex-1 space-y-2">
