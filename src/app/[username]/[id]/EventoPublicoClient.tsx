@@ -60,17 +60,21 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const { data: membership } = useCollection<any>(memberQuery);
   const isOwner = membership && membership.length > 0;
 
-  // Ocorrências se for recorrente
+  // Ocorrências se for recorrente - Removido orderBy para evitar erro de índice
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !event?.isRecurring) return null;
     return query(
       collection(db, 'recurring_occurrences'),
       where('parentId', '==', id),
-      where('status', '==', 'active'),
-      orderBy('date', 'asc')
+      where('status', '==', 'active')
     );
   }, [db, id, event?.isRecurring]);
-  const { data: occurrences } = useCollection<any>(occurrencesQuery);
+  const { data: rawOccurrences } = useCollection<any>(occurrencesQuery);
+
+  const occurrences = React.useMemo(() => {
+    if (!rawOccurrences) return [];
+    return [...rawOccurrences].sort((a, b) => a.date.localeCompare(b.date));
+  }, [rawOccurrences]);
 
   const [selectedOccurrence, setSelectedOccurrence] = React.useState<any>(null);
 
@@ -151,21 +155,14 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 </div>
              </div>
 
-             <Card className="border-none shadow-sm rounded-[2rem] bg-white p-10">
-                <h3 className="text-xl font-black uppercase italic tracking-tighter mb-8 flex items-center gap-3 text-primary"><ShieldCheck className="w-5 h-5 text-secondary" /> Informações</h3>
-                <div className="space-y-8">
-                   <EventDescription value={event.description} isPublic />
-                   <EventTags tags={event.tags} isPublic />
-                </div>
-             </Card>
-
+             {/* SELETOR DE DATAS PARA EVENTOS RECORRENTES - MOVIDO PARA CIMA */}
              {event.isRecurring && occurrences && occurrences.length > 0 && (
-               <section className="space-y-6">
+               <section className="space-y-6 animate-in slide-in-from-top-4 duration-500">
                   <div className="flex items-center gap-3 px-2">
                     <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
                       <Calendar className="w-5 h-5" />
                     </div>
-                    <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Próximas Datas</h2>
+                    <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Escolha uma Data</h2>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                      {occurrences.slice(0, 6).map((occ: any) => (
@@ -173,7 +170,9 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                          key={occ.id} 
                          onClick={() => {
                             setSelectedOccurrence(occ);
-                            document.getElementById('bilheteria')?.scrollIntoView({ behavior: 'smooth' });
+                            setTimeout(() => {
+                              document.getElementById('bilheteria')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }, 100);
                          }}
                          className={cn(
                            "p-6 rounded-[2rem] border-2 transition-all text-left space-y-2 group",
@@ -209,8 +208,8 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                   <div className="p-8 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 flex flex-col items-center text-center gap-4 animate-in zoom-in-95">
                      <Calendar className="w-10 h-10 text-secondary" />
                      <div className="space-y-1">
-                        <h3 className="text-lg font-black uppercase italic text-primary">Escolha uma data acima</h3>
-                        <p className="text-xs font-medium text-muted-foreground max-w-xs uppercase">Para garantir seu ingresso, selecione primeiro em qual data você deseja participar.</p>
+                        <h3 className="text-lg font-black uppercase italic text-primary">Selecione uma data acima</h3>
+                        <p className="text-xs font-medium text-muted-foreground max-w-xs uppercase">Para liberar a bilheteria, escolha primeiro em qual dia você deseja participar.</p>
                      </div>
                   </div>
                 )}
@@ -262,6 +261,14 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                    </Card>
                 )}
              </div>
+
+             <Card className="border-none shadow-sm rounded-[2rem] bg-white p-10">
+                <h3 className="text-xl font-black uppercase italic tracking-tighter mb-8 flex items-center gap-3 text-primary"><ShieldCheck className="w-5 h-5 text-secondary" /> Informações do Evento</h3>
+                <div className="space-y-8">
+                   <EventDescription value={event.description} isPublic />
+                   <EventTags tags={event.tags} isPublic />
+                </div>
+             </Card>
 
              {!event.isRecurring && <EventDateTime startDate={event.date} endDate={event.endDate} isPublic />}
              

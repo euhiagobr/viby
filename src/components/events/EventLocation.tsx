@@ -96,10 +96,10 @@ export function EventLocation({
   }, []);
 
   const formatFullAddress = (addr: any) => {
-    if (!addr) return "Local Confirmado";
+    if (!addr || Object.keys(addr).length === 0) return "Local Confirmado";
     const parts = [
       addr.street ? `${addr.street}${addr.number ? `, ${addr.number}` : ''}` : null,
-      addr.neighborhood,
+      addr.neighborhood || addr.location,
       addr.city ? `${addr.city}${addr.state ? ` - ${addr.state}` : ''}` : null
     ].filter(Boolean);
     
@@ -179,7 +179,9 @@ export function EventLocation({
       
       const lat = isMultiLocation ? loc.latitude : address?.latitude || -23.55052;
       const lng = isMultiLocation ? loc.longitude : address?.longitude || -46.633308;
-      const title = isMultiLocation ? (loc.title || "Ponto de Encontro") : (address?.neighborhood || "Local do Evento");
+      
+      const titleFallback = address?.neighborhood || address?.city || "Local do Evento";
+      const title = isMultiLocation ? (loc.title || "Ponto de Encontro") : titleFallback;
 
       return (
         <Card key={loc?.id || 'single'} className={cn(
@@ -454,7 +456,7 @@ export function EventLocation({
          <Zap className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
          <div className="space-y-1">
             <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Mapa Inteligente Ativo</h4>
-            <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">
+            <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed uppercase">
                O Viby exibirá para o público o local correto baseando-se no horário da programação. Certifique-se de que os horários de cada parada estão corretos.
             </p>
          </div>
