@@ -92,20 +92,57 @@ export default function AdminScannerPage() {
         const docData = snap.docs[0].data()
         const isCancelled = docData.status === 'cancelled' || docData.paymentStatus === 'refunded_wallet' || docData.status === 'Cancelado';
         
-        let invalidOccurrence = false;
+        const now = new Date();
+        let invalidTime = false;
+        let windowInfo = { start: null as Date | null, end: null as Date | null };
+
+        // 1. Logica para Eventos Recorrentes
         if (docData.occurrenceId) {
            const oSnap = await getDoc(doc(db, "recurring_occurrences", docData.occurrenceId));
            if (oSnap.exists()) {
               const occ = oSnap.data();
               setOccData(occ);
-              const today = new Date().toLocaleDateString('en-CA');
-              if (occ.date !== today) {
-                invalidOccurrence = true;
+              
+              // Montar janelas de tempo completas (Data + Hora)
+              const startDateTime = new Date(`${occ.date}T${occ.startTime}:00`);
+              let endDateTime = new Date(`${occ.date}T${occ.endTime}:00`);
+
+              // Se o fim for menor ou igual ao início, atravessou a meia-noite (D+1)
+              if (occ.endTime <= occ.startTime) {
+                endDateTime.setDate(endDateTime.getDate() + 1);
+              }
+
+              windowInfo = { start: startDateTime, end: endDateTime };
+
+              if (now < startDateTime || now > endDateTime) {
+                invalidTime = true;
+              }
+           }
+        } 
+        // 2. Logica para Eventos Únicos (Não recorrentes)
+        else {
+           const eSnap = await getDoc(doc(db, "events", docData.eventId));
+           if (eSnap.exists()) {
+              const ev = eSnap.data();
+              const startDateTime = ev.date?.toDate ? ev.date.toDate() : new Date(ev.date);
+              // Fallback para 4h de duração se não houver endDate
+              const endDateTime = ev.endDate?.toDate ? ev.endDate.toDate() : (ev.endDate ? new Date(ev.endDate) : new Date(startDateTime.getTime() + 4 * 60 * 60 * 1000));
+
+              windowInfo = { start: startDateTime, end: endDateTime };
+
+              if (now < startDateTime || now > endDateTime) {
+                invalidTime = true;
               }
            }
         }
 
-        setTicketData({ ...docData, id: snap.docs[0].id, isCancelled, invalidOccurrence })
+        setTicketData({ 
+          ...docData, 
+          id: snap.docs[0].id, 
+          isCancelled, 
+          invalidTime,
+          windowInfo 
+        })
       }
     } catch (err) {
       setError("Falha técnica na consulta.");
@@ -119,19 +156,16 @@ export default function AdminScannerPage() {
     try {
       const regRef = doc(db, "registrations", ticketData.id)
       
-      // CORREÇÃO 1: Check-in Transacional Atômico
       await runTransaction(db, async (transaction) => {
         const regSnap = await transaction.get(regRef)
         if (!regSnap.exists()) throw new Error("Registro de ingresso não localizado.")
         
         const currentData = regSnap.data()
         
-        // Proteção contra múltiplos check-ins simultâneos
         if (currentData.checkedIn) {
           throw new Error("ESTE INGRESSO JÁ FOI UTILIZADO.")
         }
 
-        // Validação de segurança de status na transação
         const isCancelled = currentData.status === 'cancelled' || currentData.paymentStatus === 'refunded_wallet';
         if (isCancelled) {
           throw new Error("INGRESSO INVÁLIDO: Consta como cancelado ou estornado no banco.")
@@ -146,7 +180,6 @@ export default function AdminScannerPage() {
         })
       })
 
-      // Gatilho Gamificação
       await processGamificationEvent(db, ticketData.userId, 'on_checkin', { eventTitle: ticketData.eventTitle }, ticketData.id);
       
       setTicketData({ ...ticketData, checkedIn: true })
@@ -214,19 +247,31 @@ export default function AdminScannerPage() {
              </Card>
            )}
 
-           {!ticketData.isCancelled && ticketData.invalidOccurrence && (
+           {!ticketData.isCancelled && ticketData.invalidTime && (
              <Card className="border-none shadow-2xl rounded-[3rem] bg-orange-500 text-white p-12 text-center space-y-6">
                 <ShieldAlert className="w-20 h-20 mx-auto opacity-40" />
-                <h2 className="text-4xl font-black uppercase italic tracking-tighter leading-none">DATA INCORRETA</h2>
-                <p className="font-medium opacity-90 text-sm">Este ingresso é válido exclusivamente para o dia:<br/><strong className="text-2xl">{new Date(occData.date + 'T12:00:00').toLocaleDateString('pt-BR')}</strong></p>
-                <div className="p-4 bg-black/10 rounded-2xl border border-white/20">
-                   <p className="text-[10px] font-black uppercase">O EVENTO DE HOJE NÃO ACEITA ESTE TICKET</p>
+                <h2 className="text-4xl font-black uppercase italic tracking-tighter leading-none">FORA DO HORÁRIO</h2>
+                <p className="font-medium opacity-90 text-sm">Este ingresso é válido exclusivamente para a janela:</p>
+                
+                <div className="bg-black/10 p-6 rounded-2xl border border-white/20 space-y-4">
+                   <div>
+                      <p className="text-[10px] font-black uppercase opacity-60">Início</p>
+                      <p className="text-xl font-bold">{ticketData.windowInfo.start?.toLocaleString('pt-BR')}</p>
+                   </div>
+                   <div>
+                      <p className="text-[10px] font-black uppercase opacity-60">Encerramento</p>
+                      <p className="text-xl font-bold">{ticketData.windowInfo.end?.toLocaleString('pt-BR')}</p>
+                   </div>
                 </div>
-                <Button variant="outline" onClick={resetScanner} className="border-white text-white hover:bg-white hover:text-orange-50 rounded-xl font-black uppercase text-xs">Voltar</Button>
+
+                <div className="p-4 bg-white/10 rounded-2xl">
+                   <p className="text-[10px] font-black uppercase">O EVENTO NÃO ESTÁ RECEBENDO ESTE TICKET AGORA</p>
+                </div>
+                <Button variant="outline" onClick={resetScanner} className="border-white text-white hover:bg-white hover:text-orange-50 rounded-xl font-black uppercase text-xs h-12 w-full">Voltar / Novo Scan</Button>
              </Card>
            )}
 
-           {!ticketData.isCancelled && !ticketData.invalidOccurrence && (
+           {!ticketData.isCancelled && !ticketData.invalidTime && (
              <Card className={cn("overflow-hidden shadow-2xl rounded-[2.5rem] border-none bg-white", ticketData.checkedIn ? "ring-4 ring-orange-500/20" : "ring-4 ring-green-500/20")}>
                <CardHeader className={cn("p-8", ticketData.checkedIn ? "bg-orange-500 text-white" : "bg-green-500 text-white")}>
                   <CardTitle className="font-black italic uppercase text-2xl flex items-center gap-3">
