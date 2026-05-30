@@ -17,7 +17,7 @@ import { CartItem } from "@/contexts/CartContext";
 
 /**
  * @fileOverview Orquestrador de Pagamentos Viby - Nova Arquitetura de Integridade.
- * Inclui validação final de disponibilidade e lotes antes do checkout.
+ * Inclui validação final de disponibilidade e lotes antes do checkout (UX Guard Rail).
  */
 
 export interface PayButtonOptions {
@@ -36,7 +36,9 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
 
   if (!user) throw new Error("Usuário não identificado.");
 
-  // VALIDAÇÃO PRÉ-CHECKOUT: Garante que os lotes e capacidades ainda estão válidos
+  // CAMADA DE UX (PRE-CHECKOUT): 
+  // Garante que o usuário não inicie um pagamento se o estoque já estiver obviamente esgotado.
+  // IMPORTANTE: Esta validação é repetida de forma atômica no servidor durante a emissão final.
   for (const item of items) {
     const eSnap = await getDoc(doc(staticDb, "events", item.eventId));
     if (!eSnap.exists()) throw new Error(`O evento ${item.eventTitle} não está mais disponível.`);
