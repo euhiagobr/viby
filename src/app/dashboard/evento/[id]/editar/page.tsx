@@ -1,10 +1,11 @@
+
 "use client"
 
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useFirebaseApp, useMemoFirebase, useCollection } from "@/firebase"
-import { updateDoc, doc, serverTimestamp, collection, query, orderBy } from "firebase/firestore"
+import { updateDoc, doc, serverTimestamp, collection, query, orderBy, getDocs, where } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -29,6 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { getAgeRatingConfig } from "@/lib/age-rating"
+import { generateOccurrences } from "@/services/recurring-event-service"
 
 export default function EditarEventoPage() {
   const params = useParams()
@@ -148,6 +150,26 @@ export default function EditarEventoPage() {
       const cleanData = JSON.parse(JSON.stringify(updateData, (key, value) => value === undefined ? null : value));
 
       await updateDoc(eventRef, cleanData)
+
+      // Se ativou recorrência agora, gerar ocorrências caso não existam
+      if (formData.isRecurring && formData.recurringEndDate) {
+        const occSnap = await getDocs(query(collection(db, 'recurring_occurrences'), where('parentId', '==', eventId), limit(1)));
+        if (occSnap.empty) {
+          await generateOccurrences(eventId, {
+            name: formData.title,
+            description: formData.description,
+            organizationId: currentOrg.id,
+            organizerName: currentOrg.name,
+            frequency: formData.frequency as any,
+            startDate: formData.startDate.split('T')[0],
+            endDate: formData.recurringEndDate,
+            startTime: formData.startDate.split('T')[1] || "19:00",
+            endTime: formData.endDate.split('T')[1] || "22:00",
+            capacidadeMaxima: totalCapacity
+          });
+        }
+      }
+
       toast({ title: "Evento Atualizado!" })
       router.push(`/dashboard/organizacoes/${currentOrg.username}/events`)
     } catch (error: any) {

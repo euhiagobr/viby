@@ -56,6 +56,17 @@ service cloud.firestore {
       }
     }
 
+    // Novas Regras para Eventos Recorrentes
+    match /recurring_events/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn() && isNotBlocked(get(/databases/eventosviby/documents/users/$(request.auth.uid)).data);
+    }
+
+    match /recurring_occurrences/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn() && isNotBlocked(get(/databases/eventosviby/documents/users/$(request.auth.uid)).data);
+    }
+
     match /organizations/{orgId} {
       allow read: if isNotBlocked(resource.data) || hasOrgRole(orgId, ['owner', 'admin', 'editor', 'finance', 'checkin']) || isAdmin();
       allow write: if isSignedIn() && isNotBlocked(get(/databases/eventosviby/documents/users/$(request.auth.uid)).data);

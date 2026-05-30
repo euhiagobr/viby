@@ -1,7 +1,8 @@
+
 'use server';
 
 import * as React from 'react';
-import { doc, getDoc, getFirestore, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { doc, getDoc, getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import { Button } from '@/components/ui/button';
@@ -18,14 +19,18 @@ async function getSeriesData(id: string) {
   const snap = await getDoc(seriesRef);
   if (!snap.exists()) return null;
 
+  // Consulta sem orderBy para evitar necessidade de índice composto
   const occQ = query(
     collection(db, 'recurring_occurrences'), 
     where('parentId', '==', id),
-    where('status', '==', 'active'),
-    orderBy('date', 'asc')
+    where('status', '==', 'active')
   );
   const occSnap = await getDocs(occQ);
-  const occurrences = occSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  
+  // Ordenação manual em memória para evitar erros de índice
+  const occurrences = occSnap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a: any, b: any) => a.date.localeCompare(b.date));
 
   return { id: snap.id, ...snap.data(), occurrences } as any;
 }
@@ -54,33 +59,39 @@ export default async function SeriesPublicPage({ params }: { params: Promise<{ i
            </div>
 
            <div className="grid grid-cols-1 gap-4">
-              {series.occurrences.map((occ: any) => (
-                <Link key={occ.id} href={`/recorrente/${occ.id}`}>
-                  <Card className="border-none shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all rounded-[2rem] bg-white group cursor-pointer">
-                    <CardContent className="p-8 flex items-center justify-between">
-                       <div className="flex items-center gap-6">
-                          <div className="flex flex-col items-center justify-center w-20 h-20 bg-muted rounded-3xl group-hover:bg-secondary/10 transition-colors">
-                             <span className="text-[10px] font-black uppercase text-muted-foreground">{new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { month: 'short' })}</span>
-                             <span className="text-3xl font-black text-primary">{occ.date.split('-')[2]}</span>
-                          </div>
-                          <div className="space-y-1">
-                             <p className="font-black text-xl uppercase italic text-primary">{new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long' })}</p>
-                             <div className="flex items-center gap-3 text-xs font-bold text-muted-foreground uppercase">
-                                <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-secondary" /> {occ.startTime}</span>
-                                <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-secondary" /> Local Confirmado</span>
-                             </div>
-                          </div>
-                       </div>
-                       <div className="flex items-center gap-4">
-                          <span className="text-[10px] font-black uppercase text-secondary tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Ver Ingressos</span>
-                          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center group-hover:bg-secondary group-hover:text-white transition-all shadow-inner">
-                             <ArrowRight className="w-5 h-5" />
-                          </div>
-                       </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
+              {series.occurrences.length > 0 ? (
+                series.occurrences.map((occ: any) => (
+                  <Link key={occ.id} href={`/recorrente/${occ.id}`}>
+                    <Card className="border-none shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all rounded-[2rem] bg-white group cursor-pointer">
+                      <CardContent className="p-8 flex items-center justify-between">
+                         <div className="flex items-center gap-6">
+                            <div className="flex flex-col items-center justify-center w-20 h-20 bg-muted rounded-3xl group-hover:bg-secondary/10 transition-colors">
+                               <span className="text-[10px] font-black uppercase text-muted-foreground">{new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { month: 'short' })}</span>
+                               <span className="text-3xl font-black text-primary">{occ.date.split('-')[2]}</span>
+                            </div>
+                            <div className="space-y-1">
+                               <p className="font-black text-xl uppercase italic text-primary">{new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long' })}</p>
+                               <div className="flex items-center gap-3 text-xs font-bold text-muted-foreground uppercase">
+                                  <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-secondary" /> {occ.startTime}</span>
+                                  <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-secondary" /> Local Confirmado</span>
+                               </div>
+                            </div>
+                         </div>
+                         <div className="flex items-center gap-4">
+                            <span className="text-[10px] font-black uppercase text-secondary tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Ver Ingressos</span>
+                            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center group-hover:bg-secondary group-hover:text-white transition-all shadow-inner">
+                               <ArrowRight className="w-5 h-5" />
+                            </div>
+                         </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))
+              ) : (
+                <div className="py-20 text-center bg-white rounded-[2rem] border-2 border-dashed">
+                   <p className="text-sm font-bold text-muted-foreground uppercase">Nenhuma data disponível no momento</p>
+                </div>
+              )}
            </div>
         </div>
       </main>
