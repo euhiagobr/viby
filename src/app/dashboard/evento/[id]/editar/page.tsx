@@ -4,12 +4,12 @@ import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useFirebaseApp, useMemoFirebase, useCollection } from "@/firebase"
-import { updateDoc, doc, serverTimestamp, collection, query, orderBy, getDocs, where, limit } from "firebase/firestore"
+import { updateDoc, doc, serverTimestamp, collection, query, orderBy, getDocs, where, limit, deleteDoc } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, Save, Handshake, LayoutGrid, Settings2, Ticket, RefreshCw, AlertTriangle } from "lucide-react"
+import { Loader2, ArrowLeft, Save, Handshake, LayoutGrid, Settings2, Ticket, RefreshCw, AlertTriangle, Trash2, Calendar, Clock, X } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -30,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { getAgeRatingConfig } from "@/lib/age-rating"
 import { generateOccurrences } from "@/services/recurring-event-service"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 export default function EditarEventoPage() {
   const params = useParams()
@@ -48,8 +49,21 @@ export default function EditarEventoPage() {
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
 
+  // Consulta de Ocorrências para gestão individual
+  const occurrencesQuery = useMemoFirebase(() => {
+    if (!db || !eventId) return null
+    return query(collection(db, "recurring_occurrences"), where("parentId", "==", eventId))
+  }, [db, eventId])
+  const { data: rawOccurrences, loading: occurrencesLoading } = useCollection<any>(occurrencesQuery)
+
+  const occurrences = React.useMemo(() => {
+    if (!rawOccurrences) return []
+    return [...rawOccurrences].sort((a, b) => a.date.localeCompare(b.date))
+  }, [rawOccurrences])
+
   const [loading, setLoading] = useState(false)
   const [isGeneratingOccurrences, setIsGeneratingOccurrences] = useState(false)
+  const [isDeletingOccurrence, setIsDeletingOccurrence] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   
   const [formData, setFormData] = useState<any>(null)
@@ -124,6 +138,21 @@ export default function EditarEventoPage() {
     }
   }
 
+  const handleDeleteOccurrence = async (occId: string, date: string) => {
+    if (!db || !eventId) return
+    if (!confirm(`Deseja remover permanentemente a data ${new Date(date + 'T12:00:00').toLocaleDateString('pt-BR')} desta série?`)) return
+
+    setIsDeletingOccurrence(occId)
+    try {
+      await deleteDoc(doc(db, "recurring_occurrences", occId))
+      toast({ title: "Data removida!" })
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao excluir data" })
+    } finally {
+      setIsDeletingOccurrence(null)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!db || !eventRef || !currentOrg) return
@@ -173,14 +202,6 @@ export default function EditarEventoPage() {
 
       const cleanData = JSON.parse(JSON.stringify(updateData, (key, value) => value === undefined ? null : value));
       await updateDoc(eventRef, cleanData);
-
-      // Auto-gerar se não houver nenhuma
-      if (formData.isRecurring && formData.recurringEndDate) {
-        const occSnap = await getDocs(query(collection(db, 'recurring_occurrences'), where('parentId', '==', eventId), limit(1)));
-        if (occSnap.empty) {
-          await handleManualGenerateAgenda();
-        }
-      }
 
       toast({ title: "Evento Atualizado!" })
       router.push(`/dashboard/organizacoes/${currentOrg.username}/events`)
@@ -299,7 +320,7 @@ export default function EditarEventoPage() {
            </form>
         </TabsContent>
 
-        <TabsContent value="recorrencia" className="animate-in fade-in duration-500 space-y-6">
+        <TabsContent value="recorrencia" className="animate-in fade-in duration-500 space-y-12">
            <Card className="border-none shadow-sm rounded-[2.5rem]">
               <CardContent className="p-8">
                  <EventRecurrence 
@@ -314,19 +335,89 @@ export default function EditarEventoPage() {
            </Card>
 
            {formData.isRecurring && (
-              <div className="flex flex-col items-center gap-4 p-8 bg-white rounded-[2rem] border-2 border-dashed border-secondary/20 text-center">
-                 <div className="space-y-1">
-                    <h4 className="text-lg font-black uppercase italic text-primary">Gestão de Agenda</h4>
-                    <p className="text-xs text-muted-foreground font-medium max-w-sm uppercase">Se você alterou a frequência ou a data limite, clique abaixo para reconstruir as datas.</p>
-                 </div>
-                 <Button 
-                   onClick={handleManualGenerateAgenda} 
-                   disabled={isGeneratingOccurrences || !formData.recurringEndDate}
-                   className="bg-secondary text-white font-black rounded-xl h-12 px-10 gap-2 shadow-lg hover:scale-105 transition-transform"
-                 >
-                    {isGeneratingOccurrences ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                    Regerar Agenda de Ocorrências
-                 </Button>
+              <div className="space-y-8">
+                <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
+                   <CardHeader className="bg-muted/30 border-b p-8 pb-6">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                         <div>
+                            <CardTitle className="text-xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-2">
+                               <Calendar className="w-5 h-5 text-secondary" /> Agenda de Datas
+                            </CardTitle>
+                            <CardDescription className="font-medium">Gerencie cada dia da série individualmente.</CardDescription>
+                         </div>
+                         <Button 
+                           onClick={handleManualGenerateAgenda} 
+                           disabled={isGeneratingOccurrences || !formData.recurringEndDate}
+                           className="bg-secondary text-white font-black rounded-xl h-11 px-8 gap-2 shadow-lg hover:scale-105 transition-transform uppercase italic text-[10px]"
+                         >
+                            {isGeneratingOccurrences ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                            Regerar Todas as Datas
+                         </Button>
+                      </div>
+                   </CardHeader>
+                   <CardContent className="p-0">
+                      {occurrencesLoading ? (
+                        <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+                      ) : occurrences.length > 0 ? (
+                        <Table>
+                           <TableHeader className="bg-muted/10">
+                              <TableRow>
+                                 <TableHead className="p-8 font-black uppercase text-[10px]">Data do Evento</TableHead>
+                                 <TableHead className="font-black uppercase text-[10px]">Horário</TableHead>
+                                 <TableHead className="font-black uppercase text-[10px] text-center">Status</TableHead>
+                                 <TableHead className="text-right font-black uppercase text-[10px] p-8">Ações</TableHead>
+                              </TableRow>
+                           </TableHeader>
+                           <TableBody>
+                              {occurrences.map((occ) => (
+                                <TableRow key={occ.id} className="hover:bg-muted/5 transition-colors">
+                                   <TableCell className="p-8">
+                                      <div className="flex items-center gap-3">
+                                         <div className="p-2 bg-muted rounded-xl text-primary"><Calendar className="w-4 h-4" /></div>
+                                         <span className="font-bold text-sm">{new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+                                      </div>
+                                   </TableCell>
+                                   <TableCell>
+                                      <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase">
+                                         <Clock className="w-3.5 h-3.5" /> {occ.startTime} - {occ.endTime}
+                                      </div>
+                                   </TableCell>
+                                   <TableCell className="text-center">
+                                      <Badge variant="outline" className="text-[9px] font-black uppercase border-green-200 text-green-600 bg-green-50">Confirmada</Badge>
+                                   </TableCell>
+                                   <TableCell className="p-8 text-right">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8 text-destructive hover:bg-red-50 rounded-full"
+                                        onClick={() => handleDeleteOccurrence(occ.id, occ.date)}
+                                        disabled={isDeletingOccurrence === occ.id}
+                                      >
+                                         {isDeletingOccurrence === occ.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                      </Button>
+                                   </TableCell>
+                                </TableRow>
+                              ))}
+                           </TableBody>
+                        </Table>
+                      ) : (
+                        <div className="py-24 text-center">
+                           <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4 opacity-20"><Calendar className="w-8 h-8" /></div>
+                           <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">Agenda não gerada ou sem datas futuras.</p>
+                        </div>
+                      )}
+                   </CardContent>
+                </Card>
+
+                <div className="p-6 bg-orange-50 rounded-[2.5rem] border-2 border-dashed border-orange-200 flex items-start gap-4">
+                   <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
+                   <div className="space-y-1">
+                      <h4 className="text-xs font-black uppercase italic text-orange-800">Atenção ao excluir datas</h4>
+                      <p className="text-[10px] text-orange-700 font-medium leading-relaxed uppercase">
+                         Ao excluir uma data individual, ela deixará de aparecer para o público. Se você regerar a agenda completa, datas excluídas anteriormente poderão retornar conforme a frequência definida.
+                      </p>
+                   </div>
+                </div>
               </div>
            )}
         </TabsContent>

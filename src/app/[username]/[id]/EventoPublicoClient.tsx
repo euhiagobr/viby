@@ -221,6 +221,15 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                </section>
              )}
 
+             {/* DESCRIÇÃO DO EVENTO - AGORA ANTES DA BILHETERIA */}
+             <Card className="border-none shadow-sm rounded-[2rem] bg-white p-10">
+                <h3 className="text-xl font-black uppercase italic tracking-tighter mb-8 flex items-center gap-3 text-primary"><ShieldCheck className="w-5 h-5 text-secondary" /> Informações do Evento</h3>
+                <div className="space-y-8">
+                   <EventDescription value={event.description} isPublic />
+                   <EventTags tags={event.tags} isPublic />
+                </div>
+             </Card>
+
              <div id="bilheteria" className="scroll-mt-32 space-y-8">
                 {event.isRecurring && !selectedOccurrence && event.type === 'interno' && (
                   <div className="p-8 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 flex flex-col items-center text-center gap-4 animate-in zoom-in-95">
@@ -279,14 +288,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                    </Card>
                 )}
              </div>
-
-             <Card className="border-none shadow-sm rounded-[2rem] bg-white p-10">
-                <h3 className="text-xl font-black uppercase italic tracking-tighter mb-8 flex items-center gap-3 text-primary"><ShieldCheck className="w-5 h-5 text-secondary" /> Informações do Evento</h3>
-                <div className="space-y-8">
-                   <EventDescription value={event.description} isPublic />
-                   <EventTags tags={event.tags} isPublic />
-                </div>
-             </Card>
 
              {!event.isRecurring && <EventDateTime startDate={event.date} endDate={event.endDate} isPublic />}
              
