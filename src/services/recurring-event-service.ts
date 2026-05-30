@@ -1,4 +1,4 @@
-'use client';
+'use server';
 
 import { 
   addDays, 
@@ -41,7 +41,8 @@ export async function generateOccurrences(db: Firestore, parentId: string, input
   const occurrencesRef = collection(db, 'recurring_occurrences');
   
   let currentDate = parseISO(input.startDate);
-  const finalDate = input.endDate ? parseISO(input.endDate) : addMonths(currentDate, 6); // Default 6 months
+  // Default de 6 meses se não houver data final, para evitar loops infinitos
+  const finalDate = input.endDate ? parseISO(input.endDate) : addMonths(currentDate, 6);
   const max = input.maxOccurrences || 100;
   
   let count = 0;
@@ -62,7 +63,7 @@ export async function generateOccurrences(db: Firestore, parentId: string, input
       createdAt: serverTimestamp()
     });
 
-    // Increment based on frequency
+    // Incrementar baseados na frequência
     switch (input.frequency) {
       case 'daily': currentDate = addDays(currentDate, 1); break;
       case 'weekly': currentDate = addWeeks(currentDate, 1); break;

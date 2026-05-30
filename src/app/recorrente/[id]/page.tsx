@@ -7,7 +7,8 @@ import { doc } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Calendar, Clock, MapPin, Share2, Ticket, ArrowLeft } from 'lucide-react';
+import { Loader2, Calendar, Clock, MapPin, Share2, Ticket, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 
 export default function PublicOccurrencePage() {
@@ -30,7 +31,7 @@ export default function PublicOccurrencePage() {
           <Button variant="outline" size="icon" className="rounded-full"><Share2 className="w-4 h-4" /></Button>
         </div>
 
-        <Card className="border-none shadow-2xl rounded-[3rem] overflow-hidden bg-white">
+        <Card className="border-none shadow-xl rounded-[3rem] overflow-hidden bg-white">
            <div className="h-48 bg-primary relative flex items-center justify-center text-white">
               <RefreshCw className="w-20 h-20 opacity-10 absolute" />
               <div className="text-center space-y-2 px-6">
