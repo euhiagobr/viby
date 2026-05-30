@@ -22,7 +22,9 @@ import {
   Lock,
   Armchair,
   Layers,
-  XCircle
+  XCircle,
+  RefreshCw,
+  ShieldCheck
 } from "lucide-react"
 import Image from "next/image"
 import { QRCodeSVG } from "qrcode.react"
@@ -43,7 +45,11 @@ export default function VoucherPage() {
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
     try {
-      let d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
+      let d: Date = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
+      // Tratamento para datas ISO de eventos recorrentes
+      if (typeof dateValue === 'string' && dateValue.includes('-')) {
+        d = new Date(dateValue + 'T12:00:00');
+      }
       return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     } catch (e) { return "---"; }
   }
@@ -51,7 +57,7 @@ export default function VoucherPage() {
   const formatTime = (dateValue: any) => {
     if (!dateValue) return "";
     try {
-      let d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
+      let d: Date = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
       return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     } catch (e) { return ""; }
   }
@@ -74,12 +80,10 @@ export default function VoucherPage() {
     )
   }
 
-  const isAcceptedHolder = registration.sharedWithUid === user?.uid && registration.transferStatus === 'accepted';
-  const isOriginalActiveOwner = registration.userId === user?.uid && !registration.sharedWithUid;
-  const isCurrentActivePossessor = isAcceptedHolder || isOriginalActiveOwner;
-  const isCancelled = registration.status === 'Cancelado' || registration.paymentStatus === 'Cancelado';
-
+  const isCurrentActivePossessor = registration.userId === user?.uid && !registration.sharedWithUid;
+  const isCancelled = registration.status === 'Cancelado' || registration.paymentStatus === 'Cancelado' || registration.status === 'cancelled';
   const isPaid = registration.paymentStatus === "Pago" || registration.paymentStatus === "Disponível" || (registration.price || 0) === 0;
+  const isRecurring = !!registration.occurrenceId;
 
   return (
     <div className="max-w-xl mx-auto space-y-8 pb-20 pt-6">
@@ -114,20 +118,15 @@ export default function VoucherPage() {
             <div className="absolute bottom-6 left-8 right-6">
               <div className="flex items-center gap-2 mb-2">
                 <Badge className={cn(
-                  "border-none text-[10px] font-black uppercase",
+                  "border-none text-[10px] font-black uppercase h-5",
                   isCancelled ? "bg-destructive text-white" : "bg-secondary text-white"
                 )}>
                   {isCancelled ? "Ingresso Cancelado" : (registration.batchName || "Lote Único")}
                 </Badge>
-                {registration.seatCode && !isCancelled && (
-                   <Badge className="bg-white text-primary border-none text-[10px] font-black uppercase flex items-center gap-1">
-                      <Armchair className="w-3 h-3" /> {registration.seatCode}
+                {isRecurring && !isCancelled && (
+                   <Badge className="bg-white text-primary border-none text-[10px] font-black uppercase flex items-center gap-1.5 h-5">
+                      <RefreshCw className="w-3 h-3 text-secondary animate-spin-slow" /> Recorrente
                    </Badge>
-                )}
-                {registration.checkedIn && !isCancelled && (
-                  <Badge className="bg-green-500 text-white border-none text-[10px] font-black uppercase flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Utilizado
-                  </Badge>
                 )}
               </div>
               <h1 className="text-2xl font-black text-white uppercase italic tracking-tighter leading-tight line-clamp-2">
@@ -140,29 +139,20 @@ export default function VoucherPage() {
             <div className="grid grid-cols-2 gap-8">
               <div className="space-y-4">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Início</p>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Data do Evento</p>
                   <div className="flex items-center gap-2 font-bold text-xs text-primary">
-                    <Calendar className="w-3 h-3 text-secondary" />
+                    <Calendar className="w-3.5 h-3.5 text-secondary" />
                     {formatDate(registration.eventDate)}
-                  </div>
-                  <div className="flex items-center gap-2 font-bold text-xs text-primary pl-5">
-                    <Clock className="w-3 h-3 text-secondary" />
-                    {formatTime(registration.eventDate)}
                   </div>
                 </div>
               </div>
               <div className="space-y-4">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Acomodação</p>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Horário</p>
                   <div className="flex items-center gap-2 font-bold text-xs text-primary">
-                    <Layers className="w-3 h-3 text-secondary" />
-                    {registration.sectorName || 'Geral'}
+                    <Clock className="w-3.5 h-3.5 text-secondary" />
+                    {registration.horarioOcorrencia || formatTime(registration.eventDate)}
                   </div>
-                  {registration.seatCode && (
-                    <div className="flex items-center gap-2 font-black text-sm text-secondary pl-5">
-                       Lugar: {registration.seatCode}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -175,13 +165,22 @@ export default function VoucherPage() {
               </div>
             </div>
 
+            {isRecurring && (
+               <div className="p-4 bg-secondary/5 rounded-2xl border-2 border-dashed border-secondary/20 flex items-start gap-3">
+                  <ShieldCheck className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-secondary font-black uppercase leading-tight italic">
+                    Este ingresso é válido somente para esta data e horário.
+                  </p>
+               </div>
+            )}
+
             <div className="pt-6 border-t border-dashed border-border/60 space-y-6">
               <div className="flex justify-between items-end">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Titular do Ingresso</p>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Titular</p>
                   <div className="flex items-center gap-2 font-black text-base italic uppercase text-primary">
                     <User className="w-4 h-4 text-secondary" />
-                    {registration.attendeeName || registration.userName}
+                    {registration.userName}
                   </div>
                 </div>
                 <div className="text-right">
@@ -201,13 +200,12 @@ export default function VoucherPage() {
                       {isCurrentActivePossessor && isPaid && !isCancelled ? (
                         <QRCodeSVG 
                           value={JSON.stringify({
-                             v: "2.0",
+                             v: "3.0",
                              ev: registration.eventId,
+                             occ: registration.occurrenceId || null,
                              reg: registration.id,
                              code: registration.ticketCode,
-                             seat: registration.seatCode || null,
-                             sector: registration.sectorName || null,
-                             user: registration.attendeeName || registration.userName
+                             user: registration.userName
                           })} 
                           size={192}
                           level="H"
@@ -220,7 +218,7 @@ export default function VoucherPage() {
                           {isCancelled ? <XCircle className="w-16 h-16 opacity-30" /> : <Lock className="w-16 h-16 opacity-30" />}
                           <p className="text-[10px] font-black uppercase leading-tight">
                             QR Code Indisponível<br/>
-                            {isCancelled ? "Ingresso Cancelado" : (!isCurrentActivePossessor ? "Ingresso Transferido" : "Aguardando Pagamento")}
+                            {isCancelled ? "Ingresso Cancelado" : "Aguardando Pagamento"}
                           </p>
                         </div>
                       )}
@@ -241,7 +239,7 @@ export default function VoucherPage() {
 
             <div className="pt-4 text-center">
               <p className="text-[9px] text-muted-foreground font-medium max-w-[200px] mx-auto uppercase tracking-tighter">
-                {isCancelled ? "Este ingresso foi invalidado e não permite acesso." : "Apresente este voucher na entrada do evento para validação via scanner."}
+                {isCancelled ? "Este ingresso foi invalidado." : "Apresente este voucher na portaria. Válido exclusivamente para a ocorrência selecionada."}
               </p>
             </div>
           </CardContent>
