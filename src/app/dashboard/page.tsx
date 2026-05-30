@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -21,7 +20,8 @@ import {
   FilterX,
   TrendingUp,
   Sparkles,
-  History
+  History,
+  Calendar as CalendarIcon
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -43,6 +43,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EVENT_CATEGORIES } from "@/lib/constants"
+import { Calendar } from "@/components/ui/calendar"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns"
+import { ptBR } from "date-fns/locale"
 
 export default function ExplorarPage() {
   const [activeTab, setActiveTab] = useState('all')
@@ -51,6 +59,9 @@ export default function ExplorarPage() {
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
   
+  const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
+  const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
+
   const router = useRouter()
   const db = useFirestore()
   const auth = useAuth()
@@ -98,7 +109,25 @@ export default function ExplorarPage() {
         e.categoryId === selectedCategory || 
         (e.categories && e.categories.includes(selectedCategory));
       
-      return matchesSearch && matchesCategory;
+      // Filtro de Data
+      let matchesDate = true;
+      if (dateFilter !== 'all') {
+        const eventDate = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+        const today = startOfToday();
+        
+        if (dateFilter === 'today') {
+          matchesDate = isSameDay(eventDate, today);
+        } else if (dateFilter === 'tomorrow') {
+          matchesDate = isSameDay(eventDate, addDays(today, 1));
+        } else if (dateFilter === 'week') {
+          const sunday = endOfWeek(today, { weekStartsOn: 0 });
+          matchesDate = eventDate >= today && eventDate <= sunday;
+        } else if (dateFilter === 'custom' && customDate) {
+          matchesDate = isSameDay(eventDate, customDate);
+        }
+      }
+      
+      return matchesSearch && matchesCategory && matchesDate;
     });
 
     if (activeTab === 'recent') {
@@ -118,7 +147,7 @@ export default function ExplorarPage() {
       ...e,
       _score: calculateEventScore(e, { userLocation, maxRadiusKm: radiusKm === 'unlimited' ? 500 : parseInt(radiusKm) })
     })).sort((a, b) => b._score - a._score);
-  }, [allEvents, search, activeTab, userLocation, radiusKm, selectedCategory])
+  }, [allEvents, search, activeTab, userLocation, radiusKm, selectedCategory, dateFilter, customDate])
 
   const interleavedContent = React.useMemo(() => {
     if (!filteredAndSortedEvents) return []
@@ -160,6 +189,37 @@ export default function ExplorarPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Show, cidade, artista..." className="pl-10 h-11 rounded-xl" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("rounded-xl h-11 border-dashed gap-2 font-bold text-xs uppercase", dateFilter !== 'all' && "bg-secondary/10 border-secondary text-secondary")}>
+                <CalendarIcon className="h-4 w-4" />
+                {dateFilter === 'today' ? "Hoje" :
+                 dateFilter === 'tomorrow' ? "Amanhã" :
+                 dateFilter === 'week' ? "Esta semana" :
+                 dateFilter === 'custom' && customDate ? format(customDate, "dd/MM", { locale: ptBR }) :
+                 "Data"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="end">
+              <div className="p-3 border-b grid grid-cols-3 gap-2">
+                  <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'today' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>Hoje</Button>
+                  <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'tomorrow' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('tomorrow'); setCustomDate(undefined); }}>Amanhã</Button>
+                  <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'week' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('week'); setCustomDate(undefined); }}>Semana</Button>
+              </div>
+              <Calendar
+                mode="single"
+                selected={customDate}
+                onSelect={(d) => { if(d) { setCustomDate(d); setDateFilter('custom'); } }}
+                initialFocus
+                locale={ptBR}
+              />
+              <div className="p-2 border-t">
+                   <Button variant="link" size="sm" className="w-full text-[10px] font-black uppercase text-muted-foreground" onClick={() => { setDateFilter('all'); setCustomDate(undefined); }}>Limpar Data</Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+
           <Select value={radiusKm} onValueChange={setRadiusKm}>
             <SelectTrigger className="w-32 h-11 rounded-xl border-dashed">
                <div className="flex items-center gap-2 font-bold text-xs"><Navigation className="w-3 h-3" /><SelectValue /></div>
@@ -168,7 +228,7 @@ export default function ExplorarPage() {
                <SelectItem value="10">10km</SelectItem><SelectItem value="50">50km</SelectItem><SelectItem value="unlimited">Ilimitado</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" className="rounded-xl h-11 border-dashed" onClick={() => { setSearch(""); setRadiusKm("50"); setSelectedCategory("all"); setActiveTab("all"); }}><FilterX className="w-4 h-4" /></Button>
+          <Button variant="outline" className="rounded-xl h-11 border-dashed" onClick={() => { setSearch(""); setRadiusKm("50"); setSelectedCategory("all"); setActiveTab("all"); setDateFilter("all"); setCustomDate(undefined); }}><FilterX className="w-4 h-4" /></Button>
         </div>
       </div>
 

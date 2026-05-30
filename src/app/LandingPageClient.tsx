@@ -7,7 +7,7 @@ import { EventCard } from "@/components/events/EventCard"
 import { AdCard } from "@/components/ads/AdCard"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, MapPin, FilterX, Settings, Navigation, ChevronLeft, ChevronRight, Loader2, Clock, Zap, Globe } from "lucide-react"
+import { Search, MapPin, FilterX, Settings, Navigation, ChevronLeft, ChevronRight, Loader2, Clock, Zap, Globe, Calendar as CalendarIcon } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
@@ -27,6 +27,14 @@ import { cn } from "@/lib/utils"
 import useEmblaCarousel from 'embla-carousel-react'
 import { PlaceHolderImages } from "@/lib/placeholder-images"
 import { UserNav } from "@/components/layout/UserNav"
+import { Calendar } from "@/components/ui/calendar"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns"
+import { ptBR } from "date-fns/locale"
 
 export default function LandingPageClient() {
   const db = useFirestore()
@@ -38,6 +46,9 @@ export default function LandingPageClient() {
   const [selectedCategory, setSelectedCategory] = React.useState("all")
   const [radiusKm, setRadiusKm] = React.useState("50")
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
+  
+  const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
+  const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
@@ -86,6 +97,24 @@ export default function LandingPageClient() {
       const matchesCity = selectedCity === 'all' || e.city === selectedCity;
       const matchesCategory = selectedCategory === 'all' || e.categoryId === selectedCategory;
       
+      // Filtro de Data
+      let matchesDate = true;
+      if (dateFilter !== 'all') {
+        const eventDate = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+        const today = startOfToday();
+        
+        if (dateFilter === 'today') {
+          matchesDate = isSameDay(eventDate, today);
+        } else if (dateFilter === 'tomorrow') {
+          matchesDate = isSameDay(eventDate, addDays(today, 1));
+        } else if (dateFilter === 'week') {
+          const sunday = endOfWeek(today, { weekStartsOn: 0 });
+          matchesDate = eventDate >= today && eventDate <= sunday;
+        } else if (dateFilter === 'custom' && customDate) {
+          matchesDate = isSameDay(eventDate, customDate);
+        }
+      }
+
       // Filtro de Raio
       let matchesRadius = true;
       if (userLocation && radiusKm !== 'unlimited' && e.latitude && e.longitude) {
@@ -93,7 +122,7 @@ export default function LandingPageClient() {
         matchesRadius = dist <= parseInt(radiusKm);
       }
 
-      return visible && matchesSearch && matchesCity && matchesCategory && matchesRadius;
+      return visible && matchesSearch && matchesCity && matchesCategory && matchesRadius && matchesDate;
     });
 
     // 2. Cálculo de Score e Ordenação
@@ -104,7 +133,7 @@ export default function LandingPageClient() {
         maxRadiusKm: radiusKm === 'unlimited' ? 500 : parseInt(radiusKm)
       })
     })).sort((a, b) => b._score - a._score);
-  }, [events, searchName, selectedCity, selectedCategory, radiusKm, userLocation])
+  }, [events, searchName, selectedCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
 
   const interleavedContent = React.useMemo(() => {
     if (filteredAndSortedEvents.length === 0) return []
@@ -226,7 +255,38 @@ export default function LandingPageClient() {
                     onChange={(e) => setSearchName(e.target.value)}
                   />
                 </div>
-                <div className="md:col-span-3">
+                <div className="md:col-span-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("bg-white/5 border-white/10 h-14 w-full rounded-2xl text-white justify-start font-normal focus:ring-secondary/50 hover:bg-white/10", !customDate && dateFilter === 'all' && "text-white/60")}>
+                        <CalendarIcon className="mr-2 h-4 w-4 text-secondary" />
+                        {dateFilter === 'today' ? "Hoje" :
+                         dateFilter === 'tomorrow' ? "Amanhã" :
+                         dateFilter === 'week' ? "Esta semana" :
+                         dateFilter === 'custom' && customDate ? format(customDate, "dd/MM/yy", { locale: ptBR }) :
+                         "Quando?"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
+                      <div className="p-3 border-b grid grid-cols-3 gap-2">
+                          <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'today' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>Hoje</Button>
+                          <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'tomorrow' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('tomorrow'); setCustomDate(undefined); }}>Amanhã</Button>
+                          <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'week' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('week'); setCustomDate(undefined); }}>Semana</Button>
+                      </div>
+                      <Calendar
+                        mode="single"
+                        selected={customDate}
+                        onSelect={(d) => { if(d) { setCustomDate(d); setDateFilter('custom'); } }}
+                        initialFocus
+                        locale={ptBR}
+                      />
+                      <div className="p-2 border-t">
+                           <Button variant="link" size="sm" className="w-full text-[10px] font-black uppercase text-muted-foreground" onClick={() => { setDateFilter('all'); setCustomDate(undefined); }}>Limpar Data</Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="md:col-span-2">
                   <Select value={selectedCity} onValueChange={setSelectedCity}>
                     <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white focus:ring-secondary/50">
                       <div className="flex items-center gap-2">
@@ -242,7 +302,7 @@ export default function LandingPageClient() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="md:col-span-3">
+                <div className="md:col-span-2">
                   <Select value={radiusKm} onValueChange={setRadiusKm}>
                     <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white focus:ring-secondary/50">
                       <div className="flex items-center gap-2">
@@ -345,8 +405,8 @@ export default function LandingPageClient() {
                 <FilterX className="w-10 h-10 text-muted-foreground opacity-20" />
              </div>
              <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Nenhum evento localizado</h3>
-             <p className="text-muted-foreground font-medium uppercase tracking-widest text-xs mt-2">Tente expandir o raio de busca ou mudar a categoria.</p>
-             <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSelectedCity("all"); setSelectedCategory("all"); setRadiusKm("50"); }}>Limpar Todos os Filtros</Button>
+             <p className="text-muted-foreground font-medium uppercase tracking-widest text-xs mt-2">Tente expandir o raio de busca ou mudar os filtros.</p>
+             <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSelectedCity("all"); setSelectedCategory("all"); setRadiusKm("50"); setDateFilter("all"); setCustomDate(undefined); }}>Limpar Todos os Filtros</Button>
           </div>
         )}
       </section>
