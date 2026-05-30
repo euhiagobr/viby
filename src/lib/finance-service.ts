@@ -17,6 +17,7 @@ import { calculateRefundAmount, calculateRetainedGatewayFee } from "./financial-
 /**
  * @fileOverview Serviço client-side para processamento de estornos transacionais.
  * Gerencia a devolução de saldo para a carteira e retorno de capacidade para o evento.
+ * ATUALIZADO: Proteção contra contadores negativos e sincronização pai-filho.
  */
 
 export async function processTicketRefundClient(
@@ -45,15 +46,21 @@ export async function processTicketRefundClient(
       const eventId = regData.eventId;
       const occurrenceId = regData.occurrenceId;
 
-      // 1. Devolução de Capacidade (Inventário)
+      // 1. Devolução de Capacidade (Inventário) - PROTEÇÃO CONTRA NEGATIVOS
       if (occurrenceId) {
         const occRef = doc(db, "recurring_occurrences", occurrenceId);
-        transaction.update(occRef, { 
-          ingressosVendidos: increment(-1),
-          updatedAt: serverTimestamp()
-        });
-      } else {
-        const eventRef = doc(db, "events", eventId);
+        const occSnap = await transaction.get(occRef);
+        if (occSnap.exists() && (occSnap.data().ingressosVendidos || 0) > 0) {
+          transaction.update(occRef, { 
+            ingressosVendidos: increment(-1),
+            updatedAt: serverTimestamp()
+          });
+        }
+      }
+      
+      const eventRef = doc(db, "events", eventId);
+      const eventSnap = await transaction.get(eventRef);
+      if (eventSnap.exists() && (eventSnap.data().ingressosVendidos || 0) > 0) {
         transaction.update(eventRef, { 
           ingressosVendidos: increment(-1),
           updatedAt: serverTimestamp()

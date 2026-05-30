@@ -1,4 +1,3 @@
-
 'use server';
 
 import { headers } from 'next/headers';
@@ -14,6 +13,7 @@ import { sendTicketEmail } from './email';
 /**
  * @fileOverview Server Actions do Stripe com inicialização dinâmica e segura.
  * Implementa a finalização de pedidos via Admin SDK para garantir integridade.
+ * ADICIONADO: Controle atômico de capacidade e sincronização de inventário.
  */
 
 async function getStripeInstance() {
@@ -130,7 +130,7 @@ export async function getStripeSession(sessionId: string) {
 
 /**
  * Finaliza uma sessão de checkout de forma segura no servidor.
- * Implementa IDEMPOTÊNCIA verificando se o pedido já foi processado.
+ * Implementa IDEMPOTÊNCIA e CONTROLE ATÔMICO DE CAPACIDADE.
  */
 export async function finalizeCheckoutSession(sessionId: string) {
   try {
@@ -189,7 +189,51 @@ export async function finalizeCheckoutSession(sessionId: string) {
         const userId = metadata.userId;
         const balanceUsed = parseFloat(metadata.balanceUsed || "0");
 
-        // 1. Processar Saldo se utilizado
+        // 1. VALIDAR CAPACIDADE ATOMICAMENTE ANTES DE EMITIR
+        const items = orderData.items || [];
+        const targets: Record<string, { ref: any, parentRef?: any, qty: number }> = {};
+        
+        for (const item of items) {
+          const key = item.occurrenceId ? `occ_${item.occurrenceId}` : `ev_${item.eventId}`;
+          if (!targets[key]) {
+            targets[key] = {
+              ref: item.occurrenceId ? adminDb.collection("recurring_occurrences").doc(item.occurrenceId) : adminDb.collection("events").doc(item.eventId),
+              parentRef: item.occurrenceId ? adminDb.collection("events").doc(item.eventId) : undefined,
+              qty: 0
+            };
+          }
+          targets[key].qty += (item.quantity || 1);
+        }
+
+        // Check cada alvo na transação
+        for (const key in targets) {
+          const target = targets[key];
+          const snap = await transaction.get(target.ref);
+          if (!snap.exists) throw new Error("Evento ou data não localizada.");
+          const data = snap.data()!;
+          const currentSold = data.ingressosVendidos || 0;
+          const capacity = data.capacidadeMaxima || data.capacidadeTotal || 0;
+          
+          if (capacity > 0 && (currentSold + target.qty > capacity)) {
+             throw new Error("Lote esgotado para uma ou mais datas selecionadas.");
+          }
+          
+          // Reservar capacidade
+          transaction.update(target.ref, { 
+            ingressosVendidos: FieldValue.increment(target.qty),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+
+          // Sincronizar com o Evento Pai se for ocorrência
+          if (target.parentRef) {
+            transaction.update(target.parentRef, {
+              ingressosVendidos: FieldValue.increment(target.qty),
+              updatedAt: FieldValue.serverTimestamp()
+            });
+          }
+        }
+
+        // 2. Processar Saldo se utilizado
         if (balanceUsed > 0) {
           const walletRef = adminDb.collection("wallets").doc(userId);
           const userRef = adminDb.collection("users").doc(userId);
@@ -201,7 +245,7 @@ export async function finalizeCheckoutSession(sessionId: string) {
 
           transaction.update(userRef, { 
             walletBalance: FieldValue.increment(-balanceUsed), 
-            updatedAt: FieldValue.serverTimestamp() 
+            updatedAt: serverTimestamp() 
           });
 
           const wTxRef = adminDb.collection("wallet_transactions").doc();
@@ -215,7 +259,7 @@ export async function finalizeCheckoutSession(sessionId: string) {
           });
         }
 
-        // 2. Configurações Fiscais
+        // 3. Configurações Fiscais
         const feesSnap = await transaction.get(adminDb.collection("settings").doc("fees"));
         const stripeSettingsSnap = await transaction.get(adminDb.collection("settings").doc("stripe"));
         const promosSnap = await transaction.get(adminDb.collection("settings").doc("promotions"));
@@ -224,8 +268,7 @@ export async function finalizeCheckoutSession(sessionId: string) {
         const stripeSettings = stripeSettingsSnap.exists ? stripeSettingsSnap.data() : {};
         const promotions = promosSnap.exists ? promosSnap.data() : {};
 
-        // 3. Emitir Ingressos (Registrations) e Registros Fiscais
-        const items = orderData.items || [];
+        // 4. Emitir Ingressos (Registrations) e Registros Fiscais
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
           
@@ -236,10 +279,8 @@ export async function finalizeCheckoutSession(sessionId: string) {
             );
 
             let fiscalTitle = item.eventTitle;
-            let displayDate = "Data a confirmar";
             if (item.occurrenceId) {
                const dateStr = item.eventDate;
-               displayDate = new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
                fiscalTitle = `${item.eventTitle} (${new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR')})`;
             }
 
@@ -288,14 +329,6 @@ export async function finalizeCheckoutSession(sessionId: string) {
               nfStatus: 'pendente',
               timestamp: FieldValue.serverTimestamp()
             });
-
-            if (item.occurrenceId) {
-              const occRef = adminDb.collection("recurring_occurrences").doc(item.occurrenceId);
-              transaction.update(occRef, { ingressosVendidos: FieldValue.increment(1) });
-            }
-            
-            // Envio de E-mail (Nota: idealmente fora da transação, chamaremos após commit)
-            // sendTicketEmail({...})
           }
         }
 

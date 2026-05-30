@@ -7,6 +7,7 @@ import { calculateRefundAmount, calculateRetainedGatewayFee } from '@/lib/financ
 /**
  * @fileOverview Server Actions para operações financeiras transacionais utilizando o Admin SDK.
  * Implementa a devolução de inventário e estorno de saldo.
+ * ATUALIZADO: Proteção contra contadores negativos e sincronização pai-filho no Admin.
  */
 
 export async function processTicketRefund(registrationId: string, executorUid: string, reason: string) {
@@ -38,12 +39,18 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       const eventId = regData.eventId;
       const occurrenceId = regData.occurrenceId;
 
-      // 1. Devolução de Capacidade
+      // 1. Devolução de Capacidade - PROTEÇÃO CONTRA NEGATIVOS
       if (occurrenceId) {
         const occRef = db.collection("recurring_occurrences").doc(occurrenceId);
-        transaction.update(occRef, { ingressosVendidos: FieldValue.increment(-1) });
-      } else {
-        const eventRef = db.collection("events").doc(eventId);
+        const occSnap = await transaction.get(occRef);
+        if (occSnap.exists && (occSnap.data()?.ingressosVendidos || 0) > 0) {
+          transaction.update(occRef, { ingressosVendidos: FieldValue.increment(-1) });
+        }
+      }
+      
+      const eventRef = db.collection("events").doc(eventId);
+      const eventSnap = await transaction.get(eventRef);
+      if (eventSnap.exists && (eventSnap.data()?.ingressosVendidos || 0) > 0) {
         transaction.update(eventRef, { ingressosVendidos: FieldValue.increment(-1) });
       }
 
