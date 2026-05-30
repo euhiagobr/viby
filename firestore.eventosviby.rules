@@ -34,7 +34,7 @@ service cloud.firestore {
     }
 
     match /system_logs/{logId} {
-      allow create: if true; // Permite que qualquer erro técnico seja registrado para análise
+      allow create: if true; 
       allow read, list, update, delete: if isAdmin();
     }
 
@@ -86,7 +86,7 @@ service cloud.firestore {
       
       match /transactions/{txId} {
         allow read: if hasOrgRole(orgId, ['owner', 'admin', 'finance']) || isAdmin();
-        allow create: if isSignedIn();
+        allow create: if false; // Apenas servidor (Admin SDK)
       }
     }
 
@@ -114,19 +114,20 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
-    // --- REGRAS DE NEGÓCIO: PEDIDOS E INGRESSOS ---
+    // --- REGRAS DE NEGÓCIO: PEDIDOS E INGRESSOS (VIBY CORE PROTECTED) ---
     match /orders/{orderId} {
       allow create: if isSignedIn();
       allow read, update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     match /registrations/{regId} {
-      allow read: if true; 
-      allow create, update: if isSignedIn() && isNotBlocked(get(/databases/eventosviby/documents/users/$(request.auth.uid)).data);
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin']) || isAdmin());
+      allow create: if false; // BLOQUEIO CRÍTICO: Ingressos não podem ser criados pelo navegador
+      allow update: if isSignedIn() && (hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin']) || isAdmin());
     }
 
     match /tax_tickets/{docId} {
-      allow create: if isSignedIn();
+      allow create: if false; // Apenas servidor
       allow read: if isAdmin();
     }
 
@@ -147,12 +148,12 @@ service cloud.firestore {
 
     match /wallets/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow write: if isOwner(userId) || isAdmin(); // Permitir ajuste de saldo via checkout client-side no protótipo
+      allow write: if false; // BLOQUEIO CRÍTICO: Saldo protegido contra alterações via navegador
     }
 
     match /wallet_transactions/{txId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn(); // Permitir registro de transação de débito de saldo
+      allow create: if false; // Apenas servidor
       allow update: if isAdmin();
     }
 
