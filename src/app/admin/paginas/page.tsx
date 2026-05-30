@@ -93,47 +93,54 @@ export default function AdminPaginasPage() {
   const [newOwnerUsername, setNewOwnerUsername] = React.useState("")
   
   const [isSaving, setIsSaving] = React.useState(false)
+  const [ownerProfilesCache, setOwnerProfilesCache] = React.useState<Record<string, any>>({})
 
   const orgsQuery = useMemoFirebase(() => db ? query(collection(db, "organizations"), orderBy("createdAt", "desc")) : null, [db])
   const { data: orgs, loading: loadingOrgs } = useCollection<any>(orgsQuery)
 
-  const [enrichedOrgs, setEnrichedOrgs] = React.useState<any[]>([])
-
-  // Efeito para buscar usernames dos proprietários
+  // Efeito para carregar perfis de proprietários de forma estável
+  const orgsIdsString = React.useMemo(() => orgs?.map(o => o.ownerId).filter(Boolean).sort().join(',') || '', [orgs]);
+  
   React.useEffect(() => {
-    if (!orgs || !db) return;
+    if (!orgs || !db || !orgsIdsString) return;
 
     const fetchOwners = async () => {
-      const ownersToFetch = Array.from(new Set(orgs.map(o => o.ownerId).filter(Boolean)));
-      const ownerMap: Record<string, any> = {};
+      const ownersToFetch = Array.from(new Set(orgs.map(o => o.ownerId).filter(Boolean)))
+        .filter(uid => !ownerProfilesCache[uid]);
 
+      if (ownersToFetch.length === 0) return;
+
+      const newProfiles: Record<string, any> = { ...ownerProfilesCache };
       await Promise.all(ownersToFetch.map(async (uid) => {
         try {
           const snap = await getDoc(doc(db, "users", uid as string));
-          if (snap.exists()) ownerMap[uid as string] = snap.data();
+          if (snap.exists()) newProfiles[uid as string] = snap.data();
         } catch (e) {}
       }));
 
-      setEnrichedOrgs(orgs.map(o => ({
-        ...o,
-        ownerProfile: o.ownerId ? ownerMap[o.ownerId] : null
-      })));
+      setOwnerProfilesCache(newProfiles);
     };
 
     fetchOwners();
-  }, [orgs, db]);
+  }, [orgsIdsString, db]);
 
   const filteredOrgs = React.useMemo(() => {
-    const list = enrichedOrgs.length > 0 ? enrichedOrgs : (orgs || []);
-    return list.filter(o => {
-      const matchSearch = (o.name?.toLowerCase() || "").includes(search.toLowerCase()) || 
-                          (o.username?.toLowerCase() || "").includes(search.toLowerCase()) ||
-                          (o.ownerProfile?.name?.toLowerCase() || "").includes(search.toLowerCase()) ||
-                          (o.ownerProfile?.username?.toLowerCase() || "").includes(search.toLowerCase());
-      const matchType = activeTypeFilter === 'all' || o.type === activeTypeFilter;
-      return matchSearch && matchType && o.status !== 'Excluído';
-    })
-  }, [enrichedOrgs, orgs, search, activeTypeFilter])
+    if (!orgs) return [];
+    return orgs
+      .filter(o => o.status !== 'Excluído')
+      .map(o => ({
+        ...o,
+        ownerProfile: o.ownerId ? ownerProfilesCache[o.ownerId] : null
+      }))
+      .filter(o => {
+        const matchSearch = (o.name?.toLowerCase() || "").includes(search.toLowerCase()) || 
+                            (o.username?.toLowerCase() || "").includes(search.toLowerCase()) ||
+                            (o.ownerProfile?.name?.toLowerCase() || "").includes(search.toLowerCase()) ||
+                            (o.ownerProfile?.username?.toLowerCase() || "").includes(search.toLowerCase());
+        const matchType = activeTypeFilter === 'all' || o.type === activeTypeFilter;
+        return matchSearch && matchType;
+      });
+  }, [orgs, ownerProfilesCache, search, activeTypeFilter]);
 
   const handleUpdateOrg = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -244,7 +251,7 @@ export default function AdminPaginasPage() {
             {loadingOrgs ? (
               <TableRow><TableCell colSpan={5} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
             ) : filteredOrgs.map(org => (
-              <TableRow key={org.id} className={cn("hover:bg-muted/5 transition-colors", org.status === 'Bloqueado' && "bg-destructive/[0.02]")}>
+              <TableRow key={org.id} className={cn("hover:bg-muted/5 transition-colors", org.status === 'Bloqueado' && "bg-destructive/[0.02] opacity-75")}>
                 <TableCell className="p-6">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10 border shadow-sm"><AvatarImage src={org.avatar} className="object-cover" /><AvatarFallback className="font-black">{org.name?.charAt(0)}</AvatarFallback></Avatar>
@@ -266,7 +273,7 @@ export default function AdminPaginasPage() {
                 </TableCell>
                 <TableCell className="p-6 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" onClick={() => { setEditingOrg(org); setIsEditOrgOpen(true); }}><Edit className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingOrg(org); setIsEditOrgOpen(true); }}><Edit className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => { setTransferOrg(org); setIsTransferOpen(true); }} title="Transferir Titularidade"><ArrowRightLeft className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className={cn("h-8 w-8", org.status === 'Bloqueado' ? "text-green-600" : "text-orange-500")} onClick={() => handleToggleBlock(org.id, org.status)} title="Suspender/Ativar"><ShieldBan className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => handleSoftDelete(org.id, org.name)}><Trash2 className="w-4 h-4" /></Button>
@@ -340,9 +347,13 @@ function OrgMembersList({ orgId }: { orgId: string }) {
   const { data: members, loading } = useCollection<any>(membersQuery)
   
   const [membersWithProfiles, setMembersWithProfiles] = React.useState<any[]>([])
+  const membersIdsString = React.useMemo(() => members?.map(m => m.userId).sort().join(',') || '', [members]);
   
   React.useEffect(() => {
-    if (!members || !db) return
+    if (!members || !db || !membersIdsString) {
+      setMembersWithProfiles([]);
+      return;
+    }
     const fetch = async () => {
       const results = await Promise.all(members.map(async (m) => {
         try {
@@ -355,7 +366,7 @@ function OrgMembersList({ orgId }: { orgId: string }) {
       setMembersWithProfiles(results)
     }
     fetch()
-  }, [members, db])
+  }, [membersIdsString, db])
 
   const handleAdd = async () => {
     if (!db || !orgId || !newMemberUser) return
