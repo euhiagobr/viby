@@ -45,19 +45,36 @@ export default function VoucherPage() {
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
     try {
-      let d: Date = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
-      // Tratamento para datas ISO de eventos recorrentes
-      if (typeof dateValue === 'string' && dateValue.includes('-')) {
-        d = new Date(dateValue + 'T12:00:00');
+      let d: Date;
+      // Caso 1: Firestore Timestamp
+      if (dateValue?.toDate) {
+        d = dateValue.toDate();
+      } 
+      // Caso 2: String ISO (YYYY-MM-DD)
+      else if (typeof dateValue === 'string') {
+        // Garantir que não percamos o dia por fuso horário ao criar a data
+        const cleanDate = dateValue.includes('T') ? dateValue : `${dateValue}T12:00:00`;
+        d = new Date(cleanDate);
       }
+      // Caso 3: Objeto Date ou Number
+      else {
+        d = new Date(dateValue);
+      }
+
+      if (isNaN(d.getTime())) return "Data Inválida";
+
       return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-    } catch (e) { return "---"; }
+    } catch (e) { return "Erro na data"; }
   }
 
   const formatTime = (dateValue: any) => {
-    if (!dateValue) return "";
+    // Se o registro já tiver o horário da ocorrência salvo (mais confiável para recorrentes)
+    if (registration?.horarioOcorrencia) return registration.horarioOcorrencia;
+
+    if (!dateValue) return "---";
     try {
       let d: Date = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
+      if (isNaN(d.getTime())) return "";
       return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     } catch (e) { return ""; }
   }
@@ -80,8 +97,8 @@ export default function VoucherPage() {
     )
   }
 
-  const isCurrentActivePossessor = registration.userId === user?.uid && !registration.sharedWithUid;
-  const isCancelled = registration.status === 'Cancelado' || registration.paymentStatus === 'Cancelado' || registration.status === 'cancelled';
+  const isCurrentActivePossessor = registration.userId === user?.uid;
+  const isCancelled = registration.status === 'cancelled' || registration.paymentStatus === 'refunded_wallet' || registration.status === 'Cancelado';
   const isPaid = registration.paymentStatus === "Pago" || registration.paymentStatus === "Disponível" || (registration.price || 0) === 0;
   const isRecurring = !!registration.occurrenceId;
 
@@ -151,7 +168,7 @@ export default function VoucherPage() {
                   <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Horário</p>
                   <div className="flex items-center gap-2 font-bold text-xs text-primary">
                     <Clock className="w-3.5 h-3.5 text-secondary" />
-                    {registration.horarioOcorrencia || formatTime(registration.eventDate)}
+                    {formatTime(registration.eventDate)}
                   </div>
                 </div>
               </div>
@@ -169,7 +186,7 @@ export default function VoucherPage() {
                <div className="p-4 bg-secondary/5 rounded-2xl border-2 border-dashed border-secondary/20 flex items-start gap-3">
                   <ShieldCheck className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
                   <p className="text-[10px] text-secondary font-black uppercase leading-tight italic">
-                    Este ingresso é válido somente para esta data e horário.
+                    Este ingresso é válido exclusivamente para a data e horário acima.
                   </p>
                </div>
             )}

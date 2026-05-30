@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -61,7 +60,7 @@ function CheckoutSucessoContent() {
           });
           toast({ title: "Saldo Recarregado!" });
         } 
-        // Caso 2: Checkout de Pedido (Ingressos) - NOVO FLUXO
+        // Caso 2: Checkout de Pedido (Ingressos)
         else if (metadata.type === 'order_checkout' && metadata.orderId) {
           const orderRef = doc(db, "orders", metadata.orderId);
           const orderSnap = await getDoc(orderRef);
@@ -72,12 +71,10 @@ function CheckoutSucessoContent() {
 
           const orderData = orderSnap.data();
           if (orderData.status === 'paid') {
-             // Já processado por webhook ou refresh anterior
              setLoading(false);
              return;
           }
 
-          // 1. Abater saldo se usado
           const balanceUsed = parseFloat(metadata.balanceUsed || "0");
           if (balanceUsed > 0) {
             await updateDoc(doc(db, "users", user.uid), { walletBalance: increment(-balanceUsed) });
@@ -87,14 +84,12 @@ function CheckoutSucessoContent() {
             });
           }
 
-          // 2. Carregar configurações de taxas para o snapshot financeiro
           const [stripeSettingsSnap, feesSettingsSnap, promosSnap] = await Promise.all([
             getDoc(doc(db, 'settings', 'stripe')),
             getDoc(doc(db, 'settings', 'fees')),
             getDoc(doc(db, 'settings', 'promotions'))
           ]);
 
-          // 3. Criar os tickets REAIS agora
           for (let i = 0; i < orderData.items.length; i++) {
             const item = orderData.items[i];
             
@@ -108,7 +103,7 @@ function CheckoutSucessoContent() {
                 eventId: item.eventId,
                 eventTitle: item.eventTitle,
                 eventImage: item.eventImage || '',
-                eventDate: item.eventDate,
+                eventDate: item.eventDate, // Mantém raw (string ou timestamp)
                 eventCity: item.eventCity,
                 userId: user.uid,
                 userName: orderData.userName,
@@ -125,12 +120,13 @@ function CheckoutSucessoContent() {
                 ticketCode,
                 stripeSessionId: sessionId,
                 orderId: metadata.orderId,
+                occurrenceId: item.occurrenceId || null,
+                horarioOcorrencia: item.horarioOcorrencia || null,
                 confirmedAt: serverTimestamp(),
                 financialSnapshot: breakdown,
                 timestamp: serverTimestamp()
               });
 
-              // Registrar para ERP Fiscal
               await addDoc(collection(db, "tax_tickets"), {
                  registrationId: regRef.id,
                  eventId: item.eventId,
@@ -148,19 +144,31 @@ function CheckoutSucessoContent() {
                  timestamp: serverTimestamp()
               });
 
-              // E-mail de confirmação
+              // Contabilizar venda na ocorrência se recorrente
+              if (item.occurrenceId) {
+                await updateDoc(doc(db, "recurring_occurrences", item.occurrenceId), {
+                  ingressosVendidos: increment(1)
+                });
+              }
+
+              // Preparar dados para o e-mail (usar date parsing robusto)
+              let displayDate = "Data a confirmar";
+              try {
+                const d = item.eventDate?.toDate ? item.eventDate.toDate() : new Date(item.eventDate);
+                displayDate = d.toLocaleString('pt-BR');
+              } catch(e) {}
+
               await sendTicketEmail({
                 to: orderData.userEmail,
                 userName: orderData.userName,
                 eventTitle: item.eventTitle,
                 ticketCode: ticketCode,
-                eventDate: new Date(item.eventDate?.seconds * 1000 || item.eventDate).toLocaleString('pt-BR'),
+                eventDate: displayDate,
                 voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher`
               });
             }
           }
 
-          // 4. Finalizar o pedido
           await updateDoc(orderRef, { status: 'paid', stripeSessionId: sessionId, updatedAt: serverTimestamp() });
           
           clearCart();

@@ -91,7 +91,7 @@ export default function AdminScannerPage() {
         setError("Ingresso não encontrado ou código inválido.");
       } else {
         const docData = snap.docs[0].data()
-        const isCancelled = docData.status === 'cancelled' || docData.paymentStatus === 'refunded_wallet';
+        const isCancelled = docData.status === 'cancelled' || docData.paymentStatus === 'refunded_wallet' || docData.status === 'Cancelado';
         
         let invalidOccurrence = false;
         if (docData.occurrenceId) {
@@ -100,6 +100,7 @@ export default function AdminScannerPage() {
               const occ = oSnap.data();
               setOccData(occ);
               const today = new Date().toISOString().split('T')[0];
+              // Bloqueio se a data do ingresso for diferente da data de hoje
               if (occ.date !== today) invalidOccurrence = true;
            }
         }
