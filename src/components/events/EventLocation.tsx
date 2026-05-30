@@ -113,9 +113,6 @@ export function EventLocation({
           state: data.uf || target.state
         };
 
-        // Geocoding reverso simplificado ou manual para o protótipo
-        // Em um sistema real, aqui chamaria Google Maps Geocoding API
-        
         if (isMultiLocation) {
           const newLocs = [...locations];
           newLocs[index] = updated as Location;
@@ -132,24 +129,39 @@ export function EventLocation({
   };
 
   const handleUpdateLocation = (index: number, field: string, value: any) => {
+    let finalValue = value;
+    
+    // Tratamento especial para coordenadas para garantir que sejam números
+    if (field === 'latitude' || field === 'longitude') {
+      if (typeof value === 'string') {
+        finalValue = value === "" ? 0 : parseFloat(value);
+        if (isNaN(finalValue)) return; // Ignora se não for um número válido durante a digitação
+      }
+    }
+
     if (isMultiLocation) {
       const newLocs = [...locations];
-      newLocs[index] = { ...newLocs[index], [field]: value };
+      newLocs[index] = { ...newLocs[index], [field]: finalValue };
       onLocationsChange?.(newLocs);
     } else {
-      onChange?.({ ...address, [field]: value });
+      onChange?.({ ...address, [field]: finalValue });
     }
   };
 
   const handleCoordsChange = (index: number, lat: number, lng: number) => {
-    handleUpdateLocation(index, 'latitude', lat);
-    handleUpdateLocation(index, 'longitude', lng);
+    // Quando o mapa retorna coordenadas (dragging), atualizamos o estado
+    if (isMultiLocation) {
+      const newLocs = [...locations];
+      newLocs[index] = { ...newLocs[index], latitude: lat, longitude: lng };
+      onLocationsChange?.(newLocs);
+    } else {
+      onChange?.({ ...address, latitude: lat, longitude: lng });
+    }
   };
 
   if (isPublic) {
     const now = new Date();
     
-    // Lógica de Localização Ativa para modo multi-local
     const sortedLocs = [...locations].sort((a, b) => a.order - b.order);
     
     const activeLoc = isMultiLocation ? sortedLocs.find(loc => {
@@ -305,11 +317,6 @@ export function EventLocation({
                       <Label className="text-[9px] font-black uppercase text-secondary">Fim neste Local</Label>
                       <Input type="datetime-local" value={currentLoc.endAt} onChange={e => handleUpdateLocation(index, 'endAt', e.target.value)} required className="h-10 rounded-lg text-xs" />
                    </div>
-                   {isL2 && locations[0]?.endAt && currentLoc.startAt && currentLoc.startAt < locations[0].endAt && (
-                     <div className="col-span-2 flex items-center gap-2 text-[8px] font-black uppercase text-red-500 animate-in fade-in">
-                        <AlertCircle className="w-3 h-3" /> Conflito de horários: Local 2 deve iniciar após o Local 1.
-                     </div>
-                   )}
                 </div>
               )}
            </div>
@@ -317,7 +324,7 @@ export function EventLocation({
            <div className="space-y-3">
               <Label className="text-[10px] font-black uppercase opacity-60 flex justify-between items-center">
                  Ajuste Fino do Marcador (Pin)
-                 <span className="text-[8px] opacity-40">Arraste o pin no mapa</span>
+                 <span className="text-[8px] opacity-40">Arraste o pin no mapa ou ajuste os valores</span>
               </Label>
               <div className="h-[280px] w-full rounded-2xl overflow-hidden border-2 border-muted relative">
                  <LocationMap 
@@ -327,14 +334,26 @@ export function EventLocation({
                     interactive={true}
                  />
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                 <div className="p-2 bg-muted/30 rounded-lg text-center">
-                    <p className="text-[8px] font-black uppercase opacity-40">Latitude</p>
-                    <p className="text-[10px] font-mono">{currentLoc.latitude?.toFixed(6)}</p>
+              <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-1">
+                    <Label className="text-[8px] font-black uppercase opacity-40">Latitude</Label>
+                    <Input 
+                      type="number" 
+                      step="any"
+                      value={currentLoc.latitude || ""} 
+                      onChange={e => handleUpdateLocation(index, 'latitude', e.target.value)}
+                      className="h-9 text-[11px] font-mono rounded-xl bg-muted/20"
+                    />
                  </div>
-                 <div className="p-2 bg-muted/30 rounded-lg text-center">
-                    <p className="text-[8px] font-black uppercase opacity-40">Longitude</p>
-                    <p className="text-[10px] font-mono">{currentLoc.longitude?.toFixed(6)}</p>
+                 <div className="space-y-1">
+                    <Label className="text-[8px] font-black uppercase opacity-40">Longitude</Label>
+                    <Input 
+                      type="number" 
+                      step="any"
+                      value={currentLoc.longitude || ""} 
+                      onChange={e => handleUpdateLocation(index, 'longitude', e.target.value)}
+                      className="h-9 text-[11px] font-mono rounded-xl bg-muted/20"
+                    />
                  </div>
               </div>
            </div>
@@ -368,7 +387,6 @@ export function EventLocation({
                                onCheckedChange={(val) => {
                                   onToggleMultiLocation?.(val);
                                   if (val && locations.length === 0) {
-                                     // Migrar endereço principal para L1 e criar L2
                                      const L1 = { ...DEFAULT_LOCATION, ...address, id: "loc_1", order: 0 };
                                      const L2 = { ...DEFAULT_LOCATION, id: "loc_2", order: 1 };
                                      onLocationsChange?.([L1, L2]);
