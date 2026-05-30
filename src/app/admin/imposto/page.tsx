@@ -205,12 +205,18 @@ function AdminImpostoContent() {
 
   const ticketStats = React.useMemo(() => {
     return filteredTickets.reduce((acc, t) => {
+      // Fallback para registros antigos sem vibyGrossProfit ou stripeFeeAmount
+      const net = t.vibyNetProfit || 0;
+      const tax = t.taxAmount || 0;
+      const stripe = t.stripeFeeAmount || 0;
+      const gross = t.vibyGrossProfit || (net + tax + stripe);
+
       acc.totalSold += (t.totalFacePrice || 0)
       acc.payouts += (t.payoutToProducer || 0)
-      acc.vibyGross += (t.vibyGrossProfit || 0)
-      acc.imposto += (t.taxAmount || 0)
-      acc.vibyNet += (t.vibyNetProfit || 0)
-      acc.stripeTotal += (t.stripeFeeAmount || 0)
+      acc.vibyGross += gross
+      acc.imposto += tax
+      acc.vibyNet += net
+      acc.stripeTotal += stripe
       acc.qty += (t.quantity || 1)
       return acc
     }, { totalSold: 0, payouts: 0, vibyGross: 0, imposto: 0, vibyNet: 0, stripeTotal: 0, qty: 0 })
@@ -219,9 +225,12 @@ function AdminImpostoContent() {
   const groupedTickets = React.useMemo(() => {
     const groups: Record<string, any> = {}
     filteredTickets.forEach(t => {
-      if (!groups[t.eventId]) {
-        groups[t.eventId] = {
-          id: t.eventId,
+      // Chave única por evento E ocorrência para separar datas de recorrência
+      const groupKey = `${t.eventId}_${t.occurrenceId || 'main'}`;
+      
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          id: groupKey,
           eventTitle: t.eventTitle,
           orgName: t.orgName,
           salesQty: 0,
@@ -231,11 +240,17 @@ function AdminImpostoContent() {
           details: []
         }
       }
-      groups[t.eventId].salesQty += (t.quantity || 1)
-      groups[t.eventId].grossViby += (t.vibyGrossProfit || 0)
-      groups[t.eventId].totalTax += (t.taxAmount || 0)
-      groups[t.eventId].netViby += (t.vibyNetProfit || 0)
-      groups[t.eventId].details.push(t)
+      
+      const net = t.vibyNetProfit || 0;
+      const tax = t.taxAmount || 0;
+      const stripe = t.stripeFeeAmount || 0;
+      const gross = t.vibyGrossProfit || (net + tax + stripe);
+
+      groups[groupKey].salesQty += (t.quantity || 1)
+      groups[groupKey].grossViby += gross
+      groups[groupKey].totalTax += tax
+      groups[groupKey].netViby += net
+      groups[groupKey].details.push(t)
     })
     return Object.values(groups)
   }, [filteredTickets])
@@ -318,8 +333,8 @@ function AdminImpostoContent() {
            <StatCard title="Total Vendido" value={formatCurrency(ticketStats.totalSold)} icon={TrendingUp} color="blue" />
            <StatCard title="Repasse Produtores" value={formatCurrency(ticketStats.payouts)} icon={ArrowDownRight} color="orange" />
            <StatCard title="Custos Stripe" value={formatCurrency(ticketStats.stripeTotal)} icon={CreditCard} color="red" />
-           <StatCard title="Lucro Bruto" value={formatCurrency(ticketStats.vibyGross)} icon={ArrowUpRight} color="secondary" />
-           <StatCard title="Lucro Líquido" value={formatCurrency(ticketStats.vibyNet)} icon={CheckCircle2} color="green" />
+           <StatCard title="Lucro Bruto Viby" value={formatCurrency(ticketStats.vibyGross)} icon={ArrowUpRight} color="secondary" />
+           <StatCard title="Lucro Líquido Viby" value={formatCurrency(ticketStats.vibyNet)} icon={CheckCircle2} color="green" />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

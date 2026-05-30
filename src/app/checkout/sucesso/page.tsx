@@ -125,7 +125,7 @@ function CheckoutSucessoContent() {
 
               const regRef = await addDoc(collection(db, "registrations"), {
                 eventId: item.eventId,
-                eventTitle: fiscalTitle, // Salvamos o título já com a data para clareza
+                eventTitle: fiscalTitle, 
                 eventImage: item.eventImage || '',
                 eventDate: item.eventDate,
                 eventCity: item.eventCity,
@@ -152,7 +152,7 @@ function CheckoutSucessoContent() {
                 timestamp: serverTimestamp()
               });
 
-              // Registro Fiscal para ERP
+              // Registro Fiscal para ERP - CAMPOS COMPLETOS
               await addDoc(collection(db, "tax_tickets"), {
                  registrationId: regRef.id,
                  eventId: item.eventId,
@@ -163,8 +163,10 @@ function CheckoutSucessoContent() {
                  buyerName: orderData.userName,
                  ticketTypeName: item.ticketTypeName,
                  totalFacePrice: item.price,
+                 vibyGrossProfit: breakdown.vibyGross,
                  vibyNetProfit: breakdown.vibyNet,
                  taxAmount: breakdown.imposto,
+                 stripeFeeAmount: breakdown.stripeFeeTotal,
                  payoutToProducer: breakdown.payoutToProducer,
                  monthKey: new Date().toISOString().slice(0, 7),
                  nfStatus: 'pendente',
