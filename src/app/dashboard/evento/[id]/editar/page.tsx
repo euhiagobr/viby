@@ -149,7 +149,7 @@ export default function EditarEventoPage() {
 
       await updateDoc(eventRef, cleanData)
       toast({ title: "Evento Atualizado!" })
-      router.push("/dashboard/organizacoes")
+      router.push(`/dashboard/organizacoes/${currentOrg.username}/events`)
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao salvar", description: error.message })
     } finally {
