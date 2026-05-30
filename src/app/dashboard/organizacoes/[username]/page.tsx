@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -24,7 +23,8 @@ import {
   ShieldCheck,
   CheckCircle2,
   Lock,
-  BadgeCheck
+  BadgeCheck,
+  Building2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
