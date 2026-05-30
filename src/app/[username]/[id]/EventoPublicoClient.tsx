@@ -4,10 +4,10 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, increment, updateDoc, collection, query, where, orderBy } from 'firebase/firestore';
-import { Loader2, ArrowLeft, Calendar, MapPin, Clock, Ticket, BadgeCheck, ShieldCheck, ArrowRight, RefreshCw } from 'lucide-react';
+import { Loader2, ArrowLeft, Calendar, MapPin, Clock, Ticket, BadgeCheck, ShieldCheck, ArrowRight, RefreshCw, Plus, AlertCircle, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
@@ -28,6 +28,7 @@ import {
   EventCoOrganizers
 } from '@/components/events';
 import { AgeRatingBadge } from '@/lib/age-rating';
+import { formatCurrency } from '@/lib/financial-utils';
 
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
   const router = useRouter()
@@ -170,7 +171,10 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                      {occurrences.slice(0, 6).map((occ: any) => (
                        <button 
                          key={occ.id} 
-                         onClick={() => setSelectedOccurrence(occ)}
+                         onClick={() => {
+                            setSelectedOccurrence(occ);
+                            document.getElementById('bilheteria')?.scrollIntoView({ behavior: 'smooth' });
+                         }}
                          className={cn(
                            "p-6 rounded-[2rem] border-2 transition-all text-left space-y-2 group",
                            selectedOccurrence?.id === occ.id 
@@ -200,42 +204,69 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                </section>
              )}
 
-             {(!event.isRecurring || selectedOccurrence) && event.type === 'interno' && (
-               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  {selectedOccurrence && (
-                    <div className="mb-6 p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 flex items-center justify-between">
-                       <div className="flex items-center gap-4">
-                          <div className="p-3 bg-secondary text-white rounded-2xl shadow-lg">
-                             <Calendar className="w-6 h-6" />
-                          </div>
-                          <div>
-                             <p className="text-[10px] font-black uppercase tracking-widest text-secondary">Data Selecionada</p>
-                             <p className="text-lg font-black text-primary uppercase italic">
-                               {new Date(selectedOccurrence.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                             </p>
-                          </div>
-                       </div>
-                       <Button variant="ghost" size="sm" className="rounded-xl font-bold uppercase text-[9px]" onClick={() => setSelectedOccurrence(null)}>Trocar Data</Button>
-                    </div>
-                  )}
-                  <BilheteriaPublic 
-                    event={{
-                      ...event,
-                      occurrenceId: selectedOccurrence?.id,
-                      title: selectedOccurrence ? `${event.title} (${new Date(selectedOccurrence.date + 'T12:00:00').toLocaleDateString('pt-BR')})` : event.title,
-                      isSoldOut: selectedOccurrence?.ingressosVendidos >= selectedOccurrence?.capacidadeMaxima
-                    }} 
-                    globalFees={globalFees} 
-                    promotions={promotions} 
-                    orgSettings={organization} 
-                  />
-               </div>
-             )}
+             <div id="bilheteria" className="scroll-mt-32 space-y-8">
+                {event.isRecurring && !selectedOccurrence && event.type === 'interno' && (
+                  <div className="p-8 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 flex flex-col items-center text-center gap-4 animate-in zoom-in-95">
+                     <Calendar className="w-10 h-10 text-secondary" />
+                     <div className="space-y-1">
+                        <h3 className="text-lg font-black uppercase italic text-primary">Escolha uma data acima</h3>
+                        <p className="text-xs font-medium text-muted-foreground max-w-xs uppercase">Para garantir seu ingresso, selecione primeiro em qual data você deseja participar.</p>
+                     </div>
+                  </div>
+                )}
+
+                {(!event.isRecurring || selectedOccurrence) && event.type === 'interno' && (
+                  <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                      {selectedOccurrence && (
+                        <div className="mb-6 p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 flex items-center justify-between">
+                           <div className="flex items-center gap-4">
+                              <div className="p-3 bg-secondary text-white rounded-2xl shadow-lg">
+                                 <Calendar className="w-6 h-6" />
+                              </div>
+                              <div>
+                                 <p className="text-[10px] font-black uppercase tracking-widest text-secondary">Data Selecionada</p>
+                                 <p className="text-lg font-black text-primary uppercase italic">
+                                   {new Date(selectedOccurrence.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                 </p>
+                              </div>
+                           </div>
+                           <Button variant="ghost" size="sm" className="rounded-xl font-bold uppercase text-[9px]" onClick={() => setSelectedOccurrence(null)}>Trocar Data</Button>
+                        </div>
+                      )}
+                      <BilheteriaPublic 
+                        event={{
+                          ...event,
+                          occurrenceId: selectedOccurrence?.id,
+                          title: selectedOccurrence ? `${event.title} (${new Date(selectedOccurrence.date + 'T12:00:00').toLocaleDateString('pt-BR')})` : event.title,
+                          isSoldOut: selectedOccurrence?.ingressosVendidos >= selectedOccurrence?.capacidadeMaxima
+                        }} 
+                        globalFees={globalFees} 
+                        promotions={promotions} 
+                        orgSettings={organization} 
+                      />
+                  </div>
+                )}
+
+                {/* Exibição informativa de lotes se recorrente mas sem data selecionada */}
+                {event.isRecurring && !selectedOccurrence && event.batches?.length > 0 && (
+                   <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 opacity-60">
+                      <div className="space-y-4">
+                         <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2"><Ticket className="w-3 h-3" /> Valores Estimados</h4>
+                         {event.batches[0].ticketTypes?.map((t: any) => (
+                           <div key={t.id} className="flex justify-between items-center py-2 border-b border-dashed last:border-none">
+                              <span className="text-xs font-bold uppercase">{t.name}</span>
+                              <span className="font-black text-sm text-primary">{formatCurrency(t.price)}</span>
+                           </div>
+                         ))}
+                      </div>
+                   </Card>
+                )}
+             </div>
 
              {!event.isRecurring && <EventDateTime startDate={event.date} endDate={event.endDate} isPublic />}
              
              <EventLocation 
-                address={event.address} 
+                address={event.address || { city: event.city, neighborhood: event.location }} 
                 locations={event.locations} 
                 isMultiLocation={event.isMultiLocation} 
                 isPublic 

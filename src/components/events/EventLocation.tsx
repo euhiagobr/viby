@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -18,7 +17,8 @@ import {
   Calendar,
   Layers,
   ArrowRight,
-  Map as MapIcon
+  Map as MapIcon,
+  X
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { LocationMap } from "./LocationMap"
@@ -95,6 +95,17 @@ export function EventLocation({
     return () => clearInterval(timer);
   }, []);
 
+  const formatFullAddress = (addr: any) => {
+    if (!addr) return "Local Confirmado";
+    const parts = [
+      addr.street ? `${addr.street}${addr.number ? `, ${addr.number}` : ''}` : null,
+      addr.neighborhood,
+      addr.city ? `${addr.city}${addr.state ? ` - ${addr.state}` : ''}` : null
+    ].filter(Boolean);
+    
+    return parts.length > 0 ? parts.join(" • ") : "Local Confirmado";
+  };
+
   const handleCepBlur = async (index: number) => {
     const target = isMultiLocation ? locations[index] : { ...address };
     const cep = target.cep?.replace(/\D/g, "");
@@ -163,13 +174,12 @@ export function EventLocation({
     const sortedLocs = [...locations].sort((a, b) => a.order - b.order);
     
     const renderLocationBlock = (loc: any, isCurrent: boolean, isNext: boolean) => {
-      const addr = isMultiLocation 
-        ? `${loc.street}, ${loc.number} - ${loc.neighborhood}, ${loc.city}` 
-        : `${address.street}, ${address.number} - ${address.neighborhood}, ${address.city}`;
+      const currentAddrObj = isMultiLocation ? loc : address;
+      const addrString = formatFullAddress(currentAddrObj);
       
-      const lat = isMultiLocation ? loc.latitude : address.latitude || -23.55052;
-      const lng = isMultiLocation ? loc.longitude : address.longitude || -46.633308;
-      const title = isMultiLocation ? (loc.title || "Ponto de Encontro") : (address.neighborhood || "Local do Evento");
+      const lat = isMultiLocation ? loc.latitude : address?.latitude || -23.55052;
+      const lng = isMultiLocation ? loc.longitude : address?.longitude || -46.633308;
+      const title = isMultiLocation ? (loc.title || "Ponto de Encontro") : (address?.neighborhood || "Local do Evento");
 
       return (
         <Card key={loc?.id || 'single'} className={cn(
@@ -202,7 +212,7 @@ export function EventLocation({
                    <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary">
                      {title}
                    </h3>
-                   <p className="text-sm font-medium text-muted-foreground leading-relaxed">{addr}</p>
+                   <p className="text-sm font-medium text-muted-foreground leading-relaxed">{addrString}</p>
                    
                    {isMultiLocation && loc.startAt && (
                      <div className="flex items-center gap-2 mt-2 text-[10px] font-black uppercase text-secondary">
@@ -213,7 +223,7 @@ export function EventLocation({
                    )}
                 </div>
                 <Button asChild variant="outline" className="rounded-xl font-black uppercase italic text-[10px] gap-2 border-secondary text-secondary hover:bg-secondary hover:text-white transition-all">
-                   <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`} target="_blank">
+                   <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addrString)}`} target="_blank">
                       <Navigation className="w-4 h-4 fill-current" /> Abrir GPS
                    </a>
                 </Button>
@@ -237,12 +247,12 @@ export function EventLocation({
         <div className="space-y-8">
            {isMultiLocation ? (
              sortedLocs.map((loc, idx) => {
-                const start = new Date(loc.startAt);
-                const end = new Date(loc.endAt);
-                const isCurrent = currentTime >= start && currentTime <= end;
-                const isNext = currentTime < start && (!sortedLocs[idx-1] || currentTime > new Date(sortedLocs[idx-1].endAt));
+                const start = loc.startAt ? new Date(loc.startAt) : null;
+                const end = loc.endAt ? new Date(loc.endAt) : null;
+                const isCurrent = start && end && currentTime >= start && currentTime <= end;
+                const isNext = start && currentTime < start && (!sortedLocs[idx-1] || (sortedLocs[idx-1].endAt && currentTime > new Date(sortedLocs[idx-1].endAt)));
                 
-                return renderLocationBlock(loc, isCurrent, isNext);
+                return renderLocationBlock(loc, !!isCurrent, !!isNext);
              })
            ) : renderLocationBlock(null, true, false)}
         </div>
