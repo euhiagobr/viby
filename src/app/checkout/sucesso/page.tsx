@@ -96,8 +96,9 @@ function CheckoutSucessoContent() {
             if (!orgId && item.occurrenceId) {
                const occSnap = await getDoc(doc(db, "recurring_occurrences", item.occurrenceId));
                if (occSnap.exists()) {
-                  orgId = occSnap.data().organizationId;
-                  orgName = occSnap.data().orgUsername || orgName;
+                  const occData = occSnap.data();
+                  orgId = occData.organizationId;
+                  orgName = occData.orgUsername || orgName;
                }
             }
 
@@ -116,7 +117,7 @@ function CheckoutSucessoContent() {
                 userId: user.uid,
                 userName: orderData.userName,
                 userEmail: orderData.userEmail,
-                organizationId: orgId, // Garantindo o vínculo financeiro
+                organizationId: orgId, 
                 ticketBasePrice: item.price,
                 price: item.financials.customerFinalPrice,
                 administrativeFeeAmount: item.financials.administrativeFeeAmount,
@@ -136,11 +137,19 @@ function CheckoutSucessoContent() {
                 timestamp: serverTimestamp()
               });
 
+              // Formatar título do registro fiscal para recorrência
+              let fiscalTitle = item.eventTitle;
+              if (item.occurrenceId) {
+                const dateStr = typeof item.eventDate === 'string' ? item.eventDate : "";
+                fiscalTitle = `${item.eventTitle} (${dateStr})`;
+              }
+
               // Registro Fiscal para ERP
               await addDoc(collection(db, "tax_tickets"), {
                  registrationId: regRef.id,
                  eventId: item.eventId,
-                 eventTitle: item.eventTitle,
+                 occurrenceId: item.occurrenceId || null,
+                 eventTitle: fiscalTitle,
                  organizationId: orgId,
                  orgName: orgName,
                  buyerName: orderData.userName,

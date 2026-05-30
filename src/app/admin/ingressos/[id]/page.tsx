@@ -23,7 +23,8 @@ import {
   Loader2,
   DollarSign,
   RotateCcw,
-  AlertTriangle
+  AlertTriangle,
+  Calendar
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -141,7 +142,7 @@ export default function AdminEventTicketingDetails() {
                 <TableHeader className="bg-muted/30">
                    <TableRow>
                       <TableHead className="p-8 font-black uppercase text-[10px]">Participante</TableHead>
-                      <TableHead className="font-black uppercase text-[10px]">Ingresso</TableHead>
+                      <TableHead className="font-black uppercase text-[10px]">Ingresso / Ocorrência</TableHead>
                       <TableHead className="font-black uppercase text-[10px] text-right">Pago (Stripe)</TableHead>
                       <TableHead className="font-black uppercase text-[10px] text-center">Status</TableHead>
                       <TableHead className="text-right font-black uppercase text-[10px] p-8">Ações</TableHead>
@@ -149,11 +150,21 @@ export default function AdminEventTicketingDetails() {
                 </TableHeader>
                 <TableBody>
                    {registrations?.filter(r => !search || r.userName?.toLowerCase().includes(search.toLowerCase()) || r.ticketCode?.includes(search.toUpperCase())).map((reg: any) => {
-                     const isCancelled = reg.status === 'cancelled' || reg.paymentStatus === 'refunded_wallet';
+                     const isCancelled = reg.status === 'cancelled' || reg.paymentStatus === 'refunded_wallet' || reg.status === 'Cancelado';
                      return (
                        <TableRow key={reg.id} className={cn("hover:bg-muted/10", isCancelled && "opacity-50 grayscale bg-red-50/5")}>
                           <TableCell className="p-8"><div className="flex flex-col"><span className="font-bold text-sm">{reg.userName}</span><span className="text-[9px] font-mono text-secondary uppercase">{reg.ticketCode}</span></div></TableCell>
-                          <TableCell><div className="flex flex-col"><span className="text-xs font-bold">{reg.ticketTypeName}</span><span className="text-[10px] text-muted-foreground uppercase">{reg.batchName}</span></div></TableCell>
+                          <TableCell>
+                             <div className="flex flex-col">
+                                <span className="text-xs font-bold">{reg.ticketTypeName}</span>
+                                {reg.occurrenceId ? (
+                                   <div className="flex items-center gap-1.5 text-[9px] font-black text-secondary uppercase mt-1">
+                                      <Calendar className="w-2.5 h-2.5" />
+                                      {typeof reg.eventDate === 'string' ? new Date(reg.eventDate + 'T12:00:00').toLocaleDateString('pt-BR') : 'Recorrente'}
+                                   </div>
+                                ) : <span className="text-[10px] text-muted-foreground uppercase">{reg.batchName}</span>}
+                             </div>
+                          </TableCell>
                           <TableCell className="text-right font-black text-sm">{formatCurrency(reg.price || 0)}</TableCell>
                           <TableCell className="text-center">
                              <Badge className={cn("uppercase text-[8px] font-black h-5 px-2", isCancelled ? "bg-red-500 text-white" : reg.checkedIn ? "bg-green-500 text-white" : "bg-blue-500 text-white")}>

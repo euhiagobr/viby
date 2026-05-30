@@ -31,7 +31,8 @@ import {
   Scale,
   Inbox,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  Calendar
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -123,11 +124,17 @@ function AdminImpostoContent() {
             (reg.timestamp.toDate ? reg.timestamp.toDate() : new Date(reg.timestamp)).toISOString().slice(0, 7) : 
             new Date().toISOString().slice(0, 7)
 
+          let fiscalTitle = reg.eventTitle || "Evento";
+          if (reg.occurrenceId && reg.eventDate) {
+             fiscalTitle = `${reg.eventTitle} (${reg.eventDate})`;
+          }
+
           const taxRef = doc(collection(db, "tax_tickets"))
           batch.set(taxRef, {
             registrationId: regDoc.id,
             eventId: reg.eventId,
-            eventTitle: reg.eventTitle || "Evento",
+            occurrenceId: reg.occurrenceId || null,
+            eventTitle: fiscalTitle,
             organizationId: reg.organizationId,
             orgName: reg.organizer?.name || "Organização",
             orgCnpj: reg.organizer?.cnpj || "---",
@@ -399,12 +406,47 @@ function AdminImpostoContent() {
                         <div className="px-8 py-6 grid grid-cols-12 gap-4 items-center hover:bg-muted/10 cursor-pointer" onClick={() => toggleEvent(group.id)}>
                            <div className="col-span-4 flex items-center gap-3">
                               <div className="p-2 bg-secondary/10 rounded-lg text-secondary">{expandedEvents.has(group.id) ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</div>
-                              <div className="flex flex-col"><span className="font-black text-sm uppercase italic text-primary">{group.eventTitle}</span><span className="text-[10px] font-bold text-muted-foreground uppercase">{group.orgName}</span></div>
+                              <div className="flex flex-col">
+                                 <span className="font-black text-sm uppercase italic text-primary">{group.eventTitle}</span>
+                                 <span className="text-[10px] font-bold text-muted-foreground uppercase">{group.orgName}</span>
+                              </div>
                            </div>
                            <div className="col-span-2 text-right"><p className="text-[9px] font-black uppercase opacity-40">Bruto Viby</p><p className="font-black text-sm text-primary">{formatCurrency(group.grossViby)}</p></div>
                            <div className="col-span-2 text-right"><p className="text-[9px] font-black uppercase opacity-40">Imposto</p><p className="font-black text-sm text-orange-600">{formatCurrency(group.totalTax)}</p></div>
                            <div className="col-span-2 text-right"><p className="text-[9px] font-black uppercase opacity-40">Líquido Viby</p><p className="font-black text-sm text-green-600">{formatCurrency(group.netViby)}</p></div>
+                           <div className="col-span-2 text-center">
+                              <Badge variant="outline" className="text-[8px] font-black uppercase px-2">{group.salesQty} vds</Badge>
+                           </div>
                         </div>
+
+                        {expandedEvents.has(group.id) && (
+                          <div className="bg-muted/20 px-8 py-6 animate-in slide-in-from-top-2 duration-300">
+                             <Table>
+                               <TableHeader>
+                                  <TableRow className="hover:bg-transparent border-none">
+                                     <TableHead className="h-8 text-[8px] font-black uppercase p-2">Comprador</TableHead>
+                                     <TableHead className="h-8 text-[8px] font-black uppercase p-2">Data Venda</TableHead>
+                                     <TableHead className="h-8 text-[8px] font-black uppercase p-2">Categoria</TableHead>
+                                     <TableHead className="h-8 text-[8px] font-black uppercase p-2 text-right">Preço Face</TableHead>
+                                     <TableHead className="h-8 text-[8px] font-black uppercase p-2 text-right">Repasse</TableHead>
+                                     <TableHead className="h-8 text-[8px] font-black uppercase p-2 text-right">Líq. Viby</TableHead>
+                                  </TableRow>
+                               </TableHeader>
+                               <TableBody>
+                                  {group.details.map((t: any) => (
+                                    <TableRow key={t.id} className="border-border/30">
+                                       <TableCell className="p-2 text-[10px] font-bold uppercase truncate max-w-[120px]">{t.buyerName}</TableCell>
+                                       <TableCell className="p-2 text-[9px] font-medium text-muted-foreground uppercase">{t.timestamp?.toDate ? t.timestamp.toDate().toLocaleDateString('pt-BR') : '---'}</TableCell>
+                                       <TableCell className="p-2 text-[9px] font-black uppercase text-secondary">{t.ticketTypeName}</TableCell>
+                                       <TableCell className="p-2 text-[10px] text-right font-medium">{formatCurrency(t.totalFacePrice)}</TableCell>
+                                       <TableCell className="p-2 text-[10px] text-right font-medium text-primary">{formatCurrency(t.payoutToProducer)}</TableCell>
+                                       <TableCell className="p-2 text-[10px] text-right font-black text-green-600">{formatCurrency(t.vibyNetProfit)}</TableCell>
+                                    </TableRow>
+                                  ))}
+                               </TableBody>
+                             </Table>
+                          </div>
+                        )}
                      </div>
                    ))}
                 </div>
