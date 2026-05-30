@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -28,7 +27,8 @@ import {
   Zap,
   Ticket,
   Terminal,
-  Building2
+  Building2,
+  RefreshCw
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -102,6 +102,7 @@ export default function AdminLayout({
   const navItems = [
     { title: 'Painel', url: '/admin', icon: LayoutDashboard },
     { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays },
+    { title: 'Recorrentes', url: '/admin/eventos-recorrentes', icon: RefreshCw },
     { title: 'Páginas', url: '/admin/paginas', icon: Building2 },
     { title: 'Usuários', url: '/admin/usuarios', icon: Users },
     { title: 'Operação Ingressos', url: '/admin/ingressos', icon: Ticket },
