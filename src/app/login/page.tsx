@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -12,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { Globe, Loader2, User, Mail, ArrowLeft, KeyRound } from "lucide-react"
+import { Globe, Loader2, User, Mail, ArrowLeft, KeyRound, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import Image from "next/image"
@@ -37,15 +36,21 @@ export default function LoginPage() {
     }
   }, [user, authLoading, router])
 
+  /**
+   * Verifica se o UID existe na coleção /users do banco eventosviby
+   * Retorna o e-mail associado para realizar o login no Auth.
+   */
   const verifyVibyUserAndGetEmail = async (uid: string) => {
     if (!db) return null
     try {
       const userDoc = await getDoc(doc(db, "users", uid))
-      if (!userDoc.exists()) return null
-      
-      // Permite o login se o documento existir. O campo platform é desejável mas não impeditivo para contas antigas.
+      if (!userDoc.exists()) {
+        console.warn(`[Login Guard] UID ${uid} not found in 'eventosviby' database.`);
+        return null
+      }
       return userDoc.data()?.email
-    } catch (e) {
+    } catch (e: any) {
+      console.error("[Login Guard Error]", e.message);
       return null
     }
   }
@@ -56,41 +61,49 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      let emailToUse = identifier.trim();
+      let emailToUse = identifier.trim().toLowerCase();
 
+      // Fluxo 1: Login via Username
       if (!identifier.includes("@")) {
-        const usernameRef = doc(db, "usernames", identifier.toLowerCase().trim().replace('@', ''))
+        const usernameClean = identifier.replace('@', '').toLowerCase().trim();
+        const usernameRef = doc(db, "usernames", usernameClean)
         const usernameSnap = await getDoc(usernameRef)
         
         if (!usernameSnap.exists()) {
-          throw new Error("Perfil não encontrado.")
+          throw new Error("Perfil não encontrado na rede Viby.")
         }
 
         const uid = usernameSnap.data().uid
         const userEmail = await verifyVibyUserAndGetEmail(uid)
         
         if (!userEmail) {
-          throw new Error("Acesso restrito: conta não localizada no banco de dados.")
+          throw new Error("Sua conta não foi localizada no banco de dados principal.")
         }
         emailToUse = userEmail
       }
 
+      // Fluxo 2: Autenticação Firebase Auth
       const userCredential = await signInWithEmailAndPassword(auth, emailToUse, password)
       
-      // Verificação final de existência do documento no banco isolado
+      // Validação Pós-Login: Garantir que o usuário autenticado tem um perfil no banco eventosviby
       const userDoc = await getDoc(doc(db, "users", userCredential.user.uid))
+      
       if (!userDoc.exists()) {
         await signOut(auth)
-        throw new Error(`Esta conta não está registrada na base de dados da ${siteName}.`)
+        throw new Error(`Acesso Negado: Esta conta está registrada no sistema global, mas não possui um perfil ativo na base de dados ${siteName}.`)
       }
 
+      // Sucesso
       toast({ title: "Bem-vindo!", description: `Acesso autorizado em ${siteName}.` })
       router.push("/dashboard")
+      
     } catch (error: any) {
+      console.error("[Login Process Failure]", error.code, error.message);
+      
       let msg = "Credenciais inválidas. Tente novamente."
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
         msg = "E-mail ou senha incorretos."
-      } else if (error.message && !error.message.includes('PRIVATE KEY')) {
+      } else if (error.message) {
         msg = error.message
       }
       
@@ -136,7 +149,7 @@ export default function LoginPage() {
               </>
             )}
           </Link>
-          <Button variant="ghost" asChild className="font-semibold">
+          <Button variant="ghost" asChild className="font-semibold text-xs uppercase tracking-widest">
             <Link href="/">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Voltar ao Início
@@ -164,7 +177,7 @@ export default function LoginPage() {
                     placeholder="E-mail ou @username" 
                     value={identifier} 
                     onChange={(e) => setIdentifier(e.target.value)} 
-                    className="pl-10 h-12 rounded-xl border-dashed border-secondary/30"
+                    className="pl-10 h-12 rounded-xl border-dashed border-secondary/30 focus-visible:ring-secondary/30"
                     required 
                   />
                   <div className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary">
@@ -185,7 +198,7 @@ export default function LoginPage() {
                      value={password} 
                      onChange={(e) => setPassword(e.target.value)} 
                      required 
-                     className="pl-10 h-12 rounded-xl border-dashed border-secondary/30"
+                     className="pl-10 h-12 rounded-xl border-dashed border-secondary/30 focus-visible:ring-secondary/30"
                    />
                 </div>
               </div>
@@ -194,13 +207,17 @@ export default function LoginPage() {
               </Button>
             </form>
           </CardContent>
-          <CardFooter className="flex justify-center border-t border-border mt-6 py-8 bg-muted/20">
+          <CardFooter className="flex flex-col items-center gap-4 border-t border-border mt-6 py-8 bg-muted/20">
             <p className="text-xs font-bold text-muted-foreground">
               Novo por aqui?{" "}
               <Link href="/cadastro" className="text-secondary font-black hover:underline uppercase italic">
                 Criar conta gratuita
               </Link>
             </p>
+            <div className="flex items-center gap-2 p-2 bg-orange-50 rounded-lg border border-orange-100">
+               <AlertTriangle className="w-3.5 h-3.5 text-orange-600" />
+               <p className="text-[8px] text-orange-800 font-bold uppercase leading-tight">Suas credenciais são validadas contra a base exclusiva do banco 'eventosviby'.</p>
+            </div>
           </CardFooter>
         </Card>
       </div>

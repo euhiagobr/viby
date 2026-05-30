@@ -1,9 +1,16 @@
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, Firestore } from "firebase/firestore";
 import { app } from "./apps";
 
 /**
  * @fileOverview Instância isomórfica do Firestore para o banco 'eventosviby'.
- * Funciona tanto no Client quanto no Server (Server Actions).
+ * Utiliza um padrão de inicialização segura para evitar múltiplas instâncias ou erros de contexto.
  */
 
-export const db = getFirestore(app, "eventosviby");
+let firestoreInstance: Firestore | null = null;
+
+export const db = (() => {
+  if (!firestoreInstance) {
+    firestoreInstance = getFirestore(app, "eventosviby");
+  }
+  return firestoreInstance;
+})();
