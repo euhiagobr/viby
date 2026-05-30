@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -42,20 +43,29 @@ export default function VoucherPage() {
   const regRef = React.useMemo(() => (db && regId) ? doc(db, "registrations", regId) : null, [db, regId])
   const { data: registration, loading: regLoading } = useDoc<any>(regRef)
 
+  /**
+   * Formatador de Data Robusto:
+   * Lida com Timestamps do Firestore, Strings ISO e Date Objects.
+   */
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
+    
     try {
       let d: Date;
-      // Caso 1: Firestore Timestamp
-      if (dateValue?.toDate) {
-        d = dateValue.toDate();
+      
+      // Caso 1: Objeto de Timestamp do Firestore (mesmo que venha como objeto plano)
+      if (typeof dateValue === 'object' && 'seconds' in dateValue) {
+        d = new Date(dateValue.seconds * 1000);
       } 
-      // Caso 2: String ISO (YYYY-MM-DD)
+      // Caso 2: String (ISO ou YYYY-MM-DD)
       else if (typeof dateValue === 'string') {
-        // Garantir que não percamos o dia por fuso horário ao criar a data
-        const cleanDate = dateValue.includes('T') ? dateValue : `${dateValue}T12:00:00`;
-        d = new Date(cleanDate);
-      }
+        // Se for apenas a data (Recorrência), força o meio do dia para evitar shift de timezone
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+          d = new Date(`${dateValue}T12:00:00`);
+        } else {
+          d = new Date(dateValue);
+        }
+      } 
       // Caso 3: Objeto Date ou Number
       else {
         d = new Date(dateValue);
@@ -64,7 +74,9 @@ export default function VoucherPage() {
       if (isNaN(d.getTime())) return "Data Inválida";
 
       return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-    } catch (e) { return "Erro na data"; }
+    } catch (e) { 
+      return "Erro na data"; 
+    }
   }
 
   const formatTime = (dateValue: any) => {
@@ -73,7 +85,12 @@ export default function VoucherPage() {
 
     if (!dateValue) return "---";
     try {
-      let d: Date = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
+      let d: Date;
+      if (typeof dateValue === 'object' && 'seconds' in dateValue) {
+        d = new Date(dateValue.seconds * 1000);
+      } else {
+        d = new Date(dateValue);
+      }
       if (isNaN(d.getTime())) return "";
       return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     } catch (e) { return ""; }

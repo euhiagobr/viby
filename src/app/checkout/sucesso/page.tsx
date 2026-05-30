@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -108,9 +109,23 @@ function CheckoutSucessoContent() {
                 item.price, 1, feesSettingsSnap.data(), stripeSettingsSnap.data(), (i === 0 && j === 0), promosSnap.data()
               );
 
+              // Formatar título do registro fiscal e data de exibição para recorrência
+              let fiscalTitle = item.eventTitle;
+              let displayDateForEmail = "Data a confirmar";
+              try {
+                if (item.occurrenceId) {
+                  const dateStr = typeof item.eventDate === 'string' ? item.eventDate : "";
+                  fiscalTitle = `${item.eventTitle} (${new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR')})`;
+                  displayDateForEmail = new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+                } else {
+                  const d = item.eventDate?.toDate ? item.eventDate.toDate() : new Date(item.eventDate);
+                  displayDateForEmail = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+                }
+              } catch(e) {}
+
               const regRef = await addDoc(collection(db, "registrations"), {
                 eventId: item.eventId,
-                eventTitle: item.eventTitle,
+                eventTitle: fiscalTitle, // Salvamos o título já com a data para clareza
                 eventImage: item.eventImage || '',
                 eventDate: item.eventDate,
                 eventCity: item.eventCity,
@@ -137,13 +152,6 @@ function CheckoutSucessoContent() {
                 timestamp: serverTimestamp()
               });
 
-              // Formatar título do registro fiscal para recorrência
-              let fiscalTitle = item.eventTitle;
-              if (item.occurrenceId) {
-                const dateStr = typeof item.eventDate === 'string' ? item.eventDate : "";
-                fiscalTitle = `${item.eventTitle} (${dateStr})`;
-              }
-
               // Registro Fiscal para ERP
               await addDoc(collection(db, "tax_tickets"), {
                  registrationId: regRef.id,
@@ -169,18 +177,12 @@ function CheckoutSucessoContent() {
                 });
               }
 
-              let displayDate = "Data a confirmar";
-              try {
-                const d = item.eventDate?.toDate ? item.eventDate.toDate() : new Date(item.eventDate);
-                displayDate = d.toLocaleString('pt-BR');
-              } catch(e) {}
-
               await sendTicketEmail({
                 to: orderData.userEmail,
                 userName: orderData.userName,
                 eventTitle: item.eventTitle,
                 ticketCode: ticketCode,
-                eventDate: displayDate,
+                eventDate: displayDateForEmail,
                 voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher`
               });
             }

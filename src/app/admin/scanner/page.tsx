@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -99,9 +100,14 @@ export default function AdminScannerPage() {
            if (oSnap.exists()) {
               const occ = oSnap.data();
               setOccData(occ);
-              const today = new Date().toISOString().split('T')[0];
+              
+              // Ajuste de fuso horário para comparação de data YYYY-MM-DD
+              const today = new Date().toLocaleDateString('en-CA'); // Retorna YYYY-MM-DD no fuso local
+              
               // Bloqueio se a data do ingresso for diferente da data de hoje
-              if (occ.date !== today) invalidOccurrence = true;
+              if (occ.date !== today) {
+                invalidOccurrence = true;
+              }
            }
         }
 
@@ -179,7 +185,7 @@ export default function AdminScannerPage() {
            {ticketData.isCancelled && (
              <Card className="border-none shadow-2xl rounded-[3rem] bg-destructive text-white p-12 text-center space-y-6">
                 <XCircle className="w-20 h-20 mx-auto opacity-40" />
-                <h2 className="text-4xl font-black uppercase italic tracking-tighter">Ingresso Cancelado</h2>
+                <h2 className="text-4xl font-black uppercase italic tracking-tighter leading-none">Ingresso Cancelado</h2>
                 <p className="font-medium opacity-80">Este ticket foi invalidado por estorno e não permite acesso.</p>
                 <Button variant="outline" onClick={resetScanner} className="border-white text-white hover:bg-white hover:text-destructive rounded-xl">Novo Scan</Button>
              </Card>
@@ -190,11 +196,11 @@ export default function AdminScannerPage() {
              <Card className="border-none shadow-2xl rounded-[3rem] bg-orange-500 text-white p-12 text-center space-y-6">
                 <ShieldAlert className="w-20 h-20 mx-auto opacity-40" />
                 <h2 className="text-4xl font-black uppercase italic tracking-tighter leading-none">DATA INCORRETA</h2>
-                <p className="font-medium opacity-90">Este ingresso é válido exclusivamente para o dia:<br/><strong className="text-2xl">{new Date(occData.date + 'T12:00:00').toLocaleDateString('pt-BR')}</strong></p>
+                <p className="font-medium opacity-90 text-sm">Este ingresso é válido exclusivamente para o dia:<br/><strong className="text-2xl">{new Date(occData.date + 'T12:00:00').toLocaleDateString('pt-BR')}</strong></p>
                 <div className="p-4 bg-black/10 rounded-2xl border border-white/20">
                    <p className="text-[10px] font-black uppercase">HOJE É: {new Date().toLocaleDateString('pt-BR')}</p>
                 </div>
-                <Button variant="outline" onClick={resetScanner} className="border-white text-white hover:bg-white hover:text-orange-500 rounded-xl">Voltar</Button>
+                <Button variant="outline" onClick={resetScanner} className="border-white text-white hover:bg-white hover:text-orange-50 rounded-xl">Voltar</Button>
              </Card>
            )}
 
