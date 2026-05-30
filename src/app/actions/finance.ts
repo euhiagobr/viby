@@ -2,14 +2,13 @@
 
 import { getAdminDb } from '@/lib/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { calculateRefundAmount, calculateRetainedGatewayFee } from '@/lib/financial-utils';
 
 /**
  * @fileOverview Server Actions para operações financeiras transacionais utilizando o Admin SDK.
+ * Implementa a devolução de inventário e estorno de saldo.
  */
 
-/**
- * Processa o estorno de um ingresso para a carteira Viby utilizando privilégios de administrador.
- */
 export async function processTicketRefund(registrationId: string, executorUid: string, reason: string) {
   try {
     const db = getAdminDb();
@@ -21,7 +20,7 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       if (!regSnap.exists) throw new Error("Registro não encontrado.");
       const regData = regSnap.data()!;
 
-      // --- VALIDAÇÃO DE SEGURANÇA NO SERVIDOR ---
+      // Validação de Segurança
       const userSnap = await transaction.get(db.collection("users").doc(executorUid));
       const isAdmin = userSnap.exists && userSnap.data()?.role === 'admin';
       
@@ -30,63 +29,75 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       );
       const isOrgManager = memberSnap.exists && ['owner', 'admin', 'editor'].includes(memberSnap.data()?.role);
 
-      if (!isAdmin && !isOrgManager) {
-        throw new Error("Acesso negado para executar estorno.");
-      }
+      if (!isAdmin && !isOrgManager) throw new Error("Acesso negado.");
+      if (regData.status === 'cancelled') throw new Error("Já estornado.");
+      if (regData.checkedIn) throw new Error("Ingresso já utilizado.");
 
-      if (regData.status === 'cancelled' || regData.paymentStatus === 'refunded_wallet') {
-        throw new Error("Este ingresso já foi estornado.");
-      }
-
-      if (regData.checkedIn) {
-        throw new Error("Ingressos já utilizados não podem ser estornados.");
-      }
-
-      const ticketBasePrice = regData.ticketBasePrice || 0;
       const userId = regData.userId;
+      const totalPaid = regData.price || 0;
+      const eventId = regData.eventId;
+      const occurrenceId = regData.occurrenceId;
 
-      if (!userId) throw new Error("Dono do ingresso não identificado.");
+      // 1. Devolução de Capacidade
+      if (occurrenceId) {
+        const occRef = db.collection("recurring_occurrences").doc(occurrenceId);
+        transaction.update(occRef, { ingressosVendidos: FieldValue.increment(-1) });
+      } else {
+        const eventRef = db.collection("events").doc(eventId);
+        transaction.update(eventRef, { ingressosVendidos: FieldValue.increment(-1) });
+      }
 
-      // 1. Atualiza Registro do Ingresso
+      // Se for gratuito
+      if (totalPaid <= 0) {
+        transaction.update(regRef, {
+          status: 'cancelled',
+          cancelledAt: FieldValue.serverTimestamp(),
+          cancelledBy: executorUid,
+          cancelReason: reason
+        });
+        return { success: true, isFree: true };
+      }
+
+      const refundAmount = calculateRefundAmount(totalPaid);
+      const retainedFee = calculateRetainedGatewayFee(totalPaid);
+
+      // 2. Atualizar Registro do Ingresso
       transaction.update(regRef, {
         status: 'cancelled',
         paymentStatus: 'refunded_wallet',
-        updatedAt: FieldValue.serverTimestamp(),
         cancelledAt: FieldValue.serverTimestamp(),
         cancelledBy: executorUid,
         cancelReason: reason,
-        refundAmount: ticketBasePrice
+        refundAmount: refundAmount,
+        retainedFee: retainedFee
       });
 
-      // 2. Atualiza Saldo da Carteira (Ledger)
+      // 3. Devolução para Carteira
       const walletRef = db.collection("wallets").doc(userId);
       transaction.set(walletRef, {
-        balance: FieldValue.increment(ticketBasePrice),
+        balance: FieldValue.increment(refundAmount),
         updatedAt: FieldValue.serverTimestamp()
       }, { merge: true });
 
-      // 3. Sincroniza walletBalance no perfil
       const userRef = db.collection("users").doc(userId);
       transaction.update(userRef, {
-        walletBalance: FieldValue.increment(ticketBasePrice),
+        walletBalance: FieldValue.increment(refundAmount),
         updatedAt: FieldValue.serverTimestamp()
       });
 
-      // 4. Registra Transação
-      const txRef = db.collection("wallet_transactions").doc();
-      transaction.set(txRef, {
-        userId,
-        amount: ticketBasePrice,
-        type: 'credit',
-        reason: 'ticket_refund',
-        description: `Estorno Aprovado: ${regData.eventTitle}`,
-        timestamp: FieldValue.serverTimestamp()
-      });
+      // 4. Registro Fiscal
+      const taxQ = await db.collection("tax_tickets").where("registrationId", "==", registrationId).limit(1).get();
+      if (!taxQ.empty) {
+        transaction.update(taxQ.docs[0].ref, {
+          status: 'cancelado',
+          updatedAt: FieldValue.serverTimestamp()
+        });
+      }
 
-      return { success: true, refundAmount: ticketBasePrice };
+      return { success: true, refundAmount };
     });
   } catch (error: any) {
-    console.error("Erro na transação de estorno:", error);
+    console.error("Erro no estorno Admin:", error);
     return { success: false, error: error.message };
   }
 }

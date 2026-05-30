@@ -6,13 +6,17 @@ import {
   runTransaction, 
   serverTimestamp, 
   collection,
-  increment 
+  increment,
+  query,
+  where,
+  getDocs,
+  limit
 } from "firebase/firestore";
 import { calculateRefundAmount, calculateRetainedGatewayFee } from "./financial-utils";
 
 /**
  * @fileOverview Serviço client-side para processamento de estornos transacionais.
- * Executa toda a lógica financeira de forma atômica no navegador do usuário autenticado.
+ * Gerencia a devolução de saldo para a carteira e retorno de capacidade para o evento.
  */
 
 export async function processTicketRefundClient(
@@ -38,8 +42,25 @@ export async function processTicketRefundClient(
 
       const userId = regData.userId;
       const totalPaid = regData.price || 0;
-      
-      // Se for gratuito, apenas cancela
+      const eventId = regData.eventId;
+      const occurrenceId = regData.occurrenceId;
+
+      // 1. Devolução de Capacidade (Inventário)
+      if (occurrenceId) {
+        const occRef = doc(db, "recurring_occurrences", occurrenceId);
+        transaction.update(occRef, { 
+          ingressosVendidos: increment(-1),
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        const eventRef = doc(db, "events", eventId);
+        transaction.update(eventRef, { 
+          ingressosVendidos: increment(-1),
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      // Se for gratuito, encerra aqui após atualizar inventário
       if (totalPaid <= 0) {
         transaction.update(regRef, {
           status: 'cancelled',
@@ -51,11 +72,11 @@ export async function processTicketRefundClient(
         return { success: true, isFree: true };
       }
 
-      // Cálculo de Devolução (Regra: Total Pago - Taxa Gateway)
+      // Cálculo de Devolução
       const refundAmount = calculateRefundAmount(totalPaid);
       const retainedFee = calculateRetainedGatewayFee(totalPaid);
 
-      // 1. Atualizar Registro do Ingresso
+      // 2. Atualizar Registro do Ingresso
       transaction.update(regRef, {
         status: 'cancelled',
         paymentStatus: 'refunded_wallet',
@@ -67,21 +88,20 @@ export async function processTicketRefundClient(
         retainedFee: retainedFee
       });
 
-      // 2. Atualizar Saldo da Carteira (Ledger isolado)
+      // 3. Devolução Financeira (Carteira)
       const walletRef = doc(db, "wallets", userId);
       transaction.set(walletRef, {
         balance: increment(refundAmount),
         updatedAt: serverTimestamp()
       }, { merge: true });
 
-      // 3. Sincronizar campo legível no perfil
       const userRef = doc(db, "users", userId);
       transaction.update(userRef, {
         walletBalance: increment(refundAmount),
         updatedAt: serverTimestamp()
       });
 
-      // 4. Registrar Transação no Ledger (wallet_transactions)
+      // 4. Registrar Transação no Ledger
       const txRef = doc(collection(db, "wallet_transactions"));
       transaction.set(txRef, {
         userId,
@@ -91,7 +111,7 @@ export async function processTicketRefundClient(
         description: `Estorno: ${regData.eventTitle}`,
         metadata: {
           registrationId,
-          eventId: regData.eventId,
+          eventId,
           totalPaid,
           gatewayFeeRetained: retainedFee,
           executorUid
@@ -106,13 +126,9 @@ export async function processTicketRefundClient(
         category: 'payout',
         userId: executorUid,
         targetId: registrationId,
-        description: `Estorno de R$ ${refundAmount.toFixed(2)} para o usuário ${userId}. Motivo: ${reason}`,
+        description: `Estorno de R$ ${refundAmount.toFixed(2)} devolvido.`,
         timestamp: serverTimestamp()
       });
-
-      // 6. Atualizar Registro Fiscal se existir
-      // Nota: Em transações client-side, buscas por query são limitadas. 
-      // O registro fiscal será conciliado posteriormente no fechamento mensal do ERP.
 
       return { success: true, refundAmount, isFree: false };
     });
