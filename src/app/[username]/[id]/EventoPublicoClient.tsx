@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, increment, updateDoc, collection, query, where, orderBy } from 'firebase/firestore';
-import { Loader2, ArrowLeft, Calendar, MapPin, Clock, Ticket, BadgeCheck, ShieldCheck, ArrowRight, RefreshCw, Plus, AlertCircle, ShoppingCart } from 'lucide-react';
+import { Loader2, ArrowLeft, Calendar, MapPin, Clock, Ticket, BadgeCheck, ShieldCheck, ArrowRight, RefreshCw, Plus, AlertCircle, ShoppingCart, CalendarX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -60,7 +60,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const { data: membership } = useCollection<any>(memberQuery);
   const isOwner = membership && membership.length > 0;
 
-  // Ocorrências se for recorrente - Removido orderBy para evitar erro de índice
+  // Ocorrências se for recorrente
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !event?.isRecurring) return null;
     return query(
@@ -69,7 +69,8 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
       where('status', '==', 'active')
     );
   }, [db, id, event?.isRecurring]);
-  const { data: rawOccurrences } = useCollection<any>(occurrencesQuery);
+  
+  const { data: rawOccurrences, loading: occLoading } = useCollection<any>(occurrencesQuery);
 
   const occurrences = React.useMemo(() => {
     if (!rawOccurrences) return [];
@@ -155,8 +156,8 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 </div>
              </div>
 
-             {/* SELETOR DE DATAS PARA EVENTOS RECORRENTES - MOVIDO PARA CIMA */}
-             {event.isRecurring && occurrences && occurrences.length > 0 && (
+             {/* SELETOR DE DATAS PARA EVENTOS RECORRENTES */}
+             {event.isRecurring && (
                <section className="space-y-6 animate-in slide-in-from-top-4 duration-500">
                   <div className="flex items-center gap-3 px-2">
                     <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
@@ -164,42 +165,59 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                     </div>
                     <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Escolha uma Data</h2>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                     {occurrences.slice(0, 6).map((occ: any) => (
-                       <button 
-                         key={occ.id} 
-                         onClick={() => {
-                            setSelectedOccurrence(occ);
-                            setTimeout(() => {
-                              document.getElementById('bilheteria')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            }, 100);
-                         }}
-                         className={cn(
-                           "p-6 rounded-[2rem] border-2 transition-all text-left space-y-2 group",
-                           selectedOccurrence?.id === occ.id 
-                             ? "border-secondary bg-secondary/5 ring-4 ring-secondary/10 shadow-xl" 
-                             : "border-border/60 bg-white hover:border-secondary/40"
-                         )}
-                       >
-                          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-secondary transition-colors">
-                            {new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long' })}
-                          </p>
-                          <p className="text-2xl font-black text-primary italic leading-none">
-                            {new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                          </p>
-                          <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground uppercase pt-1">
-                             <Clock className="w-3 h-3 text-secondary" /> {occ.startTime}
-                          </div>
-                       </button>
-                     ))}
-                     {occurrences.length > 6 && (
-                       <Button variant="ghost" asChild className="h-auto p-6 rounded-[2rem] border-2 border-dashed border-border/60 flex flex-col gap-2 uppercase font-black italic">
-                          <Link href={`/recorrente/serie/${id}`}>
-                             <Plus className="w-6 h-6 text-secondary" /> Ver Toda a Agenda
-                          </Link>
-                       </Button>
-                     )}
-                  </div>
+
+                  {occLoading ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                      {[1,2,3].map(i => <div key={i} className="h-32 bg-muted rounded-[2rem] animate-pulse" />)}
+                    </div>
+                  ) : occurrences.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                       {occurrences.slice(0, 6).map((occ: any) => (
+                         <button 
+                           key={occ.id} 
+                           onClick={() => {
+                              setSelectedOccurrence(occ);
+                              setTimeout(() => {
+                                document.getElementById('bilheteria')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              }, 100);
+                           }}
+                           className={cn(
+                             "p-6 rounded-[2rem] border-2 transition-all text-left space-y-2 group",
+                             selectedOccurrence?.id === occ.id 
+                               ? "border-secondary bg-secondary/5 ring-4 ring-secondary/10 shadow-xl" 
+                               : "border-border/60 bg-white hover:border-secondary/40"
+                           )}
+                         >
+                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-secondary transition-colors">
+                              {new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long' })}
+                            </p>
+                            <p className="text-2xl font-black text-primary italic leading-none">
+                              {new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                            </p>
+                            <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground uppercase pt-1">
+                               <Clock className="w-3 h-3 text-secondary" /> {occ.startTime}
+                            </div>
+                         </button>
+                       ))}
+                       {occurrences.length > 6 && (
+                         <Button variant="ghost" asChild className="h-auto p-6 rounded-[2rem] border-2 border-dashed border-border/60 flex flex-col gap-2 uppercase font-black italic hover:bg-muted/50">
+                            <Link href={`/recorrente/serie/${id}`}>
+                               <Plus className="w-6 h-6 text-secondary" /> Ver Toda a Agenda
+                            </Link>
+                         </Button>
+                       )}
+                    </div>
+                  ) : (
+                    <div className="p-8 bg-muted/20 rounded-[2rem] border-2 border-dashed flex flex-col items-center gap-3 text-center">
+                       <CalendarX className="w-8 h-8 text-muted-foreground opacity-30" />
+                       <p className="text-xs font-bold text-muted-foreground uppercase">Nenhuma data disponível no momento</p>
+                       {isOwner && (
+                         <Button asChild size="sm" variant="link" className="text-secondary font-black uppercase text-[10px]">
+                            <Link href={`/dashboard/evento/${id}/editar`}>Gerar Ocorrências na Agenda</Link>
+                         </Button>
+                       )}
+                    </div>
+                  )}
                </section>
              )}
 
