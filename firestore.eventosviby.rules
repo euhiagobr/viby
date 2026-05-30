@@ -27,14 +27,23 @@ service cloud.firestore {
         get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
     }
 
-    // --- REGRAS DE LOGS (ErrorManager) ---
+    // --- REGRAS DE CONFIGURAÇÃO E LOGS ---
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /system_logs/{logId} {
-      allow create: if true; // Permite que qualquer erro seja registrado
+      allow create: if true; // Permite que qualquer erro técnico seja registrado para análise
       allow read, list, update, delete: if isAdmin();
     }
 
-    // --- REGRAS PÚBLICAS (Navegação sem login) ---
+    match /sent_emails/{logId} {
+      allow create: if true;
+      allow read: if isAdmin();
+    }
 
+    // --- REGRAS DE EVENTOS E ORGANIZAÇÕES ---
     match /events/{eventId} {
       allow read: if isNotBlocked(resource.data);
       allow write: if isSignedIn() && isNotBlocked(get(/databases/eventosviby/documents/users/$(request.auth.uid)).data); 
@@ -56,7 +65,6 @@ service cloud.firestore {
       }
     }
 
-    // Novas Regras para Eventos Recorrentes
     match /recurring_events/{docId} {
       allow read: if true;
       allow write: if isSignedIn() && isNotBlocked(get(/databases/eventosviby/documents/users/$(request.auth.uid)).data);
@@ -101,13 +109,32 @@ service cloud.firestore {
       }
     }
 
-    match /follows/{followId} {
+    match /coupons/{couponId} {
       allow read: if true;
-      allow write: if isSignedIn() && (request.auth.uid == request.resource.data.followerId || request.auth.uid == resource.data.followerId);
+      allow write: if isSignedIn();
     }
 
-    // --- REGRAS PRIVADAS (Usuários e Transações) ---
+    // --- REGRAS DE NEGÓCIO: PEDIDOS E INGRESSOS ---
+    match /orders/{orderId} {
+      allow create: if isSignedIn();
+      allow read, update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
 
+    match /registrations/{regId} {
+      allow read: if true; 
+      allow create, update: if isSignedIn() && isNotBlocked(get(/databases/eventosviby/documents/users/$(request.auth.uid)).data);
+    }
+
+    match /tax_tickets/{docId} {
+      allow create: if isSignedIn();
+      allow read: if isAdmin();
+    }
+
+    match /tax_ads/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // --- REGRAS DE USUÁRIO, CARTEIRA E SOCIAL ---
     match /users/{userId} {
       allow read: if (isNotBlocked(resource.data)) || isOwner(userId) || isAdmin();
       allow create: if isSignedIn() && request.auth.uid == userId;
@@ -120,28 +147,24 @@ service cloud.firestore {
 
     match /wallets/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow write: if isAdmin();
+      allow write: if isOwner(userId) || isAdmin(); // Permitir ajuste de saldo via checkout client-side no protótipo
     }
 
     match /wallet_transactions/{txId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create, update: if isAdmin();
-    }
-
-    match /registrations/{regId} {
-      allow read: if true; 
-      allow create, update: if isSignedIn() && isNotBlocked(get(/databases/eventosviby/documents/users/$(request.auth.uid)).data);
-    }
-
-    match /orders/{orderId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create, update: if isSignedIn();
+      allow create: if isSignedIn(); // Permitir registro de transação de débito de saldo
+      allow update: if isAdmin();
     }
 
     match /notifications/{notifId} {
       allow read: if isSignedIn() && (resource.data.targetUid == request.auth.uid || isAdmin());
       allow create: if isSignedIn();
       allow update, delete: if isOwner(resource.data.targetUid) || isAdmin();
+    }
+
+    match /reports/{reportId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isAdmin();
     }
 
     match /support_tickets/{ticketId} {
@@ -156,6 +179,10 @@ service cloud.firestore {
       allow update: if isAdmin();
     }
 
+    match /internal_expenses/{docId} {
+      allow read, write: if isAdmin();
+    }
+
     match /user_gamification/{userId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -166,7 +193,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Padrão de segurança para o resto
+    match /follows/{followId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (request.auth.uid == request.resource.data.followerId || request.auth.uid == resource.data.followerId);
+    }
+
+    // Segurança padrão para coleções não especificadas
     match /{allPaths=**} {
       allow read, list: if isAdmin();
       allow write: if isAdmin();
