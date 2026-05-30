@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
 import { Loader2, ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import { normalizeText, isValidUrl } from "@/lib/utils"
+import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { 
   EventHeader, 
@@ -35,7 +35,7 @@ export default function NovoEventoPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const app = useFirebaseApp()
-  const { currentOrg, userRole } = useCurrentOrganization()
+  const { currentOrg } = useCurrentOrganization()
   const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
 
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
@@ -111,10 +111,15 @@ export default function NovoEventoPage() {
         createdAt: serverTimestamp()
       }
 
-      const docRef = await addDoc(collection(db, "events"), eventData)
+      // Limpeza de dados para evitar erros de serialização no Firestore
+      const cleanData = JSON.parse(JSON.stringify(eventData, (key, value) => 
+        value === undefined ? null : value
+      ));
+
+      const docRef = await addDoc(collection(db, "events"), cleanData)
 
       if (formData.isRecurring && formData.recurringEndDate) {
-        await generateOccurrences(db, docRef.id, {
+        await generateOccurrences(docRef.id, {
           name: formData.title,
           description: formData.description,
           organizationId: currentOrg.id,
@@ -131,7 +136,14 @@ export default function NovoEventoPage() {
       toast({ title: "Evento Publicado!" })
       router.push(`/dashboard/organizacoes/${currentOrg.username}/events`)
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro ao publicar", description: error.message })
+      console.error("[Publish Error]", error);
+      toast({ 
+        variant: "destructive", 
+        title: "Erro ao publicar", 
+        description: error.message === "Maximum call stack size exceeded" 
+          ? "Erro de processamento de dados. Tente novamente." 
+          : error.message 
+      })
     } finally {
       setLoading(false)
     }

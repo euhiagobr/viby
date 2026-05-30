@@ -111,11 +111,13 @@ export default function NovoEventoPage() {
         createdAt: serverTimestamp()
       }
 
-      const docRef = await addDoc(collection(db, "events"), eventData)
+      // Limpeza de dados
+      const cleanData = JSON.parse(JSON.stringify(eventData, (key, value) => value === undefined ? null : value));
 
-      // Se for recorrente, gerar as ocorrências agora
+      const docRef = await addDoc(collection(db, "events"), cleanData)
+
       if (formData.isRecurring && formData.recurringEndDate) {
-        await generateOccurrences(db, docRef.id, {
+        await generateOccurrences(docRef.id, {
           name: formData.title,
           description: formData.description,
           organizationId: currentOrg.id,
@@ -123,11 +125,10 @@ export default function NovoEventoPage() {
           frequency: formData.frequency as any,
           startDate: formData.startDate.split('T')[0],
           endDate: formData.recurringEndDate,
-          startTime: formData.startDate.split('T')[1],
-          endTime: formData.endDate.split('T')[1],
+          startTime: formData.startDate.split('T')[1] || "19:00",
+          endTime: formData.endDate.split('T')[1] || "22:00",
           capacidadeMaxima: totalCapacity
         });
-        toast({ title: "Agenda Recorrente Gerada!" });
       }
 
       toast({ title: "Evento Publicado!" })
