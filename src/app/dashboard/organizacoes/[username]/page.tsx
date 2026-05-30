@@ -69,7 +69,6 @@ export default function OrganizationDashboardPage() {
     if (!rawAllEvents) return { total: 0, active: 0, recent: [] };
     
     const active = rawAllEvents.filter((e: any) => e.status === 'Ativo').length;
-    // Corrigido: rawAllEvents em vez de rawAllAllEvents
     const sorted = [...rawAllEvents].sort((a, b) => {
       const tA = a.createdAt?.seconds || 0;
       const tB = b.createdAt?.seconds || 0;

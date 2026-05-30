@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -40,9 +41,9 @@ export default function LoginPage() {
     if (!db) return null
     try {
       const userDoc = await getDoc(doc(db, "users", uid))
-      if (!userDoc.exists() || userDoc.data()?.platform !== "viby") {
-        return null
-      }
+      if (!userDoc.exists()) return null
+      
+      // Permite o login se o documento existir. O campo platform é desejável mas não impeditivo para contas antigas.
       return userDoc.data()?.email
     } catch (e) {
       return null
@@ -69,17 +70,18 @@ export default function LoginPage() {
         const userEmail = await verifyVibyUserAndGetEmail(uid)
         
         if (!userEmail) {
-          throw new Error("Acesso restrito.")
+          throw new Error("Acesso restrito: conta não localizada no banco de dados.")
         }
         emailToUse = userEmail
       }
 
       const userCredential = await signInWithEmailAndPassword(auth, emailToUse, password)
       
+      // Verificação final de existência do documento no banco isolado
       const userDoc = await getDoc(doc(db, "users", userCredential.user.uid))
-      if (!userDoc.exists() || userDoc.data()?.platform !== "viby") {
+      if (!userDoc.exists()) {
         await signOut(auth)
-        throw new Error(`Esta conta não pertence à ${siteName}.`)
+        throw new Error(`Esta conta não está registrada na base de dados da ${siteName}.`)
       }
 
       toast({ title: "Bem-vindo!", description: `Acesso autorizado em ${siteName}.` })

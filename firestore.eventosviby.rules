@@ -27,6 +27,12 @@ service cloud.firestore {
         get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
     }
 
+    // --- REGRAS DE LOGS (ErrorManager) ---
+    match /system_logs/{logId} {
+      allow create: if true; // Permite que qualquer erro seja registrado
+      allow read, list, update, delete: if isAdmin();
+    }
+
     // --- REGRAS PÚBLICAS (Navegação sem login) ---
 
     match /events/{eventId} {
