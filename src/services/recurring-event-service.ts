@@ -18,7 +18,7 @@ import {
 } from 'firebase/firestore';
 
 /**
- * @fileOverview Serviço de lógica para geração de ocorrências de eventos recorrentes.
+ * @fileOverview Serviço de lógica para geração de ocorrências de eventos recorrentes com capacidade independente.
  */
 
 export type RecurrenceType = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly';
@@ -33,6 +33,7 @@ export interface RecurringEventInput {
   endDate?: string;
   startTime: string;
   endTime: string;
+  capacidadeMaxima: number;
   maxOccurrences?: number;
 }
 
@@ -59,6 +60,10 @@ export async function generateOccurrences(db: Firestore, parentId: string, input
       startTime: input.startTime,
       endTime: input.endTime,
       status: 'active',
+      // Controle de Capacidade Independente
+      capacidadeMaxima: input.capacidadeMaxima || 0,
+      ingressosVendidos: 0,
+      checkinsRealizados: 0,
       order: count,
       createdAt: serverTimestamp()
     });

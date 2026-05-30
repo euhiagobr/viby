@@ -7,8 +7,7 @@ import { doc } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Calendar, Clock, MapPin, Share2, Ticket, ArrowLeft, RefreshCw, AlertTriangle, ShieldCheck } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
+import { Loader2, Calendar, Clock, Share2, ArrowLeft, RefreshCw, AlertTriangle, XCircle, Users } from 'lucide-react';
 import Link from 'next/link';
 import Footer from '@/components/layout/Footer';
 import { BilheteriaPublic } from '@/components/events/Bilheteria/BilheteriaPublic';
@@ -38,14 +37,18 @@ export default function PublicOccurrencePage() {
     </div>
   );
 
+  const isSoldOut = occ.capacidadeMaxima > 0 && occ.ingressosVendidos >= occ.capacidadeMaxima;
+
   // Injetar dados da ocorrência nos dados do evento para o componente de bilheteria
   const eventProxy = {
     ...series,
-    id: occ.parentId, // Vinculado ao pai para regras de bilheteria
+    id: occ.parentId,
     title: `${series?.name} - ${new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR')}`,
     date: occ.date,
     occurrenceId: occ.id,
-    isRecurring: true
+    isRecurring: true,
+    // Passamos a capacidade da ocorrência para o proxy
+    isSoldOut: isSoldOut
   };
 
   return (
@@ -59,38 +62,46 @@ export default function PublicOccurrencePage() {
         </div>
 
         <section className="space-y-6">
-          <div className="flex flex-col md:flex-row gap-8 items-start">
-             <Card className="flex-1 border-none shadow-xl rounded-[3rem] overflow-hidden bg-white w-full">
-                <div className="h-48 bg-primary relative flex items-center justify-center text-white">
-                   <RefreshCw className="w-32 h-32 opacity-10 absolute animate-spin-slow" />
-                   <div className="text-center space-y-2 px-8 relative z-10">
-                      <Badge className="bg-secondary text-white font-black uppercase text-[9px] px-4 h-6">Data Selecionada</Badge>
-                      <h1 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter leading-none">{series?.name}</h1>
-                   </div>
+          <Card className="border-none shadow-xl rounded-[3rem] overflow-hidden bg-white w-full">
+            <div className="h-48 bg-primary relative flex items-center justify-center text-white">
+              <RefreshCw className="w-32 h-32 opacity-10 absolute animate-spin-slow" />
+              <div className="text-center space-y-2 px-8 relative z-10">
+                <Badge className={cn("text-white font-black uppercase text-[9px] px-4 h-6 border-none", isSoldOut ? "bg-orange-500" : "bg-secondary")}>
+                  {isSoldOut ? "Lotação Máxima Atingida" : "Inscrições Abertas"}
+                </Badge>
+                <h1 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter leading-none">{series?.name}</h1>
+              </div>
+            </div>
+            <CardContent className="p-10">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-muted rounded-2xl text-secondary"><Calendar className="w-6 h-6" /></div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase opacity-40">Data</p>
+                    <p className="font-bold text-sm leading-none mt-1">{new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                  </div>
                 </div>
-                <CardContent className="p-10 space-y-8">
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="flex items-center gap-4">
-                         <div className="p-3 bg-muted rounded-2xl text-secondary"><Calendar className="w-6 h-6" /></div>
-                         <div>
-                            <p className="text-[10px] font-black uppercase opacity-40">Data</p>
-                            <p className="font-bold text-lg leading-none mt-1">{new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
-                         </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                         <div className="p-3 bg-muted rounded-2xl text-secondary"><Clock className="w-6 h-6" /></div>
-                         <div>
-                            <p className="text-[10px] font-black uppercase opacity-40">Horário</p>
-                            <p className="font-bold text-lg leading-none mt-1">{occ.startTime} às {occ.endTime}</p>
-                         </div>
-                      </div>
-                   </div>
-                </CardContent>
-             </Card>
-          </div>
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-muted rounded-2xl text-secondary"><Clock className="w-6 h-6" /></div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase opacity-40">Horário</p>
+                    <p className="font-bold text-sm leading-none mt-1">{occ.startTime} às {occ.endTime}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-muted rounded-2xl text-secondary"><Users className="w-6 h-6" /></div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase opacity-40">Disponibilidade</p>
+                    <p className={cn("font-bold text-sm leading-none mt-1", isSoldOut ? "text-orange-500" : "text-green-600")}>
+                      {isSoldOut ? "Esgotado" : `${occ.capacidadeMaxima - (occ.ingressosVendidos || 0)} vagas`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </section>
 
-        {/* Bilheteria vinculada à ocorrência */}
         <section className="space-y-8">
            <div className="p-6 bg-orange-50 rounded-[2rem] border-2 border-dashed border-orange-200 flex items-start gap-4 animate-in zoom-in-95">
               <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
@@ -102,12 +113,27 @@ export default function PublicOccurrencePage() {
               </div>
            </div>
 
-           <BilheteriaPublic 
-             event={eventProxy} 
-             globalFees={globalFees} 
-             promotions={null} 
-             orgSettings={null} 
-           />
+           {isSoldOut ? (
+             <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-16 text-center space-y-6">
+                <div className="w-20 h-20 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mx-auto">
+                   <Users className="w-10 h-10" />
+                </div>
+                <div className="space-y-2">
+                   <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Sessão Lotada</h2>
+                   <p className="text-muted-foreground font-medium uppercase text-xs tracking-widest">A capacidade máxima para esta data foi atingida.</p>
+                </div>
+                <Button variant="outline" asChild className="rounded-xl h-12 px-8 font-black uppercase italic text-[10px] border-secondary text-secondary">
+                   <Link href={`/recorrente/serie/${occ.parentId}`}>Ver outras datas disponíveis</Link>
+                </Button>
+             </Card>
+           ) : (
+             <BilheteriaPublic 
+               event={eventProxy} 
+               globalFees={globalFees} 
+               promotions={null} 
+               orgSettings={null} 
+             />
+           )}
         </section>
       </main>
       <Footer />

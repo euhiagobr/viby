@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -21,7 +20,8 @@ import {
   MapPin,
   CheckCircle2,
   XCircle,
-  Armchair
+  Armchair,
+  Users
 } from "lucide-react"
 import { 
   Accordion,
@@ -52,12 +52,6 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
 
   const [quantities, setQuantities] = React.useState<Record<string, number>>({})
 
-  // Regras de negócio de Tipos de Bilheteria
-  // none -> sem_ingressos
-  // free -> ingresso_gratis
-  // paid_single -> ingresso_unico
-  // batches -> lote / lote_setor
-
   const handleUpdateQty = (typeId: string, val: number) => {
     setQuantities(prev => ({ ...prev, [typeId]: Math.max(0, val) }))
   }
@@ -69,11 +63,17 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
       return
     }
 
+    // Trava Global de Capacidade (Recorrente)
+    if (event.isRecurring && event.isSoldOut) {
+      toast({ variant: "destructive", title: "Data Lotada", description: "Infelizmente não há mais vagas para esta data." });
+      return;
+    }
+
     const qty = quantities[type.id] || 1
     if (qty <= 0) return
 
     addItem({
-      id: `${event.id}_${batch.id}_${type.id}`,
+      id: `${event.id}_${batch.id}_${type.id}${event.occurrenceId ? `_${event.occurrenceId}` : ''}`,
       eventId: event.id,
       eventTitle: event.title,
       eventImage: event.image || '',
@@ -88,6 +88,7 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
       batchName: batch.name,
       poolId: type.poolId || null,
       poolName: type.poolName || null,
+      occurrenceId: event.occurrenceId || null, // Vínculo obrigatório para recorrentes
       price: type.price,
       quantity: qty,
       requiresProof: type.requiresProof || false,
@@ -99,6 +100,7 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
   }
 
   const getBatchStatus = (batch: any) => {
+    if (event.isSoldOut) return 'esgotado';
     const now = new Date()
     const start = batch.startDate ? new Date(batch.startDate) : null
     const end = batch.endDate ? new Date(batch.endDate) : null
@@ -107,7 +109,6 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
     const isEnded = end && now > end
     const isActive = (!start || now >= start) && (!end || now <= end)
     
-    // Verificação simplificada de esgotado (no protótipo baseada no campo quantity do ticket)
     const isSoldOut = batch.ticketTypes.every((t: any) => t.quantity <= 0)
 
     if (isSoldOut) return 'esgotado'
@@ -117,6 +118,7 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
   }
 
   const getStatusText = (status: string, batch: any) => {
+    if (status === 'esgotado' && event.isRecurring) return "Capacidade Máxima Atingida";
     const start = batch.startDate ? new Date(batch.startDate) : null
     const end = batch.endDate ? new Date(batch.endDate) : null
 
@@ -141,10 +143,8 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
     })
   }, [event.batches])
 
-  // Lote ativo para auto-abertura
   const activeBatchId = sortedBatches.find(b => getBatchStatus(b) === 'ativo')?.id
 
-  // Renderização para Ingresso Único ou Grátis (Sem Acordeon)
   const renderSingleTicket = (batch: any) => {
     const status = getBatchStatus(batch)
     const canBuy = status === 'ativo'
@@ -212,6 +212,13 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
          <h2 className="text-4xl font-black italic uppercase tracking-tighter text-primary">Bilheteria</h2>
          <p className="text-muted-foreground font-medium">Escolha seu acesso e garanta seu lugar.</p>
       </div>
+
+      {event.isSoldOut && (
+         <div className="p-6 bg-red-50 rounded-[2.5rem] border-2 border-dashed border-red-200 flex items-center justify-center gap-4 animate-in zoom-in-95">
+            <Users className="w-8 h-8 text-red-600 animate-bounce" />
+            <p className="text-sm font-black uppercase italic text-red-800 tracking-tight">Capacidade Máxima atingida para esta data!</p>
+         </div>
+      )}
 
       {(event.ticketMode === 'batches') ? (
         <Accordion type="multiple" defaultValue={activeBatchId ? [activeBatchId] : []} className="space-y-4">

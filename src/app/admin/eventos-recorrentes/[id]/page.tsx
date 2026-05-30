@@ -14,20 +14,22 @@ import {
   Calendar, 
   Clock, 
   Edit, 
-  Settings2, 
   BarChart3, 
   Users, 
-  Ticket, 
   DollarSign,
+  Inbox,
+  ArrowRight,
+  XCircle,
+  Eye,
   TrendingUp,
-  Inbox
+  Target
 } from 'lucide-react';
 import Link from 'next/link';
-import { RecurringOccurrenceList } from '@/components/recurring-events/RecurringOccurrenceList';
 import { toast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/lib/financial-utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { Progress } from "@/components/ui/progress";
 
 export default function RecurringEventDetailPage() {
   const params = useParams();
@@ -95,8 +97,9 @@ export default function RecurringEventDetailPage() {
         acc.sold += o.sold;
         acc.revenue += o.revenue;
         acc.checkins += o.checkins;
+        acc.capacity += (o.capacidadeMaxima || 0);
         return acc;
-     }, { sold: 0, revenue: 0, checkins: 0 });
+     }, { sold: 0, revenue: 0, checkins: 0, capacity: 0 });
   }, [occWithStats]);
 
   if (seriesLoading) return <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>;
@@ -124,7 +127,10 @@ export default function RecurringEventDetailPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
          <Card className="border-none shadow-sm bg-white">
             <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-40">Ingressos Vendidos</CardTitle></CardHeader>
-            <CardContent><div className="text-3xl font-black">{seriesStats.sold}</div></CardContent>
+            <CardContent>
+               <div className="text-3xl font-black">{seriesStats.sold}</div>
+               <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">De {seriesStats.capacity} vagas totais</p>
+            </CardContent>
          </Card>
          <Card className="border-none shadow-sm bg-white">
             <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-40">Receita Bruta</CardTitle></CardHeader>
@@ -135,8 +141,10 @@ export default function RecurringEventDetailPage() {
             <CardContent><div className="text-3xl font-black text-secondary">{seriesStats.checkins}</div></CardContent>
          </Card>
          <Card className="border-none shadow-sm bg-white">
-            <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-40">Taxa de Conversão</CardTitle></CardHeader>
-            <CardContent><div className="text-3xl font-black text-primary">{seriesStats.sold > 0 ? Math.round((seriesStats.checkins / seriesStats.sold) * 100) : 0}%</div></CardContent>
+            <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-40">Ocupação Média</CardTitle></CardHeader>
+            <CardContent>
+               <div className="text-3xl font-black text-primary">{seriesStats.capacity > 0 ? Math.round((seriesStats.sold / seriesStats.capacity) * 100) : 0}%</div>
+            </CardContent>
          </Card>
       </div>
 
@@ -154,37 +162,51 @@ export default function RecurringEventDetailPage() {
                   <TableRow>
                      <TableHead className="font-black uppercase text-[9px] p-6">Data</TableHead>
                      <TableHead className="font-black uppercase text-[9px] text-center">Status</TableHead>
-                     <TableHead className="font-black uppercase text-[9px] text-center">Vendidos</TableHead>
-                     <TableHead className="font-black uppercase text-[9px] text-center">Check-in</TableHead>
+                     <TableHead className="font-black uppercase text-[9px] text-center">Vendas / Cap.</TableHead>
+                     <TableHead className="font-black uppercase text-[9px] text-center">Ocupação</TableHead>
                      <TableHead className="font-black uppercase text-[9px] text-right">Faturamento</TableHead>
                      <TableHead className="text-right font-black uppercase text-[9px] p-6">Ações</TableHead>
                   </TableRow>
                </TableHeader>
                <TableBody>
-                  {occWithStats.map((occ) => (
-                    <TableRow key={occ.id} className={cn("hover:bg-muted/5 transition-colors", occ.status === 'cancelled' && "opacity-50 grayscale")}>
-                       <TableCell className="p-6">
-                          <div className="flex items-center gap-3">
-                             <Calendar className="w-4 h-4 text-secondary" />
-                             <span className="font-bold text-sm">{new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</span>
-                          </div>
-                       </TableCell>
-                       <TableCell className="text-center">
-                          <Badge className={cn("text-[8px] font-black uppercase", occ.status === 'active' ? "bg-green-500" : "bg-red-500")}>{occ.status}</Badge>
-                       </TableCell>
-                       <TableCell className="text-center font-bold text-xs">{occ.sold}</TableCell>
-                       <TableCell className="text-center font-bold text-xs text-secondary">{occ.checkins}</TableCell>
-                       <TableCell className="text-right font-black text-xs text-primary">{formatCurrency(occ.revenue)}</TableCell>
-                       <TableCell className="p-6 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                             <Button variant="ghost" size="icon" asChild className="h-8 w-8 text-secondary"><Link href={`/recorrente/${occ.id}`} target="_blank"><Eye className="w-4 h-4" /></Link></Button>
-                             {occ.status === 'active' && (
-                               <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleCancelOccurrence(occ.id)} disabled={actionLoadingId === occ.id}><XCircle className="w-4 h-4" /></Button>
-                             )}
-                          </div>
-                       </TableCell>
-                    </TableRow>
-                  ))}
+                  {occWithStats.map((occ) => {
+                    const occupancy = occ.capacidadeMaxima > 0 ? Math.round((occ.sold / occ.capacidadeMaxima) * 100) : 0;
+                    return (
+                      <TableRow key={occ.id} className={cn("hover:bg-muted/5 transition-colors", occ.status === 'cancelled' && "opacity-50 grayscale")}>
+                         <TableCell className="p-6">
+                            <div className="flex items-center gap-3">
+                               <Calendar className="w-4 h-4 text-secondary" />
+                               <span className="font-bold text-sm">{new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</span>
+                            </div>
+                         </TableCell>
+                         <TableCell className="text-center">
+                            <Badge className={cn("text-[8px] font-black uppercase", occ.status === 'active' ? (occupancy >= 100 ? "bg-orange-500" : "bg-green-500") : "bg-red-500")}>
+                               {occ.status === 'active' ? (occupancy >= 100 ? "Lotado" : "Confirmada") : "Cancelada"}
+                            </Badge>
+                         </TableCell>
+                         <TableCell className="text-center">
+                            <div className="flex flex-col">
+                               <span className="font-bold text-xs">{occ.sold} <span className="opacity-40">/ {occ.capacidadeMaxima}</span></span>
+                            </div>
+                         </TableCell>
+                         <TableCell className="text-center">
+                            <div className="flex flex-col gap-1 px-4 min-w-[100px]">
+                               <Progress value={occupancy} className="h-1.5" />
+                               <span className="text-[9px] font-black">{occupancy}%</span>
+                            </div>
+                         </TableCell>
+                         <TableCell className="text-right font-black text-xs text-primary">{formatCurrency(occ.revenue)}</TableCell>
+                         <TableCell className="p-6 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                               <Button variant="ghost" size="icon" asChild className="h-8 w-8 text-secondary"><Link href={`/recorrente/${occ.id}`} target="_blank"><Eye className="w-4 h-4" /></Link></Button>
+                               {occ.status === 'active' && (
+                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleCancelOccurrence(occ.id)} disabled={actionLoadingId === occ.id}><XCircle className="w-4 h-4" /></Button>
+                               )}
+                            </div>
+                         </TableCell>
+                      </TableRow>
+                    );
+                  })}
                </TableBody>
             </Table>
             {occWithStats.length === 0 && !statsLoading && (

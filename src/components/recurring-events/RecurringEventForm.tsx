@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, Clock, RefreshCw, Save, Loader2 } from 'lucide-react';
+import { Calendar, Clock, RefreshCw, Save, Loader2, Users } from 'lucide-react';
 
 interface RecurringEventFormProps {
   initialData?: any;
@@ -24,6 +24,7 @@ export function RecurringEventForm({ initialData, onSubmit, loading }: Recurring
     endDate: initialData?.endDate || "",
     startTime: initialData?.startTime || "19:00",
     endTime: initialData?.endTime || "22:00",
+    capacidadeMaxima: initialData?.capacidadeMaxima || 100,
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -124,6 +125,22 @@ export function RecurringEventForm({ initialData, onSubmit, loading }: Recurring
                 required
                 className="h-11 rounded-xl"
               />
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-dashed">
+            <div className="space-y-2 max-w-xs">
+              <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
+                <Users className="w-3.5 h-3.5 text-secondary" /> Capacidade por Ocorrência
+              </Label>
+              <Input 
+                type="number"
+                value={formData.capacidadeMaxima}
+                onChange={e => setFormData({...formData, capacidadeMaxima: parseInt(e.target.value) || 0})}
+                required
+                className="h-11 rounded-xl font-black text-lg"
+              />
+              <p className="text-[8px] font-black uppercase text-muted-foreground">Cada data da série nascerá com este limite de vagas.</p>
             </div>
           </div>
         </CardContent>
