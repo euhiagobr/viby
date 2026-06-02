@@ -28,7 +28,8 @@ import {
   ShieldCheck, 
   EyeOff,
   Fingerprint,
-  AlertTriangle
+  AlertTriangle,
+  Camera
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -125,6 +126,9 @@ export default function EditarPerfilPage() {
             setFormData((prev: any) => ({ ...prev, cpf: "" }));
             setHasOriginalCPF(false);
           }
+        }).catch(() => {
+          setFormData((prev: any) => ({ ...prev, cpf: "" }));
+          setHasOriginalCPF(false);
         }).finally(() => setIsFetchingCPF(false));
       } else {
         setHasOriginalCPF(true);
@@ -138,11 +142,15 @@ export default function EditarPerfilPage() {
 
     setUploadProgress(0)
     try {
-      const storageRef = ref(storage, `profiles/${user.uid}/avatar_${Date.now()}`)
+      // Ajustado para o caminho correto permitido nas regras (users/{uid}/...)
+      const storageRef = ref(storage, `users/${user.uid}/avatar_${Date.now()}`)
       const uploadTask = uploadBytesResumable(storageRef, file)
       uploadTask.on('state_changed', 
         (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-        () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
+        (error) => { 
+          setUploadProgress(null); 
+          toast({ variant: "destructive", title: "Erro no upload", description: "Verifique o formato da imagem." }); 
+        },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
           setFormData((prev: any) => ({ ...prev, avatar: downloadURL }))
@@ -218,7 +226,7 @@ export default function EditarPerfilPage() {
                   <AvatarFallback className="text-4xl font-black bg-muted">{formData.name?.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <label htmlFor="avatar-upload" className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-[3rem] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-inner">
-                   <Upload className="w-8 h-8" />
+                   <Camera className="w-8 h-8" />
                 </label>
                 <input id="avatar-upload" type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
               </div>

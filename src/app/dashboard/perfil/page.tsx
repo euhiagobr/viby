@@ -20,13 +20,14 @@ export default function PerfilPage() {
   const { user, loading: authLoading } = useUser(auth)
   const db = useFirestore()
 
-  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
-  const { data: profile, loading: profileLoading } = useDoc<any>(userDocRef)
-
+  // Todos os hooks de estado e memo no topo, antes de qualquer retorno condicional
   const [fullCPF, setFullCPF] = React.useState<string | null>(null);
   const [showCPF, setShowCPF] = React.useState(false);
   const [loadingCPF, setLoadingCPF] = React.useState(false);
   const [cpfError, setCpfError] = React.useState(false);
+
+  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
+  const { data: profile, loading: profileLoading } = useDoc<any>(userDocRef)
 
   React.useEffect(() => {
     if (user) {
@@ -67,6 +68,7 @@ export default function PerfilPage() {
     }
   };
 
+  // Retornos de carregamento e erro ocorrem após a execução de todos os hooks
   if (authLoading || profileLoading) {
     return (
       <div className="flex justify-center items-center h-[60vh]">
