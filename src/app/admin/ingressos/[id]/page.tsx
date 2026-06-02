@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -8,11 +9,6 @@ import {
   collection, 
   query, 
   where, 
-  orderBy, 
-  updateDoc, 
-  serverTimestamp, 
-  getDocs,
-  limit
 } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { 
@@ -23,14 +19,12 @@ import {
   Loader2,
   DollarSign,
   RotateCcw,
-  AlertTriangle,
   Calendar
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { toast } from '@/hooks/use-toast';
-import { formatCurrency, calculateRefundAmount } from '@/lib/financial-utils';
+import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
 import { 
   Table, 
@@ -40,17 +34,7 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { processTicketRefundClient } from '@/lib/finance-service';
+import { RefundDialog } from '@/components/tickets/RefundDialog';
 
 export default function AdminEventTicketingDetails() {
   const params = useParams();
@@ -72,13 +56,12 @@ export default function AdminEventTicketingDetails() {
 
   const [search, setSearch] = React.useState("");
   const [ticketToRefund, setTicketToRefund] = React.useState<any>(null);
-  const [isProcessing, setIsProcessing] = React.useState(false);
 
   const stats = React.useMemo(() => {
-    if (!registrations) return { sold: 0, checkedIn: 0, revenue: 0, cancelled: 0 };
+    if (!registrations) return { sold: 0, checkedIn: 0, revenue: 0, refunded: 0 };
     return registrations.reduce((acc: any, r: any) => {
-      if (r.status === 'cancelled' || r.paymentStatus === 'refunded_wallet') {
-        acc.cancelled++;
+      if (r.status === 'refunded' || r.paymentStatus === 'Estornado') {
+        acc.refunded++;
         return acc;
       }
       if (['Pago', 'Disponível'].includes(r.paymentStatus)) {
@@ -87,26 +70,8 @@ export default function AdminEventTicketingDetails() {
         if (r.checkedIn) acc.checkedIn++;
       }
       return acc;
-    }, { sold: 0, checkedIn: 0, revenue: 0, cancelled: 0 });
+    }, { sold: 0, checkedIn: 0, revenue: 0, refunded: 0 });
   }, [registrations]);
-
-  const handleRefund = async () => {
-    if (!db || !ticketToRefund || !user) return;
-    setIsProcessing(true);
-    try {
-      const result = await processTicketRefundClient(db, ticketToRefund.id, user.uid, "Estorno administrativo forçado via painel global.");
-      if (result.success) {
-        toast({ title: "Estorno Concluído!", description: result.isFree ? "Reserva gratuita cancelada." : `R$ ${result.refundAmount?.toFixed(2)} creditados na carteira.` });
-        setTicketToRefund(null);
-      } else {
-        toast({ variant: "destructive", title: "Erro no estorno", description: result.error });
-      }
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Falha na transação" });
-    } finally {
-      setIsProcessing(false);
-    }
-  }
 
   if (eventLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>;
 
@@ -125,7 +90,7 @@ export default function AdminEventTicketingDetails() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
          <KPICard title="Ingressos Ativos" value={stats.sold} icon={Ticket} color="blue" />
          <KPICard title="Check-ins" value={stats.checkedIn} icon={ShieldCheck} color="green" />
-         <KPICard title="Estornos/Canc." value={stats.cancelled} icon={RotateCcw} color="red" />
+         <KPICard title="Estornados" value={stats.refunded} icon={RotateCcw} color="red" />
          <KPICard title="Arrecadação Bruta" value={formatCurrency(stats.revenue)} icon={DollarSign} color="secondary" />
       </div>
 
@@ -150,9 +115,9 @@ export default function AdminEventTicketingDetails() {
                 </TableHeader>
                 <TableBody>
                    {registrations?.filter(r => !search || r.userName?.toLowerCase().includes(search.toLowerCase()) || r.ticketCode?.includes(search.toUpperCase())).map((reg: any) => {
-                     const isCancelled = reg.status === 'cancelled' || reg.paymentStatus === 'refunded_wallet' || reg.status === 'Cancelado';
+                     const isRefunded = reg.status === 'refunded' || reg.paymentStatus === 'Estornado';
                      return (
-                       <TableRow key={reg.id} className={cn("hover:bg-muted/10", isCancelled && "opacity-50 grayscale bg-red-50/5")}>
+                       <TableRow key={reg.id} className={cn("hover:bg-muted/10", isRefunded && "opacity-50 grayscale bg-red-50/5")}>
                           <TableCell className="p-8"><div className="flex flex-col"><span className="font-bold text-sm">{reg.userName}</span><span className="text-[9px] font-mono text-secondary uppercase">{reg.ticketCode}</span></div></TableCell>
                           <TableCell>
                              <div className="flex flex-col">
@@ -167,12 +132,12 @@ export default function AdminEventTicketingDetails() {
                           </TableCell>
                           <TableCell className="text-right font-black text-sm">{formatCurrency(reg.price || 0)}</TableCell>
                           <TableCell className="text-center">
-                             <Badge className={cn("uppercase text-[8px] font-black h-5 px-2", isCancelled ? "bg-red-500 text-white" : reg.checkedIn ? "bg-green-500 text-white" : "bg-blue-500 text-white")}>
-                               {isCancelled ? 'Estornado' : reg.checkedIn ? 'Validado' : 'Disponível'}
+                             <Badge className={cn("uppercase text-[8px] font-black h-5 px-2", isRefunded ? "bg-red-500 text-white" : reg.checkedIn ? "bg-green-500 text-white" : "bg-blue-500 text-white")}>
+                               {isRefunded ? 'Estornado' : reg.checkedIn ? 'Validado' : 'Disponível'}
                              </Badge>
                           </TableCell>
                           <TableCell className="p-8 text-right">
-                             {!isCancelled && !reg.checkedIn && (
+                             {!isRefunded && !reg.checkedIn && (
                                <Button variant="ghost" size="icon" onClick={() => setTicketToRefund(reg)} className="text-destructive"><RotateCcw className="w-4 h-4" /></Button>
                              )}
                           </TableCell>
@@ -185,23 +150,13 @@ export default function AdminEventTicketingDetails() {
         </CardContent>
       </Card>
 
-      <AlertDialog open={!!ticketToRefund} onOpenChange={(o) => !o && setTicketToRefund(null)}>
-        <AlertDialogContent className="rounded-[2.5rem]">
-          <AlertDialogHeader>
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-2 text-red-600"><AlertTriangle className="w-6 h-6" /></div>
-            <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter text-center">Confirmar Estorno Administrativo?</AlertDialogTitle>
-            <AlertDialogDescription className="text-center font-medium">
-              O ingresso será invalidado e <strong>{formatCurrency(calculateRefundAmount(ticketToRefund?.price || 0))}</strong> voltará para a carteira do usuário. 
-              <br/><br/>
-              <span className="text-xs font-bold text-red-600 uppercase">Taxas financeiras operacionais não são reembolsáveis.</span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRefund} disabled={isProcessing} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] px-8">Confirmar e Devolver Saldo</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <RefundDialog 
+        registration={ticketToRefund}
+        isOpen={!!ticketToRefund}
+        onOpenChange={(open) => !open && setTicketToRefund(null)}
+        userRole="admin"
+        executorUid={user?.uid || ''}
+      />
     </div>
   );
 }

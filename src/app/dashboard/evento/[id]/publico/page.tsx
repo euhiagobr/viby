@@ -11,8 +11,6 @@ import {
   where, 
   updateDoc, 
   serverTimestamp, 
-  getDocs, 
-  limit
 } from "firebase/firestore"
 import { 
   Table, 
@@ -25,42 +23,25 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { 
   Users, 
   ArrowLeft, 
   Loader2, 
   Search, 
-  CheckCircle2, 
-  Ticket, 
-  Clock, 
-  AlertTriangle, 
   ScanQrCode, 
   RotateCcw,
-  XCircle,
-  ShieldCheck,
-  Check,
+  Clock,
   UserCheck
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/financial-utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
-import { processTicketRefund } from "@/app/actions/finance"
 import { processGamificationEvent } from "@/lib/gamification-service"
+import { RefundDialog } from "@/components/tickets/RefundDialog"
 
 export default function EventoPublicoPage() {
   const params = useParams()
@@ -87,11 +68,10 @@ export default function EventoPublicoPage() {
   const [search, setSearch] = React.useState("")
   const [activeTab, setActiveTab] = React.useState("all")
   const [ticketToRefund, setTicketToRefund] = React.useState<any>(null)
-  const [isRefunding, setIsRefunding] = React.useState(false)
   const [isActionLoading, setIsActionLoading] = React.useState<string | null>(null)
 
   const stats = React.useMemo(() => {
-    const total = registrations?.filter((r: any) => r.status !== 'cancelled' && r.paymentStatus !== 'refunded_wallet').length || 0;
+    const total = registrations?.filter((r: any) => r.status !== 'refunded' && r.status !== 'cancelled').length || 0;
     const present = registrations?.filter((r: any) => r.checkedIn).length || 0;
     const pendingRefunds = registrations?.filter((r: any) => r.refundStatus === 'requested').length || 0;
     return { total, present, pendingRefunds };
@@ -130,12 +110,9 @@ export default function EventoPublicoPage() {
         status: "Utilizado"
       })
 
-      // Gatilho Gamificação
       await processGamificationEvent(db, reg.userId, 'on_checkin', {
         eventId: reg.eventId,
         eventTitle: reg.eventTitle,
-        categoryName: reg.categoryName,
-        city: reg.eventCity,
         orgName: reg.organizer?.name
       }, reg.id);
 
@@ -144,24 +121,6 @@ export default function EventoPublicoPage() {
       toast({ variant: "destructive", title: "Erro no check-in" })
     } finally {
       setIsActionLoading(null)
-    }
-  }
-
-  const handleApproveRefund = async () => {
-    if (!db || !ticketToRefund || !currentUser) return;
-    setIsRefunding(true);
-    try {
-      const result = await processTicketRefund(ticketToRefund.id, currentUser.uid, "Estorno aprovado pelo organizador.");
-      if (result.success) {
-        toast({ title: "Estorno Concluído!", description: result.isFree ? "Reserva gratuita cancelada." : `R$ ${result.refundAmount?.toFixed(2)} devolvidos ao usuário.` });
-        setTicketToRefund(null);
-      } else {
-        toast({ variant: "destructive", title: "Erro", description: result.error });
-      }
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro de comunicação" });
-    } finally {
-      setIsRefunding(false);
     }
   }
 
@@ -232,14 +191,14 @@ export default function EventoPublicoPage() {
                 <TableRow><TableCell colSpan={5} className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-secondary" /></TableCell></TableRow>
               ) : filteredRegistrations.length > 0 ? (
                 filteredRegistrations.map((reg) => {
-                  const isCanceled = reg.status === 'cancelled' || reg.paymentStatus === 'refunded_wallet';
+                  const isRefunded = reg.status === 'refunded' || reg.paymentStatus === 'Estornado';
                   const isRequest = reg.refundStatus === 'requested';
                   
                   return (
-                    <TableRow key={reg.id} className={cn("hover:bg-muted/10 transition-colors", reg.checkedIn && "bg-green-50/20", isCanceled && "opacity-50 grayscale")}>
+                    <TableRow key={reg.id} className={cn("hover:bg-muted/10 transition-colors", reg.checkedIn && "bg-green-50/20", isRefunded && "opacity-50 grayscale")}>
                       <TableCell className="px-8">
                         <div className="flex flex-col">
-                          <span className={cn("font-bold text-sm", isCanceled && "line-through")}>{reg.userName}</span>
+                          <span className={cn("font-bold text-sm", isRefunded && "line-through")}>{reg.userName}</span>
                           <span className="text-[9px] font-mono text-secondary uppercase">{reg.ticketCode}</span>
                         </div>
                       </TableCell>
@@ -256,13 +215,13 @@ export default function EventoPublicoPage() {
                           </div>
                         ) : isRequest ? (
                           <div className="flex items-center gap-1.5 text-[9px] font-black uppercase text-orange-600 animate-pulse">
-                            <AlertTriangle className="w-3 h-3" /> Estorno Solicitado
+                            <AlertCircle className="w-3 h-3" /> Estorno Solicitado
                           </div>
-                        ) : <span className="text-[10px] font-bold opacity-30 uppercase">{isCanceled ? 'ESTORNADO' : 'AGUARDANDO'}</span>}
+                        ) : <span className="text-[10px] font-bold opacity-30 uppercase">{isRefunded ? 'ESTORNADO' : 'AGUARDANDO'}</span>}
                       </TableCell>
                       <TableCell className="text-right font-black text-xs">{formatCurrency(reg.producerNetAmount || 0)}</TableCell>
                       <TableCell className="px-8 text-right">
-                        {!isCanceled && (
+                        {!isRefunded && (
                           <div className="flex items-center justify-end gap-2">
                              {!reg.checkedIn && !isRequest && canAction && (
                                <Button size="sm" variant="outline" className="h-8 rounded-lg text-[9px] font-black uppercase gap-1.5 border-secondary text-secondary hover:bg-secondary/5" onClick={() => handleManualCheckIn(reg)} disabled={isActionLoading === reg.id}>
@@ -270,13 +229,8 @@ export default function EventoPublicoPage() {
                                   Check-in
                                </Button>
                              )}
-                             {isRequest && canRefund && (
-                               <Button size="sm" className="bg-orange-500 text-white font-black text-[9px] uppercase h-8 rounded-lg gap-1.5 shadow-lg shadow-orange-200" onClick={() => setTicketToRefund(reg)}>
-                                  <Check className="w-3 h-3" /> Aprovar Estorno
-                               </Button>
-                             )}
-                             {!reg.checkedIn && !isRequest && canRefund && (
-                               <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/30 hover:text-destructive hover:bg-red-50" onClick={() => setTicketToRefund(reg)} title="Estornar Manualmente">
+                             {canRefund && !reg.checkedIn && (
+                               <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/30 hover:text-destructive hover:bg-red-50" onClick={() => setTicketToRefund(reg)} title="Estornar Ingresso">
                                   <RotateCcw className="w-4 h-4" />
                                </Button>
                              )}
@@ -294,31 +248,13 @@ export default function EventoPublicoPage() {
         </CardContent>
       </Card>
 
-      {/* MODAL DE APROVAÇÃO DE ESTORNO */}
-      <AlertDialog open={!!ticketToRefund} onOpenChange={(o) => !o && setTicketToRefund(null)}>
-        <AlertDialogContent className="rounded-[2.5rem]">
-          <AlertDialogHeader>
-            <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mb-4 text-orange-600 mx-auto">
-               <ShieldCheck className="w-6 h-6" />
-            </div>
-            <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter text-center">
-               {ticketToRefund?.refundStatus === 'requested' ? "Aprovar Solicitação de Estorno?" : "Confirmar Estorno Manual?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-center font-medium">
-               O ingresso de <strong>{ticketToRefund?.userName}</strong> será invalidado permanentemente. 
-               O valor líquido de <strong>{formatCurrency(ticketToRefund?.ticketBasePrice || 0)}</strong> será devolvido à carteira dele.
-               <br/><br/>
-               <span className="text-xs font-bold uppercase text-destructive italic">As taxas de serviço e gateway não são reembolsáveis.</span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2 pt-4">
-            <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleApproveRefund} disabled={isRefunding} className="bg-orange-600 text-white rounded-xl font-black uppercase text-[10px] px-8">
-              {isRefunding ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Confirmar e Devolver Valor"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <RefundDialog 
+        registration={ticketToRefund}
+        isOpen={!!ticketToRefund}
+        onOpenChange={(open) => !open && setTicketToRefund(null)}
+        userRole="organizer"
+        executorUid={currentUser?.uid || ''}
+      />
     </div>
   )
 }
