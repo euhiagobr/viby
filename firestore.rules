@@ -8,12 +8,8 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // Verifica se o usuário autenticado é um Administrador Global (Viby Team)
-    // Implementação robusta que previne erros de referência nula
+    // Verifica se o usuário autenticado é um Administrador Global
+    // Esta função é a chave para o acesso ao painel /admin/
     function isAdmin() {
       return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
@@ -21,12 +17,11 @@ service cloud.firestore {
     }
 
     // Garante que o usuário não está bloqueado
-    // Se não estiver logado, é considerado "não bloqueado" para visualização pública
+    // Se o usuário não existir no banco (primeiro acesso) ou não estiver logado, não bloqueamos a leitura pública
     function isNotBlocked() {
       if (!isSignedIn()) return true;
-      if (!exists(/databases/$(database)/documents/users/$(request.auth.uid))) return true;
-      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      return !userData.keys().contains('status') || userData.status != 'Bloqueado';
+      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return !exists(userPath) || get(userPath).data.get('status', 'Ativo') != 'Bloqueado';
     }
 
     // Verifica cargo em uma organização específica
@@ -39,28 +34,28 @@ service cloud.firestore {
     // --- REGRAS DE ACESSO ---
 
     // 1. REGRA DE OURO: Admin Global tem poder total sobre qualquer documento
-    // Esta regra no topo garante que o painel administrativo funcione sem erros
+    // Esta regra no topo garante que o painel administrativo funcione sem erros de "Insufficient Permissions"
     match /{allPaths=**} {
       allow read, write: if isAdmin();
     }
 
     // 2. Configurações do Sistema
+    // Leitura pública para carregar nome do site e logo; escrita apenas para Admin (já coberto acima)
     match /settings/{docId} {
       allow read: if true;
-      allow write: if isAdmin();
     }
 
     // 3. Usuários
     match /users/{userId} {
       allow read: if true;
-      allow create: if isOwner(userId);
-      allow update: if (isOwner(userId) && isNotBlocked() && 
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if (isSignedIn() && request.auth.uid == userId && isNotBlocked() && 
         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
           'role', 'status', 'plan', 'verified', 'walletBalance', 'adminFlags', 'permissions', 'totalXp', 'level'
         ])) || isAdmin();
 
       match /private/sensitive {
-        allow read, write: if isOwner(userId) || isAdmin();
+        allow read, write: if (isSignedIn() && request.auth.uid == userId) || isAdmin();
       }
     }
 
@@ -82,7 +77,7 @@ service cloud.firestore {
 
       match /members/{userId} {
         allow read: if true;
-        allow write: if isSignedIn() && (isOwner(userId) || hasOrgRole(orgId, ['owner', 'admin']) || isAdmin());
+        allow write: if isSignedIn() && (request.auth.uid == userId || hasOrgRole(orgId, ['owner', 'admin']) || isAdmin());
       }
     }
 
@@ -94,7 +89,7 @@ service cloud.firestore {
       
       match /partners/{partnerId} {
         allow read: if true;
-        allow write: if isSignedIn();
+        allow write: if isSignedIn() && (hasOrgRole(resource.data.inviterOrgId, ['owner', 'admin']) || hasOrgRole(partnerId, ['owner', 'admin']) || isAdmin());
       }
       match /comments/{commentId} {
         allow read: if true;
@@ -115,43 +110,50 @@ service cloud.firestore {
       
       match /viewers/{userId} { 
         allow read: if true; 
-        allow write: if isOwner(userId) || isAdmin(); 
+        allow write: if (isSignedIn() && request.auth.uid == userId) || isAdmin(); 
       }
     }
 
     // 7. Registros e Transações (Protegidos)
     match /registrations/{regId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin() || (resource.data.keys().contains('organizationId') && hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin', 'finance'])));
-      allow create, delete: if isAdmin(); // Ingressos apenas via Server/Admin
-      allow update: if isAdmin() || (isSignedIn() && hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin']));
+      allow create, delete: if isAdmin(); 
+      allow update: if isAdmin() || (isSignedIn() && (hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin'])));
     }
 
     match /wallets/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
+      allow read: if (isSignedIn() && request.auth.uid == userId) || isAdmin();
       allow write: if false; 
     }
 
     match /wallet_transactions/{txId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if (isSignedIn() && (resource.data.userId == request.auth.uid)) || isAdmin();
       allow write: if false;
     }
 
     match /orders/{orderId} {
       allow create: if isSignedIn();
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if (isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin();
       allow update: if isAdmin();
     }
 
     match /payout_requests/{docId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if (isSignedIn() && (resource.data.userId == request.auth.uid)) || isAdmin();
       allow create: if isSignedIn();
       allow update: if isAdmin();
     }
 
-    // 8. Logs e Emails (Apenas Admin pode auditar, qualquer um pode criar logs de sistema se necessário)
+    // 8. Logs e Auditoria
     match /system_logs/{logId} { allow create: if true; allow read: if isAdmin(); }
     match /sent_emails/{logId} { allow create: if true; allow read: if isAdmin(); }
     match /tax_tickets/{docId} { allow read: if isAdmin(); allow write: if false; }
     match /tax_ads/{docId} { allow read, write: if isAdmin(); }
+    
+    // Tickets de Suporte
+    match /support_tickets/{ticketId} {
+      allow read: if (isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow create: if isSignedIn();
+      allow update: if (isSignedIn() && resource.data.userId == request.auth.uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'protocol'])) || isAdmin();
+    }
   }
 }
