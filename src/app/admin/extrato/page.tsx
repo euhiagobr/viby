@@ -118,10 +118,10 @@ export default function AdminERPDashboard() {
   return (
     <div className="space-y-8 pb-20">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPI CardTitle="Faturamento Bruto" value={metrics.grossRevenue + metrics.totalAdsRevenue} icon={TrendingUp} trend="+12.4%" />
-        <KPI CardTitle="Lucro Líquido Real" value={metrics.realProfit} icon={CheckCircle2} color="green" />
-        <KPI CardTitle="Pendência de Repasse" value={metrics.pendingPayouts} icon={Clock} color="orange" />
-        <KPI CardTitle="Despesas Operacionais" value={metrics.internalExpenses} icon={ArrowDownRight} color="red" />
+        <KPI kpiTitle="Faturamento Bruto" value={metrics.grossRevenue + metrics.totalAdsRevenue} icon={TrendingUp} trend="+12.4%" />
+        <KPI kpiTitle="Lucro Líquido Real" value={metrics.realProfit} icon={CheckCircle2} color="green" />
+        <KPI kpiTitle="Pendência de Repasse" value={metrics.pendingPayouts} icon={Clock} color="orange" />
+        <KPI kpiTitle="Despesas Operacionais" value={metrics.internalExpenses} icon={ArrowDownRight} color="red" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -231,7 +231,7 @@ export default function AdminERPDashboard() {
   );
 }
 
-function KPI({ CardTitle, value, icon: Icon, trend, color = "blue" }: any) {
+function KPI({ kpiTitle, value, icon: Icon, trend, color = "blue" }: any) {
   const colors: any = {
     blue: "text-blue-500 bg-blue-50",
     green: "text-green-600 bg-green-50",
@@ -247,7 +247,7 @@ function KPI({ CardTitle, value, icon: Icon, trend, color = "blue" }: any) {
              </div>
              {trend && <Badge variant="secondary" className="text-[9px] font-black">{trend}</Badge>}
           </div>
-          <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">{CardTitle}</p>
+          <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">{kpiTitle}</p>
           <p className="text-2xl font-black text-primary">{formatCurrency(value)}</p>
        </CardContent>
     </Card>

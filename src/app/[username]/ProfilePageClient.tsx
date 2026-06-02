@@ -146,8 +146,12 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
         const results = await Promise.all(eventPromises);
         setPartnershipEvents(results.filter(e => e !== null && e.status === 'Ativo'));
-      } catch (e) {
-        console.error("Erro ao buscar parcerias:", e);
+      } catch (e: any) {
+        if (e.code === 'failed-precondition') {
+          console.warn("[Profile] O índice de Collection Group para 'partners' é necessário. Verifique o link no console.");
+        } else {
+          console.error("Erro ao buscar parcerias:", e);
+        }
       } finally {
         setLoadingPartnerships(false);
       }
@@ -242,7 +246,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+        <div className="flex flex-col sm:flex-row gap-4 w-full max-md">
           <Button 
             variant="outline" 
             asChild

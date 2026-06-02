@@ -9,8 +9,7 @@ import {
   collectionGroup, 
   doc, 
   getDoc,
-  onSnapshot,
-  getDocs
+  onSnapshot
 } from 'firebase/firestore';
 import { useParams, usePathname } from 'next/navigation';
 
@@ -76,14 +75,9 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
     setLoading(true);
 
-    // ESTRATÉGIA DE BUSCA DUPLA PARA MÁXIMA RESILIÊNCIA:
-    // 1. Buscar organizações onde o usuário é explicitamente o ownerId (Não requer índice de grupo)
-    // 2. Buscar vínculos em subcoleções members (Para equipe/colaboradores)
-
     const ownerQuery = query(collection(db, 'organizations'), where('ownerId', '==', user.uid));
     const membersQuery = query(collectionGroup(db, 'members'), where('userId', '==', user.uid));
     
-    // Listener para o dono (Mais confiável e rápido para o criador)
     const unsubOwner = onSnapshot(ownerQuery, async (ownerSnap) => {
       const ownedOrgs = ownerSnap.docs.map(d => ({ 
         id: d.id, 
@@ -91,7 +85,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         _memberData: { role: 'owner', status: 'accepted' } 
       } as Organization));
 
-      // Se já temos as do dono, atualizamos a lista mantendo a prioridade
       setOrganizations(prev => {
         const others = prev.filter(p => !ownedOrgs.some(o => o.id === p.id));
         const combined = [...ownedOrgs, ...others];
@@ -99,9 +92,11 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         return combined;
       });
       setLoading(false);
+    }, (err) => {
+      console.error("[OrganizationContext] Owner Query Error:", err);
+      setLoading(false);
     });
 
-    // Listener para membros (Equipe/Convites)
     const unsubMembers = onSnapshot(membersQuery, async (memberSnap) => {
       try {
         const orgsPromises = memberSnap.docs.map(async (mDoc) => {
@@ -134,7 +129,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
         setPendingInvitations(pingsData);
         setOrganizations(prev => {
-          // Unifica evitando duplicar o que já veio da query de owner
           const existingIds = new Set(prev.map(o => o.id));
           const uniqueNew = memberOrgs.filter(o => !existingIds.has(o.id));
           const combined = [...prev, ...uniqueNew];
@@ -144,10 +138,14 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       } catch (e) {
         console.error("Erro ao sincronizar marcas via membros:", e);
       }
+    }, (err) => {
+      if (err.code === 'failed-precondition') {
+        console.warn("[OrganizationContext] O índice de Collection Group para 'members' é necessário. Verifique o link no console.");
+      }
     });
 
     const updateSelection = (orgsList: Organization[]) => {
-      const savedOrgId = localStorage.getItem('viby_current_org');
+      const savedOrgId = typeof window !== 'undefined' ? localStorage.getItem('viby_current_org') : null;
       const currentActiveId = currentOrg?.id;
 
       if (orgsList.length > 0) {
@@ -196,7 +194,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     setCurrentOrg(org);
     const role = org?._memberData?.role || (org?.ownerId === user?.uid ? 'owner' : null);
     setUserRole(role);
-    if (org) {
+    if (org && typeof window !== 'undefined') {
       localStorage.setItem('viby_current_org', org.id);
       localStorage.setItem('viby_user_role', role || 'member');
     }

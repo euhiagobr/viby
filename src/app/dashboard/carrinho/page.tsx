@@ -44,7 +44,12 @@ export default function CarrinhoPage() {
   const [isRevalidating, setIsRevalidating] = React.useState(false)
   const [timeLeft, setTimeLeft] = React.useState<{ min: number, sec: number, percent: number } | null>(null)
 
-  const { data: wallet } = useDoc<any>(React.useMemo(() => (db && user) ? doc(db, "wallets", user.uid) : null, [db, user]))
+  const walletRef = React.useMemo(() => (db && user) ? doc(db, "wallets", user.uid) : null, [db, user]);
+  const { data: wallet } = useDoc<any>(walletRef);
+
+  const profileRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user]);
+  const { data: profile } = useDoc<any>(profileRef);
+
   const { data: globalFees } = useDoc<any>(React.useMemo(() => db ? doc(db, 'settings', 'fees') : null, [db]))
   const { data: promotions } = useDoc<any>(React.useMemo(() => db ? doc(db, 'settings', 'promotions') : null, [db]))
 
@@ -104,7 +109,6 @@ export default function CarrinhoPage() {
 
         if (!batch || !type || type.quantity <= 0) {
           hadChanges = true;
-          // Tenta redistribuir (será feito na próxima renderização pela lógica de Bilheteria se o usuário voltar)
           continue;
         }
 
@@ -134,7 +138,7 @@ export default function CarrinhoPage() {
     revalidateCart();
     window.addEventListener('focus', revalidateCart);
     return () => window.removeEventListener('focus', revalidateCart);
-  }, []);
+  }, [revalidateCart]);
 
   React.useEffect(() => {
     const handleExpired = () => {
