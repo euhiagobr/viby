@@ -12,13 +12,16 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Verifica se o usuário autenticado é um Administrador Global
+    // Verifica se o usuário autenticado é um Administrador Global (Viby Team)
+    // Implementação robusta que previne erros de referência nula
     function isAdmin() {
       return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // Garante que o usuário não está bloqueado
+    // Se não estiver logado, é considerado "não bloqueado" para visualização pública
     function isNotBlocked() {
       if (!isSignedIn()) return true;
       if (!exists(/databases/$(database)/documents/users/$(request.auth.uid))) return true;
@@ -35,18 +38,19 @@ service cloud.firestore {
 
     // --- REGRAS DE ACESSO ---
 
-    // Admin Global tem poder total sobre qualquer documento
+    // 1. REGRA DE OURO: Admin Global tem poder total sobre qualquer documento
+    // Esta regra no topo garante que o painel administrativo funcione sem erros
     match /{allPaths=**} {
       allow read, write: if isAdmin();
     }
 
-    // Configurações do Sistema
+    // 2. Configurações do Sistema
     match /settings/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Usuários
+    // 3. Usuários
     match /users/{userId} {
       allow read: if true;
       allow create: if isOwner(userId);
@@ -60,14 +64,14 @@ service cloud.firestore {
       }
     }
 
-    // Organizações
+    // 4. Organizações
     match /organizations/{orgId} {
       allow read: if true;
       allow create: if isSignedIn() && isNotBlocked();
       allow update: if isAdmin() || (
         isNotBlocked() && (
           (hasOrgRole(orgId, ['owner']) && 
-           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['verified', 'status', 'plan'])) ||
+           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['verified', 'status', 'plan', 'ownerId', 'permissions'])) ||
           (hasOrgRole(orgId, ['admin']) && 
            !request.resource.data.diff(resource.data).affectedKeys().hasAny([
              'ownerId', 'verified', 'plan', 'stripeAccountId', 
@@ -82,7 +86,7 @@ service cloud.firestore {
       }
     }
 
-    // Eventos e Ocorrências
+    // 5. Eventos e Ocorrências
     match /events/{eventId} {
       allow read: if true;
       allow create: if isSignedIn() && isNotBlocked();
@@ -104,19 +108,20 @@ service cloud.firestore {
     match /categories/{catId} { allow read: if true; allow write: if isAdmin(); }
     match /usernames/{username} { allow read: if true; allow create: if isSignedIn(); }
     
-    // Anúncios e Métricas
+    // 6. Anúncios e Métricas
     match /ads/{adId} {
       allow read: if true;
-      allow write: if isAdmin() || hasOrgRole(resource.data.organizationId, ['owner', 'admin']);
+      allow write: if isAdmin() || (isSignedIn() && hasOrgRole(resource.data.organizationId, ['owner', 'admin']));
+      
       match /viewers/{userId} { 
         allow read: if true; 
         allow write: if isOwner(userId) || isAdmin(); 
       }
     }
 
-    // Registros e Transações (Protegidos)
+    // 7. Registros e Transações (Protegidos)
     match /registrations/{regId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin() || hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin', 'finance']));
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin() || (resource.data.keys().contains('organizationId') && hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin', 'finance'])));
       allow create, delete: if isAdmin(); // Ingressos apenas via Server/Admin
       allow update: if isAdmin() || (isSignedIn() && hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin']));
     }
@@ -143,7 +148,7 @@ service cloud.firestore {
       allow update: if isAdmin();
     }
 
-    // Logs e Emails
+    // 8. Logs e Emails (Apenas Admin pode auditar, qualquer um pode criar logs de sistema se necessário)
     match /system_logs/{logId} { allow create: if true; allow read: if isAdmin(); }
     match /sent_emails/{logId} { allow create: if true; allow read: if isAdmin(); }
     match /tax_tickets/{docId} { allow read: if isAdmin(); allow write: if false; }
