@@ -21,6 +21,10 @@ service cloud.firestore {
     }
 
     function isNotBlocked() {
+      // Se o documento do usuário não existe (caso de novo cadastro), permite prosseguir
+      if (!exists(/databases/$(database)/documents/users/$(request.auth.uid))) {
+        return true;
+      }
       let userData = getUserData();
       return !userData.keys().contains('status') || userData.status != 'Bloqueado';
     }
@@ -51,7 +55,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isSignedIn() && isNotBlocked();
       
-      // Correção da vulnerabilidade de escalonamento de privilégios
+      // Proteção contra escalonamento de privilégios identificada em auditoria
       allow update: if isAdmin() || (
         isNotBlocked() && (
           // Regra para Proprietário (Owner) da Organização
@@ -84,7 +88,7 @@ service cloud.firestore {
 
     match /usernames/{username} {
       allow read: if true;
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn(); 
       allow update: if false; 
     }
 
@@ -170,7 +174,8 @@ service cloud.firestore {
       allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
       
       match /viewers/{userId} {
-        allow read, write: if isSignedIn();
+        allow read: if true;
+        allow write: if isOwner(userId);
       }
     }
 
