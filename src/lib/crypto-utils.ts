@@ -1,4 +1,3 @@
-
 import CryptoJS from 'crypto-js';
 
 /**
@@ -45,12 +44,13 @@ export function decryptData(encryptedData: string): string {
 
 /**
  * Mascara o CPF para exibição visual segura.
+ * Exemplo: 123.456.789-01 -> ***.456.***-**
  */
 export function maskCPF(cpf: string): string {
   if (!cpf) return "***.***.***-**";
   const clean = cpf.replace(/\D/g, "");
   if (clean.length !== 11) return "***.***.***-**";
-  return `***.${clean.substring(3, 6)} .***-**`;
+  return `***.${clean.substring(3, 6)}.***-**`;
 }
 
 /**

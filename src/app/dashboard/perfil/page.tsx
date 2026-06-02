@@ -1,14 +1,13 @@
-
 "use client"
 
 import * as React from "react"
-import { useAuth, useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, collection, query, where } from "firebase/firestore"
+import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
+import { doc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, Mail, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Link as LinkIcon, Instagram, Phone, EyeOff, User as UserIcon, Users as UsersIcon, Fingerprint, Settings } from "lucide-react"
+import { Loader2, Mail, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Instagram, Fingerprint, Settings, Eye, EyeOff } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -27,15 +26,19 @@ export default function PerfilPage() {
   const [fullCPF, setFullCPF] = React.useState<string | null>(null);
   const [showCPF, setShowCPF] = React.useState(false);
 
-  const fetchCPF = async () => {
-    if (!user) return;
-    const result = await getUserCPF(user.uid, user.uid);
-    if (result.success) {
-      setFullCPF(result.cpf!);
-      setShowCPF(true);
-    } else {
-      toast({ variant: "destructive", title: "Erro de segurança", description: result.error });
+  // Carregar CPF mascarado no mount para exibir os 3 números conforme solicitado
+  React.useEffect(() => {
+    if (user) {
+      getUserCPF(user.uid, user.uid).then(res => {
+        if (res.success) {
+          setFullCPF(res.cpf!);
+        }
+      });
     }
+  }, [user]);
+
+  const toggleCPF = () => {
+    setShowCPF(!showCPF);
   };
 
   if (authLoading || profileLoading) {
@@ -136,15 +139,15 @@ export default function PerfilPage() {
                   <div className="flex items-center gap-3">
                     <Fingerprint className="w-4 h-4 text-muted-foreground" />
                     <span className="font-medium">
-                      {showCPF ? fullCPF : maskCPF("")}
+                      {showCPF ? fullCPF : maskCPF(fullCPF || "")}
                     </span>
                   </div>
-                  {!showCPF && (
+                  {fullCPF && (
                     <button 
-                      onClick={fetchCPF}
+                      onClick={toggleCPF}
                       className="text-[10px] font-black uppercase text-secondary hover:underline"
                     >
-                      Revelar
+                      {showCPF ? <EyeOff className="w-3 h-3" /> : "Revelar"}
                     </button>
                   )}
                 </div>

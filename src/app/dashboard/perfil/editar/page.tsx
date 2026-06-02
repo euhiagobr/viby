@@ -34,7 +34,8 @@ import {
   Globe,
   ShieldCheck,
   ShieldAlert,
-  EyeOff
+  EyeOff,
+  RefreshCcw
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -146,7 +147,7 @@ export default function EditarPerfilPage() {
     }
   }, [profile, user])
 
-  const formatCPF = (v: string) => {
+  const formatCPFInput = (v: string) => {
     v = v.replace(/\D/g, "");
     if (v.length > 11) v = v.slice(0, 11);
     if (v.length > 9) return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
@@ -155,7 +156,7 @@ export default function EditarPerfilPage() {
     return v;
   }
 
-  const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => setFormData((prev: any) => ({ ...prev, cpf: formatCPF(e.target.value) }));
+  const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => setFormData((prev: any) => ({ ...prev, cpf: formatCPFInput(e.target.value) }));
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -212,9 +213,14 @@ export default function EditarPerfilPage() {
     }
   }
 
-  if (profileLoading) return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
+  const handleUnlockCPF = () => {
+    if (confirm("Deseja alterar seu CPF? Você precisará preencher o número completo novamente.")) {
+      setHasCPFInPrivate(false);
+      setFormData((prev: any) => ({ ...prev, cpf: "" }));
+    }
+  }
 
-  const isCpfLocked = hasCPFInPrivate;
+  if (profileLoading) return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 pb-20">
@@ -267,8 +273,21 @@ export default function EditarPerfilPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF {isCpfLocked && <Lock className="w-3 h-3 text-muted-foreground ml-auto" />}</Label>
-              <Input value={isCpfLocked ? maskCPF(formData.cpf) : formData.cpf} onChange={handleCPFChange} placeholder="000.000.000-00" disabled={isCpfLocked} className={cn("rounded-xl h-11", isCpfLocked && "bg-muted/50 cursor-not-allowed")} />
+              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF {hasCPFInPrivate && <Lock className="w-3 h-3 text-muted-foreground ml-auto" />}</Label>
+              <div className="flex gap-2">
+                 <Input 
+                   value={hasCPFInPrivate ? maskCPF(formData.cpf) : formData.cpf} 
+                   onChange={handleCPFChange} 
+                   placeholder="000.000.000-00" 
+                   disabled={hasCPFInPrivate} 
+                   className={cn("rounded-xl h-11 flex-1", hasCPFInPrivate && "bg-muted/50 cursor-not-allowed")} 
+                 />
+                 {hasCPFInPrivate && (
+                   <Button type="button" variant="outline" size="icon" className="h-11 w-11 rounded-xl" onClick={handleUnlockCPF} title="Alterar CPF">
+                     <RefreshCcw className="w-4 h-4" />
+                   </Button>
+                 )}
+              </div>
               <p className="text-[9px] text-muted-foreground font-medium uppercase italic">O CPF é criptografado e usado apenas para validar seus ingressos nominais.</p>
             </div>
 
