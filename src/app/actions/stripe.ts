@@ -41,29 +41,47 @@ async function getStripeInstance() {
 /**
  * Gera um Statement Descriptor (descritor de fatura) seguro e sanitizado.
  * Busca o username oficial da organização no banco de dados para evitar fraudes ou nomes obsoletos.
+ * Ignora completamente qualquer username enviado pelo frontend.
  */
 async function generateSecureStatementDescriptor(metadata: any): Promise<string> {
   const adminDb = getAdminDb();
   let username = "INGRESSO";
 
   try {
-    // Caso 1: Recarga de Saldo Ads (identificado por orgId)
+    // Caso 1: Recarga de Saldo Ads (identificado por orgId no metadado do servidor)
     if (metadata.type === 'ad_balance_topup' && metadata.orgId) {
       const orgSnap = await adminDb.collection("organizations").doc(metadata.orgId).get();
       if (orgSnap.exists) {
         username = orgSnap.data()?.username || username;
       }
     } 
-    // Caso 2: Checkout de Pedido (identificado por orderId)
-    else if (metadata.type === 'order_checkout' && metadata.orderId) {
-      const orderSnap = await adminDb.collection("orders").doc(metadata.orderId).get();
-      if (orderSnap.exists) {
-        const orderData = orderSnap.data();
-        const firstItem = orderData?.items?.[0];
-        if (firstItem?.organizationId) {
-          const orgSnap = await adminDb.collection("organizations").doc(firstItem.organizationId).get();
-          if (orgSnap.exists) {
-            username = orgSnap.data()?.username || username;
+    // Caso 2: Checkout de Pedido (identificado por orderId no metadado do servidor)
+    else if ((metadata.type === 'order_checkout' || metadata.type === 'cart_checkout') && (metadata.orderId || metadata.registrationIds)) {
+      // Se tivermos orderId, é a fonte mais confiável
+      if (metadata.orderId) {
+        const orderSnap = await adminDb.collection("orders").doc(metadata.orderId).get();
+        if (orderSnap.exists) {
+          const orderData = orderSnap.data();
+          const firstItem = orderData?.items?.[0];
+          if (firstItem?.organizationId) {
+            const orgSnap = await adminDb.collection("organizations").doc(firstItem.organizationId).get();
+            if (orgSnap.exists) {
+              username = orgSnap.data()?.username || username;
+            }
+          }
+        }
+      } 
+      // Fallback para busca via primeiro registrationId se orderId falhar
+      else if (metadata.registrationIds) {
+        const firstRegId = metadata.registrationIds.split(',')[0];
+        const regSnap = await adminDb.collection("registrations").doc(firstRegId).get();
+        if (regSnap.exists) {
+          const orgId = regSnap.data()?.organizationId;
+          if (orgId) {
+            const orgSnap = await adminDb.collection("organizations").doc(orgId).get();
+            if (orgSnap.exists) {
+              username = orgSnap.data()?.username || username;
+            }
           }
         }
       }
@@ -90,6 +108,8 @@ export async function createCheckoutSession(data: any) {
     const origin = head.get('origin') || 'https://viby.club';
     
     const stripe = await getStripeInstance();
+    
+    // Resolve o descritor de fatura de forma segura no servidor
     const descriptor = await generateSecureStatementDescriptor(data.metadata);
     
     const session = await stripe.checkout.sessions.create({
@@ -138,6 +158,7 @@ export async function createAdBalanceTopUpSession(data: any) {
       transactionId: data.transactionId 
     };
 
+    // Resolve o descritor de fatura de forma segura no servidor
     const descriptor = await generateSecureStatementDescriptor(metadata);
     
     const session = await stripe.checkout.sessions.create({
@@ -278,17 +299,7 @@ export async function finalizeCheckoutSession(sessionId: string) {
              throw new Error("A capacidade total do evento foi atingida enquanto você pagava.");
           }
 
-          // Validação por Lote (Verifica cada item do pedido contra o saldo do lote no banco)
-          const dbBatches = data.batches || [];
-          for (const item of target.items) {
-             const dbBatch = dbBatches.find((b: any) => b.id === item.batchId);
-             if (dbBatch) {
-                // Aqui podemos implementar uma contagem por lote se o banco suportar o campo 'sold' no objeto do lote
-                // Por enquanto, validamos a existência do lote.
-             }
-          }
-          
-          // Reservar capacidade
+          // Reserva capacidade
           transaction.update(target.ref, { 
             ingressosVendidos: FieldValue.increment(target.qty),
             updatedAt: FieldValue.serverTimestamp()
@@ -332,11 +343,9 @@ export async function finalizeCheckoutSession(sessionId: string) {
         // 3. Configurações Fiscais
         const feesSnap = await transaction.get(adminDb.collection("settings").doc("fees"));
         const stripeSettingsSnap = await transaction.get(adminDb.collection("settings").doc("stripe"));
-        const promosSnap = await transaction.get(adminDb.collection("settings").doc("promotions"));
 
         const fees = feesSnap.exists ? feesSnap.data() : {};
         const stripeSettings = stripeSettingsSnap.exists ? stripeSettingsSnap.data() : {};
-        const promotions = promosSnap.exists ? promosSnap.data() : {};
 
         // 4. Emitir Ingressos (Registrations) e Registros Fiscais
         for (let i = 0; i < items.length; i++) {
@@ -345,7 +354,7 @@ export async function finalizeCheckoutSession(sessionId: string) {
           for (let j = 0; j < item.quantity; j++) {
             const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
             const breakdown = calculateDetailedVibyBreakdown(
-              item.price, 1, fees, stripeSettings, (i === 0 && j === 0), promotions
+              item.price, 1, fees, stripeSettings, (i === 0 && j === 0)
             );
 
             let fiscalTitle = item.eventTitle;
