@@ -8,7 +8,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Verifica se o usuário é administrador global de forma robusta
     function isAdmin() {
       return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
@@ -19,7 +18,6 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Garante que o usuário não está bloqueado (resiliente a documentos inexistentes)
     function isNotBlocked() {
       return !isSignedIn() || 
              !exists(/databases/$(database)/documents/users/$(request.auth.uid)) || 
@@ -27,7 +25,6 @@ service cloud.firestore {
     }
 
     // --- REGRA DE OURO (SUPERUSER) ---
-    // Administradores globais têm acesso total a qualquer documento
     match /{allPaths=**} {
       allow read, write: if isAdmin();
     }
@@ -35,7 +32,7 @@ service cloud.firestore {
     // --- REGRAS DE COLEÇÃO ---
 
     // 1. CONSULTA DE GRUPO (MEMBROS)
-    // Essencial para o Dashboard listar as organizações que o usuário participa
+    // Permite que o usuário encontre as marcas que participa através da subcoleção /members
     match /{path=**}/members/{memberId} {
       allow read: if isSignedIn() && (request.auth.uid == memberId);
     }
@@ -69,6 +66,7 @@ service cloud.firestore {
     // 4. ORGANIZAÇÕES
     match /organizations/{orgId} {
       allow create: if isSignedIn() && isNotBlocked();
+      // Apenas o dono ou membros autorizados (verificado via subcoleção) podem editar
       allow update: if isSignedIn() && isNotBlocked();
 
       match /members/{userId} {
@@ -106,7 +104,9 @@ service cloud.firestore {
 
     // 6. REGISTROS, FINANCEIRO E LOGS
     match /registrations/{regId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid);
+      // Regra de segurança crítica para permitir Collection Group de registros
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || 
+                  exists(/databases/$(database)/documents/organizations/$(resource.data.organizationId)/members/$(request.auth.uid)));
       allow create: if isSignedIn();
       allow update: if isSignedIn();
     }
