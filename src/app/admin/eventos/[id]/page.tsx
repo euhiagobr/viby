@@ -4,7 +4,7 @@
 import * as React from "react"
 import { useParams } from "next/navigation"
 import { useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, collection, query, where, getDocs, updateDoc, serverTimestamp } from "firebase/firestore"
+import { doc, collection, query, where, getDocs, updateDoc, serverTimestamp, orderBy } from "firebase/firestore"
 import { Loader2, ExternalLink, Search, CalendarDays, Trash2, Edit2, MapPin, Clock, RefreshCcw, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
@@ -19,7 +20,6 @@ import { cn } from "@/lib/utils"
 
 // Placeholder for EventCouponsSection
 const EventCouponsSection = ({ eventId }: { eventId: string }) => {
-  // ... (previous implementation of EventCouponsSection)
   return (
     <Card>
       <CardHeader>
@@ -31,8 +31,8 @@ const EventCouponsSection = ({ eventId }: { eventId: string }) => {
           <p className="text-muted-foreground">Seção de cupons ainda em desenvolvimento.</p>
           <p className="text-sm text-secondary">Evento ID: {eventId}</p>
           <Button asChild>
-            <Link href={`/admin/eventos/${eventId}/cupons/novo`}>
-              Criar Novo Cupom
+            <Link href={`/admin/eventos/${eventId}/cupons`}>
+              Gerenciar Cupons
             </Link>
           </Button>
         </div>
@@ -51,7 +51,7 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
     return query(
       collection(db, "registrations"),
       where("eventId", "==", eventId),
-      where("paymentStatus", "in", ["Pago", "Disponível"]), // Consider 'Disponível' for cases where payment is pending but confirmed
+      where("paymentStatus", "in", ["Pago", "Disponível"]),
       orderBy("createdAt", "desc")
     )
   }, [db, eventId])
@@ -61,9 +61,9 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
   const filteredRegistrations = React.useMemo(() => {
     if (!registrations) return []
     return registrations.filter(reg => 
-      reg.buyerName?.toLowerCase().includes(search.toLowerCase()) ||
-      reg.buyerEmail?.toLowerCase().includes(search.toLowerCase()) ||
-      reg.ticketType?.toLowerCase().includes(search.toLowerCase())
+      (reg.buyerName?.toLowerCase() || "").includes(search.toLowerCase()) ||
+      (reg.buyerEmail?.toLowerCase() || "").includes(search.toLowerCase()) ||
+      (reg.ticketTypeName?.toLowerCase() || "").includes(search.toLowerCase())
     )
   }, [registrations, search])
 
@@ -147,18 +147,18 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
                 <TableRow key={reg.id}>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-bold text-sm">{reg.buyerName}</span>
-                      <span className="text-[10px] text-muted-foreground">{reg.buyerEmail}</span>
+                      <span className="font-bold text-sm">{reg.buyerName || reg.userName}</span>
+                      <span className="text-[10px] text-muted-foreground">{reg.buyerEmail || reg.userEmail}</span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="text-[10px] font-bold uppercase">{reg.ticketType || "Geral"}</Badge>
+                    <Badge variant="outline" className="text-[10px] font-bold uppercase">{reg.ticketTypeName || "Geral"}</Badge>
                   </TableCell>
-                  <TableCell className="text-center">{formatDate(reg.createdAt)}</TableCell>
+                  <TableCell className="text-center">{formatDate(reg.createdAt || reg.timestamp)}</TableCell>
                   <TableCell className="text-center">
                     <Badge 
                       variant={reg.paymentStatus === 'Estornado' ? 'destructive' : reg.paymentStatus === 'Pago' ? 'outline' : 'secondary'} 
-                      className={cn("text-[10px] font-bold uppercase", reg.paymentStatus === 'Pago' && "bg-green-600 hover:bg-green-700")}
+                      className={cn("text-[10px] font-bold uppercase", reg.paymentStatus === 'Pago' && "bg-green-600 hover:bg-green-700 text-white")}
                     >
                       {reg.paymentStatus}
                     </Badge>
@@ -171,13 +171,12 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
                           size="icon" 
                           className="h-8 w-8 text-destructive hover:bg-destructive/10"
                           disabled={isProcessingRefund}
-                          onClick={() => handleRefund(reg.id, reg.buyerName)}
+                          onClick={() => handleRefund(reg.id, reg.userName)}
                           title="Estornar Compra"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       )}
-                      {/* Add more actions here if needed, like "View Ticket Details" */}
                     </div>
                   </TableCell>
                 </TableRow>
