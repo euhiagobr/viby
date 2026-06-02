@@ -275,7 +275,17 @@ export default function EditarPerfilPage() {
                 <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Sexo / Gênero</Label>
                 <Select key={formData.gender || 'loading'} value={formData.gender} onValueChange={(val) => setFormData((prev:any) => ({...prev, gender: val}))} required>
                   <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent className="rounded-xl"><SelectItem value="masculino">Masculino</SelectItem><SelectItem value="feminino">Feminino</SelectItem><SelectItem value="homem trans">Homem Trans</SelectItem><SelectItem value="mulher trans">Mulher Trans</SelectItem><SelectItem value="agênero">Agênero</SelectItem><SelectItem value="outro">Outro / Prefiro não dizer</SelectItem></SelectContent>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="masculino">Masculino</SelectItem>
+                    <SelectItem value="feminino">Feminino</SelectItem>
+                    <SelectItem value="agênero">Agênero</SelectItem>
+                    <SelectItem value="gênero fluido">Gênero fluido</SelectItem>
+                    <SelectItem value="bigênero">Bigênero</SelectItem>
+                    <SelectItem value="demigênero">Demigênero</SelectItem>
+                    <SelectItem value="homem trans">Homem trans</SelectItem>
+                    <SelectItem value="mulher trans">Mulher trans</SelectItem>
+                    <SelectItem value="outro">Outro / Prefiro não dizer</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
             </div>

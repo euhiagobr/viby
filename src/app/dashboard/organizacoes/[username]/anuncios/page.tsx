@@ -652,9 +652,12 @@ export default function OrganizationAdsPage() {
                  <div className="space-y-4">
                     <DemographicBar label="Masculino" value={selectedAdForMetrics?.stats_gender_masculino || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-blue-500" />
                     <DemographicBar label="Feminino" value={selectedAdForMetrics?.stats_gender_feminino || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-pink-500" />
+                    <DemographicBar label="Agênero" value={selectedAdForMetrics?.stats_gender_agenero || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-gray-400" />
+                    <DemographicBar label="Gênero fluido" value={selectedAdForMetrics?.stats_gender_genero_fluido || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-cyan-400" />
+                    <DemographicBar label="Bigênero" value={selectedAdForMetrics?.stats_gender_bigenero || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-fuchsia-400" />
+                    <DemographicBar label="Demigênero" value={selectedAdForMetrics?.stats_gender_demigenero || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-indigo-300" />
                     <DemographicBar label="Homem Trans" value={selectedAdForMetrics?.stats_gender_homem_trans || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-indigo-400" />
                     <DemographicBar label="Mulher Trans" value={selectedAdForMetrics?.stats_gender_mulher_trans || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-rose-400" />
-                    <DemographicBar label="Agênero" value={selectedAdForMetrics?.stats_gender_agenero || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-gray-400" />
                     <DemographicBar label="Outro" value={selectedAdForMetrics?.stats_gender_outro || 0} total={selectedAdForMetrics?.uniqueReach || 1} color="bg-purple-400" />
                  </div>
               </div>

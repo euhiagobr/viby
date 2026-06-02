@@ -13,7 +13,7 @@
         "avatar": { "type": "string" },
         "bio": { "type": "string" },
         "cpf": { "type": "string", "description": "Criptografado" },
-        "gender": { "type": "string", "enum": ["masculino", "feminino", "homem trans", "mulher trans", "agênero", "outro"] },
+        "gender": { "type": "string", "enum": ["masculino", "feminino", "agênero", "gênero fluido", "bigênero", "demigênero", "homem trans", "mulher trans", "outro"] },
         "birthDate": { "type": "string", "format": "date" },
         "city": { "type": "string" },
         "state": { "type": "string" },

@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -342,6 +343,12 @@ export default function CadastroPage() {
                     <SelectContent>
                       <SelectItem value="masculino">Masculino</SelectItem>
                       <SelectItem value="feminino">Feminino</SelectItem>
+                      <SelectItem value="agênero">Agênero</SelectItem>
+                      <SelectItem value="gênero fluido">Gênero fluido</SelectItem>
+                      <SelectItem value="bigênero">Bigênero</SelectItem>
+                      <SelectItem value="demigênero">Demigênero</SelectItem>
+                      <SelectItem value="homem trans">Homem trans</SelectItem>
+                      <SelectItem value="mulher trans">Mulher trans</SelectItem>
                       <SelectItem value="outro">Outro</SelectItem>
                     </SelectContent>
                   </Select>

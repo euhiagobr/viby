@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -74,9 +75,12 @@ export function AdCard({ ad }: AdCardProps) {
       let genderKey = 'desconhecido';
       if (rawGender === 'masculino') genderKey = 'masculino';
       else if (rawGender === 'feminino') genderKey = 'feminino';
+      else if (rawGender === 'agênero') genderKey = 'agenero';
+      else if (rawGender === 'gênero fluido') genderKey = 'genero_fluido';
+      else if (rawGender === 'bigênero') genderKey = 'bigenero';
+      else if (rawGender === 'demigênero') genderKey = 'demigenero';
       else if (rawGender === 'homem trans') genderKey = 'homem_trans';
       else if (rawGender === 'mulher trans') genderKey = 'mulher_trans';
-      else if (rawGender === 'agênero') genderKey = 'agenero';
       else if (rawGender === 'outro') genderKey = 'outro';
       
       update[`stats_gender_${genderKey}`] = increment(1);
