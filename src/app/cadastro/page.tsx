@@ -5,14 +5,14 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
-import { doc, getDoc, runTransaction, serverTimestamp, increment } from "firebase/firestore"
+import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
-import { Globe, Loader2, Check, X, ArrowLeft, Fingerprint } from "lucide-react"
+import { Globe, Loader2, Check, X, ArrowLeft, Fingerprint, ShieldAlert } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import { cn } from "@/lib/utils"
@@ -106,9 +106,7 @@ export default function CadastroPage() {
         }
       } catch (e: any) {
         console.error("[Username Check Error]", e)
-        if (e.code === 'permission-denied') {
-          setUsernameStatus('error')
-        }
+        setUsernameStatus('error')
       } finally {
         setCheckingUsername(false)
       }
@@ -157,7 +155,7 @@ export default function CadastroPage() {
     if (!auth || !db) return
     
     if (usernameStatus !== 'valid') {
-      toast({ variant: "destructive", title: "Erro", description: "Nome de usuário inválido, em uso ou erro de permissão." })
+      toast({ variant: "destructive", title: "Username inválido", description: "Verifique a disponibilidade do nome de usuário." })
       return
     }
 
@@ -166,7 +164,8 @@ export default function CadastroPage() {
       return
     }
 
-    if (!validateCPF(cpf)) {
+    const cleanCPF = cpf.replace(/\D/g, "");
+    if (!validateCPF(cleanCPF)) {
       toast({ variant: "destructive", title: "CPF Inválido", description: "O número de CPF informado não é válido." })
       return
     }
@@ -191,6 +190,7 @@ export default function CadastroPage() {
         plan: "free",
         platform: "viby",
         role: "user",
+        status: "Ativo",
         city: "",
         state: "",
         country: "Brasil",
@@ -220,7 +220,11 @@ export default function CadastroPage() {
         })
       });
 
-      await updateUserCPF(user.uid, cpf);
+      // Salvar CPF na subcoleção privada via Server Action
+      const cpfResult = await updateUserCPF(user.uid, cleanCPF);
+      if (!cpfResult.success) {
+        console.error("Erro ao salvar CPF:", cpfResult.error);
+      }
 
       await processGamificationEvent(db, user.uid, 'on_signup', {}, user.uid, userData);
       
@@ -324,7 +328,8 @@ export default function CadastroPage() {
                     ) : null}
                   </div>
                 </div>
-                {usernameStatus === 'error' && <p className="text-[9px] text-destructive font-bold uppercase mt-1">Erro de permissão no banco</p>}
+                {usernameStatus === 'taken' && <p className="text-[9px] text-destructive font-bold uppercase mt-1">Este username já está em uso</p>}
+                {usernameStatus === 'invalid' && <p className="text-[9px] text-destructive font-bold uppercase mt-1">Mínimo 5 caracteres (letras e números)</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
