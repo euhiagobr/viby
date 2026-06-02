@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -84,6 +83,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
     setLoading(true);
 
+    // Consulta Collection Group para encontrar todos os documentos "members" que possuam o UID do usuário
     const membersQuery = query(collectionGroup(db, 'members'), where('userId', '==', user.uid));
     
     const unsubscribe = onSnapshot(membersQuery, 
@@ -101,7 +101,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
                   return { id: orgSnap.id, ...orgSnap.data(), _memberData: mData } as Organization;
                 }
               } catch (e) {
-                // Silencia erros de permissão para marcas bloqueadas, mas retorna null para não quebrar a lista
+                // Silencia erros de permissão para marcas específicas, mas não trava a lista
                 return null;
               }
             }
@@ -130,11 +130,17 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             setOrganizations(orgsData);
             setPendingInvitations(pingsData);
             
+            // Se houver organizações e nenhuma estiver selecionada, seleciona a primeira
+            if (orgsData.length > 0 && !currentOrg) {
+               const savedOrgId = typeof window !== 'undefined' ? localStorage.getItem('viby_current_org') : null;
+               const found = orgsData.find(o => o.id === savedOrgId) || orgsData[0];
+               handleSetCurrentOrg(found);
+            }
+
             if (currentOrg) {
               const updatedActive = orgsData.find(o => o.id === currentOrg.id);
               if (updatedActive) {
-                const role = updatedActive._memberData?.role || null;
-                setUserRole(role);
+                setUserRole(updatedActive._memberData?.role || null);
               }
             }
           }
@@ -145,6 +151,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         }
       },
       (error) => {
+        console.error("Erro no listener de membros:", error);
         if (isMounted) setLoading(false);
       }
     );
@@ -155,7 +162,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     };
   }, [db, user, isInitialized]);
 
-  // Sincroniza org atual baseada na URL ou memória
+  // Sincroniza org atual baseada na URL
   useEffect(() => {
     if (!isInitialized || !db || !user || loading) return;
 
@@ -163,20 +170,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     
     if (usernameFromUrl && usernameFromUrl !== 'new' && !pathname?.includes('/dashboard/organizacoes/new')) {
       const found = organizations.find(o => o.username === usernameFromUrl);
-      if (found) {
-        if (currentOrg?.id !== found.id) {
-          setCurrentOrg(found);
-          const role = found._memberData?.role || null;
-          setUserRole(role);
-        }
-      }
-    } else {
-      const savedOrgId = typeof window !== 'undefined' ? localStorage.getItem('viby_current_org') : null;
-      const found = organizations.find(o => o.id === savedOrgId) || organizations[0];
       if (found && currentOrg?.id !== found.id) {
-        setCurrentOrg(found);
-        const role = found._memberData?.role || null;
-        setUserRole(role);
+        handleSetCurrentOrg(found);
       }
     }
   }, [params?.username, organizations, db, user, loading, pathname, isInitialized]);
@@ -193,10 +188,10 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     setCurrentOrg(org);
     const role = org?._memberData?.role || null;
     setUserRole(role);
-    if (role) localStorage.setItem('viby_user_role', role);
-
+    
     if (org) {
       localStorage.setItem('viby_current_org', org.id);
+      localStorage.setItem('viby_user_role', role || 'member');
     } else {
       localStorage.removeItem('viby_current_org');
       localStorage.removeItem('viby_user_role');

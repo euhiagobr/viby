@@ -28,35 +28,36 @@ service cloud.firestore {
 
     // --- REGRAS DE ACESSO ---
 
-    // 1. REGRA DE OURO (SUPERUSER): Admin Global tem poder total em qualquer coleção
+    // 1. REGRA DE OURO (SUPERUSER): Admin Global tem poder total
     match /{allPaths=**} {
       allow read, write: if isAdmin();
     }
 
-    // 2. Acesso Público (Leitura Livre para Descoberta)
+    // 2. ACESSO A GRUPOS (Collection Group Queries)
+    // Necessário para o Dashboard listar as organizações que o usuário participa
+    match /{path=**}/members/{memberId} {
+      allow read: if isSignedIn() && (request.auth.uid == memberId || isAdmin());
+    }
+
+    // 3. ACESSO PÚBLICO (Descoberta)
     match /settings/{docId} { allow read: if true; }
     match /categories/{catId} { allow read: if true; }
     match /usernames/{username} { allow read: if true; }
     match /events/{eventId} { allow read: if true; }
     match /organizations/{orgId} { allow read: if true; }
-    match /recurring_events/{docId} { allow read: if true; }
-    match /recurring_occurrences/{docId} { allow read: if true; }
-    match /ads/{adId} { allow read: if true; }
     match /users/{userId} { allow read: if true; }
-    match /user_gamification/{userId} { allow read: if true; }
-    match /follows/{followId} { allow read: if true; }
+    match /ads/{adId} { allow read: if true; }
     match /badges/{badgeId} { allow read: if true; }
+    match /levels/{levelId} { allow read: if true; }
     match /xp_rules/{ruleId} { allow read: if true; }
-    match /coupons/{couponId} { allow read: if true; }
-    match /comments/{commentId} { allow read: if true; }
-    match /interests/{userId} { allow read: if true; }
+    match /recurring_occurrences/{docId} { allow read: if true; }
 
-    // 3. Usuários (Gestão de Perfil)
+    // 4. USUÁRIOS (Perfil e Dados Sensíveis)
     match /users/{userId} {
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isSignedIn() && request.auth.uid == userId && isNotBlocked() && 
         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-          'role', 'status', 'plan', 'verified', 'walletBalance', 'adminFlags', 'permissions'
+          'role', 'status', 'plan', 'verified', 'walletBalance'
         ]);
 
       match /private/sensitive {
@@ -64,14 +65,14 @@ service cloud.firestore {
       }
     }
 
-    // 4. Organizações
+    // 5. ORGANIZAÇÕES E MEMBROS
     match /organizations/{orgId} {
       allow create: if isSignedIn() && isNotBlocked();
       allow update: if isNotBlocked();
 
       match /members/{userId} {
         allow read: if true;
-        allow write: if isSignedIn();
+        allow write: if isSignedIn() && isNotBlocked();
       }
       
       match /transactions/{txId} {
@@ -79,7 +80,7 @@ service cloud.firestore {
       }
     }
 
-    // 5. Eventos e Bilheteria
+    // 6. EVENTOS E BILHETERIA
     match /events/{eventId} {
       allow create: if isSignedIn() && isNotBlocked();
       allow update: if isNotBlocked();
@@ -99,7 +100,7 @@ service cloud.firestore {
         allow read: if true;
         allow write: if isSignedIn() && request.auth.uid == userId;
       }
-
+      
       match /setores/{setorId} {
         allow read: if true;
         match /assentos/{assentoId} {
@@ -109,9 +110,9 @@ service cloud.firestore {
       }
     }
 
-    // 6. Registros, Financeiro e Logs
+    // 7. REGISTROS, FINANCEIRO E LOGS
     match /registrations/{regId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn();
       allow update: if isSignedIn();
     }
@@ -121,12 +122,12 @@ service cloud.firestore {
     }
 
     match /wallet_transactions/{txId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     match /orders/{orderId} {
       allow create: if isSignedIn();
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     match /payout_requests/{docId} {
@@ -135,7 +136,7 @@ service cloud.firestore {
     }
 
     match /support_tickets/{ticketId} {
-      allow read, create: if isSignedIn();
+      allow read, create: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow update: if isSignedIn();
     }
     
@@ -144,10 +145,21 @@ service cloud.firestore {
     }
 
     match /sent_emails/{emailId} {
-      allow create: if isSignedIn();
+      allow read, create: if isAdmin();
     }
 
-    match /tax_ads/{docId} { allow read: if isSignedIn(); }
-    match /tax_tickets/{docId} { allow read: if isSignedIn(); }
+    match /user_gamification/{userId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /xp_logs/{logId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /reports/{reportId} {
+      allow create: if isSignedIn();
+    }
   }
 }

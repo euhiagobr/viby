@@ -284,7 +284,12 @@ export default function NovaOrganizacaoPage() {
       })
 
       toast({ title: "Organização criada!", description: "Sua marca está pronta para brilhar!" })
-      router.push(`/dashboard/organizacoes`)
+      
+      // Armazena a org atual no localStorage para o contexto carregar mais rápido após o redirecionamento
+      localStorage.setItem('viby_current_org', orgId);
+      localStorage.setItem('viby_user_role', 'owner');
+      
+      router.push(`/dashboard/organizacoes/${normalizedUsername}`)
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao criar", description: error.message })
     } finally {
