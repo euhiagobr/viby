@@ -1,12 +1,11 @@
-
 'use server';
 
-import { getAdminDb } from '@/lib/firebase/admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { db } from '@/firebase/database';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { decryptData, encryptDeterministic } from '@/lib/crypto-utils';
 
 /**
- * @fileOverview Server Actions para manipulação de dados sensíveis utilizando Admin SDK.
+ * @fileOverview Server Actions para manipulação de dados sensíveis utilizando o Client SDK de forma isomórfica.
  */
 
 /**
@@ -14,19 +13,18 @@ import { decryptData, encryptDeterministic } from '@/lib/crypto-utils';
  */
 export async function getUserCPF(userId: string, requestingUid: string) {
   try {
-    const db = getAdminDb();
-    
-    // Verificação de permissão
+    // Verificação de permissão básica
     if (requestingUid !== userId) {
-      const requesterSnap = await db.collection("users").doc(requestingUid).get();
-      if (!requesterSnap.exists || requesterSnap.data()?.role !== 'admin') {
+      const requesterSnap = await getDoc(doc(db, "users", requestingUid));
+      if (!requesterSnap.exists() || requesterSnap.data()?.role !== 'admin') {
         throw new Error("Acesso negado.");
       }
     }
 
-    const sensitiveDoc = await db.collection("users").doc(userId).collection("private").doc("sensitive").get();
+    const sensitiveRef = doc(db, "users", userId, "private", "sensitive");
+    const sensitiveDoc = await getDoc(sensitiveRef);
     
-    if (sensitiveDoc.exists) {
+    if (sensitiveDoc.exists()) {
       const encryptedCpf = sensitiveDoc.data()?.cpf;
       // Retorna o CPF descriptografado apenas para o dono ou admin
       return { success: true, cpf: decryptData(encryptedCpf) };
@@ -44,13 +42,12 @@ export async function getUserCPF(userId: string, requestingUid: string) {
  */
 export async function updateUserCPF(userId: string, cpf: string) {
   try {
-    const db = getAdminDb();
     const encryptedCpf = encryptDeterministic(cpf);
-    const sensitiveRef = db.collection("users").doc(userId).collection("private").doc("sensitive");
+    const sensitiveRef = doc(db, "users", userId, "private", "sensitive");
     
-    await sensitiveRef.set({
+    await setDoc(sensitiveRef, {
       cpf: encryptedCpf,
-      updatedAt: FieldValue.serverTimestamp()
+      updatedAt: serverTimestamp()
     }, { merge: true });
 
     return { success: true };
