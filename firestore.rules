@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
-  match /databases/{database}/documents {
-    // --- FUNÇÕES DE APOIO ---
+  match /databases/eventosviby/documents {
+    // --- FUNÇÕES DE APOIO GLOBAIS ---
     function isSignedIn() {
       return request.auth != null;
     }
@@ -10,23 +10,191 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isAdmin() {
-      return isSignedIn() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    function getUserData() {
+      return get(/databases/eventosviby/documents/users/$(request.auth.uid)).data;
     }
 
-    function isNotBlocked(data) {
-      return !data.keys().contains('status') || data.status != 'Bloqueado';
+    function isAdmin() {
+      return isSignedIn() && 
+        exists(/databases/eventosviby/documents/users/$(request.auth.uid)) &&
+        getUserData().role == 'admin';
+    }
+
+    function isNotBlocked() {
+      let userData = getUserData();
+      return !userData.keys().contains('status') || userData.status != 'Bloqueado';
     }
 
     function hasOrgRole(orgId, roles) {
       return isSignedIn() && 
-        exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
+        exists(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
+        get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
     }
 
-    // --- REGRAS DE CONFIGURAÇÃO E LOGS ---
+    // --- REGRAS DE USUÁRIO (SENSÍVEL) ---
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) && 
+        isNotBlocked() &&
+        // Bloqueia alteração de campos administrativos pelo cliente
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'role', 'status', 'plan', 'verified', 'walletBalance', 'adminFlags', 'permissions', 'totalXp', 'level'
+        ]) || isAdmin();
+
+      match /private/sensitive {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // --- REGRAS DE ORGANIZAÇÃO ---
+    match /organizations/{orgId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isNotBlocked();
+      allow update: if (hasOrgRole(orgId, ['owner', 'admin']) && isNotBlocked()) || isAdmin();
+
+      match /members/{memberId} {
+        allow read: if isSignedIn();
+        // Apenas owner ou admin da org pode gerenciar equipe
+        allow write: if (hasOrgRole(orgId, ['owner', 'admin']) && isNotBlocked()) || isAdmin();
+        // Impede que um membro altere seu próprio cargo para 'owner' se não for o atual
+        allow update: if request.resource.data.role != 'owner' || resource.data.role == 'owner' || isAdmin();
+      }
+      
+      match /transactions/{txId} {
+        allow read: if hasOrgRole(orgId, ['owner', 'admin', 'finance']) || isAdmin();
+        allow create: if false; // Apenas servidor
+      }
+    }
+
+    match /usernames/{username} {
+      allow read: if true;
+      // Impede roubo de username ou alteração indevida
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if false; 
+    }
+
+    // --- REGRAS DE EVENTOS ---
+    match /events/{eventId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isNotBlocked();
+      allow update: if (hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) && isNotBlocked()) || isAdmin();
+      // Impede alteração de campos de vínculo vital
+      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['organizationId', 'ownerId']) || isAdmin();
+
+      match /partners/{partnerId} {
+        allow read: if true;
+        allow write: if hasOrgRole(resource.data.inviterOrgId, ['owner', 'admin']) || hasOrgRole(partnerId, ['owner', 'admin']);
+      }
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn() && isNotBlocked();
+        allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      }
+
+      match /interests/{userId} {
+        allow read: if true;
+        allow write: if isOwner(userId);
+      }
+      
+      match /setores/{setorId} {
+        allow read: if true;
+        allow write: if hasOrgRole(get(/databases/eventosviby/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
+        
+        match /assentos/{assentoId} {
+           allow read: if true;
+           allow write: if hasOrgRole(get(/databases/eventosviby/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
+        }
+      }
+    }
+
+    match /recurring_events/{docId} {
+      allow read: if true;
+      allow write: if (hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) && isNotBlocked()) || isAdmin();
+    }
+
+    match /recurring_occurrences/{docId} {
+      allow read: if true;
+      allow write: if (hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin']) && isNotBlocked()) || isAdmin();
+    }
+
+    // --- REGRAS DE NEGÓCIO E FINANCEIRO (PROTEGIDAS) ---
+    match /orders/{orderId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.status == 'pending';
+      // Usuário não pode alterar valores ou status após criação
+      allow update: if isAdmin(); 
+    }
+
+    match /registrations/{regId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin', 'finance']) || isAdmin());
+      allow create: if false; // BLOQUEIO CRÍTICO: Apenas Admin SDK
+      // Check-in permitido apenas para cargos autorizados
+      allow update: if isSignedIn() && (hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin']) || isAdmin());
+      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['price', 'ticketBasePrice', 'userId', 'eventId']);
+    }
+
+    match /wallets/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if false; // BLOQUEIO CRÍTICO: Escrita proibida para o cliente
+    }
+
+    match /wallet_transactions/{txId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if false; // Apenas servidor
+      allow update, delete: if false;
+    }
+
+    match /payout_requests/{docId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isNotBlocked();
+      // Impede que o usuário aprove seu próprio saque
+      allow update: if isAdmin();
+    }
+
+    // --- ANÚNCIOS E CUPONS ---
+    match /ads/{adId} {
+      allow read: if true;
+      allow create: if hasOrgRole(request.resource.data.organizationId, ['owner', 'admin', 'editor']);
+      allow update: if hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
+      
+      match /viewers/{userId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow create, update: if hasOrgRole(request.resource.data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
+    }
+
+    // --- SOCIAL E SUPORTE ---
+    match /notifications/{notifId} {
+      allow read: if isOwner(resource.data.targetUid) || isAdmin();
+      allow create: if isSignedIn();
+      allow update: if isOwner(resource.data.targetUid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']) || isAdmin();
+      allow delete: if isOwner(resource.data.targetUid) || isAdmin();
+    }
+
+    match /reports/{reportId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /support_tickets/{ticketId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update: if (isOwner(resource.data.userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'protocol'])) || isAdmin();
+    }
+
+    match /follows/{followId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
+      allow delete: if isSignedIn() && (resource.data.followerId == request.auth.uid || isAdmin());
+    }
+
+    // --- REGRAS ADMINISTRATIVAS E ERP (SERVER ONLY) ---
     match /settings/{docId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -42,141 +210,13 @@ service cloud.firestore {
       allow read: if isAdmin();
     }
 
-    // --- REGRAS DE EVENTOS E ORGANIZAÇÕES ---
-    match /events/{eventId} {
-      allow read: if true;
-      allow write: if isSignedIn() && isNotBlocked(get(/databases/$(database)/documents/users/$(request.auth.uid)).data); 
-
-      match /partners/{partnerId} {
-        allow read: if true;
-        allow write: if isSignedIn();
-      }
-
-      match /comments/{commentId} {
-        allow read: if true;
-        allow create: if isSignedIn() && isNotBlocked(get(/databases/$(database)/documents/users/$(request.auth.uid)).data);
-        allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      }
-
-      match /interests/{userId} {
-        allow read: if true;
-        allow write: if isSignedIn() && request.auth.uid == userId;
-      }
-    }
-
-    match /recurring_events/{docId} {
-      allow read: if true;
-      allow write: if isSignedIn() && isNotBlocked(get(/databases/$(database)/documents/users/$(request.auth.uid)).data);
-    }
-
-    match /recurring_occurrences/{docId} {
-      allow read: if true;
-      allow write: if isSignedIn() && isNotBlocked(get(/databases/$(database)/documents/users/$(request.auth.uid)).data);
-    }
-
-    match /organizations/{orgId} {
-      allow read: if true;
-      allow write: if isSignedIn() && isNotBlocked(get(/databases/$(database)/documents/users/$(request.auth.uid)).data);
-
-      match /members/{userId} {
-        allow read: if isSignedIn() && (request.auth.uid == userId || hasOrgRole(orgId, ['owner', 'admin', 'editor', 'finance', 'checkin']) || isAdmin());
-        allow write: if isSignedIn();
-      }
-      
-      match /transactions/{txId} {
-        allow read: if hasOrgRole(orgId, ['owner', 'admin', 'finance']) || isAdmin();
-        allow create: if false; // Apenas servidor (Admin SDK)
-      }
-    }
-
-    match /categories/{catId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /usernames/{username} {
-      allow read: if true;
-      allow create, update: if isSignedIn();
-    }
-
-    match /ads/{adId} {
-      allow read: if true;
-      allow write: if isSignedIn();
-      
-      match /viewers/{userId} {
-        allow read, write: if isSignedIn();
-      }
-    }
-
-    match /coupons/{couponId} {
-      allow read: if true;
-      allow write: if isSignedIn();
-    }
-
-    // --- REGRAS DE NEGÓCIO: PEDIDOS E INGRESSOS (VIBY CORE PROTECTED) ---
-    match /orders/{orderId} {
-      allow create: if isSignedIn();
-      allow read, update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-    }
-
-    match /registrations/{regId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin']) || isAdmin());
-      allow create: if false; // BLOQUEIO CRÍTICO: Ingressos não podem ser criados pelo navegador
-      allow update: if isSignedIn() && (hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin']) || isAdmin());
-    }
-
     match /tax_tickets/{docId} {
-      allow create: if false; // Apenas servidor
       allow read: if isAdmin();
+      allow write: if false; // Apenas servidor via Admin SDK
     }
 
     match /tax_ads/{docId} {
       allow read, write: if isAdmin();
-    }
-
-    // --- REGRAS DE USUÁRIO, CARTEIRA E SOCIAL ---
-    match /users/{userId} {
-      allow read: if (isNotBlocked(resource.data)) || isOwner(userId) || isAdmin();
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isOwner(userId) || isAdmin();
-
-      match /private/sensitive {
-        allow read, write: if isOwner(userId) || isAdmin();
-      }
-    }
-
-    match /wallets/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow write: if false; // BLOQUEIO CRÍTICO: Saldo protegido contra alterações via navegador
-    }
-
-    match /wallet_transactions/{txId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if false; // Apenas servidor
-      allow update: if isAdmin();
-    }
-
-    match /notifications/{notifId} {
-      allow read: if isSignedIn() && (resource.data.targetUid == request.auth.uid || isAdmin());
-      allow create: if isSignedIn();
-      allow update, delete: if isOwner(resource.data.targetUid) || isAdmin();
-    }
-
-    match /reports/{reportId} {
-      allow create: if isSignedIn();
-      allow read, update, delete: if isAdmin();
-    }
-
-    match /support_tickets/{ticketId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-    }
-
-    match /payout_requests/{docId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn();
-      allow update: if isAdmin();
     }
 
     match /internal_expenses/{docId} {
@@ -189,18 +229,13 @@ service cloud.firestore {
     }
 
     match /xp_logs/{logId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow write: if isAdmin();
     }
 
-    match /follows/{followId} {
-      allow read: if true;
-      allow write: if isSignedIn() && (request.auth.uid == request.resource.data.followerId || request.auth.uid == resource.data.followerId);
-    }
-
-    // Segurança padrão para coleções não especificadas
+    // --- SEGURANÇA PADRÃO ---
     match /{allPaths=**} {
-      allow read, list: if isAdmin();
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
   }
