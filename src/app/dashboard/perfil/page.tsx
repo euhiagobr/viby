@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -27,15 +26,22 @@ export default function PerfilPage() {
   const [fullCPF, setFullCPF] = React.useState<string | null>(null);
   const [showCPF, setShowCPF] = React.useState(false);
   const [loadingCPF, setLoadingCPF] = React.useState(false);
+  const [cpfError, setCpfError] = React.useState(false);
 
   React.useEffect(() => {
     if (user) {
       setLoadingCPF(true);
-      getUserCPF(user.uid, user.uid).then(res => {
-        if (res.success && res.cpf) {
-          setFullCPF(res.cpf!);
-        }
-      }).finally(() => setLoadingCPF(false));
+      setCpfError(false);
+      getUserCPF(user.uid, user.uid)
+        .then(res => {
+          if (res.success && res.cpf) {
+            setFullCPF(res.cpf!);
+          } else {
+            setCpfError(true);
+          }
+        })
+        .catch(() => setCpfError(true))
+        .finally(() => setLoadingCPF(false));
     }
   }, [user]);
 
@@ -76,7 +82,8 @@ export default function PerfilPage() {
   const displayCPF = React.useMemo(() => {
     if (loadingCPF) return "Sincronizando...";
     if (fullCPF) return showCPF ? fullCPF : maskCPF(fullCPF);
-    return profile.cpf || "PENDENTE";
+    if (profile.cpf && profile.cpf !== "PENDENTE") return profile.cpf;
+    return "PENDENTE";
   }, [loadingCPF, fullCPF, showCPF, profile.cpf]);
 
   return (
@@ -146,7 +153,10 @@ export default function PerfilPage() {
                 <div className="flex items-center justify-between gap-3 text-sm group">
                   <div className="flex items-center gap-3">
                     <Fingerprint className="w-4 h-4 text-muted-foreground" />
-                    <span className="font-medium">
+                    <span className={cn(
+                      "font-medium",
+                      displayCPF === "PENDENTE" && "text-destructive font-black animate-pulse"
+                    )}>
                       {displayCPF}
                     </span>
                   </div>
@@ -157,6 +167,11 @@ export default function PerfilPage() {
                     >
                       {showCPF ? <EyeOff className="w-3 h-3" /> : "Revelar"}
                     </button>
+                  )}
+                  {displayCPF === "PENDENTE" && (
+                    <Button variant="link" asChild className="h-auto p-0 text-[10px] font-black uppercase text-secondary">
+                       <Link href="/dashboard/perfil/editar">Vincular</Link>
+                    </Button>
                   )}
                 </div>
                 {locationStr && (

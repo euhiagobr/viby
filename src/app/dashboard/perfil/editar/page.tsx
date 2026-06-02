@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -28,12 +27,13 @@ import {
   Lock, 
   ShieldCheck, 
   EyeOff,
-  Fingerprint
+  Fingerprint,
+  AlertTriangle
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
-import { getUserCPF } from "@/app/actions/user"
+import { getUserCPF, updateUserCPF } from "@/app/actions/user"
 import { maskCPF } from "@/lib/crypto-utils"
 
 export default function EditarPerfilPage() {
@@ -79,12 +79,14 @@ export default function EditarPerfilPage() {
   const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [isFetchingCPF, setIsFetchingCPF] = useState(false)
+  const [hasOriginalCPF, setHasOriginalCPF] = useState(false)
 
   useEffect(() => {
     if (profile && user && !isInitialized.current) {
       isInitialized.current = true
       
-      const initialCPF = profile.cpf || "";
+      const dbCpf = profile.cpf || "";
+      const cpfIsMissing = !dbCpf || dbCpf === "PENDENTE";
 
       setFormData((prev: any) => ({
         ...prev,
@@ -101,7 +103,7 @@ export default function EditarPerfilPage() {
         instagram: profile.instagram || "",
         whatsapp: profile.whatsapp || "",
         email: profile.email || "",
-        cpf: initialCPF,
+        cpf: dbCpf,
         showEmail: profile.showEmail !== undefined ? profile.showEmail : true,
         privacy: profile.privacy || {
            profilePrivate: false,
@@ -112,14 +114,19 @@ export default function EditarPerfilPage() {
         }
       }));
 
-      // AUTO-HEALING: Se o CPF não estiver no documento principal, buscar do sensível e mascarar
-      if (!initialCPF) {
+      if (cpfIsMissing) {
         setIsFetchingCPF(true);
         getUserCPF(user.uid, user.uid).then(res => {
           if (res.success && res.cpf) {
             setFormData((prev: any) => ({ ...prev, cpf: maskCPF(res.cpf!) }));
+            setHasOriginalCPF(true);
+          } else {
+            setFormData((prev: any) => ({ ...prev, cpf: "" }));
+            setHasOriginalCPF(false);
           }
         }).finally(() => setIsFetchingCPF(false));
+      } else {
+        setHasOriginalCPF(true);
       }
     }
   }, [profile, user])
@@ -145,6 +152,15 @@ export default function EditarPerfilPage() {
     } catch (err) { setUploadProgress(null) }
   }
 
+  const formatCPF = (v: string) => {
+    v = v.replace(/\D/g, "");
+    if (v.length > 11) v = v.slice(0, 11);
+    if (v.length > 9) return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    if (v.length > 6) return v.replace(/(\d{3})(\d{3})(\d{1,3})/, "$1.$2.$3");
+    if (v.length > 3) return v.replace(/(\d{3})(\d{1,3})/, "$1.$2");
+    return v;
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!db || !user || !profile) return
@@ -153,26 +169,35 @@ export default function EditarPerfilPage() {
     
     try {
       const userRef = doc(db, "users", user.uid)
-      
-      // BLOQUEIO TOTAL: O CPF é removido do objeto de update para garantir imutabilidade
       const { cpf, username, email, uid, ...safeData } = formData; 
-      
-      const updateData = {
+
+      const updateData: any = {
         ...safeData,
         updatedAt: serverTimestamp()
+      }
+
+      // Se o usuário está preenchendo o CPF pela primeira vez (ou corrigindo vazio)
+      if (!hasOriginalCPF && cpf && cpf.length >= 11 && !cpf.includes('*')) {
+        const cleanCPF = cpf.replace(/\D/g, "");
+        // 1. Salvar real e criptografado via action
+        await updateUserCPF(user.uid, cleanCPF);
+        // 2. Salvar mascarado no doc público
+        updateData.cpf = maskCPF(cleanCPF);
       }
 
       await updateDoc(userRef, updateData)
       toast({ title: "Perfil atualizado!" })
       router.push("/dashboard/perfil")
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro ao salvar" })
+      toast({ variant: "destructive", title: "Erro ao salvar", description: "Verifique os dados informados." })
     } finally {
       setSaving(false)
     }
   }
 
   if (profileLoading) return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
+
+  const isCPFReadOnly = isFetchingCPF || hasOriginalCPF;
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 pb-20">
@@ -240,15 +265,33 @@ export default function EditarPerfilPage() {
               </Label>
               <div className="relative">
                  <Input 
-                   value={isFetchingCPF ? "SINCRONIZANDO..." : (formData.cpf || "PENDENTE")} 
-                   readOnly
-                   className="rounded-xl h-11 bg-muted/50 cursor-not-allowed font-mono font-bold pr-10" 
+                   value={formData.cpf} 
+                   onChange={e => !isCPFReadOnly && setFormData({...formData, cpf: formatCPF(e.target.value)})}
+                   readOnly={isCPFReadOnly}
+                   placeholder="000.000.000-00"
+                   className={cn(
+                     "rounded-xl h-11 font-mono font-bold pr-10 transition-all",
+                     isCPFReadOnly ? "bg-muted/50 cursor-not-allowed border-transparent" : "border-dashed border-secondary/30 focus-visible:ring-secondary/30"
+                   )} 
                  />
                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    {isFetchingCPF ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : <Lock className="w-4 h-4 text-muted-foreground opacity-50" />}
+                    {isFetchingCPF ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-secondary" />
+                    ) : isCPFReadOnly ? (
+                      <Lock className="w-4 h-4 text-muted-foreground opacity-50" />
+                    ) : (
+                      <ShieldCheck className="w-4 h-4 text-secondary" />
+                    )}
                  </div>
               </div>
-              <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">O CPF não pode ser alterado por segurança da sua carteira e ingressos.</p>
+              {!isCPFReadOnly ? (
+                <div className="p-3 bg-orange-50 rounded-xl border border-dashed border-orange-200 flex items-start gap-2 mt-2 animate-in zoom-in-95">
+                   <AlertTriangle className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
+                   <p className="text-[9px] font-bold text-orange-800 uppercase leading-tight">Você ainda não possui CPF vinculado. Informe o número real para habilitar transferências e compras. Esta ação é irreversível.</p>
+                </div>
+              ) : (
+                <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">O CPF não pode ser alterado por segurança da sua carteira e ingressos.</p>
+              )}
             </div>
 
             <div className="space-y-2">

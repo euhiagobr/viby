@@ -25,14 +25,12 @@ service cloud.firestore {
     }
 
     // --- REGRA DE OURO (SUPERUSER) ---
-    // Administradores têm acesso total a qualquer documento em qualquer coleção
     match /{allPaths=**} {
       allow read, write: if isAdmin();
     }
 
     // --- REGRAS DE COLEÇÃO ---
 
-    // 1. CONSULTA DE GRUPO E VÍNCULOS (DESCOBERTA)
     match /{path=**}/members/{memberId} {
       allow read: if isSignedIn() && (request.auth.uid == memberId);
     }
@@ -41,7 +39,6 @@ service cloud.firestore {
       allow read: if true;
     }
 
-    // 2. ACESSO PÚBLICO (DESCOBERTA CULTURAL)
     match /settings/{docId} { allow read: if true; }
     match /categories/{catId} { allow read: if true; }
     match /usernames/{username} { allow read: if true; }
@@ -56,13 +53,20 @@ service cloud.firestore {
     match /follows/{followId} { allow read: if true; }
     match /user_gamification/{userId} { allow read: if true; }
 
-    // 3. USUÁRIOS (PRIVACIDADE)
     match /users/{userId} {
       allow create: if isSignedIn() && request.auth.uid == userId;
-      // Impede alteração de campos críticos após a criação, incluindo CPF e Username
+      
+      // Impede alteração de CPF se ele já existir (resource.data.cpf != null)
+      // Permite o preenchimento inicial se estiver vazio
       allow update: if isSignedIn() && request.auth.uid == userId && isNotBlocked() && 
+        (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['cpf']) || 
+          resource.data.cpf == null || 
+          resource.data.cpf == "" || 
+          resource.data.cpf == "PENDENTE"
+        ) &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-          'role', 'status', 'plan', 'verified', 'walletBalance', 'totalXp', 'level', 'cpf', 'username'
+          'role', 'status', 'plan', 'verified', 'walletBalance', 'totalXp', 'level', 'username'
         ]);
 
       match /private/sensitive {
@@ -70,7 +74,6 @@ service cloud.firestore {
       }
     }
 
-    // 4. ORGANIZAÇÕES E EQUIPE
     match /organizations/{orgId} {
       allow create: if isSignedIn() && isNotBlocked();
       allow update: if isSignedIn() && isNotBlocked();
@@ -86,7 +89,6 @@ service cloud.firestore {
       }
     }
 
-    // 5. EVENTOS E INTERAÇÕES
     match /events/{eventId} {
       allow create: if isSignedIn() && isNotBlocked();
       allow update: if isSignedIn() && isNotBlocked();
@@ -108,7 +110,6 @@ service cloud.firestore {
       }
     }
 
-    // 6. REGISTROS, FINANCEIRO E LOGS
     match /registrations/{regId} {
       allow read: if isSignedIn() || resource.data.checkedIn == true;
       allow create: if isSignedIn();
