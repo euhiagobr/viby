@@ -176,7 +176,7 @@ export default function LoginPage() {
             <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 overflow-hidden shadow-lg shadow-secondary/20">
               <KeyRound className="text-white w-7 h-7" />
             </div>
-            <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Acessar Clube</CardTitle>
+            <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Acessar Viby</CardTitle>
             <CardDescription className="font-medium text-center">Entre com seu e-mail ou @username exclusivo.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 px-8">
@@ -226,10 +226,6 @@ export default function LoginPage() {
                 Criar conta gratuita
               </Link>
             </p>
-            <div className="flex items-center gap-2 p-2 bg-orange-50 rounded-lg border border-orange-100">
-               <AlertTriangle className="w-3.5 h-3.5 text-orange-600" />
-               <p className="text-[8px] text-orange-800 font-bold uppercase leading-tight">Suas credenciais são validadas contra a base exclusiva do banco 'eventosviby'.</p>
-            </div>
           </CardFooter>
         </Card>
       </div>
