@@ -50,6 +50,10 @@ export default function LandingPageClient() {
   const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
 
+  // Novos estados para filtros rápidos
+  const [showLiveOnly, setShowLiveOnly] = React.useState(false)
+  const [showRegionOnly, setShowRegionOnly] = React.useState(false)
+
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
 
@@ -82,7 +86,6 @@ export default function LandingPageClient() {
     getCurrentLocation()
       .then(setUserLocation)
       .catch(() => {
-        // Fallback para cidade do perfil ou padrão se GPS negado
         console.warn("GPS negado. Usando fallback por cidade.");
       })
   }, [])
@@ -90,19 +93,33 @@ export default function LandingPageClient() {
   const filteredAndSortedEvents = React.useMemo(() => {
     if (!events) return []
 
-    // 1. Filtragem Inicial (Visibilidade e Busca)
     let result = events.filter(e => {
       const visible = isEventVisible(e);
       const matchesSearch = !searchName || e.title?.toLowerCase().includes(searchName.toLowerCase());
       const matchesCity = selectedCity === 'all' || e.city === selectedCity;
       const matchesCategory = selectedCategory === 'all' || e.categoryId === selectedCategory;
       
-      // Filtro de Data
+      const eventDate = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+      const endDate = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(eventDate.getTime() + 4 * 60 * 60 * 1000));
+      const now = new Date();
+
+      // Filtro Inteligente: Acontecendo Agora ou em 1h
+      if (showLiveOnly) {
+        const startsInLessOneHour = (eventDate.getTime() - now.getTime()) <= 3600000 && (eventDate.getTime() - now.getTime()) > 0;
+        const isLive = now >= eventDate && now <= endDate;
+        if (!isLive && !startsInLessOneHour) return false;
+      }
+
+      // Filtro Inteligente: Na sua região (Raio fixo de 20km para este filtro rápido)
+      if (showRegionOnly && userLocation && e.latitude && e.longitude) {
+        const dist = calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude });
+        if (dist > 20) return false;
+      }
+
+      // Filtro de Data Normal
       let matchesDate = true;
       if (dateFilter !== 'all') {
-        const eventDate = e.date?.toDate ? e.date.toDate() : new Date(e.date);
         const today = startOfToday();
-        
         if (dateFilter === 'today') {
           matchesDate = isSameDay(eventDate, today);
         } else if (dateFilter === 'tomorrow') {
@@ -115,7 +132,7 @@ export default function LandingPageClient() {
         }
       }
 
-      // Filtro de Raio
+      // Filtro de Raio Geral (do seletor)
       let matchesRadius = true;
       if (userLocation && radiusKm !== 'unlimited' && e.latitude && e.longitude) {
         const dist = calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude });
@@ -125,7 +142,6 @@ export default function LandingPageClient() {
       return visible && matchesSearch && matchesCity && matchesCategory && matchesRadius && matchesDate;
     });
 
-    // 2. Cálculo de Score e Ordenação
     return result.map(e => ({
       ...e,
       _score: calculateEventScore(e, {
@@ -133,13 +149,12 @@ export default function LandingPageClient() {
         maxRadiusKm: radiusKm === 'unlimited' ? 500 : parseInt(radiusKm)
       })
     })).sort((a, b) => b._score - a._score);
-  }, [events, searchName, selectedCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
+  }, [events, searchName, selectedCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate, showLiveOnly, showRegionOnly])
 
   const interleavedContent = React.useMemo(() => {
     if (filteredAndSortedEvents.length === 0) return []
     const now = new Date()
     
-    // Ads pool (limitado por orçamento e validade)
     const sponsoredPool = (activeAds || [])
       .map((ad: any) => {
         const start = ad.startDate?.toDate ? ad.startDate.toDate() : new Date(ad.startDate);
@@ -372,15 +387,33 @@ export default function LandingPageClient() {
             </h2>
             <p className="text-muted-foreground font-medium text-lg">Ordenados por relevância geográfica e temporal.</p>
           </div>
+          
           <div className="flex items-center gap-4 bg-muted/50 p-2 rounded-2xl border border-dashed">
-            <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl shadow-sm">
-               <Clock className="w-4 h-4 text-secondary" />
-               <span className="text-[10px] font-black uppercase tracking-widest">Acontecendo Agora</span>
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2">
-               <MapPin className="w-4 h-4 text-primary opacity-30" />
-               <span className="text-[10px] font-black uppercase tracking-widest opacity-30">Na sua região</span>
-            </div>
+            {/* Botão Acontecendo Agora / Acontece em Breve */}
+            <button 
+              onClick={() => setShowLiveOnly(!showLiveOnly)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-xl transition-all",
+                showLiveOnly ? "bg-white shadow-sm scale-105" : "opacity-40 hover:opacity-100"
+              )}
+            >
+               <Clock className={cn("w-4 h-4", showLiveOnly ? "text-secondary" : "text-primary")} />
+               <span className="text-[10px] font-black uppercase tracking-widest">
+                 {showLiveOnly ? 'Acontecendo Agora' : 'Acontece em Breve'}
+               </span>
+            </button>
+
+            {/* Botão Na sua região (Raio 20km) */}
+            <button 
+              onClick={() => setShowRegionOnly(!showRegionOnly)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-xl transition-all",
+                showRegionOnly ? "bg-white shadow-sm scale-105" : "opacity-40 hover:opacity-100"
+              )}
+            >
+               <MapPin className={cn("w-4 h-4", showRegionOnly ? "text-secondary" : "text-primary")} />
+               <span className="text-[10px] font-black uppercase tracking-widest">Na sua região</span>
+            </button>
           </div>
         </div>
 
@@ -406,7 +439,7 @@ export default function LandingPageClient() {
              </div>
              <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Nenhum evento localizado</h3>
              <p className="text-muted-foreground font-medium uppercase tracking-widest text-xs mt-2">Tente expandir o raio de busca ou mudar os filtros.</p>
-             <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSelectedCity("all"); setSelectedCategory("all"); setRadiusKm("50"); setDateFilter("all"); setCustomDate(undefined); }}>Limpar Todos os Filtros</Button>
+             <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSelectedCity("all"); setSelectedCategory("all"); setRadiusKm("50"); setDateFilter("all"); setCustomDate(undefined); setShowLiveOnly(false); setShowRegionOnly(false); }}>Limpar Todos os Filtros</Button>
           </div>
         )}
       </section>
