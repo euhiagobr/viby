@@ -32,22 +32,40 @@ import { cn } from "@/lib/utils"
 import { processGamificationEvent } from "@/lib/gamification-service"
 
 /**
- * Utilitário para converter string ISO ou YYYY-MM-DD em objeto Date local
- * Evita problemas de fuso horário que o "new Date(string)" causa ao interpretar como UTC.
+ * Utilitário robusto para converter inputs de data/hora em objeto Date LOCAL.
  */
 function parseToLocalDate(dateInput: any, timeInput?: string) {
   if (!dateInput) return new Date();
   
+  // 1. Se for Timestamp do Firebase
   if (dateInput?.toDate) return dateInput.toDate();
-  
+
+  // 2. Se for objeto Date direto
+  if (dateInput instanceof Date) return dateInput;
+
+  // 3. Se for string
   const dateStr = String(dateInput);
-  const [datePart, timePart] = dateStr.split('T');
-  const [year, month, day] = datePart.split('-').map(Number);
-  
-  const finalTime = timeInput || timePart || "00:00";
-  const [hours, minutes] = finalTime.split(':').map(Number);
-  
-  return new Date(year, month - 1, day, hours, minutes);
+
+  // Se já tiver tempo (ISO ou datetime-local: YYYY-MM-DDTHH:mm)
+  if (dateStr.includes('T')) {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // Fallback: Parse manual garantindo fuso local do navegador
+  // Formato esperado: YYYY-MM-DD
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const [year, month, day] = parts.map(Number);
+    const finalTime = timeInput || "00:00";
+    const [hours, minutes] = finalTime.split(':').map(Number);
+    
+    // Construtor new Date(year, monthIndex, day, hours, ...) SEMPRE usa local time
+    const d = new Date(year, month - 1, day, hours, minutes);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  return new Date(dateStr);
 }
 
 export default function AdminScannerPage() {
@@ -111,6 +129,7 @@ export default function AdminScannerPage() {
     try {
       let targetDoc: any = null;
 
+      // Busca por ID do documento ou Código impresso
       if (cleanInput.length >= 20 && !cleanInput.includes('-')) {
         const docRef = doc(db, "registrations", cleanInput);
         const docSnap = await getDoc(docRef);
@@ -133,33 +152,31 @@ export default function AdminScannerPage() {
         const isCancelled = targetDoc.status === 'cancelled' || targetDoc.status === 'refunded' || targetDoc.paymentStatus === 'refunded_wallet' || targetDoc.status === 'Cancelado';
         
         const now = new Date();
-        let invalidTime = false;
-
-        // RESOLUÇÃO DE HORÁRIOS ROBUSTA
-        const eventStart = parseToLocalDate(targetDoc.eventDate, targetDoc.startTime || targetDoc.horarioOcorrencia);
-        // Margem de 6h se não houver horário de término
-        const eventEnd = parseToLocalDate(targetDoc.eventEndDate || targetDoc.eventDate, targetDoc.endTime || targetDoc.horarioFim || "23:59");
         
+        // RESOLUÇÃO DE HORÁRIOS LOCALIZADA
+        const eventStart = parseToLocalDate(targetDoc.eventDate, targetDoc.startTime || targetDoc.horarioOcorrencia);
+        
+        // Se não houver horário de fim, assume 6h de duração padrão
+        let eventEnd = parseToLocalDate(targetDoc.eventEndDate || targetDoc.eventDate, targetDoc.endTime || targetDoc.horarioFim || "23:59");
         if (!targetDoc.endTime && !targetDoc.horarioFim) {
-          eventEnd.setHours(eventStart.getHours() + 8);
+           eventEnd = new Date(eventStart.getTime() + 6 * 60 * 60 * 1000);
         }
 
-        // REGRA SOLICITADA: 2h antes e tolerância de 6h depois
-        const toleranceBefore = 2 * 60 * 60 * 1000;
-        const toleranceAfter = 6 * 60 * 60 * 1000;
+        // REGRA DA JANELA: 2h antes até 6h após o fim
+        const windowStart = new Date(eventStart.getTime() - (2 * 60 * 60 * 1000));
+        const windowEnd = new Date(eventEnd.getTime() + (6 * 60 * 60 * 1000));
 
-        const windowStart = new Date(eventStart.getTime() - toleranceBefore);
-        const windowEnd = new Date(eventEnd.getTime() + toleranceAfter);
-
-        if (now < windowStart || now > windowEnd) {
-          invalidTime = true;
-        }
+        const invalidTime = now < windowStart || now > windowEnd;
 
         setTicketData({ 
           ...targetDoc, 
           isCancelled, 
           invalidTime,
-          windowInfo: { start: eventStart, end: eventEnd } 
+          windowInfo: { 
+            start: eventStart, 
+            end: eventEnd,
+            now: now
+          } 
         });
       }
     } catch (err: any) {
@@ -308,7 +325,8 @@ export default function AdminScannerPage() {
                         <Clock className="w-6 h-6 text-orange-600 shrink-0 mt-1" />
                         <div className="space-y-1">
                            <p className="font-black uppercase text-[10px] text-orange-800">Fora da Janela Oficial</p>
-                           <p className="text-[9px] font-medium text-orange-700 uppercase">Esperado para: {ticketData.windowInfo.start?.toLocaleString('pt-BR')}</p>
+                           <p className="text-[9px] font-medium text-orange-700 uppercase">Horário esperado: {ticketData.windowInfo.start?.toLocaleString('pt-BR')}</p>
+                           <p className="text-[8px] font-bold text-orange-400 uppercase italic">Aviso: Check-in liberado 2h antes do início.</p>
                         </div>
                      </div>
                   )}
