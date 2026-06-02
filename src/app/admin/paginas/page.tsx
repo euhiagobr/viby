@@ -65,7 +65,8 @@ import {
   Instagram,
   Fingerprint,
   MapPin,
-  TrendingUp
+  TrendingUp,
+  RefreshCw
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -123,7 +124,6 @@ export default function AdminPaginasPage() {
   const orgsQuery = useMemoFirebase(() => db ? query(collection(db, "organizations"), orderBy("createdAt", "desc")) : null, [db])
   const { data: orgs, loading: loadingOrgs } = useCollection<any>(orgsQuery)
 
-  // Sincronização Inteligente de Perfis de Proprietários
   const ownerIds = React.useMemo(() => {
     if (!orgs) return [];
     return Array.from(new Set(orgs.map(o => o.ownerId).filter(Boolean)));
@@ -202,13 +202,16 @@ export default function AdminPaginasPage() {
             transaction.delete(doc(db, "usernames", oldUsername));
           }
           transaction.set(newIdxRef, { uid: editingOrg.id, type: 'organization' });
+        } else if (newUsername) {
+          // Garante que o índice exista mesmo que não tenha mudado (reparo de índice)
+          transaction.set(doc(db, "usernames", newUsername), { uid: editingOrg.id, type: 'organization' }, { merge: true });
         }
 
         const { id, ownerProfile, ...data } = editingOrg
         transaction.update(doc(db, "organizations", id), { ...data, updatedAt: serverTimestamp() });
       });
 
-      toast({ title: "Página atualizada!" })
+      toast({ title: "Página atualizada!", description: "Índice de URL sincronizado com sucesso." })
       setIsEditOrgOpen(false)
     } catch (e: any) { 
       toast({ variant: "destructive", title: "Erro ao salvar", description: e.message }) 
@@ -234,7 +237,7 @@ export default function AdminPaginasPage() {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
           setEditingOrg((prev: any) => ({ ...prev, [type]: downloadURL }))
           setUploadProgress(null)
-          toast({ title: `${type === 'avatar' ? 'Logo' : 'Capa'} atualizada no rascunho!` })
+          toast({ title: `${type === 'avatar' ? 'Logo' : 'Capa'} atualizada!` })
         }
       )
     } catch (err) { setUploadProgress(null) }
@@ -294,24 +297,19 @@ export default function AdminPaginasPage() {
       const newOwnerData = uSnap.docs[0].data()
       const batch = writeBatch(db)
 
-      // 1. Rebaixar owner antigo se existir
       const membersQ = query(collection(db, "organizations", transferOrg.id, "members"), where("role", "==", "owner"), limit(1))
       const membersSnap = await getDocs(membersQ)
       if (!membersSnap.empty) {
         batch.update(membersSnap.docs[0].ref, { role: 'admin', updatedAt: serverTimestamp() })
       }
 
-      // 2. Definir novo owner na subcoleção
       batch.set(doc(db, "organizations", transferOrg.id, "members", newOwnerUid), {
         userId: newOwnerUid, role: 'owner', status: 'accepted', updatedAt: serverTimestamp()
       }, { merge: true })
 
-      // 3. Atualizar ownerId no documento principal
       batch.update(doc(db, "organizations", transferOrg.id), { ownerId: newOwnerUid, updatedAt: serverTimestamp() })
       
       await batch.commit()
-      
-      // Atualizar cache local para refletir na interface sem reload
       setOwnerProfilesCache(prev => ({ ...prev, [newOwnerUid]: newOwnerData }));
       
       toast({ title: "Titularidade Transferida!" })
@@ -360,7 +358,7 @@ export default function AdminPaginasPage() {
               <TableHead className="font-black uppercase text-[9px] tracking-widest p-6">Marca / Identidade</TableHead>
               <TableHead className="font-black uppercase text-[9px] tracking-widest">Proprietário</TableHead>
               <TableHead className="font-black uppercase text-[9px] tracking-widest">Categoria</TableHead>
-              <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Status</TableHead>
+              <TableHead className="font-black uppercase text-[10px] tracking-widest text-center">Status</TableHead>
               <TableHead className="text-right font-black uppercase text-[9px] tracking-widest p-6">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -405,7 +403,6 @@ export default function AdminPaginasPage() {
         </Table>
       </Card>
 
-      {/* DIALOG EDIÇÃO COMPLETA */}
       <Dialog open={isEditOrgOpen} onOpenChange={setIsEditOrgOpen}>
         <DialogContent className="max-w-4xl h-[90vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
            <DialogHeader className="p-8 border-b bg-muted/30">
@@ -420,7 +417,12 @@ export default function AdminPaginasPage() {
                        <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">Painel Administrativo de Organização</DialogDescription>
                     </div>
                  </div>
-                 <Badge className={cn("uppercase text-[10px] font-black h-6", editingOrg?.status === 'Bloqueado' ? "bg-red-500 text-white" : "bg-green-500 text-white")}>{editingOrg?.status || 'Ativo'}</Badge>
+                 <div className="flex items-center gap-3">
+                    <Button variant="outline" size="sm" asChild className="rounded-xl h-9 px-4 gap-2 font-black uppercase text-[9px] border-secondary text-secondary">
+                        <Link href={`/${editingOrg?.username}`} target="_blank"><Globe className="w-3.5 h-3.5" /> Ver Perfil</Link>
+                    </Button>
+                    <Badge className={cn("uppercase text-[10px] font-black h-6", editingOrg?.status === 'Bloqueado' ? "bg-red-500 text-white" : "bg-green-500 text-white")}>{editingOrg?.status || 'Ativo'}</Badge>
+                 </div>
               </div>
            </DialogHeader>
            
@@ -443,7 +445,10 @@ export default function AdminPaginasPage() {
                           <TabsContent value="geral" className="space-y-8 mt-0">
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome de Exibição</Label><Input value={editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, name: e.target.value})} className="rounded-xl h-11" required /></div>
-                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label><Input value={editingOrg?.username || ""} onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} className="rounded-xl h-11 border-dashed border-secondary/30" /></div>
+                                <div className="space-y-2">
+                                   <Label className="text-[10px] font-black uppercase opacity-60 flex items-center justify-between">Username exclusivo (@) <span className="text-[8px] text-secondary font-black italic">ALTERAÇÃO ADMIN</span></Label>
+                                   <Input value={editingOrg?.username || ""} onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "")})} className="rounded-xl h-11 border-dashed border-secondary/40 font-bold" />
+                                </div>
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Slug (URL)</Label><Input value={editingOrg?.slug || ""} onChange={e => setEditingOrg({...editingOrg, slug: e.target.value.toLowerCase().replace(/\s+/g, "-")})} className="rounded-xl h-11" /></div>
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label><Input value={editingOrg?.type || ""} onChange={e => setEditingOrg({...editingOrg, type: e.target.value})} className="rounded-xl h-11" /></div>
                              </div>
@@ -530,12 +535,11 @@ export default function AdminPaginasPage() {
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG TRANSFERÊNCIA */}
       <Dialog open={!!isTransferOpen} onOpenChange={setIsTransferOpen}>
         <DialogContent className="rounded-[2.5rem] max-w-sm">
            <DialogHeader><DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-center">Transferir Titularidade</DialogTitle></DialogHeader>
            <div className="space-y-6 py-4">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Username do Novo Dono (@)</Label><Input placeholder="Ex: @joaosilva" value={newOwnerUsername} onChange={e => setNewOwnerUsername(e.target.value)} className="h-12 rounded-xl" /></div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Username do Novo Dono (@)</Label><AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" /><Input placeholder="Ex: joaosilva" value={newOwnerUsername} onChange={e => setNewOwnerUsername(e.target.value)} className="h-12 rounded-xl pl-9" /></div>
               <div className="p-4 bg-orange-50 rounded-2xl border-2 border-dashed border-orange-200 text-[10px] text-orange-800 font-bold uppercase leading-relaxed italic">O dono antigo será rebaixado para administrador.</div>
            </div>
            <DialogFooter><Button onClick={handleTransferOwnership} disabled={isSaving || !newOwnerUsername} className="w-full bg-primary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">{isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : "Confirmar Transferência"}</Button></DialogFooter>

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
 import { useFirestore, useFirebaseApp, useAuth } from '@/firebase';
-import { doc, updateDoc, serverTimestamp, deleteField, collection, query, where, getDocs, writeBatch, runTransaction } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -62,7 +62,6 @@ export default function OrganizationSettingsPage() {
   const [avatarProgress, setAvatarProgress] = React.useState<number | null>(null);
   const [bannerProgress, setBannerProgress] = React.useState<number | null>(null);
 
-  // Estados para Exclusão/Desativação
   const [isDeleteDialogOpen, setIsDeleteOpen] = React.useState(false);
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [isProcessingAction, setIsProcessingAction] = React.useState(false);
@@ -148,42 +147,21 @@ export default function OrganizationSettingsPage() {
     e.preventDefault();
     if (!db || !currentOrg) return;
 
-    const oldUsername = currentOrg.username?.toLowerCase().trim();
-    const newUsername = formData.username?.toLowerCase().trim();
-    const usernameChanged = oldUsername !== newUsername;
-
     setSaving(true);
     try {
-      await runTransaction(db, async (transaction) => {
-        // Se mudou o username, atualiza o índice global
-        if (usernameChanged) {
-          const newIdxRef = doc(db, "usernames", newUsername);
-          const newIdxSnap = await transaction.get(newIdxRef);
-          
-          if (newIdxSnap.exists()) {
-            throw new Error("Este nome de usuário já está em uso por outro perfil.");
-          }
+      // Nota: Alteração de username removida deste fluxo por segurança.
+      // Apenas administradores globais podem realizar esta ação via Painel Admin.
+      const { username, ...updateData } = formData;
 
-          if (oldUsername) {
-            transaction.delete(doc(db, "usernames", oldUsername));
-          }
-          transaction.set(newIdxRef, { uid: currentOrg.id, type: 'organization' });
-        }
-
-        transaction.update(doc(db, 'organizations', currentOrg.id), {
-          ...formData,
-          status: 'Ativo',
-          deletionScheduledAt: deleteField(),
-          updatedAt: serverTimestamp(),
-        });
+      await updateDoc(doc(db, 'organizations', currentOrg.id), {
+        ...updateData,
+        status: 'Ativo',
+        deletionScheduledAt: deleteField(),
+        updatedAt: serverTimestamp(),
       });
 
       await refreshOrg();
-      toast({ title: "Configurações salvas!", description: "Sua página está ativa e os dados foram atualizados." });
-      
-      if (usernameChanged) {
-        router.push(`/dashboard/organizacoes/${newUsername}/settings`);
-      }
+      toast({ title: "Configurações salvas!", description: "Os dados foram atualizados com sucesso." });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao salvar", description: error.message });
     } finally {
@@ -340,12 +318,17 @@ export default function OrganizationSettingsPage() {
                 </div>
                 <div className="space-y-2">
                    <Label className="text-[10px] font-black uppercase opacity-60">Username exclusivo (@)</Label>
-                   <Input 
-                     value={formData.username}
-                     onChange={e => setFormData({...formData, username: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "")})}
-                     required
-                     className="rounded-xl h-11 border-dashed border-secondary/30"
-                   />
+                   <div className="relative">
+                      <Input 
+                        value={formData.username}
+                        readOnly
+                        className="rounded-xl h-11 bg-muted/50 border-none cursor-not-allowed pr-10 font-bold"
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                         <Lock className="w-4 h-4 text-muted-foreground opacity-50" />
+                      </div>
+                   </div>
+                   <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">Alteração de username permitida apenas via suporte ou painel global.</p>
                 </div>
               </div>
               <div className="space-y-2">
@@ -359,7 +342,6 @@ export default function OrganizationSettingsPage() {
            </CardContent>
         </Card>
 
-        {/* Dados Legais */}
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -370,7 +352,7 @@ export default function OrganizationSettingsPage() {
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase opacity-60">Razão Social (Obrigatório)</Label>
+                <Label className="text-[10px] font-black uppercase opacity-60">Razão Social</Label>
                 <Input 
                   value={formData.legalName}
                   onChange={e => setFormData({...formData, legalName: e.target.value})}
@@ -379,7 +361,7 @@ export default function OrganizationSettingsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase opacity-60">CNPJ (Obrigatório)</Label>
+                <Label className="text-[10px] font-black uppercase opacity-60">CNPJ</Label>
                 <Input 
                   value={formData.cnpj}
                   onChange={e => {
@@ -395,13 +377,11 @@ export default function OrganizationSettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Endereço */}
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <MapPin className="w-5 h-5 text-secondary" /> Endereço e Localização
             </CardTitle>
-            <CardDescription>Defina onde sua marca está sediada e controle o que aparece no perfil público.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -488,11 +468,9 @@ export default function OrganizationSettingsPage() {
                 </div>
               </div>
             </div>
-            <p className="text-[10px] text-muted-foreground font-medium italic">Se ocultar campos de endereço, apenas a Cidade, Estado e País aparecerão no seu perfil público.</p>
           </CardContent>
         </Card>
 
-        {/* Contato & Social */}
         <Card className="border-none shadow-sm rounded-[2rem]">
            <CardHeader><CardTitle className="text-lg">Contato & Presença Digital</CardTitle></CardHeader>
            <CardContent className="space-y-6">
@@ -542,7 +520,6 @@ export default function OrganizationSettingsPage() {
         </div>
       </form>
 
-      {/* ZONA DE PERIGO */}
       <Card className="border-none shadow-sm rounded-[2rem] border-t-8 border-destructive/20 bg-white overflow-hidden">
         <CardHeader className="bg-destructive/5">
            <CardTitle className="text-lg flex items-center gap-2 text-destructive"><ShieldAlert className="w-5 h-5" /> Zona de Perigo</CardTitle>
@@ -572,7 +549,7 @@ export default function OrganizationSettingsPage() {
                <div className="flex flex-col md:flex-row items-center justify-between gap-6 border-b pb-8">
                   <div className="space-y-1 flex-1">
                      <p className="font-bold text-sm">Desativar Página</p>
-                     <p className="text-[11px] text-muted-foreground">Oculta sua marca e suspende todos os eventos e vendas. Seus dados continuam salvos e você pode reativar a qualquer momento.</p>
+                     <p className="text-[11px] text-muted-foreground">Oculta sua marca e suspende todos os eventos e vendas.</p>
                   </div>
                   <Button 
                     variant={isDeactivated ? "secondary" : "outline"} 
@@ -588,7 +565,7 @@ export default function OrganizationSettingsPage() {
                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                   <div className="space-y-1 flex-1">
                      <p className="font-bold text-sm text-destructive">Excluir Organização</p>
-                     <p className="text-[11px] text-muted-foreground">Remove permanentemente todos os eventos e dados da marca após 30 dias. Vendas e visualizações são interrompidas imediatamente.</p>
+                     <p className="text-[11px] text-muted-foreground">Remove permanentemente todos os eventos e dados da marca após 30 dias.</p>
                   </div>
                   <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteOpen}>
                     <DialogTrigger asChild>
@@ -616,9 +593,6 @@ export default function OrganizationSettingsPage() {
                                 onChange={e => setConfirmPassword(e.target.value)}
                                 className="h-12 rounded-xl"
                              />
-                          </div>
-                          <div className="p-4 bg-muted/50 rounded-2xl border-2 border-dashed border-border text-[10px] text-muted-foreground font-medium uppercase leading-relaxed italic">
-                             Ao confirmar, sua marca e bilheteria sairão do ar hoje e serão apagadas em definitivo daqui a 30 dias.
                           </div>
                        </div>
                        <DialogFooter>

@@ -56,7 +56,8 @@ export default function ProfilePageClient({ username }: { username: string }) {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const uRef = doc(db, "usernames", username.toLowerCase().trim());
+        const normalized = username.toLowerCase().trim();
+        const uRef = doc(db, "usernames", normalized);
         const uSnap = await getDoc(uRef);
         
         if (uSnap.exists()) {
@@ -69,6 +70,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
           if (dataSnap.exists()) {
             setProfileData({ id: dataSnap.id, ...dataSnap.data() });
           } else {
+            console.warn("[Router] Index exists but target document is missing:", uid);
             setProfileData(null);
           }
         } else {
@@ -76,6 +78,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
         }
       } catch (e) {
         console.error("Integrity Error:", e);
+        setProfileData(null);
       } finally {
         setLoading(false);
       }
