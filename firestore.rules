@@ -9,7 +9,6 @@ service cloud.firestore {
     }
 
     // Verifica se o usuário autenticado é um Administrador Global
-    // Utiliza caminhos dinâmicos e verificação de existência para evitar erros de permissão
     function isAdmin() {
       return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
@@ -52,6 +51,8 @@ service cloud.firestore {
     match /follows/{followId} { allow read: if true; }
     match /badges/{badgeId} { allow read: if true; }
     match /xp_rules/{ruleId} { allow read: if true; }
+    match /coupons/{couponId} { allow read: if true; }
+    match /comments/{commentId} { allow read: if true; }
 
     // 3. Usuários (Gestão de Perfil)
     match /users/{userId} {
@@ -140,11 +141,11 @@ service cloud.firestore {
 
     match /support_tickets/{ticketId} {
       allow read, create: if isSignedIn();
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
     
     match /system_logs/{logId} {
-      allow create: if true; // Permitir que erros anônimos sejam logados
+      allow create: if true; 
     }
 
     match /sent_emails/{emailId} {
