@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -32,6 +33,8 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
+import { getUserCPF } from "@/app/actions/user"
+import { maskCPF } from "@/lib/crypto-utils"
 
 export default function EditarPerfilPage() {
   const router = useRouter()
@@ -75,11 +78,14 @@ export default function EditarPerfilPage() {
   })
   const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [isFetchingCPF, setIsFetchingCPF] = useState(false)
 
   useEffect(() => {
     if (profile && user && !isInitialized.current) {
       isInitialized.current = true
       
+      const initialCPF = profile.cpf || "";
+
       setFormData((prev: any) => ({
         ...prev,
         name: profile.name || "",
@@ -95,7 +101,7 @@ export default function EditarPerfilPage() {
         instagram: profile.instagram || "",
         whatsapp: profile.whatsapp || "",
         email: profile.email || "",
-        cpf: profile.cpf || "", // CARREGA A VERSÃO MASCARADA PERMANENTE
+        cpf: initialCPF,
         showEmail: profile.showEmail !== undefined ? profile.showEmail : true,
         privacy: profile.privacy || {
            profilePrivate: false,
@@ -105,6 +111,16 @@ export default function EditarPerfilPage() {
            hideLocation: false
         }
       }));
+
+      // AUTO-HEALING: Se o CPF não estiver no documento principal, buscar do sensível e mascarar
+      if (!initialCPF) {
+        setIsFetchingCPF(true);
+        getUserCPF(user.uid, user.uid).then(res => {
+          if (res.success && res.cpf) {
+            setFormData((prev: any) => ({ ...prev, cpf: maskCPF(res.cpf!) }));
+          }
+        }).finally(() => setIsFetchingCPF(false));
+      }
     }
   }, [profile, user])
 
@@ -138,7 +154,7 @@ export default function EditarPerfilPage() {
     try {
       const userRef = doc(db, "users", user.uid)
       
-      // BLOQUEIO TOTAL: O CPF é removido do objeto de update para garantir que nem via código o usuário altere
+      // BLOQUEIO TOTAL: O CPF é removido do objeto de update para garantir imutabilidade
       const { cpf, username, email, uid, ...safeData } = formData; 
       
       const updateData = {
@@ -224,12 +240,12 @@ export default function EditarPerfilPage() {
               </Label>
               <div className="relative">
                  <Input 
-                   value={formData.cpf || "Pendente"} 
+                   value={isFetchingCPF ? "SINCRONIZANDO..." : (formData.cpf || "PENDENTE")} 
                    readOnly
                    className="rounded-xl h-11 bg-muted/50 cursor-not-allowed font-mono font-bold pr-10" 
                  />
                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <Lock className="w-4 h-4 text-muted-foreground opacity-50" />
+                    {isFetchingCPF ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : <Lock className="w-4 h-4 text-muted-foreground opacity-50" />}
                  </div>
               </div>
               <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">O CPF não pode ser alterado por segurança da sua carteira e ingressos.</p>

@@ -1,3 +1,4 @@
+
 'use server';
 
 import { getAdminDb } from '@/lib/firebase/admin';
@@ -27,11 +28,13 @@ export async function getUserCPF(userId: string, requestingUid: string) {
     
     if (sensitiveDoc.exists) {
       const encryptedCpf = sensitiveDoc.data()?.cpf;
+      // Retorna o CPF descriptografado apenas para o dono ou admin
       return { success: true, cpf: decryptData(encryptedCpf) };
     }
     
     return { success: false, error: "Dados não encontrados." };
   } catch (e: any) {
+    console.error("[getUserCPF Error]", e.message);
     return { success: false, error: e.message };
   }
 }
@@ -52,6 +55,7 @@ export async function updateUserCPF(userId: string, cpf: string) {
 
     return { success: true };
   } catch (e: any) {
+    console.error("[updateUserCPF Error]", e.message);
     return { success: false, error: e.message };
   }
 }

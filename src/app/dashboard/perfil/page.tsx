@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -25,15 +26,16 @@ export default function PerfilPage() {
 
   const [fullCPF, setFullCPF] = React.useState<string | null>(null);
   const [showCPF, setShowCPF] = React.useState(false);
+  const [loadingCPF, setLoadingCPF] = React.useState(false);
 
-  // Carregar CPF mascarado no mount para exibir os 3 números conforme solicitado
   React.useEffect(() => {
     if (user) {
+      setLoadingCPF(true);
       getUserCPF(user.uid, user.uid).then(res => {
-        if (res.success) {
+        if (res.success && res.cpf) {
           setFullCPF(res.cpf!);
         }
-      });
+      }).finally(() => setLoadingCPF(false));
     }
   }, [user]);
 
@@ -70,6 +72,12 @@ export default function PerfilPage() {
       return 'Recentemente';
     }
   };
+
+  const displayCPF = React.useMemo(() => {
+    if (loadingCPF) return "Sincronizando...";
+    if (fullCPF) return showCPF ? fullCPF : maskCPF(fullCPF);
+    return profile.cpf || "PENDENTE";
+  }, [loadingCPF, fullCPF, showCPF, profile.cpf]);
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
@@ -139,7 +147,7 @@ export default function PerfilPage() {
                   <div className="flex items-center gap-3">
                     <Fingerprint className="w-4 h-4 text-muted-foreground" />
                     <span className="font-medium">
-                      {showCPF ? fullCPF : maskCPF(fullCPF || "")}
+                      {displayCPF}
                     </span>
                   </div>
                   {fullCPF && (
