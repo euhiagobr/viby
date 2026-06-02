@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -113,7 +112,7 @@ export function OrganizerHero({
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-3 pb-2">
-            <FollowButton organizationId={organization.id} />
+            <FollowButton organizationId={organization.id} username={organization.username} />
             <Button variant="outline" size="icon" className="rounded-2xl h-12 w-12 border-2" onClick={handleShare} title="Compartilhar">
               <Share2 className="w-5 h-5" />
             </Button>

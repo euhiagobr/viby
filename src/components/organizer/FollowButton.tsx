@@ -1,9 +1,8 @@
-
 "use client";
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { Heart, Loader2, UserPlus, UserMinus } from "lucide-react";
+import { Heart, Loader2, UserPlus, UserMinus, ShieldCheck } from "lucide-react";
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase";
 import { doc, setDoc, deleteDoc, serverTimestamp, increment, updateDoc, getDoc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
@@ -12,14 +11,16 @@ import { processGamificationEvent } from "@/lib/gamification-service";
 
 interface FollowButtonProps {
   organizationId: string;
+  username?: string;
   targetType?: 'user' | 'organization';
   className?: string;
 }
 
 /**
- * Componente unificado para seguir Usuários e Organizações com integridade total.
+ * Componente unificado para seguir Usuários e Organizações.
+ * Bloqueia o unfollow para o perfil oficial 'viby'.
  */
-export function FollowButton({ organizationId, targetType = 'organization', className }: FollowButtonProps) {
+export function FollowButton({ organizationId, username, targetType = 'organization', className }: FollowButtonProps) {
   const db = useFirestore();
   const auth = useAuth();
   const { user } = useUser(auth);
@@ -27,6 +28,9 @@ export function FollowButton({ organizationId, targetType = 'organization', clas
 
   // Prevenir seguir a si mesmo
   const isSelf = user?.uid === organizationId;
+  
+  // Regra de Negócio: Página oficial 'viby' é seguimento obrigatório
+  const isOfficialViby = username?.toLowerCase() === 'viby';
   
   const followRef = React.useMemo(() => 
     (db && user && organizationId && !isSelf) ? doc(db, "follows", `${user.uid}_${organizationId}`) : null, 
@@ -46,6 +50,12 @@ export function FollowButton({ organizationId, targetType = 'organization', clas
     }
 
     if (isSelf) return;
+
+    // Trava de Unfollow para @viby
+    if (isOfficialViby && isFollowing) {
+      toast({ title: "Página Oficial", description: "Você não pode deixar de seguir a Viby." });
+      return;
+    }
 
     setLoading(true);
     try {
@@ -95,26 +105,30 @@ export function FollowButton({ organizationId, targetType = 'organization', clas
 
   if (isSelf || followLoading) return null;
 
+  // Se for seguimento obrigatório, desabilitamos a interatividade mas mantemos o estilo de "Seguindo"
+  const isDisabled = loading || (isOfficialViby && isFollowing);
+
   return (
     <Button
       onClick={handleToggleFollow}
-      disabled={loading}
+      disabled={isDisabled}
       className={cn(
         "rounded-full px-8 h-12 font-black uppercase italic transition-all active:scale-95 gap-2 shadow-xl",
         isFollowing 
           ? "bg-white text-primary border-2 border-primary hover:bg-muted" 
           : "bg-secondary text-white shadow-secondary/20",
+        isOfficialViby && isFollowing && "opacity-80 cursor-default",
         className
       )}
     >
       {loading ? (
         <Loader2 className="w-4 h-4 animate-spin" />
       ) : isFollowing ? (
-        <UserMinus className="w-4 h-4" />
+        isOfficialViby ? <ShieldCheck className="w-4 h-4" /> : <UserMinus className="w-4 h-4" />
       ) : (
         <UserPlus className="w-4 h-4" />
       )}
-      {isFollowing ? "Seguindo" : "Seguir"}
+      {isFollowing ? (isOfficialViby ? "Membro Viby" : "Seguindo") : "Seguir"}
     </Button>
   );
 }

@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
-import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore"
+import { doc, getDoc, runTransaction, serverTimestamp, increment } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -174,10 +174,15 @@ export default function CadastroPage() {
     const normalizedUsername = username.toLowerCase()
 
     try {
+      // 1. Criar usuário no Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       const user = userCredential.user
 
       await updateProfile(user, { displayName: name })
+
+      // 2. Buscar UID da página oficial "viby"
+      const vibyIdxSnap = await getDoc(doc(db, "usernames", "viby"))
+      const officialOrgId = vibyIdxSnap.exists() ? vibyIdxSnap.data().uid : null
 
       const userData = {
         uid: user.uid,
@@ -197,8 +202,7 @@ export default function CadastroPage() {
         createdAt: serverTimestamp()
       };
 
-      const officialOrgId = "d3c9fdc1-7fcc-4a70-ab99-79729fad2bf9";
-
+      // 3. Executar transação de cadastro e seguimento automático
       await runTransaction(db, async (transaction) => {
         const usernameRef = doc(db, "usernames", normalizedUsername)
         const userRef = doc(db, "users", user.uid)
@@ -211,22 +215,33 @@ export default function CadastroPage() {
         transaction.set(usernameRef, { uid: user.uid, type: 'user', email: email.toLowerCase().trim() })
         transaction.set(userRef, userData)
 
-        const followRef1 = doc(db, "follows", `${user.uid}_${officialOrgId}`)
-        transaction.set(followRef1, {
-          followerId: user.uid,
-          followingId: officialOrgId,
-          targetType: 'organization',
-          timestamp: serverTimestamp()
-        })
+        // Seguimento automático da página oficial
+        if (officialOrgId) {
+          const followRef = doc(db, "follows", `${user.uid}_${officialOrgId}`)
+          const vibyOrgRef = doc(db, "organizations", officialOrgId)
+          
+          transaction.set(followRef, {
+            followerId: user.uid,
+            followingId: officialOrgId,
+            targetType: 'organization',
+            timestamp: serverTimestamp()
+          })
+
+          transaction.update(userRef, { followingCount: increment(1) })
+          transaction.update(vibyOrgRef, { followersCount: increment(1) })
+        }
       });
 
+      // 4. Salvar CPF de forma segura (Server Action)
       const cpfResult = await updateUserCPF(user.uid, cleanCPF);
       if (!cpfResult.success) {
         console.error("Erro ao salvar CPF:", cpfResult.error);
       }
 
+      // 5. Iniciar Gamificação
       await processGamificationEvent(db, user.uid, 'on_signup', {}, user.uid, userData);
       
+      // 6. Enviar Boas-vindas
       sendWelcomeEmail({
         to: email,
         userName: name,
