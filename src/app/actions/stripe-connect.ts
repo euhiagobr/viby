@@ -36,7 +36,6 @@ async function getStripeInstance(db: any) {
 
 /**
  * Cria ou recupera uma conta Stripe Connect Express para a organização.
- * Implementa idempotência e gravação segura no Firestore.
  */
 export async function createStripeConnectAccount(orgId: string) {
   try {
@@ -51,7 +50,6 @@ export async function createStripeConnectAccount(orgId: string) {
     const orgData = orgSnap.data();
     let accountId = orgData.stripeAccountId;
 
-    // 1. Proteção contra duplicidade: Só cria se não houver ID salvo
     if (!accountId) {
       const stripe = await getStripeInstance(db);
       const account = await stripe.accounts.create({
@@ -72,7 +70,6 @@ export async function createStripeConnectAccount(orgId: string) {
       
       accountId = account.id;
 
-      // 2. Salva o ID no Firestore utilizando a exceção nas Security Rules
       await updateDoc(orgRef, {
         stripeAccountId: accountId,
         stripeOnboardingComplete: false,
@@ -80,9 +77,7 @@ export async function createStripeConnectAccount(orgId: string) {
       });
     }
 
-    // 3. Gera o link de redirecionamento para o onboarding (nova ou existente)
     const linkRes = await createAccountOnboardingLink(orgId, accountId);
-    
     if (!linkRes.success) throw new Error(linkRes.error);
 
     return { success: true, accountId, url: linkRes.url };
@@ -110,6 +105,35 @@ export async function createAccountOnboardingLink(orgId: string, accountId: stri
     });
 
     return { success: true, url: accountLink.url };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Recupera os dados de uma conta diretamente da API do Stripe para diagnóstico.
+ */
+export async function retrieveStripeAccount(accountId: string) {
+  try {
+    const { db } = await getFirebaseComponents();
+    const stripe = await getStripeInstance(db);
+    const account = await stripe.accounts.retrieve(accountId);
+
+    return {
+      success: true,
+      data: {
+        id: account.id,
+        details_submitted: account.details_submitted,
+        charges_enabled: account.charges_enabled,
+        payouts_enabled: account.payouts_enabled,
+        requirements: {
+          currently_due: account.requirements?.currently_due || [],
+          eventually_due: account.requirements?.eventually_due || [],
+          past_due: account.requirements?.past_due || [],
+          disabled_reason: account.requirements?.disabled_reason || null
+        }
+      }
+    };
   } catch (error: any) {
     return { success: false, error: error.message };
   }

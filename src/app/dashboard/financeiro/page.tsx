@@ -16,7 +16,10 @@ import {
   Wallet,
   Clock,
   XCircle,
-  RefreshCw
+  RefreshCw,
+  Search,
+  Terminal,
+  AlertTriangle
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -25,8 +28,9 @@ import { useRouter } from "next/navigation"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
-import { createStripeConnectAccount, createAccountOnboardingLink } from "@/app/actions/stripe-connect"
+import { createStripeConnectAccount, createAccountOnboardingLink, retrieveStripeAccount } from "@/app/actions/stripe-connect"
 import Link from "next/link"
+import { Separator } from "@/components/ui/separator"
 
 export default function FinanceiroPage() {
   const db = useFirestore()
@@ -36,6 +40,8 @@ export default function FinanceiroPage() {
   const { currentOrg, userRole, loading: orgLoading, refreshOrg } = useCurrentOrganization()
   
   const [isProcessing, setIsProcessing] = React.useState(false)
+  const [isDiagnosing, setIsDiagnosing] = React.useState(false)
+  const [diagnosticResult, setDiagnosticResult] = React.useState<any>(null)
 
   const isOwnerOrAdmin = ['owner', 'admin'].includes(userRole || '')
 
@@ -53,6 +59,28 @@ export default function FinanceiroPage() {
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro na conexão", description: e.message });
       setIsProcessing(false);
+    }
+  }
+
+  const handleRunDiagnostic = async () => {
+    if (!currentOrg?.stripeAccountId) {
+      toast({ variant: "destructive", title: "Ação não permitida", description: "A organização ainda não possui uma conta Stripe criada." });
+      return;
+    }
+
+    setIsDiagnosing(true);
+    try {
+      const result = await retrieveStripeAccount(currentOrg.stripeAccountId);
+      if (result.success) {
+        setDiagnosticResult(result.data);
+        toast({ title: "Diagnóstico concluído" });
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro no diagnóstico", description: e.message });
+    } finally {
+      setIsDiagnosing(false);
     }
   }
 
@@ -74,19 +102,110 @@ export default function FinanceiroPage() {
   const isVerified = currentOrg.stripeChargesEnabled && currentOrg.stripePayoutsEnabled;
   const isPending = currentOrg.stripeAccountId && !isVerified;
 
+  const getStripeRealStatus = (stripeData: any) => {
+    if (!stripeData) return null;
+    if (stripeData.charges_enabled && stripeData.payouts_enabled) return { label: "APROVADA", color: "text-green-600", icon: CheckCircle2 };
+    if (stripeData.requirements?.currently_due?.length > 0) return { label: "PENDENTE DE DOCUMENTAÇÃO", color: "text-orange-500", icon: AlertTriangle };
+    if (stripeData.requirements?.disabled_reason) return { label: "BLOQUEADA", color: "text-red-600", icon: XCircle };
+    return { label: "EM ANÁLISE", color: "text-blue-500", icon: Clock };
+  }
+
+  const realStatus = getStripeRealStatus(diagnosticResult);
+  const hasDivergence = diagnosticResult && (
+    diagnosticResult.details_submitted !== currentOrg.stripeOnboardingComplete ||
+    diagnosticResult.charges_enabled !== currentOrg.stripeChargesEnabled ||
+    diagnosticResult.payouts_enabled !== currentOrg.stripePayoutsEnabled
+  );
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href={`/dashboard/organizacoes/${currentOrg.username}/finance`}>
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">Conta de Recebimento</h1>
-          <p className="text-muted-foreground font-medium">Configuração nativa Stripe Connect Express para <strong>{currentOrg.name}</strong>.</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href={`/dashboard/organizacoes/${currentOrg.username}/finance`}>
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">Conta de Recebimento</h1>
+            <p className="text-muted-foreground font-medium">Configuração nativa Stripe Connect Express para <strong>{currentOrg.name}</strong>.</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+           {currentOrg.stripeAccountId && (
+             <Button 
+               variant="outline" 
+               onClick={handleRunDiagnostic} 
+               disabled={isDiagnosing}
+               className="rounded-full h-11 px-6 font-black uppercase text-[10px] gap-2 border-primary text-primary"
+             >
+                {isDiagnosing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Terminal className="w-4 h-4" />}
+                Verificar Status Stripe
+             </Button>
+           )}
         </div>
       </div>
+
+      {diagnosticResult && (
+        <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white border-t-8 border-primary overflow-hidden animate-in zoom-in-95">
+           <CardHeader className="bg-muted/30 p-8 border-b">
+              <div className="flex justify-between items-center">
+                 <div className="space-y-1">
+                    <CardTitle className="text-xl font-black italic uppercase tracking-tighter text-primary">Diagnóstico em Tempo Real</CardTitle>
+                    <CardDescription className="text-[10px] font-bold uppercase">Consulta direta via API Stripe</CardDescription>
+                 </div>
+                 {realStatus && (
+                    <div className={cn("flex items-center gap-2 px-4 py-2 rounded-xl bg-white shadow-sm border", realStatus.color)}>
+                       <realStatus.icon className="w-5 h-5" />
+                       <span className="font-black italic uppercase text-xs">STATUS REAL: {realStatus.label}</span>
+                    </div>
+                 )}
+              </div>
+           </CardHeader>
+           <CardContent className="p-8 space-y-8">
+              {hasDivergence && (
+                <div className="p-4 bg-red-50 rounded-2xl border border-red-200 flex items-center gap-3 text-red-700 animate-bounce">
+                   <ShieldAlert className="w-5 h-5" />
+                   <p className="text-xs font-black uppercase tracking-tight">Divergência encontrada entre Stripe e Firestore!</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                 <div className="space-y-4">
+                    <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest border-b pb-2">Dados da API Stripe</h3>
+                    <div className="space-y-2">
+                       <DiagLine label="Account ID" value={diagnosticResult.id} mono />
+                       <DiagLine label="Details Submitted" status={diagnosticResult.details_submitted} />
+                       <DiagLine label="Charges Enabled" status={diagnosticResult.charges_enabled} />
+                       <DiagLine label="Payouts Enabled" status={diagnosticResult.payouts_enabled} />
+                       <Separator className="my-4 border-dashed" />
+                       <div className="space-y-1">
+                          <p className="text-[9px] font-black uppercase opacity-40">Currently Due</p>
+                          <p className="text-xs font-bold text-primary">{diagnosticResult.requirements?.currently_due?.length > 0 ? diagnosticResult.requirements.currently_due.join(', ') : 'Nenhum'}</p>
+                       </div>
+                       <div className="space-y-1">
+                          <p className="text-[9px] font-black uppercase opacity-40">Disabled Reason</p>
+                          <p className="text-xs font-bold text-red-600">{diagnosticResult.requirements?.disabled_reason || 'Nenhuma restrição'}</p>
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="space-y-4">
+                    <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest border-b pb-2">Dados no Firestore</h3>
+                    <div className="space-y-2">
+                       <DiagLine label="Onboarding Complete" status={currentOrg.stripeOnboardingComplete} />
+                       <DiagLine label="Charges Sync" status={currentOrg.stripeChargesEnabled} />
+                       <DiagLine label="Payouts Sync" status={currentOrg.stripePayoutsEnabled} />
+                       <DiagLine label="Legacy Status" value={currentOrg.payoutSettings?.status || 'N/A'} />
+                    </div>
+                 </div>
+              </div>
+              <div className="pt-4 flex justify-end">
+                 <Button variant="ghost" size="sm" className="rounded-xl font-bold uppercase text-[9px]" onClick={() => setDiagnosticResult(null)}>Fechar Diagnóstico</Button>
+              </div>
+           </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-7 space-y-8">
@@ -234,6 +353,19 @@ function StatusStep({ label, status }: { label: string, status: boolean }) {
          <CheckCircle2 className="w-4 h-4 text-green-500" />
        ) : (
          <XCircle className="w-4 h-4 text-muted-foreground opacity-30" />
+       )}
+    </div>
+  )
+}
+
+function DiagLine({ label, value, status, mono }: { label: string, value?: string, status?: boolean, mono?: boolean }) {
+  return (
+    <div className="flex justify-between items-center py-1">
+       <span className="text-[10px] font-bold uppercase opacity-60">{label}:</span>
+       {status !== undefined ? (
+         status ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <XCircle className="w-3.5 h-3.5 text-red-500" />
+       ) : (
+         <span className={cn("text-[10px] font-bold", mono && "font-mono")}>{value}</span>
        )}
     </div>
   )
