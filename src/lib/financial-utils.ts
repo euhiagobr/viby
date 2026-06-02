@@ -1,24 +1,17 @@
 /**
  * @fileOverview Utilitários financeiros oficiais do Viby.
- * Implementa a regra única: Taxa = maior entre 10% ou R$ 3,99.
+ * Implementa a regra única e centralizada para toda a plataforma.
  */
 
-export const GATEWAY_FEE_PERCENT = 0.0499; // 4.99% (Custo fixo do processador)
-export const GATEWAY_FEE_FIXED = 1.00; // R$ 1,00 (Custo fixo do processador)
-export const VIBY_MIN_FEE = 3.99; // Taxa mínima da plataforma
+export const VIBY_MIN_FEE = 3.99; // Taxa mínima da plataforma (paga pelo organizador)
+export const VIBY_BUYER_MARKUP = 0.15; // 15% de taxa administrativa (paga pelo comprador)
+export const VIBY_ORGANIZER_FEE = 0.10; // 10% de comissão base (paga pelo organizador)
 
 /**
- * Converte valor para centavos (inteiro)
+ * Converte valor para centavos (inteiro para Stripe)
  */
 export function toCents(amount: number): number {
-  return Math.round(amount * 100);
-}
-
-/**
- * Converte centavos para real (float)
- */
-export function fromCents(cents: number): number {
-  return cents / 100;
+  return Math.round(Number(amount.toFixed(2)) * 100);
 }
 
 /**
@@ -33,129 +26,67 @@ export function formatCurrency(value: number): string {
 }
 
 /**
- * Calcula a taxa financeira retida pelo gateway (não reembolsável)
- * Regra: 4.99% do TOTAL PAGO + R$ 1.00
+ * CÁLCULO OFICIAL VIBY - Única fonte de verdade.
+ * @param facePrice Preço base definido pelo produtor
  */
-export function calculateRetainedGatewayFee(totalPaid: number): number {
-  if (totalPaid <= 0) return 0;
-  const totalCents = toCents(totalPaid);
-  const percentFee = Math.ceil(totalCents * GATEWAY_FEE_PERCENT);
-  const fixedFee = toCents(GATEWAY_FEE_FIXED);
+export function calculateVibyOfficialSplit(facePrice: number) {
+  const price = Math.max(0, parseFloat(facePrice as any) || 0);
   
-  return fromCents(percentFee + fixedFee);
+  if (price === 0) {
+    return {
+      facePrice: 0,
+      buyerFee: 0,
+      totalCharged: 0,
+      organizerFee: 0,
+      organizerNet: 0,
+      vibyApplicationFee: 0
+    };
+  }
+
+  // 1. Taxa do Comprador (15% sobre o valor de face)
+  const buyerFee = Number((price * VIBY_BUYER_MARKUP).toFixed(2));
+  
+  // 2. Taxa do Organizador (Maior entre 10% ou R$ 3,99)
+  const organizerPercentFee = Number((price * VIBY_ORGANIZER_FEE).toFixed(2));
+  const organizerFee = Math.max(organizerPercentFee, VIBY_MIN_FEE);
+
+  // 3. Totais
+  const totalCharged = Number((price + buyerFee).toFixed(2));
+  const organizerNet = Number((price - organizerFee).toFixed(2));
+  const vibyApplicationFee = Number((buyerFee + organizerFee).toFixed(2));
+
+  return {
+    facePrice: price,
+    buyerFee,
+    totalCharged,
+    organizerFee,
+    organizerNet,
+    vibyApplicationFee // Este é o application_fee_amount do Stripe
+  };
 }
 
 /**
- * Calcula o valor a ser devolvido para a carteira em caso de estorno.
- * Regra: Valor Total Pago - Taxas do Gateway
+ * Alias para compatibilidade legada enquanto migramos componentes
+ */
+export function calculateFinancialBreakdown(facePrice: number) {
+  const split = calculateVibyOfficialSplit(facePrice);
+  return {
+    ticketBasePrice: split.facePrice,
+    customerFinalPrice: split.totalCharged,
+    administrativeFeeAmount: split.buyerFee,
+    producerFeeAmount: split.organizerFee,
+    producerNetAmount: split.organizerNet,
+    totalVibyRevenue: split.vibyApplicationFee
+  };
+}
+
+/**
+ * Calcula o valor a ser devolvido para a carteira em caso de estorno manual (sem Stripe).
  */
 export function calculateRefundAmount(totalPaid: number): number {
   if (!totalPaid || totalPaid <= 0) return 0;
-  const fee = calculateRetainedGatewayFee(totalPaid);
-  return Number(Math.max(0, totalPaid - fee).toFixed(2));
-}
-
-/**
- * Calcula a quebra financeira do ingresso baseada na regra unificada.
- * Regra: Taxa Produtor = max(FacePrice * 10%, 3.99)
- */
-export function calculateFinancialBreakdown(facePrice: number, _globalFeesUnused?: any, _promosUnused?: any, _orgUnused?: any) {
-  const price = parseFloat(facePrice as any) || 0;
-  
-  if (price <= 0) {
-    return { 
-      ticketBasePrice: 0, 
-      customerFinalPrice: 0, 
-      administrativeFeeAmount: 0, 
-      producerFeeAmount: 0, 
-      producerNetAmount: 0, 
-      totalVibyRevenue: 0 
-    };
-  }
-  
-  // 1. Taxa Administrativa (Markup do Comprador) - Fixa em 15% para este modelo
-  const buyerFeePercent = 0.15;
-  const administrativeFeeAmount = Number((price * buyerFeePercent).toFixed(2));
-  const customerFinalPrice = Number((price + administrativeFeeAmount).toFixed(2));
-  
-  // 2. Taxa do Organizador (Dedução do Preço de Face)
-  // REGRA: MAIOR ENTRE 10% OU R$ 3,99
-  const percentFee = Number((price * 0.10).toFixed(2));
-  const producerFeeAmount = Math.max(percentFee, VIBY_MIN_FEE);
-  
-  const producerNetAmount = Number((price - producerFeeAmount).toFixed(2));
-  
-  return { 
-    ticketBasePrice: price, 
-    customerFinalPrice, 
-    administrativeFeeAmount, 
-    producerFeeAmount, 
-    producerNetAmount, 
-    totalVibyRevenue: Number((administrativeFeeAmount + producerFeeAmount).toFixed(2)) 
-  };
-}
-
-/**
- * Calcula a quebra financeira detalhada para fins fiscais e de ERP.
- */
-export function calculateDetailedVibyBreakdown(
-  facePrice: number,
-  quantity: number = 1,
-  _feesUnused?: any,
-  stripeSettings?: any,
-  isFirstItemInOrder: boolean = true,
-  _promosUnused?: any,
-  _orgUnused?: any
-) {
-  const basic = calculateFinancialBreakdown(facePrice);
-  
-  const totalFace = Number((basic.ticketBasePrice * quantity).toFixed(2));
-  const buyerFeeTotal = Number((basic.administrativeFeeAmount * quantity).toFixed(2));
-  const organizerFeeTotal = Number((basic.producerFeeAmount * quantity).toFixed(2));
-  const totalCharged = Number((basic.customerFinalPrice * quantity).toFixed(2));
-
-  if (totalFace <= 0) {
-    return {
-      unitPrice: 0,
-      totalFace: 0,
-      buyerFeeTotal: 0,
-      organizerFeeTotal: 0,
-      stripeFeePercentAmount: 0,
-      stripeFeeFixedAmount: 0,
-      stripeFeeTotal: 0,
-      vibyGross: 0,
-      imposto: 0,
-      vibyNet: 0,
-      payoutToProducer: 0,
-      customerFinalPrice: 0
-    };
-  }
-  
-  const stripePercent = (stripeSettings?.feePercent ?? 3.99) / 100;
-  const stripeFixed = stripeSettings?.feeFixed ?? 0.39;
-  
-  const stripeFeePercentAmount = Number((totalCharged * stripePercent).toFixed(2));
-  const stripeFeeFixedAmount = isFirstItemInOrder ? stripeFixed : 0;
-  const stripeFeeTotal = Number((stripeFeePercentAmount + stripeFeeFixedAmount).toFixed(2));
-  
-  const vibyGross = Number((buyerFeeTotal + organizerFeeTotal).toFixed(2));
-  const imposto = Number((vibyGross * 0.11).toFixed(2)); 
-  const vibyNet = Number((vibyGross - stripeFeeTotal - imposto).toFixed(2));
-  
-  const payoutToProducer = Number((totalFace - organizerFeeTotal).toFixed(2));
-
-  return {
-    unitPrice: basic.ticketBasePrice,
-    totalFace,
-    buyerFeeTotal,
-    organizerFeeTotal,
-    stripeFeePercentAmount,
-    stripeFeeFixedAmount,
-    stripeFeeTotal,
-    vibyGross,
-    imposto,
-    vibyNet,
-    payoutToProducer,
-    customerFinalPrice: basic.customerFinalPrice
-  };
+  // Em estornos manuais, devolvemos o valor do ingresso menos uma estimativa de taxa fixa de gateway
+  // para proteger a plataforma. 
+  const estimativaTaxaGateway = Number(((totalPaid * 0.0499) + 1.00).toFixed(2));
+  return Number(Math.max(0, totalPaid - estimativaTaxaGateway).toFixed(2));
 }

@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -7,18 +6,15 @@ import {
   Landmark, 
   Loader2, 
   CheckCircle2, 
-  AlertCircle, 
   Info, 
   DollarSign, 
   ShieldCheck, 
   ArrowLeft,
   Building2,
-  ExternalLink,
-  ShieldAlert,
-  Wallet,
+  BadgeCheck,
   Zap,
-  ArrowUpRight,
-  Lock,
+  Wallet,
+  Clock,
   XCircle,
   RefreshCw
 } from "lucide-react"
@@ -37,7 +33,7 @@ export default function FinanceiroPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const router = useRouter()
-  const { currentOrg, loading: orgLoading, refreshOrg, userRole } = useCurrentOrganization()
+  const { currentOrg, userRole, loading: orgLoading, refreshOrg } = useCurrentOrganization()
   
   const [isProcessing, setIsProcessing] = React.useState(false)
 
@@ -69,7 +65,7 @@ export default function FinanceiroPage() {
       <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
         <Building2 className="w-16 h-16 text-muted-foreground opacity-20" />
         <h2 className="text-xl font-bold italic uppercase tracking-tighter">Nenhuma Marca Selecionada</h2>
-        <p className="text-muted-foreground font-medium max-w-sm">Selecione uma organização para gerenciar os dados de recebimento.</p>
+        <p className="text-muted-foreground font-medium max-sm">Selecione uma organização para gerenciar os dados de recebimento.</p>
         <Button asChild variant="outline" className="rounded-full mt-4"><Link href="/dashboard/organizacoes">Ver Minhas Marcas</Link></Button>
       </div>
     );
@@ -221,7 +217,7 @@ export default function FinanceiroPage() {
            <div className="p-4 bg-muted/20 border border-dashed rounded-2xl flex items-center gap-3">
               <Info className="w-5 h-5 text-primary opacity-40 shrink-0" />
               <p className="text-[9px] font-bold uppercase text-muted-foreground leading-tight">
-                Em conformidade com as normas do BACEN, o Stripe processa os dados bancários com criptografia de ponta a ponta. A Viby não tem acesso aos seus dados de login bancário.
+                O Stripe processa os dados bancários com criptografia de ponta a ponta. A Viby não tem acesso aos seus dados de login bancário.
               </p>
            </div>
         </div>
