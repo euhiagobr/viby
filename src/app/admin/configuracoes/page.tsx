@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -123,6 +122,7 @@ export default function AdminConfiguracoesPage() {
     if (!db) return;
     setSaving(true);
     
+    // Limpar o objeto de campos do Firestore (como id e timestamps) para não tentar salvar como dado
     const { id, createdAt, ...cleanData } = data;
 
     try {

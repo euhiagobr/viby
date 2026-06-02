@@ -13,7 +13,7 @@ import Footer from '@/components/layout/Footer';
 
 async function getSeriesData(id: string) {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  const db = getFirestore(app, "eventosviby");
+  const db = getFirestore(app);
   
   // Busca na coleção principal 'events'
   const seriesRef = doc(db, 'events', id);
