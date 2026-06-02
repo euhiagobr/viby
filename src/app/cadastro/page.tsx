@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -221,7 +220,6 @@ export default function CadastroPage() {
         })
       });
 
-      // Salvar CPF na subcoleção privada via Server Action
       const cpfResult = await updateUserCPF(user.uid, cleanCPF);
       if (!cpfResult.success) {
         console.error("Erro ao salvar CPF:", cpfResult.error);

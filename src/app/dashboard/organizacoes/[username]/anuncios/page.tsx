@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -174,7 +173,6 @@ export default function OrganizationAdsPage() {
           updatedAt: serverTimestamp() 
         });
         
-        // Sincronizar Registro Fiscal: Ajustar para o consumo real
         const taxQ = query(collection(db, "tax_ads"), where("adId", "==", ad.id), limit(1));
         const taxSnap = await getDocs(taxQ);
         if (!taxSnap.empty) {
@@ -293,7 +291,6 @@ export default function OrganizationAdsPage() {
         userId: user.uid
       })
 
-      // Criar registro fiscal inicial (Pendente)
       const taxRef = doc(collection(db, "tax_ads"));
       const monthKey = new Date(startDateInput).toISOString().slice(0, 7);
       const lastDay = new Date(new Date(startDateInput).getFullYear(), new Date(startDateInput).getMonth() + 1, 0).toLocaleDateString('pt-BR');
@@ -379,7 +376,6 @@ export default function OrganizationAdsPage() {
         })
       }
 
-      // Sincronizar Registro Fiscal: Ajustar para o consumo real
       const taxQ = query(collection(db, "tax_ads"), where("adId", "==", adToCancel.id), limit(1));
       const taxSnap = await getDocs(taxQ);
       if (!taxSnap.empty) {
@@ -625,7 +621,6 @@ export default function OrganizationAdsPage() {
         </CardContent>
       </Card>
 
-      {/* MODAL DE MÉTRICAS DETALHADAS */}
       <Dialog open={!!selectedAdForMetrics} onOpenChange={(o) => !o && setSelectedAdForMetrics(null)}>
         <DialogContent className="max-w-2xl rounded-[2.5rem]">
            <DialogHeader>

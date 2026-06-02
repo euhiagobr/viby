@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -143,7 +142,6 @@ export default function EditarPerfilPage() {
         }
       }));
 
-      // Carregar CPF de forma independente e segura
       setLoadingCPF(true);
       getUserCPF(user.uid, user.uid).then(res => {
         if (res.success && res.cpf) {
@@ -311,7 +309,6 @@ export default function EditarPerfilPage() {
                    </Button>
                  )}
               </div>
-              <p className="text-[9px] text-muted-foreground font-medium uppercase italic">O CPF é criptografado e usado apenas para validar seus ingressos nominais.</p>
             </div>
 
             <div className="space-y-2">
@@ -354,21 +351,6 @@ export default function EditarPerfilPage() {
                 onChange={v => setFormData((prev:any) => ({...prev, privacy: {...prev.privacy, hideFollowers: v}}))}
               />
            </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm rounded-[2rem] bg-white">
-          <CardHeader><CardTitle className="text-xl font-black italic uppercase tracking-tighter">Contato & Localização</CardTitle></CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={formData.city} onChange={(e) => setFormData((prev:any) => ({...prev, city: e.target.value}))} required className="rounded-xl" /></div>
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Estado (UF)</Label><Input value={formData.state} onChange={(e) => setFormData((prev:any) => ({...prev, state: e.target.value}))} placeholder="Ex: SP" maxLength={2} required className="rounded-xl" /></div>
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">País</Label><Input value={formData.country} onChange={(e) => setFormData((prev:any) => ({...prev, country: e.target.value}))} required className="rounded-xl" /></div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Instagram</Label><Input value={formData.instagram} onChange={(e) => setFormData((prev:any) => ({...prev, instagram: e.target.value}))} placeholder="@exemplo" className="rounded-xl" /></div>
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">WhatsApp</Label><Input value={formData.whatsapp} onChange={(e) => setFormData((prev:any) => ({...prev, whatsapp: e.target.value}))} placeholder="(00) 00000-0000" className="rounded-xl" /></div>
-            </div>
-          </CardContent>
         </Card>
 
         <div className="flex justify-end gap-3 pt-6">

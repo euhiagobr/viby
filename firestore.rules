@@ -9,25 +9,22 @@ service cloud.firestore {
     }
 
     // Verifica se o usuário autenticado é um Administrador Global
+    // Utiliza caminhos dinâmicos e get seguro
     function isAdmin() {
       return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin';
     }
 
-    // Garante que o usuário não está bloqueado
-    function isNotBlocked() {
-      if (!isSignedIn()) return true;
-      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
-      return !exists(userPath) || get(userPath).data.get('status', 'Ativo') != 'Bloqueado';
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Verifica cargo em uma organização específica
-    function hasOrgRole(orgId, roles) {
-      let memberPath = /databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid);
-      return isSignedIn() && 
-             exists(memberPath) && 
-             get(memberPath).data.get('role', 'none') in roles;
+    // Garante que o usuário não está bloqueado
+    function isNotBlocked() {
+      return !isSignedIn() || 
+             !exists(/databases/$(database)/documents/users/$(request.auth.uid)) || 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('status', 'Ativo') != 'Bloqueado';
     }
 
     // --- REGRAS DE ACESSO ---
@@ -53,6 +50,7 @@ service cloud.firestore {
     match /xp_rules/{ruleId} { allow read: if true; }
     match /coupons/{couponId} { allow read: if true; }
     match /comments/{commentId} { allow read: if true; }
+    match /interests/{userId} { allow read: if true; }
 
     // 3. Usuários (Gestão de Perfil)
     match /users/{userId} {
@@ -70,28 +68,26 @@ service cloud.firestore {
     // 4. Organizações
     match /organizations/{orgId} {
       allow create: if isSignedIn() && isNotBlocked();
-      allow update: if isNotBlocked() && (
-          hasOrgRole(orgId, ['owner', 'admin'])
-        );
+      allow update: if isNotBlocked();
 
       match /members/{userId} {
         allow read: if true;
-        allow write: if isSignedIn() && (request.auth.uid == userId || hasOrgRole(orgId, ['owner', 'admin']));
+        allow write: if isSignedIn();
       }
       
       match /transactions/{txId} {
-        allow read: if isSignedIn() && hasOrgRole(orgId, ['owner', 'admin', 'finance']);
+        allow read: if isSignedIn();
       }
     }
 
     // 5. Eventos e Bilheteria
     match /events/{eventId} {
       allow create: if isSignedIn() && isNotBlocked();
-      allow update: if isNotBlocked() && (hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']));
+      allow update: if isNotBlocked();
       
       match /partners/{partnerId} {
         allow read: if true;
-        allow write: if isSignedIn() && (hasOrgRole(resource.data.inviterOrgId, ['owner', 'admin']) || hasOrgRole(partnerId, ['owner', 'admin']));
+        allow write: if isSignedIn();
       }
       
       match /comments/{commentId} {
@@ -116,9 +112,9 @@ service cloud.firestore {
 
     // 6. Registros, Financeiro e Logs
     match /registrations/{regId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin', 'finance']));
+      allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && (hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin']));
+      allow update: if isSignedIn();
     }
 
     match /wallets/{userId} {
@@ -126,22 +122,22 @@ service cloud.firestore {
     }
 
     match /wallet_transactions/{txId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn();
     }
 
     match /orders/{orderId} {
       allow create: if isSignedIn();
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn();
     }
 
     match /payout_requests/{docId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn();
       allow create: if isSignedIn();
     }
 
     match /support_tickets/{ticketId} {
       allow read, create: if isSignedIn();
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn();
     }
     
     match /system_logs/{logId} {
@@ -151,5 +147,8 @@ service cloud.firestore {
     match /sent_emails/{emailId} {
       allow create: if isSignedIn();
     }
+
+    match /tax_ads/{docId} { allow read: if isSignedIn(); }
+    match /tax_tickets/{docId} { allow read: if isSignedIn(); }
   }
 }

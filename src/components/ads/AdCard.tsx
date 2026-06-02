@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -90,7 +89,6 @@ export function AdCard({ ad }: AdCardProps) {
   }
 
   React.useEffect(() => {
-    // Se o usuário está logado, esperamos o perfil carregar para ter dados demográficos precisos
     if (!db || !adsSettings || hasTrackedImpression.current || !adId || (user && !userProfile)) return
 
     const observer = new IntersectionObserver(
@@ -99,7 +97,7 @@ export function AdCard({ ad }: AdCardProps) {
           hasTrackedImpression.current = true
           
           const rawCost = (adsSettings.cpmValue || 0) / 1000
-          const totalDeduction = rawCost * 1.11 // Deduz custo + imposto do blockedBalance
+          const totalDeduction = rawCost * 1.11 
           
           const adRef = doc(db, "ads", adId)
           const updateData: any = { 
@@ -108,7 +106,6 @@ export function AdCard({ ad }: AdCardProps) {
             updatedAt: serverTimestamp()
           };
 
-          // Alcance Único e Demografia (Somente no primeiro acesso do usuário)
           if (user) {
             const viewerRef = doc(db, "ads", adId, "viewers", user.uid);
             const viewerSnap = await getDoc(viewerRef);
@@ -141,7 +138,7 @@ export function AdCard({ ad }: AdCardProps) {
   const handleClick = () => {
     if (db && adsSettings && adId) {
       const rawCost = adsSettings.cpcValue || 0
-      const totalDeduction = rawCost * 1.11 // Deduz custo + imposto do blockedBalance
+      const totalDeduction = rawCost * 1.11 
       
       const adRef = doc(db, "ads", adId)
       const demoUpdate = getDemographicsUpdate()
