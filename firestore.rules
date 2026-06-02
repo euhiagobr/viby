@@ -88,12 +88,13 @@ service cloud.firestore {
     match /registrations/{regId} {
       allow read: if isAdmin() || 
                    (isSignedIn() && resource.data.userId == request.auth.uid) || 
-                   (isSignedIn() && exists(/databases/$(database)/documents/organizations/$(resource.data.organizationId)/members/$(request.auth.uid)));
+                   (isSignedIn() && exists(/databases/$(database)/documents/organizations/$(resource.data.organizationId)/members/$(request.auth.uid))) ||
+                   request.auth == null;
       
       allow create: if isSignedIn() || (request.auth == null && request.resource.data.paymentStatus == 'Pago');
       
       allow update: if isAdmin() || isSignedIn() || 
-        (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status', 'paymentStatus', 'refundId', 'refundType', 'refundedBy', 'refundedAt', 'refundExecutorId', 'updatedAt'
         ]));
     }
