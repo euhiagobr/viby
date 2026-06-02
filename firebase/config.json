@@ -1,6 +1,6 @@
 {
   "platform": "viby",
-  "databaseId": "eventosviby",
+  "databaseId": "(default)",
   "collections": {
     "users": {
       "path": "/users",
