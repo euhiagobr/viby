@@ -76,6 +76,7 @@ export default function EditarPerfilPage() {
        hideLocation: false
     }
   })
+  
   const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [isFetchingCPF, setIsFetchingCPF] = useState(false)
@@ -176,12 +177,9 @@ export default function EditarPerfilPage() {
         updatedAt: serverTimestamp()
       }
 
-      // Se o usuário está preenchendo o CPF pela primeira vez (ou corrigindo vazio)
       if (!hasOriginalCPF && cpf && cpf.length >= 11 && !cpf.includes('*')) {
         const cleanCPF = cpf.replace(/\D/g, "");
-        // 1. Salvar real e criptografado via action
         await updateUserCPF(user.uid, cleanCPF);
-        // 2. Salvar mascarado no doc público
         updateData.cpf = maskCPF(cleanCPF);
       }
 

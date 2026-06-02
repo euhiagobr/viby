@@ -45,8 +45,26 @@ export default function PerfilPage() {
     }
   }, [user]);
 
+  const displayCPF = React.useMemo(() => {
+    if (loadingCPF) return "Sincronizando...";
+    if (fullCPF) return showCPF ? fullCPF : maskCPF(fullCPF);
+    if (profile?.cpf && profile.cpf !== "PENDENTE") return profile.cpf;
+    return "PENDENTE";
+  }, [loadingCPF, fullCPF, showCPF, profile?.cpf]);
+
   const toggleCPF = () => {
     setShowCPF(!showCPF);
+  };
+
+  const formatJoinDate = (dateValue: any) => {
+    if (!dateValue) return 'Recentemente';
+    try {
+      const d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
+      if (isNaN(d.getTime())) return 'Recentemente';
+      return d.toLocaleDateString('pt-BR');
+    } catch (e) {
+      return 'Recentemente';
+    }
   };
 
   if (authLoading || profileLoading) {
@@ -67,24 +85,6 @@ export default function PerfilPage() {
   }
 
   const locationStr = [profile.city, profile.state, profile.country].filter(Boolean).join(", ");
-
-  const formatJoinDate = (dateValue: any) => {
-    if (!dateValue) return 'Recentemente';
-    try {
-      const d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
-      if (isNaN(d.getTime())) return 'Recentemente';
-      return d.toLocaleDateString('pt-BR');
-    } catch (e) {
-      return 'Recentemente';
-    }
-  };
-
-  const displayCPF = React.useMemo(() => {
-    if (loadingCPF) return "Sincronizando...";
-    if (fullCPF) return showCPF ? fullCPF : maskCPF(fullCPF);
-    if (profile.cpf && profile.cpf !== "PENDENTE") return profile.cpf;
-    return "PENDENTE";
-  }, [loadingCPF, fullCPF, showCPF, profile.cpf]);
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
