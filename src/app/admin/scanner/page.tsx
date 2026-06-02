@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -54,15 +53,15 @@ export default function AdminScannerPage() {
       try {
         const html5QrCode = new Html5Qrcode("reader");
         scannerInstance.current = html5QrCode;
-        await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, (decodedText) => {
-          stopCamera();
-          try {
-             const data = JSON.parse(decodedText);
-             validateTicket(data.code || data.reg);
-          } catch(e) {
-             validateTicket(decodedText);
-          }
-        }, () => {});
+        await html5QrCode.start(
+          { facingMode: "environment" }, 
+          { fps: 10, qrbox: { width: 250, height: 250 } }, 
+          (decodedText) => {
+            stopCamera();
+            processScanResult(decodedText);
+          }, 
+          () => {}
+        );
       } catch (err) {
         toast({ variant: "destructive", title: "Câmera bloqueada" });
         setMode('idle');
@@ -76,69 +75,78 @@ export default function AdminScannerPage() {
     }
   }
 
-  const validateTicket = async (code: string) => {
-    if (!db || !code) return
+  const processScanResult = (decodedText: string) => {
+    try {
+      const data = JSON.parse(decodedText);
+      // O QR Code Viby v3.0 envia 'reg' (document ID) e 'code' (ticketCode)
+      validateTicket(data.code || data.reg || decodedText);
+    } catch (e) {
+      validateTicket(decodedText);
+    }
+  };
+
+  const validateTicket = async (input: string) => {
+    if (!db || !input) return
     setIsValidating(true); setError(null); setTicketData(null); setOccData(null);
     setMode('manual');
 
-    try {
-      const cleanCode = code.trim().toUpperCase()
-      const q = query(collection(db, "registrations"), where("ticketCode", "==", cleanCode))
-      const snap = await getDocs(q)
+    const cleanInput = input.trim();
 
-      if (snap.empty) {
+    try {
+      // 1. Tentar busca por ID direto (mais rápido e preciso se disponível no QR)
+      let targetDoc: any = null;
+      if (cleanInput.length >= 20 && !cleanInput.includes('-')) {
+        const docRef = doc(db, "registrations", cleanInput);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          targetDoc = { id: docSnap.id, ...docSnap.data() };
+        }
+      }
+
+      // 2. Se não achou por ID, tenta busca por ticketCode (formato XXXX-XXXX-...)
+      if (!targetDoc) {
+        const q = query(collection(db, "registrations"), where("ticketCode", "==", cleanInput.toUpperCase()));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          targetDoc = { id: snap.docs[0].id, ...snap.docs[0].data() };
+        }
+      }
+
+      if (!targetDoc) {
         setError("Ingresso não encontrado ou código inválido.");
       } else {
-        const docData = snap.docs[0].data()
-        const isCancelled = docData.status === 'cancelled' || docData.paymentStatus === 'refunded_wallet' || docData.status === 'Cancelado';
+        const isCancelled = targetDoc.status === 'cancelled' || targetDoc.status === 'refunded' || targetDoc.paymentStatus === 'refunded_wallet' || targetDoc.status === 'Cancelado';
         
         const now = new Date();
         let invalidTime = false;
         let windowInfo = { start: null as Date | null, end: null as Date | null };
 
-        // 1. Logica para Eventos Recorrentes
-        if (docData.occurrenceId) {
-           const oSnap = await getDoc(doc(db, "recurring_occurrences", docData.occurrenceId));
+        // Lógica de Janela de Tempo
+        if (targetDoc.occurrenceId) {
+           const oSnap = await getDoc(doc(db, "recurring_occurrences", targetDoc.occurrenceId));
            if (oSnap.exists()) {
               const occ = oSnap.data();
               setOccData(occ);
-              
-              // Montar janelas de tempo completas (Data + Hora)
               const startDateTime = new Date(`${occ.date}T${occ.startTime}:00`);
               let endDateTime = new Date(`${occ.date}T${occ.endTime}:00`);
-
-              // Se o fim for menor ou igual ao início, atravessou a meia-noite (D+1)
-              if (occ.endTime <= occ.startTime) {
-                endDateTime.setDate(endDateTime.getDate() + 1);
-              }
-
+              if (occ.endTime <= occ.startTime) endDateTime.setDate(endDateTime.getDate() + 1);
               windowInfo = { start: startDateTime, end: endDateTime };
-
-              if (now < startDateTime || now > endDateTime) {
-                invalidTime = true;
-              }
+              // Adicionamos uma margem de 1h antes para check-in antecipado
+              if (now < new Date(startDateTime.getTime() - 3600000) || now > endDateTime) invalidTime = true;
            }
-        } 
-        // 2. Logica para Eventos Únicos (Não recorrentes)
-        else {
-           const eSnap = await getDoc(doc(db, "events", docData.eventId));
+        } else {
+           const eSnap = await getDoc(doc(db, "events", targetDoc.eventId));
            if (eSnap.exists()) {
               const ev = eSnap.data();
               const startDateTime = ev.date?.toDate ? ev.date.toDate() : new Date(ev.date);
-              // Fallback para 4h de duração se não houver endDate
               const endDateTime = ev.endDate?.toDate ? ev.endDate.toDate() : (ev.endDate ? new Date(ev.endDate) : new Date(startDateTime.getTime() + 4 * 60 * 60 * 1000));
-
               windowInfo = { start: startDateTime, end: endDateTime };
-
-              if (now < startDateTime || now > endDateTime) {
-                invalidTime = true;
-              }
+              if (now < new Date(startDateTime.getTime() - 3600000) || now > endDateTime) invalidTime = true;
            }
         }
 
         setTicketData({ 
-          ...docData, 
-          id: snap.docs[0].id, 
+          ...targetDoc, 
           isCancelled, 
           invalidTime,
           windowInfo 
@@ -159,17 +167,10 @@ export default function AdminScannerPage() {
       await runTransaction(db, async (transaction) => {
         const regSnap = await transaction.get(regRef)
         if (!regSnap.exists()) throw new Error("Registro de ingresso não localizado.")
-        
         const currentData = regSnap.data()
         
-        if (currentData.checkedIn) {
-          throw new Error("ESTE INGRESSO JÁ FOI UTILIZADO.")
-        }
-
-        const isCancelled = currentData.status === 'cancelled' || currentData.paymentStatus === 'refunded_wallet';
-        if (isCancelled) {
-          throw new Error("INGRESSO INVÁLIDO: Consta como cancelado ou estornado no banco.")
-        }
+        if (currentData.checkedIn) throw new Error("ESTE INGRESSO JÁ FOI UTILIZADO.")
+        if (currentData.status === 'cancelled' || currentData.status === 'refunded') throw new Error("INGRESSO INVÁLIDO: Cancelado ou estornado.")
 
         transaction.update(regRef, {
           checkedIn: true,
@@ -185,9 +186,8 @@ export default function AdminScannerPage() {
       setTicketData({ ...ticketData, checkedIn: true })
       toast({ title: "Check-in realizado com sucesso!" })
     } catch (err: any) { 
-      const msg = err.message || "Erro desconhecido na validação."
-      setError(msg)
-      toast({ variant: "destructive", title: "Falha Crítica", description: msg }) 
+      setError(err.message)
+      toast({ variant: "destructive", title: "Falha na validação", description: err.message }) 
     }
     finally { setIsValidating(false) }
   }
@@ -210,13 +210,13 @@ export default function AdminScannerPage() {
             <CardContent className="p-10 flex flex-col items-center justify-center gap-6"><div className="p-8 bg-secondary/10 rounded-full group-hover:bg-secondary group-hover:text-white transition-all"><Camera className="w-12 h-12" /></div><h3 className="font-black text-xl uppercase italic tracking-tighter text-center">Usar Câmera</h3></CardContent>
           </Card>
           <Card className="hover:border-secondary transition-all cursor-pointer group rounded-[2.5rem] bg-white border-none shadow-sm" onClick={() => setMode('manual')}>
-            <CardContent className="p-10 flex flex-col items-center justify-center gap-6"><div className="p-8 bg-primary/5 rounded-full group-hover:bg-primary group-hover:text-white transition-all"><Keyboard className="w-12 h-12" /></div><h3 className="font-black text-xl uppercase italic tracking-tighter text-center">Código Manual</h3></CardContent>
+            <CardContent className="p-10 flex flex-col items-center justify-center gap-6"><div className="p-8 bg-primary/5 rounded-full group-hover:bg-primary group-hover:text-white transition-all"><Keyboard className="w-12 h-12" /></div><h3 className="font-black text-xl uppercase italic tracking-tighter text-center">Entrada Manual</h3></CardContent>
           </Card>
         </div>
       )}
 
       {mode === 'camera' && (
-        <Card className="overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white mx-4"><div id="reader" className="w-full bg-black aspect-square"></div><Button variant="ghost" className="w-full h-16 font-black uppercase text-muted-foreground" onClick={resetScanner}>Sair</Button></Card>
+        <Card className="overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white mx-4"><div id="reader" className="w-full bg-black aspect-square"></div><Button variant="ghost" className="w-full h-16 font-black uppercase text-muted-foreground" onClick={resetScanner}>Cancelar</Button></Card>
       )}
 
       {mode === 'manual' && !ticketData && !error && (
@@ -241,45 +241,31 @@ export default function AdminScannerPage() {
            {ticketData.isCancelled && (
              <Card className="border-none shadow-2xl rounded-[3rem] bg-destructive text-white p-12 text-center space-y-6">
                 <XCircle className="w-20 h-20 mx-auto opacity-40" />
-                <h2 className="text-4xl font-black uppercase italic tracking-tighter leading-none">Ingresso Cancelado</h2>
-                <p className="font-medium opacity-80">Este ticket foi invalidado por estorno e não permite acesso.</p>
+                <h2 className="text-4xl font-black uppercase italic tracking-tighter leading-none">Ingresso Inválido</h2>
+                <p className="font-medium opacity-80">Este ticket foi invalidado por estorno ou cancelamento.</p>
                 <Button variant="outline" onClick={resetScanner} className="border-white text-white hover:bg-white hover:text-destructive rounded-xl">Novo Scan</Button>
              </Card>
            )}
 
-           {!ticketData.isCancelled && ticketData.invalidTime && (
-             <Card className="border-none shadow-2xl rounded-[3rem] bg-orange-500 text-white p-12 text-center space-y-6">
-                <ShieldAlert className="w-20 h-20 mx-auto opacity-40" />
-                <h2 className="text-4xl font-black uppercase italic tracking-tighter leading-none">FORA DO HORÁRIO</h2>
-                <p className="font-medium opacity-90 text-sm">Este ingresso é válido exclusivamente para a janela:</p>
-                
-                <div className="bg-black/10 p-6 rounded-2xl border border-white/20 space-y-4">
-                   <div>
-                      <p className="text-[10px] font-black uppercase opacity-60">Início</p>
-                      <p className="text-xl font-bold">{ticketData.windowInfo.start?.toLocaleString('pt-BR')}</p>
-                   </div>
-                   <div>
-                      <p className="text-[10px] font-black uppercase opacity-60">Encerramento</p>
-                      <p className="text-xl font-bold">{ticketData.windowInfo.end?.toLocaleString('pt-BR')}</p>
-                   </div>
-                </div>
-
-                <div className="p-4 bg-white/10 rounded-2xl">
-                   <p className="text-[10px] font-black uppercase">O EVENTO NÃO ESTÁ RECEBENDO ESTE TICKET AGORA</p>
-                </div>
-                <Button variant="outline" onClick={resetScanner} className="border-white text-white hover:bg-white hover:text-orange-50 rounded-xl font-black uppercase text-xs h-12 w-full">Voltar / Novo Scan</Button>
-             </Card>
-           )}
-
-           {!ticketData.isCancelled && !ticketData.invalidTime && (
+           {!ticketData.isCancelled && (
              <Card className={cn("overflow-hidden shadow-2xl rounded-[2.5rem] border-none bg-white", ticketData.checkedIn ? "ring-4 ring-orange-500/20" : "ring-4 ring-green-500/20")}>
                <CardHeader className={cn("p-8", ticketData.checkedIn ? "bg-orange-500 text-white" : "bg-green-500 text-white")}>
                   <CardTitle className="font-black italic uppercase text-2xl flex items-center gap-3">
-                     {ticketData.checkedIn ? <AlertTriangle /> : <CheckCircle2 />}
+                     {ticketData.checkedIn ? <ShieldAlert /> : <CheckCircle2 />}
                      {ticketData.checkedIn ? "JÁ UTILIZADO" : "INGRESSO VÁLIDO"}
                   </CardTitle>
                </CardHeader>
                <CardContent className="p-10 space-y-8">
+                  {ticketData.invalidTime && !ticketData.checkedIn && (
+                     <div className="p-4 bg-orange-50 border-2 border-dashed border-orange-200 rounded-2xl flex items-start gap-4">
+                        <Clock className="w-6 h-6 text-orange-600 shrink-0 mt-1" />
+                        <div className="space-y-1">
+                           <p className="font-black uppercase text-[10px] text-orange-800">Fora do Horário Sugerido</p>
+                           <p className="text-[10px] font-medium text-orange-700 uppercase">Validade esperada: {ticketData.windowInfo.start?.toLocaleString('pt-BR')} às {ticketData.windowInfo.end?.toLocaleTimeString('pt-BR')}</p>
+                        </div>
+                     </div>
+                  )}
+
                   <div className="space-y-6">
                      <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center"><User className="w-6 h-6 text-secondary" /></div>
@@ -295,7 +281,7 @@ export default function AdminScannerPage() {
                        {isValidating ? <Loader2 className="animate-spin" /> : "LIBERAR ACESSO"}
                     </Button>
                   )}
-                  <Button variant="ghost" className="w-full h-12 font-black text-muted-foreground uppercase text-[10px]" onClick={resetScanner}>Cancelar / Novo Scan</Button>
+                  <Button variant="ghost" className="w-full h-12 font-black text-muted-foreground uppercase text-[10px]" onClick={resetScanner}>Voltar / Novo Scan</Button>
                </CardContent>
              </Card>
            )}

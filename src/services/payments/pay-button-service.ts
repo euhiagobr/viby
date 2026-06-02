@@ -1,4 +1,3 @@
-
 'use client';
 
 import { 
@@ -15,6 +14,7 @@ import { db as staticDb } from "@/firebase/database";
 import { createCheckoutSession } from "@/app/actions/stripe";
 import { calculateVibyOfficialSplit, calculateFinancialBreakdown, toCents } from "@/lib/financial-utils";
 import { CartItem } from "@/contexts/CartContext";
+import { generateTicketCode } from "@/lib/ticket-utils";
 
 export interface PayButtonOptions {
   user: any;
@@ -51,11 +51,10 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   // 1. FLUXO GRATUITO (Atômico no Firestore)
   if (isFreeOrder) {
     return await runTransaction(staticDb, async (transaction) => {
-      // Mesma lógica de transação para gratuitos já existente
       const registrationIds: string[] = [];
       for (const item of items) {
         for (let i = 0; i < item.quantity; i++) {
-          const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+          const ticketCode = generateTicketCode();
           const regRef = doc(collection(staticDb, "registrations"));
           transaction.set(regRef, {
             eventId: item.eventId,
@@ -88,8 +87,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   }
 
   // 2. FLUXO PAGO (Stripe Connect Destination Charges)
-  // Criamos o registro do pedido no Firestore para rastreabilidade
-  // Usamos calculateFinancialBreakdown para manter compatibilidade de nomes de campos no banco
   const orderData = {
     userId: user.uid,
     userEmail: user.email,
@@ -110,7 +107,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
 
   const orderRef = await addDoc(collection(staticDb, "orders"), orderData);
 
-  // Preparar itens para o Stripe e calcular taxa de aplicação total
   let totalApplicationFeeCents = 0;
   const stripeLineItems = items.map(item => {
     const split = calculateVibyOfficialSplit(item.price);
@@ -130,7 +126,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     };
   });
 
-  // Buscamos a Connected Account da primeira organização (Sessão única por organização no carrinho)
   const firstOrgId = items[0].organizationId;
   const orgDoc = await getDoc(doc(staticDb, "organizations", firstOrgId));
   const stripeAccountId = orgDoc.data()?.stripeAccountId;

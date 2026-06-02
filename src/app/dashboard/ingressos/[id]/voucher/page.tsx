@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -43,46 +42,28 @@ export default function VoucherPage() {
   const regRef = React.useMemo(() => (db && regId) ? doc(db, "registrations", regId) : null, [db, regId])
   const { data: registration, loading: regLoading } = useDoc<any>(regRef)
 
-  /**
-   * Formatador de Data Robusto:
-   * Lida com Timestamps do Firestore, Strings ISO e Date Objects.
-   */
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
-    
     try {
       let d: Date;
-      
-      // Caso 1: Objeto de Timestamp do Firestore (mesmo que venha como objeto plano)
       if (typeof dateValue === 'object' && 'seconds' in dateValue) {
         d = new Date(dateValue.seconds * 1000);
-      } 
-      // Caso 2: String (ISO ou YYYY-MM-DD)
-      else if (typeof dateValue === 'string') {
-        // Se for apenas a data (Recorrência), força o meio do dia para evitar shift de timezone
+      } else if (typeof dateValue === 'string') {
         if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
           d = new Date(`${dateValue}T12:00:00`);
         } else {
           d = new Date(dateValue);
         }
-      } 
-      // Caso 3: Objeto Date ou Number
-      else {
+      } else {
         d = new Date(dateValue);
       }
-
       if (isNaN(d.getTime())) return "Data Inválida";
-
       return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-    } catch (e) { 
-      return "Erro na data"; 
-    }
+    } catch (e) { return "Erro na data"; }
   }
 
   const formatTime = (dateValue: any) => {
-    // Se o registro já tiver o horário da ocorrência salvo (mais confiável para recorrentes)
     if (registration?.horarioOcorrencia) return registration.horarioOcorrencia;
-
     if (!dateValue) return "---";
     try {
       let d: Date;
@@ -97,11 +78,7 @@ export default function VoucherPage() {
   }
 
   if (regLoading) {
-    return (
-      <div className="flex justify-center items-center h-[70vh]">
-        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-      </div>
-    )
+    return <div className="flex justify-center items-center h-[70vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
   }
 
   if (!registration) {
@@ -115,25 +92,19 @@ export default function VoucherPage() {
   }
 
   const isCurrentActivePossessor = registration.userId === user?.uid;
-  const isCancelled = registration.status === 'cancelled' || registration.paymentStatus === 'refunded_wallet' || registration.status === 'Cancelado';
+  const isCancelled = registration.status === 'cancelled' || registration.status === 'refunded' || registration.paymentStatus === 'refunded_wallet' || registration.status === 'Cancelado';
   const isPaid = registration.paymentStatus === "Pago" || registration.paymentStatus === "Disponível" || (registration.price || 0) === 0;
-  const isRecurring = !!registration.occurrenceId;
 
   return (
     <div className="max-w-xl mx-auto space-y-8 pb-20 pt-6">
       <div className="flex items-center justify-between px-4">
         <Button variant="ghost" onClick={() => router.back()} className="gap-2 font-bold uppercase text-xs">
-          <ArrowLeft className="w-4 h-4" />
-          Voltar
+          <ArrowLeft className="w-4 h-4" /> Voltar
         </Button>
         <div className="flex gap-2">
-           <Button variant="outline" size="icon" className="rounded-full">
-             <Share2 className="w-4 h-4" />
-           </Button>
+           <Button variant="outline" size="icon" className="rounded-full"><Share2 className="w-4 h-4" /></Button>
            {isCurrentActivePossessor && isPaid && !isCancelled && (
-             <Button variant="outline" size="icon" className="rounded-full" onClick={() => window.print()}>
-               <Download className="w-4 h-4" />
-             </Button>
+             <Button variant="outline" size="icon" className="rounded-full" onClick={() => window.print()}><Download className="w-4 h-4" /></Button>
            )}
         </div>
       </div>
@@ -141,29 +112,13 @@ export default function VoucherPage() {
       <div className="relative px-4">
         <Card className="overflow-hidden border-none shadow-2xl rounded-[2.5rem] bg-white print:shadow-none">
           <div className="relative h-48 bg-muted">
-            <Image 
-              src={registration.eventImage || "https://picsum.photos/seed/event/800/600"} 
-              alt={registration.eventTitle} 
-              fill 
-              className="object-cover"
-              unoptimized
-            />
+            <Image src={registration.eventImage || "https://picsum.photos/seed/event/800/600"} alt={registration.eventTitle} fill className="object-cover" unoptimized />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
             <div className="absolute bottom-6 left-8 right-6">
-              <div className="flex items-center gap-2 mb-2">
-                <Badge className={cn(
-                  "border-none text-[10px] font-black uppercase h-5",
-                  isCancelled ? "bg-destructive text-white" : "bg-secondary text-white"
-                )}>
-                  {isCancelled ? "Ingresso Cancelado" : (registration.batchName || "Lote Único")}
-                </Badge>
-                {isRecurring && !isCancelled && (
-                   <Badge className="bg-white text-primary border-none text-[10px] font-black uppercase flex items-center gap-1.5 h-5">
-                      <RefreshCw className="w-3 h-3 text-secondary animate-spin-slow" /> Recorrente
-                   </Badge>
-                )}
-              </div>
-              <h1 className="text-2xl font-black text-white uppercase italic tracking-tighter leading-tight line-clamp-2">
+              <Badge className={cn("border-none text-[10px] font-black uppercase h-5", isCancelled ? "bg-destructive text-white" : "bg-secondary text-white")}>
+                {isCancelled ? "Ingresso Inválido" : (registration.batchName || "Lote Único")}
+              </Badge>
+              <h1 className="text-2xl font-black text-white uppercase italic tracking-tighter leading-tight line-clamp-2 mt-2">
                 {registration.eventTitle}
               </h1>
             </div>
@@ -171,22 +126,18 @@ export default function VoucherPage() {
 
           <CardContent className="p-8 space-y-8 relative">
             <div className="grid grid-cols-2 gap-8">
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Data do Evento</p>
-                  <div className="flex items-center gap-2 font-bold text-xs text-primary">
-                    <Calendar className="w-3.5 h-3.5 text-secondary" />
-                    {formatDate(registration.eventDate)}
-                  </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Data</p>
+                <div className="flex items-center gap-2 font-bold text-xs text-primary">
+                  <Calendar className="w-3.5 h-3.5 text-secondary" />
+                  {formatDate(registration.eventDate)}
                 </div>
               </div>
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Horário</p>
-                  <div className="flex items-center gap-2 font-bold text-xs text-primary">
-                    <Clock className="w-3.5 h-3.5 text-secondary" />
-                    {formatTime(registration.eventDate)}
-                  </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Horário</p>
+                <div className="flex items-center gap-2 font-bold text-xs text-primary">
+                  <Clock className="w-3.5 h-3.5 text-secondary" />
+                  {formatTime(registration.eventDate)}
                 </div>
               </div>
             </div>
@@ -199,15 +150,6 @@ export default function VoucherPage() {
               </div>
             </div>
 
-            {isRecurring && (
-               <div className="p-4 bg-secondary/5 rounded-2xl border-2 border-dashed border-secondary/20 flex items-start gap-3">
-                  <ShieldCheck className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-                  <p className="text-[10px] text-secondary font-black uppercase leading-tight italic">
-                    Este ingresso é válido exclusivamente para a data e horário acima.
-                  </p>
-               </div>
-            )}
-
             <div className="pt-6 border-t border-dashed border-border/60 space-y-6">
               <div className="flex justify-between items-end">
                 <div className="space-y-1">
@@ -219,9 +161,7 @@ export default function VoucherPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Categoria</p>
-                  <p className="font-black text-sm text-primary uppercase">
-                    {registration.ticketTypeName || 'Acesso'}
-                  </p>
+                  <p className="font-black text-sm text-primary uppercase">{registration.ticketTypeName || 'Acesso'}</p>
                 </div>
               </div>
 
@@ -236,7 +176,6 @@ export default function VoucherPage() {
                           value={JSON.stringify({
                              v: "3.0",
                              ev: registration.eventId,
-                             occ: registration.occurrenceId || null,
                              reg: registration.id,
                              code: registration.ticketCode,
                              user: registration.userName
@@ -245,15 +184,9 @@ export default function VoucherPage() {
                           level="H"
                         />
                       ) : (
-                        <div className={cn(
-                          "flex flex-col items-center gap-4 text-center",
-                          isCancelled ? "text-red-500" : "text-orange-500"
-                        )}>
+                        <div className={cn("flex flex-col items-center gap-4 text-center", isCancelled ? "text-red-500" : "text-orange-500")}>
                           {isCancelled ? <XCircle className="w-16 h-16 opacity-30" /> : <Lock className="w-16 h-16 opacity-30" />}
-                          <p className="text-[10px] font-black uppercase leading-tight">
-                            QR Code Indisponível<br/>
-                            {isCancelled ? "Ingresso Cancelado" : "Aguardando Pagamento"}
-                          </p>
+                          <p className="text-[10px] font-black uppercase leading-tight">QR Code Indisponível</p>
                         </div>
                       )}
                    </div>
@@ -261,20 +194,11 @@ export default function VoucherPage() {
                 
                 <div className="text-center space-y-1">
                   <p className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Código de Validação</p>
-                  <p className={cn(
-                    "text-xl font-mono font-black tracking-tighter",
-                    isCurrentActivePossessor && !isCancelled ? "text-secondary" : "text-muted-foreground/30"
-                  )}>
-                    {isCurrentActivePossessor && !isCancelled ? (registration.ticketCode || "GERANDO...") : "****-****-****-****"}
+                  <p className={cn("text-xl font-mono font-black tracking-tighter", isCurrentActivePossessor && !isCancelled ? "text-secondary" : "text-muted-foreground/30")}>
+                    {isCurrentActivePossessor && !isCancelled ? (registration.ticketCode || "---") : "****-****-****-****"}
                   </p>
                 </div>
               </div>
-            </div>
-
-            <div className="pt-4 text-center">
-              <p className="text-[9px] text-muted-foreground font-medium max-w-[200px] mx-auto uppercase tracking-tighter">
-                {isCancelled ? "Este ingresso foi invalidado." : "Apresente este voucher na portaria. Válido exclusivamente para a ocorrência selecionada."}
-              </p>
             </div>
           </CardContent>
         </Card>
