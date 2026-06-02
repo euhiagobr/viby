@@ -1,34 +1,39 @@
+
 'use server';
 
-import { getAdminDb } from '@/lib/firebase/admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { doc, runTransaction, serverTimestamp, collection, increment, getDoc, getFirestore } from 'firebase/firestore';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { firebaseConfig } from '@/firebase/config';
 import { calculateRefundAmount, calculateRetainedGatewayFee } from '@/lib/financial-utils';
 
 /**
- * @fileOverview Server Actions para operações financeiras transacionais utilizando o Admin SDK.
- * Implementa a devolução de inventário e estorno de saldo.
- * ATUALIZADO: Proteção contra contadores negativos e sincronização pai-filho no Admin.
+ * @fileOverview Server Actions para operações financeiras utilizando o Client SDK de forma isomórfica.
  */
+
+async function getDb() {
+  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+  return getFirestore(app);
+}
 
 export async function processTicketRefund(registrationId: string, executorUid: string, reason: string) {
   try {
-    const db = getAdminDb();
+    const db = await getDb();
     
-    return await db.runTransaction(async (transaction) => {
-      const regRef = db.collection("registrations").doc(registrationId);
+    return await runTransaction(db, async (transaction) => {
+      const regRef = doc(db, "registrations", registrationId);
       const regSnap = await transaction.get(regRef);
 
-      if (!regSnap.exists) throw new Error("Registro não encontrado.");
+      if (!regSnap.exists()) throw new Error("Registro não encontrado.");
       const regData = regSnap.data()!;
 
       // Validação de Segurança
-      const userSnap = await transaction.get(db.collection("users").doc(executorUid));
-      const isAdmin = userSnap.exists && userSnap.data()?.role === 'admin';
+      const userSnap = await transaction.get(doc(db, "users", executorUid));
+      const isAdmin = userSnap.exists() && userSnap.data()?.role === 'admin';
       
       const memberSnap = await transaction.get(
-        db.collection("organizations").doc(regData.organizationId).collection("members").doc(executorUid)
+        doc(db, "organizations", regData.organizationId, "members", executorUid)
       );
-      const isOrgManager = memberSnap.exists && ['owner', 'admin', 'editor'].includes(memberSnap.data()?.role);
+      const isOrgManager = memberSnap.exists() && ['owner', 'admin', 'editor'].includes(memberSnap.data()?.role);
 
       if (!isAdmin && !isOrgManager) throw new Error("Acesso negado.");
       if (regData.status === 'cancelled') throw new Error("Já estornado.");
@@ -39,26 +44,32 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       const eventId = regData.eventId;
       const occurrenceId = regData.occurrenceId;
 
-      // 1. Devolução de Capacidade - PROTEÇÃO CONTRA NEGATIVOS
+      // 1. Devolução de Capacidade
       if (occurrenceId) {
-        const occRef = db.collection("recurring_occurrences").doc(occurrenceId);
+        const occRef = doc(db, "recurring_occurrences", occurrenceId);
         const occSnap = await transaction.get(occRef);
-        if (occSnap.exists && (occSnap.data()?.ingressosVendidos || 0) > 0) {
-          transaction.update(occRef, { ingressosVendidos: FieldValue.increment(-1) });
+        if (occSnap.exists() && (occSnap.data()?.ingressosVendidos || 0) > 0) {
+          transaction.update(occRef, { 
+            ingressosVendidos: increment(-1),
+            updatedAt: serverTimestamp() 
+          });
         }
       }
       
-      const eventRef = db.collection("events").doc(eventId);
+      const eventRef = doc(db, "events", eventId);
       const eventSnap = await transaction.get(eventRef);
-      if (eventSnap.exists && (eventSnap.data()?.ingressosVendidos || 0) > 0) {
-        transaction.update(eventRef, { ingressosVendidos: FieldValue.increment(-1) });
+      if (eventSnap.exists() && (eventSnap.data()?.ingressosVendidos || 0) > 0) {
+        transaction.update(eventRef, { 
+          ingressosVendidos: increment(-1),
+          updatedAt: serverTimestamp() 
+        });
       }
 
       // Se for gratuito
       if (totalPaid <= 0) {
         transaction.update(regRef, {
           status: 'cancelled',
-          cancelledAt: FieldValue.serverTimestamp(),
+          cancelledAt: serverTimestamp(),
           cancelledBy: executorUid,
           cancelReason: reason
         });
@@ -72,39 +83,31 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       transaction.update(regRef, {
         status: 'cancelled',
         paymentStatus: 'refunded_wallet',
-        cancelledAt: FieldValue.serverTimestamp(),
+        cancelledAt: serverTimestamp(),
         cancelledBy: executorUid,
         cancelReason: reason,
         refundAmount: refundAmount,
-        retainedFee: retainedFee
+        retainedFee: retainedFee,
+        updatedAt: serverTimestamp()
       });
 
       // 3. Devolução para Carteira
-      const walletRef = db.collection("wallets").doc(userId);
+      const walletRef = doc(db, "wallets", userId);
       transaction.set(walletRef, {
-        balance: FieldValue.increment(refundAmount),
-        updatedAt: FieldValue.serverTimestamp()
+        balance: increment(refundAmount),
+        updatedAt: serverTimestamp()
       }, { merge: true });
 
-      const userRef = db.collection("users").doc(userId);
+      const userRef = doc(db, "users", userId);
       transaction.update(userRef, {
-        walletBalance: FieldValue.increment(refundAmount),
-        updatedAt: FieldValue.serverTimestamp()
+        walletBalance: increment(refundAmount),
+        updatedAt: serverTimestamp()
       });
-
-      // 4. Registro Fiscal
-      const taxQ = await db.collection("tax_tickets").where("registrationId", "==", registrationId).limit(1).get();
-      if (!taxQ.empty) {
-        transaction.update(taxQ.docs[0].ref, {
-          status: 'cancelado',
-          updatedAt: FieldValue.serverTimestamp()
-        });
-      }
 
       return { success: true, refundAmount };
     });
   } catch (error: any) {
-    console.error("Erro no estorno Admin:", error);
+    console.error("Erro no estorno:", error.message);
     return { success: false, error: error.message };
   }
 }

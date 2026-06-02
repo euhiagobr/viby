@@ -1,90 +1,67 @@
+
 'use server';
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { db } from '@/firebase/database';
-import { doc, getDoc } from 'firebase/firestore';
-import { getAdminDb } from '@/lib/firebase/admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { doc, getDoc, getFirestore, runTransaction, serverTimestamp, increment, collection, query, where, getDocs, limit, setDoc, updateDoc } from 'firebase/firestore';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { firebaseConfig } from '@/firebase/config';
 import { logSystemError } from '@/lib/error-manager';
 import { calculateDetailedVibyBreakdown } from '@/lib/financial-utils';
 
 /**
- * @fileOverview Server Actions do Stripe com inicialização dinâmica e segura.
- * Implementa a finalização de pedidos via Admin SDK para garantir integridade.
- * O Statement Descriptor é gerado exclusivamente no servidor.
+ * @fileOverview Server Actions do Stripe utilizando exclusivamente o Client SDK do Firebase.
  */
 
-async function getStripeInstance() {
+async function getFirebaseComponents() {
+  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+  const db = getFirestore(app);
+  return { db };
+}
+
+async function getStripeInstance(db: any) {
   try {
     const snap = await getDoc(doc(db, 'settings', 'stripe'));
-    
-    if (!snap.exists()) {
-      throw new Error('Configurações do Stripe não localizadas no banco.');
-    }
-
+    if (!snap.exists()) throw new Error('Configurações do Stripe não localizadas.');
     const data = snap.data();
     const secretKey = data?.secretKey?.trim();
-
     if (!secretKey) throw new Error('Secret Key do Stripe ausente.');
-
-    return new Stripe(secretKey, {
-      apiVersion: '2024-12-18.acacia' as any,
-    });
+    return new Stripe(secretKey, { apiVersion: '2024-12-18.acacia' as any });
   } catch (e: any) {
-    console.error("[Stripe Init Error]", e.message);
     throw e;
   }
 }
 
-/**
- * Gera um Statement Descriptor (descritor de fatura) seguro e sanitizado.
- * Busca o username oficial da organização no banco de dados.
- */
-async function generateSecureStatementDescriptor(metadata: any): Promise<string> {
-  const adminDb = getAdminDb();
+async function generateSecureStatementDescriptor(db: any, metadata: any): Promise<string> {
   let username = "INGRESSO";
-
   try {
     if (metadata.type === 'ad_balance_topup' && metadata.orgId) {
-      const orgSnap = await adminDb.collection("organizations").doc(metadata.orgId).get();
-      if (orgSnap.exists) {
-        username = orgSnap.data()?.username || username;
-      }
-    } 
-    else if (metadata.orderId) {
-      const orderSnap = await adminDb.collection("orders").doc(metadata.orderId).get();
-      if (orderSnap.exists) {
+      const orgSnap = await getDoc(doc(db, "organizations", metadata.orgId));
+      if (orgSnap.exists()) username = orgSnap.data()?.username || username;
+    } else if (metadata.orderId) {
+      const orderSnap = await getDoc(doc(db, "orders", metadata.orderId));
+      if (orderSnap.exists()) {
         const orderData = orderSnap.data();
         const firstItem = orderData?.items?.[0];
         if (firstItem?.organizationId) {
-          const orgSnap = await adminDb.collection("organizations").doc(firstItem.organizationId).get();
-          if (orgSnap.exists) {
-            username = orgSnap.data()?.username || username;
-          }
+          const orgSnap = await getDoc(doc(db, "organizations", firstItem.organizationId));
+          if (orgSnap.exists()) username = orgSnap.data()?.username || username;
         }
       }
     }
-  } catch (e) {
-    console.error("[Descriptor Resolution Failure]");
-  }
+  } catch (e) {}
 
-  const cleanUsername = username
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") 
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "") 
-    .substring(0, 17); 
-
+  const cleanUsername = username.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "").substring(0, 17); 
   return `VIBY*${cleanUsername || "INGRESSO"}`;
 }
 
 export async function createCheckoutSession(data: any) {
   try {
+    const { db } = await getFirebaseComponents();
     const head = await headers();
     const origin = head.get('origin') || 'https://viby.club';
-    const stripe = await getStripeInstance();
-    const descriptor = await generateSecureStatementDescriptor(data.metadata);
+    const stripe = await getStripeInstance(db);
+    const descriptor = await generateSecureStatementDescriptor(db, data.metadata);
     
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -101,9 +78,7 @@ export async function createCheckoutSession(data: any) {
       success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/cancelado`,
       metadata: data.metadata,
-      payment_intent_data: {
-        statement_descriptor: descriptor
-      }
+      payment_intent_data: { statement_descriptor: descriptor }
     });
     
     return { success: true, url: session.url };
@@ -120,9 +95,10 @@ export async function createCheckoutSession(data: any) {
 
 export async function createAdBalanceTopUpSession(data: any) {
   try {
+    const { db } = await getFirebaseComponents();
     const head = await headers();
     const origin = head.get('origin') || 'https://viby.club';
-    const stripe = await getStripeInstance();
+    const stripe = await getStripeInstance(db);
     
     const amountToCharge = data.baseAmount * 1.21;
     const metadata = { 
@@ -132,7 +108,7 @@ export async function createAdBalanceTopUpSession(data: any) {
       transactionId: data.transactionId 
     };
 
-    const descriptor = await generateSecureStatementDescriptor(metadata);
+    const descriptor = await generateSecureStatementDescriptor(db, metadata);
     
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -152,9 +128,7 @@ export async function createAdBalanceTopUpSession(data: any) {
       success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/cancelado`,
       metadata: metadata,
-      payment_intent_data: {
-        statement_descriptor: descriptor
-      }
+      payment_intent_data: { statement_descriptor: descriptor }
     });
     
     return { success: true, url: session.url };
@@ -163,13 +137,10 @@ export async function createAdBalanceTopUpSession(data: any) {
   }
 }
 
-/**
- * Finaliza uma sessão de checkout de forma segura no servidor.
- */
 export async function finalizeCheckoutSession(sessionId: string) {
   try {
-    const adminDb = getAdminDb();
-    const stripe = await getStripeInstance();
+    const { db } = await getFirebaseComponents();
+    const stripe = await getStripeInstance(db);
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
     if (session.payment_status !== 'paid') {
@@ -179,197 +150,120 @@ export async function finalizeCheckoutSession(sessionId: string) {
     const metadata = session.metadata;
     if (!metadata) return { success: false, error: 'Sessão inválida.' };
 
-    // --- CASO 1: RECARGA DE ADS ---
-    if (metadata.type === 'ad_balance_topup') {
-      return await adminDb.runTransaction(async (transaction) => {
-        const orgRef = adminDb.collection("organizations").doc(metadata.orgId);
+    return await runTransaction(db, async (transaction) => {
+      // --- CASO 1: RECARGA DE ADS ---
+      if (metadata.type === 'ad_balance_topup') {
+        const orgRef = doc(db, "organizations", metadata.orgId);
         const amountToCredit = parseFloat(metadata.baseAmount);
+        const txRef = doc(db, "organizations", metadata.orgId, "transactions", metadata.transactionId);
         
-        const txRef = adminDb.collection("organizations").doc(metadata.orgId).collection("transactions").doc(metadata.transactionId);
         const txSnap = await transaction.get(txRef);
-        
-        if (txSnap.exists && txSnap.data()?.status === 'completed') {
+        if (txSnap.exists() && txSnap.data()?.status === 'completed') {
           return { success: true, alreadyProcessed: true };
         }
 
         transaction.update(orgRef, {
-          adBalance: FieldValue.increment(amountToCredit),
-          updatedAt: FieldValue.serverTimestamp()
+          adBalance: increment(amountToCredit),
+          updatedAt: serverTimestamp()
         });
 
         transaction.update(txRef, {
           status: 'completed',
-          updatedAt: FieldValue.serverTimestamp(),
+          updatedAt: serverTimestamp(),
           stripeSessionId: sessionId
         });
 
         return { success: true };
-      });
-    }
+      }
 
-    // --- CASO 2: PEDIDO DE INGRESSOS (ORDER CHECKOUT) ---
-    if (metadata.type === 'order_checkout' && metadata.orderId) {
-      const orderRef = adminDb.collection("orders").doc(metadata.orderId);
-      
-      return await adminDb.runTransaction(async (transaction) => {
+      // --- CASO 2: PEDIDO DE INGRESSOS (ORDER CHECKOUT) ---
+      if (metadata.type === 'order_checkout' && metadata.orderId) {
+        const orderRef = doc(db, "orders", metadata.orderId);
         const orderSnap = await transaction.get(orderRef);
-        if (!orderSnap.exists) throw new Error("Pedido não localizado.");
+        if (!orderSnap.exists()) throw new Error("Pedido não localizado.");
         
         const orderData = orderSnap.data()!;
-        if (orderData.status === 'paid') {
-          return { success: true, alreadyProcessed: true };
-        }
+        if (orderData.status === 'paid') return { success: true, alreadyProcessed: true };
 
         const userId = metadata.userId;
         const balanceUsed = parseFloat(metadata.balanceUsed || "0");
 
-        // 1. Validar e Reservar Capacidade (Atômico)
         const items = orderData.items || [];
         for (const item of items) {
-          const targetRef = item.occurrenceId 
-            ? adminDb.collection("recurring_occurrences").doc(item.occurrenceId) 
-            : adminDb.collection("events").doc(item.eventId);
-          
+          const targetRef = item.occurrenceId ? doc(db, "recurring_occurrences", item.occurrenceId) : doc(db, "events", item.eventId);
           const snap = await transaction.get(targetRef);
-          if (!snap.exists) throw new Error("Evento ou data indisponível.");
+          if (!snap.exists()) throw new Error("Evento ou data indisponível.");
           
           const data = snap.data()!;
           const currentSold = data.ingressosVendidos || 0;
           const capacity = data.capacidadeMaxima || data.capacidadeTotal || 0;
           
           if (capacity > 0 && (currentSold + item.quantity > capacity)) {
-             throw new Error("Lotação máxima atingida durante o pagamento.");
+             throw new Error("Lotação máxima atingida.");
           }
 
           transaction.update(targetRef, { 
-            ingressosVendidos: FieldValue.increment(item.quantity),
-            updatedAt: FieldValue.serverTimestamp()
+            ingressosVendidos: increment(item.quantity),
+            updatedAt: serverTimestamp()
           });
 
           if (item.occurrenceId) {
-            const parentRef = adminDb.collection("events").doc(item.eventId);
-            transaction.update(parentRef, {
-              ingressosVendidos: FieldValue.increment(item.quantity),
-              updatedAt: FieldValue.serverTimestamp()
+            transaction.update(doc(db, "events", item.eventId), {
+              ingressosVendidos: increment(item.quantity),
+              updatedAt: serverTimestamp()
             });
           }
         }
 
-        // 2. Processar Saldo da Carteira
         if (balanceUsed > 0) {
-          const walletRef = adminDb.collection("wallets").doc(userId);
-          const userRef = adminDb.collection("users").doc(userId);
-          
-          transaction.set(walletRef, { 
-            balance: FieldValue.increment(-balanceUsed), 
-            updatedAt: FieldValue.serverTimestamp() 
-          }, { merge: true });
-
-          transaction.update(userRef, { 
-            walletBalance: FieldValue.increment(-balanceUsed), 
-            updatedAt: FieldValue.serverTimestamp()
-          });
-
-          transaction.set(adminDb.collection("wallet_transactions").doc(), {
-            userId,
-            amount: balanceUsed,
-            type: 'debit',
-            reason: 'compra_ingresso',
-            description: `Uso de saldo no pedido ${metadata.orderId}`,
-            timestamp: FieldValue.serverTimestamp()
+          transaction.set(doc(db, "wallets", userId), { balance: increment(-balanceUsed), updatedAt: serverTimestamp() }, { merge: true });
+          transaction.update(doc(db, "users", userId), { walletBalance: increment(-balanceUsed), updatedAt: serverTimestamp() });
+          transaction.set(doc(collection(db, "wallet_transactions")), {
+            userId, amount: balanceUsed, type: 'debit', reason: 'compra_ingresso', description: `Uso de saldo no pedido ${metadata.orderId}`, timestamp: serverTimestamp()
           });
         }
 
-        // 3. Emissão dos Ingressos
-        const feesSnap = await transaction.get(adminDb.collection("settings").doc("fees"));
-        const stripeSettingsSnap = await transaction.get(adminDb.collection("settings").doc("stripe"));
-        const fees = feesSnap.exists ? feesSnap.data() : {};
-        const stripeSettings = stripeSettingsSnap.exists ? stripeSettingsSnap.data() : {};
+        const feesSnap = await transaction.get(doc(db, "settings", "fees"));
+        const stripeSettingsSnap = await transaction.get(doc(db, "settings", "stripe"));
+        const fees = feesSnap.exists() ? feesSnap.data() : {};
+        const stripeS = stripeSettingsSnap.exists() ? stripeSettingsSnap.data() : {};
 
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
           for (let j = 0; j < item.quantity; j++) {
             const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
-            const breakdown = calculateDetailedVibyBreakdown(
-              item.price, 1, fees, stripeSettings, (i === 0 && j === 0)
-            );
+            const breakdown = calculateDetailedVibyBreakdown(item.price, 1, fees, stripeS, (i === 0 && j === 0));
 
-            const regRef = adminDb.collection("registrations").doc();
+            const regRef = doc(collection(db, "registrations"));
             transaction.set(regRef, {
-              eventId: item.eventId,
-              eventTitle: item.eventTitle,
-              eventImage: item.eventImage || '',
-              eventDate: item.eventDate,
-              eventCity: item.eventCity,
-              userId: userId,
-              userName: orderData.userName,
-              userEmail: orderData.userEmail,
-              organizationId: item.organizationId,
-              ticketBasePrice: item.price,
-              price: item.financials.customerFinalPrice,
-              administrativeFeeAmount: item.financials.administrativeFeeAmount,
-              producerFeeAmount: item.financials.producerFeeAmount,
-              producerNetAmount: item.financials.producerNetAmount,
-              ticketTypeName: item.ticketTypeName,
-              batchName: item.batchName,
-              paymentStatus: "Pago",
-              status: "Ativo",
-              ticketCode,
-              stripeSessionId: sessionId,
-              orderId: metadata.orderId,
-              occurrenceId: item.occurrenceId || null,
-              confirmedAt: FieldValue.serverTimestamp(),
-              timestamp: FieldValue.serverTimestamp()
+              eventId: item.eventId, eventTitle: item.eventTitle, eventImage: item.eventImage || '', eventDate: item.eventDate, eventCity: item.eventCity, userId: userId, userName: orderData.userName, userEmail: orderData.userEmail, organizationId: item.organizationId, ticketBasePrice: item.price, price: item.financials.customerFinalPrice, administrativeFeeAmount: item.financials.administrativeFeeAmount, producerFeeAmount: item.financials.producerFeeAmount, producerNetAmount: item.financials.producerNetAmount, ticketTypeName: item.ticketTypeName, batchName: item.batchName, paymentStatus: "Pago", status: "Ativo", ticketCode, stripeSessionId: sessionId, orderId: metadata.orderId, occurrenceId: item.occurrenceId || null, confirmedAt: serverTimestamp(), timestamp: serverTimestamp()
             });
 
-            transaction.set(adminDb.collection("tax_tickets").doc(), {
-              registrationId: regRef.id,
-              eventId: item.eventId,
-              eventTitle: item.eventTitle,
-              orgName: item.organizerUsername || "Viby Partner",
-              buyerName: orderData.userName,
-              totalFacePrice: item.price,
-              vibyGrossProfit: breakdown.vibyGross,
-              vibyNetProfit: breakdown.vibyNet,
-              taxAmount: breakdown.imposto,
-              stripeFeeAmount: breakdown.stripeFeeTotal,
-              payoutToProducer: breakdown.payoutToProducer,
-              monthKey: new Date().toISOString().slice(0, 7),
-              nfStatus: 'pendente',
-              timestamp: FieldValue.serverTimestamp()
+            transaction.set(doc(collection(db, "tax_tickets")), {
+              registrationId: regRef.id, eventId: item.eventId, eventTitle: item.eventTitle, orgName: item.organizerUsername || "Viby Partner", buyerName: orderData.userName, totalFacePrice: item.price, vibyGrossProfit: breakdown.vibyGross, vibyNetProfit: breakdown.vibyNet, taxAmount: breakdown.imposto, stripeFeeAmount: breakdown.stripeFeeTotal, payoutToProducer: breakdown.payoutToProducer, monthKey: new Date().toISOString().slice(0, 7), nfStatus: 'pendente', timestamp: serverTimestamp()
             });
           }
         }
 
-        transaction.update(orderRef, { 
-          status: 'paid', 
-          stripeSessionId: sessionId, 
-          updatedAt: FieldValue.serverTimestamp() 
-        });
-
+        transaction.update(orderRef, { status: 'paid', stripeSessionId: sessionId, updatedAt: serverTimestamp() });
         return { success: true };
-      });
-    }
+      }
 
-    // --- CASO 3: CHECKOUT LEGADO ---
-    if (metadata.type === 'cart_checkout' && metadata.registrationIds) {
-      const regIds = metadata.registrationIds.split(',');
-      return await adminDb.runTransaction(async (transaction) => {
-         for (const rid of regIds) {
-            const rRef = adminDb.collection("registrations").doc(rid);
-            transaction.update(rRef, {
-               paymentStatus: "Pago",
-               confirmedAt: FieldValue.serverTimestamp(),
-               updatedAt: FieldValue.serverTimestamp()
-            });
-         }
-         return { success: true };
-      });
-    }
+      // --- CASO 3: CHECKOUT LEGADO ---
+      if (metadata.type === 'cart_checkout' && metadata.registrationIds) {
+        const regIds = metadata.registrationIds.split(',');
+        for (const rid of regIds) {
+           transaction.update(doc(db, "registrations", rid), {
+              paymentStatus: "Pago", confirmedAt: serverTimestamp(), updatedAt: serverTimestamp()
+           });
+        }
+        return { success: true };
+      }
 
-    return { success: false, error: 'Sessão não identificada.' };
+      return { success: false, error: 'Sessão não identificada.' };
+    });
   } catch (error: any) {
-    console.error("[Checkout Finalization Error]", error);
+    console.error("[Checkout Finalization Error]", error.message);
     return { success: false, error: error.message };
   }
 }
