@@ -75,10 +75,19 @@ export default function FinanceiroPage() {
         setDiagnosticResult(result.data);
         toast({ title: "Diagnóstico concluído" });
       } else {
-        throw new Error(result.error);
+        toast({ 
+          variant: "destructive", 
+          title: "Erro no diagnóstico", 
+          description: result.error || "Ocorreu um erro ao consultar a Stripe." 
+        });
       }
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro no diagnóstico", description: e.message });
+      toast({ 
+        variant: "destructive", 
+        title: "Erro crítico", 
+        description: "Falha na comunicação com o servidor de diagnóstico." 
+      });
+      console.error(e);
     } finally {
       setIsDiagnosing(false);
     }
@@ -122,7 +131,7 @@ export default function FinanceiroPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href={`/dashboard/organizacoes/${currentOrg.username}/finance`}>
+            <Link href={`/dashboard/organizacoes/${currentOrg.username}`}>
               <ArrowLeft className="w-5 h-5" />
             </Link>
           </Button>
@@ -164,8 +173,8 @@ export default function FinanceiroPage() {
            </CardHeader>
            <CardContent className="p-8 space-y-8">
               {hasDivergence && (
-                <div className="p-4 bg-red-50 rounded-2xl border border-red-200 flex items-center gap-3 text-red-700 animate-bounce">
-                   <ShieldAlert className="w-5 h-5" />
+                <div className="p-4 bg-red-50 rounded-2xl border border-red-200 flex items-center gap-3 text-red-700">
+                   <ShieldAlert className="w-5 h-5 animate-pulse" />
                    <p className="text-xs font-black uppercase tracking-tight">Divergência encontrada entre Stripe e Firestore!</p>
                 </div>
               )}
@@ -239,7 +248,7 @@ export default function FinanceiroPage() {
                     </div>
                     <div className="space-y-2">
                        <h3 className="font-bold text-lg">Inicie sua Conexão</h3>
-                       <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                       <p className="text-sm text-muted-foreground max-sm mx-auto leading-relaxed">
                          Para habilitar vendas e receber repasses automáticos, você deve conectar sua organização ao Stripe Express.
                        </p>
                     </div>

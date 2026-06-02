@@ -21,14 +21,14 @@ async function getStripeInstance(db: any) {
   const snap = await getDoc(stripeSettingsRef);
   
   if (!snap.exists()) {
-    throw new Error('Configurações do Stripe não localizadas.');
+    throw new Error('Configurações do Stripe não localizadas no Firestore (settings/stripe).');
   }
 
   const data = snap.data();
   const secretKey = data?.secretKey?.trim();
   
   if (!secretKey) {
-    throw new Error('Secret Key do Stripe ausente.');
+    throw new Error('Secret Key do Stripe ausente no painel administrativo.');
   }
   
   return new Stripe(secretKey, { apiVersion: '2024-12-18.acacia' as any });
@@ -70,6 +70,7 @@ export async function createStripeConnectAccount(orgId: string) {
       
       accountId = account.id;
 
+      // Persistência com proteção de regras customizadas
       await updateDoc(orgRef, {
         stripeAccountId: accountId,
         stripeOnboardingComplete: false,
@@ -115,8 +116,10 @@ export async function createAccountOnboardingLink(orgId: string, accountId: stri
  */
 export async function retrieveStripeAccount(accountId: string) {
   try {
+    console.log(`[Diagnostic] Consulting Stripe for account: ${accountId}`);
     const { db } = await getFirebaseComponents();
     const stripe = await getStripeInstance(db);
+    
     const account = await stripe.accounts.retrieve(accountId);
 
     return {
@@ -135,6 +138,7 @@ export async function retrieveStripeAccount(accountId: string) {
       }
     };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error("[Stripe Diagnostic Action Error]", error);
+    return { success: false, error: error.message || 'Erro desconhecido ao consultar Stripe API.' };
   }
 }
