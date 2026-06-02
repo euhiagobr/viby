@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -24,6 +23,7 @@ import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import { toast } from "@/hooks/use-toast"
 import { UserNav } from "@/components/layout/UserNav"
+import Image from "next/image"
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { currentOrg, organizations, setCurrentOrg } = useCurrentOrganization()
@@ -51,6 +51,10 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   // Escuta o perfil em tempo real para reagir a bloqueios/desbloqueios imediatamente
   const profileRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile, loading: profileLoading } = useDoc<any>(profileRef)
+
+  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
+  const { data: settings } = useDoc<any>(settingsRef)
+  const siteName = settings?.siteName || "Viby"
 
   const unreadQuery = useMemoFirebase(() => {
     if (!db || !user) return null
@@ -107,7 +111,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             <ShieldAlert className="w-12 h-12" />
          </div>
          <h1 className="text-4xl font-black uppercase italic tracking-tighter text-primary">Conta Bloqueada</h1>
-         <p className="text-muted-foreground font-medium max-w-sm mt-4 leading-relaxed">
+         <p className="text-muted-foreground font-medium max-sm mt-4 leading-relaxed">
             Seu acesso foi suspenso por violação dos termos de uso. Você só pode acessar a central de suporte para contestar esta decisão.
          </p>
          <Button asChild className="mt-8 bg-primary text-white font-black rounded-xl h-14 px-10 uppercase italic shadow-lg">
