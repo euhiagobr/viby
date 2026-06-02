@@ -34,7 +34,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { totalCount } = useCart()
 
-  // Lista de rotas protegidas que EXIGEM login imediato
   const protectedRoutes = [
     '/dashboard/ingressos',
     '/dashboard/carteira',
@@ -48,7 +47,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   const isProtectedRoute = protectedRoutes.some(route => pathname?.startsWith(route));
 
-  // Escuta o perfil em tempo real para reagir a bloqueios/desbloqueios imediatamente
   const profileRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile, loading: profileLoading } = useDoc<any>(profileRef)
 
@@ -71,7 +69,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     }
 
     if (profile && user) {
-      // 1. Reativação automática se desativado/em exclusão
       if (profile.status === 'Desativado' || profile.status === 'Exclusão Programada') {
         const userRef = doc(db!, "users", user.uid)
         updateDoc(userRef, {
@@ -88,7 +85,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
         })
       }
 
-      // 2. Trava de Bloqueio: Se bloqueado, só acessa suporte
       if (profile.status === 'Bloqueado' && pathname !== '/dashboard/suporte') {
         router.replace('/dashboard/suporte')
       }
@@ -103,7 +99,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // Renderização Minimalista para Usuários Bloqueados
   if (profile?.status === 'Bloqueado' && pathname !== '/dashboard/suporte') {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#f8fafc] p-6 text-center">
@@ -143,21 +138,26 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                   <DropdownMenuContent className="w-56 rounded-xl" align="start">
                     <DropdownMenuLabel className="text-[10px] uppercase font-black opacity-50">Minhas Organizações</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    {organizations.map((org) => (
-                      <DropdownMenuItem 
-                        key={org.id} 
-                        onClick={() => setCurrentOrg(org)}
-                        className={currentOrg?.id === org.id ? "bg-secondary/10 font-bold" : ""}
-                      >
-                        {org.name}
-                      </DropdownMenuItem>
-                    ))}
+                    {organizations.length > 0 ? (
+                      organizations.map((org) => (
+                        <DropdownMenuItem 
+                          key={org.id} 
+                          onClick={() => setCurrentOrg(org)}
+                          className={currentOrg?.id === org.id ? "bg-secondary/10 font-bold" : ""}
+                        >
+                          {org.name}
+                        </DropdownMenuItem>
+                      ))
+                    ) : (
+                      <DropdownMenuItem disabled className="text-[10px] uppercase italic opacity-50">Nenhuma marca criada</DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link href="/dashboard/organizacoes/new" className="flex items-center gap-2 text-secondary font-bold">
-                        <Plus className="w-4 h-4" />
-                        Nova Organização
-                      </Link>
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2 text-secondary font-bold cursor-pointer"
+                      onSelect={() => router.push("/dashboard/organizacoes/new")}
+                    >
+                      <Plus className="w-4 h-4" />
+                      Nova Organização
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
