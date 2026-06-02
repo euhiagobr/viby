@@ -4,11 +4,10 @@ import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import ProfilePageClient from './ProfilePageClient';
-import { notFound } from 'next/navigation';
 
 async function getProfileData(username: string) {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  const db = getFirestore(app, "eventosviby");
+  const db = getFirestore(app);
   
   try {
     const usernameRef = doc(db, "usernames", username.toLowerCase());

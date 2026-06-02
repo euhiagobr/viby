@@ -6,12 +6,11 @@ import { firebaseConfig } from '@/firebase/config';
 import EventoPublicoClient from './EventoPublicoClient';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { MapPinOff, ArrowLeft, Home, CalendarX } from 'lucide-react';
+import { Home, CalendarX, ArrowLeft } from 'lucide-react';
 
 async function getEventData(id: string) {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  // Conecta ao banco de dados eventosviby
-  const db = getFirestore(app, "eventosviby");
+  const db = getFirestore(app);
   const eventRef = doc(db, 'events', id);
   const eventSnap = await getDoc(eventRef);
   if (!eventSnap.exists()) return null;
