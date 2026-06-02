@@ -3,8 +3,35 @@
 import * as React from "react"
 import { useParams } from "next/navigation"
 import { useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, collection, query, where, getDocs, updateDoc, serverTimestamp, orderBy, limit } from "firebase/firestore"
-import { Loader2, ExternalLink, Search, CalendarDays, Trash2, Edit2, MapPin, Clock, RefreshCcw, AlertTriangle, Ticket } from "lucide-react"
+import { 
+  doc, 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  updateDoc, 
+  serverTimestamp, 
+  orderBy, 
+  limit 
+} from "firebase/firestore"
+import { 
+  Loader2, 
+  ExternalLink, 
+  Search, 
+  CalendarDays, 
+  Trash2, 
+  Edit2, 
+  MapPin, 
+  Clock, 
+  RefreshCcw, 
+  AlertTriangle, 
+  Ticket,
+  ArrowLeft,
+  Layers,
+  Building2,
+  ShieldCheck,
+  TicketPercent
+} from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -148,7 +175,7 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
                       onClick={() => handleRefund(reg.id, reg.userName)}
                       title="Estornar Compra"
                     >
-                      <RefreshCcw className="w-4 h-4" />
+                      <RefreshCw className="w-4 h-4" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -169,7 +196,6 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
 
 const EventCouponsSection = ({ eventId }: { eventId: string }) => {
   const db = useFirestore()
-  const [search, setSearch] = React.useState("")
 
   const couponsQuery = useMemoFirebase(() => {
     if (!db || !eventId) return null
@@ -206,7 +232,7 @@ const EventCouponsSection = ({ eventId }: { eventId: string }) => {
                       <p className="font-black text-sm text-primary uppercase italic">{c.code}</p>
                       <p className="text-[10px] font-bold text-secondary uppercase">{c.discountType === 'percentage' ? `${c.discountValue}% OFF` : `R$ ${c.discountValue} OFF`}</p>
                    </div>
-                   <Badge variant="outline" className="text-[9px] font-black">{c.currentUses} usos</Badge>
+                   <Badge variant="outline" className="text-[9px] font-black">{c.currentUses || 0} usos</Badge>
                 </div>
               ))}
            </div>
@@ -215,6 +241,18 @@ const EventCouponsSection = ({ eventId }: { eventId: string }) => {
          )}
       </CardContent>
     </Card>
+  )
+}
+
+function DetailItem({ label, value, icon: Icon }: any) {
+  return (
+    <div className="flex items-center gap-3">
+       <div className="p-2 bg-muted rounded-lg text-secondary"><Icon className="w-4 h-4" /></div>
+       <div>
+          <p className="text-[8px] font-black uppercase opacity-40 leading-none mb-1">{label}</p>
+          <p className="text-xs font-bold text-primary truncate max-w-[180px]">{value}</p>
+       </div>
+    </div>
   )
 }
 
@@ -259,7 +297,9 @@ export default function AdminEventoDetailPage() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-4">
-           <Button variant="ghost" size="icon" asChild className="rounded-full"><Link href="/admin/eventos"><ArrowLeft className="w-5 h-5" /></Link></Button>
+           <Button variant="ghost" size="icon" asChild className="rounded-full">
+             <Link href="/admin/eventos"><ArrowLeft className="w-5 h-5" /></Link>
+           </Button>
            <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">
               Gestão: {event.title}
            </h1>
@@ -324,18 +364,6 @@ export default function AdminEventoDetailPage() {
            </div>
         </aside>
       </div>
-    </div>
-  )
-}
-
-function DetailItem({ label, value, icon: Icon }: any) {
-  return (
-    <div className="flex items-center gap-3">
-       <div className="p-2 bg-muted rounded-lg text-secondary"><Icon className="w-4 h-4" /></div>
-       <div>
-          <p className="text-[8px] font-black uppercase opacity-40 leading-none mb-1">{label}</p>
-          <p className="text-xs font-bold text-primary truncate max-w-[180px]">{value}</p>
-       </div>
     </div>
   )
 }
