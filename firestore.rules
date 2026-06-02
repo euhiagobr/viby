@@ -42,14 +42,22 @@ service cloud.firestore {
     match /settings/{docId} { allow read: if true; }
     match /categories/{catId} { allow read: if true; }
     match /usernames/{username} { allow read: if true; }
-    match /events/{eventId} { allow read: if true; }
+    match /events/{eventId} { 
+      allow read: if true; 
+      allow update: if (isSignedIn() && isNotBlocked()) || 
+        (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ingressosVendidos', 'updatedAt']));
+    }
     match /organizations/{orgId} { allow read: if true; }
     match /users/{userId} { allow read: if true; }
     match /ads/{adId} { allow read: if true; }
     match /badges/{badgeId} { allow read: if true; }
     match /levels/{levelId} { allow read: if true; }
     match /xp_rules/{ruleId} { allow read: if true; }
-    match /recurring_occurrences/{docId} { allow read: if true; }
+    match /recurring_occurrences/{docId} { 
+      allow read: if true; 
+      allow update: if (isSignedIn() && isNotBlocked()) || 
+        (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ingressosVendidos', 'updatedAt']));
+    }
     match /follows/{followId} { allow read: if true; }
     match /user_gamification/{userId} { allow read: if true; }
 
@@ -75,19 +83,27 @@ service cloud.firestore {
     match /organizations/{orgId} {
       allow create: if isSignedIn() && isNotBlocked();
       
-      // Permite update se for dono logado OU se for um update técnico de onboarding (vinda do servidor sem auth)
       allow update: if (isSignedIn() && isNotBlocked()) || 
         (
           request.auth == null && 
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'stripeAccountId', 
-            'stripeOnboardingComplete', 
-            'stripeChargesEnabled', 
-            'stripePayoutsEnabled', 
-            'stripeDetailsSubmitted',
-            'payoutSettings', 
-            'updatedAt'
-          ])
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'stripeAccountId', 
+              'stripeOnboardingComplete', 
+              'stripeChargesEnabled', 
+              'stripePayoutsEnabled', 
+              'stripeDetailsSubmitted',
+              'payoutSettings', 
+              'updatedAt'
+            ]) ||
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'adBalance',
+              'blockedBalance',
+              'updatedAt',
+              'status',
+              'deletionScheduledAt'
+            ])
+          )
         );
 
       match /members/{userId} {
@@ -103,7 +119,6 @@ service cloud.firestore {
 
     match /events/{eventId} {
       allow create: if isSignedIn() && isNotBlocked();
-      allow update: if isSignedIn() && isNotBlocked();
       
       match /partners/{partnerId} {
         allow read: if true;
@@ -124,7 +139,7 @@ service cloud.firestore {
 
     match /registrations/{regId} {
       allow read: if isSignedIn() || resource.data.checkedIn == true;
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() || (request.auth == null && request.resource.data.paymentStatus == 'Pago');
       allow update: if isSignedIn();
     }
 
@@ -138,7 +153,9 @@ service cloud.firestore {
 
     match /orders/{orderId} {
       allow create: if isSignedIn();
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid);
+      allow read: if (isSignedIn() && (resource.data.userId == request.auth.uid)) || request.auth == null;
+      allow update: if (isSignedIn() && (resource.data.userId == request.auth.uid)) || 
+        (request.auth == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'stripeSessionId', 'updatedAt']));
     }
 
     match /payout_requests/{docId} {
