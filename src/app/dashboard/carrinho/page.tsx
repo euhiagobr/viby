@@ -44,14 +44,20 @@ export default function CarrinhoPage() {
   const [isRevalidating, setIsRevalidating] = React.useState(false)
   const [timeLeft, setTimeLeft] = React.useState<{ min: number, sec: number, percent: number } | null>(null)
 
+  // Ref para evitar loop infinito de revalidação
+  const isProcessingRef = React.useRef(false)
+
   const walletRef = React.useMemo(() => (db && user) ? doc(db, "wallets", user.uid) : null, [db, user]);
   const { data: wallet } = useDoc<any>(walletRef);
 
   const profileRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user]);
   const { data: profile } = useDoc<any>(profileRef);
 
-  const { data: globalFees } = useDoc<any>(React.useMemo(() => db ? doc(db, 'settings', 'fees') : null, [db]))
-  const { data: promotions } = useDoc<any>(React.useMemo(() => db ? doc(db, 'settings', 'promotions') : null, [db]))
+  const feesRef = React.useMemo(() => db ? doc(db, 'settings', 'fees') : null, [db])
+  const { data: globalFees } = useDoc<any>(feesRef)
+  
+  const promosRef = React.useMemo(() => db ? doc(db, 'settings', 'promotions') : null, [db])
+  const { data: promotions } = useDoc<any>(promosRef)
 
   // Lógica do Contador Visual (5 minutos)
   React.useEffect(() => {
@@ -81,43 +87,47 @@ export default function CarrinhoPage() {
     return () => clearInterval(interval);
   }, [expiresAt, items.length]);
 
-  // Motor de Revalidação de Disponibilidade
+  // Motor de Revalidação de Disponibilidade (Refatorado para evitar loops)
   const revalidateCart = React.useCallback(async () => {
-    if (!db || items.length === 0 || isRevalidating) return;
+    if (!db || items.length === 0 || isProcessingRef.current) return;
 
+    isProcessingRef.current = true;
     setIsRevalidating(true);
+
     try {
       const updatedItems: CartItem[] = [];
       let hadChanges = false;
       const eventCache: Record<string, any> = {};
 
       for (const item of items) {
-        if (!eventCache[item.eventId]) {
-          const eSnap = await getDoc(doc(db, "events", item.eventId));
-          if (eSnap.exists()) eventCache[item.eventId] = eSnap.data();
-        }
+        try {
+          if (!eventCache[item.eventId]) {
+            const eSnap = await getDoc(doc(db, "events", item.eventId));
+            if (eSnap.exists()) eventCache[item.eventId] = eSnap.data();
+          }
 
-        const eventData = eventCache[item.eventId];
-        if (!eventData || eventData.status !== 'Ativo') {
-          hadChanges = true;
-          continue; // Remove item se evento sumiu
-        }
+          const eventData = eventCache[item.eventId];
+          if (!eventData || eventData.status !== 'Ativo') {
+            hadChanges = true;
+            continue; 
+          }
 
-        // Busca o lote atualizado no banco
-        const batch = eventData.batches?.find((b: any) => b.id === item.batchId);
-        const type = batch?.ticketTypes?.find((t: any) => t.id === item.ticketTypeId);
+          const batch = eventData.batches?.find((b: any) => b.id === item.batchId);
+          const type = batch?.ticketTypes?.find((t: any) => t.id === item.ticketTypeId);
 
-        if (!batch || !type || type.quantity <= 0) {
-          hadChanges = true;
-          continue;
-        }
+          if (!batch || !type || type.quantity <= 0) {
+            hadChanges = true;
+            continue;
+          }
 
-        // Verifica alteração de preço
-        if (type.price !== item.price) {
-          hadChanges = true;
-          updatedItems.push({ ...item, price: type.price });
-        } else {
-          updatedItems.push(item);
+          if (type.price !== item.price) {
+            hadChanges = true;
+            updatedItems.push({ ...item, price: type.price });
+          } else {
+            updatedItems.push(item);
+          }
+        } catch (e) {
+          updatedItems.push(item); // Mantém no carrinho se falhar a verificação técnica
         }
       }
 
@@ -125,19 +135,23 @@ export default function CarrinhoPage() {
         setItems(updatedItems);
         toast({ 
           title: "Carrinho Atualizado", 
-          description: "Alguns itens tiveram alteração de disponibilidade ou preço e foram atualizados automaticamente." 
+          description: "Ajustamos preços ou disponibilidade com base no estoque real." 
         });
       }
+    } catch (err) {
+      console.error("[Cart Revalidation Error]", err);
     } finally {
       setIsRevalidating(false);
+      isProcessingRef.current = false;
     }
-  }, [db, items, isRevalidating, setItems]);
+  }, [db, items, setItems]);
 
   // Revalidar ao focar na página ou montar
   React.useEffect(() => {
     revalidateCart();
-    window.addEventListener('focus', revalidateCart);
-    return () => window.removeEventListener('focus', revalidateCart);
+    const handleFocus = () => revalidateCart();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, [revalidateCart]);
 
   React.useEffect(() => {
@@ -145,7 +159,7 @@ export default function CarrinhoPage() {
       toast({
         variant: "destructive",
         title: "Tempo esgotado",
-        description: "Seu carrinho expirou e foi atualizado com base na disponibilidade atual dos ingressos."
+        description: "Seu carrinho expirou para garantir a disponibilidade dos ingressos para outros usuários."
       });
     };
     window.addEventListener('viby-cart-expired', handleExpired);
@@ -158,8 +172,10 @@ export default function CarrinhoPage() {
       const orgIds = Array.from(new Set(items.map(i => i.organizationId)))
       const results: Record<string, any> = {}
       for (const id of orgIds) {
-        const snap = await getDoc(doc(db, "organizations", id))
-        if (snap.exists()) results[id] = snap.data()
+        try {
+          const snap = await getDoc(doc(db, "organizations", id))
+          if (snap.exists()) results[id] = snap.data()
+        } catch (e) {}
       }
       setOrgsData(results)
     }
@@ -265,9 +281,9 @@ export default function CarrinhoPage() {
                            </div>
                            <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-8 pt-4 border-t border-dashed gap-4">
                               <div className="flex items-center gap-4 bg-muted/30 p-1.5 rounded-2xl border border-border/40 w-fit">
-                                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-white shadow-sm" onClick={() => updateQuantity(item.id, item.quantity - 1)} disabled={item.quantity <= 1}><Minus className="w-3 h-3" /></Button>
+                                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-white shadow-sm" onClick={() => updateQuantity(item.id, item.quantity - 1)} disabled={item.quantity <= 1}><Minus className="w-3 i-3" /></Button>
                                  <span className="font-black text-sm w-6 text-center">{item.quantity}</span>
-                                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-white shadow-sm" onClick={() => updateQuantity(item.id, item.quantity + 1)}><Plus className="w-3 h-3" /></Button>
+                                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-white shadow-sm" onClick={() => updateQuantity(item.id, item.quantity + 1)}><Plus className="w-3 i-3" /></Button>
                               </div>
                               <div className="text-right">
                                  <p className="text-[9px] font-black text-muted-foreground uppercase opacity-40 mb-0.5">Subtotal Item</p>
