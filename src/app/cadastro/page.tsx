@@ -20,6 +20,7 @@ import { sendWelcomeEmail } from "@/app/actions/email"
 import Image from "next/image"
 import { processGamificationEvent } from "@/lib/gamification-service"
 import { updateUserCPF } from "@/app/actions/user"
+import { maskCPF } from "@/lib/crypto-utils"
 
 const validateCPF = (cpf: string) => {
   const cleanCPF = cpf.replace(/\D/g, "");
@@ -159,11 +160,6 @@ export default function CadastroPage() {
       return
     }
 
-    if (!birthDate || !gender || !cpf) {
-      toast({ variant: "destructive", title: "Campos obrigatórios", description: "Preencha todos os campos obrigatórios." })
-      return
-    }
-
     const cleanCPF = cpf.replace(/\D/g, "");
     if (!validateCPF(cleanCPF)) {
       toast({ variant: "destructive", title: "CPF Inválido", description: "O número de CPF informado não é válido." })
@@ -174,13 +170,11 @@ export default function CadastroPage() {
     const normalizedUsername = username.toLowerCase()
 
     try {
-      // 1. Criar usuário no Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       const user = userCredential.user
 
       await updateProfile(user, { displayName: name })
 
-      // 2. Buscar UID da página oficial "viby"
       const vibyIdxSnap = await getDoc(doc(db, "usernames", "viby"))
       const officialOrgId = vibyIdxSnap.exists() ? vibyIdxSnap.data().uid : null
 
@@ -189,9 +183,10 @@ export default function CadastroPage() {
         name,
         username: normalizedUsername,
         email: email.toLowerCase().trim(),
+        avatar: `https://picsum.photos/seed/${user.uid}/100/100`,
         birthDate,
         gender,
-        avatar: `https://picsum.photos/seed/${user.uid}/100/100`,
+        cpf: maskCPF(cleanCPF), // SALVA A VERSÃO MASCARADA PERMANENTE
         plan: "free",
         platform: "viby",
         role: "user",
@@ -202,7 +197,6 @@ export default function CadastroPage() {
         createdAt: serverTimestamp()
       };
 
-      // 3. Executar transação de cadastro e seguimento automático
       await runTransaction(db, async (transaction) => {
         const usernameRef = doc(db, "usernames", normalizedUsername)
         const userRef = doc(db, "users", user.uid)
@@ -215,7 +209,6 @@ export default function CadastroPage() {
         transaction.set(usernameRef, { uid: user.uid, type: 'user', email: email.toLowerCase().trim() })
         transaction.set(userRef, userData)
 
-        // Seguimento automático da página oficial
         if (officialOrgId) {
           const followRef = doc(db, "follows", `${user.uid}_${officialOrgId}`)
           const vibyOrgRef = doc(db, "organizations", officialOrgId)
@@ -232,16 +225,11 @@ export default function CadastroPage() {
         }
       });
 
-      // 4. Salvar CPF de forma segura (Server Action)
-      const cpfResult = await updateUserCPF(user.uid, cleanCPF);
-      if (!cpfResult.success) {
-        console.error("Erro ao salvar CPF:", cpfResult.error);
-      }
+      // Salva a versão real criptografada no doc privado
+      await updateUserCPF(user.uid, cleanCPF);
 
-      // 5. Iniciar Gamificação
       await processGamificationEvent(db, user.uid, 'on_signup', {}, user.uid, userData);
       
-      // 6. Enviar Boas-vindas
       sendWelcomeEmail({
         to: email,
         userName: name,
@@ -252,17 +240,9 @@ export default function CadastroPage() {
       router.push("/dashboard")
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') {
-        toast({
-          variant: "destructive",
-          title: "E-mail já cadastrado",
-          description: "Este endereço de e-mail já está associado a uma conta."
-        })
+        toast({ variant: "destructive", title: "E-mail já cadastrado", description: "Este endereço de e-mail já está associado a uma conta." })
       } else {
-        toast({
-          variant: "destructive",
-          title: "Erro ao cadastrar",
-          description: error.message
-        })
+        toast({ variant: "destructive", title: "Erro ao cadastrar", description: error.message })
       }
     } finally {
       setLoading(false)
@@ -342,8 +322,6 @@ export default function CadastroPage() {
                     ) : null}
                   </div>
                 </div>
-                {usernameStatus === 'taken' && <p className="text-[9px] text-destructive font-bold uppercase mt-1">Este username já está em uso</p>}
-                {usernameStatus === 'invalid' && <p className="text-[9px] text-destructive font-bold uppercase mt-1">Mínimo 5 caracteres (letras e números)</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-4">

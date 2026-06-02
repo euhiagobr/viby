@@ -8,8 +8,6 @@ import {
   doc, 
   updateDoc, 
   serverTimestamp, 
-  getDoc, 
-  writeBatch 
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -26,47 +24,14 @@ import {
   ArrowLeft, 
   Save, 
   Upload, 
-  User as UserIcon, 
-  Check,
-  X,
-  Fingerprint,
-  Lock,
-  Globe,
-  ShieldCheck,
-  ShieldAlert,
+  Lock, 
+  ShieldCheck, 
   EyeOff,
-  RefreshCcw
+  Fingerprint
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
-import { maskCPF } from "@/lib/crypto-utils"
-import { errorEmitter } from "@/firebase/error-emitter"
-import { FirestorePermissionError } from "@/firebase/errors"
-import { getUserCPF, updateUserCPF } from "@/app/actions/user"
-import { Separator } from "@/components/ui/separator"
-
-const validateCPF = (cpf: string) => {
-  const cleanCPF = cpf.replace(/\D/g, "");
-  if (cleanCPF.length !== 11) return false;
-  if (/^(\d)\1+$/.test(cleanCPF)) return false;
-
-  let sum = 0;
-  let remainder;
-
-  for (let i = 1; i <= 9; i++) sum = sum + parseInt(cleanCPF.substring(i - 1, i)) * (11 - i);
-  remainder = (sum * 10) % 11;
-  if (remainder === 10 || remainder === 11) remainder = 0;
-  if (remainder !== parseInt(cleanCPF.substring(9, 10))) return false;
-
-  sum = 0;
-  for (let i = 1; i <= 10; i++) sum = sum + parseInt(cleanCPF.substring(i - 1, i)) * (12 - i);
-  remainder = (sum * 10) % 11;
-  if (remainder === 10 || remainder === 11) remainder = 0;
-  if (remainder !== parseInt(cleanCPF.substring(10, 11))) return false;
-
-  return true;
-};
 
 export default function EditarPerfilPage() {
   const router = useRouter()
@@ -110,8 +75,6 @@ export default function EditarPerfilPage() {
   })
   const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
-  const [hasCPFInPrivate, setHasCPFInPrivate] = useState(false)
-  const [loadingCPF, setLoadingCPF] = useState(false)
 
   useEffect(() => {
     if (profile && user && !isInitialized.current) {
@@ -132,6 +95,7 @@ export default function EditarPerfilPage() {
         instagram: profile.instagram || "",
         whatsapp: profile.whatsapp || "",
         email: profile.email || "",
+        cpf: profile.cpf || "", // CARREGA A VERSÃO MASCARADA PERMANENTE
         showEmail: profile.showEmail !== undefined ? profile.showEmail : true,
         privacy: profile.privacy || {
            profilePrivate: false,
@@ -141,28 +105,8 @@ export default function EditarPerfilPage() {
            hideLocation: false
         }
       }));
-
-      setLoadingCPF(true);
-      getUserCPF(user.uid, user.uid).then(res => {
-        if (res.success && res.cpf) {
-          setFormData((prev: any) => ({ ...prev, cpf: res.cpf! }));
-          setHasCPFInPrivate(true);
-        }
-        setLoadingCPF(false);
-      }).catch(() => setLoadingCPF(false));
     }
   }, [profile, user])
-
-  const formatCPFInput = (v: string) => {
-    v = v.replace(/\D/g, "");
-    if (v.length > 11) v = v.slice(0, 11);
-    if (v.length > 9) return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-    if (v.length > 6) return v.replace(/(\d{3})(\d{3})(\d{1,3})/, "$1.$2.$3");
-    if (v.length > 3) return v.replace(/(\d{3})(\d{1,3})/, "$1.$2");
-    return v;
-  }
-
-  const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => setFormData((prev: any) => ({ ...prev, cpf: formatCPFInput(e.target.value) }));
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -174,7 +118,7 @@ export default function EditarPerfilPage() {
       const uploadTask = uploadBytesResumable(storageRef, file)
       uploadTask.on('state_changed', 
         (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-        (error) => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
+        () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
           setFormData((prev: any) => ({ ...prev, avatar: downloadURL }))
@@ -189,20 +133,13 @@ export default function EditarPerfilPage() {
     e.preventDefault()
     if (!db || !user || !profile) return
 
-    if (formData.cpf && !validateCPF(formData.cpf)) {
-      toast({ variant: "destructive", title: "CPF Inválido", description: "O número de CPF informado não é válido." })
-      return
-    }
-
     setSaving(true)
     
     try {
-      if (formData.cpf && !hasCPFInPrivate) {
-        await updateUserCPF(user.uid, formData.cpf);
-      }
-
       const userRef = doc(db, "users", user.uid)
-      const { cpf, username, ...safeData } = formData; 
+      
+      // BLOQUEIO TOTAL: O CPF é removido do objeto de update para garantir que nem via código o usuário altere
+      const { cpf, username, email, uid, ...safeData } = formData; 
       
       const updateData = {
         ...safeData,
@@ -216,13 +153,6 @@ export default function EditarPerfilPage() {
       toast({ variant: "destructive", title: "Erro ao salvar" })
     } finally {
       setSaving(false)
-    }
-  }
-
-  const handleUnlockCPF = () => {
-    if (confirm("Deseja alterar seu CPF? Você precisará preencher o número completo novamente.")) {
-      setHasCPFInPrivate(false);
-      setFormData((prev: any) => ({ ...prev, cpf: "" }));
     }
   }
 
@@ -290,25 +220,19 @@ export default function EditarPerfilPage() {
 
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
-                <Fingerprint className="w-3.5 h-3.5 text-secondary" /> 
-                CPF 
-                {hasCPFInPrivate && <Lock className="w-3 h-3 text-muted-foreground ml-auto" />}
-                {loadingCPF && <Loader2 className="w-3 h-3 animate-spin ml-auto" />}
+                <Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF (Identificador Permanente)
               </Label>
-              <div className="flex gap-2">
+              <div className="relative">
                  <Input 
-                   value={hasCPFInPrivate ? maskCPF(formData.cpf) : formData.cpf} 
-                   onChange={handleCPFChange} 
-                   placeholder="000.000.000-00" 
-                   disabled={hasCPFInPrivate} 
-                   className={cn("rounded-xl h-11 flex-1", hasCPFInPrivate && "bg-muted/50 cursor-not-allowed")} 
+                   value={formData.cpf || "Pendente"} 
+                   readOnly
+                   className="rounded-xl h-11 bg-muted/50 cursor-not-allowed font-mono font-bold pr-10" 
                  />
-                 {hasCPFInPrivate && (
-                   <Button type="button" variant="outline" size="icon" className="h-11 w-11 rounded-xl" onClick={handleUnlockCPF} title="Alterar CPF">
-                     <RefreshCcw className="w-4 h-4" />
-                   </Button>
-                 )}
+                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <Lock className="w-4 h-4 text-muted-foreground opacity-50" />
+                 </div>
               </div>
+              <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">O CPF não pode ser alterado por segurança da sua carteira e ingressos.</p>
             </div>
 
             <div className="space-y-2">

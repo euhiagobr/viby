@@ -33,7 +33,6 @@ service cloud.firestore {
     // --- REGRAS DE COLEÇÃO ---
 
     // 1. CONSULTA DE GRUPO E VÍNCULOS (DESCOBERTA)
-    // Permite que o sistema localize parcerias e membros em qualquer profundidade
     match /{path=**}/members/{memberId} {
       allow read: if isSignedIn() && (request.auth.uid == memberId);
     }
@@ -43,7 +42,6 @@ service cloud.firestore {
     }
 
     // 2. ACESSO PÚBLICO (DESCOBERTA CULTURAL)
-    // Documentos necessários para renderizar perfis, eventos e o feed
     match /settings/{docId} { allow read: if true; }
     match /categories/{catId} { allow read: if true; }
     match /usernames/{username} { allow read: if true; }
@@ -61,9 +59,10 @@ service cloud.firestore {
     // 3. USUÁRIOS (PRIVACIDADE)
     match /users/{userId} {
       allow create: if isSignedIn() && request.auth.uid == userId;
+      // Impede alteração de campos críticos após a criação, incluindo CPF e Username
       allow update: if isSignedIn() && request.auth.uid == userId && isNotBlocked() && 
         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-          'role', 'status', 'plan', 'verified', 'walletBalance', 'totalXp', 'level'
+          'role', 'status', 'plan', 'verified', 'walletBalance', 'totalXp', 'level', 'cpf', 'username'
         ]);
 
       match /private/sensitive {
@@ -111,7 +110,6 @@ service cloud.firestore {
 
     // 6. REGISTROS, FINANCEIRO E LOGS
     match /registrations/{regId} {
-      // Permite leitura se for o dono, o organizador ou se for um check-in público (para stats)
       allow read: if isSignedIn() || resource.data.checkedIn == true;
       allow create: if isSignedIn();
       allow update: if isSignedIn();
