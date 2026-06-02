@@ -108,7 +108,7 @@ export default function EditarPerfilPage() {
        hideLocation: false
     }
   })
-  const [saving, setSaving] = setSaving(false)
+  const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [hasCPFInPrivate, setHasCPFInPrivate] = useState(false)
   const [loadingCPF, setLoadingCPF] = useState(false)
