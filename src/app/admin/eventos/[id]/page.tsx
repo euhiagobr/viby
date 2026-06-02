@@ -8,7 +8,7 @@ import {
   collection, 
   query, 
   where, 
-  orderBy 
+  Firestore 
 } from "firebase/firestore"
 import { 
   Loader2, 
@@ -50,10 +50,10 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
 
   const registrationsQuery = useMemoFirebase(() => {
     if (!db || !eventId) return null
+    // Removido orderBy aqui para evitar que documentos antigos sem o campo 'timestamp' sejam filtrados pelo Firestore
     return query(
       collection(db, "registrations"),
-      where("eventId", "==", eventId),
-      orderBy("timestamp", "desc")
+      where("eventId", "==", eventId)
     )
   }, [db, eventId])
 
@@ -61,7 +61,15 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
 
   const filteredRegistrations = React.useMemo(() => {
     if (!registrations) return []
-    return registrations.filter(reg => 
+    
+    // Ordenação manual em memória para resiliência (timestamp ou createdAt ou 0)
+    const sorted = [...registrations].sort((a, b) => {
+      const tA = a.timestamp?.seconds || a.createdAt?.seconds || (a.timestamp ? new Date(a.timestamp).getTime() : 0);
+      const tB = b.timestamp?.seconds || b.createdAt?.seconds || (b.timestamp ? new Date(b.timestamp).getTime() : 0);
+      return tB - tA;
+    });
+
+    return sorted.filter(reg => 
       (reg.userName?.toLowerCase() || "").includes(search.toLowerCase()) ||
       (reg.userEmail?.toLowerCase() || "").includes(search.toLowerCase()) ||
       (reg.ticketCode?.toLowerCase() || "").includes(search.toLowerCase())
@@ -85,7 +93,7 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
               <CalendarDays className="w-5 h-5 text-secondary" />
               Gestão de Ingressos
             </CardTitle>
-            <CardDescription>Total de {registrations?.length || 0} registros encontrados.</CardDescription>
+            <CardDescription>Total de {registrations?.length || 0} registros encontrados para este evento.</CardDescription>
           </div>
           <div className="relative w-full md:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -112,7 +120,7 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
           <TableBody>
             {filteredRegistrations.length > 0 ? (
               filteredRegistrations.map((reg) => {
-                const isRefunded = reg.status === 'refunded' || reg.paymentStatus === 'Estornado' || reg.status === 'cancelled';
+                const isRefunded = reg.status === 'refunded' || reg.paymentStatus === 'Estornado' || reg.status === 'cancelled' || reg.paymentStatus === 'refunded_wallet';
                 const isCheckedIn = reg.checkedIn === true;
 
                 return (
@@ -190,8 +198,7 @@ const EventCouponsSection = ({ eventId }: { eventId: string }) => {
     if (!db || !eventId) return null
     return query(
       collection(db, "coupons"), 
-      where("eventId", "==", eventId),
-      orderBy("createdAt", "desc")
+      where("eventId", "==", eventId)
     )
   }, [db, eventId])
 
