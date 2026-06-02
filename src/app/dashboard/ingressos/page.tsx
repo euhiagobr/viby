@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, where, doc, updateDoc, or, serverTimestamp } from "firebase/firestore"
+import { collection, query, where, orderBy } from "firebase/firestore"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,12 +11,12 @@ import {
   Loader2, 
   Ticket, 
   Calendar, 
-  User as UserIcon,
-  CheckCircle2,
-  History,
-  QrCode,
-  Mail,
-  RotateCcw
+  CheckCircle2, 
+  QrCode, 
+  Mail, 
+  XCircle,
+  RotateCcw,
+  Clock
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -30,13 +30,12 @@ export default function MeusIngressosPage() {
   const auth = useAuth()
   const { user } = useUser(auth)
 
-  // Filtramos apenas ingressos pagos ou disponíveis (gratuitos)
+  // Consulta todos os registros do usuário para exibir o histórico completo (incluindo estornados)
   const registrationsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
     return query(
       collection(db, "registrations"), 
-      where("userId", "==", user.uid),
-      where("paymentStatus", "in", ["Pago", "Disponível"])
+      where("userId", "==", user.uid)
     )
   }, [db, user])
 
@@ -60,7 +59,7 @@ export default function MeusIngressosPage() {
     <div className="space-y-8 pb-20">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">Meus Ingressos</h1>
-        <p className="text-muted-foreground font-medium">Sua coleção de experiências confirmadas.</p>
+        <p className="text-muted-foreground font-medium">Sua coleção de experiências e histórico de acessos.</p>
       </div>
 
       {myOwned.length === 0 ? (
@@ -69,8 +68,8 @@ export default function MeusIngressosPage() {
             <Ticket className="w-10 h-10 text-muted-foreground opacity-30" />
           </div>
           <div className="text-center space-y-2">
-            <p className="text-xl font-bold">Nenhum ingresso confirmado.</p>
-            <p className="text-sm text-muted-foreground max-w-xs mx-auto">Vouchers aparecem aqui apenas após a confirmação do pagamento.</p>
+            <p className="text-xl font-bold">Nenhum ingresso encontrado.</p>
+            <p className="text-sm text-muted-foreground max-w-xs mx-auto">Suas experiências e vouchers aparecerão aqui após a reserva.</p>
           </div>
           <Button asChild className="bg-secondary text-white font-black px-10 h-12 rounded-full shadow-lg">
             <Link href="/dashboard">Explorar Eventos</Link>
@@ -92,8 +91,16 @@ function TicketListItem({ registration }: { registration: any }) {
   const { user } = useUser(auth)
   const [isSendingEmail, setIsSendingEmail] = React.useState(false)
 
+  const isCancelled = registration.status === 'cancelled' || 
+                      registration.status === 'refunded' || 
+                      registration.paymentStatus === 'Estornado' || 
+                      registration.paymentStatus === 'refunded_wallet';
+  
+  const isCheckedIn = registration.checkedIn === true;
+  const isPending = registration.paymentStatus === 'Pendente';
+
   const handleResendEmail = async () => {
-    if (!registration || !user?.email) return
+    if (!registration || !user?.email || isCancelled) return
     setIsSendingEmail(true)
     try {
       const d = registration.eventDate?.toDate ? registration.eventDate.toDate() : new Date(registration.eventDate);
@@ -114,17 +121,37 @@ function TicketListItem({ registration }: { registration: any }) {
   }
 
   return (
-    <Card className="overflow-hidden border-none shadow-sm hover:shadow-md transition-all rounded-[1.5rem] bg-white flex flex-col sm:flex-row group">
+    <Card className={cn(
+      "overflow-hidden border-none shadow-sm transition-all rounded-[1.5rem] bg-white flex flex-col sm:flex-row group",
+      isCancelled && "opacity-60 grayscale-[0.5] bg-muted/20"
+    )}>
       <div className="relative w-full sm:w-44 h-40 sm:h-auto bg-muted">
-        <Image src={registration.eventImage || "https://picsum.photos/seed/event/600/400"} alt="Evento" fill className="object-cover" unoptimized />
+        <Image 
+          src={registration.eventImage || "https://picsum.photos/seed/event/600/400"} 
+          alt="Evento" 
+          fill 
+          className="object-cover" 
+          unoptimized 
+        />
         <div className="absolute bottom-3 left-3">
-           <Badge className="bg-green-500 text-white border-none text-[10px] font-black uppercase px-3">Confirmado</Badge>
+           <Badge className={cn(
+             "border-none text-[10px] font-black uppercase px-3 shadow-md",
+             isCancelled ? "bg-red-500 text-white" : 
+             isCheckedIn ? "bg-primary text-white" :
+             isPending ? "bg-orange-500 text-white" :
+             "bg-green-600 text-white"
+           )}>
+             {isCancelled ? "Estornado" : isCheckedIn ? "Utilizado" : isPending ? "Pendente" : "Confirmado"}
+           </Badge>
         </div>
       </div>
       
       <CardContent className="p-6 flex-1 flex flex-col justify-between gap-4">
         <div className="space-y-3">
-          <h3 className="font-black text-lg leading-tight uppercase italic tracking-tighter group-hover:text-secondary transition-colors">
+          <h3 className={cn(
+            "font-black text-lg leading-tight uppercase italic tracking-tighter transition-colors",
+            !isCancelled && "group-hover:text-secondary"
+          )}>
             {registration.eventTitle}
           </h3>
           <div className="flex items-center gap-2 text-[10px] font-black uppercase text-muted-foreground tracking-tight">
@@ -134,13 +161,26 @@ function TicketListItem({ registration }: { registration: any }) {
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t border-dashed border-border/60">
-          <span className="text-sm font-black text-primary">{formatCurrency(registration.price || 0)}</span>
+          <span className="text-sm font-black text-primary">
+            {isCancelled ? "Valor Devolvido" : formatCurrency(registration.price || 0)}
+          </span>
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={handleResendEmail} disabled={isSendingEmail} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-secondary text-secondary">
-              {isSendingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
-            </Button>
-            <Button size="sm" className="h-9 px-4 text-[10px] font-black uppercase rounded-xl bg-primary text-white" asChild>
-              <Link href={`/dashboard/ingressos/${registration.id}/voucher`}><QrCode className="w-3.5 h-3.5 mr-1.5" /> Voucher</Link>
+            {!isCancelled && !isPending && (
+              <Button size="sm" variant="outline" onClick={handleResendEmail} disabled={isSendingEmail} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-secondary text-secondary">
+                {isSendingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+              </Button>
+            )}
+            <Button size="sm" className={cn(
+              "h-9 px-4 text-[10px] font-black uppercase rounded-xl",
+              isCancelled ? "bg-muted text-muted-foreground" : "bg-primary text-white"
+            )} asChild={!isCancelled}>
+              {isCancelled ? (
+                <span className="flex items-center gap-1.5"><XCircle className="w-3.5 h-3.5" /> Inválido</span>
+              ) : (
+                <Link href={`/dashboard/ingressos/${registration.id}/voucher`}>
+                  <QrCode className="w-3.5 h-3.5 mr-1.5" /> Voucher
+                </Link>
+              )}
             </Button>
           </div>
         </div>
