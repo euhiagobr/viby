@@ -12,8 +12,7 @@ import { calculateDetailedVibyBreakdown } from '@/lib/financial-utils';
 /**
  * @fileOverview Server Actions do Stripe com inicialização dinâmica e segura.
  * Implementa a finalização de pedidos via Admin SDK para garantir integridade.
- * ADICIONADO: Controle atômico de capacidade (Global e por Lote) e sincronização de inventário.
- * ATUALIZADO: Geração segura de Statement Descriptor baseada em dados oficiais do servidor.
+ * O Statement Descriptor é gerado exclusivamente no servidor.
  */
 
 async function getStripeInstance() {
@@ -40,7 +39,7 @@ async function getStripeInstance() {
 
 /**
  * Gera um Statement Descriptor (descritor de fatura) seguro e sanitizado.
- * Busca o username oficial da organização no banco de dados para evitar fraudes ou nomes obsoletos.
+ * Busca o username oficial da organização no banco de dados.
  * Ignora completamente qualquer username enviado pelo frontend.
  */
 async function generateSecureStatementDescriptor(metadata: any): Promise<string> {
@@ -48,40 +47,37 @@ async function generateSecureStatementDescriptor(metadata: any): Promise<string>
   let username = "INGRESSO";
 
   try {
-    // Caso 1: Recarga de Saldo Ads (identificado por orgId no metadado do servidor)
+    // Caso 1: Recarga de Saldo Ads (identificado por orgId)
     if (metadata.type === 'ad_balance_topup' && metadata.orgId) {
       const orgSnap = await adminDb.collection("organizations").doc(metadata.orgId).get();
       if (orgSnap.exists) {
         username = orgSnap.data()?.username || username;
       }
     } 
-    // Caso 2: Checkout de Pedido (identificado por orderId no metadado do servidor)
-    else if ((metadata.type === 'order_checkout' || metadata.type === 'cart_checkout') && (metadata.orderId || metadata.registrationIds)) {
-      // Se tivermos orderId, é a fonte mais confiável
-      if (metadata.orderId) {
-        const orderSnap = await adminDb.collection("orders").doc(metadata.orderId).get();
-        if (orderSnap.exists) {
-          const orderData = orderSnap.data();
-          const firstItem = orderData?.items?.[0];
-          if (firstItem?.organizationId) {
-            const orgSnap = await adminDb.collection("organizations").doc(firstItem.organizationId).get();
-            if (orgSnap.exists) {
-              username = orgSnap.data()?.username || username;
-            }
+    // Caso 2: Checkout de Pedido (identificado por orderId)
+    else if (metadata.orderId) {
+      const orderSnap = await adminDb.collection("orders").doc(metadata.orderId).get();
+      if (orderSnap.exists) {
+        const orderData = orderSnap.data();
+        const firstItem = orderData?.items?.[0];
+        if (firstItem?.organizationId) {
+          const orgSnap = await adminDb.collection("organizations").doc(firstItem.organizationId).get();
+          if (orgSnap.exists) {
+            username = orgSnap.data()?.username || username;
           }
         }
-      } 
-      // Fallback para busca via primeiro registrationId se orderId falhar
-      else if (metadata.registrationIds) {
-        const firstRegId = metadata.registrationIds.split(',')[0];
-        const regSnap = await adminDb.collection("registrations").doc(firstRegId).get();
-        if (regSnap.exists) {
-          const orgId = regSnap.data()?.organizationId;
-          if (orgId) {
-            const orgSnap = await adminDb.collection("organizations").doc(orgId).get();
-            if (orgSnap.exists) {
-              username = orgSnap.data()?.username || username;
-            }
+      }
+    }
+    // Caso 3: Checkout de Carrinho (Legado/Fallback por registrationId)
+    else if (metadata.registrationIds) {
+      const firstRegId = metadata.registrationIds.split(',')[0];
+      const regSnap = await adminDb.collection("registrations").doc(firstRegId).get();
+      if (regSnap.exists) {
+        const orgId = regSnap.data()?.organizationId;
+        if (orgId) {
+          const orgSnap = await adminDb.collection("organizations").doc(orgId).get();
+          if (orgSnap.exists) {
+            username = orgSnap.data()?.username || username;
           }
         }
       }
@@ -91,13 +87,13 @@ async function generateSecureStatementDescriptor(metadata: any): Promise<string>
   }
 
   // Sanitização compatível com Stripe: Alfanumérico, Maiúsculo, Sem Acentos.
-  // O Stripe permite até 22 caracteres no total. "VIBY*" ocupa 5.
+  // Limite de 22 caracteres. "VIBY*" ocupa 5.
   const cleanUsername = username
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+    .replace(/[\u0300-\u036f]/g, "") 
     .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "") // Remove especiais e espaços
-    .substring(0, 17); // Limita para caber no prefixo
+    .replace(/[^A-Z0-9]/g, "") 
+    .substring(0, 17); 
 
   return `VIBY*${cleanUsername || "INGRESSO"}`;
 }
@@ -109,7 +105,7 @@ export async function createCheckoutSession(data: any) {
     
     const stripe = await getStripeInstance();
     
-    // Resolve o descritor de fatura de forma segura no servidor
+    // Gera o descritor de forma segura ignorando inputs textuais do cliente
     const descriptor = await generateSecureStatementDescriptor(data.metadata);
     
     const session = await stripe.checkout.sessions.create({
@@ -138,7 +134,7 @@ export async function createCheckoutSession(data: any) {
       error: { message: error.message, stack: error.stack },
       type: 'stripe_checkout_failure',
       severity: 'error',
-      metadata: { items: data.metadata?.registrationIds }
+      metadata: { orderId: data.metadata?.orderId }
     });
     return { success: false, error: error.message, code: errorCode };
   }
@@ -158,7 +154,6 @@ export async function createAdBalanceTopUpSession(data: any) {
       transactionId: data.transactionId 
     };
 
-    // Resolve o descritor de fatura de forma segura no servidor
     const descriptor = await generateSecureStatementDescriptor(metadata);
     
     const session = await stripe.checkout.sessions.create({
@@ -207,7 +202,6 @@ export async function getStripeSession(sessionId: string) {
 
 /**
  * Finaliza uma sessão de checkout de forma segura no servidor.
- * Implementa IDEMPOTÊNCIA e CONTROLE ATÔMICO DE CAPACIDADE (Global e Lote).
  */
 export async function finalizeCheckoutSession(sessionId: string) {
   try {
@@ -216,11 +210,11 @@ export async function finalizeCheckoutSession(sessionId: string) {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
     if (session.payment_status !== 'paid') {
-      return { success: false, error: 'O pagamento ainda não consta como aprovado no gateway.' };
+      return { success: false, error: 'O pagamento não foi aprovado.' };
     }
 
     const metadata = session.metadata;
-    if (!metadata) return { success: false, error: 'Sessão inválida (metadados ausentes).' };
+    if (!metadata) return { success: false, error: 'Sessão inválida.' };
 
     // --- CASO 1: RECARGA DE ADS ---
     if (metadata.type === 'ad_balance_topup') {
@@ -256,7 +250,7 @@ export async function finalizeCheckoutSession(sessionId: string) {
       
       return await adminDb.runTransaction(async (transaction) => {
         const orderSnap = await transaction.get(orderRef);
-        if (!orderSnap.exists) throw new Error("Pedido não localizado no banco.");
+        if (!orderSnap.exists) throw new Error("Pedido não localizado.");
         
         const orderData = orderSnap.data()!;
         if (orderData.status === 'paid') {
@@ -266,55 +260,40 @@ export async function finalizeCheckoutSession(sessionId: string) {
         const userId = metadata.userId;
         const balanceUsed = parseFloat(metadata.balanceUsed || "0");
 
-        // 1. VALIDAR CAPACIDADE ATOMICAMENTE ANTES DE EMITIR
+        // 1. Validar e Reservar Capacidade (Atômico)
         const items = orderData.items || [];
-        const targets: Record<string, { ref: any, parentRef?: any, qty: number, items: any[] }> = {};
-        
         for (const item of items) {
-          const key = item.occurrenceId ? `occ_${item.occurrenceId}` : `ev_${item.eventId}`;
-          if (!targets[key]) {
-            targets[key] = {
-              ref: item.occurrenceId ? adminDb.collection("recurring_occurrences").doc(item.occurrenceId) : adminDb.collection("events").doc(item.eventId),
-              parentRef: item.occurrenceId ? adminDb.collection("events").doc(item.eventId) : undefined,
-              qty: 0,
-              items: []
-            };
-          }
-          targets[key].qty += (item.quantity || 1);
-          targets[key].items.push(item);
-        }
-
-        // Check cada alvo na transação
-        for (const key in targets) {
-          const target = targets[key];
-          const snap = await transaction.get(target.ref);
-          if (!snap.exists) throw new Error("Evento ou data não localizada.");
+          const targetRef = item.occurrenceId 
+            ? adminDb.collection("recurring_occurrences").doc(item.occurrenceId) 
+            : adminDb.collection("events").doc(item.eventId);
+          
+          const snap = await transaction.get(targetRef);
+          if (!snap.exists) throw new Error("Evento ou data indisponível.");
           
           const data = snap.data()!;
           const currentSold = data.ingressosVendidos || 0;
           const capacity = data.capacidadeMaxima || data.capacidadeTotal || 0;
           
-          // Validação Global
-          if (capacity > 0 && (currentSold + target.qty > capacity)) {
-             throw new Error("A capacidade total do evento foi atingida enquanto você pagava.");
+          if (capacity > 0 && (currentSold + item.quantity > capacity)) {
+             throw new Error("Lotação máxima atingida durante o pagamento.");
           }
 
-          // Reserva capacidade
-          transaction.update(target.ref, { 
-            ingressosVendidos: FieldValue.increment(target.qty),
+          transaction.update(targetRef, { 
+            ingressosVendidos: FieldValue.increment(item.quantity),
             updatedAt: FieldValue.serverTimestamp()
           });
 
-          // Sincronizar com o Evento Pai se for ocorrência
-          if (target.parentRef) {
-            transaction.update(target.parentRef, {
-              ingressosVendidos: FieldValue.increment(target.qty),
-              updatedAt: FieldValue.serverTimestamp()
+          // Sincronizar com evento pai se for ocorrência
+          if (item.occurrenceId) {
+            const parentRef = adminDb.collection("events").doc(item.eventId);
+            transaction.update(parentRef, {
+              ingressosVendidos: FieldValue.increment(item.quantity),
+              updatedAt: serverTimestamp()
             });
           }
         }
 
-        // 2. Processar Saldo se utilizado
+        // 2. Processar Saldo da Carteira
         if (balanceUsed > 0) {
           const walletRef = adminDb.collection("wallets").doc(userId);
           const userRef = adminDb.collection("users").doc(userId);
@@ -329,44 +308,34 @@ export async function finalizeCheckoutSession(sessionId: string) {
             updatedAt: FieldValue.serverTimestamp()
           });
 
-          const wTxRef = adminDb.collection("wallet_transactions").doc();
-          transaction.set(wTxRef, {
+          transaction.set(adminDb.collection("wallet_transactions").doc(), {
             userId,
             amount: balanceUsed,
             type: 'debit',
             reason: 'compra_ingresso',
-            description: `Débito: Reserva ${metadata.orderId}`,
+            description: `Uso de saldo no pedido ${metadata.orderId}`,
             timestamp: FieldValue.serverTimestamp()
           });
         }
 
-        // 3. Configurações Fiscais
+        // 3. Configurações Fiscais e Emissão
         const feesSnap = await transaction.get(adminDb.collection("settings").doc("fees"));
         const stripeSettingsSnap = await transaction.get(adminDb.collection("settings").doc("stripe"));
-
         const fees = feesSnap.exists ? feesSnap.data() : {};
         const stripeSettings = stripeSettingsSnap.exists ? stripeSettingsSnap.data() : {};
 
-        // 4. Emitir Ingressos (Registrations) e Registros Fiscais
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
-          
           for (let j = 0; j < item.quantity; j++) {
             const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
             const breakdown = calculateDetailedVibyBreakdown(
               item.price, 1, fees, stripeSettings, (i === 0 && j === 0)
             );
 
-            let fiscalTitle = item.eventTitle;
-            if (item.occurrenceId) {
-               const dateStr = item.eventDate;
-               fiscalTitle = `${item.eventTitle} (${new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR')})`;
-            }
-
             const regRef = adminDb.collection("registrations").doc();
             transaction.set(regRef, {
               eventId: item.eventId,
-              eventTitle: fiscalTitle,
+              eventTitle: item.eventTitle,
               eventImage: item.eventImage || '',
               eventDate: item.eventDate,
               eventCity: item.eventCity,
@@ -391,12 +360,12 @@ export async function finalizeCheckoutSession(sessionId: string) {
               timestamp: FieldValue.serverTimestamp()
             });
 
-            const taxRef = adminDb.collection("tax_tickets").doc();
-            transaction.set(taxRef, {
+            // Registro ERP
+            transaction.set(adminDb.collection("tax_tickets").doc(), {
               registrationId: regRef.id,
               eventId: item.eventId,
-              eventTitle: fiscalTitle,
-              orgName: item.organizerUsername || "Marca",
+              eventTitle: item.eventTitle,
+              orgName: item.organizerUsername || "Viby Partner",
               buyerName: orderData.userName,
               totalFacePrice: item.price,
               vibyGrossProfit: breakdown.vibyGross,
@@ -421,7 +390,7 @@ export async function finalizeCheckoutSession(sessionId: string) {
       });
     }
 
-    return { success: false, error: 'Tipo de transação desconhecido.' };
+    return { success: false, error: 'Sessão não identificada.' };
   } catch (error: any) {
     console.error("[Checkout Finalization Error]", error);
     return { success: false, error: error.message };
