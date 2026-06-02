@@ -51,6 +51,7 @@ export async function createStripeConnectAccount(orgId: string) {
     let accountId = orgData.stripeAccountId;
 
     if (!accountId) {
+      console.log(`[AUDIT] Criando nova conta Stripe para org: ${orgId}`);
       const stripe = await getStripeInstance(db);
       const account = await stripe.accounts.create({
         type: 'express',
@@ -76,6 +77,7 @@ export async function createStripeConnectAccount(orgId: string) {
         stripeOnboardingComplete: false,
         updatedAt: serverTimestamp()
       });
+      console.log(`[AUDIT] stripeAccountId salvo com sucesso: ${accountId}`);
     }
 
     const linkRes = await createAccountOnboardingLink(orgId, accountId);
@@ -112,15 +114,32 @@ export async function createAccountOnboardingLink(orgId: string, accountId: stri
 }
 
 /**
- * Recupera os dados de uma conta diretamente da API do Stripe para diagnóstico.
+ * Recupera os dados de uma conta diretamente da API do Stripe e SINCRONIZA com o Firestore.
  */
-export async function retrieveStripeAccount(accountId: string) {
+export async function retrieveStripeAccount(accountId: string, orgId?: string) {
   try {
-    console.log(`[Diagnostic] Consulting Stripe for account: ${accountId}`);
     const { db } = await getFirebaseComponents();
     const stripe = await getStripeInstance(db);
     
+    console.log(`[Diagnostic] Consulting Stripe for account: ${accountId}`);
     const account = await stripe.accounts.retrieve(accountId);
+
+    // LÓGICA DE SINCRONIZAÇÃO FORÇADA
+    if (orgId) {
+      console.log(`[Diagnostic] Syncing Stripe state to Firestore for org: ${orgId}`);
+      const orgRef = doc(db, 'organizations', orgId);
+      
+      const isApproved = account.charges_enabled && account.payouts_enabled;
+      
+      await updateDoc(orgRef, {
+        stripeOnboardingComplete: account.details_submitted,
+        stripeChargesEnabled: account.charges_enabled,
+        stripePayoutsEnabled: account.payouts_enabled,
+        stripeDetailsSubmitted: account.details_submitted,
+        "payoutSettings.status": isApproved ? 'verified' : (account.details_submitted ? 'pending_admin' : 'none'),
+        updatedAt: serverTimestamp()
+      });
+    }
 
     return {
       success: true,

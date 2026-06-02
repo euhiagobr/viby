@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { doc, getFirestore, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, limit } from 'firebase/firestore';
@@ -18,28 +17,31 @@ async function getFirebaseDb() {
 
 async function getStripeInstance(db: any) {
   const snap = await getDoc(doc(db, 'settings', 'stripe'));
-  return new Stripe(snap.data()?.secretKey, { apiVersion: '2024-12-18.acacia' as any });
+  const data = snap.data();
+  if (!data?.secretKey) throw new Error("Stripe Secret Key not found in DB.");
+  return new Stripe(data.secretKey, { apiVersion: '2024-12-18.acacia' as any });
 }
 
 export async function POST(req: Request) {
   const db = await getFirebaseDb();
-  const stripe = await getStripeInstance(db);
   const payload = await req.text();
   const sig = req.headers.get('stripe-signature')!;
 
   let event: Stripe.Event;
 
   try {
+    const stripe = await getStripeInstance(db);
     const stripeSettings = (await getDoc(doc(db, 'settings', 'stripe'))).data();
     const webhookSecret = stripeSettings?.webhookSecret;
     
     if (!webhookSecret) {
-      // Se não houver segredo, tentamos processar sem verificação (apenas para ambiente de desenvolvimento studio)
+      // Fallback para ambiente Studio sem webhookSecret configurado
       event = JSON.parse(payload);
     } else {
       event = stripe.webhooks.constructEvent(payload, sig, webhookSecret);
     }
   } catch (err: any) {
+    console.error(`[Webhook Error] ${err.message}`);
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
@@ -50,28 +52,32 @@ export async function POST(req: Request) {
         const orgId = account.metadata?.orgId;
         
         if (orgId) {
+          console.log(`[Webhook] Syncing account ${account.id} for org ${orgId}`);
           const orgRef = doc(db, 'organizations', orgId);
+          
+          const isApproved = account.charges_enabled && account.payouts_enabled;
+
           await updateDoc(orgRef, {
             stripeOnboardingComplete: account.details_submitted,
             stripeChargesEnabled: account.charges_enabled,
             stripePayoutsEnabled: account.payouts_enabled,
             stripeDetailsSubmitted: account.details_submitted,
-            "payoutSettings.status": account.payouts_enabled ? 'verified' : (account.details_submitted ? 'pending_admin' : 'none'),
+            "payoutSettings.status": isApproved ? 'verified' : (account.details_submitted ? 'pending_admin' : 'none'),
             updatedAt: serverTimestamp()
           });
         }
         break;
       }
 
-      case 'payout.paid': {
-        const payout = event.data.object as Stripe.Payout;
-        // Lógica para registrar sucesso de repasse no histórico da organização
+      case 'capability.updated': {
+        const capability = event.data.object as Stripe.Capability;
+        // Se uma capacidade mudar, o account.updated normalmente também dispara,
+        // mas podemos forçar a busca aqui se necessário.
         break;
       }
 
-      case 'payout.failed': {
-        const payout = event.data.object as Stripe.Payout;
-        // Lógica para notificar falha de repasse
+      case 'payout.paid': {
+        // Lógica para registrar sucesso de repasse no histórico da organização
         break;
       }
     }

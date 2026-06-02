@@ -71,14 +71,16 @@ export default function FinanceiroPage() {
 
     setIsDiagnosing(true);
     try {
-      const result = await retrieveStripeAccount(currentOrg.stripeAccountId);
+      // Chama o diagnóstico que agora também força a sincronização
+      const result = await retrieveStripeAccount(currentOrg.stripeAccountId, currentOrg.id);
       if (result.success) {
         setDiagnosticResult(result.data);
-        toast({ title: "Diagnóstico concluído" });
+        await refreshOrg(); // Recarrega os dados da org para refletir a sincronização
+        toast({ title: "Sincronização concluída!" });
       } else {
         toast({ 
           variant: "destructive", 
-          title: "Erro no diagnóstico", 
+          title: "Erro na sincronização", 
           description: result.error || "Ocorreu um erro ao consultar a Stripe." 
         });
       }
@@ -149,8 +151,8 @@ export default function FinanceiroPage() {
                disabled={isDiagnosing}
                className="rounded-full h-11 px-6 font-black uppercase text-[10px] gap-2 border-primary text-primary"
              >
-                {isDiagnosing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Terminal className="w-4 h-4" />}
-                Verificar Status Stripe
+                {isDiagnosing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                Sincronizar com Stripe
              </Button>
            )}
         </div>
@@ -174,9 +176,9 @@ export default function FinanceiroPage() {
            </CardHeader>
            <CardContent className="p-8 space-y-8">
               {hasDivergence && (
-                <div className="p-4 bg-red-50 rounded-2xl border border-red-200 flex items-center gap-3 text-red-700">
-                   <ShieldAlert className="w-5 h-5 animate-pulse" />
-                   <p className="text-xs font-black uppercase tracking-tight">Divergência encontrada entre Stripe e Firestore!</p>
+                <div className="p-4 bg-orange-50 rounded-2xl border border-orange-200 flex items-center gap-3 text-orange-700">
+                   <AlertTriangle className="w-5 h-5 animate-pulse" />
+                   <p className="text-xs font-black uppercase tracking-tight">O sistema detectou mudanças e atualizou o banco de dados.</p>
                 </div>
               )}
 
@@ -184,34 +186,46 @@ export default function FinanceiroPage() {
                  <div className="space-y-4">
                     <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest border-b pb-2">Dados da API Stripe</h3>
                     <div className="space-y-2">
-                       <DiagLine label="Account ID" value={diagnosticResult.id} mono />
-                       <DiagLine label="Details Submitted" status={diagnosticResult.details_submitted} />
-                       <DiagLine label="Charges Enabled" status={diagnosticResult.charges_enabled} />
-                       <DiagLine label="Payouts Enabled" status={diagnosticResult.payouts_enabled} />
+                       <div className="flex justify-between py-1">
+                          <span className="text-[10px] font-bold uppercase opacity-60">Account ID:</span>
+                          <span className="text-[10px] font-mono font-bold">{diagnosticResult.id}</span>
+                       </div>
+                       <div className="flex justify-between py-1">
+                          <span className="text-[10px] font-bold uppercase opacity-60">Onboarding:</span>
+                          {diagnosticResult.details_submitted ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <XCircle className="w-3.5 h-3.5 text-red-500" />}
+                       </div>
+                       <div className="flex justify-between py-1">
+                          <span className="text-[10px] font-bold uppercase opacity-60">Vendas:</span>
+                          {diagnosticResult.charges_enabled ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <XCircle className="w-3.5 h-3.5 text-red-500" />}
+                       </div>
+                       <div className="flex justify-between py-1">
+                          <span className="text-[10px] font-bold uppercase opacity-60">Repasses:</span>
+                          {diagnosticResult.payouts_enabled ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <XCircle className="w-3.5 h-3.5 text-red-500" />}
+                       </div>
                        <Separator className="my-4 border-dashed" />
                        <div className="space-y-1">
-                          <p className="text-[9px] font-black uppercase opacity-40">Currently Due</p>
-                          <p className="text-xs font-bold text-primary">{diagnosticResult.requirements?.currently_due?.length > 0 ? diagnosticResult.requirements.currently_due.join(', ') : 'Nenhum'}</p>
-                       </div>
-                       <div className="space-y-1">
-                          <p className="text-[9px] font-black uppercase opacity-40">Disabled Reason</p>
-                          <p className="text-xs font-bold text-red-600">{diagnosticResult.requirements?.disabled_reason || 'Nenhuma restrição'}</p>
+                          <p className="text-[9px] font-black uppercase opacity-40">Pendências Atuais</p>
+                          <p className="text-xs font-bold text-primary">{diagnosticResult.requirements?.currently_due?.length > 0 ? diagnosticResult.requirements.currently_due.join(', ') : 'Nenhuma'}</p>
                        </div>
                     </div>
                  </div>
 
                  <div className="space-y-4">
-                    <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest border-b pb-2">Dados no Firestore</h3>
+                    <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest border-b pb-2">Estado no Banco de Dados</h3>
                     <div className="space-y-2">
-                       <DiagLine label="Onboarding Complete" status={currentOrg.stripeOnboardingComplete} />
-                       <DiagLine label="Charges Sync" status={currentOrg.stripeChargesEnabled} />
-                       <DiagLine label="Payouts Sync" status={currentOrg.stripePayoutsEnabled} />
-                       <DiagLine label="Legacy Status" value={currentOrg.payoutSettings?.status || 'N/A'} />
+                       <div className="flex justify-between py-1">
+                          <span className="text-[10px] font-bold uppercase opacity-60">Sincronizado?</span>
+                          {!hasDivergence ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <RefreshCw className="w-3.5 h-3.5 text-orange-500 animate-spin" />}
+                       </div>
+                       <div className="flex justify-between py-1">
+                          <span className="text-[10px] font-bold uppercase opacity-60">Status Interno:</span>
+                          <Badge variant="outline" className="text-[8px] font-black uppercase">{currentOrg.payoutSettings?.status || 'none'}</Badge>
+                       </div>
                     </div>
                  </div>
               </div>
               <div className="pt-4 flex justify-end">
-                 <Button variant="ghost" size="sm" className="rounded-xl font-bold uppercase text-[9px]" onClick={() => setDiagnosticResult(null)}>Fechar Diagnóstico</Button>
+                 <Button variant="ghost" size="sm" className="rounded-xl font-bold uppercase text-[9px]" onClick={() => setDiagnosticResult(null)}>Fechar Painel</Button>
               </div>
            </CardContent>
         </Card>
@@ -227,7 +241,7 @@ export default function FinanceiroPage() {
                      <Landmark className="w-5 h-5 text-secondary" /> 
                      Status da Conta
                    </CardTitle>
-                   <CardDescription className="font-medium">Gestão automatizada via Stripe.</CardDescription>
+                   <CardDescription className="font-medium">Gestão automatizada via Stripe Connect.</CardDescription>
                 </div>
                 <Badge 
                   className={cn(
@@ -237,7 +251,7 @@ export default function FinanceiroPage() {
                   )}
                   variant="default"
                 >
-                  {isVerified ? 'Aprovada' : isPending ? 'Em Análise' : 'Não Configurada'}
+                  {isVerified ? 'APROVADA' : isPending ? 'EM ANÁLISE' : 'NÃO CONFIGURADA'}
                 </Badge>
               </div>
             </CardHeader>
@@ -250,7 +264,7 @@ export default function FinanceiroPage() {
                     <div className="space-y-2">
                        <h3 className="font-bold text-lg">Inicie sua Conexão</h3>
                        <p className="text-sm text-muted-foreground max-sm mx-auto leading-relaxed">
-                         Para habilitar vendas e receber repasses automáticos, você deve conectar sua organização ao Stripe Express.
+                         Conecte sua organização ao Stripe Express para habilitar vendas pagas e repasses automáticos.
                        </p>
                     </div>
                     <Button 
@@ -274,18 +288,24 @@ export default function FinanceiroPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                       <StatusStep label="Vendas Ativas" status={currentOrg.stripeChargesEnabled} />
-                       <StatusStep label="Repasses Ativos" status={currentOrg.stripePayoutsEnabled} />
+                       <div className="p-4 rounded-2xl border bg-white flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase text-muted-foreground">Vendas Ativas</span>
+                          {currentOrg.stripeChargesEnabled ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-muted-foreground opacity-30" />}
+                       </div>
+                       <div className="p-4 rounded-2xl border bg-white flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase text-muted-foreground">Repasses Ativos</span>
+                          {currentOrg.stripePayoutsEnabled ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-muted-foreground opacity-30" />}
+                       </div>
                     </div>
 
                     {isVerified ? (
-                       <div className="flex items-center gap-4 p-6 bg-green-50 rounded-[2rem] border-2 border-dashed border-green-200">
+                       <div className="flex items-center gap-4 p-6 bg-green-50 rounded-[2rem] border-2 border-dashed border-green-200 animate-in zoom-in-95">
                           <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white">
                              <CheckCircle2 className="w-7 h-7" />
                           </div>
                           <div className="space-y-1">
                              <p className="font-black uppercase text-xs text-green-800 italic">Pronto para vender!</p>
-                             <p className="text-xs text-green-700 font-medium">Sua conta está 100% verificada e os repasses estão configurados.</p>
+                             <p className="text-xs text-green-700 font-medium">Sua conta está verificada e sincronizada com sucesso.</p>
                           </div>
                        </div>
                     ) : (
@@ -296,7 +316,7 @@ export default function FinanceiroPage() {
                           <div className="space-y-1">
                              <p className="font-black uppercase text-xs text-blue-800 italic">Informações em Análise</p>
                              <p className="text-xs text-blue-700 font-medium leading-relaxed">
-                               O Stripe está processando seus documentos. Isso pode levar alguns minutos ou horas. Você receberá um e-mail quando for concluído.
+                               Aguardando confirmação definitiva da Stripe. Use o botão no topo para sincronizar manualmente.
                              </p>
                           </div>
                        </div>
@@ -317,9 +337,9 @@ export default function FinanceiroPage() {
               </CardHeader>
               <CardContent className="space-y-6 relative z-10">
                  <div className="space-y-2">
-                    <p className="text-xl font-black italic uppercase tracking-tight">O que é o Stripe Express?</p>
+                    <p className="text-xl font-black italic uppercase tracking-tight">Viby + Stripe Express</p>
                     <p className="text-sm opacity-80 leading-relaxed">
-                       É uma carteira financeira conectada à Viby que permite que você receba o valor das suas vendas diretamente na sua conta bancária PJ sem necessidade de solicitar saques manuais.
+                       O valor líquido das suas vendas cai direto na sua conta bancária configurada, sem necessidade de solicitações manuais de saque.
                     </p>
                  </div>
 
@@ -327,15 +347,15 @@ export default function FinanceiroPage() {
                     <div className="flex items-start gap-3">
                        <div className="p-2 bg-white/10 rounded-lg"><DollarSign className="w-4 h-4 text-secondary" /></div>
                        <div>
-                          <p className="font-bold text-xs">Sem Taxa de Saque</p>
-                          <p className="text-[10px] opacity-60">O repasse é automático conforme as vendas ocorrem.</p>
+                          <p className="font-bold text-xs">Taxa de Saque Zero</p>
+                          <p className="text-[10px] opacity-60">O repasse é processado pelo split automático no checkout.</p>
                        </div>
                     </div>
                     <div className="flex items-start gap-3">
-                       <div className="p-2 bg-white/10 rounded-lg"><Wallet className="w-4 h-4 text-secondary" /></div>
+                       <div className="p-2 bg-white/10 rounded-lg"><ShieldCheck className="w-4 h-4 text-secondary" /></div>
                        <div>
-                          <p className="font-bold text-xs">Gestão de Saldo</p>
-                          <p className="text-[10px] opacity-60">Monitore extratos e transferências diretamente pelo seu painel.</p>
+                          <p className="font-bold text-xs">Sincronização Ativa</p>
+                          <p className="text-[10px] opacity-60">Monitoramento em tempo real do status da sua conta.</p>
                        </div>
                     </div>
                  </div>
@@ -344,39 +364,13 @@ export default function FinanceiroPage() {
            </Card>
 
            <div className="p-4 bg-muted/20 border border-dashed rounded-2xl flex items-center gap-3">
-              <Info className="w-5 h-5 text-primary opacity-40 shrink-0" />
+              <ShieldAlert className="w-5 h-5 text-primary opacity-40 shrink-0" />
               <p className="text-[9px] font-bold uppercase text-muted-foreground leading-tight">
-                O Stripe processa os dados bancários com criptografia de ponta a ponta. A Viby não tem acesso aos seus dados de login bancário.
+                Em caso de divergência entre a Stripe e seu painel, utilize o botão de sincronização no topo da página.
               </p>
            </div>
         </div>
       </div>
-    </div>
-  )
-}
-
-function StatusStep({ label, status }: { label: string, status: boolean }) {
-  return (
-    <div className="p-4 rounded-2xl border bg-white flex items-center justify-between">
-       <span className="text-[10px] font-black uppercase text-muted-foreground">{label}</span>
-       {status ? (
-         <CheckCircle2 className="w-4 h-4 text-green-500" />
-       ) : (
-         <XCircle className="w-4 h-4 text-muted-foreground opacity-30" />
-       )}
-    </div>
-  )
-}
-
-function DiagLine({ label, value, status, mono }: { label: string, value?: string, status?: boolean, mono?: boolean }) {
-  return (
-    <div className="flex justify-between items-center py-1">
-       <span className="text-[10px] font-bold uppercase opacity-60">{label}:</span>
-       {status !== undefined ? (
-         status ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <XCircle className="w-3.5 h-3.5 text-red-500" />
-       ) : (
-         <span className={cn("text-[10px] font-bold", mono && "font-mono")}>{value}</span>
-       )}
     </div>
   )
 }
