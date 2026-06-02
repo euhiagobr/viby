@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -137,7 +136,7 @@ export default function NovaOrganizacaoPage() {
 
   const storage = React.useMemo(() => {
     if (!app) return null;
-    return getStorage(app, "gs://viby");
+    return getStorage(app);
   }, [app])
 
   useEffect(() => {
@@ -268,7 +267,7 @@ export default function NovaOrganizacaoPage() {
           username: normalizedUsername,
           slug: normalizedUsername,
           createdBy: user.uid,
-          ownerId: user.uid, // Campo para busca administrativa eficiente
+          ownerId: user.uid, 
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           verified: false,

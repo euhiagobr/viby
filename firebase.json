@@ -2,24 +2,18 @@
   "firestore": {
     "rules": "firestore.rules"
   },
-  "hosting": [
-    {
-      "target": "viby",
-      "source": ".",
-      "ignore": [
-        "firebase.json",
-        "**/.*",
-        "**/node_modules/**"
-      ],
-      "frameworksBackend": {
-        "region": "us-central1"
-      }
+  "hosting": {
+    "source": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "frameworksBackend": {
+      "region": "us-central1"
     }
-  ],
-  "storage": [
-    {
-      "bucket": "vibyeventos.firebasestorage.app",
-      "rules": "storage.rules"
-    }
-  ]
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
 }

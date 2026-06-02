@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -77,7 +76,7 @@ export default function EditarPerfilPage() {
 
   const storage = React.useMemo(() => {
     if (!app) return null;
-    return getStorage(app, 'gs://viby');
+    return getStorage(app);
   }, [app])
 
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
