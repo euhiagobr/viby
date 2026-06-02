@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -17,7 +16,8 @@ import {
   getDocs,
   limit,
   setDoc,
-  deleteDoc
+  deleteDoc,
+  runTransaction
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -109,6 +109,7 @@ export default function AdminPaginasPage() {
   const [activeTypeFilter, setActiveTypeFilter] = React.useState("all")
   
   const [editingOrg, setEditingOrg] = React.useState<any>(null)
+  const [originalUsername, setOriginalUsername] = React.useState<string | null>(null)
   const [isEditOrgOpen, setIsEditOrgOpen] = React.useState(false)
   
   const [transferOrg, setTransferOrg] = React.useState<any>(null)
@@ -181,14 +182,36 @@ export default function AdminPaginasPage() {
   const handleUpdateOrg = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!db || !editingOrg || isSaving) return
+    
+    const newUsername = editingOrg.username?.toLowerCase().trim();
+    const oldUsername = originalUsername?.toLowerCase().trim();
+    const usernameChanged = oldUsername && newUsername && oldUsername !== newUsername;
+
     setIsSaving(true)
     try {
-      const { id, ownerProfile, ...data } = editingOrg
-      await updateDoc(doc(db, "organizations", id), { ...data, updatedAt: serverTimestamp() })
+      await runTransaction(db, async (transaction) => {
+        if (usernameChanged) {
+          const newIdxRef = doc(db, "usernames", newUsername);
+          const newIdxSnap = await transaction.get(newIdxRef);
+          
+          if (newIdxSnap.exists()) {
+            throw new Error("Este nome de usuário já está em uso.");
+          }
+
+          if (oldUsername) {
+            transaction.delete(doc(db, "usernames", oldUsername));
+          }
+          transaction.set(newIdxRef, { uid: editingOrg.id, type: 'organization' });
+        }
+
+        const { id, ownerProfile, ...data } = editingOrg
+        transaction.update(doc(db, "organizations", id), { ...data, updatedAt: serverTimestamp() });
+      });
+
       toast({ title: "Página atualizada!" })
       setIsEditOrgOpen(false)
-    } catch (e) { 
-      toast({ variant: "destructive", title: "Erro ao salvar" }) 
+    } catch (e: any) { 
+      toast({ variant: "destructive", title: "Erro ao salvar", description: e.message }) 
     } finally { 
       setIsSaving(false) 
     }
@@ -348,7 +371,10 @@ export default function AdminPaginasPage() {
               <TableRow key={org.id} className={cn("hover:bg-muted/5 transition-colors", org.status === 'Bloqueado' && "bg-destructive/[0.02] opacity-75")}>
                 <TableCell className="p-6">
                   <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10 border shadow-sm"><AvatarImage src={org.avatar} className="object-cover" /><AvatarFallback className="font-black">{org.name?.charAt(0)}</AvatarFallback></Avatar>
+                    <Avatar className="h-10 w-10 border shadow-sm rounded-full overflow-hidden">
+                      <AvatarImage src={org.avatar} className="object-cover" />
+                      <AvatarFallback className="font-black">{org.name?.charAt(0)}</AvatarFallback>
+                    </Avatar>
                     <div className="flex flex-col">
                       <div className="flex items-center gap-1.5"><span className="font-bold text-sm uppercase italic text-primary">{org.name}</span>{org.verified && <BadgeCheck className="w-3.5 h-3.5 fill-blue-500 text-white" />}</div>
                       <span className="text-[10px] text-secondary font-black uppercase tracking-tight">@{org.username}</span>
@@ -363,14 +389,14 @@ export default function AdminPaginasPage() {
                 </TableCell>
                 <TableCell><Badge variant="outline" className="text-[8px] font-black uppercase border-secondary/20 text-secondary">{org.type || 'Geral'}</Badge></TableCell>
                 <TableCell className="text-center">
-                   <Badge className={cn("text-[8px] font-black uppercase h-5", org.status === 'Bloqueado' ? "bg-red-500" : "bg-green-500")}>{org.status || 'Ativo'}</Badge>
+                   <Badge className={cn("text-[8px] font-black uppercase h-5", org.status === 'Bloqueado' ? "bg-red-500 text-white" : "bg-green-500 text-white")}>{org.status || 'Ativo'}</Badge>
                 </TableCell>
                 <TableCell className="p-6 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingOrg(org); setIsEditOrgOpen(true); }}><Edit className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingOrg(org); setOriginalUsername(org.username); setIsEditOrgOpen(true); }}><Edit className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => { setTransferOrg(org); setIsTransferOpen(true); }} title="Transferir Titularidade"><ArrowRightLeft className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className={cn("h-8 w-8", org.status === 'Bloqueado' ? "text-green-600" : "text-orange-500")} onClick={() => handleToggleBlock(org.id, org.status)} title="Suspender/Ativar"><ShieldBan className="w-4 h-4" /></Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => handleSoftDelete(org.id, org.name)}><Trash2 className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-lg hover:bg-destructive/10" onClick={() => handleSoftDelete(org.id, org.name)}><Trash2 className="w-4 h-4" /></Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -385,13 +411,16 @@ export default function AdminPaginasPage() {
            <DialogHeader className="p-8 border-b bg-muted/30">
               <div className="flex justify-between items-start">
                  <div className="flex items-center gap-4">
-                    <Avatar className="h-14 w-14 border shadow-md"><AvatarImage src={editingOrg?.avatar} className="object-cover" /><AvatarFallback className="font-black">{editingOrg?.name?.charAt(0)}</AvatarFallback></Avatar>
+                    <Avatar className="h-14 w-14 border shadow-md rounded-full overflow-hidden">
+                      <AvatarImage src={editingOrg?.avatar} className="object-cover" />
+                      <AvatarFallback className="font-black">{editingOrg?.name?.charAt(0)}</AvatarFallback>
+                    </Avatar>
                     <div>
                        <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">{editingOrg?.name}</DialogTitle>
                        <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">Painel Administrativo de Organização</DialogDescription>
                     </div>
                  </div>
-                 <Badge className={cn("uppercase text-[10px] font-black h-6", editingOrg?.status === 'Bloqueado' ? "bg-red-500" : "bg-green-500")}>{editingOrg?.status || 'Ativo'}</Badge>
+                 <Badge className={cn("uppercase text-[10px] font-black h-6", editingOrg?.status === 'Bloqueado' ? "bg-red-500 text-white" : "bg-green-500 text-white")}>{editingOrg?.status || 'Ativo'}</Badge>
               </div>
            </DialogHeader>
            
@@ -414,7 +443,7 @@ export default function AdminPaginasPage() {
                           <TabsContent value="geral" className="space-y-8 mt-0">
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome de Exibição</Label><Input value={editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, name: e.target.value})} className="rounded-xl h-11" required /></div>
-                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label><Input value={editingOrg?.username || ""} onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label><Input value={editingOrg?.username || ""} onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/\s+/g, "")})} className="rounded-xl h-11 border-dashed border-secondary/30" /></div>
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Slug (URL)</Label><Input value={editingOrg?.slug || ""} onChange={e => setEditingOrg({...editingOrg, slug: e.target.value.toLowerCase().replace(/\s+/g, "-")})} className="rounded-xl h-11" /></div>
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label><Input value={editingOrg?.type || ""} onChange={e => setEditingOrg({...editingOrg, type: e.target.value})} className="rounded-xl h-11" /></div>
                              </div>
@@ -599,7 +628,7 @@ function OrgMembersList({ orgId }: { orgId: string }) {
           {membersWithProfiles.map(m => (
             <div key={m.userId} className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border group hover:bg-white hover:shadow-sm transition-all">
                <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10 border-2 border-background shadow-sm">
+                  <Avatar className="h-10 w-10 border-2 border-background shadow-sm rounded-full overflow-hidden">
                     <AvatarImage src={m.profile?.avatar} className="object-cover" />
                     <AvatarFallback className="font-black bg-muted">{m.profile?.name?.charAt(0) || "U"}</AvatarFallback>
                   </Avatar>

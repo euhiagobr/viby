@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
 import { useFirestore, useFirebaseApp, useAuth } from '@/firebase';
-import { doc, updateDoc, serverTimestamp, deleteField, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, deleteField, collection, query, where, getDocs, writeBatch, runTransaction } from 'firebase/firestore';
 import { reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -19,6 +19,7 @@ import {
   Save, 
   Loader2, 
   Camera, 
+  Upload, 
   Building2, 
   Globe, 
   Phone, 
@@ -46,11 +47,13 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function OrganizationSettingsPage() {
   const { currentOrg, userRole, refreshOrg } = useCurrentOrganization();
   const db = useFirestore();
   const auth = useAuth();
+  const router = useRouter();
   const app = useFirebaseApp();
   const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app]);
 
@@ -68,6 +71,7 @@ export default function OrganizationSettingsPage() {
     if (currentOrg) {
       setFormData({
         name: currentOrg.name || "",
+        username: currentOrg.username || "",
         bio: currentOrg.bio || "",
         avatar: currentOrg.avatar || "",
         banner: currentOrg.banner || "",
@@ -144,19 +148,44 @@ export default function OrganizationSettingsPage() {
     e.preventDefault();
     if (!db || !currentOrg) return;
 
+    const oldUsername = currentOrg.username?.toLowerCase().trim();
+    const newUsername = formData.username?.toLowerCase().trim();
+    const usernameChanged = oldUsername !== newUsername;
+
     setSaving(true);
     try {
-      // Ao salvar configurações, reativa a página automaticamente
-      await updateDoc(doc(db, 'organizations', currentOrg.id), {
-        ...formData,
-        status: 'Ativo',
-        deletionScheduledAt: deleteField(),
-        updatedAt: serverTimestamp(),
+      await runTransaction(db, async (transaction) => {
+        // Se mudou o username, atualiza o índice global
+        if (usernameChanged) {
+          const newIdxRef = doc(db, "usernames", newUsername);
+          const newIdxSnap = await transaction.get(newIdxRef);
+          
+          if (newIdxSnap.exists()) {
+            throw new Error("Este nome de usuário já está em uso por outro perfil.");
+          }
+
+          if (oldUsername) {
+            transaction.delete(doc(db, "usernames", oldUsername));
+          }
+          transaction.set(newIdxRef, { uid: currentOrg.id, type: 'organization' });
+        }
+
+        transaction.update(doc(db, 'organizations', currentOrg.id), {
+          ...formData,
+          status: 'Ativo',
+          deletionScheduledAt: deleteField(),
+          updatedAt: serverTimestamp(),
+        });
       });
+
       await refreshOrg();
       toast({ title: "Configurações salvas!", description: "Sua página está ativa e os dados foram atualizados." });
-    } catch (error) {
-      toast({ variant: "destructive", title: "Erro ao salvar" });
+      
+      if (usernameChanged) {
+        router.push(`/dashboard/organizacoes/${newUsername}/settings`);
+      }
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Erro ao salvar", description: error.message });
     } finally {
       setSaving(false);
     }
@@ -280,7 +309,7 @@ export default function OrganizationSettingsPage() {
                 </div>
                 <div className="absolute -bottom-10 left-8">
                    <div className="relative group">
-                      <Avatar className="h-28 w-28 border-4 border-background shadow-xl">
+                      <Avatar className="h-28 w-28 border-4 border-background shadow-xl rounded-full">
                          <AvatarImage src={formData.avatar} className="object-cover" />
                          <AvatarFallback className="bg-muted"><Building2 className="w-10 h-10 opacity-20" /></AvatarFallback>
                       </Avatar>
@@ -299,14 +328,25 @@ export default function OrganizationSettingsPage() {
         <Card className="border-none shadow-sm rounded-[2rem]">
            <CardHeader><CardTitle className="text-lg">Informações da Marca</CardTitle></CardHeader>
            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                 <Label className="text-[10px] font-black uppercase opacity-60">Nome de Exibição</Label>
-                 <Input 
-                   value={formData.name}
-                   onChange={e => setFormData({...formData, name: e.target.value})}
-                   required
-                   className="rounded-xl h-11"
-                 />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                   <Label className="text-[10px] font-black uppercase opacity-60">Nome de Exibição</Label>
+                   <Input 
+                     value={formData.name}
+                     onChange={e => setFormData({...formData, name: e.target.value})}
+                     required
+                     className="rounded-xl h-11"
+                   />
+                </div>
+                <div className="space-y-2">
+                   <Label className="text-[10px] font-black uppercase opacity-60">Username exclusivo (@)</Label>
+                   <Input 
+                     value={formData.username}
+                     onChange={e => setFormData({...formData, username: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "")})}
+                     required
+                     className="rounded-xl h-11 border-dashed border-secondary/30"
+                   />
+                </div>
               </div>
               <div className="space-y-2">
                  <Label className="text-[10px] font-black uppercase opacity-60">Bio / Descrição</Label>
