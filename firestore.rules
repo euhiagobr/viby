@@ -16,10 +16,15 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Função aprimorada para lidar com novos usuários (que ainda não tem documento no Firestore)
+    // Função robusta para lidar com novos usuários durante o cadastro
     function isNotBlocked(userId) {
       let userPath = /databases/$(database)/documents/users/$(userId);
-      return !exists(userPath) || !get(userPath).data.keys().contains('status') || get(userPath).data.status != 'Bloqueado';
+      // Se o documento não existe, o usuário não pode estar bloqueado
+      if (!exists(userPath)) {
+        return true;
+      }
+      let userData = get(userPath).data;
+      return !userData.keys().contains('status') || userData.status != 'Bloqueado';
     }
 
     function hasOrgRole(orgId, roles) {
