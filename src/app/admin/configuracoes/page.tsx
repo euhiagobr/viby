@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -166,7 +167,7 @@ export default function AdminConfiguracoesPage() {
           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
             <CardHeader className="bg-muted/30 p-8 border-b">
                <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Identidade da Plataforma</CardTitle>
-               <CardDescription>Gerencie o nome, logo e ícone principal do site.</CardDescription>
+               <CardDescription>Gerencie o nome, logo e ícone de navegação do site.</CardDescription>
             </CardHeader>
             <CardContent className="p-8 space-y-8">
               <div className="space-y-2">
@@ -213,7 +214,7 @@ export default function AdminConfiguracoesPage() {
 
                 {/* UPLOAD DE ÍCONE */}
                 <div className="space-y-4">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Ícone / Favicon (Quadrado)</Label>
+                  <Label className="text-[10px] font-black uppercase opacity-60">Ícone do Site (Favicon - Quadrado)</Label>
                   <div 
                     className={cn(
                       "relative h-32 w-32 mx-auto rounded-2xl border-2 border-dashed border-border bg-muted/20 flex flex-col items-center justify-center cursor-pointer overflow-hidden transition-all hover:bg-muted/30",
@@ -231,7 +232,7 @@ export default function AdminConfiguracoesPage() {
                     ) : (
                       <div className="text-center opacity-40">
                         <Layout className="w-6 h-6 mx-auto mb-2" />
-                        <p className="text-[8px] font-black uppercase text-center px-2">Carregar Ícone</p>
+                        <p className="text-[8px] font-black uppercase text-center px-2">Carregar Ícone (Browser)</p>
                       </div>
                     )}
                     {uploadProgress['iconUrl'] !== undefined && uploadProgress['iconUrl'] !== null && (
@@ -243,7 +244,7 @@ export default function AdminConfiguracoesPage() {
                     value={siteForm.iconUrl} 
                     onChange={e => setSiteForm({...siteForm, iconUrl: e.target.value})} 
                     className="rounded-xl h-9 text-[10px] font-mono" 
-                    placeholder="URL do Ícone" 
+                    placeholder="URL do Ícone (Favicon)" 
                   />
                 </div>
               </div>
