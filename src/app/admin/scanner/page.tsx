@@ -31,6 +31,25 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { processGamificationEvent } from "@/lib/gamification-service"
 
+/**
+ * Utilitário para converter string ISO ou YYYY-MM-DD em objeto Date local
+ * Evita problemas de fuso horário que o "new Date(string)" causa ao interpretar como UTC.
+ */
+function parseToLocalDate(dateInput: any, timeInput?: string) {
+  if (!dateInput) return new Date();
+  
+  if (dateInput?.toDate) return dateInput.toDate();
+  
+  const dateStr = String(dateInput);
+  const [datePart, timePart] = dateStr.split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+  
+  const finalTime = timeInput || timePart || "00:00";
+  const [hours, minutes] = finalTime.split(':').map(Number);
+  
+  return new Date(year, month - 1, day, hours, minutes);
+}
+
 export default function AdminScannerPage() {
   const db = useFirestore()
   const auth = useAuth()
@@ -58,7 +77,6 @@ export default function AdminScannerPage() {
 
   const startCamera = async () => {
     setMode('camera');
-    // Pequeno delay para garantir que o elemento DOM 'reader' esteja pronto
     setTimeout(async () => {
       try {
         const html5QrCode = new Html5Qrcode("reader");
@@ -67,11 +85,10 @@ export default function AdminScannerPage() {
           { facingMode: "environment" }, 
           { fps: 15, qrbox: { width: 250, height: 250 } }, 
           (decodedText) => {
-            // Sucesso na leitura: Para a câmera antes de processar para ganhar performance
             stopCamera();
             processScanResult(decodedText);
           }, 
-          () => {} // Ignora erros de frame sem leitura
+          () => {} 
         );
       } catch (err) {
         console.error("Câmera erro:", err);
@@ -87,14 +104,13 @@ export default function AdminScannerPage() {
     setIsValidating(true); 
     setError(null); 
     setTicketData(null);
-    setMode('manual'); // Garante que a interface mude para o modo de resultado
+    setMode('manual');
 
     const cleanInput = input.trim();
 
     try {
       let targetDoc: any = null;
 
-      // 1. Tentar busca por ID (Formato padrão do Firebase)
       if (cleanInput.length >= 20 && !cleanInput.includes('-')) {
         const docRef = doc(db, "registrations", cleanInput);
         const docSnap = await getDoc(docRef);
@@ -103,7 +119,6 @@ export default function AdminScannerPage() {
         }
       }
 
-      // 2. Busca por ticketCode (Formato XXXX-XXXX...)
       if (!targetDoc) {
         const q = query(collection(db, "registrations"), where("ticketCode", "==", cleanInput.toUpperCase()));
         const snap = await getDocs(q);
@@ -117,22 +132,26 @@ export default function AdminScannerPage() {
       } else {
         const isCancelled = targetDoc.status === 'cancelled' || targetDoc.status === 'refunded' || targetDoc.paymentStatus === 'refunded_wallet' || targetDoc.status === 'Cancelado';
         
-        // Validação de horário simplificada (usa dados do próprio ingresso para ser imediato)
         const now = new Date();
         let invalidTime = false;
-        let windowInfo = { start: null as Date | null, end: null as Date | null };
 
-        const eventStart = targetDoc.eventDate?.toDate ? targetDoc.eventDate.toDate() : new Date(targetDoc.eventDate);
-        // Assumimos 8h de janela de validação se não houver data de término
-        const eventEnd = targetDoc.eventEndDate?.toDate ? targetDoc.eventEndDate.toDate() : new Date(eventStart.getTime() + 8 * 60 * 60 * 1000);
+        // RESOLUÇÃO DE HORÁRIOS ROBUSTA
+        const eventStart = parseToLocalDate(targetDoc.eventDate, targetDoc.startTime || targetDoc.horarioOcorrencia);
+        // Margem de 6h se não houver horário de término
+        const eventEnd = parseToLocalDate(targetDoc.eventEndDate || targetDoc.eventDate, targetDoc.endTime || targetDoc.horarioFim || "23:59");
         
-        windowInfo = { start: eventStart, end: eventEnd };
-        
-        // Tolerância de 2h antes e 4h depois da janela oficial
+        if (!targetDoc.endTime && !targetDoc.horarioFim) {
+          eventEnd.setHours(eventStart.getHours() + 8);
+        }
+
+        // REGRA SOLICITADA: 2h antes e tolerância de 6h depois
         const toleranceBefore = 2 * 60 * 60 * 1000;
-        const toleranceAfter = 4 * 60 * 60 * 1000;
+        const toleranceAfter = 6 * 60 * 60 * 1000;
 
-        if (now.getTime() < (eventStart.getTime() - toleranceBefore) || now.getTime() > (eventEnd.getTime() + toleranceAfter)) {
+        const windowStart = new Date(eventStart.getTime() - toleranceBefore);
+        const windowEnd = new Date(eventEnd.getTime() + toleranceAfter);
+
+        if (now < windowStart || now > windowEnd) {
           invalidTime = true;
         }
 
@@ -140,7 +159,7 @@ export default function AdminScannerPage() {
           ...targetDoc, 
           isCancelled, 
           invalidTime,
-          windowInfo 
+          windowInfo: { start: eventStart, end: eventEnd } 
         });
       }
     } catch (err: any) {
@@ -184,7 +203,6 @@ export default function AdminScannerPage() {
         })
       })
 
-      // Gamificação em background
       processGamificationEvent(db, ticketData.userId, 'on_checkin', { eventTitle: ticketData.eventTitle }, ticketData.id);
       
       setTicketData({ ...ticketData, checkedIn: true })
