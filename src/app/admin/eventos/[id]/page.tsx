@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
 import { useParams } from "next/navigation"
-import { useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useDoc, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
 import { 
   doc, 
   collection, 
@@ -23,14 +24,17 @@ import {
   Edit2, 
   MapPin, 
   Clock, 
-  RefreshCcw, 
+  RefreshCw, 
   AlertTriangle, 
   Ticket,
   ArrowLeft,
   Layers,
   Building2,
   ShieldCheck,
-  TicketPercent
+  TicketPercent,
+  RotateCcw,
+  User as UserIcon,
+  CheckCircle2
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -44,19 +48,21 @@ import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/financial-utils"
+import { RefundDialog } from "@/components/tickets/RefundDialog"
 
 const EventTicketsSection = ({ eventId }: { eventId: string }) => {
   const db = useFirestore()
+  const auth = useAuth()
+  const { user } = useUser(auth)
   const [search, setSearch] = React.useState("")
-  const [isProcessingRefund, setIsProcessingRefund] = React.useState(false)
+  const [ticketToRefund, setTicketToRefund] = React.useState<any>(null)
 
   const registrationsQuery = useMemoFirebase(() => {
     if (!db || !eventId) return null
     return query(
       collection(db, "registrations"),
       where("eventId", "==", eventId),
-      where("paymentStatus", "in", ["Pago", "Disponível"]),
-      orderBy("createdAt", "desc")
+      orderBy("timestamp", "desc")
     )
   }, [db, eventId])
 
@@ -67,33 +73,9 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
     return registrations.filter(reg => 
       (reg.userName?.toLowerCase() || "").includes(search.toLowerCase()) ||
       (reg.userEmail?.toLowerCase() || "").includes(search.toLowerCase()) ||
-      (reg.ticketTypeName?.toLowerCase() || "").includes(search.toLowerCase())
+      (reg.ticketCode?.toLowerCase() || "").includes(search.toLowerCase())
     )
   }, [registrations, search])
-
-  const handleRefund = async (registrationId: string, buyerName: string) => {
-    if (!db) return
-    if (!confirm(`Tem certeza que deseja estornar a compra de ${buyerName}? Esta ação não pode ser desfeita.`)) return
-
-    setIsProcessingRefund(true)
-    try {
-      const registrationRef = doc(db, "registrations", registrationId)
-      await updateDoc(registrationRef, {
-        paymentStatus: "Estornado",
-        status: "refunded",
-        updatedAt: serverTimestamp()
-      })
-      toast({ title: "Estorno processado com sucesso!", description: `A compra de ${buyerName} foi marcada como estornada.` })
-    } catch (error: any) {
-      errorEmitter.emit("permission-error", new FirestorePermissionError({
-        path: `registrations/${registrationId}`,
-        operation: "update",
-        requestResourceData: { paymentStatus: "Estornado", status: "refunded" }
-      }))
-    } finally {
-      setIsProcessingRefund(false)
-    }
-  }
 
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "---";
@@ -118,14 +100,14 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
           <div>
             <CardTitle className="text-xl flex items-center gap-2">
               <CalendarDays className="w-5 h-5 text-secondary" />
-              Vendas do Evento
+              Gestão de Ingressos
             </CardTitle>
-            <CardDescription>Total de {registrations?.length || 0} ingressos ativos.</CardDescription>
+            <CardDescription>Total de {registrations?.length || 0} registros encontrados.</CardDescription>
           </div>
           <div className="relative w-full md:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Buscar participante..." 
+              placeholder="Nome, e-mail ou código..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-10 rounded-xl h-11"
@@ -137,59 +119,83 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
         <Table>
           <TableHeader className="bg-muted/30">
             <TableRow>
-              <TableHead className="w-[250px] font-bold px-8">Comprador</TableHead>
-              <TableHead className="font-bold">Tipo / Lote</TableHead>
-              <TableHead className="font-bold text-center">Data</TableHead>
+              <TableHead className="w-[250px] font-bold px-8">Participante</TableHead>
+              <TableHead className="font-bold">Ingresso / Lote</TableHead>
+              <TableHead className="font-bold text-center">Status</TableHead>
               <TableHead className="font-bold text-right">Valor</TableHead>
               <TableHead className="text-right font-bold px-8">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredRegistrations.length > 0 ? (
-              filteredRegistrations.map((reg) => (
-                <TableRow key={reg.id} className="hover:bg-muted/10 transition-colors">
-                  <TableCell className="px-8">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-sm">{reg.userName}</span>
-                      <span className="text-[10px] text-muted-foreground">{reg.userEmail}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                       <span className="text-xs font-bold uppercase">{reg.ticketTypeName || "Geral"}</span>
-                       <span className="text-[9px] text-secondary font-black uppercase">{reg.batchName}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center text-[10px] font-medium text-muted-foreground">
-                    {formatDate(reg.createdAt || reg.timestamp)}
-                  </TableCell>
-                  <TableCell className="text-right font-black text-xs text-primary">
-                    {formatCurrency(reg.price || 0)}
-                  </TableCell>
-                  <TableCell className="text-right px-8">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                      disabled={isProcessingRefund}
-                      onClick={() => handleRefund(reg.id, reg.userName)}
-                      title="Estornar Compra"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
+              filteredRegistrations.map((reg) => {
+                const isRefunded = reg.status === 'refunded' || reg.paymentStatus === 'Estornado' || reg.status === 'cancelled';
+                const isCheckedIn = reg.checkedIn === true;
+
+                return (
+                  <TableRow key={reg.id} className={cn("hover:bg-muted/10 transition-colors", isRefunded && "opacity-50 grayscale bg-red-50/5")}>
+                    <TableCell className="px-8">
+                      <div className="flex flex-col">
+                        <span className={cn("font-bold text-sm", isRefunded && "line-through")}>{reg.userName}</span>
+                        <span className="text-[10px] font-mono text-secondary uppercase">{reg.ticketCode}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                         <span className="text-xs font-bold uppercase">{reg.ticketTypeName || "Geral"}</span>
+                         <span className="text-[9px] text-muted-foreground font-black uppercase">{reg.batchName}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge className={cn(
+                        "text-[9px] font-black uppercase h-5 px-2",
+                        isRefunded ? "bg-red-500 text-white" : isCheckedIn ? "bg-green-600 text-white" : "bg-blue-500 text-white"
+                      )}>
+                        {isRefunded ? 'Estornado' : isCheckedIn ? 'Utilizado' : 'Ativo'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-black text-xs text-primary">
+                      {formatCurrency(reg.price || 0)}
+                    </TableCell>
+                    <TableCell className="text-right px-8">
+                      {!isRefunded && !isCheckedIn && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-destructive hover:bg-red-50 rounded-full"
+                          onClick={() => setTicketToRefund(reg)}
+                          title="Estornar Ingresso"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {isCheckedIn && (
+                        <div className="flex justify-end px-2" title="Check-in realizado">
+                           <CheckCircle2 className="w-4 h-4 text-green-600 opacity-40" />
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )
+              })
             ) : (
               <TableRow>
                 <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
-                  Nenhum ingresso localizado.
+                  Nenhum registro localizado para este evento.
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </CardContent>
+
+      <RefundDialog 
+        registration={ticketToRefund}
+        isOpen={!!ticketToRefund}
+        onOpenChange={(open) => !open && setTicketToRefund(null)}
+        userRole="admin"
+        executorUid={user?.uid || ''}
+      />
     </Card>
   )
 }
@@ -201,7 +207,7 @@ const EventCouponsSection = ({ eventId }: { eventId: string }) => {
     if (!db || !eventId) return null
     return query(
       collection(db, "coupons"), 
-      where("eventId", "==", eventId), 
+      where("eventId", "==", eventId),
       orderBy("createdAt", "desc")
     )
   }, [db, eventId])
