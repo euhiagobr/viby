@@ -106,11 +106,33 @@ export default function AdminConfiguracoesPage() {
   const handleSave = async (collection: string, data: any) => {
     if (!db) return;
     setSaving(true);
+    
+    // Limpar campos de metadados do Firestore se existirem (evitar erros de validação)
+    const { id, ...cleanData } = data;
+
     try {
-      await setDoc(doc(db, 'settings', collection), { ...data, updatedAt: serverTimestamp() }, { merge: true });
-      toast({ title: 'Configuração atualizada!' });
+      await setDoc(doc(db, 'settings', collection), { 
+        ...cleanData, 
+        updatedAt: serverTimestamp() 
+      }, { merge: true });
+      
+      toast({ title: 'Configuração atualizada!', description: `Dados da coleção ${collection} salvos.` });
     } catch (error: any) {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: `settings/${collection}`, operation: 'write', requestResourceData: data }));
+      console.error(`[Admin Config Save Error] ${collection}:`, error);
+      
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ 
+          path: `settings/${collection}`, 
+          operation: 'write', 
+          requestResourceData: cleanData 
+        }));
+      } else {
+        toast({ 
+          variant: 'destructive', 
+          title: 'Erro ao salvar', 
+          description: error.message || 'Falha na comunicação com o banco.' 
+        });
+      }
     } finally {
       setSaving(false);
     }
