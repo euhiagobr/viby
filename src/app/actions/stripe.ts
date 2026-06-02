@@ -13,6 +13,7 @@ import { calculateDetailedVibyBreakdown } from '@/lib/financial-utils';
  * @fileOverview Server Actions do Stripe com inicialização dinâmica e segura.
  * Implementa a finalização de pedidos via Admin SDK para garantir integridade.
  * ADICIONADO: Controle atômico de capacidade (Global e por Lote) e sincronização de inventário.
+ * ATUALIZADO: Geração segura de Statement Descriptor baseada em dados oficiais do servidor.
  */
 
 async function getStripeInstance() {
@@ -37,12 +38,59 @@ async function getStripeInstance() {
   }
 }
 
+/**
+ * Gera um Statement Descriptor (descritor de fatura) seguro e sanitizado.
+ * Busca o username oficial da organização no banco de dados para evitar fraudes ou nomes obsoletos.
+ */
+async function generateSecureStatementDescriptor(metadata: any): Promise<string> {
+  const adminDb = getAdminDb();
+  let username = "INGRESSO";
+
+  try {
+    // Caso 1: Recarga de Saldo Ads (identificado por orgId)
+    if (metadata.type === 'ad_balance_topup' && metadata.orgId) {
+      const orgSnap = await adminDb.collection("organizations").doc(metadata.orgId).get();
+      if (orgSnap.exists) {
+        username = orgSnap.data()?.username || username;
+      }
+    } 
+    // Caso 2: Checkout de Pedido (identificado por orderId)
+    else if (metadata.type === 'order_checkout' && metadata.orderId) {
+      const orderSnap = await adminDb.collection("orders").doc(metadata.orderId).get();
+      if (orderSnap.exists) {
+        const orderData = orderSnap.data();
+        const firstItem = orderData?.items?.[0];
+        if (firstItem?.organizationId) {
+          const orgSnap = await adminDb.collection("organizations").doc(firstItem.organizationId).get();
+          if (orgSnap.exists) {
+            username = orgSnap.data()?.username || username;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("[Descriptor Resolution Failure] Falling back to default.");
+  }
+
+  // Sanitização compatível com Stripe: Alfanumérico, Maiúsculo, Sem Acentos.
+  // O Stripe permite até 22 caracteres no total. "VIBY*" ocupa 5.
+  const cleanUsername = username
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "") // Remove especiais e espaços
+    .substring(0, 17); // Limita para caber no prefixo
+
+  return `VIBY*${cleanUsername || "INGRESSO"}`;
+}
+
 export async function createCheckoutSession(data: any) {
   try {
     const head = await headers();
     const origin = head.get('origin') || 'https://viby.club';
     
     const stripe = await getStripeInstance();
+    const descriptor = await generateSecureStatementDescriptor(data.metadata);
     
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -59,6 +107,9 @@ export async function createCheckoutSession(data: any) {
       success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/cancelado`,
       metadata: data.metadata,
+      payment_intent_data: {
+        statement_descriptor: descriptor
+      }
     });
     
     return { success: true, url: session.url };
@@ -80,6 +131,14 @@ export async function createAdBalanceTopUpSession(data: any) {
     const stripe = await getStripeInstance();
     
     const amountToCharge = data.baseAmount * 1.21;
+    const metadata = { 
+      type: 'ad_balance_topup', 
+      orgId: data.orgId, 
+      baseAmount: data.baseAmount.toString(), 
+      transactionId: data.transactionId 
+    };
+
+    const descriptor = await generateSecureStatementDescriptor(metadata);
     
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -98,12 +157,10 @@ export async function createAdBalanceTopUpSession(data: any) {
       customer_email: data.userEmail,
       success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/cancelado`,
-      metadata: { 
-        type: 'ad_balance_topup', 
-        orgId: data.orgId, 
-        baseAmount: data.baseAmount.toString(), 
-        transactionId: data.transactionId 
-      },
+      metadata: metadata,
+      payment_intent_data: {
+        statement_descriptor: descriptor
+      }
     });
     
     return { success: true, url: session.url };
