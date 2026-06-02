@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { Metadata } from 'next';
 import { doc, getDoc, getFirestore } from 'firebase/firestore';
@@ -11,7 +10,7 @@ import { MapPinOff, ArrowLeft, Home, CalendarX } from 'lucide-react';
 
 async function getEventData(id: string) {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  const db = getFirestore(app, "eventosviby");
+  const db = getFirestore(app);
   const eventRef = doc(db, 'events', id);
   const eventSnap = await getDoc(eventRef);
   if (!eventSnap.exists()) return null;

@@ -1,15 +1,7 @@
-
 {
-  "firestore": [
-    {
-      "database": "(default)",
-      "rules": "firestore.rules"
-    },
-    {
-      "database": "eventosviby",
-      "rules": "firestore.eventosviby.rules"
-    }
-  ],
+  "firestore": {
+    "rules": "firestore.rules"
+  },
   "hosting": [
     {
       "target": "viby",
@@ -26,12 +18,8 @@
   ],
   "storage": [
     {
-      "bucket": "ong-desafios-3942a.firebasestorage.app",
+      "bucket": "vibyeventos.firebasestorage.app",
       "rules": "storage.rules"
-    },
-    {
-      "bucket": "viby",
-      "rules": "storage.viby.rules"
     }
   ]
 }
