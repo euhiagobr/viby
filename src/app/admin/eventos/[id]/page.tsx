@@ -3,8 +3,8 @@
 import * as React from "react"
 import { useParams } from "next/navigation"
 import { useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, collection, query, where, getDocs, updateDoc, serverTimestamp, orderBy } from "firebase/firestore"
-import { Loader2, ExternalLink, Search, CalendarDays, Trash2, Edit2, MapPin, Clock, RefreshCcw, AlertTriangle } from "lucide-react"
+import { doc, collection, query, where, getDocs, updateDoc, serverTimestamp, orderBy, limit } from "firebase/firestore"
+import { Loader2, ExternalLink, Search, CalendarDays, Trash2, Edit2, MapPin, Clock, RefreshCcw, AlertTriangle, Ticket } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -16,29 +16,7 @@ import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import { cn } from "@/lib/utils"
-
-// Placeholder for EventCouponsSection
-const EventCouponsSection = ({ eventId }: { eventId: string }) => {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Cupons do Evento</CardTitle>
-        <CardDescription>Gerencie os cupons de desconto para este evento.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col items-center justify-center min-h-[300px] gap-4">
-          <p className="text-muted-foreground">Seção de cupons ainda em desenvolvimento.</p>
-          <p className="text-sm text-secondary">Evento ID: {eventId}</p>
-          <Button asChild>
-            <Link href={`/admin/eventos/${eventId}/cupons`}>
-              Gerenciar Cupons
-            </Link>
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
+import { formatCurrency } from "@/lib/financial-utils"
 
 const EventTicketsSection = ({ eventId }: { eventId: string }) => {
   const db = useFirestore()
@@ -60,8 +38,8 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
   const filteredRegistrations = React.useMemo(() => {
     if (!registrations) return []
     return registrations.filter(reg => 
-      (reg.buyerName?.toLowerCase() || "").includes(search.toLowerCase()) ||
-      (reg.buyerEmail?.toLowerCase() || "").includes(search.toLowerCase()) ||
+      (reg.userName?.toLowerCase() || "").includes(search.toLowerCase()) ||
+      (reg.userEmail?.toLowerCase() || "").includes(search.toLowerCase()) ||
       (reg.ticketTypeName?.toLowerCase() || "").includes(search.toLowerCase())
     )
   }, [registrations, search])
@@ -75,17 +53,16 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
       const registrationRef = doc(db, "registrations", registrationId)
       await updateDoc(registrationRef, {
         paymentStatus: "Estornado",
+        status: "refunded",
         updatedAt: serverTimestamp()
       })
       toast({ title: "Estorno processado com sucesso!", description: `A compra de ${buyerName} foi marcada como estornada.` })
     } catch (error: any) {
-      console.error("Error processing refund:", error)
       errorEmitter.emit("permission-error", new FirestorePermissionError({
         path: `registrations/${registrationId}`,
         operation: "update",
-        requestResourceData: { paymentStatus: "Estornado" }
+        requestResourceData: { paymentStatus: "Estornado", status: "refunded" }
       }))
-      toast({ title: "Erro ao processar estorno", description: "Houve um problema ao tentar estornar a compra. Por favor, tente novamente." })
     } finally {
       setIsProcessingRefund(false)
     }
@@ -108,23 +85,23 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
   }
 
   return (
-    <Card>
-      <CardHeader className="bg-white border-b pb-6">
+    <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+      <CardHeader className="bg-white border-b pb-6 px-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <CardTitle className="text-xl flex items-center gap-2">
               <CalendarDays className="w-5 h-5 text-secondary" />
               Vendas do Evento
             </CardTitle>
-            <CardDescription>Total de {registrations?.length || 0} ingressos vendidos/confirmados.</CardDescription>
+            <CardDescription>Total de {registrations?.length || 0} ingressos ativos.</CardDescription>
           </div>
           <div className="relative w-full md:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Buscar por comprador ou e-mail..." 
+              placeholder="Buscar participante..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 rounded-xl"
+              className="pl-10 rounded-xl h-11"
             />
           </div>
         </div>
@@ -133,57 +110,53 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
         <Table>
           <TableHeader className="bg-muted/30">
             <TableRow>
-              <TableHead className="w-[250px] font-bold">Comprador</TableHead>
-              <TableHead className="font-bold">Tipo de Ingresso</TableHead>
-              <TableHead className="font-bold text-center">Data da Compra</TableHead>
-              <TableHead className="font-bold text-center">Status</TableHead>
-              <TableHead className="text-right font-bold">Ações</TableHead>
+              <TableHead className="w-[250px] font-bold px-8">Comprador</TableHead>
+              <TableHead className="font-bold">Tipo / Lote</TableHead>
+              <TableHead className="font-bold text-center">Data</TableHead>
+              <TableHead className="font-bold text-right">Valor</TableHead>
+              <TableHead className="text-right font-bold px-8">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredRegistrations.length > 0 ? (
               filteredRegistrations.map((reg) => (
-                <TableRow key={reg.id}>
+                <TableRow key={reg.id} className="hover:bg-muted/10 transition-colors">
+                  <TableCell className="px-8">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-sm">{reg.userName}</span>
+                      <span className="text-[10px] text-muted-foreground">{reg.userEmail}</span>
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-bold text-sm">{reg.buyerName || reg.userName}</span>
-                      <span className="text-[10px] text-muted-foreground">{reg.buyerEmail || reg.userEmail}</span>
+                       <span className="text-xs font-bold uppercase">{reg.ticketTypeName || "Geral"}</span>
+                       <span className="text-[9px] text-secondary font-black uppercase">{reg.batchName}</span>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-[10px] font-bold uppercase">{reg.ticketTypeName || "Geral"}</Badge>
+                  <TableCell className="text-center text-[10px] font-medium text-muted-foreground">
+                    {formatDate(reg.createdAt || reg.timestamp)}
                   </TableCell>
-                  <TableCell className="text-center">{formatDate(reg.createdAt || reg.timestamp)}</TableCell>
-                  <TableCell className="text-center">
-                    <Badge 
-                      variant={reg.paymentStatus === 'Estornado' ? 'destructive' : reg.paymentStatus === 'Pago' ? 'outline' : 'secondary'} 
-                      className={cn("text-[10px] font-bold uppercase", reg.paymentStatus === 'Pago' && "bg-green-600 hover:bg-green-700 text-white")}
+                  <TableCell className="text-right font-black text-xs text-primary">
+                    {formatCurrency(reg.price || 0)}
+                  </TableCell>
+                  <TableCell className="text-right px-8">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                      disabled={isProcessingRefund}
+                      onClick={() => handleRefund(reg.id, reg.userName)}
+                      title="Estornar Compra"
                     >
-                      {reg.paymentStatus}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      {reg.paymentStatus === 'Pago' && (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                          disabled={isProcessingRefund}
-                          onClick={() => handleRefund(reg.id, reg.userName)}
-                          title="Estornar Compra"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
+                      <RefreshCcw className="w-4 h-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
                 <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
-                  Nenhum ingresso vendido ou confirmado para este evento.
+                  Nenhum ingresso localizado.
                 </TableCell>
               </TableRow>
             )}
@@ -194,6 +167,56 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
   )
 }
 
+const EventCouponsSection = ({ eventId }: { eventId: string }) => {
+  const db = useFirestore()
+  const [search, setSearch] = React.useState("")
+
+  const couponsQuery = useMemoFirebase(() => {
+    if (!db || !eventId) return null
+    return query(
+      collection(db, "coupons"), 
+      where("eventId", "==", eventId), 
+      orderBy("createdAt", "desc")
+    )
+  }, [db, eventId])
+
+  const { data: coupons, loading } = useCollection<any>(couponsQuery)
+
+  if (loading) return <div className="py-10 flex justify-center"><Loader2 className="animate-spin" /></div>
+
+  return (
+    <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+      <CardHeader className="bg-white border-b pb-6 px-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+           <div>
+              <CardTitle className="text-xl">Cupons Ativos</CardTitle>
+              <CardDescription>Códigos de desconto vinculados a este evento.</CardDescription>
+           </div>
+           <Button asChild className="bg-secondary text-white font-bold rounded-xl h-10">
+              <Link href={`/dashboard/evento/${eventId}/cupons`}>Gerenciar Cupons</Link>
+           </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="p-8">
+         {coupons && coupons.length > 0 ? (
+           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {coupons.map((c: any) => (
+                <div key={c.id} className="p-4 bg-muted/20 rounded-2xl border border-dashed border-border/60 flex justify-between items-center">
+                   <div className="space-y-1">
+                      <p className="font-black text-sm text-primary uppercase italic">{c.code}</p>
+                      <p className="text-[10px] font-bold text-secondary uppercase">{c.discountType === 'percentage' ? `${c.discountValue}% OFF` : `R$ ${c.discountValue} OFF`}</p>
+                   </div>
+                   <Badge variant="outline" className="text-[9px] font-black">{c.currentUses} usos</Badge>
+                </div>
+              ))}
+           </div>
+         ) : (
+           <div className="py-10 text-center opacity-30 italic text-sm">Nenhum cupom cadastrado.</div>
+         )}
+      </CardContent>
+    </Card>
+  )
+}
 
 export default function AdminEventoDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -216,8 +239,10 @@ export default function AdminEventoDetailPage() {
 
   if (!event) {
     return (
-      <div className="flex justify-center items-center h-[60vh]">
-        <p className="text-muted-foreground">Evento não encontrado.</p>
+      <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+        <AlertTriangle className="w-12 h-12 text-destructive opacity-30" />
+        <h2 className="text-xl font-bold">Evento não encontrado</h2>
+        <Button asChild><Link href="/admin/eventos">Voltar para Listagem</Link></Button>
       </div>
     )
   }
@@ -226,81 +251,91 @@ export default function AdminEventoDetailPage() {
     if (!dateValue) return "---";
     try {
       let d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
-      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     } catch (e) { return "---"; }
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-          Detalhes do Evento: {event.title}
-          <Badge 
-            variant={event.status === 'Excluído' ? 'destructive' : (event.status === 'Oculto' ? 'secondary' : 'outline')} 
-            className="text-[10px] font-bold uppercase"
-          >
-            {event.status || "Ativo"}
-          </Badge>
-        </h1>
-        <p className="text-muted-foreground">
-          Gerencie ingressos, cupons e outras informações relevantes para o evento: "{event.title}".
+        <div className="flex items-center gap-4">
+           <Button variant="ghost" size="icon" asChild className="rounded-full"><Link href="/admin/eventos"><ArrowLeft className="w-5 h-5" /></Link></Button>
+           <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">
+              Gestão: {event.title}
+           </h1>
+        </div>
+        <p className="text-muted-foreground font-medium ml-14">
+          Monitoramento administrativo de vendas e cupons para este projeto.
         </p>
       </div>
 
-      <Tabs defaultValue="tickets" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6">
-          <TabsTrigger value="tickets">Ingressos</TabsTrigger>
-          <TabsTrigger value="coupons">Cupons</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="tickets">
-          <EventTicketsSection eventId={id} />
-        </TabsContent>
-        
-        <TabsContent value="coupons">
-          <EventCouponsSection eventId={id} />
-        </TabsContent>
-      </Tabs>
-      
-      {/* Basic Event Info Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Informações Gerais do Evento</CardTitle>
-          <CardDescription>Detalhes básicos do evento.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm font-medium">Título</p>
-              <p className="text-muted-foreground">{event.title}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Organizador</p>
-              <p className="text-muted-foreground">{event.organizer?.name} (@{event.organizer?.username})</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Data</p>
-              <p className="text-muted-foreground">{formatDate(event.date)}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Local</p>
-              <p className="text-muted-foreground">{event.city || "---"}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Categoria</p>
-              <p className="text-muted-foreground">{event.categoryName || "---"}</p>
-            </div>
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium">Link do Evento</p>
-              <Button variant="outline" size="sm" asChild className="w-fit">
-                <Link href={`/${event.organizer?.username || 'evento'}/${event.id}`} target="_blank">
-                  Ver Evento <ExternalLink className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="lg:col-span-8 space-y-8">
+           <Tabs defaultValue="tickets" className="w-full">
+              <TabsList className="bg-muted/50 p-1 rounded-xl h-12 mb-6">
+                <TabsTrigger value="tickets" className="rounded-lg px-8 font-bold gap-2"><Ticket className="w-4 h-4" /> Ingressos</TabsTrigger>
+                <TabsTrigger value="coupons" className="rounded-lg px-8 font-bold gap-2"><TicketPercent className="w-4 h-4" /> Cupons</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="tickets" className="mt-0">
+                <EventTicketsSection eventId={id} />
+              </TabsContent>
+              
+              <TabsContent value="coupons" className="mt-0">
+                <EventCouponsSection eventId={id} />
+              </TabsContent>
+           </Tabs>
+        </div>
+
+        <aside className="lg:col-span-4 space-y-6">
+           <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-6">
+              <div className="space-y-4">
+                 <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b pb-2">Detalhes do Evento</h3>
+                 <div className="grid grid-cols-1 gap-4">
+                    <DetailItem label="Data" value={formatDate(event.date)} icon={Clock} />
+                    <DetailItem label="Local" value={event.city || "---"} icon={MapPin} />
+                    <DetailItem label="Categoria" value={event.categoryName || "Geral"} icon={Layers} />
+                    <DetailItem label="Organizador" value={event.organizer?.name || "N/A"} icon={Building2} />
+                 </div>
+              </div>
+              
+              <div className="pt-4 space-y-3">
+                 <Button variant="outline" asChild className="w-full h-11 rounded-xl font-bold uppercase text-[10px] border-secondary text-secondary">
+                    <Link href={`/${event.organizer?.username || 'evento'}/${event.id}`} target="_blank">
+                       <ExternalLink className="w-4 h-4 mr-2" /> Visualizar Página Pública
+                    </Link>
+                 </Button>
+                 <Button variant="secondary" asChild className="w-full h-11 rounded-xl font-bold uppercase text-[10px]">
+                    <Link href={`/dashboard/evento/${event.id}/editar`}>
+                       <Edit2 className="w-4 h-4 mr-2" /> Editar no Dashboard
+                    </Link>
+                 </Button>
+              </div>
+           </Card>
+
+           <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
+              <ShieldCheck className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                 <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary italic">Auditoria Admin</h4>
+                 <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
+                    Este painel exibe dados brutos da coleção de registros. Alterações feitas aqui impactam diretamente o faturamento da plataforma.
+                 </p>
+              </div>
+           </div>
+        </aside>
+      </div>
+    </div>
+  )
+}
+
+function DetailItem({ label, value, icon: Icon }: any) {
+  return (
+    <div className="flex items-center gap-3">
+       <div className="p-2 bg-muted rounded-lg text-secondary"><Icon className="w-4 h-4" /></div>
+       <div>
+          <p className="text-[8px] font-black uppercase opacity-40 leading-none mb-1">{label}</p>
+          <p className="text-xs font-bold text-primary truncate max-w-[180px]">{value}</p>
+       </div>
     </div>
   )
 }
