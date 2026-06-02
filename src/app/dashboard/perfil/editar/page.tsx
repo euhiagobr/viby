@@ -1,7 +1,8 @@
+
 "use client"
 
 import * as React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useDoc, useFirebaseApp } from "@/firebase"
 import { 
@@ -74,6 +75,7 @@ export default function EditarPerfilPage() {
   const { user } = useUser(auth)
   const db = useFirestore()
   const app = useFirebaseApp()
+  const isInitialized = useRef(false)
 
   const storage = React.useMemo(() => {
     if (!app) return null;
@@ -110,10 +112,14 @@ export default function EditarPerfilPage() {
   const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [hasCPFInPrivate, setHasCPFInPrivate] = useState(false)
+  const [loadingCPF, setLoadingCPF] = useState(false)
 
   useEffect(() => {
-    if (profile && user) {
-      setFormData({
+    if (profile && user && !isInitialized.current) {
+      isInitialized.current = true
+      
+      setFormData((prev: any) => ({
+        ...prev,
         name: profile.name || "",
         username: profile.username || "",
         avatar: profile.avatar || "",
@@ -127,7 +133,6 @@ export default function EditarPerfilPage() {
         instagram: profile.instagram || "",
         whatsapp: profile.whatsapp || "",
         email: profile.email || "",
-        cpf: "", 
         showEmail: profile.showEmail !== undefined ? profile.showEmail : true,
         privacy: profile.privacy || {
            profilePrivate: false,
@@ -136,14 +141,17 @@ export default function EditarPerfilPage() {
            hideGamification: false,
            hideLocation: false
         }
-      });
+      }));
 
+      // Carregar CPF de forma independente e segura
+      setLoadingCPF(true);
       getUserCPF(user.uid, user.uid).then(res => {
-        if (res.success) {
+        if (res.success && res.cpf) {
           setFormData((prev: any) => ({ ...prev, cpf: res.cpf! }));
           setHasCPFInPrivate(true);
         }
-      });
+        setLoadingCPF(false);
+      }).catch(() => setLoadingCPF(false));
     }
   }, [profile, user])
 
@@ -191,7 +199,7 @@ export default function EditarPerfilPage() {
     setSaving(true)
     
     try {
-      if (formData.cpf && (!hasCPFInPrivate || formData.cpf !== await getUserCPF(user.uid, user.uid).then(r => r.cpf))) {
+      if (formData.cpf && !hasCPFInPrivate) {
         await updateUserCPF(user.uid, formData.cpf);
       }
 
@@ -273,7 +281,12 @@ export default function EditarPerfilPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF {hasCPFInPrivate && <Lock className="w-3 h-3 text-muted-foreground ml-auto" />}</Label>
+              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                <Fingerprint className="w-3.5 h-3.5 text-secondary" /> 
+                CPF 
+                {hasCPFInPrivate && <Lock className="w-3 h-3 text-muted-foreground ml-auto" />}
+                {loadingCPF && <Loader2 className="w-3 h-3 animate-spin ml-auto" />}
+              </Label>
               <div className="flex gap-2">
                  <Input 
                    value={hasCPFInPrivate ? maskCPF(formData.cpf) : formData.cpf} 
@@ -298,7 +311,6 @@ export default function EditarPerfilPage() {
           </CardContent>
         </Card>
 
-        {/* PRIVACIDADE E LGPD */}
         <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden border-t-8 border-secondary/20">
            <CardHeader className="bg-secondary/5">
               <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
