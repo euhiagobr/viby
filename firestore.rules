@@ -1,6 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
-  match /databases/eventosviby/documents {
+  match /databases/$(database)/documents {
     // --- FUNÇÕES DE APOIO GLOBAIS ---
     function isSignedIn() {
       return request.auth != null;
@@ -11,12 +11,12 @@ service cloud.firestore {
     }
 
     function getUserData() {
-      return get(/databases/eventosviby/documents/users/$(request.auth.uid)).data;
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
     function isAdmin() {
       return isSignedIn() && 
-        exists(/databases/eventosviby/documents/users/$(request.auth.uid)) &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         getUserData().role == 'admin';
     }
 
@@ -27,8 +27,8 @@ service cloud.firestore {
 
     function hasOrgRole(orgId, roles) {
       return isSignedIn() && 
-        exists(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
-        get(/databases/eventosviby/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
+        exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in roles;
     }
 
     // --- REGRAS DE USUÁRIO (SENSÍVEL) ---
@@ -37,7 +37,6 @@ service cloud.firestore {
       allow create: if isOwner(userId);
       allow update: if isOwner(userId) && 
         isNotBlocked() &&
-        // Bloqueia alteração de campos administrativos pelo cliente
         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
           'role', 'status', 'plan', 'verified', 'walletBalance', 'adminFlags', 'permissions', 'totalXp', 'level'
         ]) || isAdmin();
@@ -51,7 +50,23 @@ service cloud.firestore {
     match /organizations/{orgId} {
       allow read: if true;
       allow create: if isSignedIn() && isNotBlocked();
-      allow update: if (hasOrgRole(orgId, ['owner', 'admin']) && isNotBlocked()) || isAdmin();
+      
+      // Correção da vulnerabilidade de escalonamento de privilégios
+      allow update: if isAdmin() || (
+        isNotBlocked() && (
+          // Regra para Proprietário (Owner) da Organização
+          (hasOrgRole(orgId, ['owner']) && 
+           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+             'verified', 'status', 'plan'
+           ])) ||
+          // Regra para Administrador da Organização (Org Admin)
+          (hasOrgRole(orgId, ['admin']) && 
+           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+             'ownerId', 'verified', 'plan', 'stripeAccountId', 
+             'payoutSettings', 'financialSettings', 'permissions', 'status'
+           ]))
+        )
+      );
 
       match /members/{memberId} {
         allow read: if isSignedIn();
@@ -69,7 +84,6 @@ service cloud.firestore {
 
     match /usernames/{username} {
       allow read: if true;
-      // Impede roubo de username ou alteração indevida
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if false; 
     }
@@ -79,7 +93,6 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isSignedIn() && isNotBlocked();
       allow update: if (hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor']) && isNotBlocked()) || isAdmin();
-      // Impede alteração de campos de vínculo vital
       allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['organizationId', 'ownerId']) || isAdmin();
 
       match /partners/{partnerId} {
@@ -100,11 +113,11 @@ service cloud.firestore {
       
       match /setores/{setorId} {
         allow read: if true;
-        allow write: if hasOrgRole(get(/databases/eventosviby/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
+        allow write: if hasOrgRole(get(/databases/$(database)/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
         
         match /assentos/{assentoId} {
            allow read: if true;
-           allow write: if hasOrgRole(get(/databases/eventosviby/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
+           allow write: if hasOrgRole(get(/databases/$(database)/documents/events/$(eventId)).data.organizationId, ['owner', 'admin', 'editor']) || isAdmin();
         }
       }
     }
@@ -123,33 +136,30 @@ service cloud.firestore {
     match /orders/{orderId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.status == 'pending';
-      // Usuário não pode alterar valores ou status após criação
       allow update: if isAdmin(); 
     }
 
     match /registrations/{regId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin', 'finance']) || isAdmin());
-      allow create: if false; // BLOQUEIO CRÍTICO: Apenas Admin SDK
-      // Check-in permitido apenas para cargos autorizados
+      allow create: if false; // Apenas servidor
       allow update: if isSignedIn() && (hasOrgRole(resource.data.organizationId, ['owner', 'admin', 'editor', 'checkin']) || isAdmin());
       allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['price', 'ticketBasePrice', 'userId', 'eventId']);
     }
 
     match /wallets/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow write: if false; // BLOQUEIO CRÍTICO: Escrita proibida para o cliente
+      allow write: if false; 
     }
 
     match /wallet_transactions/{txId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if false; // Apenas servidor
+      allow create: if false; 
       allow update, delete: if false;
     }
 
     match /payout_requests/{docId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && isNotBlocked();
-      // Impede que o usuário aprove seu próprio saque
       allow update: if isAdmin();
     }
 
@@ -212,7 +222,7 @@ service cloud.firestore {
 
     match /tax_tickets/{docId} {
       allow read: if isAdmin();
-      allow write: if false; // Apenas servidor via Admin SDK
+      allow write: if false; 
     }
 
     match /tax_ads/{docId} {
