@@ -20,7 +20,8 @@ import {
   AlertTriangle,
   Scale,
   Clock,
-  BarChart3
+  BarChart3,
+  PieChart as PieChartIcon
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/financial-utils';
 import { 
@@ -31,11 +32,7 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer, 
-  AreaChart, 
-  Area,
-  Cell,
-  PieChart,
-  Pie
+  Cell
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import { ERPMetrics, calculateRealProfit } from '@/lib/financial-erp-utils';
@@ -118,7 +115,7 @@ export default function AdminERPDashboard() {
   return (
     <div className="space-y-8 pb-20">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPI kpiTitle="Faturamento Bruto" value={metrics.grossRevenue + metrics.totalAdsRevenue} icon={TrendingUp} trend="+12.4%" />
+        <KPI kpiTitle="Faturamento Bruto" value={metrics.grossRevenue + metrics.totalAdsRevenue} icon={TrendingUp} trend="+12.4%" color="blue" />
         <KPI kpiTitle="Lucro Líquido Real" value={metrics.realProfit} icon={CheckCircle2} color="green" />
         <KPI kpiTitle="Pendência de Repasse" value={metrics.pendingPayouts} icon={Clock} color="orange" />
         <KPI kpiTitle="Despesas Operacionais" value={metrics.internalExpenses} icon={ArrowDownRight} color="red" />
@@ -227,6 +224,22 @@ export default function AdminERPDashboard() {
             </div>
          </Card>
       </div>
+
+      <Card className="border-none shadow-sm rounded-[2.5rem] bg-primary text-white overflow-hidden">
+        <CardContent className="p-10 flex flex-col md:flex-row items-center gap-10">
+           <div className="flex-1 space-y-4">
+              <h3 className="text-2xl font-black italic uppercase tracking-tighter">Conciliação Automática</h3>
+              <p className="text-sm opacity-80 leading-relaxed font-medium">
+                O sistema processa as vendas em D+0 para fins fiscais e D+30 para repasses. O relatório consolidado utiliza o timezone de Brasília (GMT-3) e arredondamento padrão para conformidade com o Stripe.
+              </p>
+           </div>
+           <div className="shrink-0">
+              <div className="w-32 h-32 bg-secondary rounded-3xl flex items-center justify-center rotate-12 shadow-2xl">
+                 <PieChartIcon className="w-16 h-16 text-white" />
+              </div>
+           </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
