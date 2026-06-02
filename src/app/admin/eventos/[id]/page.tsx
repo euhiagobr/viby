@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -9,11 +8,7 @@ import {
   collection, 
   query, 
   where, 
-  getDocs, 
-  updateDoc, 
-  serverTimestamp, 
-  orderBy, 
-  limit 
+  orderBy 
 } from "firebase/firestore"
 import { 
   Loader2, 
@@ -33,7 +28,6 @@ import {
   ShieldCheck,
   TicketPercent,
   RotateCcw,
-  User as UserIcon,
   CheckCircle2
 } from "lucide-react"
 import Link from "next/link"
@@ -43,9 +37,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { toast } from "@/hooks/use-toast"
-import { errorEmitter } from "@/firebase/error-emitter"
-import { FirestorePermissionError } from "@/firebase/errors"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/financial-utils"
 import { RefundDialog } from "@/components/tickets/RefundDialog"
@@ -76,14 +67,6 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
       (reg.ticketCode?.toLowerCase() || "").includes(search.toLowerCase())
     )
   }, [registrations, search])
-
-  const formatDate = (dateValue: any) => {
-    if (!dateValue) return "---";
-    try {
-      let d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
-      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    } catch (e) { return "---"; }
-  }
 
   if (isLoadingRegistrations) {
     return (
@@ -273,6 +256,14 @@ export default function AdminEventoDetailPage() {
 
   const { data: event, loading } = useDoc<any>(eventRef)
 
+  const formatDate = (dateValue: any) => {
+    if (!dateValue) return "---";
+    try {
+      let d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    } catch (e) { return "---"; }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-[60vh]">
@@ -289,14 +280,6 @@ export default function AdminEventoDetailPage() {
         <Button asChild><Link href="/admin/eventos">Voltar para Listagem</Link></Button>
       </div>
     )
-  }
-
-  const formatDate = (dateValue: any) => {
-    if (!dateValue) return "---";
-    try {
-      let d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
-      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    } catch (e) { return "---"; }
   }
 
   return (
