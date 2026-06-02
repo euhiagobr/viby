@@ -1,7 +1,8 @@
+
 "use client"
 
 import * as React from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { 
   Landmark, 
   Loader2, 
@@ -9,31 +10,26 @@ import {
   AlertCircle, 
   Info, 
   DollarSign, 
-  Send, 
   ShieldCheck, 
   ArrowLeft,
   Building2,
-  Clock,
   ExternalLink,
-  ChevronRight,
   ShieldAlert,
   Wallet,
-  Coins,
-  CreditCard
+  Zap,
+  ArrowUpRight,
+  Lock,
+  XCircle,
+  RefreshCw
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useAuth, useUser, useFirestore } from "@/firebase"
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
 import { useRouter } from "next/navigation"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { formatCurrency } from "@/lib/financial-utils"
-import { Separator } from "@/components/ui/separator"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
+import { createStripeConnectAccount, createAccountOnboardingLink } from "@/app/actions/stripe-connect"
 import Link from "next/link"
 
 export default function FinanceiroPage() {
@@ -43,86 +39,24 @@ export default function FinanceiroPage() {
   const router = useRouter()
   const { currentOrg, loading: orgLoading, refreshOrg, userRole } = useCurrentOrganization()
   
-  const [isFormOpen, setIsFormOpen] = React.useState(false)
-  const [isVerifyingOpen, setIsVerifyingOpen] = React.useState(false)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [verificationValue, setVerificationValue] = React.useState("")
+  const [isProcessing, setIsProcessing] = React.useState(false)
 
   const isOwnerOrAdmin = ['owner', 'admin'].includes(userRole || '')
-  const vStatus = currentOrg?.payoutSettings?.status || "none"
 
-  const handleSaveBankDetails = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    if (!db || !currentOrg || !isOwnerOrAdmin) return
-
-    setIsSubmitting(true)
-    const formData = new FormData(e.currentTarget)
-    
-    const payoutSettings = {
-      bank: formData.get("bank") as string,
-      branch: formData.get("branch") as string,
-      account: formData.get("account") as string,
-      accountName: formData.get("accountName") as string,
-      cnpj: formData.get("cnpj") as string,
-      pixKey: formData.get("pixKey") as string,
-      status: "pending_admin",
-      updatedAt: new Date().toISOString()
-    }
-
+  const handleStartOnboarding = async () => {
+    if (!currentOrg || !isOwnerOrAdmin) return;
+    setIsProcessing(true);
     try {
-      await updateDoc(doc(db, "organizations", currentOrg.id), {
-        payoutSettings,
-        updatedAt: serverTimestamp()
-      })
-      await refreshOrg()
-      toast({ title: "Dados salvos!", description: "Iniciaremos o processo de verificação em breve." })
-      setIsFormOpen(false)
-    } catch (error) {
-      toast({ variant: "destructive", title: "Erro ao salvar", description: "Verifique suas permissões." })
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
+      const accountRes = await createStripeConnectAccount(currentOrg.id);
+      if (!accountRes.success) throw new Error(accountRes.error);
 
-  const handleConfirmVerification = async () => {
-    if (!db || !currentOrg || !verificationValue || !isOwnerOrAdmin) return
+      const linkRes = await createAccountOnboardingLink(currentOrg.id, accountRes.accountId!);
+      if (!linkRes.success) throw new Error(linkRes.error);
 
-    const amount = parseFloat(verificationValue.replace(',', '.'))
-    const sentValue = currentOrg.payoutSettings?.verificationAmountSent
-
-    if (!sentValue) {
-      toast({ variant: "destructive", title: "Aguarde", description: "Nossa equipe ainda não registrou o envio do micro-depósito." })
-      return
-    }
-
-    setIsSubmitting(true)
-    try {
-      // Verifica se o valor inserido coincide com o valor enviado pelo administrador
-      if (Math.abs(amount - sentValue) < 0.001) {
-        // VALOR CORRETO - Verifica conta automaticamente
-        await updateDoc(doc(db, "organizations", currentOrg.id), {
-          "payoutSettings.status": "verified",
-          "payoutSettings.verifiedAt": new Date().toISOString(),
-          "payoutSettings.verificationAmountInput": amount,
-          updatedAt: serverTimestamp()
-        })
-        toast({ title: "Conta Verificada!", description: "Sua conta foi validada com sucesso e está habilitada para repasses." })
-      } else {
-        // VALOR INCORRETO - Apenas registra a tentativa
-        await updateDoc(doc(db, "organizations", currentOrg.id), {
-          "payoutSettings.verificationAmountInput": amount,
-          updatedAt: serverTimestamp()
-        })
-        toast({ variant: "destructive", title: "Divergência de Valor", description: "O valor informado não coincide com o valor depositado. Verifique seu extrato bancário." })
-      }
-      
-      await refreshOrg()
-      setIsVerifyingOpen(false)
-      setVerificationValue("")
-    } catch (error) {
-      toast({ variant: "destructive", title: "Erro ao validar", description: "Tente novamente mais tarde." })
-    } finally {
-      setIsSubmitting(false)
+      window.location.href = linkRes.url!;
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro na conexão", description: e.message });
+      setIsProcessing(false);
     }
   }
 
@@ -141,16 +75,8 @@ export default function FinanceiroPage() {
     );
   }
 
-  if (!isOwnerOrAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
-        <ShieldAlert className="w-16 h-16 text-muted-foreground opacity-20" />
-        <h2 className="text-xl font-bold italic uppercase tracking-tighter">Acesso Restrito</h2>
-        <p className="text-muted-foreground font-medium max-w-sm">Apenas proprietários e administradores da marca podem gerenciar dados bancários.</p>
-        <Button asChild variant="outline" className="rounded-full mt-4"><Link href={`/dashboard/organizacoes/${currentOrg.username}`}>Voltar ao Painel</Link></Button>
-      </div>
-    );
-  }
+  const isVerified = currentOrg.stripeChargesEnabled && currentOrg.stripePayoutsEnabled;
+  const isPending = currentOrg.stripeAccountId && !isVerified;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
@@ -162,7 +88,7 @@ export default function FinanceiroPage() {
         </Button>
         <div>
           <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">Conta de Recebimento</h1>
-          <p className="text-muted-foreground font-medium">Configurações de repasse bancário para <strong>{currentOrg.name}</strong>.</p>
+          <p className="text-muted-foreground font-medium">Configuração nativa Stripe Connect Express para <strong>{currentOrg.name}</strong>.</p>
         </div>
       </div>
 
@@ -172,188 +98,87 @@ export default function FinanceiroPage() {
             <CardHeader className="bg-muted/30 p-8">
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
-                   <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+                   <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2 text-primary">
                      <Landmark className="w-5 h-5 text-secondary" /> 
-                     Dados Bancários PJ
+                     Status da Conta
                    </CardTitle>
-                   <CardDescription className="font-medium">Vínculo obrigatório com o CNPJ da organização.</CardDescription>
+                   <CardDescription className="font-medium">Gestão automatizada via Stripe.</CardDescription>
                 </div>
                 <Badge 
                   className={cn(
                     "uppercase text-[9px] font-black h-6 px-3",
-                    vStatus === 'verified' ? "bg-green-500 text-white" : 
-                    vStatus === 'none' ? "bg-orange-50 text-orange-600 border-orange-200" :
-                    "bg-blue-500 text-white"
+                    isVerified ? "bg-green-500 text-white" : 
+                    isPending ? "bg-blue-500 text-white" : "bg-orange-50 text-orange-600 border-orange-200"
                   )}
-                  variant={vStatus === 'none' ? 'outline' : 'default'}
+                  variant="default"
                 >
-                  {vStatus === 'none' ? 'Pendente' :
-                   vStatus === 'pending_admin' ? 'Em análise' :
-                   vStatus === 'waiting_user' ? 'Aguardando Valor' :
-                   'Verificada'}
+                  {isVerified ? 'Aprovada' : isPending ? 'Em Análise' : 'Não Configurada'}
                 </Badge>
               </div>
             </CardHeader>
-            <CardContent className="p-8 space-y-6">
-               {vStatus === 'none' ? (
+            <CardContent className="p-8">
+               {!currentOrg.stripeAccountId ? (
                  <div className="py-6 text-center space-y-6">
                     <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto">
-                       <CreditCard className="w-10 h-10 text-muted-foreground opacity-30" />
+                       <Zap className="w-10 h-10 text-muted-foreground opacity-30" />
                     </div>
                     <div className="space-y-2">
-                       <h3 className="font-bold text-lg">Configuração Inicial</h3>
-                       <p className="text-sm text-muted-foreground max-w-sm mx-auto">Insira os dados da conta bancária da sua empresa para que possamos iniciar o processo de validação de titularidade.</p>
+                       <h3 className="font-bold text-lg">Inicie sua Conexão</h3>
+                       <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                         Para habilitar vendas e receber repasses automáticos, você deve conectar sua organização ao Stripe Express.
+                       </p>
                     </div>
-                    <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-                      <DialogTrigger asChild>
-                        <Button className="bg-secondary text-white font-black rounded-xl h-14 px-10 shadow-xl shadow-secondary/20 uppercase italic transition-all hover:scale-105">
-                           Cadastrar Dados Bancários
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="rounded-[2.5rem] max-w-md">
-                        <form onSubmit={handleSaveBankDetails} className="space-y-6">
-                          <DialogHeader>
-                            <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Dados de Recebimento</DialogTitle>
-                            <DialogDescription>Use uma conta vinculada à razão social da organização.</DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div className="space-y-2">
-                              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Banco</Label>
-                              <Input name="bank" placeholder="Ex: Itaú, Nubank, Santander..." required className="rounded-xl h-11" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Agência</Label>
-                                <Input name="branch" placeholder="0001" required className="rounded-xl h-11" />
-                              </div>
-                              <div className="space-y-2">
-                                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Conta e Dígito</Label>
-                                <Input name="account" placeholder="12345-6" required className="rounded-xl h-11" />
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Razão Social do Titular</Label>
-                              <Input name="accountName" placeholder="Exatamente como no extrato" required className="rounded-xl h-11" />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CNPJ do Titular</Label>
-                              <Input name="cnpj" placeholder="00.000.000/0000-00" defaultValue={currentOrg.cnpj} required className="rounded-xl h-11" />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Chave PIX Principal</Label>
-                              <Input name="pixKey" placeholder="CNPJ, E-mail ou Celular" required className="rounded-xl h-11" />
-                            </div>
-                          </div>
-                          <DialogFooter>
-                            <Button type="submit" disabled={isSubmitting} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                              Confirmar e Validar
-                            </Button>
-                          </DialogFooter>
-                        </form>
-                      </DialogContent>
-                    </Dialog>
+                    <Button 
+                      onClick={handleStartOnboarding} 
+                      disabled={isProcessing}
+                      className="bg-secondary text-white font-black rounded-xl h-14 px-10 shadow-xl shadow-secondary/20 uppercase italic transition-all hover:scale-105"
+                    >
+                      {isProcessing ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <><ShieldCheck className="w-5 h-5 mr-2" /> Conectar com Stripe</>}
+                    </Button>
                  </div>
                ) : (
                  <div className="space-y-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-muted/20 rounded-3xl border border-border/50">
+                    <div className="p-6 bg-muted/20 rounded-3xl border flex items-center justify-between">
                        <div className="space-y-1">
-                          <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Instituição</p>
-                          <p className="font-black uppercase italic text-primary">{currentOrg.payoutSettings?.bank}</p>
+                          <p className="text-[9px] font-black uppercase text-muted-foreground">ID Stripe Connect</p>
+                          <p className="font-mono text-xs font-bold text-primary">{currentOrg.stripeAccountId}</p>
                        </div>
-                       <div className="space-y-1">
-                          <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Dados</p>
-                          <p className="font-bold text-sm">Ag: {currentOrg.payoutSettings?.branch} | Cta: {currentOrg.payoutSettings?.account}</p>
-                       </div>
-                       <div className="space-y-1">
-                          <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Titular</p>
-                          <p className="font-bold text-sm truncate">{currentOrg.payoutSettings?.accountName}</p>
-                       </div>
-                       <div className="space-y-1">
-                          <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">PIX</p>
-                          <p className="font-mono text-[11px] font-bold text-secondary">{currentOrg.payoutSettings?.pixKey}</p>
-                       </div>
+                       <Button variant="ghost" className="rounded-xl font-black uppercase italic text-[9px] gap-2" onClick={handleStartOnboarding}>
+                          <RefreshCw className="w-3.5 h-3.5" /> Atualizar Dados
+                       </Button>
                     </div>
 
-                    {vStatus === 'verified' ? (
+                    <div className="grid grid-cols-2 gap-4">
+                       <StatusStep label="Vendas Ativas" status={currentOrg.stripeChargesEnabled} />
+                       <StatusStep label="Repasses Ativos" status={currentOrg.stripePayoutsEnabled} />
+                    </div>
+
+                    {isVerified ? (
                        <div className="flex items-center gap-4 p-6 bg-green-50 rounded-[2rem] border-2 border-dashed border-green-200">
                           <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white">
                              <CheckCircle2 className="w-7 h-7" />
                           </div>
                           <div className="space-y-1">
-                             <p className="font-black uppercase text-xs text-green-800 italic">Conta Verificada com Sucesso!</p>
-                             <p className="text-xs text-green-700 font-medium">Sua organização está pronta para receber os repasses automaticamente.</p>
+                             <p className="font-black uppercase text-xs text-green-800 italic">Pronto para vender!</p>
+                             <p className="text-xs text-green-700 font-medium">Sua conta está 100% verificada e os repasses estão configurados.</p>
                           </div>
                        </div>
                     ) : (
-                       <div className="space-y-6">
-                          <div className="flex items-center gap-4 p-6 bg-blue-50 rounded-[2rem] border-2 border-dashed border-blue-200">
-                             <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white shrink-0">
-                                {vStatus === 'pending_admin' ? <Clock className="w-7 h-7 animate-pulse" /> : <ShieldCheck className="w-7 h-7" />}
-                             </div>
-                             <div className="space-y-1">
-                                <p className="font-black uppercase text-xs text-blue-800 italic">
-                                   {vStatus === 'pending_admin' ? 'Aguardando Micro-depósito' : 'Sinalize o Valor Recebido'}
-                                </p>
-                                <p className="text-xs text-blue-700 font-medium leading-relaxed">
-                                   {vStatus === 'pending_admin' 
-                                     ? 'Nossa equipe fará um depósito de centavos em sua conta em até 48h. Fique atento ao seu extrato bancário.' 
-                                     : 'Já identificamos o envio do depósito. Agora, informe o valor exato que você recebeu em sua conta.'}
-                                </p>
-                             </div>
+                       <div className="flex items-center gap-4 p-6 bg-blue-50 rounded-[2rem] border-2 border-dashed border-blue-200">
+                          <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white shrink-0">
+                             <Clock className="w-7 h-7 animate-pulse" />
                           </div>
-
-                          {vStatus === 'waiting_user' && (
-                             <Dialog open={isVerifyingOpen} onOpenChange={setIsVerifyingOpen}>
-                                <DialogTrigger asChild>
-                                   <Button className="w-full h-16 bg-secondary text-white font-black text-lg rounded-2xl shadow-xl shadow-secondary/20 uppercase italic hover:scale-[1.02] transition-transform">
-                                      Inserir Valor do Depósito
-                                   </Button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-sm rounded-[2.5rem]">
-                                   <div className="text-center space-y-6 py-4">
-                                      <DialogHeader>
-                                         <div className="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center mx-auto mb-2 text-secondary">
-                                            <DollarSign className="w-8 h-8" />
-                                         </div>
-                                         <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Validar Recebimento</DialogTitle>
-                                         <DialogDescription className="font-medium">
-                                            Consulte seu extrato e insira o valor exato recebido da Viby (ex: 0,32).
-                                         </DialogDescription>
-                                      </DialogHeader>
-                                      <div className="space-y-4">
-                                         <div className="relative">
-                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-secondary">R$</span>
-                                            <Input 
-                                               placeholder="0,00" 
-                                               value={verificationValue}
-                                               onChange={e => setVerificationValue(e.target.value)}
-                                               className="h-16 text-2xl font-black text-center rounded-2xl pl-10 border-secondary/20"
-                                            />
-                                         </div>
-                                         <Button onClick={handleConfirmVerification} disabled={isSubmitting || !verificationValue} className="w-full h-14 bg-secondary text-white font-black rounded-2xl shadow-lg uppercase italic">
-                                            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <ShieldCheck className="w-5 h-5 mr-2" />}
-                                            Verificar Agora
-                                         </Button>
-                                      </div>
-                                   </div>
-                                </DialogContent>
-                             </Dialog>
-                          )}
+                          <div className="space-y-1">
+                             <p className="font-black uppercase text-xs text-blue-800 italic">Informações em Análise</p>
+                             <p className="text-xs text-blue-700 font-medium leading-relaxed">
+                               O Stripe está processando seus documentos. Isso pode levar alguns minutos ou horas. Você receberá um e-mail quando for concluído.
+                             </p>
+                          </div>
                        </div>
                     )}
                  </div>
                )}
             </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-sm rounded-[2rem] bg-muted/10 border border-dashed">
-             <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2"><Info className="w-4 h-4" /> Termos de Repasse</CardTitle></CardHeader>
-             <CardContent className="space-y-4 text-xs font-medium text-muted-foreground leading-relaxed">
-                <p>1. Os repasses são realizados automaticamente para a conta PJ verificada conforme o ciclo de faturamento (D+30 padrão ou antecipação disponível).</p>
-                <p>2. A conta bancária deve obrigatoriamente estar vinculada ao mesmo CNPJ cadastrado nas configurações da marca.</p>
-                <p>3. Em caso de chargeback ou contestação, os valores poderão ser retidos do seu saldo disponível para cobertura operacional.</p>
-             </CardContent>
           </Card>
         </div>
 
@@ -362,30 +187,30 @@ export default function FinanceiroPage() {
               <CardHeader className="pb-2">
                  <CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4" /> 
-                    Segurança de Repasse
+                    Repasses Automáticos
                  </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6 relative z-10">
                  <div className="space-y-2">
-                    <p className="text-xl font-black italic uppercase tracking-tight">Por que verificamos?</p>
+                    <p className="text-xl font-black italic uppercase tracking-tight">O que é o Stripe Express?</p>
                     <p className="text-sm opacity-80 leading-relaxed">
-                       Para garantir que os ganhos da marca cheguem com segurança aos verdadeiros proprietários, utilizamos um processo de validação em duas etapas: verificação de documento (CNPJ) e prova de titularidade bancária.
+                       É uma carteira financeira conectada à Viby que permite que você receba o valor das suas vendas diretamente na sua conta bancária PJ sem necessidade de solicitar saques manuais.
                     </p>
                  </div>
 
                  <div className="space-y-4 pt-4 border-t border-white/10">
                     <div className="flex items-start gap-3">
-                       <div className="p-2 bg-white/10 rounded-lg"><Coins className="w-4 h-4 text-secondary" /></div>
+                       <div className="p-2 bg-white/10 rounded-lg"><DollarSign className="w-4 h-4 text-secondary" /></div>
                        <div>
-                          <p className="font-bold text-xs">Transferências Seguras</p>
-                          <p className="text-[10px] opacity-60">Utilizamos o barramento do BACEN para garantir agilidade no PIX.</p>
+                          <p className="font-bold text-xs">Sem Taxa de Saque</p>
+                          <p className="text-[10px] opacity-60">O repasse é automático conforme as vendas ocorrem.</p>
                        </div>
                     </div>
                     <div className="flex items-start gap-3">
                        <div className="p-2 bg-white/10 rounded-lg"><Wallet className="w-4 h-4 text-secondary" /></div>
                        <div>
-                          <p className="font-bold text-xs">Retenção de Impostos</p>
-                          <p className="text-[10px] opacity-60">Sua organização recebe o valor líquido já descontado de taxas.</p>
+                          <p className="font-bold text-xs">Gestão de Saldo</p>
+                          <p className="text-[10px] opacity-60">Monitore extratos e transferências diretamente pelo seu painel.</p>
                        </div>
                     </div>
                  </div>
@@ -393,33 +218,27 @@ export default function FinanceiroPage() {
               <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-secondary/10 rounded-full blur-3xl" />
            </Card>
 
-           <Card className="border-none shadow-sm rounded-[2rem] bg-white">
-              <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest text-muted-foreground">Etapas do Processo</CardTitle></CardHeader>
-              <CardContent className="space-y-6">
-                 {[
-                   { step: 1, title: "Cadastro de Dados", desc: "Você preenche os dados da conta PJ.", done: vStatus !== 'none' },
-                   { step: 2, title: "Micro-depósito", desc: "Nós enviamos um valor aleatório para sua conta.", done: vStatus === 'waiting_user' || vStatus === 'verified' },
-                   { step: 3, title: "Conferência", desc: "Você informa o valor recebido no sistema.", done: vStatus === 'verified' },
-                   { step: 4, title: "Liberação de Saque", desc: "Sua conta é habilitada para receber os repasses.", done: vStatus === 'verified' },
-                 ].map((item) => (
-                   <div key={item.step} className="flex gap-4 relative">
-                      {item.step < 4 && <div className="absolute left-4 top-8 w-px h-10 bg-border" />}
-                      <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 transition-colors",
-                        item.done ? "bg-green-500 text-white" : "bg-muted text-muted-foreground"
-                      )}>
-                         {item.done ? <CheckCircle2 className="w-4 h-4" /> : item.step}
-                      </div>
-                      <div className="space-y-0.5">
-                         <p className={cn("text-xs font-bold", item.done ? "text-primary" : "text-muted-foreground")}>{item.title}</p>
-                         <p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p>
-                      </div>
-                   </div>
-                 ))}
-              </CardContent>
-           </Card>
+           <div className="p-4 bg-muted/20 border border-dashed rounded-2xl flex items-center gap-3">
+              <Info className="w-5 h-5 text-primary opacity-40 shrink-0" />
+              <p className="text-[9px] font-bold uppercase text-muted-foreground leading-tight">
+                Em conformidade com as normas do BACEN, o Stripe processa os dados bancários com criptografia de ponta a ponta. A Viby não tem acesso aos seus dados de login bancário.
+              </p>
+           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function StatusStep({ label, status }: { label: string, status: boolean }) {
+  return (
+    <div className="p-4 rounded-2xl border bg-white flex items-center justify-between">
+       <span className="text-[10px] font-black uppercase text-muted-foreground">{label}</span>
+       {status ? (
+         <CheckCircle2 className="w-4 h-4 text-green-500" />
+       ) : (
+         <XCircle className="w-4 h-4 text-muted-foreground opacity-30" />
+       )}
     </div>
   )
 }

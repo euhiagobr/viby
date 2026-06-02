@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -9,7 +10,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, Save, Handshake, LayoutGrid, Settings2, Ticket, RefreshCw, AlertTriangle, Trash2, Calendar, Clock, X } from "lucide-react"
+import { Loader2, ArrowLeft, Save, Handshake, LayoutGrid, Settings2, Ticket, RefreshCw, AlertTriangle, Trash2, Calendar, Clock, X, ShieldAlert } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -49,7 +50,6 @@ export default function EditarEventoPage() {
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
 
-  // Consulta de Ocorrências para gestão individual
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !eventId) return null
     return query(collection(db, "recurring_occurrences"), where("parentId", "==", eventId))
@@ -70,6 +70,8 @@ export default function EditarEventoPage() {
   const [ticketMode, setTicketMode] = useState<any>('free')
   const [batches, setBatches] = useState<any[]>([])
   const [totalCapacity, setTotalCapacity] = useState(100)
+
+  const isStripeVerified = currentOrg?.stripeChargesEnabled && currentOrg?.stripePayoutsEnabled;
 
   useEffect(() => {
     if (event) {
@@ -157,6 +159,12 @@ export default function EditarEventoPage() {
     e.preventDefault()
     if (!db || !eventRef || !currentOrg) return
 
+    const isPaid = ticketMode !== 'free';
+    if (isPaid && !isStripeVerified) {
+       toast({ variant: "destructive", title: "Bilheteria Bloqueada", description: "Verifique sua conta Stripe para habilitar vendas pagas." });
+       return;
+    }
+
     setLoading(true)
     try {
       const searchKeywords = [
@@ -177,7 +185,6 @@ export default function EditarEventoPage() {
         updatedAt: serverTimestamp()
       }
 
-      // Sincronização com campos Raiz para busca e listagem
       updateData.city = formData.address.city || "";
       updateData.location = formData.address.neighborhood || formData.address.street || "";
       updateData.latitude = formData.address.latitude || -23.55052;
@@ -224,10 +231,15 @@ export default function EditarEventoPage() {
              <p className="text-xs font-bold text-secondary uppercase tracking-widest">{formData.title}</p>
           </div>
         </div>
-        <Button onClick={handleSubmit} disabled={loading} className="bg-primary text-white font-black rounded-full h-11 px-8 shadow-lg gap-2 uppercase italic">
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          Salvar Tudo
-        </Button>
+        <div className="flex gap-3">
+           <Button variant="outline" asChild className="rounded-xl h-11 border-secondary text-secondary font-bold uppercase text-[10px]">
+              <Link href={`/${currentOrg?.username}/${eventId}`} target="_blank"><Eye className="w-4 h-4 mr-2" /> Ver Público</Link>
+           </Button>
+           <Button onClick={handleSubmit} disabled={loading} className="bg-primary text-white font-black rounded-full h-11 px-8 shadow-lg gap-2 uppercase italic">
+             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+             Salvar Tudo
+           </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="geral" className="space-y-8">
@@ -357,7 +369,7 @@ export default function EditarEventoPage() {
                    </CardHeader>
                    <CardContent className="p-0">
                       {occurrencesLoading ? (
-                        <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+                        <div className="py-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
                       ) : occurrences.length > 0 ? (
                         <Table>
                            <TableHeader className="bg-muted/10">
@@ -408,30 +420,39 @@ export default function EditarEventoPage() {
                       )}
                    </CardContent>
                 </Card>
-
-                <div className="p-6 bg-orange-50 rounded-[2.5rem] border-2 border-dashed border-orange-200 flex items-start gap-4">
-                   <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
-                   <div className="space-y-1">
-                      <h4 className="text-xs font-black uppercase italic text-orange-800">Atenção ao excluir datas</h4>
-                      <p className="text-[10px] text-orange-700 font-medium leading-relaxed uppercase">
-                         Ao excluir uma data individual, ela deixará de aparecer para o público. Se você regerar a agenda completa, datas excluídas anteriormente poderão retornar conforme a frequência definida.
-                      </p>
-                   </div>
-                </div>
               </div>
            )}
         </TabsContent>
 
         <TabsContent value="bilheteria" className="animate-in fade-in duration-500">
            {formData.type === 'interno' ? (
-             <BilheteriaAdmin 
-               mode={ticketMode} 
-               onModeChange={setTicketMode}
-               batches={batches}
-               onBatchesChange={setBatches}
-               totalCapacity={totalCapacity}
-               onTotalCapacityChange={setTotalCapacity}
-             />
+             <div className="space-y-6">
+                {!isStripeVerified && (
+                  <div className="p-6 bg-red-50 rounded-[2rem] border-2 border-dashed border-red-200 flex items-start gap-4">
+                      <ShieldAlert className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <h4 className="font-black uppercase text-xs italic text-red-800">Bilheteria Paga Bloqueada</h4>
+                        <p className="text-[10px] text-red-700 font-medium leading-relaxed uppercase">
+                            Sua conta de recebimento não está aprovada no Stripe. Você só pode publicar ou editar eventos para modo GRATUITO.
+                        </p>
+                      </div>
+                  </div>
+                )}
+                <BilheteriaAdmin 
+                  mode={ticketMode} 
+                  onModeChange={v => {
+                    if (v !== 'free' && v !== 'none' && !isStripeVerified) {
+                        toast({ variant: "destructive", title: "Bloqueado", description: "Conecte sua conta Stripe para habilitar ingressos pagos." });
+                        return;
+                    }
+                    setTicketMode(v);
+                  }}
+                  batches={batches}
+                  onBatchesChange={setBatches}
+                  totalCapacity={totalCapacity}
+                  onTotalCapacityChange={setTotalCapacity}
+                />
+             </div>
            ) : (
              <Card className="border-none shadow-sm rounded-[2rem] p-20 text-center flex flex-col items-center gap-4 opacity-40">
                 <Ticket className="w-12 h-12 text-primary" />

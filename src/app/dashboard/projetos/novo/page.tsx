@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -9,7 +10,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft } from "lucide-react"
+import { Loader2, ArrowLeft, ShieldAlert } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -68,6 +69,8 @@ export default function NovoEventoPage() {
   const [batches, setBatches] = useState<any[]>([])
   const [totalCapacity, setTotalCapacity] = useState(100)
 
+  const isStripeVerified = currentOrg?.stripeChargesEnabled && currentOrg?.stripePayoutsEnabled;
+
   const handleImageUpload = async (file: File) => {
     if (!storage || !user) return
     setUploadProgress(0)
@@ -87,6 +90,12 @@ export default function NovoEventoPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!db || !user || !currentOrg) return
+
+    const isPaid = ticketMode !== 'free';
+    if (isPaid && !isStripeVerified) {
+       toast({ variant: "destructive", title: "Ação Bloqueada", description: "Sua conta de recebimento não está aprovada no Stripe. Você só pode publicar eventos gratuitos." });
+       return;
+    }
 
     setLoading(true)
     try {
@@ -111,7 +120,6 @@ export default function NovoEventoPage() {
         createdAt: serverTimestamp()
       }
 
-      // Limpeza de dados para evitar erros de serialização
       const cleanData = JSON.parse(JSON.stringify(eventData, (key, value) => 
         value === undefined ? null : value
       ));
@@ -136,12 +144,7 @@ export default function NovoEventoPage() {
       toast({ title: "Evento Publicado!" })
       router.push(`/dashboard/organizacoes/${currentOrg.username}/events`)
     } catch (error: any) {
-      console.error("[Publish Error]", error);
-      toast({ 
-        variant: "destructive", 
-        title: "Erro ao publicar", 
-        description: error.message 
-      })
+      toast({ variant: "destructive", title: "Erro ao publicar", description: error.message })
     } finally {
       setLoading(false)
     }
@@ -239,14 +242,33 @@ export default function NovoEventoPage() {
         </Card>
 
         {formData.type === 'interno' && (
-          <BilheteriaAdmin 
-            mode={ticketMode} 
-            onModeChange={setTicketMode}
-            batches={batches}
-            onBatchesChange={setBatches}
-            totalCapacity={totalCapacity}
-            onTotalCapacityChange={setTotalCapacity}
-          />
+          <div className="space-y-6">
+             {!isStripeVerified && (
+               <div className="p-6 bg-red-50 rounded-[2rem] border-2 border-dashed border-red-200 flex items-start gap-4">
+                  <ShieldAlert className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                     <h4 className="font-black uppercase text-xs italic text-red-800">Bilheteria Paga Bloqueada</h4>
+                     <p className="text-[10px] text-red-700 font-medium leading-relaxed uppercase">
+                        Sua conta de recebimento não está aprovada. Conecte sua organização ao Stripe Express no menu financeiro para cobrar por ingressos. Por enquanto, apenas eventos gratuitos são permitidos.
+                     </p>
+                  </div>
+               </div>
+             )}
+             <BilheteriaAdmin 
+               mode={ticketMode} 
+               onModeChange={v => {
+                  if (v !== 'free' && v !== 'none' && !isStripeVerified) {
+                    toast({ variant: "destructive", title: "Ação não permitida", description: "Verifique sua conta Stripe para habilitar ingressos pagos." });
+                    return;
+                  }
+                  setTicketMode(v);
+               }}
+               batches={batches}
+               onBatchesChange={setBatches}
+               totalCapacity={totalCapacity}
+               onTotalCapacityChange={setTotalCapacity}
+             />
+          </div>
         )}
 
         <Button type="submit" disabled={loading} className="w-full h-20 bg-secondary text-white font-black text-xl rounded-[2.5rem] shadow-xl uppercase italic hover:scale-[1.02] transition-all">
