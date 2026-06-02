@@ -2,13 +2,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // --- FUNÇÕES DE APOIO ---
+    // --- FUNÇÕES DE SEGURANÇA ---
     
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Verifica se o usuário autenticado é um Administrador Global
+    // Verifica se o usuário é administrador global de forma robusta
     function isAdmin() {
       return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
@@ -19,27 +19,28 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Garante que o usuário não está bloqueado
+    // Garante que o usuário não está bloqueado (resiliente a documentos inexistentes)
     function isNotBlocked() {
       return !isSignedIn() || 
              !exists(/databases/$(database)/documents/users/$(request.auth.uid)) || 
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('status', 'Ativo') != 'Bloqueado';
     }
 
-    // --- REGRAS DE ACESSO ---
-
-    // 1. REGRA DE OURO (SUPERUSER): Admin Global tem poder total
+    // --- REGRA DE OURO (SUPERUSER) ---
+    // Administradores globais têm acesso total a qualquer documento
     match /{allPaths=**} {
       allow read, write: if isAdmin();
     }
 
-    // 2. ACESSO A GRUPOS (Collection Group Queries)
-    // Necessário para o Dashboard listar as organizações que o usuário participa
+    // --- REGRAS DE COLEÇÃO ---
+
+    // 1. CONSULTA DE GRUPO (MEMBROS)
+    // Essencial para o Dashboard listar as organizações que o usuário participa
     match /{path=**}/members/{memberId} {
-      allow read: if isSignedIn() && (request.auth.uid == memberId || isAdmin());
+      allow read: if isSignedIn() && (request.auth.uid == memberId);
     }
 
-    // 3. ACESSO PÚBLICO (Descoberta)
+    // 2. ACESSO PÚBLICO (DESCOBERTA)
     match /settings/{docId} { allow read: if true; }
     match /categories/{catId} { allow read: if true; }
     match /usernames/{username} { allow read: if true; }
@@ -52,12 +53,12 @@ service cloud.firestore {
     match /xp_rules/{ruleId} { allow read: if true; }
     match /recurring_occurrences/{docId} { allow read: if true; }
 
-    // 4. USUÁRIOS (Perfil e Dados Sensíveis)
+    // 3. USUÁRIOS
     match /users/{userId} {
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isSignedIn() && request.auth.uid == userId && isNotBlocked() && 
         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-          'role', 'status', 'plan', 'verified', 'walletBalance'
+          'role', 'status', 'plan', 'verified', 'walletBalance', 'totalXp', 'level'
         ]);
 
       match /private/sensitive {
@@ -65,25 +66,26 @@ service cloud.firestore {
       }
     }
 
-    // 5. ORGANIZAÇÕES E MEMBROS
+    // 4. ORGANIZAÇÕES
     match /organizations/{orgId} {
       allow create: if isSignedIn() && isNotBlocked();
-      allow update: if isNotBlocked();
+      allow update: if isSignedIn() && isNotBlocked();
 
       match /members/{userId} {
-        allow read: if true;
+        allow read: if isSignedIn();
         allow write: if isSignedIn() && isNotBlocked();
       }
       
       match /transactions/{txId} {
         allow read: if isSignedIn();
+        allow create: if isSignedIn();
       }
     }
 
-    // 6. EVENTOS E BILHETERIA
+    // 5. EVENTOS E BILHETERIA
     match /events/{eventId} {
       allow create: if isSignedIn() && isNotBlocked();
-      allow update: if isNotBlocked();
+      allow update: if isSignedIn() && isNotBlocked();
       
       match /partners/{partnerId} {
         allow read: if true;
@@ -100,19 +102,11 @@ service cloud.firestore {
         allow read: if true;
         allow write: if isSignedIn() && request.auth.uid == userId;
       }
-      
-      match /setores/{setorId} {
-        allow read: if true;
-        match /assentos/{assentoId} {
-          allow read: if true;
-          allow update: if isSignedIn();
-        }
-      }
     }
 
-    // 7. REGISTROS, FINANCEIRO E LOGS
+    // 6. REGISTROS, FINANCEIRO E LOGS
     match /registrations/{regId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid);
       allow create: if isSignedIn();
       allow update: if isSignedIn();
     }
@@ -122,21 +116,20 @@ service cloud.firestore {
     }
 
     match /wallet_transactions/{txId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid);
     }
 
     match /orders/{orderId} {
       allow create: if isSignedIn();
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid);
     }
 
     match /payout_requests/{docId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow read, create: if isSignedIn();
     }
 
     match /support_tickets/{ticketId} {
-      allow read, create: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read, create: if isSignedIn() && (resource.data.userId == request.auth.uid);
       allow update: if isSignedIn();
     }
     
@@ -144,18 +137,12 @@ service cloud.firestore {
       allow create: if true; 
     }
 
-    match /sent_emails/{emailId} {
-      allow read, create: if isAdmin();
-    }
-
     match /user_gamification/{userId} {
       allow read: if true;
-      allow write: if isAdmin();
     }
     
     match /xp_logs/{logId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow write: if isAdmin();
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid);
     }
 
     match /reports/{reportId} {

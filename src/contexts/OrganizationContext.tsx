@@ -84,6 +84,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     setLoading(true);
 
     // Consulta Collection Group para encontrar todos os documentos "members" que possuam o UID do usuário
+    // IMPORTANTE: Requer regra match /{path=**}/members/{memberId} no Firestore
     const membersQuery = query(collectionGroup(db, 'members'), where('userId', '==', user.uid));
     
     const unsubscribe = onSnapshot(membersQuery, 
@@ -94,6 +95,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             const orgId = memberDoc.ref.parent.parent?.id;
             if (!orgId) return null;
 
+            // Filtra membros ativos
             if (mData.status === 'accepted' || !mData.status) {
               try {
                 const orgSnap = await getDoc(doc(db, 'organizations', orgId));
@@ -101,7 +103,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
                   return { id: orgSnap.id, ...orgSnap.data(), _memberData: mData } as Organization;
                 }
               } catch (e) {
-                // Silencia erros de permissão para marcas específicas, mas não trava a lista
                 return null;
               }
             }
@@ -130,28 +131,37 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             setOrganizations(orgsData);
             setPendingInvitations(pingsData);
             
-            // Se houver organizações e nenhuma estiver selecionada, seleciona a primeira
-            if (orgsData.length > 0 && !currentOrg) {
-               const savedOrgId = typeof window !== 'undefined' ? localStorage.getItem('viby_current_org') : null;
-               const found = orgsData.find(o => o.id === savedOrgId) || orgsData[0];
-               handleSetCurrentOrg(found);
-            }
+            // Lógica de Seleção Inteligente: Se houver marcas e nenhuma estiver selecionada, pega a primeira (ou a última criada)
+            const savedOrgId = typeof window !== 'undefined' ? localStorage.getItem('viby_current_org') : null;
+            const currentActiveId = currentOrg?.id;
 
-            if (currentOrg) {
-              const updatedActive = orgsData.find(o => o.id === currentOrg.id);
-              if (updatedActive) {
-                setUserRole(updatedActive._memberData?.role || null);
+            if (orgsData.length > 0) {
+              const toSelect = orgsData.find(o => o.id === savedOrgId) || 
+                               orgsData.find(o => o.id === currentActiveId) || 
+                               orgsData[0];
+              
+              if (toSelect && (!currentOrg || currentOrg.id !== toSelect.id)) {
+                handleSetCurrentOrg(toSelect);
+              } else if (currentOrg) {
+                // Atualiza dados da org atual se ela ainda estiver na lista
+                const updated = orgsData.find(o => o.id === currentOrg.id);
+                if (updated) {
+                  setUserRole(updated._memberData?.role || null);
+                }
               }
+            } else {
+              setCurrentOrg(null);
+              setUserRole(null);
             }
           }
         } catch (e) {
-          console.error("Erro ao processar dados de membros:", e);
+          console.error("Erro ao sincronizar marcas:", e);
         } finally {
           if (isMounted) setLoading(false);
         }
       },
       (error) => {
-        console.error("Erro no listener de membros:", error);
+        console.error("Falha no listener de organizações:", error);
         if (isMounted) setLoading(false);
       }
     );
@@ -162,7 +172,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     };
   }, [db, user, isInitialized]);
 
-  // Sincroniza org atual baseada na URL
+  // Sincroniza org atual baseada na URL para navegação direta
   useEffect(() => {
     if (!isInitialized || !db || !user || loading) return;
 
@@ -180,7 +190,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     if (!db || !currentOrg) return;
     const orgSnap = await getDoc(doc(db, 'organizations', currentOrg.id));
     if (orgSnap.exists()) {
-      setCurrentOrg(prev => prev ? { ...prev, ...orgSnap.data() } : null);
+      const data = { id: orgSnap.id, ...orgSnap.data() } as Organization;
+      setCurrentOrg(prev => prev ? { ...prev, ...data } : data);
     }
   };
 
