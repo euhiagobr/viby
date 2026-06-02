@@ -8,7 +8,7 @@ import { notFound } from 'next/navigation';
 
 async function getProfileData(username: string) {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  const db = getFirestore(app);
+  const db = getFirestore(app, "eventosviby");
   
   try {
     const usernameRef = doc(db, "usernames", username.toLowerCase());
@@ -83,7 +83,5 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
     return null;
   }
 
-  const profile = await getProfileData(username);
-  
   return <ProfilePageClient username={username} />;
 }

@@ -3,8 +3,8 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Inicialização robusta do Firebase Admin SDK para o novo projeto.
- * Utiliza o banco de dados padrão (default).
+ * @fileOverview Inicialização robusta do Firebase Admin SDK.
+ * Utiliza o banco de dados 'eventosviby'.
  */
 
 function getAdminApp(): App {
@@ -27,9 +27,10 @@ function getAdminApp(): App {
 export const getAdminAuth = () => getAuth(getAdminApp());
 
 /**
- * Retorna a instância do Firestore Admin para o banco padrão.
+ * Retorna a instância do Firestore Admin para o banco 'eventosviby'.
  */
 export const getAdminDb = () => {
   const app = getAdminApp();
-  return getAdminFirestore(app);
+  // Especifica o banco de dados para o Admin SDK
+  return getAdminFirestore(app, 'eventosviby');
 };

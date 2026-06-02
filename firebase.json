@@ -1,7 +1,10 @@
 {
-  "firestore": {
-    "rules": "firestore.rules"
-  },
+  "firestore": [
+    {
+      "database": "eventosviby",
+      "rules": "firestore.rules"
+    }
+  ],
   "hosting": {
     "source": ".",
     "ignore": [

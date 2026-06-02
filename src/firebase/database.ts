@@ -2,15 +2,15 @@ import { getFirestore, Firestore } from "firebase/firestore";
 import { app } from "./apps";
 
 /**
- * @fileOverview Instância isomórfica do Firestore utilizando o banco padrão (default).
- * Garante que todas as consultas do app apontem para a mesma fonte de dados.
+ * @fileOverview Instância isomórfica do Firestore utilizando o banco nomeado 'eventosviby'.
  */
 
 let firestoreInstance: Firestore | null = null;
 
 export const db = (() => {
   if (!firestoreInstance) {
-    firestoreInstance = getFirestore(app);
+    // Conecta explicitamente ao banco de dados solicitado pelo usuário
+    firestoreInstance = getFirestore(app, "eventosviby");
   }
   return firestoreInstance;
 })();
