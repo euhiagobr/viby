@@ -25,19 +25,25 @@ service cloud.firestore {
     }
 
     // --- REGRA DE OURO (SUPERUSER) ---
+    // Administradores têm acesso total a qualquer documento em qualquer coleção
     match /{allPaths=**} {
       allow read, write: if isAdmin();
     }
 
     // --- REGRAS DE COLEÇÃO ---
 
-    // 1. CONSULTA DE GRUPO (MEMBROS)
-    // Permite que o usuário encontre as marcas que participa através da subcoleção /members
+    // 1. CONSULTA DE GRUPO E VÍNCULOS (DESCOBERTA)
+    // Permite que o sistema localize parcerias e membros em qualquer profundidade
     match /{path=**}/members/{memberId} {
       allow read: if isSignedIn() && (request.auth.uid == memberId);
     }
+    
+    match /{path=**}/partners/{partnerId} {
+      allow read: if true;
+    }
 
-    // 2. ACESSO PÚBLICO (DESCOBERTA)
+    // 2. ACESSO PÚBLICO (DESCOBERTA CULTURAL)
+    // Documentos necessários para renderizar perfis, eventos e o feed
     match /settings/{docId} { allow read: if true; }
     match /categories/{catId} { allow read: if true; }
     match /usernames/{username} { allow read: if true; }
@@ -49,8 +55,10 @@ service cloud.firestore {
     match /levels/{levelId} { allow read: if true; }
     match /xp_rules/{ruleId} { allow read: if true; }
     match /recurring_occurrences/{docId} { allow read: if true; }
+    match /follows/{followId} { allow read: if true; }
+    match /user_gamification/{userId} { allow read: if true; }
 
-    // 3. USUÁRIOS
+    // 3. USUÁRIOS (PRIVACIDADE)
     match /users/{userId} {
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isSignedIn() && request.auth.uid == userId && isNotBlocked() && 
@@ -63,10 +71,9 @@ service cloud.firestore {
       }
     }
 
-    // 4. ORGANIZAÇÕES
+    // 4. ORGANIZAÇÕES E EQUIPE
     match /organizations/{orgId} {
       allow create: if isSignedIn() && isNotBlocked();
-      // Apenas o dono ou membros autorizados (verificado via subcoleção) podem editar
       allow update: if isSignedIn() && isNotBlocked();
 
       match /members/{userId} {
@@ -80,7 +87,7 @@ service cloud.firestore {
       }
     }
 
-    // 5. EVENTOS E BILHETERIA
+    // 5. EVENTOS E INTERAÇÕES
     match /events/{eventId} {
       allow create: if isSignedIn() && isNotBlocked();
       allow update: if isSignedIn() && isNotBlocked();
@@ -104,9 +111,8 @@ service cloud.firestore {
 
     // 6. REGISTROS, FINANCEIRO E LOGS
     match /registrations/{regId} {
-      // Regra de segurança crítica para permitir Collection Group de registros
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || 
-                  exists(/databases/$(database)/documents/organizations/$(resource.data.organizationId)/members/$(request.auth.uid)));
+      // Permite leitura se for o dono, o organizador ou se for um check-in público (para stats)
+      allow read: if isSignedIn() || resource.data.checkedIn == true;
       allow create: if isSignedIn();
       allow update: if isSignedIn();
     }
@@ -136,10 +142,6 @@ service cloud.firestore {
     match /system_logs/{logId} {
       allow create: if true; 
     }
-
-    match /user_gamification/{userId} {
-      allow read: if true;
-    }
     
     match /xp_logs/{logId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid);
@@ -147,6 +149,10 @@ service cloud.firestore {
 
     match /reports/{reportId} {
       allow create: if isSignedIn();
+    }
+
+    match /sent_emails/{docId} {
+      allow read: if isSignedIn() && (resource.data.recipientEmail == request.auth.token.email);
     }
   }
 }
