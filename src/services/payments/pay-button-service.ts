@@ -1,3 +1,4 @@
+
 'use client';
 
 import { 
@@ -12,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { db as staticDb } from "@/firebase/database";
 import { createCheckoutSession } from "@/app/actions/stripe";
-import { calculateVibyOfficialSplit, toCents } from "@/lib/financial-utils";
+import { calculateVibyOfficialSplit, calculateFinancialBreakdown, toCents } from "@/lib/financial-utils";
 import { CartItem } from "@/contexts/CartContext";
 
 export interface PayButtonOptions {
@@ -88,13 +89,14 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
 
   // 2. FLUXO PAGO (Stripe Connect Destination Charges)
   // Criamos o registro do pedido no Firestore para rastreabilidade
+  // Usamos calculateFinancialBreakdown para manter compatibilidade de nomes de campos no banco
   const orderData = {
     userId: user.uid,
     userEmail: user.email,
     userName: profile?.name || user.displayName || "Comprador",
     items: items.map(item => ({
       ...item,
-      financials: calculateVibyOfficialSplit(item.price)
+      financials: calculateFinancialBreakdown(item.price)
     })),
     totals: {
       subtotal: totals.subtotal,
