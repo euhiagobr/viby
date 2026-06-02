@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -10,7 +9,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, Save, Handshake, LayoutGrid, Settings2, Ticket, RefreshCw, AlertTriangle, Trash2, Calendar, Clock, X, ShieldAlert } from "lucide-react"
+import { Loader2, ArrowLeft, Save, Handshake, LayoutGrid, Settings2, Ticket, RefreshCw, AlertTriangle, Trash2, Calendar, Clock, X, ShieldAlert, Eye } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -244,17 +243,17 @@ export default function EditarEventoPage() {
 
       <Tabs defaultValue="geral" className="space-y-8">
         <div className="flex justify-center">
-           <TabsList className="bg-muted/50 p-1 rounded-2xl h-14 overflow-x-auto">
-              <TabsTrigger value="geral" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">
+           <TabsList className="bg-muted/50 p-1 rounded-xl h-14 overflow-x-auto">
+              <TabsTrigger value="geral" className="rounded-lg px-8 font-black uppercase text-[10px] tracking-widest gap-2">
                  <Settings2 className="w-4 h-4" /> Informações
               </TabsTrigger>
-              <TabsTrigger value="recorrencia" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">
+              <TabsTrigger value="recorrencia" className="rounded-lg px-8 font-black uppercase text-[10px] tracking-widest gap-2">
                  <RefreshCw className="w-4 h-4" /> Recorrência
               </TabsTrigger>
-              <TabsTrigger value="bilheteria" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">
+              <TabsTrigger value="bilheteria" className="rounded-lg px-8 font-black uppercase text-[10px] tracking-widest gap-2">
                  <Ticket className="w-4 h-4" /> Bilheteria
               </TabsTrigger>
-              <TabsTrigger value="parceiros" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">
+              <TabsTrigger value="parceiros" className="rounded-lg px-8 font-black uppercase text-[10px] tracking-widest gap-2">
                  <Handshake className="w-4 h-4" /> Co-realização
               </TabsTrigger>
            </TabsList>
