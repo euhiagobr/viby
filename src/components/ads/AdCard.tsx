@@ -1,8 +1,7 @@
-
 "use client"
 
 import * as React from "react"
-import { ExternalLink, Globe, Layout, Megaphone, Navigation, Users, CheckCircle2, ArrowRight, ImageIcon, BadgeCheck } from "lucide-react"
+import { ExternalLink, Globe, Megaphone, Navigation, Users, CheckCircle2, ArrowRight, ImageIcon, BadgeCheck } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -12,7 +11,7 @@ import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useFirestore, useDoc, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
 import { doc, updateDoc, increment, serverTimestamp, collection, query, where, getDoc, setDoc } from "firebase/firestore"
-import { EventCard } from "@/components/events/EventCard"
+import { EventCard } from "../events/EventCard"
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (

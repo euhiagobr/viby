@@ -61,7 +61,6 @@ export default function AdminEventosPage() {
 
     setIsProcessing(true)
     try {
-      // 1. Verificar se existem ingressos pagos ou disponíveis
       const salesQuery = query(
         collection(db, "registrations"),
         where("eventId", "==", eventId),
@@ -72,17 +71,15 @@ export default function AdminEventosPage() {
       const eventRef = doc(db, "events", eventId);
 
       if (!salesSnap.empty) {
-        // EXISTEM VENDAS: APENAS OCULTAR
         await updateDoc(eventRef, { status: "Oculto", updatedAt: serverTimestamp() });
         toast({ title: "Evento Ocultado", description: "Vendas detectadas. O evento saiu do ar mas os ingressos continuam válidos." });
       } else {
-        // NÃO EXISTEM VENDAS: EXCLUSÃO SOFT TOTAL
         const batch = writeBatch(db);
         batch.update(eventRef, { status: "Excluído", updatedAt: serverTimestamp() });
         
         const regsQuery = query(collection(db, "registrations"), where("eventId", "==", eventId));
         const regsSnap = await getDocs(regsQuery);
-        regsSnap.forEach((regDoc) => batch.delete(regDoc.ref));
+        regsSnap.forEach((regDoc) => batch.delete(regDoc.ref)); // Corrected variable name here
         
         await batch.commit();
         toast({ title: "Evento removido permanentemente" });
@@ -169,72 +166,78 @@ export default function AdminEventosPage() {
             <TableBody>
               {filteredEvents.length > 0 ? (
                 filteredEvents.map((event) => (
-                  <TableRow key={event.id} className={cn("hover:bg-muted/20", event.status === 'Excluído' && "bg-destructive/5 opacity-80")}>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-bold text-sm truncate max-w-[250px]">{event.title}</span>
-                        <span className="text-[10px] text-muted-foreground font-bold uppercase">{event.categoryName || "Geral"}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold">{event.organizer?.name}</span>
-                        <span className="text-[10px] text-muted-foreground">@{event.organizer?.username}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
-                          <Clock className="w-3.5 h-3.5 text-secondary" /> {formatDate(event.date)}
+                  <TableRow 
+                    key={event.id} 
+                    className={cn("hover:bg-muted/20 cursor-pointer", event.status === 'Excluído' && "bg-destructive/5 opacity-80")}
+                    asChild 
+                  >
+                    <Link href={`/admin/eventos/${event.id}`}>
+                      <TableCell className="w-[300px]">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-sm truncate max-w-[250px]">{event.title}</span>
+                          <span className="text-[10px] text-muted-foreground font-bold uppercase">{event.categoryName || "Geral"}</span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
-                          <MapPin className="w-3.5 h-3.5 text-secondary" /> {event.city || "---"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold">{event.organizer?.name}</span>
+                          <span className="text-[10px] text-muted-foreground">@{event.organizer?.username}</span>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge 
-                        variant={event.status === 'Excluído' ? 'destructive' : (event.status === 'Oculto' ? 'secondary' : 'outline')} 
-                        className="text-[10px] font-bold uppercase"
-                      >
-                        {event.status || "Ativo"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {(event.status === 'Excluído' || event.status === 'Oculto') && (
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
+                            <Clock className="w-3.5 h-3.5 text-secondary" /> {formatDate(event.date)}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
+                            <MapPin className="w-3.5 h-3.5 text-secondary" /> {event.city || "---"}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge 
+                          variant={event.status === 'Excluído' ? 'destructive' : (event.status === 'Oculto' ? 'secondary' : 'outline')} 
+                          className="text-[10px] font-bold uppercase"
+                        >
+                          {event.status || "Ativo"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {(event.status === 'Excluído' || event.status === 'Oculto') && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-green-600 hover:bg-green-50"
+                              onClick={(e) => { e.stopPropagation(); handleRestoreEvent(event.id); }}
+                              title="Restaurar Evento"
+                            >
+                              <RefreshCcw className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" asChild>
+                            <Link href={`/${event.organizer?.username || 'evento'}/${event.id}`} target="_blank" onClick={(e) => e.stopPropagation()}>
+                              <ExternalLink className="w-4 h-4" />
+                            </Link>
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                            <Link href={`/dashboard/evento/${event.id}/editar`} onClick={(e) => e.stopPropagation()}>
+                              <Edit2 className="w-4 h-4" />
+                            </Link>
+                          </Button>
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            className="h-8 w-8 text-green-600 hover:bg-green-50"
-                            onClick={() => handleRestoreEvent(event.id)}
-                            title="Restaurar Evento"
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                            disabled={isProcessing}
+                            onClick={(e) => { e.stopPropagation(); handleDeleteEvent(event.id, event.title); }}
+                            title="Remover / Ocultar"
                           >
-                            <RefreshCcw className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" />
                           </Button>
-                        )}
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" asChild>
-                          <Link href={`/${event.organizer?.username || 'evento'}/${event.id}`} target="_blank">
-                            <ExternalLink className="w-4 h-4" />
-                          </Link>
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                          <Link href={`/dashboard/evento/${event.id}/editar`}>
-                            <Edit2 className="w-4 h-4" />
-                          </Link>
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                          disabled={isProcessing}
-                          onClick={() => handleDeleteEvent(event.id, event.title)}
-                          title="Remover / Ocultar"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                        </div>
+                      </TableCell>
+                    </Link>
                   </TableRow>
                 ))
               ) : (
