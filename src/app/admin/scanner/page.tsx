@@ -20,18 +20,16 @@ import {
   Ticket,
   RefreshCw,
   ArrowLeft,
-  DollarSign,
   Clock,
   ShieldAlert,
-  UserCheck,
-  Lock
+  Lock,
+  Search
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { processGamificationEvent } from "@/lib/gamification-service"
-import { formatCurrency } from "@/lib/financial-utils"
 
 export default function AdminScannerPage() {
   const db = useFirestore()
@@ -43,58 +41,60 @@ export default function AdminScannerPage() {
   const [isValidating, setIsValidating] = React.useState(false)
   const [ticketData, setTicketData] = React.useState<any>(null)
   const [error, setError] = React.useState<string | null>(null)
-  const [occData, setOccData] = React.useState<any>(null)
 
   const scannerInstance = React.useRef<Html5Qrcode | null>(null)
 
+  const stopCamera = React.useCallback(async () => {
+    if (scannerInstance.current && scannerInstance.current.isScanning) {
+      try { 
+        await scannerInstance.current.stop(); 
+        scannerInstance.current.clear(); 
+        scannerInstance.current = null; 
+      } catch (e) {
+        console.warn("Erro ao parar câmera:", e);
+      }
+    }
+  }, []);
+
   const startCamera = async () => {
     setMode('camera');
+    // Pequeno delay para garantir que o elemento DOM 'reader' esteja pronto
     setTimeout(async () => {
       try {
         const html5QrCode = new Html5Qrcode("reader");
         scannerInstance.current = html5QrCode;
         await html5QrCode.start(
           { facingMode: "environment" }, 
-          { fps: 10, qrbox: { width: 250, height: 250 } }, 
+          { fps: 15, qrbox: { width: 250, height: 250 } }, 
           (decodedText) => {
+            // Sucesso na leitura: Para a câmera antes de processar para ganhar performance
             stopCamera();
             processScanResult(decodedText);
           }, 
-          () => {}
+          () => {} // Ignora erros de frame sem leitura
         );
       } catch (err) {
-        toast({ variant: "destructive", title: "Câmera bloqueada" });
+        console.error("Câmera erro:", err);
+        toast({ variant: "destructive", title: "Câmera bloqueada", description: "Verifique as permissões do seu navegador." });
         setMode('idle');
       }
-    }, 300);
+    }, 100);
   }
-
-  const stopCamera = async () => {
-    if (scannerInstance.current && scannerInstance.current.isScanning) {
-      try { await scannerInstance.current.stop(); scannerInstance.current.clear(); scannerInstance.current = null; } catch (e) {}
-    }
-  }
-
-  const processScanResult = (decodedText: string) => {
-    try {
-      const data = JSON.parse(decodedText);
-      // O QR Code Viby v3.0 envia 'reg' (document ID) e 'code' (ticketCode)
-      validateTicket(data.code || data.reg || decodedText);
-    } catch (e) {
-      validateTicket(decodedText);
-    }
-  };
 
   const validateTicket = async (input: string) => {
     if (!db || !input) return
-    setIsValidating(true); setError(null); setTicketData(null); setOccData(null);
-    setMode('manual');
+    
+    setIsValidating(true); 
+    setError(null); 
+    setTicketData(null);
+    setMode('manual'); // Garante que a interface mude para o modo de resultado
 
     const cleanInput = input.trim();
 
     try {
-      // 1. Tentar busca por ID direto (mais rápido e preciso se disponível no QR)
       let targetDoc: any = null;
+
+      // 1. Tentar busca por ID (Formato padrão do Firebase)
       if (cleanInput.length >= 20 && !cleanInput.includes('-')) {
         const docRef = doc(db, "registrations", cleanInput);
         const docSnap = await getDoc(docRef);
@@ -103,7 +103,7 @@ export default function AdminScannerPage() {
         }
       }
 
-      // 2. Se não achou por ID, tenta busca por ticketCode (formato XXXX-XXXX-...)
+      // 2. Busca por ticketCode (Formato XXXX-XXXX...)
       if (!targetDoc) {
         const q = query(collection(db, "registrations"), where("ticketCode", "==", cleanInput.toUpperCase()));
         const snap = await getDocs(q);
@@ -117,32 +117,23 @@ export default function AdminScannerPage() {
       } else {
         const isCancelled = targetDoc.status === 'cancelled' || targetDoc.status === 'refunded' || targetDoc.paymentStatus === 'refunded_wallet' || targetDoc.status === 'Cancelado';
         
+        // Validação de horário simplificada (usa dados do próprio ingresso para ser imediato)
         const now = new Date();
         let invalidTime = false;
         let windowInfo = { start: null as Date | null, end: null as Date | null };
 
-        // Lógica de Janela de Tempo
-        if (targetDoc.occurrenceId) {
-           const oSnap = await getDoc(doc(db, "recurring_occurrences", targetDoc.occurrenceId));
-           if (oSnap.exists()) {
-              const occ = oSnap.data();
-              setOccData(occ);
-              const startDateTime = new Date(`${occ.date}T${occ.startTime}:00`);
-              let endDateTime = new Date(`${occ.date}T${occ.endTime}:00`);
-              if (occ.endTime <= occ.startTime) endDateTime.setDate(endDateTime.getDate() + 1);
-              windowInfo = { start: startDateTime, end: endDateTime };
-              // Adicionamos uma margem de 1h antes para check-in antecipado
-              if (now < new Date(startDateTime.getTime() - 3600000) || now > endDateTime) invalidTime = true;
-           }
-        } else {
-           const eSnap = await getDoc(doc(db, "events", targetDoc.eventId));
-           if (eSnap.exists()) {
-              const ev = eSnap.data();
-              const startDateTime = ev.date?.toDate ? ev.date.toDate() : new Date(ev.date);
-              const endDateTime = ev.endDate?.toDate ? ev.endDate.toDate() : (ev.endDate ? new Date(ev.endDate) : new Date(startDateTime.getTime() + 4 * 60 * 60 * 1000));
-              windowInfo = { start: startDateTime, end: endDateTime };
-              if (now < new Date(startDateTime.getTime() - 3600000) || now > endDateTime) invalidTime = true;
-           }
+        const eventStart = targetDoc.eventDate?.toDate ? targetDoc.eventDate.toDate() : new Date(targetDoc.eventDate);
+        // Assumimos 8h de janela de validação se não houver data de término
+        const eventEnd = targetDoc.eventEndDate?.toDate ? targetDoc.eventEndDate.toDate() : new Date(eventStart.getTime() + 8 * 60 * 60 * 1000);
+        
+        windowInfo = { start: eventStart, end: eventEnd };
+        
+        // Tolerância de 2h antes e 4h depois da janela oficial
+        const toleranceBefore = 2 * 60 * 60 * 1000;
+        const toleranceAfter = 4 * 60 * 60 * 1000;
+
+        if (now.getTime() < (eventStart.getTime() - toleranceBefore) || now.getTime() > (eventEnd.getTime() + toleranceAfter)) {
+          invalidTime = true;
         }
 
         setTicketData({ 
@@ -150,15 +141,27 @@ export default function AdminScannerPage() {
           isCancelled, 
           invalidTime,
           windowInfo 
-        })
+        });
       }
-    } catch (err) {
-      setError("Falha técnica na consulta.");
-    } finally { setIsValidating(false) }
+    } catch (err: any) {
+      console.error(err);
+      setError("Falha técnica na consulta. Tente novamente.");
+    } finally { 
+      setIsValidating(false); 
+    }
   }
 
+  const processScanResult = (decodedText: string) => {
+    try {
+      const data = JSON.parse(decodedText);
+      validateTicket(data.code || data.reg || decodedText);
+    } catch (e) {
+      validateTicket(decodedText);
+    }
+  };
+
   const handleConfirmCheckIn = async () => {
-    if (!db || !ticketData || !currentUser) return
+    if (!db || !ticketData || !currentUser || isValidating) return
     setIsValidating(true)
     
     try {
@@ -181,24 +184,33 @@ export default function AdminScannerPage() {
         })
       })
 
-      await processGamificationEvent(db, ticketData.userId, 'on_checkin', { eventTitle: ticketData.eventTitle }, ticketData.id);
+      // Gamificação em background
+      processGamificationEvent(db, ticketData.userId, 'on_checkin', { eventTitle: ticketData.eventTitle }, ticketData.id);
       
       setTicketData({ ...ticketData, checkedIn: true })
-      toast({ title: "Check-in realizado com sucesso!" })
+      toast({ title: "Check-in realizado!", description: "Acesso liberado para " + ticketData.userName });
     } catch (err: any) { 
       setError(err.message)
       toast({ variant: "destructive", title: "Falha na validação", description: err.message }) 
     }
-    finally { setIsValidating(false) }
+    finally { 
+      setIsValidating(false) 
+    }
   }
 
-  const resetScanner = () => { stopCamera(); setMode('idle'); setTicketData(null); setError(null); setManualCode(""); setOccData(null); }
+  const resetScanner = () => { 
+    stopCamera(); 
+    setMode('idle'); 
+    setTicketData(null); 
+    setError(null); 
+    setManualCode(""); 
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-20 invisible-scrollbar">
       <div className="flex items-center justify-between px-4">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild><Link href="/dashboard"><ArrowLeft className="w-5 h-5" /></Link></Button>
+          <Button variant="ghost" size="icon" asChild><Link href="/admin"><ArrowLeft className="w-5 h-5" /></Link></Button>
           <h1 className="text-3xl font-black italic tracking-tighter text-primary uppercase">Validação</h1>
         </div>
         <Button variant="outline" size="sm" onClick={resetScanner} className="rounded-full gap-2 font-bold text-xs uppercase"><RefreshCw className="w-4 h-4" /> Reset</Button>
@@ -216,52 +228,69 @@ export default function AdminScannerPage() {
       )}
 
       {mode === 'camera' && (
-        <Card className="overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white mx-4"><div id="reader" className="w-full bg-black aspect-square"></div><Button variant="ghost" className="w-full h-16 font-black uppercase text-muted-foreground" onClick={resetScanner}>Cancelar</Button></Card>
+        <Card className="overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white mx-4">
+          <div id="reader" className="w-full bg-black aspect-square"></div>
+          <Button variant="ghost" className="w-full h-16 font-black uppercase text-muted-foreground" onClick={resetScanner}>Cancelar Leitura</Button>
+        </Card>
       )}
 
       {mode === 'manual' && !ticketData && !error && (
         <Card className="mx-4 border-none shadow-sm rounded-[2.5rem] bg-white">
-          <CardHeader className="p-8"><CardTitle className="text-xl font-black italic uppercase">Entrada Manual</CardTitle></CardHeader>
+          <CardHeader className="p-8"><CardTitle className="text-xl font-black italic uppercase">Consulta de Código</CardTitle></CardHeader>
           <CardContent className="p-8 pt-0 space-y-6">
-            <Input placeholder="CÓDIGO DE 16 DÍGITOS" value={manualCode} onChange={(e) => setManualCode(e.target.value.toUpperCase())} className="font-mono text-xl h-16 text-center rounded-2xl" />
-            <Button className="w-full bg-secondary text-white font-black h-16 rounded-2xl shadow-xl uppercase italic" onClick={() => validateTicket(manualCode)} disabled={isValidating}>Validar</Button>
+            <Input 
+              placeholder="DIGITE O CÓDIGO" 
+              value={manualCode} 
+              onChange={(e) => setManualCode(e.target.value.toUpperCase())} 
+              className="font-mono text-xl h-16 text-center rounded-2xl" 
+              onKeyDown={(e) => e.key === 'Enter' && validateTicket(manualCode)}
+            />
+            <Button className="w-full bg-secondary text-white font-black h-16 rounded-2xl shadow-xl uppercase italic" onClick={() => validateTicket(manualCode)} disabled={isValidating}>
+              {isValidating ? <Loader2 className="animate-spin mr-2" /> : <Search className="w-5 h-5 mr-2" />}
+              Localizar Ingresso
+            </Button>
           </CardContent>
         </Card>
       )}
 
-      {error && (
+      {isValidating && (
+        <div className="flex flex-col items-center justify-center py-20 gap-4 animate-in fade-in">
+           <Loader2 className="w-12 h-12 animate-spin text-secondary" />
+           <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Consultando base de dados...</p>
+        </div>
+      )}
+
+      {error && !isValidating && (
         <Card className="mx-4 border-destructive bg-destructive/5 rounded-[2.5rem] p-12 flex flex-col items-center text-center gap-6">
-          <XCircle className="w-20 h-20 text-destructive" /><h3 className="font-black text-2xl uppercase italic">Erro de Validação</h3><p className="text-sm font-bold text-destructive uppercase">{error}</p>
-          <Button variant="outline" onClick={resetScanner} className="rounded-xl border-destructive text-destructive uppercase text-xs font-black">Tentar outro ingresso</Button>
+          <XCircle className="w-20 h-20 text-destructive" /><h3 className="font-black text-2xl uppercase italic">Falha na Busca</h3><p className="text-sm font-bold text-destructive uppercase">{error}</p>
+          <Button variant="outline" onClick={resetScanner} className="rounded-xl border-destructive text-destructive uppercase text-xs font-black h-12 px-8">Novo Scan</Button>
         </Card>
       )}
 
-      {ticketData && (
-        <div className="px-4">
-           {ticketData.isCancelled && (
+      {ticketData && !isValidating && (
+        <div className="px-4 animate-in zoom-in-95 duration-300">
+           {ticketData.isCancelled ? (
              <Card className="border-none shadow-2xl rounded-[3rem] bg-destructive text-white p-12 text-center space-y-6">
                 <XCircle className="w-20 h-20 mx-auto opacity-40" />
                 <h2 className="text-4xl font-black uppercase italic tracking-tighter leading-none">Ingresso Inválido</h2>
-                <p className="font-medium opacity-80">Este ticket foi invalidado por estorno ou cancelamento.</p>
-                <Button variant="outline" onClick={resetScanner} className="border-white text-white hover:bg-white hover:text-destructive rounded-xl">Novo Scan</Button>
+                <p className="font-medium opacity-80 uppercase text-xs">Este voucher foi invalidado por estorno ou cancelamento administrativo.</p>
+                <Button variant="outline" onClick={resetScanner} className="border-white text-white hover:bg-white hover:text-destructive rounded-xl h-12 px-8">Voltar</Button>
              </Card>
-           )}
-
-           {!ticketData.isCancelled && (
+           ) : (
              <Card className={cn("overflow-hidden shadow-2xl rounded-[2.5rem] border-none bg-white", ticketData.checkedIn ? "ring-4 ring-orange-500/20" : "ring-4 ring-green-500/20")}>
                <CardHeader className={cn("p-8", ticketData.checkedIn ? "bg-orange-500 text-white" : "bg-green-500 text-white")}>
                   <CardTitle className="font-black italic uppercase text-2xl flex items-center gap-3">
                      {ticketData.checkedIn ? <ShieldAlert /> : <CheckCircle2 />}
-                     {ticketData.checkedIn ? "JÁ UTILIZADO" : "INGRESSO VÁLIDO"}
+                     {ticketData.checkedIn ? "JÁ UTILIZADO" : "VOUCHER ATIVO"}
                   </CardTitle>
                </CardHeader>
                <CardContent className="p-10 space-y-8">
                   {ticketData.invalidTime && !ticketData.checkedIn && (
-                     <div className="p-4 bg-orange-50 border-2 border-dashed border-orange-200 rounded-2xl flex items-start gap-4">
+                     <div className="p-4 bg-orange-50 border-2 border-dashed border-orange-200 rounded-2xl flex items-start gap-4 animate-in slide-in-from-top-2">
                         <Clock className="w-6 h-6 text-orange-600 shrink-0 mt-1" />
                         <div className="space-y-1">
-                           <p className="font-black uppercase text-[10px] text-orange-800">Fora do Horário Sugerido</p>
-                           <p className="text-[10px] font-medium text-orange-700 uppercase">Validade esperada: {ticketData.windowInfo.start?.toLocaleString('pt-BR')} às {ticketData.windowInfo.end?.toLocaleTimeString('pt-BR')}</p>
+                           <p className="font-black uppercase text-[10px] text-orange-800">Fora da Janela Oficial</p>
+                           <p className="text-[9px] font-medium text-orange-700 uppercase">Esperado para: {ticketData.windowInfo.start?.toLocaleString('pt-BR')}</p>
                         </div>
                      </div>
                   )}
@@ -269,19 +298,25 @@ export default function AdminScannerPage() {
                   <div className="space-y-6">
                      <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center"><User className="w-6 h-6 text-secondary" /></div>
-                        <div><p className="text-[10px] font-black uppercase opacity-40">Participante</p><p className="font-black text-xl text-primary uppercase italic">{ticketData.userName}</p></div>
+                        <div><p className="text-[10px] font-black uppercase opacity-40">Participante</p><p className="font-black text-xl text-primary uppercase italic truncate max-w-[300px]">{ticketData.userName}</p></div>
                      </div>
                      <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center"><Calendar className="w-6 h-6 text-secondary" /></div>
-                        <div><p className="text-[10px] font-black uppercase opacity-40">Evento</p><p className="font-bold text-sm uppercase">{ticketData.eventTitle}</p></div>
+                        <div><p className="text-[10px] font-black uppercase opacity-40">Evento / Lote</p><p className="font-bold text-sm uppercase truncate max-w-[300px]">{ticketData.eventTitle} <span className="text-secondary">({ticketData.batchName})</span></p></div>
                      </div>
                   </div>
-                  {!ticketData.checkedIn && (
-                    <Button onClick={handleConfirmCheckIn} disabled={isValidating} className="w-full bg-green-600 hover:bg-green-700 text-white font-black h-24 text-2xl rounded-[2rem] shadow-xl uppercase italic">
+
+                  {!ticketData.checkedIn ? (
+                    <Button onClick={handleConfirmCheckIn} disabled={isValidating} className="w-full bg-green-600 hover:bg-green-700 text-white font-black h-24 text-2xl rounded-[2rem] shadow-xl uppercase italic transition-all active:scale-95">
                        {isValidating ? <Loader2 className="animate-spin" /> : "LIBERAR ACESSO"}
                     </Button>
+                  ) : (
+                    <div className="p-6 bg-muted/30 rounded-2xl border-2 border-dashed border-border/60 text-center">
+                       <p className="text-[10px] font-black uppercase text-muted-foreground mb-1">Check-in realizado em</p>
+                       <p className="font-bold text-sm text-primary">{ticketData.checkedInAt?.toDate ? ticketData.checkedInAt.toDate().toLocaleString('pt-BR') : '---'}</p>
+                    </div>
                   )}
-                  <Button variant="ghost" className="w-full h-12 font-black text-muted-foreground uppercase text-[10px]" onClick={resetScanner}>Voltar / Novo Scan</Button>
+                  <Button variant="ghost" className="w-full h-12 font-black text-muted-foreground uppercase text-[10px] hover:bg-muted/50 rounded-xl" onClick={resetScanner}>Voltar / Novo Scan</Button>
                </CardContent>
              </Card>
            )}
