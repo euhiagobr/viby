@@ -56,8 +56,6 @@ service cloud.firestore {
     match /users/{userId} {
       allow create: if isSignedIn() && request.auth.uid == userId;
       
-      // Impede alteração de CPF se ele já existir (resource.data.cpf != null)
-      // Permite o preenchimento inicial se estiver vazio
       allow update: if isSignedIn() && request.auth.uid == userId && isNotBlocked() && 
         (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['cpf']) || 
@@ -76,7 +74,21 @@ service cloud.firestore {
 
     match /organizations/{orgId} {
       allow create: if isSignedIn() && isNotBlocked();
-      allow update: if isSignedIn() && isNotBlocked();
+      
+      // Permite update se for dono logado OU se for um update técnico de onboarding (vinda do servidor sem auth)
+      allow update: if (isSignedIn() && isNotBlocked()) || 
+        (
+          request.auth == null && 
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'stripeAccountId', 
+            'stripeOnboardingComplete', 
+            'stripeChargesEnabled', 
+            'stripePayoutsEnabled', 
+            'stripeDetailsSubmitted',
+            'payoutSettings', 
+            'updatedAt'
+          ])
+        );
 
       match /members/{userId} {
         allow read: if isSignedIn();
