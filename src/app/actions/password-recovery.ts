@@ -1,3 +1,4 @@
+
 'use server';
 
 import { collection, query, where, getDocs, limit, getFirestore, addDoc, serverTimestamp, doc, updateDoc, Timestamp, getDoc as firestoreGetDoc } from 'firebase/firestore';
@@ -126,6 +127,8 @@ export async function resetPasswordWithCode(requestId: string, code: string, pas
 
     // 1. Atualiza a senha no Firebase Auth via Admin SDK
     const adminAuth = getAdminAuth();
+    console.log(`[Admin Auth] Redefinindo senha para UID: ${userId}`);
+    
     await adminAuth.updateUser(userId, {
       password: password
     });
