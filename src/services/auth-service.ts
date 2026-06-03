@@ -20,6 +20,7 @@ import {
   runTransaction,
   increment
 } from "firebase/firestore";
+import { sendWelcomeEmail } from "@/app/actions/email";
 
 export const authConfig = {
   google: process.env.NEXT_PUBLIC_AUTH_GOOGLE === 'true' || true,
@@ -100,6 +101,14 @@ export async function signInWithProvider(auth: Auth, db: Firestore, providerName
           transaction.update(vibyOrgRef, { followersCount: increment(1) });
         }
       });
+
+      // Disparar e-mail de boas-vindas para o novo usuário social
+      if (user.email) {
+        sendWelcomeEmail({
+          to: user.email,
+          userName: initialName
+        }).catch(err => console.warn("[Auth Service] Falha ao enviar e-mail de boas-vindas social", err));
+      }
 
       return { user, isNew: true };
     } else {
