@@ -21,6 +21,13 @@ import { sendWelcomeEmail } from "@/app/actions/email";
 import { recordAuditLog } from "@/app/actions/audit";
 
 /**
+ * Configuração de provedores de autenticação social ativos.
+ */
+export const authConfig = {
+  google: true
+};
+
+/**
  * Garante que o documento do usuário exista no Firestore.
  * Modificado para suportar cadastro incompleto obrigatório.
  */
