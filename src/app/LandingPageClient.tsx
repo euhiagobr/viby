@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -46,13 +45,11 @@ export default function LandingPageClient() {
   const [searchName, setSearchName] = React.useState("")
   const [selectedCity, setSelectedCity] = React.useState("all")
   const [selectedCategory, setSelectedCategory] = React.useState("all")
-  const [radiusKm, setRadiusKm] = React.useState("unlimited") // Alterado para ilimitado por padrão
+  const [radiusKm, setRadiusKm] = React.useState("unlimited")
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
   
   const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
-
-  const [showLiveOnly, setShowLiveOnly] = React.useState(false)
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
@@ -96,14 +93,10 @@ export default function LandingPageClient() {
     console.log(`[Debug] Iniciando filtragem de ${events.length} eventos (Raio: ${radiusKm}km)...`);
 
     let result = events.filter(e => {
-      // 1. Busca por Nome
       if (searchName && !e.title?.toLowerCase().includes(searchName.toLowerCase())) return false;
-
-      // 2. Cidade e Categoria
       if (selectedCity !== 'all' && e.city !== selectedCity) return false;
       if (selectedCategory !== 'all' && e.categoryId !== selectedCategory) return false;
       
-      // 3. Parsing de Data
       const parseDate = (val: any) => {
         if (!val) return null;
         if (val.toDate) return val.toDate();
@@ -114,9 +107,6 @@ export default function LandingPageClient() {
       const eventDate = parseDate(e.date);
       if (!eventDate) return false;
 
-      const now = new Date();
-
-      // 4. Filtro de Data
       let matchesDate = true;
       if (dateFilter !== 'all') {
         const today = startOfToday();
@@ -127,29 +117,21 @@ export default function LandingPageClient() {
       }
       if (!matchesDate) return false;
 
-      // 5. Filtro de Raio (Causa do desaparecimento)
       if (userLocation && radiusKm !== 'unlimited' && e.latitude && e.longitude) {
         const dist = calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude });
-        console.log(`[Debug] Evento "${e.title}" está a ${dist.toFixed(1)}km`);
-        if (dist > parseInt(radiusKm)) {
-          console.log(`[Debug] Ocultando "${e.title}" por distância (> ${radiusKm}km)`);
-          return false;
-        }
+        if (dist > parseInt(radiusKm)) return false;
       }
 
       return true;
     });
 
-    const final = result.map(e => ({
+    return result.map(e => ({
       ...e,
       _score: calculateEventScore(e, {
         userLocation,
         maxRadiusKm: radiusKm === 'unlimited' ? 500 : parseInt(radiusKm)
       })
     })).sort((a, b) => b._score - a._score);
-
-    console.log(`[Debug] Filtragem concluída. Exibindo ${final.length} eventos.`);
-    return final;
   }, [events, searchName, selectedCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
 
   const interleavedContent = React.useMemo(() => {
