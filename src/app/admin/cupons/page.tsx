@@ -23,7 +23,8 @@ import {
   TrendingUp,
   Percent,
   Inbox,
-  FilterX
+  FilterX,
+  Info
 } from 'lucide-react';
 import {
   Dialog,
