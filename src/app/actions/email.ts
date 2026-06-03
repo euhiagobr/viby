@@ -1,3 +1,4 @@
+
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -6,8 +7,8 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 
 /**
- * @fileOverview Serviço de e-mail SMTP auditado para fluxos de segurança, boas-vindas e operação.
- * Todos os disparos registram obrigatoriamente um log em 'sent_emails'.
+ * @fileOverview Serviço de e-mail SMTP auditado. 
+ * Garante que todos os disparos (sem exceção) registrem um log em 'sent_emails'.
  */
 
 async function getDb() {
@@ -37,7 +38,7 @@ async function getTransporter() {
 }
 
 /**
- * Helper para registrar e-mails disparados no banco para auditoria.
+ * Helper interno para auditoria obrigatória de e-mails.
  */
 async function logSentEmail(data: {
   recipientEmail: string;
@@ -54,61 +55,54 @@ async function logSentEmail(data: {
       timestamp: serverTimestamp()
     });
   } catch (e) {
-    console.warn("[Email Log] Falha ao registrar log", e);
+    console.warn("[Email Audit Log] Falha ao registrar cópia de segurança", e);
   }
 }
 
 /**
- * Envia o código OTP de 6 dígitos para recuperação de senha.
+ * Envia o código OTP para recuperação de senha.
  */
 export async function sendOTPRecoveryEmail(data: { to: string; userName: string; otpCode: string }) {
   try {
     const transporter = await getTransporter();
-    const db = await getDb();
-    const snap = await getDoc(doc(db, 'settings', 'email'));
+    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 20px; border: 1px solid #eee; background: #fff;">
-        <h1 style="color: #2C52EE; font-style: italic; text-transform: uppercase; letter-spacing: -1px;">Viby.Club</h1>
-        <h2 style="color: #333; margin-top: 30px;">Recuperação de Acesso</h2>
-        <p style="color: #555; line-height: 1.6;">Olá, <strong>${data.userName}</strong>. Recebemos uma solicitação para redefinir sua senha.</p>
-        <p style="color: #555; line-height: 1.6;">Utilize o código de segurança de 6 dígitos abaixo para prosseguir:</p>
-        
-        <div style="background: #f8fafc; padding: 35px; text-align: center; border-radius: 20px; font-size: 42px; font-weight: 900; letter-spacing: 10px; color: #2C52EE; border: 2px dashed #cbd5e1; margin: 30px 0; font-family: monospace;">
+        <h1 style="color: #2C52EE; font-style: italic; text-transform: uppercase;">Viby.Club</h1>
+        <h2>Recuperação de Acesso</h2>
+        <p>Olá, <strong>${data.userName}</strong>. Utilize o código de segurança abaixo:</p>
+        <div style="background: #f8fafc; padding: 30px; text-align: center; border-radius: 20px; font-size: 32px; font-weight: 900; color: #2C52EE; border: 2px dashed #eee; margin: 20px 0;">
           ${data.otpCode}
         </div>
-        
-        <p style="font-size: 13px; color: #94a3b8; line-height: 1.6; text-align: center; border-top: 1px solid #eee; padding-top: 20px;">
-          Este código é válido por <strong>10 minutos</strong> e pode ser utilizado apenas uma vez.
-        </p>
+        <p style="font-size: 12px; color: #999;">Válido por 10 minutos.</p>
       </div>
     `;
 
+    const subject = `🔐 Seu código de acesso: ${data.otpCode}`;
     await transporter.sendMail({
       from: `"Viby Security" <${smtpUser}>`,
       to: data.to,
-      subject: `🔐 Seu código de acesso: ${data.otpCode}`,
+      subject,
       html: htmlContent
     });
 
     await logSentEmail({
       recipientEmail: data.to,
       recipientName: data.userName,
-      subject: "Recuperação de Acesso",
+      subject,
       content: htmlContent,
       type: "otp_recovery",
       sender: "Viby Security"
     });
 
     return { success: true };
-  } catch (e: any) { 
-    return { success: false, error: e.message }; 
-  }
+  } catch (e: any) { return { success: false, error: e.message }; }
 }
 
 /**
- * Envia notificação de segurança após alteração de senha.
+ * Notificação de segurança pós-alteração de senha.
  */
 export async function sendPasswordChangedNotificationEmail(data: { 
   to: string; 
@@ -119,20 +113,20 @@ export async function sendPasswordChangedNotificationEmail(data: {
 }) {
   try {
     const transporter = await getTransporter();
-    const db = await getDb();
-    const snap = await getDoc(doc(db, 'settings', 'email'));
+    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 20px; border: 1px solid #eee; background: #fff;">
-        <h1 style="color: #2C52EE; font-style: italic; text-transform: uppercase;">Viby Security</h1>
-        <h2 style="color: #333; margin-top: 30px;">Senha Alterada</h2>
-        <p style="color: #555; line-height: 1.6;">Olá, <strong>${data.userName}</strong>. Sua senha foi alterada com sucesso.</p>
-        <div style="background: #f8fafc; padding: 25px; border-radius: 15px; margin: 30px 0; border: 1px solid #e2e8f0;">
-          <p style="margin: 5px 0; font-size: 13px;"><strong>Data/Hora:</strong> ${data.timestamp}</p>
-          <p style="margin: 5px 0; font-size: 13px;"><strong>IP:</strong> ${data.ip}</p>
-          <p style="margin: 5px 0; font-size: 13px;"><strong>Local:</strong> ${data.location}</p>
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #eee;">
+        <h1 style="color: #2C52EE; text-transform: uppercase;">Viby Security</h1>
+        <h2>Sua senha foi alterada</h2>
+        <p>Olá, <strong>${data.userName}</strong>. Uma alteração de senha foi detectada.</p>
+        <div style="background: #f8fafc; padding: 20px; border-radius: 10px; margin: 20px 0;">
+          <p><strong>IP:</strong> ${data.ip}</p>
+          <p><strong>Local:</strong> ${data.location}</p>
+          <p><strong>Data:</strong> ${data.timestamp}</p>
         </div>
+        <p>Se não foi você, entre em contato imediatamente com o suporte.</p>
       </div>
     `;
 
@@ -154,21 +148,117 @@ export async function sendPasswordChangedNotificationEmail(data: {
     });
 
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
+  } catch (e: any) { return { success: false, error: e.message }; }
+}
+
+/**
+ * Notifica sobre a aprovação do selo de verificação.
+ */
+export async function sendVerificationStatusEmail(data: {
+  to: string;
+  userName: string;
+  targetName: string;
+  type: 'user' | 'organization';
+}) {
+  try {
+    const transporter = await getTransporter();
+    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
+    const smtpUser = snap.data()?.smtpUser;
+
+    const label = data.type === 'user' ? 'Perfil Verificado' : 'Marca Verificada';
+    const msg = data.type === 'user' 
+      ? `Seu perfil <strong>${data.targetName}</strong> agora possui o selo oficial de verificação.`
+      : `Sua marca <strong>${data.targetName}</strong> foi aprovada e agora é Verificada na plataforma.`;
+
+    const htmlContent = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #eee; border-radius: 20px;">
+        <h1 style="color: #2C52EE; font-style: italic;">Viby Oficial</h1>
+        <h2 style="color: #333;">🌟 ${label}</h2>
+        <p>Olá, <strong>${data.userName}</strong>.</p>
+        <p>${msg}</p>
+        <div style="background: #f0f4ff; padding: 20px; border-radius: 15px; margin: 25px 0; text-align: center; border: 1px solid #dbeafe;">
+          <p style="color: #2C52EE; font-weight: 900; margin: 0;">SELO DE CONFIANÇA ATIVADO</p>
+        </div>
+      </div>
+    `;
+
+    const subject = `🌟 Parabéns! Sua verificação foi aprovada: ${data.targetName}`;
+    await transporter.sendMail({
+      from: `"Viby Oficial" <${smtpUser}>`,
+      to: data.to,
+      subject,
+      html: htmlContent
+    });
+
+    await logSentEmail({
+      recipientEmail: data.to,
+      recipientName: data.userName,
+      subject,
+      content: htmlContent,
+      type: "verification_update",
+      sender: "Viby Oficial"
+    });
+
+    return { success: true };
+  } catch (e: any) { return { success: false, error: e.message }; }
+}
+
+/**
+ * Envia o voucher do ingresso.
+ */
+export async function sendTicketEmail(data: {
+  to: string;
+  userName: string;
+  eventTitle: string;
+  ticketCode: string;
+  eventDate: string;
+  voucherUrl: string;
+}) {
+  try {
+    const transporter = await getTransporter();
+    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
+    const smtpUser = snap.data()?.smtpUser;
+
+    const htmlContent = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #eee;">
+        <h1 style="color: #2C52EE;">Viby Ingressos</h1>
+        <h2>Sua presença está garantida!</h2>
+        <p>Evento: <strong>${data.eventTitle}</strong></p>
+        <p>Código: <strong>${data.ticketCode}</strong></p>
+        <p><a href="${data.voucherUrl}" style="background: #2C52EE; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 10px; font-weight: bold; display: inline-block;">Ver Voucher Digital</a></p>
+      </div>
+    `;
+
+    const subject = `🎟️ Seu ingresso: ${data.eventTitle}`;
+    await transporter.sendMail({
+      from: `"Viby Ingressos" <${smtpUser}>`,
+      to: data.to,
+      subject,
+      html: htmlContent
+    });
+
+    await logSentEmail({
+      recipientEmail: data.to,
+      recipientName: data.userName,
+      subject,
+      content: htmlContent,
+      type: "ticket_confirmation",
+      sender: "Viby Ingressos"
+    });
+
+    return { success: true };
+  } catch (e: any) { return { success: false, error: e.message }; }
 }
 
 export async function sendWelcomeEmail(data: any) {
   try {
     const transporter = await getTransporter();
-    const db = await getDb();
-    const snap = await getDoc(doc(db, 'settings', 'email'));
+    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 20px; border: 1px solid #eee; background: #fff;">
-        <h1 style="color: #2C52EE; font-style: italic; text-transform: uppercase;">${data.siteName || "Viby"}</h1>
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #eee;">
+        <h1 style="color: #2C52EE; text-transform: uppercase;">${data.siteName || "Viby"}</h1>
         <h2>Bem-vindo ao Clube!</h2>
         <p>Olá, <strong>${data.userName}</strong>. Sua conta foi criada com sucesso.</p>
       </div>
@@ -192,118 +282,7 @@ export async function sendWelcomeEmail(data: any) {
     });
 
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
-/**
- * Notifica sobre a verificação de perfil ou página.
- */
-export async function sendVerificationStatusEmail(data: {
-  to: string;
-  userName: string;
-  targetName: string;
-  type: 'user' | 'organization';
-}) {
-  try {
-    const transporter = await getTransporter();
-    const db = await getDb();
-    const snap = await getDoc(doc(db, 'settings', 'email'));
-    const smtpUser = snap.data()?.smtpUser;
-
-    const label = data.type === 'user' ? 'Perfil Verificado' : 'Marca Verificada';
-    const msg = data.type === 'user' 
-      ? `Seu perfil <strong>${data.targetName}</strong> agora possui o selo oficial de verificação.`
-      : `Sua marca <strong>${data.targetName}</strong> foi aprovada e agora é Verificada na plataforma.`;
-
-    const htmlContent = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 20px; border: 1px solid #eee; background: #fff;">
-        <h1 style="color: #2C52EE; font-style: italic; text-transform: uppercase;">Viby Oficial</h1>
-        <h2 style="color: #333; margin-top: 30px;">🌟 ${label}</h2>
-        <p style="color: #555; line-height: 1.6;">Olá, <strong>${data.userName}</strong>.</p>
-        <p style="color: #555; line-height: 1.6;">${msg}</p>
-        <div style="background: #f0f4ff; padding: 20px; border-radius: 15px; margin: 30px 0; border: 1px solid #dbeafe; text-align: center;">
-          <p style="color: #2C52EE; font-weight: 900; margin: 0; font-size: 18px;">SELO DE CONFIANÇA ATIVADO</p>
-        </div>
-        <p style="font-size: 13px; color: #94a3b8; line-height: 1.6;">O selo de verificação aumenta sua credibilidade e destaca suas publicações no feed global.</p>
-      </div>
-    `;
-
-    const subject = `🌟 Parabéns! Sua verificação foi aprovada: ${data.targetName}`;
-    await transporter.sendMail({
-      from: `"Viby Oficial" <${smtpUser}>`,
-      to: data.to,
-      subject,
-      html: htmlContent
-    });
-
-    await logSentEmail({
-      recipientEmail: data.to,
-      recipientName: data.userName,
-      subject,
-      content: htmlContent,
-      type: "verification_update",
-      sender: "Viby Oficial"
-    });
-
-    return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
-/**
- * Envia o voucher do ingresso.
- */
-export async function sendTicketEmail(data: {
-  to: string;
-  userName: string;
-  eventTitle: string;
-  ticketCode: string;
-  eventDate: string;
-  voucherUrl: string;
-  eventCity?: string;
-}) {
-  try {
-    const transporter = await getTransporter();
-    const db = await getDb();
-    const snap = await getDoc(doc(db, 'settings', 'email'));
-    const smtpUser = snap.data()?.smtpUser;
-
-    const htmlContent = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 20px; border: 1px solid #eee; background: #fff;">
-        <h1 style="color: #2C52EE; font-style: italic; text-transform: uppercase;">Viby Ingressos</h1>
-        <h2>Sua presença está garantida!</h2>
-        <p>Olá, <strong>${data.userName}</strong>. Seu ingresso para <strong>${data.eventTitle}</strong> já está disponível.</p>
-        <div style="background: #f8fafc; padding: 25px; border-radius: 15px; margin: 20px 0; border: 1px solid #e2e8f0; text-align: center;">
-          <p style="font-size: 24px; font-weight: 900; color: #2C52EE; margin: 0;">${data.ticketCode}</p>
-        </div>
-        <p><a href="${data.voucherUrl}" style="background: #2C52EE; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 10px; font-weight: bold; display: inline-block;">Ver Voucher Digital</a></p>
-      </div>
-    `;
-
-    const subject = `🎟️ Seu ingresso: ${data.eventTitle}`;
-    await transporter.sendMail({
-      from: `"Viby Ingressos" <${smtpUser}>`,
-      to: data.to,
-      subject,
-      html: htmlContent
-    });
-
-    await logSentEmail({
-      recipientEmail: data.to,
-      recipientName: data.userName,
-      subject,
-      content: htmlContent,
-      type: "ticket_confirmation",
-      sender: "Viby Ingressos"
-    });
-
-    return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
+  } catch (e: any) { return { success: false, error: e.message }; }
 }
 
 /**
@@ -318,8 +297,7 @@ export async function resendLoggedEmail(data: {
 }) {
   try {
     const transporter = await getTransporter();
-    const db = await getDb();
-    const snap = await getDoc(doc(db, 'settings', 'email'));
+    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
     const smtpUser = snap.data()?.smtpUser;
 
     await transporter.sendMail({
@@ -330,24 +308,21 @@ export async function resendLoggedEmail(data: {
     });
 
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
+  } catch (e: any) { return { success: false, error: e.message }; }
 }
 
 export async function sendTeamInvitationEmail(data: { to: string; orgName: string; role: string; inviterName: string }) {
   try {
     const transporter = await getTransporter();
-    const db = await getDb();
-    const snap = await getDoc(doc(db, 'settings', 'email'));
+    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 20px; border: 1px solid #eee; background: #fff;">
-        <h1 style="color: #2C52EE; font-style: italic; text-transform: uppercase;">Viby Team</h1>
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #eee;">
+        <h1 style="color: #2C52EE;">Viby Team</h1>
         <h2>Convite de Colaboração</h2>
         <p><strong>${data.inviterName}</strong> convidou você para ser <strong>${data.role}</strong> na marca <strong>${data.orgName}</strong>.</p>
-        <p>Acesse o seu dashboard para aceitar o convite.</p>
+        <p>Acesse seu painel para aceitar.</p>
       </div>
     `;
 
@@ -369,12 +344,8 @@ export async function sendTeamInvitationEmail(data: { to: string; orgName: strin
     });
 
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
+  } catch (e: any) { return { success: false, error: e.message }; }
 }
-
-export async function sendTeamInvitationNoticeEmail(data: any) { return { success: true }; }
 
 export async function sendTeamInvitationStatusEmail(data: {
   to: string;
@@ -384,8 +355,7 @@ export async function sendTeamInvitationStatusEmail(data: {
 }) {
   try {
     const transporter = await getTransporter();
-    const db = await getDb();
-    const snap = await getDoc(doc(db, 'settings', 'email'));
+    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
     const smtpUser = snap.data()?.smtpUser;
 
     const statusLabel = data.status === 'accepted' ? 'aceitou' : 'recusou';
@@ -414,14 +384,9 @@ export async function sendTeamInvitationStatusEmail(data: {
     });
 
     return { success: true };
-  } catch (e) {
-    return { success: false };
-  }
+  } catch (e) { return { success: false }; }
 }
 
-/**
- * Notifica o produtor sobre o sucesso de um repasse.
- */
 export async function sendPayoutConfirmedEmail(data: {
   to: string;
   userName: string;
@@ -431,16 +396,15 @@ export async function sendPayoutConfirmedEmail(data: {
 }) {
   try {
     const transporter = await getTransporter();
-    const db = await getDb();
-    const snap = await getDoc(doc(db, 'settings', 'email'));
+    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 20px; border: 1px solid #eee; background: #fff;">
-        <h1 style="color: #2C52EE; font-style: italic; text-transform: uppercase;">Viby Finance</h1>
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #eee;">
+        <h1 style="color: #2C52EE;">Viby Finance</h1>
         <h2>Pagamento Processado</h2>
-        <p>Olá, <strong>${data.userName}</strong>. O repasse para <strong>${data.orgName}</strong> no valor de <strong>R$ ${data.amount.toFixed(2)}</strong> foi realizado.</p>
-        <p><a href="${data.proofUrl}" style="color: #2C52EE; font-weight: bold;">Clique aqui para baixar o comprovante</a></p>
+        <p>Olá, <strong>${data.userName}</strong>. O repasse para <strong>${data.orgName}</strong> de <strong>R$ ${data.amount.toFixed(2)}</strong> foi realizado.</p>
+        <p><a href="${data.proofUrl}" style="color: #2C52EE; font-weight: bold;">Baixar Comprovante</a></p>
       </div>
     `;
 
@@ -462,7 +426,7 @@ export async function sendPayoutConfirmedEmail(data: {
     });
 
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
+  } catch (e: any) { return { success: false, error: e.message }; }
 }
+
+export async function sendTeamInvitationNoticeEmail(data: any) { return { success: true }; }

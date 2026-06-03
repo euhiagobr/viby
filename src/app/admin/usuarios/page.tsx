@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -88,14 +89,14 @@ export default function AdminUsuariosPage() {
       const { id, ...data } = editingUser
       await updateDoc(doc(db, "users", id), { ...data, updatedAt: serverTimestamp() })
       
-      // Gatilho de e-mail se verificado agora
+      // Gatilho de e-mail exclusivo para o usuário se verificado agora
       if (editingUser.isVerified && !originalUser?.isVerified) {
         sendVerificationStatusEmail({
            to: editingUser.email,
            userName: editingUser.name || editingUser.displayName || "Usuário",
            targetName: `@${editingUser.username}`,
            type: 'user'
-        }).catch(err => console.warn("Falha ao enviar e-mail de verificação", err));
+        }).catch(err => console.warn("Falha ao enviar e-mail de verificação para o usuário", err));
       }
 
       toast({ title: "Usuário atualizado!" })
@@ -245,7 +246,7 @@ export default function AdminUsuariosPage() {
         </Table>
       </Card>
 
-      <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+      <Dialog open={setIsEditUserOpen} onOpenChange={setIsEditUserOpen}>
         <DialogContent className="max-w-xl rounded-[2.5rem]">
            <DialogHeader>
               <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Editar Usuário</DialogTitle>

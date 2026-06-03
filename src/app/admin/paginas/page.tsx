@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -212,14 +213,14 @@ export default function AdminPaginasPage() {
         transaction.update(doc(db, "organizations", id), { ...data, updatedAt: serverTimestamp() });
       });
 
-      // Gatilho de e-mail se verificado agora
+      // Gatilho de e-mail exclusivo para o PROPRIETÁRIO se verificado agora
       if (editingOrg.verified && !originalOrg?.verified && editingOrg.ownerProfile?.email) {
          sendVerificationStatusEmail({
             to: editingOrg.ownerProfile.email,
-            userName: editingOrg.ownerProfile.name || editingOrg.ownerProfile.displayName || "Organizador",
+            userName: editingOrg.ownerProfile.name || editingOrg.ownerProfile.displayName || "Proprietário",
             targetName: editingOrg.name,
             type: 'organization'
-         }).catch(err => console.warn("Falha ao enviar e-mail de verificação da marca", err));
+         }).catch(err => console.warn("Falha ao notificar proprietário da marca", err));
       }
 
       toast({ title: "Página atualizada!", description: "Dados sincronizados com sucesso." })
