@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -219,6 +218,7 @@ export default function AdminPaginasPage() {
             to: editingOrg.ownerProfile.email,
             userName: editingOrg.ownerProfile.name || editingOrg.ownerProfile.displayName || "Proprietário",
             targetName: editingOrg.name,
+            targetUsername: editingOrg.username,
             type: 'organization',
             status: editingOrg.verified ? 'approved' : 'removed'
          }).catch(err => console.warn("Falha ao notificar proprietário da marca", err));

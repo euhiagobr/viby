@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -94,7 +93,8 @@ export default function AdminUsuariosPage() {
         sendVerificationStatusEmail({
            to: editingUser.email,
            userName: editingUser.name || editingUser.displayName || "Usuário",
-           targetName: `@${editingUser.username}`,
+           targetName: editingUser.name || `@${editingUser.username}`,
+           targetUsername: editingUser.username,
            type: 'user',
            status: editingUser.isVerified ? 'approved' : 'removed'
         }).catch(err => console.warn("Falha ao enviar e-mail de verificação para o usuário", err));
