@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, doc, deleteDoc, serverTimestamp, addDoc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, deleteDoc, serverTimestamp, addDoc, updateDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,7 +21,8 @@ import {
   Users,
   Layers,
   Calendar,
-  Zap
+  Zap,
+  Edit
 } from 'lucide-react';
 import {
   Dialog,
@@ -49,6 +50,7 @@ export default function AdminCuponsPage() {
   const [search, setSearch] = React.useState("");
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [editingCoupon, setEditingCoupon] = React.useState<any>(null);
 
   const adCouponsQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -65,7 +67,7 @@ export default function AdminCuponsPage() {
     );
   }, [coupons, search]);
 
-  const handleCreateCoupon = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveCoupon = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!db) return;
     setIsSubmitting(true);
@@ -74,7 +76,7 @@ export default function AdminCuponsPage() {
     const startAtStr = formData.get("startAt") as string;
     const endAtStr = formData.get("endAt") as string;
 
-    const couponData = {
+    const couponData: any = {
       code: (formData.get("code") as string).trim().toUpperCase(),
       type: formData.get("type") as string,
       value: parseFloat(formData.get("value") as string),
@@ -82,19 +84,28 @@ export default function AdminCuponsPage() {
       maxRecharge: formData.get("maxRecharge") ? parseFloat(formData.get("maxRecharge") as string) : null,
       maxTotalUses: parseInt(formData.get("maxTotalUses") as string) || 0,
       maxUsesPerUser: parseInt(formData.get("maxUsesPerUser") as string) || 1,
-      currentUses: 0,
       startAt: new Date(startAtStr),
       endAt: new Date(endAtStr),
-      status: "active",
-      createdAt: serverTimestamp()
+      updatedAt: serverTimestamp()
     };
 
     try {
-      await addDoc(collection(db, "ad_coupons"), couponData);
-      toast({ title: "Cupom de Anúncio criado!" });
+      if (editingCoupon) {
+        await updateDoc(doc(db, "ad_coupons", editingCoupon.id), couponData);
+        toast({ title: "Cupom atualizado com sucesso!" });
+      } else {
+        await addDoc(collection(db, "ad_coupons"), {
+          ...couponData,
+          currentUses: 0,
+          status: "active",
+          createdAt: serverTimestamp()
+        });
+        toast({ title: "Novo cupom de anúncio criado!" });
+      }
       setIsDialogOpen(false);
+      setEditingCoupon(null);
     } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao criar cupom" });
+      toast({ variant: "destructive", title: "Erro ao salvar cupom" });
     } finally {
       setIsSubmitting(false);
     }
@@ -111,12 +122,21 @@ export default function AdminCuponsPage() {
   };
 
   const formatTimestamp = (dateVal: any) => {
+    if (!dateVal) return "";
+    try {
+      const d = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
+      // Formato para input datetime-local: YYYY-MM-DDTHH:mm
+      return d.toISOString().slice(0, 16);
+    } catch (e) { return ""; }
+  };
+
+  const formatDisplayDate = (dateVal: any) => {
     if (!dateVal) return "---";
     try {
       const d = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
       return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     } catch (e) { return "---"; }
-  };
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -128,29 +148,31 @@ export default function AdminCuponsPage() {
           <p className="text-muted-foreground font-medium">Gestão de incentivos e limites de uso para saldo Ads.</p>
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if(!open) setEditingCoupon(null); }}>
           <DialogTrigger asChild>
-            <Button className="bg-secondary text-white font-black rounded-full px-8 h-12 shadow-lg gap-2 uppercase italic">
+            <Button onClick={() => setEditingCoupon(null)} className="bg-secondary text-white font-black rounded-full px-8 h-12 shadow-lg gap-2 uppercase italic">
               <Plus className="w-5 h-5" /> Novo Cupom Ads
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md rounded-[2.5rem] max-h-[90vh] overflow-y-auto">
-            <form onSubmit={handleCreateCoupon} className="space-y-6">
+            <form onSubmit={handleSaveCoupon} key={editingCoupon?.id || 'new'} className="space-y-6">
               <DialogHeader>
-                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Configurar Cupom</DialogTitle>
+                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">
+                  {editingCoupon ? "Editar Cupom" : "Configurar Cupom"}
+                </DialogTitle>
                 <DialogDescription>Defina as regras de benefício e restrições de uso.</DialogDescription>
               </DialogHeader>
               
               <div className="space-y-4">
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60">Código do Cupom</Label>
-                    <Input name="code" required placeholder="EX: VIBYPROMO20" className="rounded-xl h-11 uppercase font-bold" />
+                    <Input name="code" required defaultValue={editingCoupon?.code} placeholder="EX: VIBYPROMO20" className="rounded-xl h-11 uppercase font-bold" />
                  </div>
 
                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                        <Label className="text-[10px] font-black uppercase opacity-60">Tipo</Label>
-                       <Select name="type" defaultValue="discount">
+                       <Select name="type" defaultValue={editingCoupon?.type || "discount"}>
                           <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                           <SelectContent className="rounded-xl">
                              <SelectItem value="discount">Desconto (%) no custo</SelectItem>
@@ -161,7 +183,7 @@ export default function AdminCuponsPage() {
                     </div>
                     <div className="space-y-2">
                        <Label className="text-[10px] font-black uppercase opacity-60">Valor do Benefício</Label>
-                       <Input name="value" type="number" step="0.01" required className="rounded-xl h-11 font-black" />
+                       <Input name="value" type="number" step="0.01" required defaultValue={editingCoupon?.value} className="rounded-xl h-11 font-black" />
                     </div>
                  </div>
 
@@ -170,19 +192,19 @@ export default function AdminCuponsPage() {
                        <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1.5">
                          <Layers className="w-3 h-3" /> Limite Total
                        </Label>
-                       <Input name="maxTotalUses" type="number" placeholder="Ex: 100" required className="rounded-xl h-11" />
+                       <Input name="maxTotalUses" type="number" placeholder="Ex: 100" required defaultValue={editingCoupon?.maxTotalUses} className="rounded-xl h-11" />
                     </div>
                     <div className="space-y-2">
                        <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1.5">
                          <Users className="w-3 h-3" /> Por Usuário
                        </Label>
-                       <Input name="maxUsesPerUser" type="number" defaultValue="1" required className="rounded-xl h-11" />
+                       <Input name="maxUsesPerUser" type="number" defaultValue={editingCoupon?.maxUsesPerUser || 1} required className="rounded-xl h-11" />
                     </div>
                  </div>
 
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60">Mín. Recarga (R$)</Label>
-                    <Input name="minRecharge" type="number" step="0.01" placeholder="10.00" className="rounded-xl h-11" />
+                    <Input name="minRecharge" type="number" step="0.01" placeholder="30.00" defaultValue={editingCoupon?.minRecharge} className="rounded-xl h-11" />
                  </div>
 
                  <div className="grid grid-cols-2 gap-4 border-t border-dashed pt-4">
@@ -190,20 +212,20 @@ export default function AdminCuponsPage() {
                        <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1.5">
                          <Clock className="w-3 h-3" /> Início
                        </Label>
-                       <Input name="startAt" type="datetime-local" required className="rounded-xl h-11 text-xs" defaultValue={new Date().toISOString().slice(0, 16)} />
+                       <Input name="startAt" type="datetime-local" required className="rounded-xl h-11 text-xs" defaultValue={editingCoupon ? formatTimestamp(editingCoupon.startAt) : new Date().toISOString().slice(0, 16)} />
                     </div>
                     <div className="space-y-2">
                        <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1.5">
                          <Clock className="w-3 h-3 text-red-500" /> Fim
                        </Label>
-                       <Input name="endAt" type="datetime-local" required className="rounded-xl h-11 text-xs" />
+                       <Input name="endAt" type="datetime-local" required className="rounded-xl h-11 text-xs" defaultValue={editingCoupon ? formatTimestamp(editingCoupon.endAt) : ""} />
                     </div>
                  </div>
               </div>
 
               <DialogFooter>
                  <Button type="submit" disabled={isSubmitting} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                    {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Publicar Cupom"}
+                    {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : (editingCoupon ? "Salvar Alterações" : "Publicar Cupom")}
                  </Button>
               </DialogFooter>
             </form>
@@ -268,17 +290,22 @@ export default function AdminCuponsPage() {
                     <TableCell>
                       <div className="flex flex-col gap-1">
                          <span className="text-[9px] font-bold text-green-600 uppercase flex items-center gap-1">
-                            <Clock className="w-2.5 h-2.5" /> {formatTimestamp(c.startAt)}
+                            <Clock className="w-2.5 h-2.5" /> {formatDisplayDate(c.startAt)}
                          </span>
                          <span className="text-[9px] font-bold text-red-500 uppercase flex items-center gap-1">
-                            <Clock className="w-2.5 h-2.5" /> {formatTimestamp(c.endAt)}
+                            <Clock className="w-2.5 h-2.5" /> {formatDisplayDate(c.endAt)}
                          </span>
                       </div>
                     </TableCell>
                     <TableCell className="p-6 text-right">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full" onClick={() => handleDelete(c.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10 rounded-full" onClick={() => { setEditingCoupon(c); setIsDialogOpen(true); }}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full" onClick={() => handleDelete(c.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
