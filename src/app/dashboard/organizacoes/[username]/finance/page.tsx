@@ -200,8 +200,8 @@ function OrganizationFinanceContent() {
 
   const handleTopUp = async () => {
     if (!currentOrg || !user || !db) return;
-    if (rechargeCalcs.base < 10) {
-      toast({ variant: "destructive", title: "Valor mínimo", description: "O valor mínimo para recarga é R$ 10,00." });
+    if (rechargeCalcs.base < 30) {
+      toast({ variant: "destructive", title: "Valor mínimo", description: "O valor mínimo para recarga é R$ 30,00." });
       return;
     }
     setIsTopUpLoading(true);
@@ -362,7 +362,7 @@ function OrganizationFinanceContent() {
                              ) : (
                                <Button variant="secondary" className="rounded-xl h-11 px-6 font-bold" onClick={handleValidateCoupon} disabled={isValidatingCoupon || !couponCode}>
                                   {isValidatingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : "Aplicar"}
-                               </Button>
+                                </Button>
                              )}
                           </div>
                           {appliedCoupon && (
@@ -413,12 +413,12 @@ function OrganizationFinanceContent() {
 
                     <Button 
                       onClick={handleTopUp} 
-                      disabled={isTopUpLoading || rechargeCalcs.base < 10} 
+                      disabled={isTopUpLoading || rechargeCalcs.base < 30} 
                       className="h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform"
                     >
                       {isTopUpLoading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><CreditCard className="w-6 h-6 mr-2" /> Pagar com Stripe</>}
                     </Button>
-                    <p className="text-[9px] text-center text-muted-foreground font-medium uppercase italic">A liberação do saldo é instantânea após a confirmação do pagamento.</p>
+                    <p className="text-[9px] text-center text-muted-foreground font-medium uppercase italic">O valor mínimo para recarga é de R$ 30,00. Liberação instantânea após confirmação.</p>
                  </div>
               </div>
            </Card>
