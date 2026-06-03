@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -17,7 +16,8 @@ import {
   Paperclip,
   Clock,
   User,
-  Building2
+  Building2,
+  Inbox
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -291,7 +291,7 @@ export default function AdminDenunciasPage() {
             </Table>
           ) : (
             <div className="py-32 text-center">
-              <ShieldAlert className="w-16 h-16 mx-auto text-muted-foreground mb-4 opacity-10" />
+              <Inbox className="w-16 h-16 mx-auto text-muted-foreground mb-4 opacity-10" />
               <p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-xs">Nenhuma denúncia na fila.</p>
             </div>
           )}

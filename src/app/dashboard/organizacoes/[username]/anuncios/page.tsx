@@ -39,7 +39,8 @@ import {
   RefreshCw,
   Wallet,
   Undo2,
-  MousePointer2
+  MousePointer2,
+  Inbox
 } from "lucide-react"
 import {
   Dialog,
@@ -616,7 +617,10 @@ export default function OrganizationAdsPage() {
               </div>
             </div>
           ) : (
-            <div className="py-24 text-center"><Megaphone className="w-16 h-16 text-muted-foreground opacity-10 mx-auto mb-4" /><p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-xs">Nenhuma campanha registrada.</p></div>
+            <div className="py-24 text-center">
+              <Inbox className="w-16 h-16 text-muted-foreground opacity-10 mx-auto mb-4" />
+              <p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-xs">Nenhuma campanha registrada.</p>
+            </div>
           )}
         </CardContent>
       </Card>

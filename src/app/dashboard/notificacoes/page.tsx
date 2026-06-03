@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -90,7 +89,7 @@ export default function NotificacoesPage() {
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
             <Bell className="w-8 h-8 text-secondary" />
-            Notificações
+            Notificacoes
           </h1>
           <p className="text-muted-foreground font-medium">Acompanhe menções, novos seguidores e interações.</p>
         </div>

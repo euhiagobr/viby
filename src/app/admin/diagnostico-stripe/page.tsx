@@ -132,7 +132,7 @@ export default function StripeDiagnosticPage() {
          <div className="space-y-1">
             <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary italic">Conclusão da Auditoria</h4>
             <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
-               Esta ferramenta confirmará se o Connect está ativo na sua conta plataforma. Caso os status de 'Charges' ou 'Payouts' estejam como falso, verifique as pendências no seu dashboard Stripe em Settings > Connect > Settings.
+               Esta ferramenta confirmará se o Connect está ativo na sua conta plataforma. Caso os status de &apos;Charges&apos; ou &apos;Payouts&apos; estejam como falso, verifique as pendências no seu dashboard Stripe em Settings &gt; Connect &gt; Settings.
             </p>
          </div>
       </div>
