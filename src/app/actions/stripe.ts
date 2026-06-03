@@ -2,11 +2,12 @@
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { doc, getDoc, getFirestore, runTransaction, serverTimestamp, increment, collection, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, getFirestore, runTransaction, serverTimestamp, increment, collection } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import { logSystemError } from '@/lib/error-manager';
 import { calculateVibyOfficialSplit, toCents } from '@/lib/financial-utils';
+import { generateUniqueTicketCode } from '@/lib/ticket-utils';
 
 async function getFirebaseComponents() {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -32,7 +33,6 @@ export async function createCheckoutSession(data: any) {
 
     const { metadata, userEmail, lineItems, totalApplicationFeeCents, destinationStripeAccount } = data;
 
-    // Configuração base da sessão
     const sessionConfig: Stripe.Checkout.SessionCreateParams = {
       payment_method_types: ['card'],
       line_items: lineItems,
@@ -43,7 +43,6 @@ export async function createCheckoutSession(data: any) {
       metadata: metadata,
     };
 
-    // IMPLEMENTAÇÃO DESTINATION CHARGES (SPLIT AUTOMÁTICO)
     if (destinationStripeAccount && totalApplicationFeeCents > 0) {
       sessionConfig.payment_intent_data = {
         application_fee_amount: totalApplicationFeeCents,
@@ -55,7 +54,6 @@ export async function createCheckoutSession(data: any) {
     }
 
     const session = await stripe.checkout.sessions.create(sessionConfig);
-    
     return { success: true, url: session.url };
   } catch (error: any) {
     await logSystemError({
@@ -82,7 +80,6 @@ export async function finalizeCheckoutSession(sessionId: string) {
     if (!metadata) return { success: false, error: 'Sessão inválida.' };
 
     return await runTransaction(db, async (transaction) => {
-      // --- CASO 1: PEDIDO DE INGRESSOS (ORDER CHECKOUT) ---
       if (metadata.type === 'order_checkout' && metadata.orderId) {
         const orderRef = doc(db, "orders", metadata.orderId);
         const orderSnap = await transaction.get(orderRef);
@@ -94,7 +91,6 @@ export async function finalizeCheckoutSession(sessionId: string) {
         const userId = metadata.userId;
         const items = orderData.items || [];
 
-        // Atualizar estoque e criar registros
         for (const item of items) {
           const targetRef = item.occurrenceId ? doc(db, "recurring_occurrences", item.occurrenceId) : doc(db, "events", item.eventId);
           const snap = await transaction.get(targetRef);
@@ -111,12 +107,12 @@ export async function finalizeCheckoutSession(sessionId: string) {
             }
           }
 
-          // Criar registros de ingressos nominais
           for (let j = 0; j < item.quantity; j++) {
-            const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+            // GERAR CÓDIGO ÚNICO DE 16 DÍGITOS NO FORMATO XXXX-XXXX-XXXX-XXXX
+            // Nota: No runTransaction, usamos db para consulta de unicidade
+            const ticketCode = await generateUniqueTicketCode(db);
             const regRef = doc(collection(db, "registrations"));
             
-            // Note: Não somamos mais ao walletBalance do organizador pois o Stripe Connect já fez o repasse
             transaction.set(regRef, {
               eventId: item.eventId,
               eventTitle: item.eventTitle,
@@ -135,13 +131,15 @@ export async function finalizeCheckoutSession(sessionId: string) {
               ticketTypeName: item.ticketTypeName,
               batchName: item.batchName,
               paymentStatus: "Pago",
-              payoutMode: "stripe_connect", // Marca que o repasse foi automático
-              status: "Ativo",
+              payoutMode: "stripe_connect",
+              status: "active", // Padrão solicitado: active, used, cancelled
               ticketCode,
               stripeSessionId: sessionId,
+              paymentIntentId: session.payment_intent, // Idempotência via PI
               orderId: metadata.orderId,
               occurrenceId: item.occurrenceId || null,
               confirmedAt: serverTimestamp(),
+              createdAt: serverTimestamp(),
               timestamp: serverTimestamp()
             });
           }
@@ -151,53 +149,10 @@ export async function finalizeCheckoutSession(sessionId: string) {
         return { success: true };
       }
 
-      return { success: false, error: 'Sessão não identificada ou processada.' };
+      return { success: false, error: 'Sessão não identificada.' };
     });
   } catch (error: any) {
     console.error("[Checkout Finalization Error]", error.message);
-    return { success: false, error: error.message };
-  }
-}
-
-export async function createAdBalanceTopUpSession(data: any) {
-  // Mantido para recarga de saldo de anúncios (Viby retém 100% e libera crédito interno)
-  try {
-    const { db } = await getFirebaseComponents();
-    const head = await headers();
-    const origin = head.get('origin') || 'https://viby.club';
-    const stripe = await getStripeInstance(db);
-    
-    const amountToCharge = data.baseAmount * 1.21;
-    const metadata = { 
-      type: 'ad_balance_topup', 
-      orgId: data.orgId, 
-      baseAmount: data.baseAmount.toString(), 
-      transactionId: data.transactionId 
-    };
-
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'brl',
-          product_data: { 
-            name: `Recarga Ads - ${data.orgName}`,
-            description: `Crédito de R$ ${data.baseAmount} + Encargos Fiscais (21%)`
-          },
-          unit_amount: Math.round(amountToCharge * 100),
-        },
-        quantity: 1,
-      }],
-      mode: 'payment',
-      customer_email: data.userEmail,
-      success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/checkout/cancelado`,
-      metadata: metadata,
-      payment_intent_data: { statement_descriptor: 'VIBY*ADS' }
-    });
-    
-    return { success: true, url: session.url };
-  } catch (error: any) {
     return { success: false, error: error.message };
   }
 }

@@ -1,20 +1,17 @@
 'use client';
 
 import { 
-  serverTimestamp, 
-  increment, 
   doc, 
   collection, 
   addDoc, 
   updateDoc, 
-  runTransaction,
   getDoc
 } from "firebase/firestore";
 import { db as staticDb } from "@/firebase/database";
 import { createCheckoutSession } from "@/app/actions/stripe";
+import { generateFreeTickets } from "@/app/actions/tickets";
 import { calculateVibyOfficialSplit, calculateFinancialBreakdown, toCents } from "@/lib/financial-utils";
 import { CartItem } from "@/contexts/CartContext";
-import { generateTicketCode } from "@/lib/ticket-utils";
 
 export interface PayButtonOptions {
   user: any;
@@ -27,12 +24,16 @@ export interface PayButtonOptions {
   useBalance: boolean;
 }
 
+/**
+ * @fileOverview Lógica central de checkout.
+ * Garante que a criação de ingressos (gratuitos ou pagos) ocorra via Server Actions.
+ */
 export async function executeCheckoutFlow(options: PayButtonOptions) {
   const { user, profile, items, totals, orgsData } = options;
 
   if (!user) throw new Error("Usuário não identificado.");
 
-  // Validação final de estoque antes de ir para o Stripe
+  // Validação preliminar de estoque
   for (const item of items) {
     const eSnap = await getDoc(doc(staticDb, "events", item.eventId));
     if (!eSnap.exists()) throw new Error(`O evento ${item.eventTitle} não está mais disponível.`);
@@ -48,47 +49,21 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   
   const isFreeOrder = totals.total <= 0 && totals.balanceUsed === 0;
 
-  // 1. FLUXO GRATUITO (Atômico no Firestore)
+  // 1. FLUXO GRATUITO (Via Server Action generateFreeTickets)
   if (isFreeOrder) {
-    return await runTransaction(staticDb, async (transaction) => {
-      const registrationIds: string[] = [];
-      for (const item of items) {
-        for (let i = 0; i < item.quantity; i++) {
-          const ticketCode = generateTicketCode();
-          const regRef = doc(collection(staticDb, "registrations"));
-          transaction.set(regRef, {
-            eventId: item.eventId,
-            eventTitle: item.eventTitle,
-            eventImage: item.eventImage || '',
-            eventDate: item.eventDate,
-            eventCity: item.eventCity,
-            userId: user.uid,
-            userName: profile?.name || user.displayName || "Comprador",
-            userEmail: user.email,
-            ticketBasePrice: item.originalPrice || item.price,
-            price: 0,
-            discountAmount: item.discountAmount || 0,
-            couponCode: item.couponCode || null,
-            administrativeFeeAmount: 0,
-            producerFeeAmount: 0,
-            producerNetAmount: 0,
-            ticketTypeName: item.ticketTypeName,
-            batchName: item.batchName,
-            paymentStatus: "Disponível",
-            status: "Ativo",
-            ticketCode,
-            occurrenceId: item.occurrenceId || null,
-            confirmedAt: serverTimestamp(),
-            timestamp: serverTimestamp()
-          });
-          registrationIds.push(regRef.id);
-        }
-      }
-      return { type: 'free', success: true, registrationIds };
+    const result = await generateFreeTickets({
+      userId: user.uid,
+      userName: profile?.name || user.displayName || "Comprador",
+      userEmail: user.email!,
+      items: items
     });
+
+    if (!result.success) throw new Error(result.error);
+    return { type: 'free', success: true, registrationIds: result.registrationIds };
   }
 
-  // 2. FLUXO PAGO (Stripe Connect Destination Charges)
+  // 2. FLUXO PAGO (Stripe Connect)
+  // O ticketCode será gerado apenas na finalização do pagamento (Server Side)
   const orderData = {
     userId: user.uid,
     userEmail: user.email,

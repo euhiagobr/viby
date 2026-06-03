@@ -1,9 +1,8 @@
-import { query, where, getDocs, Firestore } from "firebase/firestore";
-import { safeCollection } from "./firestore-safe";
+import { query, where, getDocs, Firestore, collection } from "firebase/firestore";
 
 /**
- * Gera um código de ingresso padrão Viby: 16 caracteres alfanuméricos em blocos de 4.
- * Exemplo: ABCD-1234-EFGH-5678
+ * Gera um código de ingresso padrão Viby: 16 caracteres alfanuméricos [A-Z0-9].
+ * Formato visual: XXXX-XXXX-XXXX-XXXX
  */
 export const generateTicketCode = (): string => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -11,19 +10,23 @@ export const generateTicketCode = (): string => {
   for (let i = 0; i < 16; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  return code.match(/.{1,4}/g)?.join('-') || code;
+  // Aplica a formatação XXXX-XXXX-XXXX-XXXX
+  const formatted = code.match(/.{1,4}/g)?.join('-') || code;
+  return formatted.toUpperCase();
 };
 
 /**
  * Tenta gerar um código único garantindo que não exista duplicidade na coleção registrations.
+ * Implementa a verificação de unicidade global exigida.
  */
 export const generateUniqueTicketCode = async (db: Firestore): Promise<string> => {
   let attempts = 0;
-  const maxAttempts = 5;
+  const maxAttempts = 10;
 
   while (attempts < maxAttempts) {
     const code = generateTicketCode();
-    const q = query(safeCollection(db, "registrations"), where("ticketCode", "==", code));
+    // Busca pelo campo ticketCode, conforme a nova regra (não usar como ID de documento)
+    const q = query(collection(db, "registrations"), where("ticketCode", "==", code));
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
@@ -32,5 +35,5 @@ export const generateUniqueTicketCode = async (db: Firestore): Promise<string> =
     attempts++;
   }
 
-  throw new Error("Não foi possível gerar um código único após múltiplas tentativas.");
+  throw new Error("Falha ao gerar código único de ingresso. Limite de tentativas excedido.");
 };
