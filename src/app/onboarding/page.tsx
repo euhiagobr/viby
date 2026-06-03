@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -11,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Check, X, ShieldCheck, User as UserIcon, Fingerprint } from "lucide-react";
+import { Loader2, Check, X, ShieldCheck, User as UserIcon, Fingerprint, AtSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { maskCPF } from "@/lib/crypto-utils";
 import { updateUserCPF } from "@/app/actions/user";
@@ -22,6 +21,7 @@ export default function OnboardingPage() {
   const db = useFirestore();
   const { user, profile, loading: authLoading, isInitialized } = useUser(auth);
 
+  const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [cpf, setCpf] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,8 +34,14 @@ export default function OnboardingPage() {
       return;
     }
     
-    // Se o usuário já tem os dados essenciais, ele não precisa estar aqui
-    const hasRequiredData = profile?.username && profile?.cpf;
+    // Se já temos os dados essenciais carregados, preenchemos o estado
+    if (profile && !name) {
+      setName(profile.name || "");
+      if (profile.username) setUsername(profile.username);
+      if (profile.cpf && profile.cpf !== "PENDENTE") setCpf(profile.cpf);
+    }
+
+    const hasRequiredData = profile?.username && profile?.cpf && profile?.name;
     if (isInitialized && (profile?.profileComplete || hasRequiredData)) {
       router.replace("/dashboard");
     }
@@ -60,7 +66,13 @@ export default function OnboardingPage() {
       try {
         const usernameRef = doc(db, "usernames", cleanUsername);
         const usernameSnap = await getDoc(usernameRef);
-        setUsernameStatus(usernameSnap.exists() ? 'taken' : 'valid');
+        
+        // Se o username já for o do próprio usuário, é válido
+        if (usernameSnap.exists() && usernameSnap.data().uid === user?.uid) {
+          setUsernameStatus('valid');
+        } else {
+          setUsernameStatus(usernameSnap.exists() ? 'taken' : 'valid');
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -69,7 +81,7 @@ export default function OnboardingPage() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [username, db]);
+  }, [username, db, user?.uid]);
 
   const validateCPF = (v: string) => {
     const clean = v.replace(/\D/g, "");
@@ -114,10 +126,13 @@ export default function OnboardingPage() {
         const userRef = doc(db, "users", user.uid);
 
         const usernameSnap = await transaction.get(usernameRef);
-        if (usernameSnap.exists()) throw new Error("Username já ocupado.");
+        if (usernameSnap.exists() && usernameSnap.data().uid !== user.uid) {
+          throw new Error("Username já ocupado.");
+        }
 
-        transaction.set(usernameRef, { uid: user.uid, type: 'user' });
+        transaction.set(usernameRef, { uid: user.uid, type: 'user', email: user.email }, { merge: true });
         transaction.update(userRef, {
+          name: name.trim(),
           username: normalizedUsername,
           cpf: maskCPF(cleanCPF),
           profileComplete: true,
@@ -153,7 +168,18 @@ export default function OnboardingPage() {
         <CardContent className="px-10 pb-8">
           <form onSubmit={handleOnboarding} className="space-y-6">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Escolha seu Username (@)</Label>
+              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Nome Completo</Label>
+              <Input 
+                placeholder="Como você quer ser chamado?" 
+                value={name} 
+                onChange={e => setName(e.target.value)}
+                className="rounded-xl h-12"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Seu @Username</Label>
               <div className="relative">
                 <Input 
                   placeholder="ex: joao_viby" 
@@ -176,7 +202,7 @@ export default function OnboardingPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2 ml-1">
                 <Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF (Obrigatório)
               </Label>
               <Input 
@@ -186,12 +212,12 @@ export default function OnboardingPage() {
                 className="rounded-xl h-12"
                 required
               />
-              <p className="text-[8px] font-bold text-muted-foreground uppercase italic">Necessário para compras e segurança.</p>
+              <p className="text-[8px] font-bold text-muted-foreground uppercase italic">Necessário para segurança e conformidade.</p>
             </div>
 
             <Button 
               type="submit" 
-              disabled={isSubmitting || usernameStatus !== 'valid' || cpf.length < 11}
+              disabled={isSubmitting || usernameStatus !== 'valid' || cpf.length < 11 || !name.trim()}
               className="w-full bg-secondary text-white font-black h-16 rounded-[1.5rem] shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform"
             >
               {isSubmitting ? <Loader2 className="w-6 h-6 animate-spin" /> : "Concluir Cadastro"}

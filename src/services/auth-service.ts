@@ -62,11 +62,16 @@ export async function signInWithProvider(auth: Auth, db: Firestore, providerName
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
+      // Se for um novo usuário, criamos o perfil inicial
+      // Fallback de nome: displayName > prefixo do email > "Membro Viby"
+      const initialName = user.displayName || user.email?.split('@')[0] || "Membro Viby";
+      
       const userData = {
         uid: user.uid,
         email: user.email,
-        name: user.displayName || "",
+        name: initialName,
         photoURL: user.photoURL || "",
+        avatar: user.photoURL || "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media",
         provider: providerName,
         username: null,
         cpf: null,
@@ -78,6 +83,15 @@ export async function signInWithProvider(auth: Auth, db: Firestore, providerName
       };
       await setDoc(userRef, userData);
       return { user, isNew: true };
+    } else {
+      // Se o usuário já existe mas por algum motivo o nome está vazio, atualizamos
+      const existingData = userSnap.data();
+      if (!existingData.name && user.displayName) {
+        await setDoc(userRef, { 
+          name: user.displayName, 
+          updatedAt: serverTimestamp() 
+        }, { merge: true });
+      }
     }
 
     return { user, isNew: false };
