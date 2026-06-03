@@ -3,7 +3,20 @@
 
 import * as React from 'react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, doc, deleteDoc, serverTimestamp, addDoc, updateDoc } from 'firebase/firestore';
+import { 
+  collection, 
+  query, 
+  orderBy, 
+  doc, 
+  deleteDoc, 
+  serverTimestamp, 
+  addDoc, 
+  updateDoc, 
+  collectionGroup, 
+  where, 
+  getDocs,
+  getDoc 
+} from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,7 +35,12 @@ import {
   Layers,
   Calendar,
   Zap,
-  Edit
+  Edit,
+  BarChart3,
+  TrendingUp,
+  User,
+  Building2,
+  ArrowRight
 } from 'lucide-react';
 import {
   Dialog,
@@ -44,6 +62,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { toast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function AdminCuponsPage() {
   const db = useFirestore();
@@ -51,6 +70,11 @@ export default function AdminCuponsPage() {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [editingCoupon, setEditingCoupon] = React.useState<any>(null);
+  
+  // Estados para Métricas
+  const [selectedCouponForMetrics, setSelectedCouponForMetrics] = React.useState<any>(null);
+  const [usageData, setUsageData] = React.useState<any[]>([]);
+  const [loadingMetrics, setLoadingMetrics] = React.useState(false);
 
   const adCouponsQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -66,6 +90,62 @@ export default function AdminCuponsPage() {
       c.type?.toLowerCase().includes(search.toLowerCase())
     );
   }, [coupons, search]);
+
+  // Busca métricas detalhadas do cupom
+  React.useEffect(() => {
+    if (!db || !selectedCouponForMetrics) return;
+
+    const fetchMetrics = async () => {
+      setLoadingMetrics(true);
+      try {
+        // Busca todas as transações de recarga pagas que usaram este cupom
+        const q = query(
+          collectionGroup(db, 'transactions'),
+          where('couponCode', '==', selectedCouponForMetrics.code),
+          where('status', '==', 'completed'),
+          where('type', '==', 'ad_topup')
+        );
+        const snap = await getDocs(q);
+        
+        const results = await Promise.all(snap.docs.map(async (d) => {
+          const data = d.data();
+          const orgId = d.ref.parent.parent?.id;
+          
+          // Buscar nomes para exibição humana
+          let orgName = "Marca Desconhecida";
+          let userName = "Usuário Desconhecido";
+
+          if (orgId) {
+            const orgSnap = await getDoc(doc(db, "organizations", orgId));
+            if (orgSnap.exists()) orgName = orgSnap.data().name;
+          }
+
+          if (data.userId) {
+            const userSnap = await getDoc(doc(db, "users", data.userId));
+            if (userSnap.exists()) userName = userSnap.data().name || userSnap.data().displayName;
+          }
+
+          return {
+            id: d.id,
+            orgName,
+            userName,
+            amount: data.amount,
+            totalPaid: data.totalCharged || data.amount,
+            date: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt)
+          };
+        }));
+
+        setUsageData(results.sort((a, b) => b.date.getTime() - a.date.getTime()));
+      } catch (e: any) {
+        console.error(e);
+        toast({ variant: "destructive", title: "Erro ao carregar métricas", description: "Verifique os índices do Firestore." });
+      } finally {
+        setLoadingMetrics(false);
+      }
+    };
+
+    fetchMetrics();
+  }, [db, selectedCouponForMetrics]);
 
   const handleSaveCoupon = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -125,7 +205,6 @@ export default function AdminCuponsPage() {
     if (!dateVal) return "";
     try {
       const d = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
-      // Formato para input datetime-local: YYYY-MM-DDTHH:mm
       return d.toISOString().slice(0, 16);
     } catch (e) { return ""; }
   };
@@ -299,10 +378,13 @@ export default function AdminCuponsPage() {
                     </TableCell>
                     <TableCell className="p-6 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10 rounded-full" onClick={() => { setEditingCoupon(c); setIsDialogOpen(true); }}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary hover:bg-secondary/10 rounded-full" onClick={() => setSelectedCouponForMetrics(c)} title="Métricas de Uso">
+                          <BarChart3 className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10 rounded-full" onClick={() => { setEditingCoupon(c); setIsDialogOpen(true); }} title="Editar">
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full" onClick={() => handleDelete(c.id)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full" onClick={() => handleDelete(c.id)} title="Remover">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -319,6 +401,100 @@ export default function AdminCuponsPage() {
           </TableBody>
         </Table>
       </Card>
+
+      {/* MODAL DE MÉTRICAS */}
+      <Dialog open={!!selectedCouponForMetrics} onOpenChange={(o) => !o && setSelectedCouponForMetrics(null)}>
+        <DialogContent className="max-w-4xl h-[85vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
+          <DialogHeader className="p-8 border-b bg-muted/30">
+             <div className="flex justify-between items-start">
+                <div className="flex items-center gap-4">
+                   <div className="p-3 bg-secondary/10 rounded-2xl text-secondary">
+                      <TrendingUp className="w-6 h-6" />
+                   </div>
+                   <div>
+                      <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Performance: {selectedCouponForMetrics?.code}</DialogTitle>
+                      <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">Auditoria de Conversão em Tempo Real</DialogDescription>
+                   </div>
+                </div>
+                <div className="text-right">
+                   <p className="text-[9px] font-black uppercase opacity-40">Faturamento Gerado (Bruto)</p>
+                   <p className="text-2xl font-black text-primary">
+                     {formatCurrency(usageData.reduce((acc, curr) => acc + curr.totalPaid, 0))}
+                   </p>
+                </div>
+             </div>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-hidden flex flex-col">
+             {loadingMetrics ? (
+               <div className="flex-1 flex flex-col items-center justify-center gap-4">
+                  <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cruzando dados de organizações...</p>
+               </div>
+             ) : usageData.length > 0 ? (
+               <ScrollArea className="flex-1">
+                  <div className="p-8">
+                     <Table>
+                        <TableHeader className="bg-muted/10">
+                           <TableRow>
+                              <TableHead className="font-black uppercase text-[9px] tracking-widest p-4">Usuário</TableHead>
+                              <TableHead className="font-black uppercase text-[9px] tracking-widest">Página / Marca</TableHead>
+                              <TableHead className="font-black uppercase text-[9px] tracking-widest">Data do Uso</TableHead>
+                              <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Recarga (Base)</TableHead>
+                              <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Total Pago (Gateway)</TableHead>
+                           </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                           {usageData.map((usage) => (
+                             <TableRow key={usage.id} className="hover:bg-muted/5 transition-colors">
+                                <TableCell className="p-4">
+                                   <div className="flex items-center gap-2">
+                                      <User className="w-3 h-3 text-secondary" />
+                                      <span className="font-bold text-xs uppercase">{usage.userName}</span>
+                                   </div>
+                                </TableCell>
+                                <TableCell>
+                                   <div className="flex items-center gap-2">
+                                      <Building2 className="w-3 h-3 text-muted-foreground" />
+                                      <span className="font-bold text-[10px] uppercase text-primary">{usage.orgName}</span>
+                                   </div>
+                                </TableCell>
+                                <TableCell>
+                                   <div className="flex items-center gap-2 text-[10px] font-medium text-muted-foreground">
+                                      <Clock className="w-3 h-3" />
+                                      {usage.date.toLocaleString('pt-BR')}
+                                   </div>
+                                </TableCell>
+                                <TableCell className="text-right font-black text-xs">
+                                   {formatCurrency(usage.amount)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                   <Badge className="bg-green-500 text-white font-black text-[10px]">
+                                      {formatCurrency(usage.totalPaid)}
+                                   </Badge>
+                                </TableCell>
+                             </TableRow>
+                           ))}
+                        </TableBody>
+                     </Table>
+                  </div>
+               </ScrollArea>
+             ) : (
+               <div className="flex-1 flex flex-col items-center justify-center p-20 text-center gap-4">
+                  <Inbox className="w-16 h-16 text-muted-foreground opacity-10" />
+                  <div className="space-y-1">
+                     <p className="text-sm font-black uppercase italic text-primary">Sem conversões confirmadas</p>
+                     <p className="text-[10px] text-muted-foreground font-medium uppercase max-w-xs mx-auto leading-relaxed">As métricas são calculadas apenas para cupons utilizados em recargas com pagamento aprovado pelo Stripe.</p>
+                  </div>
+               </div>
+             )}
+          </div>
+          <div className="p-6 bg-muted/30 border-t flex items-center justify-center gap-2">
+             <Info className="w-4 h-4 text-secondary opacity-40" />
+             <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Estes dados são protegidos e auditáveis para fins fiscais</p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
          <Info className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
