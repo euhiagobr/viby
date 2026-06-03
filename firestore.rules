@@ -2,15 +2,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // --- FUNÇÕES DE AUXÍLIO ---
-    
     function isSignedIn() {
       return request.auth != null;
     }
 
     function isAdmin() {
-      return isSignedIn() && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isSignedIn() && request.auth.token.admin == true;
     }
 
     function isServer() {
@@ -22,8 +19,7 @@ service cloud.firestore {
     }
 
     function isMemberOfOrg(orgId) {
-      return isSignedIn() && 
-             exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+      return isSignedIn() && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
     }
 
     function isFieldUnchanged(fieldName) {
@@ -31,16 +27,12 @@ service cloud.firestore {
              (resource != null && request.resource.data[fieldName] == resource.data[fieldName]);
     }
 
-    // --- REGRAS POR COLEÇÃO ---
-
     match /users/{userId} {
-      // Perfil básico é público, mas campos sensíveis são protegidos por lógica de imutabilidade
       allow read: if true;
       allow create: if isOwner(userId);
       allow update: if isAdmin() || (isOwner(userId) && isFieldUnchanged('cpf') && isFieldUnchanged('role') && isFieldUnchanged('totalXp'));
       
       match /private/sensitive {
-        // Dados brutos (CPF real) nunca são públicos
         allow read, write: if isAdmin() || isOwner(userId);
       }
     }
@@ -64,7 +56,6 @@ service cloud.firestore {
     match /events/{eventId} {
       allow read: if true;
       allow create: if isAdmin() || isSignedIn();
-      // Permite que o servidor atualize contadores de estoque durante estornos/compras
       allow update: if isServer() || isAdmin() || isMemberOfOrg(resource.data.organizationId);
       allow delete: if isAdmin() || isMemberOfOrg(resource.data.organizationId);
 
@@ -96,14 +87,12 @@ service cloud.firestore {
     }
 
     match /registrations/{regId} {
-      // Leitura pública necessária para o scanner validar o ticketCode sem exigir login do porteiro em todos os casos
       allow read: if true; 
-      allow create: if isServer(); // Apenas o servidor gera ingressos após pagamento
+      allow create: if isServer();
       allow update: if isServer() || isAdmin() || isMemberOfOrg(resource.data.organizationId) || (isSignedIn() && request.auth.uid == resource.data.userId);
     }
 
     match /orders/{orderId} {
-      // Pedidos são privados. O servidor precisa ler para finalizar o checkout.
       allow read: if isServer() || isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if isSignedIn();
       allow update: if isServer() || isAdmin();
