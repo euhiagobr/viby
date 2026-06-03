@@ -22,8 +22,8 @@ import { sendPasswordResetLinkEmail } from './email';
 import { getAdminAuth } from '@/lib/firebase/admin';
 
 /**
- * @fileOverview Ações de Recuperação de Senha (AUDITORIA ATIVA).
- * Corrigido erro de "Muitas solicitações" que ocorria em chamadas iniciais.
+ * @fileOverview Ações de Recuperação de Senha (AUDITORIA DE RATE LIMIT).
+ * Lógica corrigida para evitar falsos positivos de bloqueio e garantir segurança.
  */
 
 async function getDb() {
@@ -33,7 +33,7 @@ async function getDb() {
 
 export async function requestPasswordRecovery(identifier: string) {
   const auditId = `RECOVERY-${Date.now()}`;
-  console.log(`[${auditId}] Início da solicitação: "${identifier}"`);
+  console.log(`[${auditId}] Auditoria iniciada para: "${identifier}"`);
 
   try {
     const db = await getDb();
@@ -44,6 +44,7 @@ export async function requestPasswordRecovery(identifier: string) {
     let targetEmail = "";
     let userName = "";
 
+    // 1. LOCALIZAÇÃO DO USUÁRIO
     if (isEmail) {
       const q = query(collection(db, "users"), where("email", "==", inputClean), limit(1));
       const userSnap = await getDocs(q);
@@ -72,16 +73,17 @@ export async function requestPasswordRecovery(identifier: string) {
       }
     }
 
+    // 2. REGRA DE SEGURANÇA: USUÁRIO NÃO EXISTE
     if (!userId || !targetEmail) {
-      console.log(`[${auditId}] Usuário não localizado.`);
+      console.log(`[${auditId}] Usuário não localizado. Retornando resposta genérica por segurança.`);
+      // Retorna sucesso genérico para não vazar existência do usuário
       return { success: true, maskedEmail: "seu e-mail cadastrado" };
     }
 
-    // VERIFICAÇÃO DE RATE LIMIT CORRIGIDA
-    const oneHourAgo = new Date();
-    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+    // 3. VERIFICAÇÃO DE RATE LIMIT (POR USUÁRIO)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     
-    // Consulta por userId apenas
+    // Busca códigos pendentes do usuário específico
     const rateQ = query(
       collection(db, "password_reset_codes"), 
       where("userId", "==", userId),
@@ -92,18 +94,18 @@ export async function requestPasswordRecovery(identifier: string) {
     const recentRequests = rateSnap.docs.filter(d => {
       const dData = d.data();
       const createdAt = dData.createdAt?.toDate ? dData.createdAt.toDate() : new Date(0);
+      // Conta apenas códigos gerados na última hora que ainda não foram marcados como usados
       return createdAt > oneHourAgo && dData.used === false;
     });
 
-    // Aumentado limite para 5 solicitações/hora para evitar bloqueios em testes
-    if (recentRequests.length >= 5) {
-      console.warn(`[${auditId}] Rate limit atingido para ${userId}`);
+    if (recentRequests.length >= 3) {
+      console.warn(`[${auditId}] Rate limit atingido para UID: ${userId} (${recentRequests.length} solicitações pendentes na última hora)`);
       return { success: false, error: "Muitas solicitações. Tente novamente em uma hora." };
     }
 
+    // 4. GERAÇÃO E PERSISTÊNCIA DO CÓDIGO
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
 
     const resetData = {
       email: targetEmail,
@@ -117,6 +119,7 @@ export async function requestPasswordRecovery(identifier: string) {
 
     const resetRef = await addDoc(collection(db, "password_reset_codes"), resetData);
     
+    // 5. ENVIO DO E-MAIL
     const emailRes = await sendPasswordResetLinkEmail({
       to: targetEmail,
       userName: userName,
@@ -124,8 +127,10 @@ export async function requestPasswordRecovery(identifier: string) {
     });
 
     if (!emailRes.success) {
-      throw new Error(`Email Service Error: ${emailRes.error}`);
+      throw new Error(`Falha no serviço de e-mail: ${emailRes.error}`);
     }
+
+    console.log(`[${auditId}] Código enviado com sucesso para UID: ${userId}`);
 
     return { 
       success: true, 
@@ -134,8 +139,8 @@ export async function requestPasswordRecovery(identifier: string) {
     };
 
   } catch (error: any) {
-    console.error(`[${auditId}] Erro:`, error.message);
-    return { success: false, error: 'Erro ao processar solicitação.' };
+    console.error(`[${auditId}] Erro crítico:`, error.message);
+    return { success: false, error: 'Erro ao processar solicitação de segurança.' };
   }
 }
 
@@ -153,7 +158,7 @@ export async function verifyRecoveryCode(requestId: string, code: string) {
 
     if (data.used) return { success: false, error: "Código já utilizado." };
     if (now > expiresAt) return { success: false, error: "Código expirou." };
-    if ((data.attempts || 0) >= 10) return { success: false, error: "Muitas tentativas." };
+    if ((data.attempts || 0) >= 10) return { success: false, error: "Muitas tentativas falhas. Solicite um novo código." };
 
     if (data.code !== code) {
       await updateDoc(resetRef, { attempts: (data.attempts || 0) + 1 });
@@ -162,7 +167,7 @@ export async function verifyRecoveryCode(requestId: string, code: string) {
 
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: "Falha na validação." };
+    return { success: false, error: "Falha na validação técnica." };
   }
 }
 
@@ -175,14 +180,18 @@ export async function resetPasswordWithCode(requestId: string, code: string, pas
     if (!resetSnap.exists()) throw new Error("Sessão expirada.");
     const resetData = resetSnap.data();
 
+    // Re-valida o código no momento da troca por segurança
     if (resetData.code !== code || resetData.used) {
-      return { success: false, error: "Código inválido." };
+      return { success: false, error: "Código inválido ou já utilizado." };
     }
 
     const userId = resetData.userId;
     const adminAuth = getAdminAuth();
+    
+    // Atualiza a senha real no Firebase Authentication
     await adminAuth.updateUser(userId, { password });
 
+    // Invalidação em massa de todos os códigos pendentes deste usuário
     const batch = writeBatch(db);
     const allCodesQ = query(collection(db, "password_reset_codes"), where("userId", "==", userId), where("used", "==", false));
     const allCodesSnap = await getDocs(allCodesQ);
@@ -191,13 +200,14 @@ export async function resetPasswordWithCode(requestId: string, code: string, pas
       batch.update(d.ref, { 
         used: true, 
         usedAt: serverTimestamp(),
-        usedByRequestId: requestId 
+        invalidationReason: d.id === requestId ? 'used' : 'superseded_by_reset'
       });
     });
 
     await batch.commit();
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: "Falha ao atualizar senha." };
+    console.error("[Reset Password Error]", error.message);
+    return { success: false, error: "Falha técnica ao atualizar senha no servidor." };
   }
 }
