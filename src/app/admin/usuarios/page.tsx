@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -58,12 +57,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Switch } from "@/components/ui/switch"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { sendVerificationStatusEmail } from "@/app/actions/email"
 
 export default function AdminUsuariosPage() {
   const db = useFirestore()
   const [search, setSearch] = React.useState("")
   
   const [editingUser, setEditingUser] = React.useState<any>(null)
+  const [originalUser, setOriginalUser] = React.useState<any>(null)
   const [isEditUserOpen, setIsEditUserOpen] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
 
@@ -86,6 +87,17 @@ export default function AdminUsuariosPage() {
     try {
       const { id, ...data } = editingUser
       await updateDoc(doc(db, "users", id), { ...data, updatedAt: serverTimestamp() })
+      
+      // Gatilho de e-mail se verificado agora
+      if (editingUser.isVerified && !originalUser?.isVerified) {
+        sendVerificationStatusEmail({
+           to: editingUser.email,
+           userName: editingUser.name || editingUser.displayName || "Usuário",
+           targetName: `@${editingUser.username}`,
+           type: 'user'
+        }).catch(err => console.warn("Falha ao enviar e-mail de verificação", err));
+      }
+
       toast({ title: "Usuário atualizado!" })
       setIsEditUserOpen(false)
     } catch (e) { 
@@ -214,7 +226,7 @@ export default function AdminUsuariosPage() {
                 </TableCell>
                 <TableCell className="p-6 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingUser(user); setIsEditUserOpen(true); }}><Edit className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingUser(user); setOriginalUser(user); setIsEditUserOpen(true); }}><Edit className="w-4 h-4" /></Button>
                     <Button 
                       variant="ghost" 
                       size="icon" 

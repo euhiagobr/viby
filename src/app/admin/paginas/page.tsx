@@ -91,6 +91,7 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
+import { sendVerificationStatusEmail } from "@/app/actions/email"
 
 const ORG_ROLES = [
   { value: 'owner', label: 'Proprietário' },
@@ -110,6 +111,7 @@ export default function AdminPaginasPage() {
   const [activeTypeFilter, setActiveTypeFilter] = React.useState("all")
   
   const [editingOrg, setEditingOrg] = React.useState<any>(null)
+  const [originalOrg, setOriginalOrg] = React.useState<any>(null)
   const [originalUsername, setOriginalUsername] = React.useState<string | null>(null)
   const [isEditOrgOpen, setIsEditOrgOpen] = React.useState(false)
   
@@ -203,7 +205,6 @@ export default function AdminPaginasPage() {
           }
           transaction.set(newIdxRef, { uid: editingOrg.id, type: 'organization' });
         } else if (newUsername) {
-          // Garante que o índice exista mesmo que não tenha mudado (reparo de índice)
           transaction.set(doc(db, "usernames", newUsername), { uid: editingOrg.id, type: 'organization' }, { merge: true });
         }
 
@@ -211,7 +212,17 @@ export default function AdminPaginasPage() {
         transaction.update(doc(db, "organizations", id), { ...data, updatedAt: serverTimestamp() });
       });
 
-      toast({ title: "Página atualizada!", description: "Índice de URL sincronizado com sucesso." })
+      // Gatilho de e-mail se verificado agora
+      if (editingOrg.verified && !originalOrg?.verified && editingOrg.ownerProfile?.email) {
+         sendVerificationStatusEmail({
+            to: editingOrg.ownerProfile.email,
+            userName: editingOrg.ownerProfile.name || editingOrg.ownerProfile.displayName || "Organizador",
+            targetName: editingOrg.name,
+            type: 'organization'
+         }).catch(err => console.warn("Falha ao enviar e-mail de verificação da marca", err));
+      }
+
+      toast({ title: "Página atualizada!", description: "Dados sincronizados com sucesso." })
       setIsEditOrgOpen(false)
     } catch (e: any) { 
       toast({ variant: "destructive", title: "Erro ao salvar", description: e.message }) 
@@ -391,7 +402,7 @@ export default function AdminPaginasPage() {
                 </TableCell>
                 <TableCell className="p-6 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingOrg(org); setOriginalUsername(org.username); setIsEditOrgOpen(true); }}><Edit className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingOrg(org); setOriginalOrg(org); setOriginalUsername(org.username); setIsEditOrgOpen(true); }}><Edit className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => { setTransferOrg(org); setIsTransferOpen(true); }} title="Transferir Titularidade"><ArrowRightLeft className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className={cn("h-8 w-8", org.status === 'Bloqueado' ? "text-green-600" : "text-orange-500")} onClick={() => handleToggleBlock(org.id, org.status)} title="Suspender/Ativar"><ShieldBan className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-lg hover:bg-destructive/10" onClick={() => handleSoftDelete(org.id, org.name)}><Trash2 className="w-4 h-4" /></Button>
