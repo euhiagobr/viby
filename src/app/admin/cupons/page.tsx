@@ -19,7 +19,9 @@ import {
   Inbox,
   Info,
   Users,
-  Layers
+  Layers,
+  Calendar,
+  Zap
 } from 'lucide-react';
 import {
   Dialog,
@@ -69,6 +71,9 @@ export default function AdminCuponsPage() {
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
 
+    const startAtStr = formData.get("startAt") as string;
+    const endAtStr = formData.get("endAt") as string;
+
     const couponData = {
       code: (formData.get("code") as string).trim().toUpperCase(),
       type: formData.get("type") as string,
@@ -78,8 +83,8 @@ export default function AdminCuponsPage() {
       maxTotalUses: parseInt(formData.get("maxTotalUses") as string) || 0,
       maxUsesPerUser: parseInt(formData.get("maxUsesPerUser") as string) || 1,
       currentUses: 0,
-      startAt: new Date(formData.get("startAt") as string),
-      endAt: new Date(formData.get("endAt") as string),
+      startAt: new Date(startAtStr),
+      endAt: new Date(endAtStr),
       status: "active",
       createdAt: serverTimestamp()
     };
@@ -103,6 +108,14 @@ export default function AdminCuponsPage() {
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao remover" });
     }
+  };
+
+  const formatTimestamp = (dateVal: any) => {
+    if (!dateVal) return "---";
+    try {
+      const d = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
+      return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return "---"; }
   };
 
   return (
@@ -147,7 +160,7 @@ export default function AdminCuponsPage() {
                        </Select>
                     </div>
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Valor</Label>
+                       <Label className="text-[10px] font-black uppercase opacity-60">Valor do Benefício</Label>
                        <Input name="value" type="number" step="0.01" required className="rounded-xl h-11 font-black" />
                     </div>
                  </div>
@@ -167,19 +180,24 @@ export default function AdminCuponsPage() {
                     </div>
                  </div>
 
-                 <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Mín. Recarga (R$)</Label>
+                    <Input name="minRecharge" type="number" step="0.01" placeholder="10.00" className="rounded-xl h-11" />
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-4 border-t border-dashed pt-4">
                     <div className="space-y-2">
-                       <Label className="text-[10px) font-black uppercase opacity-60">Mín. Recarga (R$)</Label>
-                       <Input name="minRecharge" type="number" step="0.01" placeholder="10.00" className="rounded-xl h-11" />
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1.5">
+                         <Clock className="w-3 h-3" /> Início
+                       </Label>
+                       <Input name="startAt" type="datetime-local" required className="rounded-xl h-11 text-xs" defaultValue={new Date().toISOString().slice(0, 16)} />
                     </div>
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Válido Até</Label>
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1.5">
+                         <Clock className="w-3 h-3 text-red-500" /> Fim
+                       </Label>
                        <Input name="endAt" type="datetime-local" required className="rounded-xl h-11 text-xs" />
                     </div>
-                 </div>
-                 
-                 <div className="hidden">
-                    <Input name="startAt" type="hidden" value={new Date().toISOString().slice(0, 16)} />
                  </div>
               </div>
 
@@ -210,14 +228,13 @@ export default function AdminCuponsPage() {
               <TableHead className="font-black uppercase text-[10px] tracking-widest p-6">Código / Tipo</TableHead>
               <TableHead className="font-black uppercase text-[10px] tracking-widest">Benefício</TableHead>
               <TableHead className="font-black uppercase text-[10px] tracking-widest text-center">Uso / Estoque</TableHead>
-              <TableHead className="font-black uppercase text-[10px] tracking-widest text-center">Lim. Usuário</TableHead>
-              <TableHead className="font-black uppercase text-[10px] tracking-widest">Expira em</TableHead>
+              <TableHead className="font-black uppercase text-[10px] tracking-widest">Vigência</TableHead>
               <TableHead className="text-right font-black uppercase text-[10px] tracking-widest p-6">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={6} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
             ) : filteredCoupons.length > 0 ? (
               filteredCoupons.map((c) => {
                 const usagePercent = c.maxTotalUses > 0 ? (c.currentUses / c.maxTotalUses) * 100 : 0;
@@ -245,15 +262,18 @@ export default function AdminCuponsPage() {
                           <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden">
                              <div className="h-full bg-secondary transition-all" style={{ width: `${Math.min(100, usagePercent)}%` }} />
                           </div>
+                          <p className="text-[7px] font-bold text-muted-foreground uppercase">{c.maxUsesPerUser}x por user</p>
                        </div>
                     </TableCell>
-                    <TableCell className="text-center font-bold text-xs">
-                       {c.maxUsesPerUser}x
-                    </TableCell>
                     <TableCell>
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase">
-                        {new Date(c.endAt?.seconds * 1000 || c.endAt).toLocaleDateString('pt-BR')}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                         <span className="text-[9px] font-bold text-green-600 uppercase flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5" /> {formatTimestamp(c.startAt)}
+                         </span>
+                         <span className="text-[9px] font-bold text-red-500 uppercase flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5" /> {formatTimestamp(c.endAt)}
+                         </span>
+                      </div>
                     </TableCell>
                     <TableCell className="p-6 text-right">
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full" onClick={() => handleDelete(c.id)}>
@@ -264,7 +284,7 @@ export default function AdminCuponsPage() {
                 );
               })
             ) : (
-              <TableRow><TableCell colSpan={6} className="py-24 text-center">
+              <TableRow><TableCell colSpan={5} className="py-24 text-center">
                  <Inbox className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-10" />
                  <p className="text-muted-foreground font-black uppercase tracking-widest text-xs">Nenhum cupom de anúncio cadastrado.</p>
               </TableCell></TableRow>
