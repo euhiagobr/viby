@@ -2,27 +2,23 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, where, updateDoc, doc, serverTimestamp, getDocs, writeBatch, getDoc } from "firebase/firestore"
+import { collection, query, orderBy, where, doc, serverTimestamp, getDocs, writeBatch, getDoc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
   Receipt, 
   Loader2, 
   Search, 
-  FileText, 
-  CheckCircle2, 
-  ArrowUpRight,
-  ArrowDownRight,
-  FilterX,
-  FileSpreadsheet,
-  Ticket,
+  RefreshCw,
   TrendingUp,
   CreditCard,
   ChevronDown,
   ChevronUp,
   Scale,
-  RefreshCw,
-  Calendar
+  ArrowUpRight,
+  ArrowDownRight,
+  CheckCircle2,
+  FilterX
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -34,61 +30,28 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { formatCurrency, calculateDetailedVibyBreakdown } from "@/lib/financial-utils"
-import * as XLSX from 'xlsx'
-import { useSearchParams, useRouter } from "next/navigation"
-import Link from "next/link"
+import { useRouter } from "next/navigation"
 
-function AdminImpostoContent() {
+export default function AdminImpostoPage() {
   const db = useFirestore()
   const router = useRouter()
-  const searchParams = useSearchParams()
 
-  const [searchName, setSearchName] = React.useState(searchParams.get('q') || "")
-  const [selectedMonth, setSelectedMonth] = React.useState(searchParams.get('month') || "all")
-  const [activeTab, setActiveTab] = React.useState(searchParams.get('tab') || "tickets")
+  const [searchName, setSearchName] = React.useState("")
+  const [selectedMonth, setSelectedMonth] = React.useState("all")
   const [expandedEvents, setExpandedEvents] = React.useState<Set<string>>(new Set())
-  const [isUpdating, setIsUpdating] = React.useState<string | null>(null)
   const [isSyncing, setIsSyncing] = React.useState(false)
-
-  const adsQuery = useMemoFirebase(() => {
-    if (!db) return null
-    return query(collection(db, "tax_ads"), orderBy("monthKey", "desc"))
-  }, [db])
 
   const ticketsQuery = useMemoFirebase(() => {
     if (!db) return null
     return query(collection(db, "tax_tickets"), orderBy("timestamp", "desc"))
   }, [db])
 
-  const { data: ads, loading: adsLoading } = useCollection<any>(adsQuery)
   const { data: rawTickets, loading: ticketsLoading } = useCollection<any>(ticketsQuery)
 
-  const updateFilters = React.useCallback(() => {
-    const params = new URLSearchParams()
-    if (searchName) params.set('q', searchName)
-    if (selectedMonth !== 'all') params.set('month', selectedMonth)
-    params.set('tab', activeTab)
-    router.push(`?${params.toString()}`)
-  }, [searchName, selectedMonth, activeTab, router])
-
-  React.useEffect(() => {
-    const timer = setTimeout(updateFilters, 500)
-    return () => clearTimeout(timer)
-  }, [searchName, selectedMonth, activeTab, updateFilters])
-
-  const handleSyncLegacySales = async () => {
+  const handleSyncSales = async () => {
     if (!db) return
     setIsSyncing(true)
     try {
@@ -123,6 +86,7 @@ function AdminImpostoContent() {
             buyerName: reg.userName || "Comprador",
             totalFacePrice: breakdown.totalFace,
             vibyGrossProfit: breakdown.vibyGross,
+            buyerFeeAmount: breakdown.totalBuyerFee,
             stripeFeeAmount: breakdown.stripeFeeTotal,
             taxAmount: breakdown.imposto,
             vibyNetProfit: breakdown.vibyNet,
@@ -138,9 +102,9 @@ function AdminImpostoContent() {
 
       if (count > 0) {
         await batch.commit()
-        toast({ title: "Sincronização Concluída!", description: `${count} vendas processadas.` })
+        toast({ title: "Sincronização Fiscal!", description: `${count} entradas geradas no ERP.` })
       } else {
-        toast({ title: "Tudo em dia!" })
+        toast({ title: "ERP em Dia", description: "Todos os registros fiscais já foram sincronizados." })
       }
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na sincronização" })
@@ -158,24 +122,17 @@ function AdminImpostoContent() {
     })
   }, [rawTickets, searchName, selectedMonth])
 
-  const ticketStats = React.useMemo(() => {
+  const totals = React.useMemo(() => {
     return filteredTickets.reduce((acc, t) => {
       if (t.status === 'cancelado') return acc;
-      
-      const net = t.vibyNetProfit || 0;
-      const tax = t.taxAmount || 0;
-      const stripe = t.stripeFeeAmount || 0;
-      const gross = t.vibyGrossProfit || (net + tax + stripe);
-
-      acc.totalSold += (t.totalFacePrice || 0)
-      acc.payouts += (t.payoutToProducer || 0)
-      acc.vibyGross += gross
-      acc.imposto += tax
-      acc.vibyNet += net
-      acc.stripeTotal += stripe
-      return acc
-    }, { totalSold: 0, payouts: 0, vibyGross: 0, imposto: 0, vibyNet: 0, stripeTotal: 0 })
-  }, [filteredTickets])
+      acc.totalSold += (t.totalFacePrice || 0) + (t.buyerFeeAmount || 0);
+      acc.vibyGross += (t.vibyGrossProfit || 0);
+      acc.tax += (t.taxAmount || 0);
+      acc.vibyNet += (t.vibyNetProfit || 0);
+      acc.stripeFees += (t.stripeFeeAmount || 0);
+      return acc;
+    }, { totalSold: 0, vibyGross: 0, tax: 0, vibyNet: 0, stripeFees: 0 });
+  }, [filteredTickets]);
 
   const groupedTickets = React.useMemo(() => {
     const groups: Record<string, any> = {}
@@ -195,15 +152,10 @@ function AdminImpostoContent() {
       }
       
       if (t.status !== 'cancelado') {
-        const net = t.vibyNetProfit || 0;
-        const tax = t.taxAmount || 0;
-        const stripe = t.stripeFeeAmount || 0;
-        const gross = t.vibyGrossProfit || (net + tax + stripe);
-
-        groups[groupKey].salesQty += (t.quantity || 1)
-        groups[groupKey].grossViby += gross
-        groups[groupKey].totalTax += tax
-        groups[groupKey].netViby += net
+        groups[groupKey].salesQty += 1;
+        groups[groupKey].grossViby += (t.vibyGrossProfit || 0);
+        groups[groupKey].totalTax += (t.taxAmount || 0);
+        groups[groupKey].netViby += (t.vibyNetProfit || 0);
       }
       groups[groupKey].details.push(t)
     })
@@ -214,21 +166,23 @@ function AdminImpostoContent() {
     <div className="space-y-8 pb-20">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black uppercase italic text-primary flex items-center gap-3"><Scale className="w-8 h-8 text-secondary" /> Fiscal & ERP</h1>
-          <p className="text-muted-foreground font-medium">Controle de faturamento único: 10% ou R$ 3,99.</p>
+          <h1 className="text-3xl font-black uppercase italic text-primary flex items-center gap-3">
+             <Scale className="w-8 h-8 text-secondary" /> Fiscal & ERP
+          </h1>
+          <p className="text-muted-foreground font-medium">Controle de faturamento, margem Stripe e provisionamento de impostos.</p>
         </div>
-        <Button variant="outline" onClick={handleSyncLegacySales} disabled={isSyncing} className="rounded-full h-11 px-6 font-black uppercase text-[10px] gap-2 border-secondary text-secondary">
+        <Button variant="outline" onClick={handleSyncSales} disabled={isSyncing} className="rounded-full h-11 px-6 font-black uppercase text-[10px] gap-2 border-secondary text-secondary">
           {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          Sincronizar Vendas
+          Processar Registros
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-         <StatCard title="Venda Bruta" value={formatCurrency(ticketStats.totalSold)} icon={TrendingUp} color="blue" />
-         <StatCard title="Repasse Líquido" value={formatCurrency(ticketStats.payouts)} icon={ArrowDownRight} color="orange" />
-         <StatCard title="Taxas Gateway" value={formatCurrency(ticketStats.stripeTotal)} icon={CreditCard} color="red" />
-         <StatCard title="Lucro Bruto" value={formatCurrency(ticketStats.vibyGross)} icon={ArrowUpRight} color="secondary" />
-         <StatCard title="Lucro Real (DRE)" value={formatCurrency(ticketStats.vibyNet)} icon={CheckCircle2} color="green" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+         <StatCard title="Venda Bruta" value={totals.totalSold} icon={TrendingUp} color="blue" />
+         <StatCard title="Stripe Fees" value={totals.stripeFees} icon={CreditCard} color="red" />
+         <StatCard title="Lucro Bruto (Viby)" value={totals.vibyGross} icon={ArrowUpRight} color="secondary" />
+         <StatCard title="Provisionamento IR" value={totals.tax} icon={Receipt} color="orange" />
+         <StatCard title="Lucro Líquido Real" value={totals.vibyNet} icon={CheckCircle2} color="green" />
       </div>
 
       <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
@@ -257,21 +211,21 @@ function AdminImpostoContent() {
                       </div>
                    </div>
                    <div className="col-span-2 text-right"><p className="text-[9px] font-black uppercase opacity-40">Bruto Viby</p><p className="font-black text-sm">{formatCurrency(group.grossViby)}</p></div>
-                   <div className="col-span-2 text-right"><p className="text-[9px] font-black uppercase opacity-40">Líquido</p><p className="font-black text-sm text-green-600">{formatCurrency(group.netViby)}</p></div>
+                   <div className="col-span-2 text-right"><p className="text-[9px] font-black uppercase opacity-40">Lucro Real</p><p className="font-black text-sm text-green-600">{formatCurrency(group.netViby)}</p></div>
                    <div className="col-span-3 text-right"><Badge variant="outline" className="text-[9px] font-black uppercase px-3">{group.salesQty} vendas</Badge></div>
                 </div>
                 {expandedEvents.has(group.id) && (
                   <div className="bg-muted/20 px-8 py-6 animate-in slide-in-from-top-2">
                      <Table>
-                        <TableHeader><TableRow className="hover:bg-transparent"><TableHead className="h-8 text-[8px] font-black uppercase">Comprador</TableHead><TableHead className="h-8 text-[8px] font-black uppercase text-right">Face</TableHead><TableHead className="h-8 text-[8px] font-black uppercase text-right">Repasse</TableHead><TableHead className="h-8 text-[8px] font-black uppercase text-right">Líq. Viby</TableHead><TableHead className="h-8 text-[8px] font-black uppercase text-center">Status</TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow className="hover:bg-transparent"><TableHead className="h-8 text-[8px] font-black uppercase">Comprador</TableHead><TableHead className="h-8 text-[8px] font-black uppercase text-right">Bruto Viby</TableHead><TableHead className="h-8 text-[8px] font-black uppercase text-right">Stripe</TableHead><TableHead className="h-8 text-[8px] font-black uppercase text-right">Imposto</TableHead><TableHead className="h-8 text-[8px] font-black uppercase text-right">Líq. Real</TableHead></TableRow></TableHeader>
                         <TableBody>
                            {group.details.map((t: any) => (
                              <TableRow key={t.id} className={cn(t.status === 'cancelado' && "opacity-40 line-through")}>
                                <TableCell className="py-2 text-[10px] font-bold uppercase">{t.buyerName}</TableCell>
-                               <TableCell className="text-right py-2 text-[10px]">{formatCurrency(t.totalFacePrice)}</TableCell>
-                               <TableCell className="text-right py-2 text-[10px] font-medium text-primary">{formatCurrency(t.payoutToProducer)}</TableCell>
+                               <TableCell className="text-right py-2 text-[10px]">{formatCurrency(t.vibyGrossProfit)}</TableCell>
+                               <TableCell className="text-right py-2 text-[10px] text-red-500">-{formatCurrency(t.stripeFeeAmount)}</TableCell>
+                               <TableCell className="text-right py-2 text-[10px] text-orange-600">-{formatCurrency(t.taxAmount)}</TableCell>
                                <TableCell className="text-right py-2 text-[10px] font-black text-green-600">{formatCurrency(t.vibyNetProfit)}</TableCell>
-                               <TableCell className="text-center py-2"><Badge className={cn("text-[7px] font-black uppercase h-4 px-2", t.status === 'cancelado' ? 'bg-red-500' : 'bg-green-500')}>{t.status || 'ativo'}</Badge></TableCell>
                              </TableRow>
                            ))}
                         </TableBody>
@@ -287,17 +241,17 @@ function AdminImpostoContent() {
 }
 
 function StatCard({ title, value, icon: Icon, color }: any) {
-  const colors: any = { blue: "border-blue-500 text-blue-600 bg-blue-50", orange: "border-orange-500 text-orange-600 bg-orange-50", green: "border-green-500 text-green-600 bg-green-50", secondary: "border-secondary text-secondary bg-secondary/5", red: "border-destructive text-destructive bg-destructive/5" };
+  const colors: any = { 
+    blue: "border-blue-500 text-blue-600 bg-blue-50", 
+    orange: "border-orange-500 text-orange-600 bg-orange-50", 
+    green: "border-green-500 text-green-600 bg-green-50", 
+    secondary: "border-secondary text-secondary bg-secondary/5", 
+    red: "border-destructive text-destructive bg-destructive/5" 
+  };
   return (
     <Card className={cn("border-none shadow-sm border-l-4 p-5", colors[color])}>
        <p className="text-[9px] font-black uppercase opacity-60 flex justify-between">{title}<Icon className="w-3 h-3" /></p>
-       <div className="text-lg font-black mt-1">{value}</div>
+       <div className="text-lg font-black mt-1">{formatCurrency(value)}</div>
     </Card>
   )
-}
-
-export default function AdminImpostoPage() {
-  return (
-    <React.Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>}><AdminImpostoContent /></React.Suspense>
-  );
 }

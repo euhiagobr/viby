@@ -6,6 +6,7 @@
 export const VIBY_MIN_FEE = 3.99; // Taxa mínima da plataforma (paga pelo organizador)
 export const VIBY_BUYER_MARKUP = 0.15; // 15% de taxa administrativa (paga pelo comprador)
 export const VIBY_ORGANIZER_FEE = 0.10; // 10% de comissão base (paga pelo organizador)
+export const VIBY_TAX_RATE = 0.11; // 11% de imposto sobre a receita da plataforma (lucro bruto)
 
 /**
  * Converte valor para centavos (inteiro para Stripe)
@@ -26,8 +27,8 @@ export function formatCurrency(value: number): string {
 }
 
 /**
- * CÁLCULO OFICIAL VIBY - Única fonte de verdade.
- * @param facePrice Preço base (Pode ser o preço original ou já com desconto unitário)
+ * CÁLCULO OFICIAL VIBY - Única fonte de verdade para ingressos.
+ * @param facePrice Preço base definido pelo produtor
  */
 export function calculateVibyOfficialSplit(facePrice: number) {
   const price = Math.max(0, Number(facePrice) || 0);
@@ -43,7 +44,7 @@ export function calculateVibyOfficialSplit(facePrice: number) {
     };
   }
 
-  // 1. Taxa do Comprador (15% sobre o valor de face ajustado)
+  // 1. Taxa do Comprador (15% sobre o valor de face)
   const buyerFee = Number((price * VIBY_BUYER_MARKUP).toFixed(2));
   
   // 2. Taxa do Organizador (Maior entre 10% ou R$ 3,99)
@@ -61,12 +62,49 @@ export function calculateVibyOfficialSplit(facePrice: number) {
     totalCharged,
     organizerFee,
     organizerNet,
-    vibyApplicationFee // Este é o application_fee_amount do Stripe
+    vibyApplicationFee // Lucro Bruto Viby por ingresso
   };
 }
 
 /**
- * Alias para compatibilidade legada enquanto migramos componentes
+ * Calcula o detalhamento profundo para fins de ERP e Fiscal
+ */
+export function calculateDetailedVibyBreakdown(facePrice: number, quantity: number = 1, coupon: any = null, stripeConfig: any = null) {
+  const base = calculateVibyOfficialSplit(facePrice);
+  const qty = Math.max(1, quantity);
+  
+  const stripePercent = stripeConfig?.feePercent || 3.99;
+  const stripeFixed = stripeConfig?.feeFixed || 0.39;
+
+  // Totais Brutos
+  const totalFace = base.facePrice * qty;
+  const totalBuyerFee = base.buyerFee * qty;
+  const totalCharged = base.totalCharged * qty;
+  const vibyGross = base.vibyApplicationFee * qty;
+
+  // Custos Gateway (Estimativa para o ERP)
+  const stripeFeeTotal = Number(((totalCharged * (stripePercent / 100)) + stripeFixed).toFixed(2));
+
+  // Impostos (11% sobre o Lucro Bruto da Viby)
+  const imposto = Number((vibyGross * VIBY_TAX_RATE).toFixed(2));
+
+  // Lucro Líquido Real (DRE)
+  const vibyNet = Number((vibyGross - stripeFeeTotal - imposto).toFixed(2));
+
+  return {
+    totalFace,
+    totalBuyerFee,
+    totalCharged,
+    vibyGross,
+    stripeFeeTotal,
+    imposto,
+    vibyNet,
+    payoutToProducer: base.organizerNet * qty
+  };
+}
+
+/**
+ * Alias para compatibilidade legada
  */
 export function calculateFinancialBreakdown(facePrice: number) {
   const split = calculateVibyOfficialSplit(facePrice);

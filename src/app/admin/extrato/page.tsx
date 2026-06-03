@@ -41,7 +41,7 @@ import { Separator } from '@/components/ui/separator';
 export default function AdminERPDashboard() {
   const db = useFirestore();
 
-  // Queries para consolidação
+  // Queries para consolidação do ERP
   const ticketsQuery = useMemoFirebase(() => db ? query(collection(db, "tax_tickets")) : null, [db]);
   const adsQuery = useMemoFirebase(() => db ? query(collection(db, "tax_ads")) : null, [db]);
   const expensesQuery = useMemoFirebase(() => db ? query(collection(db, "internal_expenses")) : null, [db]);
@@ -68,17 +68,21 @@ export default function AdminERPDashboard() {
 
     if (tickets) {
       tickets.forEach(t => {
-        m.grossRevenue += (t.totalFacePrice || 0);
+        if (t.status === 'cancelado') {
+           m.totalRefunds += (t.totalFacePrice || 0);
+           return;
+        }
+        m.grossRevenue += (t.totalFacePrice || 0) + (t.buyerFeeAmount || 0);
         m.netRevenue += (t.vibyGrossProfit || 0);
         m.totalStripeFees += (t.stripeFeeAmount || 0);
         m.totalTaxes += (t.taxAmount || 0);
         m.totalPayouts += (t.payoutToProducer || 0);
-        if (t.status === 'cancelado') m.totalRefunds += (t.totalFacePrice || 0);
       });
     }
 
     if (ads) {
       ads.forEach(ad => {
+        if (ad.status === 'cancelado') return;
         m.totalAdsRevenue += (ad.grossValue || 0);
         m.totalTaxes += (ad.taxValue || 0);
         m.netRevenue += (ad.netValue || 0);
@@ -102,30 +106,37 @@ export default function AdminERPDashboard() {
   }, [tickets, ads, expenses, payouts]);
 
   const chartData = [
-    { name: 'Bruto', value: metrics.grossRevenue, color: 'hsl(var(--primary))' },
+    { name: 'Faturamento', value: metrics.grossRevenue + metrics.totalAdsRevenue, color: 'hsl(var(--primary))' },
     { name: 'Repasses', value: metrics.totalPayouts, color: 'hsl(var(--secondary))' },
-    { name: 'Custos/Taxas', value: metrics.totalStripeFees + metrics.totalTaxes + metrics.internalExpenses, color: '#ef4444' },
-    { name: 'Lucro Real', value: metrics.realProfit, color: '#10b981' },
+    { name: 'Impostos/Taxas', value: metrics.totalStripeFees + metrics.totalTaxes, color: '#ef4444' },
+    { name: 'DRE Líquido', value: metrics.realProfit, color: '#10b981' },
   ];
 
   if (loadingTickets || loadingAds) {
-    return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
+    return (
+      <div className="flex flex-col items-center justify-center py-32 gap-4">
+        <Loader2 className="w-12 h-12 animate-spin text-secondary" />
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">
+          Consolidando dados financeiros...
+        </p>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-8 pb-20">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPI kpiTitle="Faturamento Bruto" value={metrics.grossRevenue + metrics.totalAdsRevenue} icon={TrendingUp} trend="+12.4%" color="blue" />
+        <KPI kpiTitle="Volume Bruto (GMV)" value={metrics.grossRevenue + metrics.totalAdsRevenue} icon={TrendingUp} color="blue" />
         <KPI kpiTitle="Lucro Líquido Real" value={metrics.realProfit} icon={CheckCircle2} color="green" />
-        <KPI kpiTitle="Pendência de Repasse" value={metrics.pendingPayouts} icon={Clock} color="orange" />
-        <KPI kpiTitle="Despesas Operacionais" value={metrics.internalExpenses} icon={ArrowDownRight} color="red" />
+        <KPI kpiTitle="Repasses Pendentes" value={metrics.pendingPayouts} icon={Clock} color="orange" />
+        <KPI kpiTitle="Despesa Operacional" value={metrics.internalExpenses} icon={ArrowDownRight} color="red" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <Card className="lg:col-span-8 border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
           <CardHeader className="p-8 border-b">
             <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-               <BarChart3 className="w-5 h-5 text-secondary" /> Fluxo de Caixa Consolidado
+               <BarChart3 className="w-5 h-5 text-secondary" /> Performance ERP Consolidated
             </CardTitle>
           </CardHeader>
           <CardContent className="p-8 h-[400px]">
@@ -161,12 +172,12 @@ export default function AdminERPDashboard() {
         <Card className="lg:col-span-4 border-none shadow-sm rounded-[2.5rem] bg-primary text-white relative overflow-hidden">
           <CardHeader className="p-8">
              <CardTitle className="text-lg font-black uppercase italic tracking-tighter flex items-center gap-2">
-               <Scale className="w-5 h-5 text-secondary" /> Saúde Financeira
+               <Scale className="w-5 h-5 text-secondary" /> Rentabilidade
              </CardTitle>
           </CardHeader>
           <CardContent className="p-8 pt-0 space-y-8 relative z-10">
              <div className="space-y-1">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-50">Margem de Lucro</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-50">Margem de Lucro Real</p>
                 <div className="flex items-baseline gap-2">
                    <p className="text-5xl font-black italic tracking-tighter">
                      {metrics.grossRevenue > 0 ? ((metrics.realProfit / (metrics.grossRevenue + metrics.totalAdsRevenue)) * 100).toFixed(1) : 0}%
@@ -177,16 +188,17 @@ export default function AdminERPDashboard() {
              <Separator className="bg-white/10" />
 
              <div className="space-y-4">
-                <MetricLine label="Impostos Totais" value={metrics.totalTaxes} />
-                <MetricLine label="Taxas Gateway (Stripe)" value={metrics.totalStripeFees} />
-                <MetricLine label="Comissões Viby (Líquidas)" value={metrics.netRevenue - metrics.totalAdsRevenue} />
+                <MetricLine label="Imposto Provisionado (11%)" value={metrics.totalTaxes} />
+                <MetricLine label="Custo Stripe (Estimado)" value={metrics.totalStripeFees} />
+                <MetricLine label="Receita Bruta Viby" value={metrics.netRevenue} />
+                <MetricLine label="Repasses de Produção" value={metrics.totalPayouts} />
              </div>
 
              <div className="p-4 bg-white/10 rounded-2xl border border-white/10">
                 <div className="flex items-center gap-3">
                    <AlertTriangle className="w-5 h-5 text-secondary" />
                    <p className="text-[10px] font-medium leading-relaxed uppercase">
-                     Considere as projeções de repasses futuros no saldo em custódia para evitar quebras de caixa.
+                     Dados baseados em registros de D+0. A margem final pode variar após chargebacks ou estornos Stripe.
                    </p>
                 </div>
              </div>
@@ -196,31 +208,31 @@ export default function AdminERPDashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-         <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-4">
+         <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-4 hover:shadow-md transition-all">
             <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-               <Coins className="w-4 h-4 text-secondary" /> Receita de Anúncios
+               <Coins className="w-4 h-4 text-secondary" /> Divulgação & Ads
             </h3>
             <div className="space-y-1">
                <p className="text-3xl font-black text-primary">{formatCurrency(metrics.totalAdsRevenue)}</p>
-               <p className="text-[10px] font-bold text-green-600 uppercase">100% de margem operacional</p>
+               <p className="text-[10px] font-bold text-green-600 uppercase">Receita de Alto Impacto</p>
             </div>
          </Card>
-         <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-4">
+         <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-4 hover:shadow-md transition-all">
             <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-               <Receipt className="w-4 h-4 text-secondary" /> Taxas Administrativas
+               <Receipt className="w-4 h-4 text-secondary" /> Taxas Ingressos
             </h3>
             <div className="space-y-1">
                <p className="text-3xl font-black text-primary">{formatCurrency(metrics.netRevenue - metrics.totalAdsRevenue)}</p>
-               <p className="text-[10px] font-bold text-muted-foreground uppercase">Proveniente de ingressos</p>
+               <p className="text-[10px] font-bold text-muted-foreground uppercase">Revenue Share de Eventos</p>
             </div>
          </Card>
-         <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-4">
+         <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-4 hover:shadow-md transition-all">
             <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-               <ArrowDownRight className="w-4 h-4 text-red-500" /> Estornos Totais
+               <ArrowDownRight className="w-4 h-4 text-red-500" /> Prejuízo (Estornos)
             </h3>
             <div className="space-y-1">
                <p className="text-3xl font-black text-red-500">{formatCurrency(metrics.totalRefunds)}</p>
-               <p className="text-[10px] font-bold text-muted-foreground uppercase">Vendas canceladas / Chargebacks</p>
+               <p className="text-[10px] font-bold text-muted-foreground uppercase">Valor Devolvido (Face)</p>
             </div>
          </Card>
       </div>
@@ -228,9 +240,9 @@ export default function AdminERPDashboard() {
       <Card className="border-none shadow-sm rounded-[2.5rem] bg-primary text-white overflow-hidden">
         <CardContent className="p-10 flex flex-col md:flex-row items-center gap-10">
            <div className="flex-1 space-y-4">
-              <h3 className="text-2xl font-black italic uppercase tracking-tighter">Conciliação Automática</h3>
+              <h3 className="text-2xl font-black italic uppercase tracking-tighter">Automação ERP Ativa</h3>
               <p className="text-sm opacity-80 leading-relaxed font-medium">
-                O sistema processa as vendas em D+0 para fins fiscais e D+30 para repasses. O relatório consolidado utiliza o timezone de Brasília (GMT-3) e arredondamento padrão para conformidade com o Stripe.
+                Este dashboard é alimentado em tempo real pelas coleções tax_tickets e tax_ads. Cada venda processada gera uma entrada contábil que permite a conciliação automática com o Stripe e provisionamento de impostos para o encerramento mensal.
               </p>
            </div>
            <div className="shrink-0">
@@ -244,7 +256,7 @@ export default function AdminERPDashboard() {
   );
 }
 
-function KPI({ kpiTitle, value, icon: Icon, trend, color = "blue" }: any) {
+function KPI({ kpiTitle, value, icon: Icon, color = "blue" }: any) {
   const colors: any = {
     blue: "text-blue-500 bg-blue-50",
     green: "text-green-600 bg-green-50",
@@ -252,16 +264,15 @@ function KPI({ kpiTitle, value, icon: Icon, trend, color = "blue" }: any) {
     red: "text-red-500 bg-red-50"
   };
   return (
-    <Card className="border-none shadow-sm rounded-3xl bg-white group">
+    <Card className="border-none shadow-sm rounded-3xl bg-white group hover:-translate-y-1 transition-all">
        <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
              <div className={cn("p-2.5 rounded-2xl transition-transform group-hover:scale-110", colors[color])}>
                 <Icon className="w-5 h-5" />
              </div>
-             {trend && <Badge variant="secondary" className="text-[9px] font-black">{trend}</Badge>}
           </div>
           <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">{kpiTitle}</p>
-          <p className="text-2xl font-black text-primary">{formatCurrency(value)}</p>
+          <p className="text-2xl font-black text-primary">{typeof value === 'number' ? formatCurrency(value) : value}</p>
        </CardContent>
     </Card>
   );
