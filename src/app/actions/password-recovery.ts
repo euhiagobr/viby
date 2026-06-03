@@ -1,14 +1,15 @@
 
 'use server';
 
-import { collection, query, where, getDocs, limit, getFirestore, addDoc, serverTimestamp, doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, getFirestore, addDoc, serverTimestamp, doc, updateDoc, Timestamp, getDoc as firestoreGetDoc } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
-import { maskEmail, encryptDeterministic } from '@/lib/crypto-utils';
+import { maskEmail } from '@/lib/crypto-utils';
 import { sendPasswordResetLinkEmail } from './email';
+import { adminAuth } from '@/lib/firebase/admin';
 
 /**
- * @fileOverview Recuperação de senha utilizando código numérico (OTP).
+ * @fileOverview Recuperação de senha utilizando código numérico (OTP) e Admin SDK.
  */
 
 async function getDb() {
@@ -27,7 +28,6 @@ export async function requestPasswordRecovery(identifier: string) {
     const searchField = isEmail ? "email" : "username";
     const searchValue = inputClean.replace('@', '');
 
-    // 1. Localizar o usuário
     const q = query(collection(db, "users"), where(searchField, "==", searchValue), limit(1));
     const userSnap = await getDocs(q);
     
@@ -39,14 +39,13 @@ export async function requestPasswordRecovery(identifier: string) {
     const targetEmail = userData.email;
     const userName = userData.name || userData.displayName || "Usuário";
 
-    // 2. Gerar código OTP de 6 dígitos
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 1);
 
-    // 3. Salvar código no Firestore
     const resetRef = await addDoc(collection(db, "password_reset_codes"), {
       email: targetEmail,
+      userId: userSnap.docs[0].id,
       code: otpCode,
       createdAt: serverTimestamp(),
       expiresAt: Timestamp.fromDate(expiresAt),
@@ -54,7 +53,6 @@ export async function requestPasswordRecovery(identifier: string) {
       attempts: 0
     });
 
-    // 4. Enviar e-mail com o código
     await sendPasswordResetLinkEmail({
       to: targetEmail,
       userName: userName,
@@ -79,7 +77,7 @@ export async function verifyRecoveryCode(requestId: string, code: string) {
   try {
     const db = await getDb();
     const resetRef = doc(db, "password_reset_codes", requestId);
-    const resetSnap = await getDoc(resetRef);
+    const resetSnap = await firestoreGetDoc(resetRef);
 
     if (!resetSnap.exists()) return { success: false, error: "Solicitação inválida." };
 
@@ -101,37 +99,40 @@ export async function verifyRecoveryCode(requestId: string, code: string) {
 }
 
 /**
- * Redefine a senha após validação do código.
+ * Redefine a senha utilizando o Admin SDK para atualizar o Firebase Auth.
  */
 export async function resetPasswordWithCode(requestId: string, code: string, password: string) {
   try {
     const db = await getDb();
     const resetRef = doc(db, "password_reset_codes", requestId);
-    const resetSnap = await getDoc(resetRef);
+    const resetSnap = await firestoreGetDoc(resetRef);
 
     if (!resetSnap.exists()) return { success: false, error: "Sessão expirada." };
     const resetData = resetSnap.data();
 
-    // Verificação final do código por segurança
     if (resetData.code !== code || resetData.used) {
-      return { success: false, error: "Código inválido." };
+      return { success: false, error: "Código inválido ou já utilizado." };
     }
 
-    // Marca como usado
+    const userId = resetData.userId;
+    if (!userId) {
+       return { success: false, error: "Dados do usuário corrompidos." };
+    }
+
+    // 1. Atualiza a senha no Firebase Auth via Admin SDK
+    await adminAuth.updateUser(userId, {
+      password: password
+    });
+
+    // 2. Marca código como usado no Firestore
     await updateDoc(resetRef, { 
       used: true, 
       usedAt: serverTimestamp() 
     });
 
-    // Nota: A alteração real no Firebase Auth requer o Admin SDK ou o usuário estar logado.
-    // Em ambiente de protótipo, simulamos o sucesso da operação lógica.
     return { success: true };
-  } catch (error) {
-    return { success: false, error: "Falha ao redefinir senha." };
+  } catch (error: any) {
+    console.error("[Admin Auth Reset Error]", error.message);
+    return { success: false, error: "Falha técnica ao atualizar senha no servidor." };
   }
-}
-
-async function getDoc(ref: any) {
-  const { getDoc: firestoreGetDoc } = await import('firebase/firestore');
-  return firestoreGetDoc(ref);
 }
