@@ -6,7 +6,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 
 /**
- * @fileOverview Serviço de e-mail SMTP auditado com branding dinâmico.
+ * @fileOverview Serviço de e-mail SMTP auditado com branding dinâmico e ícones resilientes.
  */
 
 async function getDb() {
@@ -15,15 +15,19 @@ async function getDb() {
 }
 
 /**
- * Recupera as configurações de branding (Logo e Nome) do banco.
+ * Recupera as configurações de branding (Logo e Nome) do banco com fallbacks seguros.
  */
 async function getBranding() {
   try {
     const db = await getDb();
     const snap = await getDoc(doc(db, 'settings', 'site'));
     const data = snap.data();
+    
+    // Logo padrão da Viby caso não haja uma configurada no admin
+    const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Flogo_placeholder.png?alt=media";
+    
     return {
-      logoUrl: data?.logoUrl || "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Flogo_placeholder.png?alt=media",
+      logoUrl: data?.logoUrl || defaultLogo,
       siteName: data?.siteName || "Viby",
       baseUrl: "https://viby.club"
     };
@@ -57,6 +61,9 @@ async function getTransporter() {
   });
 }
 
+/**
+ * Registra uma cópia do e-mail para auditoria administrativa.
+ */
 async function logSentEmail(data: {
   recipientEmail: string;
   recipientName: string;
@@ -81,15 +88,18 @@ async function logSentEmail(data: {
  */
 function getEmailTemplate(branding: any, content: string) {
   return `
-    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
-      <div style="text-align: center; margin-bottom: 30px;">
-        ${branding.logoUrl ? `<img src="${branding.logoUrl}" alt="${branding.siteName}" style="max-height: 50px; width: auto;">` : `<h1 style="color: #2C52EE; font-style: italic; margin: 0;">${branding.siteName}</h1>`}
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; background-color: #f8fafc;">
+      <div style="text-align: center; margin-bottom: 30px; padding: 20px;">
+        ${branding.logoUrl ? 
+          `<img src="${branding.logoUrl}" alt="${branding.siteName}" style="max-height: 45px; width: auto; display: block; margin: 0 auto;">` : 
+          `<h1 style="color: #2C52EE; font-style: italic; margin: 0; font-weight: 900;">${branding.siteName.toUpperCase()}</h1>`
+        }
       </div>
-      <div style="background: #fff; padding: 40px; border-radius: 30px; border: 1px solid #f0f0f0; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+      <div style="background: #ffffff; padding: 40px; border-radius: 30px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
         ${content}
       </div>
-      <div style="text-align: center; margin-top: 30px; color: #999; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">
-        © 2024 ${branding.siteName} Club • Porto Alegre, RS
+      <div style="text-align: center; margin-top: 30px; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">
+        © 2026 ${branding.siteName} • Porto Alegre, RS
       </div>
     </div>
   `;
@@ -99,20 +109,19 @@ export async function sendOTPRecoveryEmail(data: { to: string; userName: string;
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
-    const smtpUser = snap.data()?.smtpUser;
+    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
 
     const content = `
-      <h2 style="color: #2C52EE; font-style: italic; text-transform: uppercase; margin-bottom: 10px;">Recuperação de Acesso</h2>
-      <p>Olá, <strong>${data.userName}</strong>. Utilize o código de segurança abaixo para redefinir sua senha:</p>
-      <div style="background: #f8fafc; padding: 30px; text-align: center; border-radius: 20px; font-size: 32px; font-weight: 900; color: #2C52EE; border: 2px dashed #dbeafe; margin: 30px 0;">
+      <h2 style="color: #2C52EE; font-style: italic; text-transform: uppercase; margin-bottom: 10px; font-weight: 900;">Recuperação de Acesso</h2>
+      <p>Olá, <strong>${data.userName}</strong>. Utilize o código de segurança abaixo para redefinir sua senha na <strong>${branding.siteName}</strong>:</p>
+      <div style="background: #f8fafc; padding: 30px; text-align: center; border-radius: 20px; font-size: 32px; font-weight: 900; color: #2C52EE; border: 2px dashed #dbeafe; margin: 30px 0; letter-spacing: 5px;">
         ${data.otpCode}
       </div>
-      <p style="font-size: 12px; color: #999;">Este código expira em 10 minutos. Se você não solicitou esta alteração, ignore este e-mail.</p>
+      <p style="font-size: 12px; color: #94a3b8; line-height: 1.5;">Este código expira em 10 minutos. Se você não solicitou esta alteração, ignore este e-mail por segurança.</p>
     `;
 
     const htmlContent = getEmailTemplate(branding, content);
-    const subject = `🔐 Seu código de acesso: ${data.otpCode}`;
+    const subject = `🔐 Código de acesso: ${data.otpCode}`;
 
     await transporter.sendMail({
       from: `"${branding.siteName} Security" <${smtpUser}>`,
@@ -144,22 +153,24 @@ export async function sendPasswordChangedNotificationEmail(data: {
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
-    const smtpUser = snap.data()?.smtpUser;
+    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
 
     const content = `
-      <h2 style="color: #2C52EE; text-transform: uppercase; margin-bottom: 10px;">🛡️ Segurança: Senha Alterada</h2>
-      <p>Olá, <strong>${data.userName}</strong>. Detectamos que a senha da sua conta foi alterada com sucesso.</p>
-      <div style="background: #fff1f2; padding: 25px; border-radius: 20px; margin: 25px 0; border: 1px solid #fecaca;">
-        <p style="margin: 5px 0; font-size: 13px;"><strong>IP:</strong> ${data.ip}</p>
-        <p style="margin: 5px 0; font-size: 13px;"><strong>Local:</strong> ${data.location}</p>
-        <p style="margin: 5px 0; font-size: 13px;"><strong>Data/Hora:</strong> ${data.timestamp} (Brasília)</p>
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="font-size: 48px;">🛡️</span>
       </div>
-      <p style="font-size: 13px; color: #666;">Se você não realizou esta alteração, entre em contato imediatamente com o suporte ou tente recuperar seu acesso.</p>
+      <h2 style="color: #2C52EE; text-transform: uppercase; margin-bottom: 10px; font-weight: 900;">Senha Alterada</h2>
+      <p>Olá, <strong>${data.userName}</strong>. Detectamos que a senha da sua conta foi alterada com sucesso.</p>
+      <div style="background: #fff1f2; padding: 25px; border-radius: 20px; margin: 25px 0; border: 1px solid #fecaca; text-align: left;">
+        <p style="margin: 5px 0; font-size: 13px; color: #991b1b;"><strong>IP:</strong> ${data.ip}</p>
+        <p style="margin: 5px 0; font-size: 13px; color: #991b1b;"><strong>Local:</strong> ${data.location}</p>
+        <p style="margin: 5px 0; font-size: 13px; color: #991b1b;"><strong>Data/Hora:</strong> ${data.timestamp} (Brasília)</p>
+      </div>
+      <p style="font-size: 13px; color: #64748b; line-height: 1.5;">Se você <strong>não</strong> realizou esta alteração, entre em contato imediatamente com o nosso suporte oficial ou tente recuperar seu acesso agora.</p>
     `;
 
     const htmlContent = getEmailTemplate(branding, content);
-    const subject = `🛡️ Segurança: Sua senha foi alterada`;
+    const subject = `🛡️ Alerta de Segurança: Senha Alterada`;
 
     await transporter.sendMail({
       from: `"${branding.siteName} Security" <${smtpUser}>`,
@@ -192,8 +203,7 @@ export async function sendVerificationStatusEmail(data: {
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
-    const smtpUser = snap.data()?.smtpUser;
+    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
 
     const isApproved = data.status === 'approved';
     const label = data.type === 'user' 
@@ -203,7 +213,7 @@ export async function sendVerificationStatusEmail(data: {
     let msg = "";
     if (isApproved) {
       msg = data.type === 'user' 
-        ? `Temos o prazer de informar que seu perfil <strong>${data.targetName}</strong> agora possui o selo oficial de verificação da Viby.`
+        ? `Temos o prazer de informar que seu perfil <strong>${data.targetName}</strong> agora possui o selo oficial de verificação da ${branding.siteName}.`
         : `Sua marca <strong>${data.targetName}</strong> foi aprovada em nossa auditoria e agora é uma Marca Verificada na plataforma.`;
     } else {
       msg = data.type === 'user'
@@ -212,19 +222,22 @@ export async function sendVerificationStatusEmail(data: {
     }
 
     const content = `
-      <div style="text-align: center; margin-bottom: 20px;">
-        ${isApproved ? `<img src="https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fverified_badge.png?alt=media" alt="Verificado" style="width: 60px; height: 60px;">` : `⚠️`}
+      <div style="text-align: center; margin-bottom: 25px;">
+        <div style="display: inline-block; width: 80px; height: 80px; line-height: 80px; border-radius: 50%; background-color: ${isApproved ? '#dcfce7' : '#fee2e2'}; font-size: 40px; text-align: center;">
+          ${isApproved ? '🌟' : '⚠️'}
+        </div>
       </div>
-      <h2 style="color: ${isApproved ? '#10b981' : '#ef4444'}; text-align: center; text-transform: uppercase; margin-top: 0;">${label}</h2>
-      <p>Olá, <strong>${data.userName}</strong>.</p>
-      <p style="line-height: 1.6;">${msg}</p>
-      <div style="background: ${isApproved ? '#f0fdf4' : '#fff1f2'}; padding: 25px; border-radius: 20px; margin: 30px 0; text-align: center; border: 1px solid ${isApproved ? '#dcfce7' : '#fecaca'};">
-        <p style="color: ${isApproved ? '#166534' : '#991b1b'}; font-weight: 900; margin: 0; font-size: 14px; text-transform: uppercase;">STATUS DA CONTA ATUALIZADO</p>
+      <h2 style="color: ${isApproved ? '#10b981' : '#ef4444'}; text-align: center; text-transform: uppercase; margin-top: 0; font-weight: 900; letter-spacing: -1px;">${label}</h2>
+      <p style="text-align: center; color: #64748b;">Olá, <strong>${data.userName}</strong>.</p>
+      <p style="line-height: 1.6; text-align: center; font-size: 16px;">${msg}</p>
+      
+      <div style="background: ${isApproved ? '#f0fdf4' : '#fff1f2'}; padding: 20px; border-radius: 20px; margin: 30px 0; text-align: center; border: 1px solid ${isApproved ? '#dcfce7' : '#fecaca'};">
+        <p style="color: ${isApproved ? '#166534' : '#991b1b'}; font-weight: 900; margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">STATUS ATUALIZADO EM D+0</p>
       </div>
       
       ${data.targetUsername ? `
         <div style="text-align: center; margin-top: 40px;">
-          <a href="${branding.baseUrl}/${data.targetUsername}" style="background: #2C52EE; color: #fff; padding: 16px 32px; text-decoration: none; border-radius: 16px; font-weight: bold; font-size: 14px; display: inline-block; text-transform: uppercase; box-shadow: 0 10px 20px rgba(44, 82, 238, 0.2);">Ver Perfil Público</a>
+          <a href="${branding.baseUrl}/${data.targetUsername}" style="background: #2C52EE; color: #ffffff; padding: 18px 36px; text-decoration: none; border-radius: 18px; font-weight: 900; font-size: 14px; display: inline-block; text-transform: uppercase; box-shadow: 0 10px 20px rgba(44, 82, 238, 0.2);">Ver Perfil Público</a>
         </div>
       ` : ''}
     `;
@@ -261,23 +274,26 @@ export async function sendTicketEmail(data: {
   ticketCode: string;
   eventDate: string;
   voucherUrl: string;
+  eventCity?: string;
 }) {
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
-    const smtpUser = snap.data()?.smtpUser;
+    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
 
     const content = `
-      <h2 style="color: #2C52EE; text-transform: uppercase; margin-bottom: 5px;">Sua presença está confirmada!</h2>
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="font-size: 48px;">🎟️</span>
+      </div>
+      <h2 style="color: #2C52EE; text-transform: uppercase; margin-bottom: 5px; font-weight: 900;">Presença Confirmada!</h2>
       <p>Prepare-se, <strong>${data.userName}</strong>. Seu ingresso para <strong>${data.eventTitle}</strong> já está disponível.</p>
       <div style="background: #f8fafc; padding: 25px; border-radius: 20px; margin: 25px 0; border: 1px solid #e2e8f0; text-align: left;">
-        <p style="margin: 5px 0; font-size: 13px;"><strong>Evento:</strong> ${data.eventTitle}</p>
-        <p style="margin: 5px 0; font-size: 13px;"><strong>Data:</strong> ${data.eventDate}</p>
-        <p style="margin: 5px 0; font-size: 13px;"><strong>Código:</strong> <span style="font-family: monospace; background: #e2e8f0; padding: 2px 5px; border-radius: 4px;">${data.ticketCode}</span></p>
+        <p style="margin: 8px 0; font-size: 14px; color: #1e293b;"><strong>EVENTO:</strong> ${data.eventTitle}</p>
+        <p style="margin: 8px 0; font-size: 14px; color: #1e293b;"><strong>DATA:</strong> ${data.eventDate}</p>
+        <p style="margin: 8px 0; font-size: 14px; color: #1e293b;"><strong>CÓDIGO:</strong> <span style="font-family: monospace; background: #e2e8f0; padding: 4px 8px; border-radius: 6px; font-weight: 900;">${data.ticketCode}</span></p>
       </div>
       <div style="text-align: center; margin-top: 35px;">
-        <a href="${data.voucherUrl}" style="background: #2C52EE; color: #fff; padding: 18px 36px; text-decoration: none; border-radius: 18px; font-weight: 900; font-size: 15px; display: inline-block; text-transform: uppercase; box-shadow: 0 10px 20px rgba(44, 82, 238, 0.2);">Acessar Voucher Digital</a>
+        <a href="${data.voucherUrl}" style="background: #2C52EE; color: #ffffff; padding: 20px 40px; text-decoration: none; border-radius: 20px; font-weight: 900; font-size: 15px; display: inline-block; text-transform: uppercase; box-shadow: 0 10px 20px rgba(44, 82, 238, 0.2);">Acessar Voucher Digital</a>
       </div>
     `;
 
@@ -308,15 +324,17 @@ export async function sendWelcomeEmail(data: any) {
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
-    const smtpUser = snap.data()?.smtpUser;
+    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
 
     const content = `
-      <h2 style="color: #2C52EE; text-transform: uppercase;">Bem-vindo ao Clube!</h2>
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="font-size: 48px;">👋</span>
+      </div>
+      <h2 style="color: #2C52EE; text-transform: uppercase; font-weight: 900;">Bem-vindo ao Clube!</h2>
       <p>Olá, <strong>${data.userName}</strong>. Sua conta na <strong>${branding.siteName}</strong> foi criada com sucesso.</p>
-      <p style="line-height: 1.6;">Estamos felizes em ter você conosco. Explore os melhores eventos, siga suas marcas favoritas e viva experiências inesquecíveis.</p>
+      <p style="line-height: 1.6; color: #64748b;">Estamos felizes em ter você conosco. Explore os melhores eventos, siga suas marcas favoritas e viva experiências inesquecíveis através da nossa plataforma.</p>
       <div style="text-align: center; margin-top: 40px;">
-        <a href="${branding.baseUrl}/dashboard" style="background: #2C52EE; color: #fff; padding: 16px 32px; text-decoration: none; border-radius: 16px; font-weight: bold; font-size: 14px; display: inline-block; text-transform: uppercase;">Explorar Experiências</a>
+        <a href="${branding.baseUrl}/dashboard" style="background: #2C52EE; color: #ffffff; padding: 18px 36px; text-decoration: none; border-radius: 18px; font-weight: 900; font-size: 14px; display: inline-block; text-transform: uppercase; box-shadow: 0 10px 20px rgba(44, 82, 238, 0.2);">Explorar Experiências</a>
       </div>
     `;
 
@@ -353,8 +371,7 @@ export async function resendLoggedEmail(data: {
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
-    const smtpUser = snap.data()?.smtpUser;
+    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
 
     await transporter.sendMail({
       from: `"${branding.siteName} Club" <${smtpUser}>`,
@@ -371,15 +388,17 @@ export async function sendTeamInvitationEmail(data: { to: string; orgName: strin
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
-    const smtpUser = snap.data()?.smtpUser;
+    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
 
     const content = `
-      <h2 style="color: #2C52EE; text-transform: uppercase;">Convite de Colaboração</h2>
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="font-size: 48px;">🤝</span>
+      </div>
+      <h2 style="color: #2C52EE; text-transform: uppercase; font-weight: 900;">Convite de Colaboração</h2>
       <p><strong>${data.inviterName}</strong> convidou você para ser <strong>${data.role}</strong> na marca <strong>${data.orgName}</strong>.</p>
-      <p>Acesse seu painel para aceitar o convite e começar a colaborar.</p>
+      <p style="color: #64748b;">Acesse seu painel administrativo para aceitar o convite e começar a colaborar na gestão de eventos desta marca.</p>
       <div style="text-align: center; margin-top: 40px;">
-        <a href="${branding.baseUrl}/dashboard/solicitacoes" style="background: #2C52EE; color: #fff; padding: 16px 32px; text-decoration: none; border-radius: 16px; font-weight: bold; font-size: 14px; display: inline-block; text-transform: uppercase;">Ver Convite</a>
+        <a href="${branding.baseUrl}/dashboard/solicitacoes" style="background: #2C52EE; color: #ffffff; padding: 18px 36px; text-decoration: none; border-radius: 18px; font-weight: 900; font-size: 14px; display: inline-block; text-transform: uppercase; box-shadow: 0 10px 20px rgba(44, 82, 238, 0.2);">Ver Convite Agora</a>
       </div>
     `;
 
@@ -415,12 +434,11 @@ export async function sendTeamInvitationStatusEmail(data: {
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
-    const smtpUser = snap.data()?.smtpUser;
+    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
 
     const statusLabel = data.status === 'accepted' ? 'aceitou' : 'recusou';
     const content = `
-      <h2 style="color: #2C52EE; text-transform: uppercase;">Status de Convite</h2>
+      <h2 style="color: #2C52EE; text-transform: uppercase; font-weight: 900;">Status de Equipe</h2>
       <p>Informamos que <strong>${data.userName}</strong> ${statusLabel} o convite para colaborar na marca <strong>${data.orgName}</strong>.</p>
     `;
 
@@ -457,15 +475,17 @@ export async function sendPayoutConfirmedEmail(data: {
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
-    const smtpUser = snap.data()?.smtpUser;
+    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
 
     const content = `
-      <h2 style="color: #2C52EE; text-transform: uppercase;">💰 Repasse Processado</h2>
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="font-size: 48px;">💰</span>
+      </div>
+      <h2 style="color: #10b981; text-transform: uppercase; font-weight: 900;">Repasse Processado</h2>
       <p>Olá, <strong>${data.userName}</strong>. O repasse para a marca <strong>${data.orgName}</strong> no valor de <strong>${data.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> foi concluído.</p>
-      <p>O comprovante da transferência já está disponível para visualização.</p>
+      <p style="color: #64748b;">O comprovante da transferência bancária já está disponível para visualização e prestação de contas.</p>
       <div style="text-align: center; margin-top: 40px;">
-        <a href="${data.proofUrl}" style="background: #10b981; color: #fff; padding: 16px 32px; text-decoration: none; border-radius: 16px; font-weight: bold; font-size: 14px; display: inline-block; text-transform: uppercase;">Baixar Comprovante</a>
+        <a href="${data.proofUrl}" style="background: #10b981; color: #ffffff; padding: 18px 36px; text-decoration: none; border-radius: 18px; font-weight: 900; font-size: 14px; display: inline-block; text-transform: uppercase; box-shadow: 0 10px 20px rgba(16, 185, 129, 0.2);">Baixar Comprovante</a>
       </div>
     `;
 
