@@ -16,7 +16,9 @@ import {
   getDoc, 
   setDoc, 
   serverTimestamp, 
-  Firestore 
+  Firestore,
+  runTransaction,
+  increment
 } from "firebase/firestore";
 
 export const authConfig = {
@@ -37,7 +39,6 @@ export async function signInWithProvider(auth: Auth, db: Firestore, providerName
       provider = new GoogleAuthProvider();
       provider.addScope('profile');
       provider.addScope('email');
-      // Força a seleção de conta para evitar loops em ambientes de desenvolvimento
       provider.setCustomParameters({ prompt: 'select_account' });
       break;
     case 'facebook':
@@ -51,10 +52,7 @@ export async function signInWithProvider(auth: Auth, db: Firestore, providerName
   }
 
   try {
-    // Garante que a persistência local esteja ativa antes do popup
     await setPersistence(auth, indexedDBLocalPersistence);
-    
-    // Utiliza o resolver de popup para maior compatibilidade com headers COOP
     const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
     const user = result.user;
     
@@ -62,10 +60,12 @@ export async function signInWithProvider(auth: Auth, db: Firestore, providerName
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
-      // Se for um novo usuário, criamos o perfil inicial
-      // Fallback de nome: displayName > prefixo do email > "Membro Viby"
       const initialName = user.displayName || user.email?.split('@')[0] || "Membro Viby";
       
+      // Localizar UID da organização oficial @viby para auto-follow
+      const vibyIdxSnap = await getDoc(doc(db, "usernames", "viby"));
+      const officialOrgId = vibyIdxSnap.exists() ? vibyIdxSnap.data().uid : null;
+
       const userData = {
         uid: user.uid,
         email: user.email,
@@ -78,13 +78,31 @@ export async function signInWithProvider(auth: Auth, db: Firestore, providerName
         profileComplete: false,
         role: "user",
         status: "Ativo",
+        followingCount: officialOrgId ? 1 : 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
-      await setDoc(userRef, userData);
+
+      await runTransaction(db, async (transaction) => {
+        transaction.set(userRef, userData);
+
+        if (officialOrgId) {
+          const followRef = doc(db, "follows", `${user.uid}_${officialOrgId}`);
+          const vibyOrgRef = doc(db, "organizations", officialOrgId);
+          
+          transaction.set(followRef, {
+            followerId: user.uid,
+            followingId: officialOrgId,
+            targetType: 'organization',
+            timestamp: serverTimestamp()
+          });
+
+          transaction.update(vibyOrgRef, { followersCount: increment(1) });
+        }
+      });
+
       return { user, isNew: true };
     } else {
-      // Se o usuário já existe mas por algum motivo o nome está vazio, atualizamos
       const existingData = userSnap.data();
       if (!existingData.name && user.displayName) {
         await setDoc(userRef, { 

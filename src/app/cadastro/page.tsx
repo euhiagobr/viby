@@ -203,6 +203,7 @@ function CadastroContent() {
         city: "",
         state: "",
         country: "Brasil",
+        followingCount: officialOrgId ? 1 : 0,
         createdAt: serverTimestamp()
       };
 
@@ -229,7 +230,6 @@ function CadastroContent() {
             timestamp: serverTimestamp()
           })
 
-          transaction.update(userRef, { followingCount: increment(1) })
           transaction.update(vibyOrgRef, { followersCount: increment(1) })
         }
       });
