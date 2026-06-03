@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -42,7 +43,10 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (profile && !profile.profileComplete && pathname !== '/onboarding') {
+    // Verifica se o perfil está realmente incompleto (sem username ou sem cpf)
+    const isProfileIncomplete = profile && (!profile.profileComplete && (!profile.username || !profile.cpf));
+
+    if (isProfileIncomplete && pathname !== '/onboarding') {
       router.replace('/onboarding');
       return;
     }

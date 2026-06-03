@@ -35,9 +35,12 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isInitialized && user) {
-      if (profile && !profile.profileComplete) {
+      // Verifica integridade real do cadastro
+      const isComplete = profile?.profileComplete || (profile?.username && profile?.cpf);
+      
+      if (!isComplete && profile) {
         router.replace("/onboarding");
-      } else if (profile?.profileComplete) {
+      } else if (isComplete) {
         const redirect = searchParams.get('redirect') || "/dashboard";
         router.replace(redirect);
       }

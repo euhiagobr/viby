@@ -31,8 +31,12 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (isInitialized && !user) {
       router.replace("/login");
+      return;
     }
-    if (isInitialized && profile?.profileComplete) {
+    
+    // Se o usuário já tem os dados essenciais, ele não precisa estar aqui
+    const hasRequiredData = profile?.username && profile?.cpf;
+    if (isInitialized && (profile?.profileComplete || hasRequiredData)) {
       router.replace("/dashboard");
     }
   }, [user, profile, isInitialized, router]);
@@ -173,7 +177,7 @@ export default function OnboardingPage() {
 
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
-                <Fingerprint className="w-3.5 h-3.5" /> CPF (Obrigatório)
+                <Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF (Obrigatório)
               </Label>
               <Input 
                 placeholder="000.000.000-00" 
