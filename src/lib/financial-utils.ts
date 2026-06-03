@@ -27,10 +27,10 @@ export function formatCurrency(value: number): string {
 
 /**
  * CÁLCULO OFICIAL VIBY - Única fonte de verdade.
- * @param facePrice Preço base definido pelo produtor
+ * @param facePrice Preço base (Pode ser o preço original ou já com desconto unitário)
  */
 export function calculateVibyOfficialSplit(facePrice: number) {
-  const price = Math.max(0, parseFloat(facePrice as any) || 0);
+  const price = Math.max(0, Number(facePrice) || 0);
   
   if (price === 0) {
     return {
@@ -43,14 +43,14 @@ export function calculateVibyOfficialSplit(facePrice: number) {
     };
   }
 
-  // 1. Taxa do Comprador (15% sobre o valor de face)
+  // 1. Taxa do Comprador (15% sobre o valor de face ajustado)
   const buyerFee = Number((price * VIBY_BUYER_MARKUP).toFixed(2));
   
   // 2. Taxa do Organizador (Maior entre 10% ou R$ 3,99)
   const organizerPercentFee = Number((price * VIBY_ORGANIZER_FEE).toFixed(2));
   const organizerFee = Math.max(organizerPercentFee, VIBY_MIN_FEE);
 
-  // 3. Totais
+  // 3. Totais Unitários
   const totalCharged = Number((price + buyerFee).toFixed(2));
   const organizerNet = Number((price - organizerFee).toFixed(2));
   const vibyApplicationFee = Number((buyerFee + organizerFee).toFixed(2));
@@ -85,8 +85,13 @@ export function calculateFinancialBreakdown(facePrice: number) {
  */
 export function calculateRefundAmount(totalPaid: number): number {
   if (!totalPaid || totalPaid <= 0) return 0;
-  // Em estornos manuais, devolvemos o valor do ingresso menos uma estimativa de taxa fixa de gateway
-  // para proteger a plataforma. 
   const estimativaTaxaGateway = Number(((totalPaid * 0.0499) + 1.00).toFixed(2));
   return Number(Math.max(0, totalPaid - estimativaTaxaGateway).toFixed(2));
+}
+
+/**
+ * Calcula a taxa de gateway retida que não será devolvida no estorno.
+ */
+export function calculateRetainedGatewayFee(totalPaid: number): number {
+  return Number(((totalPaid * 0.0499) + 1.00).toFixed(2));
 }

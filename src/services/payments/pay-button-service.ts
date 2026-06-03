@@ -26,11 +26,11 @@ export interface PayButtonOptions {
 }
 
 /**
- * @fileOverview Lógica central de checkout.
- * Garante que a criação de ingressos (gratuitos ou pagos) ocorra via Server Actions.
+ * @fileOverview Lógica central de checkout com correção de split financeiro.
+ * Implementa o rateio unitário de descontos para garantir precisão no repasse.
  */
 export async function executeCheckoutFlow(options: PayButtonOptions) {
-  const { user, profile, items, totals, orgsData } = options;
+  const { user, profile, items, totals } = options;
 
   if (!user) throw new Error("Usuário não identificado.");
 
@@ -50,7 +50,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   
   const isFreeOrder = totals.total <= 0 && totals.balanceUsed === 0;
 
-  // 1. FLUXO GRATUITO (Via Server Action generateFreeTickets)
+  // 1. FLUXO GRATUITO
   if (isFreeOrder) {
     const result = await generateFreeTickets({
       userId: user.uid,
@@ -64,14 +64,24 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   }
 
   // 2. FLUXO PAGO (Stripe Connect)
+  // Calculamos os dados financeiros unitários com precisão para o banco de dados
+  const processedItems = items.map(item => {
+    // IMPORTANTE: No carrinho, item.price pode já ser o valor com desconto.
+    // Garantimos que o split oficial seja calculado sobre esse valor unitário final.
+    const unitPrice = Number(item.price); 
+    const financials = calculateFinancialBreakdown(unitPrice);
+    
+    return {
+      ...item,
+      financials
+    };
+  });
+
   const orderData = {
     userId: user.uid,
     userEmail: user.email,
     userName: profile?.name || user.displayName || "Comprador",
-    items: items.map(item => ({
-      ...item,
-      financials: calculateFinancialBreakdown(item.price)
-    })),
+    items: processedItems,
     totals: {
       subtotal: totals.subtotal,
       fees: totals.fees,
@@ -85,8 +95,9 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   const orderRef = await addDoc(collection(staticDb, "orders"), orderData);
 
   let totalApplicationFeeCents = 0;
-  const stripeLineItems = items.map(item => {
+  const stripeLineItems = processedItems.map(item => {
     const split = calculateVibyOfficialSplit(item.price);
+    // Acumula a taxa de aplicação total para o Stripe PaymentIntent
     totalApplicationFeeCents += toCents(split.vibyApplicationFee) * item.quantity;
     
     return {
@@ -108,7 +119,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   const stripeAccountId = orgDoc.data()?.stripeAccountId;
 
   if (!stripeAccountId) {
-    throw new Error("A organização deste evento ainda não configurou os recebimentos.");
+    throw new Error("A organização deste evento ainda não configurou os recebimentos no Stripe.");
   }
 
   const stripeResult = await createCheckoutSession({
@@ -126,7 +137,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
 
   if (!stripeResult.success) {
     await updateDoc(orderRef, { status: 'failed', error: stripeResult.error });
-    throw new Error(stripeResult.error || "Erro ao iniciar checkout.");
+    throw new Error(stripeResult.error || "Erro ao iniciar sessão de pagamento.");
   }
 
   return { type: 'stripe', url: stripeResult.url };
