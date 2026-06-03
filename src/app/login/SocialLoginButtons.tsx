@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth, useUser, useFirestore } from "@/firebase";
-import { startSocialLogin, handleSocialLoginResult, authConfig } from "@/services/auth-service";
+import { startSocialLogin, handleSocialLoginResult, authConfig, ensureUserProfile } from "@/services/auth-service";
 import { Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -12,42 +12,56 @@ export function SocialLoginButtons() {
   const auth = useAuth();
   const db = useFirestore();
   const router = useRouter();
+  const { user, profile, isInitialized } = useUser(auth);
+  
   const [loading, setLoading] = React.useState<string | null>(null);
   const [isProcessing, setIsProcessing] = React.useState(false);
 
-  // Efeito para capturar o resultado do redirecionamento ao montar o componente
+  // Monitor de redirecionamento e integridade
   React.useEffect(() => {
     if (!auth || !db) return;
 
-    const checkRedirect = async () => {
+    const runAuthPipeline = async () => {
       try {
-        // Tentamos capturar o resultado. Se não houver (null), a página segue normal.
+        console.log("[Auth-Debug] SocialLoginButtons: Pipeline Iniciado");
+        
+        // 1. Tenta capturar resultado do Google Redirect
         const result = await handleSocialLoginResult(auth, db);
+        
         if (result) {
-          setIsProcessing(true); // Mostra carregamento apenas se detectou um evento de login
-          toast({ 
-            title: result.isNew ? "Bem-vindo à Viby!" : "Bem-vindo de volta!",
-            description: "Autenticação social concluída."
-          });
-          // Redirecionamento forçado imediato
-          router.replace("/dashboard");
+          setIsProcessing(true);
+          console.log("[Auth-Debug] Resultado social capturado. Encaminhando...");
+          
+          const isComplete = result.profile?.username && result.profile?.cpf;
+          const target = isComplete ? "/dashboard" : "/onboarding";
+          
+          router.replace(target);
+          return;
+        }
+
+        // 2. Se já existe usuário mas o perfil não carregou no contexto (limbo)
+        if (user && !profile && isInitialized) {
+          console.log("[Auth-Debug] Usuário autenticado sem perfil. Forçando sincronização...");
+          setIsProcessing(true);
+          const syncedProfile = await ensureUserProfile(user, db);
+          
+          if (syncedProfile) {
+            const isComplete = syncedProfile.username && syncedProfile.cpf;
+            router.replace(isComplete ? "/dashboard" : "/onboarding");
+          }
         }
       } catch (error: any) {
-        console.error("[Social Redirect Error]", error);
+        console.error("[Auth-Debug] Erro no Pipeline:", error);
         if (error.code !== 'auth/no-auth-event') {
-          toast({ 
-            variant: "destructive", 
-            title: "Erro na autenticação", 
-            description: "Não foi possível completar o login via rede social." 
-          });
+          toast({ variant: "destructive", title: "Erro na autenticação", description: "Tente novamente." });
         }
       } finally {
         setIsProcessing(false);
       }
     };
 
-    checkRedirect();
-  }, [auth, db, router]);
+    runAuthPipeline();
+  }, [auth, db, user, profile, isInitialized, router]);
 
   const handleSocialLogin = async (provider: 'google' | 'facebook' | 'x') => {
     if (!auth) return;
@@ -55,11 +69,7 @@ export function SocialLoginButtons() {
     try {
       await startSocialLogin(auth, provider);
     } catch (error: any) {
-      toast({ 
-        variant: "destructive", 
-        title: "Erro de Conexão", 
-        description: "Não foi possível iniciar o login social." 
-      });
+      toast({ variant: "destructive", title: "Erro de Conexão", description: "Não foi possível iniciar o login social." });
       setLoading(null);
     }
   };
@@ -68,7 +78,7 @@ export function SocialLoginButtons() {
     return (
       <div className="flex flex-col items-center justify-center py-6 gap-3 animate-in fade-in">
         <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Finalizando conexão...</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando conta...</p>
       </div>
     );
   }
@@ -93,29 +103,6 @@ export function SocialLoginButtons() {
           {loading === 'google' ? 'Redirecionando...' : 'Entrar com Google'}
         </Button>
       )}
-
-      {(authConfig.facebook || authConfig.x) && <div className="flex gap-3">
-        {authConfig.facebook && (
-          <Button 
-            variant="outline" 
-            className="flex-1 h-12 rounded-xl text-xs font-bold"
-            onClick={() => handleSocialLogin('facebook')}
-            disabled={!!loading}
-          >
-            {loading === 'facebook' ? <Loader2 className="w-4 h-4 animate-spin" /> : "Facebook"}
-          </Button>
-        )}
-        {authConfig.x && (
-          <Button 
-            variant="outline" 
-            className="flex-1 h-12 rounded-xl text-xs font-bold"
-            onClick={() => handleSocialLogin('x')}
-            disabled={!!loading}
-          >
-            {loading === 'x' ? <Loader2 className="w-4 h-4 animate-spin" /> : "X / Twitter"}
-          </Button>
-        )}
-      </div>}
     </div>
   );
 }

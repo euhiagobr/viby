@@ -26,28 +26,6 @@ import { Separator } from "@/components/ui/separator"
 
 const DEFAULT_PROFILE_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media";
 
-const validateCPF = (cpf: string) => {
-  const cleanCPF = cpf.replace(/\D/g, "");
-  if (cleanCPF.length !== 11) return false;
-  if (/^(\d)\1+$/.test(cleanCPF)) return false;
-
-  let sum = 0;
-  let remainder;
-
-  for (let i = 1; i <= 9; i++) sum = sum + parseInt(cleanCPF.substring(i - 1, i)) * (11 - i);
-  remainder = (sum * 10) % 11;
-  if (remainder === 10 || remainder === 11) remainder = 0;
-  if (remainder !== parseInt(cleanCPF.substring(9, 10))) return false;
-
-  sum = 0;
-  for (let i = 1; i <= 10; i++) sum = sum + parseInt(cleanCPF.substring(i - 1, i)) * (12 - i);
-  remainder = (sum * 10) % 11;
-  if (remainder === 10 || remainder === 11) remainder = 0;
-  if (remainder !== parseInt(cleanCPF.substring(10, 11))) return false;
-
-  return true;
-};
-
 function CadastroContent() {
   const [name, setName] = useState("")
   const [username, setUsername] = useState("")
@@ -68,35 +46,27 @@ function CadastroContent() {
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
+  const siteName = settings?.siteName || "Viby"
 
   const blockedRef = React.useMemo(() => (db ? doc(db, 'settings', 'blocked_usernames') : null), [db]);
   const { data: blockedData } = useDoc<any>(blockedRef);
-
-  const siteName = settings?.siteName || "Viby"
 
   // REDIRECIONAMENTO INTELIGENTE
   useEffect(() => {
     if (!isInitialized) return;
 
-    console.log("[Auth-Debug] Estado da página de Cadastro:", { 
+    console.log("[Auth-Debug] Página de Cadastro - Estado Atual:", { 
       authIniciado: isInitialized, 
       temUsuario: !!user, 
       temPerfil: !!profile 
     });
 
-    if (user) {
-      if (profile) {
-        const isComplete = profile.username && profile.cpf;
-        if (!isComplete) {
-          console.log("[Auth-Debug] Perfil incompleto. Redirecionando para onboarding.");
-          router.replace("/onboarding");
-        } else {
-          console.log("[Auth-Debug] Usuário já possui conta completa. Redirecionando para dashboard.");
-          router.replace("/dashboard");
-        }
-      } else {
-        console.log("[Auth-Debug] Aguardando criação do documento do usuário...");
-      }
+    if (user && profile) {
+      const isComplete = profile.username && profile.cpf;
+      const target = isComplete ? "/dashboard" : "/onboarding";
+      
+      console.log(`[Auth-Debug] Cadastro detectado. Perfil Completo: ${!!isComplete}. Redirecionando para: ${target}`);
+      router.replace(target);
     }
   }, [user, profile, isInitialized, router]);
 
@@ -124,13 +94,8 @@ function CadastroContent() {
       try {
         const usernameRef = doc(db, "usernames", newUsername)
         const usernameSnap = await getDoc(usernameRef)
-        if (usernameSnap.exists()) {
-          setUsernameStatus('taken')
-        } else {
-          setUsernameStatus('valid')
-        }
+        setUsernameStatus(usernameSnap.exists() ? 'taken' : 'valid')
       } catch (e: any) {
-        console.error("[Username Check Error]", e)
         setUsernameStatus('error')
       } finally {
         setCheckingUsername(false)
@@ -163,15 +128,9 @@ function CadastroContent() {
   const formatCPF = (v: string) => {
     v = v.replace(/\D/g, "");
     if (v.length > 11) v = v.slice(0, 11);
-    if (v.length > 9) {
-      return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-    }
-    if (v.length > 6) {
-      return v.replace(/(\d{3})(\d{3})(\d{1,3})/, "$1.$2.$3");
-    }
-    if (v.length > 3) {
-      return v.replace(/(\d{3})(\d{1,3})/, "$1.$2");
-    }
+    if (v.length > 9) return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    if (v.length > 6) return v.replace(/(\d{3})(\d{3})(\d{1,3})/, "$1.$2.$3");
+    if (v.length > 3) return v.replace(/(\d{3})(\d{1,3})/, "$1.$2");
     return v;
   }
 
@@ -180,19 +139,11 @@ function CadastroContent() {
     if (!auth || !db) return
     
     if (usernameStatus !== 'valid') {
-      toast({ variant: "destructive", title: "Username inválido", description: "Verifique a disponibilidade do nome de usuário." })
-      return
-    }
-
-    const cleanCPF = cpf.replace(/\D/g, "");
-    if (!validateCPF(cleanCPF)) {
-      toast({ variant: "destructive", title: "CPF Inválido", description: "O número de CPF informado não é válido." })
+      toast({ variant: "destructive", title: "Username inválido" })
       return
     }
 
     setLoading(true)
-    const normalizedUsername = username.toLowerCase()
-
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       const user = userCredential.user
@@ -205,10 +156,11 @@ function CadastroContent() {
         if (vibyIdxSnap.exists()) officialOrgId = vibyIdxSnap.data().uid;
       } catch (e) {}
 
+      const cleanCPF = cpf.replace(/\D/g, "");
       const userData = {
         uid: user.uid,
         name,
-        username: normalizedUsername,
+        username: username.toLowerCase().trim(),
         email: email.toLowerCase().trim(),
         avatar: DEFAULT_PROFILE_IMAGE,
         birthDate,
@@ -218,55 +170,23 @@ function CadastroContent() {
         platform: "viby",
         role: "user",
         status: "Ativo",
-        city: "",
-        state: "",
-        country: "Brasil",
         followingCount: officialOrgId ? 1 : 0,
         createdAt: serverTimestamp()
       };
 
       await runTransaction(db, async (transaction) => {
-        const usernameRef = doc(db, "usernames", normalizedUsername)
+        const usernameRef = doc(db, "usernames", userData.username)
         const userRef = doc(db, "users", user.uid)
-
-        const usernameSnap = await transaction.get(usernameRef)
-        if (usernameSnap.exists()) {
-          throw new Error("Nome de usuário acaba de ser ocupado.")
-        }
-
-        transaction.set(usernameRef, { uid: user.uid, type: 'user', email: email.toLowerCase().trim() })
+        transaction.set(usernameRef, { uid: user.uid, type: 'user', email: userData.email })
         transaction.set(userRef, userData)
-
-        if (officialOrgId) {
-          const followRef = doc(db, "follows", `${user.uid}_${officialOrgId}`)
-          const vibyOrgRef = doc(db, "organizations", officialOrgId)
-          
-          transaction.set(followRef, {
-            followerId: user.uid,
-            followingId: officialOrgId,
-            targetType: 'organization',
-            timestamp: serverTimestamp()
-          })
-
-          transaction.update(vibyOrgRef, { followersCount: increment(1) })
-        }
       });
 
       await updateUserCPF(user.uid, cleanCPF);
-      await processGamificationEvent(db, user.uid, 'on_signup', {}, user.uid, userData);
-      
-      sendWelcomeEmail({
-        to: email,
-        userName: name
-      }).catch(() => {});
+      sendWelcomeEmail({ to: email, userName: name }).catch(() => {});
 
-      toast({ title: "Conta criada!", description: `Bem-vindo à ${siteName}.` })
+      toast({ title: "Conta criada!" })
     } catch (error: any) {
-      if (error.code === 'auth/email-already-in-use') {
-        toast({ variant: "destructive", title: "E-mail já cadastrado", description: "Este endereço de e-mail já está associado a uma conta." })
-      } else {
-        toast({ variant: "destructive", title: "Erro ao cadastrar", description: error.message })
-      }
+      toast({ variant: "destructive", title: "Erro ao cadastrar", description: error.message })
     } finally {
       setLoading(false)
     }
@@ -275,33 +195,28 @@ function CadastroContent() {
   const showForm = isInitialized && !user;
 
   return (
-    <div className="min-h-screen flex flex-col bg-muted/30 font-body">
+    <div className="min-h-screen flex flex-col bg-muted/30 font-body text-foreground">
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             {settings?.logoUrl ? (
               <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-10 w-auto object-contain" priority unoptimized />
             ) : (
-              <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">{siteName.charAt(0)}</span>
-              </div>
+              <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center"><span className="text-white font-bold text-lg">{siteName.charAt(0)}</span></div>
             )}
             <span className="text-xl font-bold tracking-tight">{siteName}</span>
           </Link>
           <Button variant="ghost" asChild className="font-semibold text-xs uppercase tracking-widest">
-            <Link href="/">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Início
-            </Link>
+            <Link href="/"><ArrowLeft className="mr-2 h-4 w-4" /> Início</Link>
           </Button>
         </div>
       </nav>
 
       <div className="flex-1 flex items-center justify-center p-4">
-        {!isInitialized || (user && !profile) ? (
+        {!isInitialized ? (
           <div className="flex flex-col items-center gap-4 text-center">
              <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Preparando ambiente...</p>
+             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Iniciando Viby...</p>
           </div>
         ) : (
           <Card className="w-full max-w-md border-none shadow-xl rounded-[2rem] overflow-hidden bg-white">
@@ -343,15 +258,9 @@ function CadastroContent() {
                           required 
                         />
                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          {checkingUsername ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                          ) : usernameStatus === 'valid' ? (
-                            <Check className="w-4 h-4 text-green-500" />
-                          ) : usernameStatus === 'taken' || usernameStatus === 'invalid' ? (
-                            <X className="w-4 h-4 text-destructive" />
-                          ) : usernameStatus === 'error' ? (
-                            <ShieldAlert className="w-4 h-4 text-destructive" />
-                          ) : null}
+                          {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /> : 
+                           usernameStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : 
+                           usernameStatus === 'taken' || usernameStatus === 'invalid' ? <X className="w-4 h-4 text-destructive" /> : null}
                         </div>
                       </div>
                     </div>
@@ -366,12 +275,6 @@ function CadastroContent() {
                           <SelectContent>
                             <SelectItem value="masculino">Masculino</SelectItem>
                             <SelectItem value="feminino">Feminino</SelectItem>
-                            <SelectItem value="agênero">Agênero</SelectItem>
-                            <SelectItem value="gênero fluido">Gênero fluido</SelectItem>
-                            <SelectItem value="bigênero">Bigênero</SelectItem>
-                            <SelectItem value="demigênero">Demigênero</SelectItem>
-                            <SelectItem value="homem trans">Homem trans</SelectItem>
-                            <SelectItem value="mulher trans">Mulher trans</SelectItem>
                             <SelectItem value="outro">Outro</SelectItem>
                           </SelectContent>
                         </Select>
@@ -398,7 +301,7 @@ function CadastroContent() {
                       <Input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="rounded-xl h-11" />
                     </div>
                     
-                    <Button type="submit" className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl shadow-secondary/20 uppercase italic mt-4" disabled={loading || usernameStatus !== 'valid'}>
+                    <Button type="submit" className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic mt-4" disabled={loading || usernameStatus !== 'valid'}>
                       {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Criar Minha Conta"}
                     </Button>
                   </form>

@@ -31,6 +31,70 @@ export const authConfig = {
 };
 
 /**
+ * Garante que o documento do usuário exista no Firestore.
+ * Essencial para fluxos sociais onde o documento pode não ter sido criado ainda.
+ */
+export async function ensureUserProfile(user: any, db: Firestore) {
+  if (!user || !db) return null;
+  
+  console.log(`[Auth-Debug] Verificando integridade do perfil Firestore para UID: ${user.uid}`);
+  const userRef = doc(db, "users", user.uid);
+  const userSnap = await getDoc(userRef);
+
+  if (!userSnap.exists()) {
+    console.log("[Auth-Debug] Perfil não encontrado. Iniciando criação de emergência...");
+    
+    const initialName = user.displayName || user.email?.split('@')[0] || "Membro Viby";
+    
+    let officialOrgId = null;
+    try {
+      const vibyIdxSnap = await getDoc(doc(db, "usernames", "viby"));
+      if (vibyIdxSnap.exists()) officialOrgId = vibyIdxSnap.data().uid;
+    } catch (e) {}
+
+    const userData = {
+      uid: user.uid,
+      email: user.email,
+      name: initialName,
+      photoURL: user.photoURL || "",
+      avatar: user.photoURL || "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media",
+      provider: user.providerData[0]?.providerId || 'social',
+      username: null,
+      cpf: null,
+      profileComplete: false,
+      role: "user",
+      status: "Ativo",
+      followingCount: officialOrgId ? 1 : 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+
+    await runTransaction(db, async (transaction) => {
+      transaction.set(userRef, userData);
+      if (officialOrgId) {
+        const followRef = doc(db, "follows", `${user.uid}_${officialOrgId}`);
+        const vibyOrgRef = doc(db, "organizations", officialOrgId);
+        transaction.set(followRef, {
+          followerId: user.uid,
+          followingId: officialOrgId,
+          targetType: 'organization',
+          timestamp: serverTimestamp()
+        });
+        transaction.update(vibyOrgRef, { followersCount: increment(1) });
+      }
+    });
+
+    if (user.email) {
+      sendWelcomeEmail({ to: user.email, userName: initialName }).catch(() => {});
+    }
+
+    return { ...userData, isNew: true };
+  }
+
+  return { ...userSnap.data(), isNew: false };
+}
+
+/**
  * Inicia o fluxo de login social via Redirecionamento.
  */
 export async function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook' | 'x') {
@@ -54,125 +118,38 @@ export async function startSocialLogin(auth: Auth, providerName: 'google' | 'fac
   }
 
   await setPersistence(auth, indexedDBLocalPersistence);
-  console.log(`[Auth-Debug] Iniciando login ${providerName} via redirect...`);
+  console.log(`[Auth-Debug] Redirecionando para provedor: ${providerName}`);
   return signInWithRedirect(auth, provider, browserPopupRedirectResolver);
 }
 
 /**
- * Processa o resultado do redirecionamento e executa a lógica de criação de perfil/onboarding social.
+ * Processa o resultado do redirecionamento.
  */
 export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
   try {
-    console.log("[Auth-Debug] Verificando resultado de redirecionamento...");
+    console.log("[Auth-Debug] Capturando resultado do redirect...");
     const result = await getRedirectResult(auth, browserPopupRedirectResolver);
     
     if (!result) {
-      console.log("[Auth-Debug] Nenhum evento de redirecionamento pendente.");
+      console.log("[Auth-Debug] Nenhum evento de redirect pendente.");
       return null;
     }
 
-    const user = result.user;
-    console.log("[Auth-Debug] Usuário autenticado via social:", user.uid);
-
-    const userRef = doc(db, "users", user.uid);
-    const userSnap = await getDoc(userRef);
-
-    if (!userSnap.exists()) {
-      console.log("[Auth-Debug] Novo usuário social detectado. Inicializando perfil...");
-      
-      // Captura o nome com fallback seguro
-      const initialName = user.displayName || user.email?.split('@')[0] || "Membro Viby";
-      
-      // Tenta localizar a organização oficial para o auto-follow
-      let officialOrgId = null;
-      try {
-        const vibyIdxSnap = await getDoc(doc(db, "usernames", "viby"));
-        if (vibyIdxSnap.exists()) officialOrgId = vibyIdxSnap.data().uid;
-      } catch (e) {
-        console.warn("[Auth-Debug] Não foi possível localizar a conta oficial @viby para auto-follow.");
-      }
-
-      const userData = {
-        uid: user.uid,
-        email: user.email,
-        name: initialName,
-        photoURL: user.photoURL || "",
-        avatar: user.photoURL || "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media",
-        provider: user.providerData[0]?.providerId || 'social',
-        username: null,
-        cpf: null,
-        profileComplete: false,
-        role: "user",
-        status: "Ativo",
-        followingCount: officialOrgId ? 1 : 0,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      };
-
-      // Criação transacional do perfil
-      await runTransaction(db, async (transaction) => {
-        transaction.set(userRef, userData);
-
-        if (officialOrgId) {
-          const followRef = doc(db, "follows", `${user.uid}_${officialOrgId}`);
-          const vibyOrgRef = doc(db, "organizations", officialOrgId);
-          
-          transaction.set(followRef, {
-            followerId: user.uid,
-            followingId: officialOrgId,
-            targetType: 'organization',
-            timestamp: serverTimestamp()
-          });
-
-          transaction.update(vibyOrgRef, { followersCount: increment(1) });
-        }
-      });
-
-      if (user.email) {
-        sendWelcomeEmail({
-          to: user.email,
-          userName: initialName
-        }).catch(err => console.warn("[Auth Service] Falha ao enviar e-mail de boas-vindas social", err));
-      }
-
-      await recordAuditLog({
-        userId: user.uid,
-        userEmail: user.email,
-        action: 'signup',
-        category: 'auth',
-        success: true,
-        metadata: { method: 'social', provider: userData.provider }
-      });
-
-      console.log("[Auth-Debug] Perfil social criado. Onboarding necessário.");
-      return { user, isNew: true };
-    } else {
-      const data = userSnap.data();
-      const isComplete = !!(data?.username && data?.cpf);
-      console.log("[Auth-Debug] Usuário social já existente. Perfil Completo:", isComplete);
-      
-      if (data?.profileComplete !== isComplete) {
-        await setDoc(userRef, { profileComplete: isComplete }, { merge: true });
-      }
-    }
+    console.log("[Auth-Debug] Redirect detectado com sucesso. Validando perfil...");
+    const profile = await ensureUserProfile(result.user, db);
 
     await recordAuditLog({
-      userId: user.uid,
-      userEmail: user.email,
+      userId: result.user.uid,
+      userEmail: result.user.email,
       action: 'login',
       category: 'auth',
       success: true,
-      metadata: { method: 'social' }
+      metadata: { method: 'social_redirect' }
     });
 
-    return { user, isNew: false };
+    return { user: result.user, profile, isNew: profile?.isNew };
   } catch (error: any) {
-    console.error(`[Auth-Debug] Erro ao processar redirecionamento social:`, error.code, error.message);
-    
-    if (error.code === 'auth/unauthorized-domain') {
-      console.error("[Auth-Critical] Este domínio não está autorizado no Console do Firebase!");
-    }
-    
+    console.error(`[Auth-Debug] Falha no processamento social:`, error.code, error.message);
     throw error;
   }
 }

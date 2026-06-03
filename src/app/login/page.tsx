@@ -32,34 +32,25 @@ function LoginContent() {
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
-  // REDIRECIONAMENTO INTELIGENTE: Monitora a autenticação e o perfil
+  // REDIRECIONAMENTO INTELIGENTE
   useEffect(() => {
     if (!isInitialized) return;
 
-    console.log("[Auth-Debug] Estado da página de Login:", { 
+    console.log("[Auth-Debug] Página de Login - Estado Atual:", { 
       authIniciado: isInitialized, 
       temUsuario: !!user, 
-      carregandoAuth: authLoading,
       temPerfil: !!profile 
     });
 
-    if (user) {
-      if (profile) {
-        const isComplete = profile.username && profile.cpf;
-        if (!isComplete) {
-          console.log("[Auth-Debug] Perfil incompleto detectado. Redirecionando para /onboarding");
-          router.replace("/onboarding");
-        } else {
-          const redirect = searchParams.get('redirect') || "/dashboard";
-          console.log(`[Auth-Debug] Login concluído. Redirecionando para ${redirect}`);
-          router.replace(redirect);
-        }
-      } else {
-        // Usuário logado mas perfil ainda não carregou ou não existe
-        console.log("[Auth-Debug] Usuário logado. Aguardando sincronização do perfil Firestore...");
-      }
+    if (user && profile) {
+      const isComplete = profile.username && profile.cpf;
+      const redirect = searchParams.get('redirect') || "/dashboard";
+      const target = isComplete ? redirect : "/onboarding";
+      
+      console.log(`[Auth-Debug] Login detectado. Perfil Completo: ${!!isComplete}. Redirecionando para: ${target}`);
+      router.replace(target);
     }
-  }, [user, profile, isInitialized, router, searchParams, authLoading]);
+  }, [user, profile, isInitialized, router, searchParams]);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -99,11 +90,11 @@ function LoginContent() {
     }
   }
 
-  // Só mostramos o formulário se não houver usuário autenticado
+  // Permitimos a renderização para que SocialLoginButtons possa processar o redirecionamento
   const showForm = isInitialized && !user;
 
   return (
-    <div className="min-h-screen flex flex-col bg-muted/30 font-body">
+    <div className="min-h-screen flex flex-col bg-muted/30 font-body text-foreground">
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
@@ -121,10 +112,10 @@ function LoginContent() {
       </nav>
 
       <div className="flex-1 flex items-center justify-center p-4">
-        {!isInitialized || (user && !profile) ? (
+        {!isInitialized ? (
           <div className="flex flex-col items-center gap-4 text-center">
              <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando sua conta...</p>
+             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Iniciando Viby...</p>
           </div>
         ) : (
           <Card className="w-full max-w-md border-none shadow-xl rounded-[2rem] overflow-hidden bg-white">
