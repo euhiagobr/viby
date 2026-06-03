@@ -22,6 +22,8 @@ import { processGamificationEvent } from "@/lib/gamification-service"
 import { updateUserCPF } from "@/app/actions/user"
 import { maskCPF } from "@/lib/crypto-utils"
 
+const DEFAULT_PROFILE_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media";
+
 const validateCPF = (cpf: string) => {
   const cleanCPF = cpf.replace(/\D/g, "");
   if (cleanCPF.length !== 11) return false;
@@ -183,7 +185,7 @@ export default function CadastroPage() {
         name,
         username: normalizedUsername,
         email: email.toLowerCase().trim(),
-        avatar: `https://picsum.photos/seed/${user.uid}/100/100`,
+        avatar: DEFAULT_PROFILE_IMAGE,
         birthDate,
         gender,
         cpf: maskCPF(cleanCPF), // SALVA A VERSÃO MASCARADA PERMANENTE

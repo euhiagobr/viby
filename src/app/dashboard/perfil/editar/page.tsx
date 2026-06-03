@@ -29,13 +29,16 @@ import {
   EyeOff,
   Fingerprint,
   AlertTriangle,
-  Camera
+  Camera,
+  Trash2
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { getUserCPF, updateUserCPF } from "@/app/actions/user"
 import { maskCPF } from "@/lib/crypto-utils"
+
+const DEFAULT_PROFILE_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media";
 
 export default function EditarPerfilPage() {
   const router = useRouter()
@@ -94,7 +97,7 @@ export default function EditarPerfilPage() {
         ...prev,
         name: profile.name || "",
         username: profile.username || "",
-        avatar: profile.avatar || "",
+        avatar: profile.avatar || DEFAULT_PROFILE_IMAGE,
         bio: profile.bio || "",
         birthDate: profile.birthDate || "",
         gender: profile.gender || "",
@@ -142,7 +145,6 @@ export default function EditarPerfilPage() {
 
     setUploadProgress(0)
     try {
-      // Ajustado para o caminho correto permitido nas regras (users/{uid}/...)
       const storageRef = ref(storage, `users/${user.uid}/avatar_${Date.now()}`)
       const uploadTask = uploadBytesResumable(storageRef, file)
       uploadTask.on('state_changed', 
@@ -159,6 +161,11 @@ export default function EditarPerfilPage() {
         }
       )
     } catch (err) { setUploadProgress(null) }
+  }
+
+  const handleRemovePhoto = () => {
+    setFormData((prev: any) => ({ ...prev, avatar: DEFAULT_PROFILE_IMAGE }));
+    toast({ title: "Foto removida", description: "A imagem padrão foi restaurada." });
   }
 
   const formatCPF = (v: string) => {
@@ -204,6 +211,7 @@ export default function EditarPerfilPage() {
   if (profileLoading) return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
 
   const isCPFReadOnly = isFetchingCPF || hasOriginalCPF;
+  const isUsingDefault = formData.avatar === DEFAULT_PROFILE_IMAGE;
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 pb-20">
@@ -225,18 +233,31 @@ export default function EditarPerfilPage() {
                   <AvatarImage src={formData.avatar} alt={formData.name} className="object-cover" />
                   <AvatarFallback className="text-4xl font-black bg-muted">{formData.name?.charAt(0)}</AvatarFallback>
                 </Avatar>
-                <label htmlFor="avatar-upload" className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-[3rem] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-inner">
-                   <Camera className="w-8 h-8" />
-                </label>
+                
+                <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 text-white rounded-[3rem] opacity-0 group-hover:opacity-100 transition-opacity shadow-inner">
+                   <label htmlFor="avatar-upload" className="p-3 bg-white/20 rounded-full hover:bg-white/40 cursor-pointer transition-colors">
+                      <Camera className="w-6 h-6" />
+                   </label>
+                   {!isUsingDefault && (
+                     <button 
+                       type="button"
+                       onClick={handleRemovePhoto}
+                       className="p-3 bg-destructive/60 rounded-full hover:bg-destructive transition-colors"
+                       title="Remover Foto"
+                     >
+                        <Trash2 className="w-6 h-6" />
+                     </button>
+                   )}
+                </div>
                 <input id="avatar-upload" type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
               </div>
               {uploadProgress !== null && <div className="w-full max-w-xs space-y-2"><Progress value={uploadProgress} className="h-1.5" /><p className="text-[9px] text-center text-muted-foreground font-black uppercase tracking-widest">Carregando: {Math.round(uploadProgress)}%</p></div>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome Completo</Label><Input value={formData.name} onChange={(e) => setFormData((prev:any) => ({...prev, name: e.target.value}))} required className="rounded-xl h-11" /></div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Nome Completo</Label><Input value={formData.name} onChange={(e) => setFormData((prev:any) => ({...prev, name: e.target.value}))} required className="rounded-xl h-11" /></div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Username (@)</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username (@)</Label>
                 <div className="relative">
                   <Input value={formData.username} readOnly className="bg-muted/50 cursor-not-allowed pr-10 font-bold rounded-xl h-11" />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2"><Lock className="w-4 h-4 text-muted-foreground opacity-50" /></div>
@@ -245,9 +266,9 @@ export default function EditarPerfilPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Nascimento</Label><Input type="date" value={formData.birthDate} onChange={(e) => setFormData((prev:any) => ({...prev, birthDate: e.target.value}))} required className="rounded-xl h-11" /></div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Nascimento</Label><Input type="date" value={formData.birthDate} onChange={(e) => setFormData((prev:any) => ({...prev, birthDate: e.target.value}))} required className="rounded-xl h-11" /></div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Sexo / Gênero</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Sexo / Gênero</Label>
                 <Select key={formData.gender || 'loading'} value={formData.gender} onValueChange={(val) => setFormData((prev:any) => ({...prev, gender: val}))} required>
                   <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent className="rounded-xl">
