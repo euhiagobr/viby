@@ -11,7 +11,8 @@ import {
   doc, 
   Timestamp, 
   getDoc as firestoreGetDoc,
-  writeBatch
+  writeBatch,
+  updateDoc
 } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';

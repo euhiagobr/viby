@@ -22,12 +22,12 @@ function RedefinirSenhaContent() {
 
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [loading, setLoading] = useState(false)
-  const [identifier, setIdentifier] = setIdentifier("");
-  const [requestId, setRequestId] = setRequestId("");
-  const [maskedEmail, setMaskedEmail] = setMaskedEmail("");
-  const [otp, setOtp] = setOtp("");
-  const [newPassword, setNewPassword] = setNewPassword("");
-  const [confirmPassword, setConfirmPassword] = setConfirmPassword("");
+  const [identifier, setIdentifier] = useState("");
+  const [requestId, setRequestId] = useState("");
+  const [maskedEmail, setMaskedEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   React.useEffect(() => {
     if (user && !authLoading) {
@@ -49,7 +49,6 @@ function RedefinirSenhaContent() {
           setStep(2)
           toast({ title: "Código enviado!", description: "Verifique seu e-mail." })
         } else {
-          // Resposta genérica para manter privacidade
           setMaskedEmail("seu e-mail")
           setStep(2)
         }
@@ -142,7 +141,7 @@ function RedefinirSenhaContent() {
             {step === 1 && (
               <form onSubmit={handleStep1} className="space-y-6">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Identificador</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Identificador</Label>
                   <Input 
                     placeholder="E-mail ou @username" 
                     value={identifier} 

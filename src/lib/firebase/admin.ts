@@ -17,7 +17,6 @@ function getAdminApp() {
   if (admin.apps.length > 0) return admin.apps[0]!;
 
   try {
-    console.log("[Admin SDK] Iniciando aplicativo com credenciais estáticas...");
     return admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
       projectId: serviceAccount.projectId
@@ -29,13 +28,9 @@ function getAdminApp() {
 }
 
 export const getAdminAuth = () => {
-  const auth = getAdminApp().auth();
-  console.log("[Admin SDK] Auth carregado.");
-  return auth;
+  return getAdminApp().auth();
 };
 
 export const getAdminDb = () => {
-  const db = getAdminApp().firestore();
-  console.log("[Admin SDK] Firestore carregado.");
-  return db;
+  return getAdminApp().firestore();
 };
