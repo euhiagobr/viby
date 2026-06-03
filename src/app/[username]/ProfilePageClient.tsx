@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -70,7 +71,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
           if (dataSnap.exists()) {
             setProfileData({ id: dataSnap.id, ...dataSnap.data() });
           } else {
-            console.warn("[Router] Index exists but target document is missing:", uid);
             setProfileData(null);
           }
         } else {
@@ -98,11 +98,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
       if (profileType === 'organization') {
         const memberRef = doc(db, 'organizations', profileData.id, 'members', loggedUser.uid);
         const memberSnap = await getDoc(memberRef);
-        if (memberSnap.exists()) {
-          setIsOwner(true);
-        } else {
-          setIsOwner(false);
-        }
+        setIsOwner(memberSnap.exists());
       } else {
         setIsOwner(loggedUser.uid === profileData.id);
       }
@@ -123,13 +119,15 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
   const { data: orgEvents } = useCollection<any>(orgEventsQuery);
 
-  // Busca de Eventos em Parceria (Co-organização)
+  // Busca de Eventos em Parceria (Co-organização) via Collection Group
   React.useEffect(() => {
     if (!db || !profileData?.id || profileType !== 'organization') return;
 
     const fetchPartnershipEvents = async () => {
       setLoadingPartnerships(true);
       try {
+        // Esta consulta REQUER um índice de Collection Group para a subcoleção 'partners'
+        // Campos: orgId (Asc) + status (Asc)
         const q = query(
           collectionGroup(db, 'partners'),
           where('orgId', '==', profileData.id),
@@ -147,8 +145,9 @@ export default function ProfilePageClient({ username }: { username: string }) {
         const results = await Promise.all(eventPromises);
         setPartnershipEvents(results.filter(e => e !== null && e.status === 'Ativo'));
       } catch (e: any) {
+        // Tratamento silencioso para evitar quebra de interface se o índice não estiver pronto
         if (e.code === 'failed-precondition') {
-          console.warn("[Profile] O índice de Collection Group para 'partners' é necessário. Verifique o link no console.");
+          console.warn("[Viby] O índice de Collection Group para 'partners' (orgId + status) ainda não foi criado ou propagado.");
         } else {
           console.error("Erro ao buscar parcerias:", e);
         }
@@ -220,7 +219,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
     return <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
   }
 
-  // Tratamento de Perfil Indisponível (Excluído, Banido, Desativado ou em Exclusão)
   const isUnavailable = !profileData || 
     (['Bloqueado', 'Excluído', 'Desativado', 'Exclusão Programada'].includes(profileData.status) && !isOwner);
 
@@ -233,41 +231,14 @@ export default function ProfilePageClient({ username }: { username: string }) {
             <div className="w-24 h-24 bg-white rounded-[2rem] shadow-2xl flex items-center justify-center mx-auto mb-8">
               <ShieldAlert className="w-12 h-12 text-secondary" />
             </div>
-            
-            <h1 className="text-5xl md:text-7xl font-black text-primary uppercase italic tracking-tighter leading-none mb-4">
-              AVISO
-            </h1>
-            <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tight text-primary">
-              Página <span className="text-secondary">Indisponível</span>
-            </h2>
-            <p className="mt-6 text-muted-foreground font-medium max-w-sm mx-auto leading-relaxed">
-              A página que você solicitou não está mais disponível na plataforma Viby.
-            </p>
+            <h1 className="text-5xl md:text-7xl font-black text-primary uppercase italic tracking-tighter leading-none mb-4">AVISO</h1>
+            <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tight text-primary">Página <span className="text-secondary">Indisponível</span></h2>
+            <p className="mt-6 text-muted-foreground font-medium max-w-sm mx-auto leading-relaxed">A página que você solicitou não está mais disponível na plataforma Viby.</p>
           </div>
         </div>
-
         <div className="flex flex-col sm:flex-row gap-4 w-full max-md">
-          <Button 
-            variant="outline" 
-            asChild
-            className="flex-1 h-14 rounded-2xl font-black uppercase italic border-2 gap-2 border-primary/10 hover:bg-muted"
-          >
-            <Link href="/">
-               <ArrowLeft className="w-5 h-5" /> Voltar
-            </Link>
-          </Button>
-          <Button 
-            asChild 
-            className="flex-1 h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic gap-2 hover:bg-secondary transition-all"
-          >
-            <Link href="/">
-              <Home className="w-5 h-5" /> Ver Outros
-            </Link>
-          </Button>
-        </div>
-
-        <div className="mt-20 opacity-20">
-           <span className="text-[10px] font-black uppercase tracking-[0.5em]">{siteName.toUpperCase()}</span>
+          <Button variant="outline" asChild className="flex-1 h-14 rounded-2xl font-black uppercase italic border-2 gap-2 border-primary/10 hover:bg-muted"><Link href="/"><ArrowLeft className="w-5 h-5" /> Voltar</Link></Button>
+          <Button asChild className="flex-1 h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic gap-2 hover:bg-secondary transition-all"><Link href="/"><Home className="w-5 h-5" /> Ver Outros</Link></Button>
         </div>
       </div>
     );
@@ -279,15 +250,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
             {settings?.logoUrl ? (
-              <Image 
-                src={settings.logoUrl} 
-                alt={siteName} 
-                width={120} 
-                height={40} 
-                className="h-8 w-auto object-contain transition-transform group-hover:scale-105" 
-                priority 
-                unoptimized 
-              />
+              <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-8 w-auto object-contain transition-transform group-hover:scale-105" priority unoptimized />
             ) : (
               <span className="text-xl font-bold tracking-tight italic uppercase">{siteName}</span>
             )}
@@ -323,16 +286,10 @@ export default function ProfilePageClient({ username }: { username: string }) {
                     </TabsList>
                   </div>
                   <TabsContent value="upcoming" className="animate-in fade-in duration-500">
-                    <OrganizerEvents 
-                      events={upcomingEvents} 
-                      title="Próximos Eventos" 
-                    />
+                    <OrganizerEvents events={upcomingEvents} title="Próximos Eventos" />
                   </TabsContent>
                   <TabsContent value="partnerships" className="animate-in fade-in duration-500">
-                    <OrganizerEvents 
-                      events={partnershipEvents} 
-                      title="Eventos em Co-realização" 
-                    />
+                    <OrganizerEvents events={partnershipEvents} title="Eventos em Co-realização" />
                   </TabsContent>
                   <TabsContent value="past" className="animate-in fade-in duration-500">
                     <OrganizerEvents events={pastEvents} title="Experiências Passadas" isPast />
@@ -354,7 +311,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
                 eventsCount={profileData.totalEventsCount || 0}
                 isOwner={isOwner}
               />
-              
               <div className="container mx-auto px-4 max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-12">
                  <div className="lg:col-span-8 space-y-20">
                     {(!profileData.privacy?.hideGamification || isOwner) ? (

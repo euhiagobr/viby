@@ -1,0 +1,27 @@
+
+{
+  "collection": "partners",
+  "path": "/events/{eventId}/partners/{partnerId}",
+  "description": "Subcoleção para gerenciar co-organizadores e parcerias em eventos.",
+  "fields": {
+    "orgId": "string (UID da organização parceira)",
+    "orgName": "string",
+    "orgUsername": "string",
+    "orgAvatar": "string",
+    "status": "string (pending | accepted)",
+    "invitedAt": "timestamp",
+    "invitedBy": "string (UID do usuário)",
+    "inviterOrgId": "string (UID da organização promotora)",
+    "acceptedAt": "timestamp (opcional)"
+  },
+  "indexes": [
+    {
+      "collectionGroup": "partners",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "orgId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    }
+  ]
+}
