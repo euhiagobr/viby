@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -53,7 +52,7 @@ import { toast } from '@/hooks/use-toast';
 import { createAdBalanceTopUpSession, finalizeAdTopUpSession } from '@/app/actions/stripe';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Separator } from '@/separator'; // Corrigido para import relativo ou alias correto se necessário, mantendo o padrão do projeto
+import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 
 function OrganizationFinanceContent() {
