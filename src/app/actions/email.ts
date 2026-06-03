@@ -6,7 +6,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 
 /**
- * @fileOverview Serviço de e-mail SMTP auditado para fluxo de recuperação via OTP.
+ * @fileOverview Serviço de e-mail SMTP auditado para fluxos de segurança e boas-vindas.
  */
 
 async function getDb() {
@@ -40,7 +40,6 @@ async function getTransporter() {
  */
 export async function sendOTPRecoveryEmail(data: { to: string; userName: string; otpCode: string }) {
   try {
-    console.log(`[Email] Preparando envio de OTP para: ${data.to}`);
     const transporter = await getTransporter();
     const db = await getDb();
     const snap = await getDoc(doc(db, 'settings', 'email'));
@@ -71,11 +70,62 @@ export async function sendOTPRecoveryEmail(data: { to: string; userName: string;
       html: htmlContent
     });
 
-    console.log(`[Email] OTP enviado com sucesso para ${data.to}`);
     return { success: true };
   } catch (e: any) { 
     console.error("[Email Error]", e.message);
     return { success: false, error: e.message }; 
+  }
+}
+
+/**
+ * Envia notificação de segurança após alteração de senha.
+ */
+export async function sendPasswordChangedNotificationEmail(data: { 
+  to: string; 
+  userName: string; 
+  ip: string; 
+  location: string; 
+  timestamp: string; 
+}) {
+  try {
+    const transporter = await getTransporter();
+    const db = await getDb();
+    const snap = await getDoc(doc(db, 'settings', 'email'));
+    const smtpUser = snap.data()?.smtpUser;
+
+    const htmlContent = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 20px; border: 1px solid #eee; background: #fff;">
+        <h1 style="color: #2C52EE; font-style: italic; text-transform: uppercase;">Viby Security</h1>
+        <h2 style="color: #333; margin-top: 30px;">Senha Alterada</h2>
+        <p style="color: #555; line-height: 1.6;">Olá, <strong>${data.userName}</strong>. Este é um aviso de segurança para confirmar que sua senha foi alterada com sucesso.</p>
+        
+        <div style="background: #f8fafc; padding: 25px; border-radius: 15px; margin: 30px 0; border: 1px solid #e2e8f0;">
+          <h4 style="margin-top: 0; color: #64748b; text-transform: uppercase; font-size: 10px; letter-spacing: 1px;">Detalhes do Evento:</h4>
+          <p style="margin: 5px 0; font-size: 13px; color: #1e293b;"><strong>Data/Hora:</strong> ${data.timestamp} (Brasília)</p>
+          <p style="margin: 5px 0; font-size: 13px; color: #1e293b;"><strong>Endereço IP:</strong> ${data.ip}</p>
+          <p style="margin: 5px 0; font-size: 13px; color: #1e293b;"><strong>Localização:</strong> ${data.location}</p>
+        </div>
+        
+        <p style="color: #555; line-height: 1.6;">Se foi você quem realizou esta alteração, ignore este e-mail.</p>
+        <p style="color: #ef4444; font-weight: bold; line-height: 1.6;">Caso você NÃO reconheça esta atividade, entre em contato imediatamente com o suporte Viby.</p>
+        
+        <p style="font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #eee; padding-top: 20px; margin-top: 40px;">
+          Esta é uma mensagem automática de segurança.
+        </p>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Viby Security" <${smtpUser}>`,
+      to: data.to,
+      subject: `🛡️ Segurança: Sua senha foi alterada`,
+      html: htmlContent
+    });
+
+    return { success: true };
+  } catch (e: any) {
+    console.error("[Email Notification Error]", e.message);
+    return { success: false, error: e.message };
   }
 }
 
@@ -87,7 +137,7 @@ export async function sendWelcomeEmail(data: any) {
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #eee; border-radius: 20px;">
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 20px; border: 1px solid #eee; background: #fff;">
         <h1 style="color: #2C52EE; font-style: italic; text-transform: uppercase;">${data.siteName || "Viby"}</h1>
         <h2>Bem-vindo ao Clube!</h2>
         <p>Olá, <strong>${data.userName}</strong>. Sua conta foi criada com sucesso.</p>

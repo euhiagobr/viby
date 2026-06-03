@@ -17,8 +17,9 @@ import {
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import { maskEmail } from '@/lib/crypto-utils';
-import { sendOTPRecoveryEmail } from './email';
+import { sendOTPRecoveryEmail, sendPasswordChangedNotificationEmail } from './email';
 import { getAdminAuth } from '@/lib/firebase/admin';
+import { headers } from 'next/headers';
 
 /**
  * @fileOverview Ações de Recuperação de Senha via OTP (6 dígitos).
@@ -32,7 +33,6 @@ async function getDb() {
 
 /**
  * Fase 1: Solicitar recuperação.
- * Localiza o usuário e dispara o código por e-mail.
  */
 export async function requestPasswordRecovery(identifier: string) {
   const auditId = Math.random().toString(36).substring(7).toUpperCase();
@@ -76,13 +76,11 @@ export async function requestPasswordRecovery(identifier: string) {
       }
     }
 
-    // RESPOSTA SEGURA: Se não existir, retornamos sucesso mas não fazemos nada.
     if (!userId || !targetEmail) {
-      console.log(`[Recovery-${auditId}] Usuário não localizado. Retornando resposta genérica por segurança.`);
       return { success: true, maskedEmail: "seu e-mail cadastrado" };
     }
 
-    // 2. RATE LIMIT (3 códigos ativos/recentes a cada 20 minutos por usuário)
+    // 2. RATE LIMIT (3 códigos a cada 20 min)
     const twentyMinAgo = new Date(Date.now() - 20 * 60 * 1000);
     const rateQ = query(
       collection(db, "password_reset_codes"), 
@@ -92,28 +90,23 @@ export async function requestPasswordRecovery(identifier: string) {
     );
     const rateSnap = await getDocs(rateQ);
     const recentRequests = rateSnap.docs.filter(d => {
-      const dData = d.data();
-      const createdAt = dData.createdAt?.toDate ? dData.createdAt.toDate() : new Date(0);
+      const createdAt = d.data().createdAt?.toDate ? d.data().createdAt.toDate() : new Date(0);
       return createdAt > twentyMinAgo;
     });
 
     if (recentRequests.length >= 3) {
-      console.warn(`[Recovery-${auditId}] Rate limit atingido para UID: ${userId}`);
       return { success: false, error: "Muitas solicitações. Tente novamente em 20 minutos." };
     }
 
-    // 3. INVALIDAÇÃO DE TODOS OS PENDENTES ANTERIORES E GERAÇÃO DO NOVO
+    // 3. INVALIDAÇÃO E GERAÇÃO
     const batch = writeBatch(db);
-    
-    // Inativação atômica de códigos antigos
-    const allPendingQ = query(collection(db, "password_reset_codes"), where("userId", "==", userId), where("used", "==", false));
-    const allPendingSnap = await getDocs(allPendingQ);
+    const allPendingSnap = await getDocs(query(collection(db, "password_reset_codes"), where("userId", "==", userId), where("used", "==", false)));
     allPendingSnap.forEach(d => {
       batch.update(d.ref, { used: true, usedAt: serverTimestamp(), invalidationReason: 'superseded' });
     });
 
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 MINUTOS
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     const resetRef = doc(collection(db, "password_reset_codes"));
 
     batch.set(resetRef, {
@@ -127,9 +120,7 @@ export async function requestPasswordRecovery(identifier: string) {
     });
 
     await batch.commit();
-    console.log(`[Recovery-${auditId}] Código ${otpCode} gerado e salvo para ${targetEmail}. Válido até ${expiresAt.toLocaleTimeString()}`);
     
-    // 4. ENVIO DO E-MAIL (TEMPLATE OTP)
     await sendOTPRecoveryEmail({
       to: targetEmail,
       userName: userName,
@@ -143,16 +134,14 @@ export async function requestPasswordRecovery(identifier: string) {
     };
 
   } catch (error: any) {
-    console.error(`[Recovery-${auditId}] Erro Crítico:`, error.message);
-    return { success: false, error: 'Erro ao processar solicitação de segurança.' };
+    return { success: false, error: 'Erro ao processar solicitação.' };
   }
 }
 
 /**
- * Fase 2: Validar o código digitado.
+ * Fase 2: Validar o código.
  */
 export async function verifyRecoveryCode(requestId: string, code: string) {
-  console.log(`[Validation] Validando solicitação: ${requestId}`);
   try {
     const db = await getDb();
     const resetRef = doc(db, "password_reset_codes", requestId);
@@ -164,28 +153,24 @@ export async function verifyRecoveryCode(requestId: string, code: string) {
     const now = new Date();
     const expiresAt = data.expiresAt?.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
 
-    if (data.used) return { success: false, error: "Código já utilizado ou invalidado." };
-    if (now > expiresAt) return { success: false, error: "Código expirado (limite de 10 min)." };
-    if ((data.attempts || 0) >= 10) return { success: false, error: "Muitas tentativas. Solicite um novo código." };
+    if (data.used || now > expiresAt) return { success: false, error: "Código expirado ou já utilizado." };
+    if ((data.attempts || 0) >= 10) return { success: false, error: "Muitas tentativas." };
 
     if (data.code !== code) {
       await updateDoc(resetRef, { attempts: (data.attempts || 0) + 1 });
       return { success: false, error: "Código incorreto." };
     }
 
-    console.log(`[Validation] Código validado com sucesso para requestId: ${requestId}`);
     return { success: true };
   } catch (error: any) {
-    console.error("[Validation Error]", error.message);
     return { success: false, error: "Falha técnica na validação." };
   }
 }
 
 /**
- * Fase 3: Trocar a senha no Firebase Authentication.
+ * Fase 3: Trocar a senha e notificar.
  */
 export async function resetPasswordWithCode(requestId: string, code: string, password: string) {
-  console.log(`[Reset] Tentativa de alteração de senha para requestId: ${requestId}`);
   try {
     const db = await getDb();
     const resetRef = doc(db, "password_reset_codes", requestId);
@@ -193,27 +178,23 @@ export async function resetPasswordWithCode(requestId: string, code: string, pas
 
     if (!resetSnap.exists()) throw new Error("Sessão expirada.");
     const resetData = resetSnap.data();
-
-    // Re-validação final de segurança antes de chamar o Admin SDK
     const now = new Date();
     const expiresAt = resetData.expiresAt?.toDate ? resetData.expiresAt.toDate() : new Date(resetData.expiresAt);
 
     if (resetData.code !== code || resetData.used || now > expiresAt) {
-      return { success: false, error: "Código inválido, expirado ou já utilizado." };
+      return { success: false, error: "Código inválido ou expirado." };
     }
 
     const userId = resetData.userId;
+    const targetEmail = resetData.email;
     const adminAuth = getAdminAuth();
     
-    // ATUALIZAÇÃO REAL NO FIREBASE AUTHENTICATION
+    // 1. Atualizar no Firebase Auth
     await adminAuth.updateUser(userId, { password });
-    console.log(`[Reset] Senha do UID ${userId} atualizada via Admin SDK.`);
 
-    // 4. INVALIDAÇÃO FINAL DE TODOS OS CÓDIGOS DO USUÁRIO
+    // 2. Invalidar todos os códigos
     const batch = writeBatch(db);
-    const allCodesQ = query(collection(db, "password_reset_codes"), where("userId", "==", userId), where("used", "==", false));
-    const allCodesSnap = await getDocs(allCodesQ);
-    
+    const allCodesSnap = await getDocs(query(collection(db, "password_reset_codes"), where("userId", "==", userId), where("used", "==", false)));
     allCodesSnap.forEach(d => {
       batch.update(d.ref, { 
         used: true, 
@@ -221,11 +202,32 @@ export async function resetPasswordWithCode(requestId: string, code: string, pas
         invalidationReason: d.id === requestId ? 'used_for_reset' : 'cleared_after_success'
       });
     });
-
     await batch.commit();
+
+    // 3. Notificação de Segurança com Metadados
+    const headersList = await headers();
+    const ip = headersList.get('x-forwarded-for')?.split(',')[0] || headersList.get('x-real-ip') || 'IP não identificado';
+    const city = headersList.get('x-vercel-ip-city') || headersList.get('x-apphosting-city') || 'Localização não identificada';
+    const country = headersList.get('x-vercel-ip-country') || 'Brasil';
+    const location = city !== 'Localização não identificada' ? `${city}, ${country}` : country;
+    
+    const timestamp = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+    const userSnap = await firestoreGetDoc(doc(db, "users", userId));
+    const userName = userSnap.exists() ? (userSnap.data().name || userSnap.data().displayName || "Usuário") : "Usuário";
+
+    // Disparo assíncrono da notificação
+    sendPasswordChangedNotificationEmail({
+      to: targetEmail,
+      userName,
+      ip,
+      location,
+      timestamp
+    }).catch(e => console.warn("[Security Email] Failed to send notification", e));
+
     return { success: true };
   } catch (error: any) {
-    console.error("[Reset Critical Error]", error.message);
-    return { success: false, error: "Falha técnica ao atualizar senha no servidor. Verifique permissões do Admin SDK." };
+    console.error("[Reset Error]", error.message);
+    return { success: false, error: "Falha técnica ao atualizar senha." };
   }
 }
