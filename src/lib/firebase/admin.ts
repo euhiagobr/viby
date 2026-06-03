@@ -1,4 +1,3 @@
-
 import * as admin from 'firebase-admin';
 
 /**
@@ -10,7 +9,12 @@ function getServiceAccount() {
   const sa = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (!sa) return null;
   try {
-    return JSON.parse(sa);
+    const config = JSON.parse(sa);
+    // Garantir tratamento correto das quebras de linha na chave privada
+    if (config.private_key) {
+      config.private_key = config.private_key.replace(/\\n/g, '\n');
+    }
+    return config;
   } catch (e) {
     console.error("[Admin SDK] Erro ao parsear FIREBASE_SERVICE_ACCOUNT");
     return null;
