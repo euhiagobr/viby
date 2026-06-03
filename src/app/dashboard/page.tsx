@@ -34,7 +34,6 @@ import { getCurrentLocation, type Coordinates } from "@/lib/location-utils"
 import { calculateEventScore, isEventVisible } from "@/lib/event-scoring-utils"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 import { cn, normalizeText } from "@/lib/utils"
-import Footer from "@/components/layout/Footer"
 import {
   Select,
   SelectContent,
@@ -262,7 +261,6 @@ export default function ExplorarPage() {
            )}
         </TabsContent>
       </Tabs>
-      <Footer />
     </div>
   )
 }

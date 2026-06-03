@@ -91,7 +91,7 @@ export default function VoucherPage() {
       <Card className="overflow-hidden border-none shadow-2xl rounded-[2.5rem] bg-white print:shadow-none">
         <div className="relative h-48 bg-muted">
           <Image src={registration.eventImage || "https://picsum.photos/seed/event/800/600"} alt={registration.eventTitle} fill className="object-cover" unoptimized />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
           <div className="absolute bottom-6 left-8">
             <Badge className={cn("text-[10px] font-black uppercase px-3 h-5 border-none shadow-lg", isCancelled ? "bg-destructive text-white" : isUsed ? "bg-primary text-white" : "bg-secondary text-white")}>
               {isCancelled ? "Cancelado" : isUsed ? "Utilizado" : (registration.batchName || "Ativo")}
