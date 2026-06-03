@@ -28,28 +28,24 @@ export default function OnboardingPage() {
   const [checkingUsername, setCheckingUsername] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle');
 
-  // Guard e Redirecionamento
+  // Guard e Redirecionamento com logs
   useEffect(() => {
-    console.log("[Auth-Debug] Onboarding State:", { isInitialized, hasUser: !!user, hasProfile: !!profile });
+    if (!isInitialized) return;
 
-    if (isInitialized && !user) {
-      console.log("[Auth-Debug] Onboarding: No user found, forcing /login");
+    if (!user) {
+      console.log('[Auth-Debug] Redirecting To Login');
       router.replace("/login");
       return;
     }
     
-    // Se o perfil carregou e já está completo, pula o onboarding
-    if (isInitialized && profile) {
+    if (profile) {
        const isComplete = profile.username && profile.cpf && profile.name;
-       console.log("[Auth-Debug] Onboarding check profile completion:", { isComplete, username: profile.username, cpf: !!profile.cpf, name: profile.name });
-       
        if (profile.profileComplete || isComplete) {
-         console.log("[Auth-Debug] Profile already complete, skipping onboarding to /dashboard");
+         console.log('[Auth-Debug] Redirecting To Dashboard');
          router.replace("/dashboard");
          return;
        }
        
-       // Preenche dados existentes (caso tenha vindo do social)
        if (!name && profile.name) setName(profile.name);
        if (!username && profile.username) setUsername(profile.username);
     }
@@ -75,7 +71,6 @@ export default function OnboardingPage() {
         const usernameRef = doc(db, "usernames", cleanUsername);
         const usernameSnap = await getDoc(usernameRef);
         
-        // Se o username já for o do próprio usuário, é válido
         if (usernameSnap.exists() && usernameSnap.data().uid === user?.uid) {
           setUsernameStatus('valid');
         } else {
@@ -148,10 +143,10 @@ export default function OnboardingPage() {
         });
       });
 
-      // Salva o CPF na subcoleção privada
       await updateUserCPF(user.uid, cleanCPF);
 
       toast({ title: "Perfil completado!", description: "Bem-vindo à Viby." });
+      console.log('[Auth-Debug] Redirecting To Dashboard');
       router.push("/dashboard");
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao salvar", description: error.message });

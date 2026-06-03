@@ -32,13 +32,13 @@ function LoginContent() {
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
-  // REDIRECIONAMENTO INTELIGENTE
+  // REDIRECIONAMENTO INTELIGENTE COM LOGS
   useEffect(() => {
     if (!isInitialized || authLoading) return;
 
-    console.log("[Auth-Debug] Login Page State:", { 
-      isInitialized, 
-      hasUser: !!user, 
+    console.log('[Auth-Debug] Login Page State', {
+      isInitialized,
+      hasUser: !!user,
       hasProfile: !!profile,
       authLoading
     });
@@ -48,8 +48,14 @@ function LoginContent() {
       const redirect = searchParams.get('redirect') || "/dashboard";
       const target = isComplete ? redirect : "/onboarding";
       
-      console.log(`[Auth-Debug] Login Ativo. Perfil Completo: ${!!isComplete}. Indo para: ${target}`);
+      if (isComplete) {
+        console.log('[Auth-Debug] Redirecting To Dashboard');
+      } else {
+        console.log('[Auth-Debug] Redirecting To Onboarding');
+      }
       router.replace(target);
+    } else {
+      console.log('[Auth-Debug] Staying On Login');
     }
   }, [user, profile, isInitialized, authLoading, router, searchParams]);
 

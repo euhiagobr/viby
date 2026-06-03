@@ -37,26 +37,30 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     if (!isInitialized || authLoading) return;
 
+    console.log('[Auth-Debug] Auth Current User:', auth?.currentUser);
+
     if (!user) {
-      console.log("[Auth-Debug] Dashboard Guard: No authenticated user, redirecting to login.");
+      console.log('[Auth-Debug] Redirecting To Login');
       router.replace(`/login?redirect=${encodeURIComponent(pathname || '/dashboard')}`);
       return;
     }
 
-    // Verifica se o perfil está realmente incompleto (sem username ou sem cpf)
     const isProfileIncomplete = profile && (!profile.profileComplete && (!profile.username || !profile.cpf));
 
     if (isProfileIncomplete && pathname !== '/onboarding') {
-      console.warn("[Auth-Debug] Dashboard Guard: Profile incomplete, forcing /onboarding");
+      console.log('[Auth-Debug] Redirecting To Onboarding');
       router.replace('/onboarding');
       return;
     }
 
     if (profile && profile.status === 'Bloqueado' && pathname !== '/dashboard/suporte') {
-      console.warn("[Auth-Debug] Dashboard Guard: Account blocked, restricting access to support.");
       router.replace('/dashboard/suporte');
     }
-  }, [user, profile, isInitialized, authLoading, pathname, router]);
+
+    if (user && profile && !isProfileIncomplete) {
+      console.log('[Auth-Debug] Redirecting To Dashboard');
+    }
+  }, [user, profile, isInitialized, authLoading, pathname, router, auth]);
 
   if (!isInitialized || authLoading || (user && !profile)) {
     return (

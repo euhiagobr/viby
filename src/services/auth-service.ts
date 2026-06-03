@@ -31,19 +31,18 @@ export const authConfig = {
 
 /**
  * Garante que o documento do usuário exista no Firestore.
- * Essencial para fluxos sociais onde o documento pode não ter sido criado ainda.
  */
 export async function ensureUserProfile(user: any, db: Firestore) {
   if (!user || !db) return null;
   
-  console.log(`[Auth-Debug] Sincronizando perfil Firestore para UID: ${user.uid}`);
   const userRef = doc(db, "users", user.uid);
+  console.log('[Auth-Debug] Firestore Profile Lookup Started for ensureUserProfile');
   
   try {
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
-      console.log("[Auth-Debug] Perfil não encontrado. Iniciando transação de criação...");
+      console.log('[Auth-Debug] Firestore Profile Missing, creating base profile');
       
       const initialName = user.displayName || user.email?.split('@')[0] || "Membro Viby";
       
@@ -51,9 +50,7 @@ export async function ensureUserProfile(user: any, db: Firestore) {
       try {
         const vibyIdxSnap = await getDoc(doc(db, "usernames", "viby"));
         if (vibyIdxSnap.exists()) officialOrgId = vibyIdxSnap.data().uid;
-      } catch (e) {
-        console.warn("[Auth-Debug] Organização @viby não localizada para auto-follow inicial.");
-      }
+      } catch (e) {}
 
       const userData = {
         uid: user.uid,
@@ -73,10 +70,7 @@ export async function ensureUserProfile(user: any, db: Firestore) {
       };
 
       await runTransaction(db, async (transaction) => {
-        // Criamos o perfil
         transaction.set(userRef, userData);
-        
-        // Seguimento automático se @viby existir
         if (officialOrgId) {
           const followRef = doc(db, "follows", `${user.uid}_${officialOrgId}`);
           const vibyOrgRef = doc(db, "organizations", officialOrgId);
@@ -90,7 +84,7 @@ export async function ensureUserProfile(user: any, db: Firestore) {
         }
       });
 
-      console.log("[Auth-Debug] Perfil Firestore criado com sucesso!");
+      console.log('[Auth-Debug] Firestore Profile Created Successfully');
 
       if (user.email) {
         sendWelcomeEmail({ to: user.email, userName: initialName }).catch(() => {});
@@ -99,22 +93,23 @@ export async function ensureUserProfile(user: any, db: Firestore) {
       return { ...userData, isNew: true };
     }
 
-    console.log("[Auth-Debug] Perfil existente localizado no Firestore.");
+    console.log('[Auth-Debug] Firestore Profile Found in ensureUserProfile');
     return { ...userSnap.data(), isNew: false };
   } catch (error) {
-    console.error("[Auth-Debug] Erro crítico ao sincronizar perfil:", error);
+    console.error('[Auth-Debug] Error in ensureUserProfile:', error);
     throw error;
   }
 }
 
 /**
- * Inicia o fluxo de login social via Redirecionamento.
+ * Inicia o fluxo de login social via Redirecionamento com logs.
  */
 export async function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook' | 'x') {
   let provider;
   
   switch (providerName) {
     case 'google':
+      console.log('[Auth-Debug] Starting Google Login');
       provider = new GoogleAuthProvider();
       provider.addScope('profile');
       provider.addScope('email');
@@ -131,30 +126,25 @@ export async function startSocialLogin(auth: Auth, providerName: 'google' | 'fac
   }
 
   try {
-    // Define persistência explícita antes do redirect
     await setPersistence(auth, indexedDBLocalPersistence);
-    console.log(`[Auth-Debug] Disparando Redirect para ${providerName}...`);
     return signInWithRedirect(auth, provider, browserPopupRedirectResolver);
   } catch (error) {
-    console.error("[Auth-Debug] Erro ao configurar persistência ou iniciar redirect:", error);
+    console.error("[Auth-Debug] Login Redirect Error:", error);
     throw error;
   }
 }
 
 /**
- * Processa o resultado do redirecionamento.
+ * Processa o resultado do redirecionamento com logs.
  */
 export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
   try {
-    console.log("[Auth-Debug] Solicitando resultado de redirect ao Firebase...");
     const result = await getRedirectResult(auth, browserPopupRedirectResolver);
+    console.log('[Auth-Debug] Redirect Result:', result);
     
-    if (!result) {
-      console.log("[Auth-Debug] getRedirectResult retornou null.");
-      return null;
-    }
+    if (!result) return null;
 
-    console.log("[Auth-Debug] Usuário autenticado via redirect. Sincronizando dados...");
+    console.log('[Auth-Debug] Redirect User:', result.user);
     const profile = await ensureUserProfile(result.user, db);
 
     await recordAuditLog({
@@ -168,7 +158,7 @@ export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
 
     return { user: result.user, profile, isNew: profile?.isNew };
   } catch (error: any) {
-    console.error(`[Auth-Debug] Falha ao capturar resultado social:`, error.code, error.message);
+    console.error(`[Auth-Debug] Redirect Process Error:`, error);
     throw error;
   }
 }

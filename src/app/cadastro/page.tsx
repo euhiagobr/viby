@@ -51,13 +51,13 @@ function CadastroContent() {
   const blockedRef = React.useMemo(() => (db ? doc(db, 'settings', 'blocked_usernames') : null), [db]);
   const { data: blockedData } = useDoc<any>(blockedRef);
 
-  // REDIRECIONAMENTO INTELIGENTE
+  // REDIRECIONAMENTO INTELIGENTE COM LOGS
   useEffect(() => {
     if (!isInitialized || authLoading) return;
 
-    console.log("[Auth-Debug] Cadastro Page State:", { 
-      isInitialized, 
-      hasUser: !!user, 
+    console.log('[Auth-Debug] Login Page State', {
+      isInitialized,
+      hasUser: !!user,
       hasProfile: !!profile,
       authLoading
     });
@@ -66,8 +66,14 @@ function CadastroContent() {
       const isComplete = profile.username && profile.cpf;
       const target = isComplete ? "/dashboard" : "/onboarding";
       
-      console.log(`[Auth-Debug] Cadastro Ativo. Perfil Completo: ${!!isComplete}. Indo para: ${target}`);
+      if (isComplete) {
+        console.log('[Auth-Debug] Redirecting To Dashboard');
+      } else {
+        console.log('[Auth-Debug] Redirecting To Onboarding');
+      }
       router.replace(target);
+    } else {
+      console.log('[Auth-Debug] Staying On Cadastro');
     }
   }, [user, profile, isInitialized, authLoading, router]);
 

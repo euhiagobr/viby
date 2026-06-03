@@ -2,13 +2,14 @@ import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { firebaseConfig } from "./config";
 
 /**
- * @fileOverview Inicialização isomórfica do Firebase App.
- * Removida a diretiva 'use client' para permitir uso em Server Actions.
+ * @fileOverview Inicialização isomórfica do Firebase App com logs de diagnóstico.
  */
 
 function initializeFirebaseApp(): FirebaseApp {
   if (getApps().length === 0) {
-    return initializeApp(firebaseConfig);
+    const app = initializeApp(firebaseConfig);
+    console.log('[Auth-Debug] Firebase App Initialized');
+    return app;
   }
   return getApp();
 }

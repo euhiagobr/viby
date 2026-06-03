@@ -18,47 +18,58 @@ export function SocialLoginButtons() {
   const [isProcessing, setIsProcessing] = React.useState(false);
   const pipelineStarted = React.useRef(false);
 
-  // 1. Monitor de Redirecionamento (Roda uma vez ao montar)
+  // 1. Monitor de Redirecionamento
   React.useEffect(() => {
     if (!auth || !db || !isInitialized || pipelineStarted.current) return;
 
     const runRedirectCheck = async () => {
       pipelineStarted.current = true;
+      console.log('[Auth-Debug] Auth Context State', {
+        currentUser: auth.currentUser,
+        profile: profile,
+        loading: !isInitialized,
+        initialized: isInitialized
+      });
+      
       try {
-        console.log("[Auth-Debug] SocialButtons: Verificando se há retorno de login...");
         const result = await handleSocialLoginResult(auth, db);
-        
         if (result) {
           setIsProcessing(true);
-          console.log("[Auth-Debug] Resultado capturado. Validando completude do perfil...");
           const isComplete = result.profile?.username && result.profile?.cpf;
+          if (isComplete) {
+            console.log('[Auth-Debug] Redirecting To Dashboard');
+          } else {
+            console.log('[Auth-Debug] Redirecting To Onboarding');
+          }
           router.replace(isComplete ? "/dashboard" : "/onboarding");
         }
       } catch (error: any) {
-        console.error("[Auth-Debug] Erro no componente ao tratar redirect:", error);
+        console.error("[Auth-Debug] SocialButtons: Redirect Result Error:", error);
       }
     };
 
     runRedirectCheck();
-  }, [auth, db, isInitialized, router]);
+  }, [auth, db, isInitialized, router, profile]);
 
-  // 2. Monitor de Estado (Reativo - Resolve o caso do Redirect Result ser Null mas o User existir)
+  // 2. Monitor de Estado Reativo
   React.useEffect(() => {
     if (!isInitialized || !user || isProcessing) return;
 
-    // Se o usuário está logado mas o perfil ainda não existe no Firestore
     if (!profile) {
       const syncProfile = async () => {
         setIsProcessing(true);
         try {
-          console.log("[Auth-Debug] Usuário detectado via Sessão mas sem Perfil. Forçando sincronização...");
           const synced = await ensureUserProfile(user, db);
           if (synced) {
             const isComplete = synced.username && synced.cpf;
+            if (isComplete) {
+              console.log('[Auth-Debug] Redirecting To Dashboard');
+            } else {
+              console.log('[Auth-Debug] Redirecting To Onboarding');
+            }
             router.replace(isComplete ? "/dashboard" : "/onboarding");
           }
         } catch (e) {
-          console.error("[Auth-Debug] Falha na sincronização forçada:", e);
           setIsProcessing(false);
         }
       };
@@ -70,14 +81,12 @@ export function SocialLoginButtons() {
     if (!auth) return;
     setLoadingProvider(provider);
     try {
-      console.log(`[Auth-Debug] Iniciando login social: ${provider}`);
       await startSocialLogin(auth, provider);
     } catch (error: any) {
-      console.error("[Auth-Debug] Erro ao disparar redirecionamento:", error);
       toast({ 
         variant: "destructive", 
         title: "Erro de Conexão", 
-        description: "Não foi possível iniciar o login social. Verifique seu navegador." 
+        description: "Não foi possível iniciar o login social." 
       });
       setLoadingProvider(null);
     }
