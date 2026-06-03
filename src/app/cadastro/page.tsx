@@ -74,24 +74,28 @@ function CadastroContent() {
 
   const siteName = settings?.siteName || "Viby"
 
-  // REDIRECIONAMENTO CRÍTICO
+  // REDIRECIONAMENTO INTELIGENTE
   useEffect(() => {
-    console.log("[Auth-Debug] Signup Page State:", { isInitialized, hasUser: !!user, hasProfile: !!profile, authLoading });
+    if (!isInitialized) return;
 
-    if (isInitialized && user) {
+    console.log("[Auth-Debug] Estado da página de Cadastro:", { 
+      authIniciado: isInitialized, 
+      temUsuario: !!user, 
+      temPerfil: !!profile 
+    });
+
+    if (user) {
       if (profile) {
         const isComplete = profile.username && profile.cpf;
-        console.log("[Auth-Debug] Profile loaded in Signup. Completion Status:", { isComplete });
-        
         if (!isComplete) {
-          console.log("[Auth-Debug] Redirecting to /onboarding - Profile incomplete.");
+          console.log("[Auth-Debug] Perfil incompleto. Redirecionando para onboarding.");
           router.replace("/onboarding");
         } else {
-          console.log("[Auth-Debug] Redirecting to /dashboard - Already has complete account.");
+          console.log("[Auth-Debug] Usuário já possui conta completa. Redirecionando para dashboard.");
           router.replace("/dashboard");
         }
       } else {
-        console.warn("[Auth-Debug] User is authenticated in Signup but profile document is missing.");
+        console.log("[Auth-Debug] Aguardando criação do documento do usuário...");
       }
     }
   }, [user, profile, isInitialized, router]);
@@ -195,8 +199,11 @@ function CadastroContent() {
 
       await updateProfile(user, { displayName: name })
 
-      const vibyIdxSnap = await getDoc(doc(db, "usernames", "viby"))
-      const officialOrgId = vibyIdxSnap.exists() ? vibyIdxSnap.data().uid : null
+      let officialOrgId = null;
+      try {
+        const vibyIdxSnap = await getDoc(doc(db, "usernames", "viby"));
+        if (vibyIdxSnap.exists()) officialOrgId = vibyIdxSnap.data().uid;
+      } catch (e) {}
 
       const userData = {
         uid: user.uid,
@@ -250,9 +257,8 @@ function CadastroContent() {
       
       sendWelcomeEmail({
         to: email,
-        userName: name,
-        siteName: siteName
-      });
+        userName: name
+      }).catch(() => {});
 
       toast({ title: "Conta criada!", description: `Bem-vindo à ${siteName}.` })
     } catch (error: any) {
@@ -292,10 +298,10 @@ function CadastroContent() {
       </nav>
 
       <div className="flex-1 flex items-center justify-center p-4">
-        {authLoading && !user ? (
-          <div className="flex flex-col items-center gap-4">
+        {!isInitialized || (user && !profile) ? (
+          <div className="flex flex-col items-center gap-4 text-center">
              <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando...</p>
+             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Preparando ambiente...</p>
           </div>
         ) : (
           <Card className="w-full max-w-md border-none shadow-xl rounded-[2rem] overflow-hidden bg-white">
@@ -397,13 +403,6 @@ function CadastroContent() {
                     </Button>
                   </form>
                 </>
-              )}
-
-              {!showForm && user && (
-                 <div className="py-6 flex flex-col items-center gap-4 text-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Processando acesso...</p>
-                 </div>
               )}
             </CardContent>
             <CardFooter className="flex justify-center border-t border-border mt-6 py-6 bg-muted/20">

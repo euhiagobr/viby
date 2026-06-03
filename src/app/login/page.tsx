@@ -32,25 +32,31 @@ function LoginContent() {
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
-  // REDIRECIONAMENTO CRÍTICO: Usuário já autenticado
+  // REDIRECIONAMENTO INTELIGENTE: Monitora a autenticação e o perfil
   useEffect(() => {
-    console.log("[Auth-Debug] Login Page State:", { isInitialized, hasUser: !!user, hasProfile: !!profile, authLoading });
+    if (!isInitialized) return;
 
-    if (isInitialized && user) {
+    console.log("[Auth-Debug] Estado da página de Login:", { 
+      authIniciado: isInitialized, 
+      temUsuario: !!user, 
+      carregandoAuth: authLoading,
+      temPerfil: !!profile 
+    });
+
+    if (user) {
       if (profile) {
         const isComplete = profile.username && profile.cpf;
-        console.log("[Auth-Debug] Profile loaded. Completion Status:", { isComplete, username: !!profile.username, cpf: !!profile.cpf });
-        
         if (!isComplete) {
-          console.log("[Auth-Debug] Redirecting to /onboarding - Profile incomplete.");
+          console.log("[Auth-Debug] Perfil incompleto detectado. Redirecionando para /onboarding");
           router.replace("/onboarding");
         } else {
           const redirect = searchParams.get('redirect') || "/dashboard";
-          console.log(`[Auth-Debug] Redirecting to ${redirect} - Profile complete.`);
+          console.log(`[Auth-Debug] Login concluído. Redirecionando para ${redirect}`);
           router.replace(redirect);
         }
       } else {
-        console.warn("[Auth-Debug] User is authenticated but profile document is null. Waiting for creation or loading...");
+        // Usuário logado mas perfil ainda não carregou ou não existe
+        console.log("[Auth-Debug] Usuário logado. Aguardando sincronização do perfil Firestore...");
       }
     }
   }, [user, profile, isInitialized, router, searchParams, authLoading]);
@@ -93,7 +99,7 @@ function LoginContent() {
     }
   }
 
-  // Não bloqueamos a renderização totalmente para permitir que SocialLoginButtons capture o redirect do Google
+  // Só mostramos o formulário se não houver usuário autenticado
   const showForm = isInitialized && !user;
 
   return (
@@ -115,10 +121,10 @@ function LoginContent() {
       </nav>
 
       <div className="flex-1 flex items-center justify-center p-4">
-        {authLoading && !user ? (
-          <div className="flex flex-col items-center gap-4">
+        {!isInitialized || (user && !profile) ? (
+          <div className="flex flex-col items-center gap-4 text-center">
              <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Restaurando sessão...</p>
+             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando sua conta...</p>
           </div>
         ) : (
           <Card className="w-full max-w-md border-none shadow-xl rounded-[2rem] overflow-hidden bg-white">
@@ -158,13 +164,6 @@ function LoginContent() {
                     </Button>
                   </form>
                 </>
-              )}
-
-              {!showForm && user && (
-                 <div className="py-6 flex flex-col items-center gap-4 text-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Autenticação detectada. Redirecionando...</p>
-                 </div>
               )}
             </CardContent>
             <CardFooter className="flex flex-col items-center gap-4 border-t border-border mt-6 py-8 bg-muted/20">

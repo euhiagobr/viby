@@ -54,7 +54,7 @@ export async function startSocialLogin(auth: Auth, providerName: 'google' | 'fac
   }
 
   await setPersistence(auth, indexedDBLocalPersistence);
-  console.log(`[Auth-Debug] Starting ${providerName} login via redirect...`);
+  console.log(`[Auth-Debug] Iniciando login ${providerName} via redirect...`);
   return signInWithRedirect(auth, provider, browserPopupRedirectResolver);
 }
 
@@ -63,26 +63,34 @@ export async function startSocialLogin(auth: Auth, providerName: 'google' | 'fac
  */
 export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
   try {
-    console.log("[Auth-Debug] Checking for redirect result...");
+    console.log("[Auth-Debug] Verificando resultado de redirecionamento...");
     const result = await getRedirectResult(auth, browserPopupRedirectResolver);
     
     if (!result) {
-      console.log("[Auth-Debug] No redirect result found.");
+      console.log("[Auth-Debug] Nenhum evento de redirecionamento pendente.");
       return null;
     }
 
     const user = result.user;
-    console.log("[Auth-Debug] Redirect result found for user:", user.uid);
+    console.log("[Auth-Debug] Usuário autenticado via social:", user.uid);
 
     const userRef = doc(db, "users", user.uid);
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
-      console.log("[Auth-Debug] New social user detected. Initializing Firestore document...");
+      console.log("[Auth-Debug] Novo usuário social detectado. Inicializando perfil...");
+      
+      // Captura o nome com fallback seguro
       const initialName = user.displayName || user.email?.split('@')[0] || "Membro Viby";
       
-      const vibyIdxSnap = await getDoc(doc(db, "usernames", "viby"));
-      const officialOrgId = vibyIdxSnap.exists() ? vibyIdxSnap.data().uid : null;
+      // Tenta localizar a organização oficial para o auto-follow
+      let officialOrgId = null;
+      try {
+        const vibyIdxSnap = await getDoc(doc(db, "usernames", "viby"));
+        if (vibyIdxSnap.exists()) officialOrgId = vibyIdxSnap.data().uid;
+      } catch (e) {
+        console.warn("[Auth-Debug] Não foi possível localizar a conta oficial @viby para auto-follow.");
+      }
 
       const userData = {
         uid: user.uid,
@@ -101,7 +109,7 @@ export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
         updatedAt: serverTimestamp()
       };
 
-      // Criação transacional do perfil social pendente de complementação
+      // Criação transacional do perfil
       await runTransaction(db, async (transaction) => {
         transaction.set(userRef, userData);
 
@@ -136,15 +144,14 @@ export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
         metadata: { method: 'social', provider: userData.provider }
       });
 
-      console.log("[Auth-Debug] Social profile created successfully.");
+      console.log("[Auth-Debug] Perfil social criado. Onboarding necessário.");
       return { user, isNew: true };
     } else {
-      console.log("[Auth-Debug] Existing social user logged in. Validating completion status.");
-      // Perfil já existe, garantimos que o campo profileComplete reflita o estado real
       const data = userSnap.data();
-      const isComplete = data?.username && data?.cpf;
+      const isComplete = !!(data?.username && data?.cpf);
+      console.log("[Auth-Debug] Usuário social já existente. Perfil Completo:", isComplete);
+      
       if (data?.profileComplete !== isComplete) {
-        console.log("[Auth-Debug] Updating profileComplete flag to:", isComplete);
         await setDoc(userRef, { profileComplete: isComplete }, { merge: true });
       }
     }
@@ -160,7 +167,12 @@ export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
 
     return { user, isNew: false };
   } catch (error: any) {
-    console.error(`[Auth-Debug] Error processing redirect result:`, error.code, error.message);
+    console.error(`[Auth-Debug] Erro ao processar redirecionamento social:`, error.code, error.message);
+    
+    if (error.code === 'auth/unauthorized-domain') {
+      console.error("[Auth-Critical] Este domínio não está autorizado no Console do Firebase!");
+    }
+    
     throw error;
   }
 }
