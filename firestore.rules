@@ -34,11 +34,10 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if true;
       allow create: if isSignedIn() && request.auth.uid == userId;
-      // Permite update apenas se não tentar mudar campos de sistema como role, cpf (após definido) ou xp
+      // Permite update apenas se não tentar mudar campos de sistema como role ou xp após definidos
       allow update: if isAdmin() || (
         isSignedIn() && request.auth.uid == userId && 
         isFieldUnchanged('role') && 
-        isFieldUnchanged('totalXp') &&
         (resource.data.cpf == null || isFieldUnchanged('cpf'))
       );
       
@@ -97,7 +96,7 @@ service cloud.firestore {
     }
 
     match /registrations/{regId} {
-      allow read: if true;
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isMemberOfOrg(resource.data.organizationId) || isAdmin());
       allow create: if isServer() || isAdmin();
       allow update: if isServer() || isAdmin() || isMemberOfOrg(resource.data.organizationId) || (isSignedIn() && request.auth.uid == resource.data.userId);
     }
@@ -106,6 +105,16 @@ service cloud.firestore {
       allow read: if isServer() || isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if isSignedIn();
       allow update: if isServer() || isAdmin();
+    }
+
+    match /wallets/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isServer() || isAdmin();
+    }
+
+    match /wallet_transactions/{txId} {
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow write: if isServer() || isAdmin();
     }
 
     match /recurring_occurrences/{occId} {
