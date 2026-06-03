@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -21,6 +22,8 @@ import Image from "next/image"
 import { processGamificationEvent } from "@/lib/gamification-service"
 import { updateUserCPF } from "@/app/actions/user"
 import { maskCPF } from "@/lib/crypto-utils"
+import { SocialLoginButtons } from "../login/SocialLoginButtons"
+import { Separator } from "@/components/ui/separator"
 
 const DEFAULT_PROFILE_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media";
 
@@ -61,7 +64,7 @@ export default function CadastroPage() {
   
   const router = useRouter()
   const auth = useAuth()
-  const { user, loading: authLoading } = useUser(auth)
+  const { user, profile, loading: authLoading, isInitialized } = useUser(auth)
   const db = useFirestore()
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
@@ -73,10 +76,15 @@ export default function CadastroPage() {
   const siteName = settings?.siteName || "Viby"
 
   useEffect(() => {
-    if (!authLoading && user) {
-      router.replace("/dashboard")
+    if (isInitialized && user) {
+      const isComplete = profile?.profileComplete || (profile?.username && profile?.cpf);
+      if (!isComplete && profile) {
+        router.replace("/onboarding");
+      } else if (isComplete) {
+        router.replace("/dashboard");
+      }
     }
-  }, [user, authLoading, router])
+  }, [user, profile, isInitialized, router]);
 
   useEffect(() => {
     if (!db || !username) {
@@ -188,7 +196,7 @@ export default function CadastroPage() {
         avatar: DEFAULT_PROFILE_IMAGE,
         birthDate,
         gender,
-        cpf: maskCPF(cleanCPF), // SALVA A VERSÃO MASCARADA PERMANENTE
+        cpf: maskCPF(cleanCPF),
         plan: "free",
         platform: "viby",
         role: "user",
@@ -227,9 +235,7 @@ export default function CadastroPage() {
         }
       });
 
-      // Salva a versão real criptografada no doc privado
       await updateUserCPF(user.uid, cleanCPF);
-
       await processGamificationEvent(db, user.uid, 'on_signup', {}, user.uid, userData);
       
       sendWelcomeEmail({
@@ -239,7 +245,6 @@ export default function CadastroPage() {
       });
 
       toast({ title: "Conta criada!", description: `Bem-vindo à ${siteName}.` })
-      router.push("/dashboard")
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') {
         toast({ variant: "destructive", title: "E-mail já cadastrado", description: "Este endereço de e-mail já está associado a uma conta." })
@@ -251,7 +256,7 @@ export default function CadastroPage() {
     }
   }
 
-  if (authLoading) {
+  if (authLoading || (user && !profile)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30">
         <Loader2 className="w-10 h-10 animate-spin text-secondary" />
@@ -291,7 +296,14 @@ export default function CadastroPage() {
             <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Criar Conta Viby</CardTitle>
             <CardDescription className="font-medium">Junte-se à comunidade.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4 px-8">
+          <CardContent className="space-y-6 px-8">
+            <SocialLoginButtons />
+            
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center"><Separator className="w-full" /></div>
+              <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-white px-3 text-muted-foreground">Ou use o formulário</span></div>
+            </div>
+
             <form onSubmit={handleRegister} className="space-y-4">
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome Completo</Label>
