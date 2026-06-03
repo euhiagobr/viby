@@ -32,16 +32,20 @@ function LoginContent() {
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
+  // REDIRECIONAMENTO CRÍTICO: Usuário já autenticado
   useEffect(() => {
-    if (isInitialized && user && profile) {
-      const isComplete = profile.profileComplete || (profile.username && profile.cpf);
-      
-      if (!isComplete) {
-        router.replace("/onboarding");
-      } else {
-        const redirect = searchParams.get('redirect') || "/dashboard";
-        router.replace(redirect);
+    if (isInitialized && user) {
+      // Se autenticado, avaliamos o perfil
+      if (profile) {
+        const isComplete = profile.username && profile.cpf;
+        if (!isComplete) {
+          router.replace("/onboarding");
+        } else {
+          const redirect = searchParams.get('redirect') || "/dashboard";
+          router.replace(redirect);
+        }
       }
+      // Se user existe mas profile é null, aguardamos SocialLoginButtons processar o retorno
     }
   }, [user, profile, isInitialized, router, searchParams]);
 
@@ -83,9 +87,8 @@ function LoginContent() {
     }
   }
 
-  if (authLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-muted/30"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
-  }
+  // Não bloqueamos a renderização totalmente para permitir que SocialLoginButtons capture o redirect do Google
+  const showForm = isInitialized && !user;
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30 font-body">
@@ -106,45 +109,63 @@ function LoginContent() {
       </nav>
 
       <div className="flex-1 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md border-none shadow-xl rounded-[2rem] overflow-hidden bg-white">
-          <CardHeader className="space-y-1 flex flex-col items-center pt-10 pb-6">
-            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-secondary/20">
-              <KeyRound className="text-white w-7 h-7" />
-            </div>
-            <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Acessar Viby</CardTitle>
-            <CardDescription className="font-medium text-center">Entre para viver experiências memoráveis.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6 px-8">
-            <SocialLoginButtons />
-            
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center"><Separator className="w-full" /></div>
-              <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-white px-3 text-muted-foreground">Ou use sua senha</span></div>
-            </div>
-
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Identificador</Label>
-                <div className="relative">
-                  <Input placeholder="E-mail ou @username" value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="pl-10 h-12 rounded-xl" required />
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary">
-                    {identifier.includes("@") ? <Mail className="h-4 w-4" /> : <User className="h-4 w-4" />}
+        {authLoading && !user ? (
+          <div className="flex flex-col items-center gap-4">
+             <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Restaurando sessão...</p>
+          </div>
+        ) : (
+          <Card className="w-full max-w-md border-none shadow-xl rounded-[2rem] overflow-hidden bg-white">
+            <CardHeader className="space-y-1 flex flex-col items-center pt-10 pb-6">
+              <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-secondary/20">
+                <KeyRound className="text-white w-7 h-7" />
+              </div>
+              <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Acessar Viby</CardTitle>
+              <CardDescription className="font-medium text-center">Entre para viver experiências memoráveis.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 px-8">
+              <SocialLoginButtons />
+              
+              {showForm && (
+                <>
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center"><Separator className="w-full" /></div>
+                    <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-white px-3 text-muted-foreground">Ou use sua senha</span></div>
                   </div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between mb-1"><Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Sua Senha</Label><Link href="/redefinir-senha" className="text-[10px] font-black uppercase tracking-widest text-secondary hover:underline">Esqueceu?</Link></div>
-                <Input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="rounded-xl h-12" />
-              </div>
-              <Button type="submit" className="w-full bg-primary text-white font-black h-14 rounded-2xl uppercase italic mt-2" disabled={loading}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Entrar com Senha"}
-              </Button>
-            </form>
-          </CardContent>
-          <CardFooter className="flex flex-col items-center gap-4 border-t border-border mt-6 py-8 bg-muted/20">
-            <p className="text-xs font-bold text-muted-foreground">Novo por aqui? <Link href="/cadastro" className="text-secondary font-black hover:underline uppercase italic">Criar conta gratuita</Link></p>
-          </CardFooter>
-        </Card>
+
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Identificador</Label>
+                      <div className="relative">
+                        <Input placeholder="E-mail ou @username" value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="pl-10 h-12 rounded-xl" required />
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary">
+                          {identifier.includes("@") ? <Mail className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between mb-1"><Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Sua Senha</Label><Link href="/redefinir-senha" className="text-[10px] font-black uppercase tracking-widest text-secondary hover:underline">Esqueceu?</Link></div>
+                      <Input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="rounded-xl h-12" />
+                    </div>
+                    <Button type="submit" className="w-full bg-primary text-white font-black h-14 rounded-2xl uppercase italic mt-2" disabled={loading}>
+                      {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Entrar com Senha"}
+                    </Button>
+                  </form>
+                </>
+              )}
+
+              {!showForm && user && (
+                 <div className="py-6 flex flex-col items-center gap-4 text-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Autenticação detectada. Redirecionando...</p>
+                 </div>
+              )}
+            </CardContent>
+            <CardFooter className="flex flex-col items-center gap-4 border-t border-border mt-6 py-8 bg-muted/20">
+              <p className="text-xs font-bold text-muted-foreground">Novo por aqui? <Link href="/cadastro" className="text-secondary font-black hover:underline uppercase italic">Criar conta gratuita</Link></p>
+            </CardFooter>
+          </Card>
+        )}
       </div>
       <Footer />
     </div>

@@ -74,13 +74,16 @@ function CadastroContent() {
 
   const siteName = settings?.siteName || "Viby"
 
+  // REDIRECIONAMENTO CRÍTICO
   useEffect(() => {
-    if (isInitialized && user && profile) {
-      const isComplete = profile.profileComplete || (profile.username && profile.cpf);
-      if (!isComplete) {
-        router.replace("/onboarding");
-      } else {
-        router.replace("/dashboard");
+    if (isInitialized && user) {
+      if (profile) {
+        const isComplete = profile.username && profile.cpf;
+        if (!isComplete) {
+          router.replace("/onboarding");
+        } else {
+          router.replace("/dashboard");
+        }
       }
     }
   }, [user, profile, isInitialized, router]);
@@ -255,13 +258,7 @@ function CadastroContent() {
     }
   }
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30">
-        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-      </div>
-    )
-  }
+  const showForm = isInitialized && !user;
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30 font-body">
@@ -287,109 +284,127 @@ function CadastroContent() {
       </nav>
 
       <div className="flex-1 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md border-none shadow-xl rounded-[2rem] overflow-hidden bg-white">
-          <CardHeader className="space-y-1 flex flex-col items-center pt-8 pb-4">
-            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-secondary/20">
-               <Globe className="text-white w-7 h-7" />
-            </div>
-            <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Criar Conta Viby</CardTitle>
-            <CardDescription className="font-medium">Junte-se à comunidade.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6 px-8">
-            <SocialLoginButtons />
-            
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center"><Separator className="w-full" /></div>
-              <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-white px-3 text-muted-foreground">Ou use o formulário</span></div>
-            </div>
-
-            <form onSubmit={handleRegister} className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome Completo</Label>
-                <Input placeholder="Seu nome" value={name} onChange={handleNameChange} required className="rounded-xl h-11" />
+        {authLoading && !user ? (
+          <div className="flex flex-col items-center gap-4">
+             <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando...</p>
+          </div>
+        ) : (
+          <Card className="w-full max-w-md border-none shadow-xl rounded-[2rem] overflow-hidden bg-white">
+            <CardHeader className="space-y-1 flex flex-col items-center pt-8 pb-4">
+              <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-secondary/20">
+                 <Globe className="text-white w-7 h-7" />
               </div>
+              <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Criar Conta Viby</CardTitle>
+              <CardDescription className="font-medium">Junte-se à comunidade.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 px-8">
+              <SocialLoginButtons />
               
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome de Usuário (@)</Label>
-                <div className="relative">
-                  <Input 
-                    placeholder="ex: joaosilva" 
-                    value={username} 
-                    onChange={handleUsernameChange} 
-                    className={cn(
-                      "rounded-xl h-11 pr-10", 
-                      usernameStatus === 'valid' && 'border-green-500', 
-                      (usernameStatus === 'taken' || usernameStatus === 'invalid' || usernameStatus === 'error') && 'border-destructive'
-                    )}
-                    required 
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    {checkingUsername ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                    ) : usernameStatus === 'valid' ? (
-                      <Check className="w-4 h-4 text-green-500" />
-                    ) : usernameStatus === 'taken' || usernameStatus === 'invalid' ? (
-                      <X className="w-4 h-4 text-destructive" />
-                    ) : usernameStatus === 'error' ? (
-                      <ShieldAlert className="w-4 h-4 text-destructive" />
-                    ) : null}
+              {showForm && (
+                <>
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center"><Separator className="w-full" /></div>
+                    <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-white px-3 text-muted-foreground">Ou use o formulário</span></div>
                   </div>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Gênero</Label>
-                  <Select value={gender} onValueChange={setGender} required>
-                    <SelectTrigger className="rounded-xl h-11">
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="masculino">Masculino</SelectItem>
-                      <SelectItem value="feminino">Feminino</SelectItem>
-                      <SelectItem value="agênero">Agênero</SelectItem>
-                      <SelectItem value="gênero fluido">Gênero fluido</SelectItem>
-                      <SelectItem value="bigênero">Bigênero</SelectItem>
-                      <SelectItem value="demigênero">Demigênero</SelectItem>
-                      <SelectItem value="homem trans">Homem trans</SelectItem>
-                      <SelectItem value="mulher trans">Mulher trans</SelectItem>
-                      <SelectItem value="outro">Outro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Nascimento</Label>
-                  <Input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} required className="rounded-xl h-11" />
-                </div>
-              </div>
+                  <form onSubmit={handleRegister} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome Completo</Label>
+                      <Input placeholder="Seu nome" value={name} onChange={handleNameChange} required className="rounded-xl h-11" />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome de Usuário (@)</Label>
+                      <div className="relative">
+                        <Input 
+                          placeholder="ex: joaosilva" 
+                          value={username} 
+                          onChange={handleUsernameChange} 
+                          className={cn(
+                            "rounded-xl h-11 pr-10", 
+                            usernameStatus === 'valid' && 'border-green-500', 
+                            (usernameStatus === 'taken' || usernameStatus === 'invalid' || usernameStatus === 'error') && 'border-destructive'
+                          )}
+                          required 
+                        />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {checkingUsername ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                          ) : usernameStatus === 'valid' ? (
+                            <Check className="w-4 h-4 text-green-500" />
+                          ) : usernameStatus === 'taken' || usernameStatus === 'invalid' ? (
+                            <X className="w-4 h-4 text-destructive" />
+                          ) : usernameStatus === 'error' ? (
+                            <ShieldAlert className="w-4 h-4 text-destructive" />
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
 
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
-                  <Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF
-                </Label>
-                <Input placeholder="000.000.000-00" value={cpf} onChange={(e) => setCpf(formatCPF(e.target.value))} required className="rounded-xl h-11" />
-              </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Gênero</Label>
+                        <Select value={gender} onValueChange={setGender} required>
+                          <SelectTrigger className="rounded-xl h-11">
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="masculino">Masculino</SelectItem>
+                            <SelectItem value="feminino">Feminino</SelectItem>
+                            <SelectItem value="agênero">Agênero</SelectItem>
+                            <SelectItem value="gênero fluido">Gênero fluido</SelectItem>
+                            <SelectItem value="bigênero">Bigênero</SelectItem>
+                            <SelectItem value="demigênero">Demigênero</SelectItem>
+                            <SelectItem value="homem trans">Homem trans</SelectItem>
+                            <SelectItem value="mulher trans">Mulher trans</SelectItem>
+                            <SelectItem value="outro">Outro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Nascimento</Label>
+                        <Input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} required className="rounded-xl h-11" />
+                      </div>
+                    </div>
 
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">E-mail</Label>
-                <Input type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="rounded-xl h-11" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Senha</Label>
-                <Input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="rounded-xl h-11" />
-              </div>
-              
-              <Button type="submit" className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl shadow-secondary/20 uppercase italic mt-4" disabled={loading || usernameStatus !== 'valid'}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Criar Minha Conta"}
-              </Button>
-            </form>
-          </CardContent>
-          <CardFooter className="flex justify-center border-t border-border mt-6 py-6 bg-muted/20">
-            <p className="text-xs font-bold text-muted-foreground">
-              Já tem conta? <Link href="/login" className="text-secondary font-black hover:underline uppercase italic">Entrar</Link>
-            </p>
-          </CardFooter>
-        </Card>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                        <Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF
+                      </Label>
+                      <Input placeholder="000.000.000-00" value={cpf} onChange={(e) => setCpf(formatCPF(e.target.value))} required className="rounded-xl h-11" />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">E-mail</Label>
+                      <Input type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Senha</Label>
+                      <Input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="rounded-xl h-11" />
+                    </div>
+                    
+                    <Button type="submit" className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl shadow-secondary/20 uppercase italic mt-4" disabled={loading || usernameStatus !== 'valid'}>
+                      {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Criar Minha Conta"}
+                    </Button>
+                  </form>
+                </>
+              )}
+
+              {!showForm && user && (
+                 <div className="py-6 flex flex-col items-center gap-4 text-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Processando acesso...</p>
+                 </div>
+              )}
+            </CardContent>
+            <CardFooter className="flex justify-center border-t border-border mt-6 py-6 bg-muted/20">
+              <p className="text-xs font-bold text-muted-foreground">
+                Já tem conta? <Link href="/login" className="text-secondary font-black hover:underline uppercase italic">Entrar</Link>
+              </p>
+            </CardFooter>
+          </Card>
+        )}
       </div>
       <Footer />
     </div>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { 
@@ -19,7 +18,8 @@ import {
   serverTimestamp, 
   Firestore,
   runTransaction,
-  increment
+  increment,
+  setDoc
 } from "firebase/firestore";
 import { sendWelcomeEmail } from "@/app/actions/email";
 import { recordAuditLog } from "@/app/actions/audit";
@@ -92,6 +92,7 @@ export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
         updatedAt: serverTimestamp()
       };
 
+      // Criação transacional do perfil social pendente de complementação
       await runTransaction(db, async (transaction) => {
         transaction.set(userRef, userData);
 
@@ -127,6 +128,13 @@ export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
       });
 
       return { user, isNew: true };
+    } else {
+      // Perfil já existe, garantimos que o campo profileComplete reflita o estado real
+      const data = userSnap.data();
+      const isComplete = data?.username && data?.cpf;
+      if (data?.profileComplete !== isComplete) {
+        await setDoc(userRef, { profileComplete: isComplete }, { merge: true });
+      }
     }
 
     await recordAuditLog({

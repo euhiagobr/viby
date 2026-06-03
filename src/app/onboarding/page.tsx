@@ -28,27 +28,29 @@ export default function OnboardingPage() {
   const [checkingUsername, setCheckingUsername] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle');
 
+  // Guard e Redirecionamento
   useEffect(() => {
     if (isInitialized && !user) {
       router.replace("/login");
       return;
     }
     
-    // Se já temos os dados essenciais carregados, preenchemos o estado
-    if (profile && !name) {
-      setName(profile.name || "");
-      if (profile.username) setUsername(profile.username);
-      if (profile.cpf && profile.cpf !== "PENDENTE") setCpf(profile.cpf);
-    }
-
-    const hasRequiredData = profile?.username && profile?.cpf && profile?.name;
-    if (isInitialized && (profile?.profileComplete || hasRequiredData)) {
-      router.replace("/dashboard");
+    // Se o perfil carregou e já está completo, pula o onboarding
+    if (isInitialized && profile) {
+       const isComplete = profile.username && profile.cpf && profile.name;
+       if (profile.profileComplete || isComplete) {
+         router.replace("/dashboard");
+         return;
+       }
+       
+       // Preenche dados existentes (caso tenha vindo do social)
+       if (!name && profile.name) setName(profile.name);
+       if (!username && profile.username) setUsername(profile.username);
     }
   }, [user, profile, isInitialized, router]);
 
   useEffect(() => {
-    if (!db || !username) {
+    if (!db || !username || username.length < 3) {
       setUsernameStatus('idle');
       return;
     }
@@ -140,6 +142,7 @@ export default function OnboardingPage() {
         });
       });
 
+      // Salva o CPF na subcoleção privada
       await updateUserCPF(user.uid, cleanCPF);
 
       toast({ title: "Perfil completado!", description: "Bem-vindo à Viby." });
