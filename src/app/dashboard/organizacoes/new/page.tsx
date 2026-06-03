@@ -109,8 +109,8 @@ export default function NovaOrganizacaoPage() {
     username: "",
     type: "",
     bio: "",
-    avatar: "",
-    banner: "",
+    avatar: "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Forganizacao.jpeg?alt=media",
+    banner: "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fcapa.jpeg?alt=media",
     phone: "",
     contactEmail: "",
     website: "",
@@ -285,7 +285,6 @@ export default function NovaOrganizacaoPage() {
 
       toast({ title: "Organização criada!", description: "Sua marca está pronta para brilhar!" })
       
-      // Armazena a org atual no localStorage para o contexto carregar mais rápido após o redirecionamento
       localStorage.setItem('viby_current_org', orgId);
       localStorage.setItem('viby_user_role', 'owner');
       

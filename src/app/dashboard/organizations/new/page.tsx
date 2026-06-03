@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -110,8 +109,8 @@ export default function NovaOrganizacaoPage() {
     username: "",
     type: "",
     bio: "",
-    avatar: "",
-    banner: "",
+    avatar: "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Forganizacao.jpeg?alt=media",
+    banner: "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fcapa.jpeg?alt=media",
     phone: "",
     contactEmail: "",
     website: "",
