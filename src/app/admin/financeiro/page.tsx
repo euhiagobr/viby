@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -72,7 +73,6 @@ export default function AdminFinanceiroPage() {
       const now = new Date();
       const saleDate = reg.timestamp?.toDate ? reg.timestamp.toDate() : new Date(reg.timestamp);
       
-      // Regra de liberação: 30 dias após venda ou 24h após solicitação de antecipação
       const standardReleaseDate = new Date(saleDate.getTime() + 30 * 24 * 60 * 60 * 1000);
       const releaseDate = reg.advanceRequestedAt 
         ? new Date(new Date(reg.advanceRequestedAt).getTime() + 24 * 60 * 60 * 1000)
@@ -377,7 +377,7 @@ export default function AdminFinanceiroPage() {
                  <Input 
                    placeholder="0,00" 
                    value={depositAmount} 
-                   onChange={(e) => setDailyBudgetInput(e.target.value)}
+                   onChange={(e) => setDepositAmount(e.target.value)}
                    className="text-3xl font-black h-20 text-center rounded-[1.5rem] pl-8 border-secondary/20 focus-visible:ring-secondary/30"
                  />
               </div>
@@ -400,9 +400,6 @@ export default function AdminFinanceiroPage() {
   )
 }
 
-/**
- * Componente interno para gerenciar a listagem detalhada de uma organização
- */
 function OrgFinanceDetail({ orgId }: { orgId: string }) {
   const db = useFirestore()
   const [isUpdating, setIsUpdating] = React.useState<string | null>(null)
@@ -431,7 +428,6 @@ function OrgFinanceDetail({ orgId }: { orgId: string }) {
     if (!db) return
     setIsUpdating(sale.id)
     try {
-      // Forçar liberação imediata definindo a data de antecipação como ontem
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 2);
 
@@ -479,7 +475,7 @@ function OrgFinanceDetail({ orgId }: { orgId: string }) {
                  <TableHead className="font-black uppercase text-[9px] tracking-widest">Tipo de Ingresso</TableHead>
                  <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Saldo Bloqueado</TableHead>
                  <TableHead className="font-black uppercase text-[9px] tracking-widest text-right">Saldo Disponível</TableHead>
-                 <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Liberação</TableHead>
+                 <TableHead className="font-black uppercase text-[9px] text-center">Liberação</TableHead>
                  <TableHead className="text-right font-black uppercase text-[9px] tracking-widest">Ação</TableHead>
                </TableRow>
              </TableHeader>
@@ -552,11 +548,11 @@ function OrgFinanceDetail({ orgId }: { orgId: string }) {
               <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
               <div className="space-y-1">
                  <h4 className="font-black uppercase text-[9px] tracking-widest text-secondary">Aviso de Antecipação</h4>
-                 <p className="text-[10px] text-muted-foreground leading-relaxed font-medium">
+                 <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed">
                     A liberação imediata por este painel ignora a taxa de antecipação do usuário e torna o valor disponível instantaneamente na carteira da organização. Use em casos de suporte direto ou acordos específicos.
                  </p>
               </div>
-           </div>
+         </div>
          )}
       </div>
     </ScrollArea>

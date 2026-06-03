@@ -8,10 +8,8 @@ import {
   collection, 
   query, 
   where, 
-  doc, 
-  orderBy, 
-  limit,
-  getDocs
+  getDocs, 
+  limit
 } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -30,13 +28,13 @@ import {
   Ticket,
   Info,
   Zap,
-  Lock,
   Search,
   Landmark,
   TicketPercent,
-  X
+  X,
+  Inbox
 } from 'lucide-react';
-import { formatCurrency } from '@/lib/financial-utils';
+import { formatCurrency, calculateFinancialBreakdown } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -45,18 +43,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { createAdBalanceTopUpSession, finalizeAdTopUpSession } from '@/app/actions/stripe';
-import Link from 'next/link';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Separator } from '@/components/ui/separator';
 
-export default function OrganizationFinancePage() {
+function OrganizationFinanceContent() {
   const { currentOrg, userRole, refreshOrg, loading: orgLoading } = useCurrentOrganization();
   const db = useFirestore();
   const auth = useAuth();
@@ -91,7 +87,7 @@ export default function OrganizationFinancePage() {
           router.replace(`${window.location.pathname}?${newParams.toString()}`);
         }
       } catch (e) {
-        console.error(e);
+        console.error("[Finance] Error finalizing top-up:", e);
       } finally {
         setIsProcessingSession(false);
       }
@@ -168,12 +164,13 @@ export default function OrganizationFinancePage() {
     let finalBalance = base;
 
     if (appliedCoupon) {
+       const val = appliedCoupon.value || 0;
        if (appliedCoupon.type === 'discount') {
-          totalToPay -= (totalToPay * (appliedCoupon.value / 100));
+          totalToPay -= (totalToPay * (val / 100));
        } else if (appliedCoupon.type === 'bonus_percent') {
-          finalBalance += (base * (appliedCoupon.value / 100));
+          finalBalance += (base * (val / 100));
        } else if (appliedCoupon.type === 'bonus_fixed') {
-          finalBalance += appliedCoupon.value;
+          finalBalance += val;
        }
     }
 
@@ -212,7 +209,7 @@ export default function OrganizationFinancePage() {
       <div className="flex flex-col items-center justify-center py-32 gap-4">
         <Loader2 className="w-12 h-12 animate-spin text-secondary" />
         <p className="text-[10px] font-black uppercase tracking-widest animate-pulse text-muted-foreground">
-          {isProcessingSession ? "Confirmando recarga de saldo..." : "Sincronizando finanças..."}
+          Sincronizando finanças...
         </p>
       </div>
     );
@@ -226,7 +223,7 @@ export default function OrganizationFinancePage() {
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
           <Wallet className="w-8 h-8 text-secondary" /> Finanças da Marca
         </h1>
-        <p className="text-muted-foreground font-medium">Gestão automatizada via Stripe Connect para <strong>{currentOrg.name}</strong>.</p>
+        <p className="text-muted-foreground font-medium">Gestão de saldo Ads e extrato para <strong>{currentOrg.name}</strong>.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -259,7 +256,7 @@ export default function OrganizationFinancePage() {
           <TabsTrigger value="anuncios" className="rounded-lg px-8 font-bold gap-2"><Coins className="w-4 h-4" /> Conta de Anúncios</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="vendas" className="space-y-6 animate-in slide-in-from-top-2">
+        <TabsContent value="vendas" className="space-y-6">
            <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
               <CardHeader className="border-b p-8 pb-6">
                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -409,5 +406,13 @@ export default function OrganizationFinancePage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function OrganizationFinancePage() {
+  return (
+    <React.Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>}>
+      <OrganizationFinanceContent />
+    </React.Suspense>
   );
 }
