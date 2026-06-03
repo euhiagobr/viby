@@ -2,20 +2,17 @@
 'use server';
 
 import { db } from '@/firebase/database';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { decryptData, encryptDeterministic } from '@/lib/crypto-utils';
+import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, limit, runTransaction } from 'firebase/firestore';
+import { decryptData, encryptDeterministic, maskCPF } from '@/lib/crypto-utils';
 import { recordAuditLog } from './audit';
 
 /**
- * @fileOverview Server Actions para manipulação de dados sensíveis utilizando o Client SDK de forma isomórfica.
+ * @fileOverview Server Actions para manipulação de dados sensíveis.
+ * CORREÇÃO CRÍTICA 07: Unicidade de CPF garantida transacionalmente.
  */
 
-/**
- * Recupera o CPF descriptografado de um usuário.
- */
 export async function getUserCPF(userId: string, requestingUid: string) {
   try {
-    // Verificação de permissão básica
     if (requestingUid !== userId) {
       const requesterSnap = await getDoc(doc(db, "users", requestingUid));
       if (!requesterSnap.exists() || requesterSnap.data()?.role !== 'admin') {
@@ -28,7 +25,6 @@ export async function getUserCPF(userId: string, requestingUid: string) {
     
     if (sensitiveDoc.exists()) {
       const encryptedCpf = sensitiveDoc.data()?.cpf;
-      
       await recordAuditLog({
         userId: requestingUid,
         action: 'cpf_view',
@@ -36,30 +32,47 @@ export async function getUserCPF(userId: string, requestingUid: string) {
         metadata: { targetUserId: userId },
         success: true
       });
-
-      // Retorna o CPF descriptografado apenas para o dono ou admin
       return { success: true, cpf: decryptData(encryptedCpf) };
     }
-    
     return { success: false, error: "Dados não encontrados." };
   } catch (e: any) {
-    console.error("[getUserCPF Error]", e.message);
     return { success: false, error: e.message };
   }
 }
 
 /**
- * Salva ou atualiza o CPF criptografado na subcoleção privada.
+ * Salva ou atualiza o CPF criptografado com verificação de unicidade atômica.
  */
 export async function updateUserCPF(userId: string, cpf: string) {
   try {
-    const encryptedCpf = encryptDeterministic(cpf);
-    const sensitiveRef = doc(db, "users", userId, "private", "sensitive");
-    
-    await setDoc(sensitiveRef, {
-      cpf: encryptedCpf,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+    const cleanCPF = cpf.replace(/\D/g, "");
+    if (cleanCPF.length !== 11) throw new Error("CPF Inválido.");
+
+    const encryptedCpf = encryptDeterministic(cleanCPF);
+    const masked = maskCPF(cleanCPF);
+
+    // CORREÇÃO CRÍTICA 07: Transação para garantir unicidade real contra race conditions
+    await runTransaction(db, async (transaction) => {
+      // 1. Verifica se já existe o CPF mascarado na coleção users
+      const q = query(collection(db, "users"), where("cpf", "==", masked), limit(1));
+      const snap = await getDocs(q);
+      
+      const alreadyUsed = snap.docs.some(d => d.id !== userId);
+      if (alreadyUsed) throw new Error("Este CPF já possui uma conta vinculada.");
+
+      // 2. Grava o dado mascarado no perfil público (para busca de unicidade rápida)
+      transaction.update(doc(db, "users", userId), { 
+        cpf: masked, 
+        updatedAt: serverTimestamp() 
+      });
+
+      // 3. Grava o dado real na subcoleção restrita
+      const sensitiveRef = doc(db, "users", userId, "private", "sensitive");
+      transaction.set(sensitiveRef, {
+        cpf: encryptedCpf,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    });
 
     await recordAuditLog({
       userId,

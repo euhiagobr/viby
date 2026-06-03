@@ -9,6 +9,7 @@ import { firebaseConfig } from '@/firebase/config';
 import { logSystemError } from '@/lib/error-manager';
 import { calculateVibyOfficialSplit, toCents } from '@/lib/financial-utils';
 import { generateUniqueTicketCode } from '@/lib/ticket-utils';
+import { sendTicketEmail } from '@/app/actions/email';
 
 async function getFirebaseComponents() {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -47,7 +48,7 @@ export async function createCheckoutSession(data: any) {
       metadata: metadata,
     };
 
-    if (destinationStripeAccount && totalApplicationFeeCents > 0) {
+    if (destinationStripeAccount) {
       sessionConfig.payment_intent_data = {
         application_fee_amount: totalApplicationFeeCents,
         transfer_data: {
@@ -71,7 +72,8 @@ export async function createCheckoutSession(data: any) {
 }
 
 /**
- * Finaliza a sessão de checkout gerando os ingressos (Idempotente)
+ * Finaliza a sessão de checkout gerando os ingressos (Idempotente e Auditado)
+ * Agora responsável pelo fulfillment oficial via Webhook.
  */
 export async function finalizeCheckoutSession(sessionId: string) {
   try {
@@ -94,10 +96,12 @@ export async function finalizeCheckoutSession(sessionId: string) {
         if (!orderSnap.exists()) throw new Error("Pedido não localizado.");
         
         const orderData = orderSnap.data()!;
+        // IDEMPOTÊNCIA: Se já foi pago, não gera novamente
         if (orderData.status === 'paid') return { success: true, alreadyProcessed: true };
 
         const userId = metadata.userId;
         const items = orderData.items || [];
+        const ticketPromises: Promise<void>[] = [];
 
         for (const item of items) {
           const targetRef = item.occurrenceId ? doc(db, "recurring_occurrences", item.occurrenceId) : doc(db, "events", item.eventId);
@@ -118,7 +122,7 @@ export async function finalizeCheckoutSession(sessionId: string) {
             const ticketCode = await generateUniqueTicketCode(db);
             const regRef = doc(collection(db, "registrations"));
             
-            transaction.set(regRef, {
+            const regData = {
               eventId: item.eventId,
               eventTitle: item.eventTitle,
               eventImage: item.eventImage || '',
@@ -129,10 +133,10 @@ export async function finalizeCheckoutSession(sessionId: string) {
               userEmail: orderData.userEmail,
               organizationId: item.organizationId,
               ticketBasePrice: item.price,
-              price: item.financials.customerFinalPrice,
-              administrativeFeeAmount: item.financials.administrativeFeeAmount,
-              producerFeeAmount: item.financials.producerFeeAmount,
-              producerNetAmount: item.financials.producerNetAmount,
+              price: item.financials?.customerFinalPrice || item.price,
+              administrativeFeeAmount: item.financials?.administrativeFeeAmount || 0,
+              producerFeeAmount: item.financials?.producerFeeAmount || 0,
+              producerNetAmount: item.financials?.producerNetAmount || item.price,
               ticketTypeName: item.ticketTypeName,
               batchName: item.batchName,
               paymentStatus: "Pago",
@@ -146,134 +150,37 @@ export async function finalizeCheckoutSession(sessionId: string) {
               confirmedAt: serverTimestamp(),
               createdAt: serverTimestamp(),
               timestamp: serverTimestamp()
-            });
+            };
+
+            transaction.set(regRef, regData);
+
+            // Disparo de e-mail integrado ao fulfillment
+            const eventDateObj = item.eventDate?.toDate ? item.eventDate.toDate() : new Date(item.eventDate);
+            sendTicketEmail({
+              to: orderData.userEmail,
+              userName: orderData.userName,
+              eventTitle: item.eventTitle,
+              ticketCode: ticketCode,
+              eventDate: eventDateObj.toLocaleString('pt-BR'),
+              voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher`
+            }).catch(e => console.warn("[Email-Webhook] Falha ao enviar voucher", e));
           }
         }
 
-        transaction.update(orderRef, { status: 'paid', stripeSessionId: sessionId, updatedAt: serverTimestamp() });
+        transaction.update(orderRef, { 
+          status: 'paid', 
+          stripeSessionId: sessionId, 
+          paymentIntentId: session.payment_intent,
+          updatedAt: serverTimestamp() 
+        });
+
         return { success: true };
       }
 
-      return { success: false, error: 'Sessão não identificada.' };
+      return { success: false, error: 'Sessão não identificada para fulfillment.' };
     });
   } catch (error: any) {
-    console.error("[Checkout Finalization Error]", error.message);
-    return { success: false, error: error.message };
-  }
-}
-
-/**
- * Cria sessão de checkout para recarga de saldo Ads
- */
-export async function createAdBalanceTopUpSession(data: {
-  orgId: string;
-  orgUsername: string;
-  orgName: string;
-  userEmail: string;
-  userId: string;
-  baseAmount: number;
-  finalBalance: number;
-  totalToPay: number;
-  couponCode?: string;
-  transactionId: string;
-}) {
-  try {
-    const { db } = await getFirebaseComponents();
-    const head = await headers();
-    const origin = head.get('origin') || 'https://viby.club';
-    const stripe = await getStripeInstance(db);
-
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'brl',
-            product_data: {
-              name: `Recarga de Saldo Ads - ${data.orgName}`,
-              description: `Crédito exclusivo para impulsionamento${data.couponCode ? ` (Cupom: ${data.couponCode})` : ''}`,
-            },
-            unit_amount: Math.round(data.totalToPay * 100),
-          },
-          quantity: 1,
-        },
-      ],
-      mode: 'payment',
-      customer_email: data.userEmail,
-      success_url: `${origin}/dashboard/organizacoes/${data.orgUsername}/finance?session_id={CHECKOUT_SESSION_ID}&success=true`,
-      cancel_url: `${origin}/dashboard/organizacoes/${data.orgUsername}/finance?cancel=true`,
-      metadata: {
-        type: 'ad_topup',
-        orgId: data.orgId,
-        orgUsername: data.orgUsername,
-        userId: data.userId,
-        baseAmount: data.baseAmount.toString(),
-        finalBalance: data.finalBalance.toString(),
-        totalPaid: data.totalToPay.toString(),
-        couponCode: data.couponCode || "",
-        transactionId: data.transactionId
-      },
-    });
-
-    return { success: true, url: session.url };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-}
-
-/**
- * Finaliza a recarga de saldo Ads
- */
-export async function finalizeAdTopUpSession(sessionId: string) {
-  try {
-    const { db } = await getFirebaseComponents();
-    const stripe = await getStripeInstance(db);
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-
-    if (session.payment_status !== 'paid') throw new Error("Pagamento não aprovado.");
-
-    const metadata = session.metadata;
-    if (metadata?.type !== 'ad_topup') throw new Error("Sessão inválida.");
-
-    const finalBalance = parseFloat(metadata.finalBalance);
-    const totalPaid = parseFloat(metadata.totalPaid);
-    const orgId = metadata.orgId;
-    const userId = metadata.userId;
-
-    return await runTransaction(db, async (transaction) => {
-      const orgRef = doc(db, "organizations", orgId);
-      
-      // Idempotência baseada na sessão do Stripe
-      const txQuery = query(
-        collection(db, "organizations", orgId, "transactions"),
-        where("stripeSessionId", "==", sessionId),
-        limit(1)
-      );
-      const txSnap = await getDocs(txQuery);
-      if (!txSnap.empty) return { success: true, alreadyProcessed: true };
-
-      transaction.update(orgRef, {
-        adBalance: increment(finalBalance),
-        updatedAt: serverTimestamp()
-      });
-
-      const txRef = doc(collection(db, "organizations", orgId, "transactions"));
-      transaction.set(txRef, {
-        type: 'ad_topup',
-        userId: userId,
-        amount: finalBalance,
-        totalCharged: totalPaid,
-        couponCode: metadata.couponCode || null,
-        status: 'completed',
-        stripeSessionId: sessionId,
-        description: `Recarga de Saldo Ads${metadata.couponCode ? ` (Cupom: ${metadata.couponCode})` : ''}`,
-        createdAt: serverTimestamp()
-      });
-
-      return { success: true };
-    });
-  } catch (error: any) {
-    console.error("[Ad TopUp Finalization Error]", error.message);
+    console.error("[Webhook Fulfillment Error]", error.message);
     return { success: false, error: error.message };
   }
 }

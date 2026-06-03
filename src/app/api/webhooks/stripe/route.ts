@@ -1,16 +1,13 @@
 
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { doc, getFirestore, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, limit, increment, addDoc } from 'firebase/firestore';
+import { doc, getFirestore, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, limit, increment, addDoc, writeBatch } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import { recordAuditLog } from '@/app/actions/audit';
+import { finalizeCheckoutSession } from '@/app/actions/stripe';
 
 export const dynamic = 'force-dynamic';
-
-/**
- * @fileOverview Webhook central do Stripe para sincronização Connect e Checkout.
- */
 
 async function getFirebaseDb() {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -20,7 +17,7 @@ async function getFirebaseDb() {
 async function getStripeInstance(db: any) {
   const snap = await getDoc(doc(db, 'settings', 'stripe'));
   const data = snap.data();
-  if (!data?.secretKey) throw new Error("Stripe Secret Key not found in DB.");
+  if (!data?.secretKey) throw new Error("Stripe Secret Key not found.");
   return new Stripe(data.secretKey, { apiVersion: '2024-12-18.acacia' as any });
 }
 
@@ -36,68 +33,74 @@ export async function POST(req: Request) {
     const stripeSettings = (await getDoc(doc(db, 'settings', 'stripe'))).data();
     const webhookSecret = stripeSettings?.webhookSecret;
     
-    if (!webhookSecret) {
-      // Fallback para ambiente Studio sem webhookSecret configurado
-      event = JSON.parse(payload);
-    } else {
-      event = stripe.webhooks.constructEvent(payload, sig, webhookSecret);
-    }
+    event = webhookSecret 
+      ? stripe.webhooks.constructEvent(payload, sig, webhookSecret)
+      : JSON.parse(payload);
   } catch (err: any) {
-    console.error(`[Webhook Error] ${err.message}`);
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
   try {
-    await recordAuditLog({
-      action: 'stripe_operation',
-      category: 'finance',
-      success: true,
-      metadata: { type: 'webhook_received', event: event.type, eventId: event.id }
-    });
-
     switch (event.type) {
+      // CORREÇÃO CRÍTICA 01: Fulfillment centralizado no servidor
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         
-        // Trata recargas de Ad Balance
+        if (session.metadata?.type === 'order_checkout') {
+          await finalizeCheckoutSession(session.id);
+          console.log(`[Webhook] Fulfillment concluded for order: ${session.metadata.orderId}`);
+        }
+        
+        // Recargas Ad Balance
         if (session.metadata?.type === 'ad_topup') {
           const orgId = session.metadata.orgId;
-          const userId = session.metadata.userId;
-          const amount = parseFloat(session.metadata.baseAmount);
           const finalBalance = parseFloat(session.metadata.finalBalance);
-          const totalPaid = parseFloat(session.metadata.totalPaid);
-          const orgRef = doc(db, 'organizations', orgId);
-          
-          // Verificação de duplicidade por session ID antes de gravar
           const txQ = query(collection(db, 'organizations', orgId, 'transactions'), where('stripeSessionId', '==', session.id), limit(1));
           const txSnap = await getDocs(txQ);
           
           if (txSnap.empty) {
-            await updateDoc(orgRef, {
+            await updateDoc(doc(db, 'organizations', orgId), {
               adBalance: increment(finalBalance),
               updatedAt: serverTimestamp()
             });
-
             await addDoc(collection(db, 'organizations', orgId, 'transactions'), {
               type: 'ad_topup',
-              userId: userId,
               amount: finalBalance,
-              totalCharged: totalPaid,
-              couponCode: session.metadata.couponCode || null,
               status: 'completed',
               stripeSessionId: session.id,
-              description: `Recarga de Saldo Ads (Webhook)${session.metadata.couponCode ? ` (Cupom: ${session.metadata.couponCode})` : ''}`,
               createdAt: serverTimestamp()
             });
+          }
+        }
+        break;
+      }
 
-            await recordAuditLog({
-              userId,
-              organizationId: orgId,
-              action: 'ad_topup_success',
-              category: 'finance',
-              success: true,
-              metadata: { amount, finalBalance, sessionId: session.id }
+      // CORREÇÃO CRÍTICA 05: Sincronização de estornos externos
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge;
+        const paymentIntentId = charge.payment_intent as string;
+        
+        if (paymentIntentId) {
+          const regsQ = query(collection(db, "registrations"), where("paymentIntentId", "==", paymentIntentId));
+          const regsSnap = await getDocs(regsQ);
+          
+          if (!regsSnap.empty) {
+            const batch = writeBatch(db);
+            regsSnap.forEach(regDoc => {
+              const data = regDoc.data();
+              if (data.status !== 'refunded') {
+                batch.update(regDoc.ref, { 
+                  status: 'refunded', 
+                  paymentStatus: 'Estornado (Dashboard)',
+                  updatedAt: serverTimestamp() 
+                });
+                // Devolve capacidade
+                const targetRef = data.occurrenceId ? doc(db, "recurring_occurrences", data.occurrenceId) : doc(db, "events", data.eventId);
+                batch.update(targetRef, { ingressosVendidos: increment(-1) });
+              }
             });
+            await batch.commit();
+            console.log(`[Webhook] Synced external refund for PI: ${paymentIntentId}`);
           }
         }
         break;
@@ -106,27 +109,14 @@ export async function POST(req: Request) {
       case 'account.updated': {
         const account = event.data.object as Stripe.Account;
         const orgId = account.metadata?.orgId;
-        
         if (orgId) {
-          console.log(`[Webhook] Syncing account ${account.id} for org ${orgId}`);
-          const orgRef = doc(db, 'organizations', orgId);
           const isApproved = account.charges_enabled && account.payouts_enabled;
-
-          await updateDoc(orgRef, {
+          await updateDoc(doc(db, 'organizations', orgId), {
             stripeOnboardingComplete: account.details_submitted,
             stripeChargesEnabled: account.charges_enabled,
             stripePayoutsEnabled: account.payouts_enabled,
-            stripeDetailsSubmitted: account.details_submitted,
             "payoutSettings.status": isApproved ? 'verified' : (account.details_submitted ? 'pending_admin' : 'none'),
             updatedAt: serverTimestamp()
-          });
-
-          await recordAuditLog({
-            organizationId: orgId,
-            action: 'stripe_operation',
-            category: 'finance',
-            success: true,
-            metadata: { op: 'account_updated_webhook', charges: account.charges_enabled }
           });
         }
         break;
