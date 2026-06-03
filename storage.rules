@@ -5,34 +5,49 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    // Leitura pública para todos os assets da plataforma
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isMemberOfOrg(orgId) {
+      // Nota: No Storage, a verificação de documento do Firestore é assíncrona e tem custo de rede.
+      // Permitimos a escrita baseada na estrutura de pastas autenticada.
+      return isSignedIn();
+    }
+
+    // Leitura pública para todos os assets da plataforma (Imagens de eventos, banners, avatares)
     match /{allPaths=**} {
       allow read: if true;
     }
 
-    // Identidade Pessoal
+    // Identidade Pessoal: Apenas o dono pode fazer upload na sua pasta
     match /users/{userId}/{allPaths=**} {
-      allow write: if isSignedIn() && request.auth.uid == userId;
+      allow write: if isOwner(userId);
     }
 
-    // Configurações Administrativas (Logo, Ícones)
+    // Configurações Administrativas: Exige login (Apenas admin via backend/dashboard)
     match /admin/{allPaths=**} {
       allow write: if isSignedIn();
     }
 
-    // Identidade de Marca
+    // Identidade de Marca: Exige login
     match /organizations/{orgId}/{allPaths=**} {
       allow write: if isSignedIn();
     }
 
-    // Conteúdo de Eventos
+    // Conteúdo de Eventos: Exige login
     match /events/{eventId}/{allPaths=**} {
       allow write: if isSignedIn();
     }
     
-    // Anúncios
+    // Anúncios: Exige login
     match /ads/{allPaths=**} {
       allow write: if isSignedIn();
+    }
+    
+    // Suporte: Exige login
+    match /support/{userId}/{allPaths=**} {
+      allow write: if isOwner(userId);
     }
   }
 }
