@@ -36,13 +36,13 @@ export async function ensureUserProfile(user: any, db: Firestore) {
   if (!user || !db) return null;
   
   const userRef = doc(db, "users", user.uid);
-  console.log('[Auth-Debug] Firestore Profile Lookup Started for ensureUserProfile');
+  console.log('[Auth-Debug] Firestore Profile Lookup Started for ensureUserProfile. UID:', user.uid);
   
   try {
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
-      console.log('[Auth-Debug] Firestore Profile Missing, creating base profile');
+      console.log('[Auth-Debug] Firestore Profile Missing, creating base profile for:', user.email);
       
       const initialName = user.displayName || user.email?.split('@')[0] || "Membro Viby";
       
@@ -102,7 +102,7 @@ export async function ensureUserProfile(user: any, db: Firestore) {
 }
 
 /**
- * Inicia o fluxo de login social via Redirecionamento com logs.
+ * Inicia o fluxo de login social via Redirecionamento.
  */
 export async function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook' | 'x') {
   let provider;
@@ -126,25 +126,36 @@ export async function startSocialLogin(auth: Auth, providerName: 'google' | 'fac
   }
 
   try {
+    // Forçar persistência antes do redirect
     await setPersistence(auth, indexedDBLocalPersistence);
+    console.log('[Auth-Debug] Persistence verified before redirect');
     return signInWithRedirect(auth, provider, browserPopupRedirectResolver);
   } catch (error) {
-    console.error("[Auth-Debug] Login Redirect Error:", error);
+    console.error("[Auth-Debug] Login Redirect Initiation Error:", error);
     throw error;
   }
 }
 
 /**
- * Processa o resultado do redirecionamento com logs.
+ * Processa o resultado do redirecionamento.
  */
 export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
   try {
+    console.log('[Auth-Debug] Capturing redirect result...');
     const result = await getRedirectResult(auth, browserPopupRedirectResolver);
-    console.log('[Auth-Debug] Redirect Result:', result);
+    console.log('[Auth-Debug] getRedirectResult returned:', result);
     
-    if (!result) return null;
+    if (!result) {
+      // Se não houver resultado, verificamos se o usuário já foi restaurado pelo onAuthStateChanged
+      if (auth.currentUser) {
+        console.log('[Auth-Debug] No redirect result, but user is already present. Restoring session.');
+        const profile = await ensureUserProfile(auth.currentUser, db);
+        return { user: auth.currentUser, profile, isNew: profile?.isNew };
+      }
+      return null;
+    }
 
-    console.log('[Auth-Debug] Redirect User:', result.user);
+    console.log('[Auth-Debug] Redirect Successful. User:', result.user.email);
     const profile = await ensureUserProfile(result.user, db);
 
     await recordAuditLog({
@@ -158,7 +169,14 @@ export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
 
     return { user: result.user, profile, isNew: profile?.isNew };
   } catch (error: any) {
-    console.error(`[Auth-Debug] Redirect Process Error:`, error);
+    console.error(`[Auth-Debug] Redirect Result Error Code:`, error.code);
+    console.error(`[Auth-Debug] Redirect Result Error Message:`, error.message);
+    
+    if (error.code === 'auth/unauthorized-domain') {
+      console.error('!!! ATENÇÃO !!! O domínio atual não está autorizado no Firebase Console.');
+      console.error('Acesse: Authentication > Settings > Authorized Domains e adicione:', window.location.hostname);
+    }
+    
     throw error;
   }
 }

@@ -4,7 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth, useUser, useFirestore } from "@/firebase";
 import { startSocialLogin, handleSocialLoginResult, authConfig, ensureUserProfile } from "@/services/auth-service";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 
@@ -16,18 +16,17 @@ export function SocialLoginButtons() {
   
   const [loadingProvider, setLoadingProvider] = React.useState<string | null>(null);
   const [isProcessing, setIsProcessing] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
   const pipelineStarted = React.useRef(false);
 
-  // 1. Monitor de Redirecionamento
+  // Monitor de Resultado de Redirecionamento e Restauração de Sessão
   React.useEffect(() => {
     if (!auth || !db || !isInitialized || pipelineStarted.current) return;
 
-    const runRedirectCheck = async () => {
+    const runAuthPipeline = async () => {
       pipelineStarted.current = true;
-      console.log('[Auth-Debug] Auth Context State', {
-        currentUser: auth.currentUser,
-        profile: profile,
-        loading: !isInitialized,
+      console.log('[Auth-Debug] SocialButtons Pipeline Started', {
+        hasUser: !!auth.currentUser,
         initialized: isInitialized
       });
       
@@ -36,40 +35,36 @@ export function SocialLoginButtons() {
         if (result) {
           setIsProcessing(true);
           const isComplete = result.profile?.username && result.profile?.cpf;
-          if (isComplete) {
-            console.log('[Auth-Debug] Redirecting To Dashboard');
-          } else {
-            console.log('[Auth-Debug] Redirecting To Onboarding');
-          }
+          console.log('[Auth-Debug] Pipeline result obtained. Complete:', !!isComplete);
           router.replace(isComplete ? "/dashboard" : "/onboarding");
         }
       } catch (error: any) {
-        console.error("[Auth-Debug] SocialButtons: Redirect Result Error:", error);
+        console.error("[Auth-Debug] Pipeline Error:", error);
+        if (error.code === 'auth/unauthorized-domain') {
+          setError("Domínio não autorizado no Firebase.");
+        }
       }
     };
 
-    runRedirectCheck();
-  }, [auth, db, isInitialized, router, profile]);
+    runAuthPipeline();
+  }, [auth, db, isInitialized, router]);
 
-  // 2. Monitor de Estado Reativo
+  // Fallback: Se o usuário aparecer mas o perfil demorar (restauração de sessão)
   React.useEffect(() => {
     if (!isInitialized || !user || isProcessing) return;
 
     if (!profile) {
+      console.log('[Auth-Debug] User detected without profile. Ensuring profile creation...');
       const syncProfile = async () => {
         setIsProcessing(true);
         try {
           const synced = await ensureUserProfile(user, db);
           if (synced) {
             const isComplete = synced.username && synced.cpf;
-            if (isComplete) {
-              console.log('[Auth-Debug] Redirecting To Dashboard');
-            } else {
-              console.log('[Auth-Debug] Redirecting To Onboarding');
-            }
             router.replace(isComplete ? "/dashboard" : "/onboarding");
           }
         } catch (e) {
+          console.error('[Auth-Debug] Profile sync fallback failed:', e);
           setIsProcessing(false);
         }
       };
@@ -79,6 +74,7 @@ export function SocialLoginButtons() {
 
   const handleSocialLogin = async (provider: 'google' | 'facebook' | 'x') => {
     if (!auth) return;
+    setError(null);
     setLoadingProvider(provider);
     try {
       await startSocialLogin(auth, provider);
@@ -96,13 +92,20 @@ export function SocialLoginButtons() {
     return (
       <div className="flex flex-col items-center justify-center py-6 gap-3 animate-in fade-in">
         <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando conta...</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando com a rede...</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-3 w-full">
+      {error && (
+        <div className="p-3 bg-red-50 rounded-xl border border-red-100 flex items-center gap-3 text-red-600 mb-2 animate-in slide-in-from-top-2">
+           <AlertCircle className="w-4 h-4 shrink-0" />
+           <p className="text-[10px] font-bold uppercase leading-tight">{error}</p>
+        </div>
+      )}
+
       {authConfig.google && (
         <Button 
           variant="outline" 
