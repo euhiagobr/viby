@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -28,7 +29,8 @@ import {
   Ticket,
   Terminal,
   Building2,
-  RefreshCw
+  RefreshCw,
+  TicketPercent
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -107,6 +109,7 @@ export default function AdminLayout({
     { title: 'Usuários', url: '/admin/usuarios', icon: Users },
     { title: 'Operação Ingressos', url: '/admin/ingressos', icon: Ticket },
     { title: 'Anúncios', url: '/admin/anuncios', icon: Megaphone },
+    { title: 'Cupons Globais', url: '/admin/cupons', icon: TicketPercent },
     { title: 'Campanhas', url: '/admin/campanhas', icon: Zap },
     { title: 'Fiscal / Impostos', url: '/admin/imposto', icon: Scale },
     { title: 'Transferências', url: '/admin/transferencias', icon: SendHorizontal },

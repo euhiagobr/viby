@@ -10,7 +10,8 @@ import {
   where, 
   doc, 
   orderBy, 
-  limit
+  limit,
+  getDocs
 } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,7 +32,9 @@ import {
   Zap,
   Lock,
   Search,
-  Landmark
+  Landmark,
+  TicketPercent,
+  X
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
@@ -51,6 +54,7 @@ import { createAdBalanceTopUpSession, finalizeAdTopUpSession } from '@/app/actio
 import Link from 'next/link';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { Separator } from '@/components/ui/separator';
 
 export default function OrganizationFinancePage() {
   const { currentOrg, userRole, refreshOrg, loading: orgLoading } = useCurrentOrganization();
@@ -61,13 +65,16 @@ export default function OrganizationFinancePage() {
   const router = useRouter();
 
   const [topUpAmount, setTopUpAmount] = React.useState<string>("50.00");
+  const [couponCode, setCouponCode] = React.useState("");
+  const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null);
+  const [isValidatingCoupon, setIsValidatingCoupon] = React.useState(false);
   const [isTopUpLoading, setIsTopUpLoading] = React.useState(false);
   const [salesSearch, setSalesSearch] = React.useState("");
   const [isProcessingSession, setIsProcessingSession] = React.useState(false);
 
   const sessionId = searchParams.get('session_id');
 
-  // Processar finalização de recarga se houver session_id
+  // Processar finalização de recarga
   React.useEffect(() => {
     if (!sessionId || isProcessingSession || !currentOrg) return;
 
@@ -78,7 +85,6 @@ export default function OrganizationFinancePage() {
         if (result.success) {
           toast({ title: "Saldo Recarregado!", description: "Seu crédito já está disponível para uso." });
           await refreshOrg();
-          // Limpa a URL
           const newParams = new URLSearchParams(searchParams.toString());
           newParams.delete('session_id');
           newParams.delete('success');
@@ -100,7 +106,6 @@ export default function OrganizationFinancePage() {
   }, [db, currentOrg?.id]);
   const { data: rawSales, loading: salesLoading } = useCollection<any>(salesQuery);
 
-  const isFinanceManager = ['owner', 'admin', 'finance'].includes(userRole || '');
   const isConnectActive = currentOrg?.stripePayoutsEnabled && currentOrg?.stripeChargesEnabled;
 
   const sales = React.useMemo(() => {
@@ -114,10 +119,70 @@ export default function OrganizationFinancePage() {
       .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
   }, [rawSales, salesSearch]);
 
+  const handleValidateCoupon = async () => {
+    if (!db || !couponCode.trim()) return;
+    setIsValidatingCoupon(true);
+    try {
+      const q = query(
+        collection(db, "ad_coupons"), 
+        where("code", "==", couponCode.trim().toUpperCase()),
+        where("status", "==", "active"),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        toast({ variant: "destructive", title: "Cupom inválido", description: "Código não encontrado ou expirado." });
+        setAppliedCoupon(null);
+      } else {
+        const data = snap.docs[0].data();
+        const now = new Date();
+        const start = data.startAt?.toDate ? data.startAt.toDate() : new Date(data.startAt);
+        const end = data.endAt?.toDate ? data.endAt.toDate() : new Date(data.endAt);
+        
+        const amount = parseFloat(topUpAmount);
+        if (amount < (data.minRecharge || 0)) {
+           throw new Error(`Este cupom exige recarga mínima de ${formatCurrency(data.minRecharge)}`);
+        }
+        if (data.maxRecharge && amount > data.maxRecharge) {
+           throw new Error(`Este cupom é válido para recargas de até ${formatCurrency(data.maxRecharge)}`);
+        }
+        if (now < start || now > end) {
+           throw new Error("Este cupom não está vigente para a data atual.");
+        }
+
+        setAppliedCoupon({ id: snap.docs[0].id, ...data });
+        toast({ title: "Cupom Aplicado!" });
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro no Cupom", description: e.message });
+      setAppliedCoupon(null);
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
+  const rechargeCalcs = React.useMemo(() => {
+    const base = parseFloat(topUpAmount) || 0;
+    const fee = base * 0.05;
+    let totalToPay = base + fee;
+    let finalBalance = base;
+
+    if (appliedCoupon) {
+       if (appliedCoupon.type === 'discount') {
+          totalToPay -= (totalToPay * (appliedCoupon.value / 100));
+       } else if (appliedCoupon.type === 'bonus_percent') {
+          finalBalance += (base * (appliedCoupon.value / 100));
+       } else if (appliedCoupon.type === 'bonus_fixed') {
+          finalBalance += appliedCoupon.value;
+       }
+    }
+
+    return { base, fee, totalToPay, finalBalance };
+  }, [topUpAmount, appliedCoupon]);
+
   const handleTopUp = async () => {
     if (!currentOrg || !user || !db) return;
-    const amount = parseFloat(topUpAmount);
-    if (isNaN(amount) || amount < 10) {
+    if (rechargeCalcs.base < 10) {
       toast({ variant: "destructive", title: "Valor mínimo", description: "O valor mínimo para recarga é R$ 10,00." });
       return;
     }
@@ -128,7 +193,10 @@ export default function OrganizationFinancePage() {
         orgUsername: currentOrg.username,
         orgName: currentOrg.name, 
         userEmail: user.email!, 
-        baseAmount: amount, 
+        baseAmount: rechargeCalcs.base, 
+        finalBalance: rechargeCalcs.finalBalance,
+        totalToPay: rechargeCalcs.totalToPay,
+        couponCode: appliedCoupon?.code,
         transactionId: crypto.randomUUID() 
       });
       if (result.url) window.location.href = result.url;
@@ -153,7 +221,7 @@ export default function OrganizationFinancePage() {
   if (!currentOrg) return null;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
           <Wallet className="w-8 h-8 text-secondary" /> Finanças da Marca
@@ -236,24 +304,105 @@ export default function OrganizationFinancePage() {
         </TabsContent>
 
         <TabsContent value="anuncios" className="space-y-6">
-           <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8">
-              <div className="flex flex-col md:flex-row gap-10">
-                 <div className="flex-1 space-y-6">
-                    <h3 className="text-xl font-black italic uppercase tracking-tighter">Recarregar Saldo Ads</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">Adicione crédito para promover sua marca e eventos. Recargas via cartão ou PIX.</p>
-                    <div className="space-y-4">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Valor da Recarga</Label>
-                       <div className="flex gap-2">
-                          <Input type="number" value={topUpAmount} onChange={e => setTopUpAmount(e.target.value)} className="h-12 text-xl font-black rounded-xl border-secondary/20" />
-                          <Button onClick={handleTopUp} disabled={isTopUpLoading} className="h-12 bg-secondary text-white font-black px-8 rounded-xl uppercase italic">
-                            {isTopUpLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Recarregar"}
-                          </Button>
+           <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
+              <div className="grid grid-cols-1 md:grid-cols-2">
+                 <div className="p-10 space-y-8">
+                    <div className="space-y-2">
+                       <h3 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Recarregar Saldo Ads</h3>
+                       <p className="text-sm text-muted-foreground leading-relaxed">Adicione crédito para promover sua marca e eventos. Recargas via cartão ou PIX.</p>
+                    </div>
+
+                    <div className="space-y-6">
+                       <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase opacity-60">Valor da Recarga (Base)</Label>
+                          <div className="relative">
+                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black text-secondary">R$</span>
+                             <Input 
+                                type="number" 
+                                value={topUpAmount} 
+                                onChange={e => setTopUpAmount(e.target.value)} 
+                                className="h-16 text-3xl font-black rounded-2xl pl-12 border-secondary/20 shadow-inner" 
+                             />
+                          </div>
+                       </div>
+
+                       <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase opacity-60">Cupom de Anúncio</Label>
+                          <div className="flex gap-2">
+                             <div className="relative flex-1">
+                                <TicketPercent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary opacity-40" />
+                                <Input 
+                                   placeholder="CÓDIGO" 
+                                   value={couponCode} 
+                                   onChange={e => setCouponCode(e.target.value.toUpperCase())}
+                                   disabled={!!appliedCoupon}
+                                   className="rounded-xl h-11 pl-10 border-dashed border-secondary/30 uppercase font-bold" 
+                                />
+                             </div>
+                             {appliedCoupon ? (
+                               <Button variant="outline" className="rounded-xl border-destructive text-destructive h-11" onClick={() => { setAppliedCoupon(null); setCouponCode(""); }}>
+                                  <X className="w-4 h-4" />
+                               </Button>
+                             ) : (
+                               <Button variant="secondary" className="rounded-xl h-11 px-6 font-bold" onClick={handleValidateCoupon} disabled={isValidatingCoupon || !couponCode}>
+                                  {isValidatingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : "Aplicar"}
+                               </Button>
+                             )}
+                          </div>
+                          {appliedCoupon && (
+                             <p className="text-[10px] font-black uppercase text-green-600 mt-1 animate-in zoom-in-95">
+                                <CheckCircle2 className="inline w-3 h-3 mr-1" /> 
+                                {appliedCoupon.type === 'discount' ? `${appliedCoupon.value}% de Desconto aplicado!` : 
+                                 appliedCoupon.type === 'bonus_percent' ? `+${appliedCoupon.value}% de Bônus no saldo!` : 
+                                 `+${formatCurrency(appliedCoupon.value)} de Bônus de saldo!`}
+                             </p>
+                          )}
                        </div>
                     </div>
                  </div>
-                 <div className="w-full md:w-1/3 p-6 bg-muted/30 rounded-3xl space-y-4">
-                    <div className="flex items-center gap-3 text-secondary"><Zap className="w-5 h-5" /><span className="text-[10px] font-black uppercase">Entrega Imediata</span></div>
-                    <p className="text-[10px] text-muted-foreground leading-relaxed uppercase italic">O saldo para anúncios é independente das vendas de ingressos e deve ser gerenciado por aqui. Uma taxa de 5% (processamento) será somada ao valor final no checkout.</p>
+
+                 <div className="bg-muted/30 p-10 flex flex-col justify-center gap-6 border-l border-dashed">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-60">Resumo do Pagamento</h4>
+                    
+                    <div className="space-y-4">
+                       <div className="flex justify-between items-center text-sm font-bold">
+                          <span className="opacity-60 uppercase">Valor Base:</span>
+                          <span className="text-primary">{formatCurrency(rechargeCalcs.base)}</span>
+                       </div>
+                       <div className="flex justify-between items-center text-sm font-bold">
+                          <span className="opacity-60 uppercase">Taxa de Processamento (5%):</span>
+                          <span className="text-primary">{formatCurrency(rechargeCalcs.fee)}</span>
+                       </div>
+                       {appliedCoupon?.type === 'discount' && (
+                         <div className="flex justify-between items-center text-sm font-black text-green-600">
+                            <span className="uppercase">Desconto Cupom:</span>
+                            <span>-{formatCurrency((rechargeCalcs.base + rechargeCalcs.fee) * (appliedCoupon.value / 100))}</span>
+                         </div>
+                       )}
+                       <Separator className="border-dashed" />
+                       <div className="flex justify-between items-center">
+                          <span className="text-lg font-black uppercase italic text-primary">Total a Pagar:</span>
+                          <span className="text-3xl font-black text-primary">{formatCurrency(rechargeCalcs.totalToPay)}</span>
+                       </div>
+                    </div>
+
+                    <div className="p-6 bg-secondary text-white rounded-[2rem] shadow-xl space-y-2 relative overflow-hidden group">
+                       <p className="text-[10px] font-black uppercase opacity-60">Saldo a ser creditado:</p>
+                       <p className="text-4xl font-black italic tracking-tighter">{formatCurrency(rechargeCalcs.finalBalance)}</p>
+                       {appliedCoupon && (appliedCoupon.type === 'bonus_percent' || appliedCoupon.type === 'bonus_fixed') && (
+                         <Badge className="bg-white text-secondary font-black text-[9px] uppercase border-none">BÔNUS ATIVO</Badge>
+                       )}
+                       <Zap className="absolute -bottom-4 -right-4 w-24 h-24 opacity-10 group-hover:scale-110 transition-transform" />
+                    </div>
+
+                    <Button 
+                      onClick={handleTopUp} 
+                      disabled={isTopUpLoading || rechargeCalcs.base < 10} 
+                      className="h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform"
+                    >
+                      {isTopUpLoading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><CreditCard className="w-6 h-6 mr-2" /> Pagar com Stripe</>}
+                    </Button>
+                    <p className="text-[9px] text-center text-muted-foreground font-medium uppercase italic">A liberação do saldo é instantânea após a confirmação do pagamento.</p>
                  </div>
               </div>
            </Card>

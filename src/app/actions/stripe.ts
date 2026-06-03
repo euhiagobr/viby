@@ -3,7 +3,7 @@
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { doc, getDoc, getFirestore, runTransaction, serverTimestamp, increment, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, getDoc, getFirestore, runTransaction, serverTimestamp, increment, collection, query, where, getDocs, limit, addDoc } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import { logSystemError } from '@/lib/error-manager';
@@ -171,6 +171,9 @@ export async function createAdBalanceTopUpSession(data: {
   orgName: string;
   userEmail: string;
   baseAmount: number;
+  finalBalance: number;
+  totalToPay: number;
+  couponCode?: string;
   transactionId: string;
 }) {
   try {
@@ -187,9 +190,9 @@ export async function createAdBalanceTopUpSession(data: {
             currency: 'brl',
             product_data: {
               name: `Recarga de Saldo Ads - ${data.orgName}`,
-              description: 'Crédito exclusivo para impulsionamento de eventos na Viby Club (Inclui 5% de Taxa de Processamento)',
+              description: `Crédito exclusivo para impulsionamento${data.couponCode ? ` (Cupom: ${data.couponCode})` : ''}`,
             },
-            unit_amount: Math.round(data.baseAmount * 1.05 * 100), // Taxa de processamento de 5%
+            unit_amount: Math.round(data.totalToPay * 100),
           },
           quantity: 1,
         },
@@ -203,6 +206,9 @@ export async function createAdBalanceTopUpSession(data: {
         orgId: data.orgId,
         orgUsername: data.orgUsername,
         baseAmount: data.baseAmount.toString(),
+        finalBalance: data.finalBalance.toString(),
+        totalPaid: data.totalToPay.toString(),
+        couponCode: data.couponCode || "",
         transactionId: data.transactionId
       },
     });
@@ -227,12 +233,12 @@ export async function finalizeAdTopUpSession(sessionId: string) {
     const metadata = session.metadata;
     if (metadata?.type !== 'ad_topup') throw new Error("Sessão inválida.");
 
-    const amount = parseFloat(metadata.baseAmount);
+    const finalBalance = parseFloat(metadata.finalBalance);
+    const totalPaid = parseFloat(metadata.totalPaid);
     const orgId = metadata.orgId;
 
     return await runTransaction(db, async (transaction) => {
       const orgRef = doc(db, "organizations", orgId);
-      const orgSnap = await transaction.get(orgRef);
       
       // Idempotência baseada na sessão do Stripe
       const txQuery = query(
@@ -244,18 +250,19 @@ export async function finalizeAdTopUpSession(sessionId: string) {
       if (!txSnap.empty) return { success: true, alreadyProcessed: true };
 
       transaction.update(orgRef, {
-        adBalance: increment(amount),
+        adBalance: increment(finalBalance),
         updatedAt: serverTimestamp()
       });
 
       const txRef = doc(collection(db, "organizations", orgId, "transactions"));
       transaction.set(txRef, {
         type: 'ad_topup',
-        amount: amount,
-        totalCharged: amount * 1.05, // Registra o valor total pago com a taxa de 5%
+        amount: finalBalance,
+        totalCharged: totalPaid,
+        couponCode: metadata.couponCode || null,
         status: 'completed',
         stripeSessionId: sessionId,
-        description: 'Recarga de Saldo Ads via Cartão (Confirmada)',
+        description: `Recarga de Saldo Ads${metadata.couponCode ? ` (Cupom: ${metadata.couponCode})` : ''}`,
         createdAt: serverTimestamp()
       });
 
