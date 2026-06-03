@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -108,11 +109,16 @@ export function EventLocation({
   };
 
   /**
-   * Lógica para buscar coordenadas automaticamente quando o endereço é preenchido.
+   * Lógica de Geocoding aprimorada para reagir a CEP e Número
    */
   const triggerGeocoding = async (index: number, updatedAddr: any) => {
-    const addressStr = `${updatedAddr.street}, ${updatedAddr.number}, ${updatedAddr.city}, ${updatedAddr.state}, Brasil`;
-    const coords = await getCoordinatesFromAddress(addressStr);
+    if (!updatedAddr.street || !updatedAddr.city) return;
+
+    // String de busca completa para Nominatim
+    const searchString = `${updatedAddr.title ? updatedAddr.title + ', ' : ''}${updatedAddr.street}, ${updatedAddr.number || ''}, ${updatedAddr.neighborhood}, ${updatedAddr.city}, ${updatedAddr.state}, Brasil`;
+    
+    console.log(`[Geocoding] Buscando coordenadas para: ${searchString}`);
+    const coords = await getCoordinatesFromAddress(searchString);
     
     if (coords) {
       if (isMultiLocation) {
@@ -126,7 +132,7 @@ export function EventLocation({
   };
 
   const handleCepBlur = async (index: number) => {
-    const target = isMultiLocation ? locations[index] : { ...address };
+    const target = isMultiLocation ? { ...locations[index] } : { ...address };
     const cep = target.cep?.replace(/\D/g, "");
     
     if (!cep || cep.length !== 8) return;
@@ -145,11 +151,20 @@ export function EventLocation({
           state: data.uf || target.state
         };
 
-        // Após preencher a rua via CEP, tenta buscar a coordenada
+        // Salva os dados textuais primeiro
+        if (isMultiLocation) {
+          const newLocs = [...locations];
+          newLocs[index] = updated;
+          onLocationsChange?.(newLocs);
+        } else {
+          onChange?.(updated);
+        }
+
+        // Tenta buscar o ponto no mapa
         await triggerGeocoding(index, updated);
       }
     } catch (e) {
-      console.warn("Erro ao buscar CEP");
+      console.warn("[CEP] Erro na consulta ViaCEP");
     } finally {
       setIsSearching(null);
     }
@@ -159,10 +174,8 @@ export function EventLocation({
     let finalValue = value;
     
     if (field === 'latitude' || field === 'longitude') {
-      if (typeof value === 'string') {
-        finalValue = value === "" ? 0 : parseFloat(value);
-        if (isNaN(finalValue)) return;
-      }
+      finalValue = value === "" ? 0 : parseFloat(value);
+      if (isNaN(finalValue)) return;
     }
 
     if (isMultiLocation) {
@@ -171,14 +184,14 @@ export function EventLocation({
       onLocationsChange?.(newLocs);
       
       // Se mudar o número, tenta re-geocodificar para maior precisão
-      if (field === 'number' && finalValue) {
+      if (field === 'number' && finalValue && newLocs[index].street) {
         triggerGeocoding(index, newLocs[index]);
       }
     } else {
       const updated = { ...address, [field]: finalValue };
       onChange?.(updated);
       
-      if (field === 'number' && finalValue) {
+      if (field === 'number' && finalValue && updated.street) {
         triggerGeocoding(index, updated);
       }
     }
@@ -290,10 +303,10 @@ export function EventLocation({
     const currentLoc = isMulti ? loc : address;
 
     return (
-      <div key={isMulti ? loc.id : 'single'} className={cn("space-y-6 p-8 rounded-[2rem] border-2 border-dashed bg-white", isMulti ? "border-secondary/20" : "border-border/60")}>
+      <div key={isMulti ? loc.id : 'single'} className={cn("space-y-6 p-8 rounded-[2rem] border-2 border-dashed bg-white transition-all", isMulti ? "border-secondary/20" : "border-border/60")}>
         <div className="flex items-center justify-between mb-4">
            <div className="flex items-center gap-3">
-              <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-black italic", isMulti ? "bg-secondary text-white" : "bg-primary text-white")}>
+              <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-black italic shadow-sm", isMulti ? "bg-secondary text-white" : "bg-primary text-white")}>
                 {isMulti ? `L${index + 1}` : <MapPin className="w-5 h-5" />}
               </div>
               <h3 className="text-lg font-black uppercase italic tracking-tighter text-primary">
@@ -373,9 +386,9 @@ export function EventLocation({
            <div className="space-y-3">
               <Label className="text-[10px] font-black uppercase opacity-60 flex justify-between items-center">
                  Ajuste do Pin no Mapa
-                 <span className="text-[8px] opacity-40">Arraste para precisão total</span>
+                 <span className="text-[8px] opacity-40">Arraste o PIN para precisão total</span>
               </Label>
-              <div className="h-[280px] w-full rounded-2xl overflow-hidden border-2 border-muted relative">
+              <div className="h-[280px] w-full rounded-2xl overflow-hidden border-2 border-muted relative shadow-inner bg-muted/10">
                  <LocationMap 
                     latitude={currentLoc.latitude || -23.55052} 
                     longitude={currentLoc.longitude || -46.633308} 

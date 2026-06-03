@@ -4,7 +4,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 
 // Corrigir ícone padrão do Leaflet no Next.js
 const DefaultIcon = L.icon({
@@ -24,15 +24,23 @@ interface LocationMapProps {
 }
 
 // Componente para centralizar o mapa quando as coordenadas mudam externamente
-function ChangeView({ center }: { center: [number, number] }) {
+function ChangeView({ latitude, longitude }: { latitude: number; longitude: number }) {
   const map = useMap();
+  
   useEffect(() => {
-    map.setView(center, map.getZoom());
-  }, [center, map]);
+    if (latitude && longitude) {
+      map.setView([latitude, longitude], map.getZoom());
+      // Forçar atualização do tamanho do container para evitar tiles cinzas
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 100);
+    }
+  }, [latitude, longitude, map]);
+
   return null;
 }
 
-// Componente para capturar o clique e arrasto
+// Componente para o Marcador que reage a props e permite arrasto
 function DraggableMarker({ latitude, longitude, onChange, interactive }: LocationMapProps) {
   const markerRef = useRef<L.Marker>(null);
 
@@ -67,23 +75,31 @@ export function LocationMap({ latitude, longitude, onChange, interactive = true 
   }, []);
 
   if (!isMounted) {
-    return <div className="w-full h-full bg-muted flex items-center justify-center text-xs font-bold uppercase opacity-20">Iniciando Mapa...</div>;
+    return (
+      <div className="w-full h-full bg-muted flex items-center justify-center text-[10px] font-black uppercase opacity-20">
+        Iniciando Camada de Mapa...
+      </div>
+    );
   }
+
+  // Garantir que temos valores válidos
+  const lat = Number(latitude) || -23.55052;
+  const lng = Number(longitude) || -46.633308;
 
   return (
     <div className="w-full h-full relative rounded-[1.5rem] overflow-hidden">
       <MapContainer 
-        center={[latitude, longitude]} 
+        center={[lat, lng]} 
         zoom={15} 
         scrollWheelZoom={false}
         className="w-full h-full"
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <ChangeView center={[latitude, longitude]} />
-        <DraggableMarker latitude={latitude} longitude={longitude} onChange={onChange} interactive={interactive} />
+        <ChangeView latitude={lat} longitude={lng} />
+        <DraggableMarker latitude={lat} longitude={lng} onChange={onChange} interactive={interactive} />
       </MapContainer>
     </div>
   );
