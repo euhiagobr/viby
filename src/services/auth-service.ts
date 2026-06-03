@@ -2,11 +2,8 @@
 
 import { 
   GoogleAuthProvider, 
-  FacebookAuthProvider, 
-  TwitterAuthProvider, 
   signInWithRedirect, 
   getRedirectResult,
-  signOut,
   Auth,
   browserPopupRedirectResolver,
   indexedDBLocalPersistence,
@@ -18,21 +15,14 @@ import {
   serverTimestamp, 
   Firestore,
   runTransaction,
-  increment,
-  setDoc
+  increment
 } from "firebase/firestore";
 import { sendWelcomeEmail } from "@/app/actions/email";
 import { recordAuditLog } from "@/app/actions/audit";
 
-export const authConfig = {
-  google: true,
-  facebook: false,
-  x: false,
-};
-
 /**
  * Garante que o documento do usuário exista no Firestore.
- * Essencial para o fluxo de login social (Google).
+ * Modificado para suportar cadastro incompleto obrigatório.
  */
 export async function ensureUserProfile(user: any, db: Firestore) {
   if (!user || !db) return null;
@@ -44,7 +34,7 @@ export async function ensureUserProfile(user: any, db: Firestore) {
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
-      console.log('[Auth-Debug] Profile not found. Creating base document...');
+      console.log('[Auth-Debug] Profile not found. Creating skeleton document...');
       
       const initialName = user.displayName || user.email?.split('@')[0] || "Membro Viby";
       
@@ -54,8 +44,8 @@ export async function ensureUserProfile(user: any, db: Firestore) {
         name: initialName,
         avatar: user.photoURL || "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media",
         provider: user.providerData[0]?.providerId || 'social',
-        username: null, // Será preenchido no onboarding
-        cpf: null, // Será preenchido no onboarding
+        username: null, 
+        cpf: null,
         profileComplete: false,
         role: "user",
         status: "Ativo",
@@ -91,9 +81,8 @@ export async function ensureUserProfile(user: any, db: Firestore) {
         }
       });
 
-      console.log('[Auth-Debug] Firestore Profile Created');
+      console.log('[Auth-Debug] Firestore Skeleton Created');
 
-      // Notificações e Auditoria
       if (user.email) {
         sendWelcomeEmail({ to: user.email, userName: initialName }).catch(() => {});
       }
@@ -104,14 +93,17 @@ export async function ensureUserProfile(user: any, db: Firestore) {
         action: 'signup',
         category: 'auth',
         success: true,
-        metadata: { method: 'social_sync' }
+        metadata: { method: 'social_skeleton' }
       });
 
       return { ...userData, isNew: true };
     }
 
-    console.log('[Auth-Debug] Profile already exists');
-    return { ...userSnap.data(), isNew: false };
+    const currentProfile = userSnap.data();
+    // Verifica se os campos obrigatórios sumiram por algum erro anterior
+    const isActuallyComplete = !!(currentProfile.username && currentProfile.cpf);
+    
+    return { ...currentProfile, profileComplete: isActuallyComplete, isNew: false };
   } catch (error) {
     console.error('[Auth-Debug] ensureUserProfile Error:', error);
     throw error;
@@ -129,6 +121,7 @@ export async function startSocialLogin(auth: Auth, providerName: 'google') {
 
   try {
     await setPersistence(auth, indexedDBLocalPersistence);
+    console.log('[Auth-Debug] Starting Google Login');
     return signInWithRedirect(auth, provider, browserPopupRedirectResolver);
   } catch (error) {
     console.error("[Auth-Debug] Redirect Error:", error);
@@ -142,14 +135,14 @@ export async function startSocialLogin(auth: Auth, providerName: 'google') {
 export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
   try {
     const result = await getRedirectResult(auth, browserPopupRedirectResolver);
-    
+    console.log('[Auth-Debug] Redirect Result:', result);
+
     if (result?.user) {
-      console.log('[Auth-Debug] Redirect user captured:', result.user.email);
+      console.log('[Auth-Debug] Redirect User captured:', result.user.email);
       const profile = await ensureUserProfile(result.user, db);
       return { user: result.user, profile };
     }
 
-    // Se o redirect result for nulo mas o auth estiver logado (restauração de sessão)
     if (auth.currentUser) {
       console.log('[Auth-Debug] Session restored, syncing profile...');
       const profile = await ensureUserProfile(auth.currentUser, db);

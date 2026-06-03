@@ -32,16 +32,24 @@ function LoginContent() {
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
-  // REDIRECIONAMENTO IMEDIATO
+  // REDIRECIONAMENTO INTELIGENTE
   useEffect(() => {
     if (!isInitialized || authLoading) return;
 
     if (user && profile) {
-      console.log('[Auth-Debug] Logged in. Deciding destination...');
-      const isComplete = profile.username && profile.cpf;
-      const redirect = searchParams.get('redirect') || "/dashboard";
-      const target = isComplete ? redirect : "/onboarding";
-      router.replace(target);
+      console.log('[Auth-Debug] User authenticated, evaluating profile completeness...');
+      
+      const hasMandatoryData = !!(profile.username && profile.cpf);
+      const isComplete = profile.profileComplete && hasMandatoryData;
+
+      if (!isComplete) {
+        console.log('[Auth-Debug] Redirecting To Onboarding (Incomplete profile)');
+        router.replace("/onboarding");
+      } else {
+        const redirect = searchParams.get('redirect') || "/dashboard";
+        console.log('[Auth-Debug] Redirecting To:', redirect);
+        router.replace(redirect);
+      }
     }
   }, [user, profile, isInitialized, authLoading, router, searchParams]);
 
@@ -71,7 +79,6 @@ function LoginContent() {
     }
   }
 
-  // Se estiver carregando Auth OU se o usuário existir mas o perfil ainda não carregou (Sincronização)
   const showSync = !isInitialized || authLoading || (user && !profile);
 
   return (

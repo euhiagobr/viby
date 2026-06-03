@@ -4,7 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth, useUser, useFirestore } from "@/firebase";
 import { startSocialLogin, handleSocialLoginResult, authConfig } from "@/services/auth-service";
-import { Loader2, AlertCircle, Chrome } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 
@@ -29,8 +29,14 @@ export function SocialLoginButtons() {
         const result = await handleSocialLoginResult(auth, db);
         if (result) {
           setIsProcessing(true);
-          const isComplete = result.profile?.username && result.profile?.cpf;
-          router.replace(isComplete ? "/dashboard" : "/onboarding");
+          const hasMandatory = !!(result.profile?.username && result.profile?.cpf);
+          const isComplete = result.profile?.profileComplete && hasMandatory;
+          
+          if (!isComplete) {
+            router.replace("/onboarding");
+          } else {
+            router.replace("/dashboard");
+          }
         }
       } catch (err: any) {
         console.error("[Auth-Debug] Pipeline Error:", err);
@@ -40,15 +46,6 @@ export function SocialLoginButtons() {
 
     captureResult();
   }, [auth, db, isInitialized, router]);
-
-  // Fallback: Se o usuário logou mas o perfil não apareceu
-  React.useEffect(() => {
-    if (isInitialized && user && !profile && !isProcessing && !loadingProvider) {
-       console.log('[Auth-Debug] Fallback: User present without profile. Redirecting to capture...');
-       setIsProcessing(true);
-       router.replace("/onboarding");
-    }
-  }, [user, profile, isInitialized, isProcessing, loadingProvider, router]);
 
   const handleSocialLogin = async (provider: 'google') => {
     if (!auth) return;

@@ -4,7 +4,7 @@ import * as React from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
-import { Bell, Loader2, Plus, Building2, ShoppingCart, ShieldAlert } from "lucide-react"
+import { Bell, Loader2, Plus, Building2, ShoppingCart, ShieldAlert, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
@@ -37,18 +37,18 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     if (!isInitialized || authLoading) return;
 
-    console.log('[Auth-Debug] Auth Current User:', auth?.currentUser);
-
     if (!user) {
-      console.log('[Auth-Debug] Redirecting To Login');
+      console.log('[Auth-Debug] User not found, redirecting to login');
       router.replace(`/login?redirect=${encodeURIComponent(pathname || '/dashboard')}`);
       return;
     }
 
-    const isProfileIncomplete = profile && (!profile.profileComplete && (!profile.username || !profile.cpf));
+    // REGRA DE INTEGRIDADE: Se autenticado mas sem username ou CPF, bloqueia acesso e manda para onboarding
+    const hasMandatoryData = !!(profile?.username && profile?.cpf);
+    const isProfileIncomplete = !hasMandatoryData || profile?.profileComplete === false;
 
     if (isProfileIncomplete && pathname !== '/onboarding') {
-      console.log('[Auth-Debug] Redirecting To Onboarding');
+      console.log('[Auth-Debug] Incomplete Profile detected in Dashboard, forcing Onboarding');
       router.replace('/onboarding');
       return;
     }
@@ -56,16 +56,15 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     if (profile && profile.status === 'Bloqueado' && pathname !== '/dashboard/suporte') {
       router.replace('/dashboard/suporte');
     }
-
-    if (user && profile && !isProfileIncomplete) {
-      console.log('[Auth-Debug] Redirecting To Dashboard');
-    }
-  }, [user, profile, isInitialized, authLoading, pathname, router, auth]);
+  }, [user, profile, isInitialized, authLoading, pathname, router]);
 
   if (!isInitialized || authLoading || (user && !profile)) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+        <div className="flex flex-col items-center gap-4">
+           <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground animate-pulse">Sincronizando Identidade...</p>
+        </div>
       </div>
     )
   }
