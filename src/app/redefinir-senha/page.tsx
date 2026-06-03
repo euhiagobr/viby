@@ -8,26 +8,26 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { ArrowLeft, Loader2, KeyRound, Mail, ShieldCheck, Lock, CheckCircle2 } from "lucide-react"
+import { ArrowLeft, Loader2, Mail, ShieldCheck, Lock } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { requestPasswordRecovery, verifyRecoveryCode, resetPasswordWithCode } from "@/app/actions/password-recovery"
 import { OTPInput } from "@/components/auth/OTPInput"
 import Footer from "@/components/layout/Footer"
 
-export default function RedefinirSenhaPage() {
+function RedefinirSenhaContent() {
   const router = useRouter()
   const auth = useAuth()
   const { user, loading: authLoading } = useUser(auth)
 
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [loading, setLoading] = useState(false)
-  const [identifier, setIdentifier] = useState("")
-  const [requestId, setRequestId] = useState("")
-  const [maskedEmail, setMaskedEmail] = useState("")
-  const [otp, setOtp] = useState("")
-  const [newPassword, setNewPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
+  const [identifier, setIdentifier] = setIdentifier("");
+  const [requestId, setRequestId] = setRequestId("");
+  const [maskedEmail, setMaskedEmail] = setMaskedEmail("");
+  const [otp, setOtp] = setOtp("");
+  const [newPassword, setNewPassword] = setNewPassword("");
+  const [confirmPassword, setConfirmPassword] = setConfirmPassword("");
 
   React.useEffect(() => {
     if (user && !authLoading) {
@@ -49,12 +49,12 @@ export default function RedefinirSenhaPage() {
           setStep(2)
           toast({ title: "Código enviado!", description: "Verifique seu e-mail." })
         } else {
-          // Usuário não encontrado, mas mostramos mensagem de sucesso por segurança
+          // Resposta genérica para manter privacidade
+          setMaskedEmail("seu e-mail")
           setStep(2)
-          setMaskedEmail("seu e-mail cadastrado")
         }
       } else {
-        toast({ variant: "destructive", title: "Erro", description: result.error })
+        toast({ variant: "destructive", title: "Atenção", description: result.error })
       }
     } catch (error) {
       toast({ variant: "destructive", title: "Falha na solicitação" })
@@ -70,7 +70,8 @@ export default function RedefinirSenhaPage() {
     setLoading(true)
     try {
       if (!requestId) {
-        toast({ variant: "destructive", title: "Código Inválido", description: "O código informado não confere com nossos registros." })
+        toast({ variant: "destructive", title: "Código Inválido", description: "Sessão expirada. Solicite um novo código." })
+        setStep(1)
         setLoading(false)
         return
       }
@@ -78,10 +79,10 @@ export default function RedefinirSenhaPage() {
       if (result.success) {
         setStep(3)
       } else {
-        toast({ variant: "destructive", title: "Código Inválido", description: result.error })
+        toast({ variant: "destructive", title: "Erro na validação", description: result.error })
       }
     } catch (error) {
-      toast({ variant: "destructive", title: "Erro na validação" })
+      toast({ variant: "destructive", title: "Falha técnica" })
     } finally {
       setLoading(false)
     }
@@ -95,7 +96,7 @@ export default function RedefinirSenhaPage() {
     }
 
     if (newPassword.length < 6) {
-      toast({ variant: "destructive", title: "Senha Fraca", description: "A senha deve ter no mínimo 6 caracteres." })
+      toast({ variant: "destructive", title: "Senha Curta", description: "A senha deve ter no mínimo 6 caracteres." })
       return
     }
 
@@ -103,13 +104,13 @@ export default function RedefinirSenhaPage() {
     try {
       const result = await resetPasswordWithCode(requestId, otp, newPassword)
       if (result.success) {
-        toast({ title: "Senha redefinida!", description: "Você já pode acessar sua conta." })
+        toast({ title: "Tudo pronto!", description: "Sua senha foi redefinida com sucesso." })
         router.push("/login")
       } else {
-        toast({ variant: "destructive", title: "Erro", description: result.error })
+        toast({ variant: "destructive", title: "Erro ao resetar", description: result.error })
       }
     } catch (error) {
-      toast({ variant: "destructive", title: "Falha na atualização" })
+      toast({ variant: "destructive", title: "Erro no servidor" })
     } finally {
       setLoading(false)
     }
@@ -131,7 +132,7 @@ export default function RedefinirSenhaPage() {
               {step === 1 ? "Recuperar Acesso" : step === 2 ? "Validar Código" : "Nova Senha"}
             </CardTitle>
             <CardDescription className="px-6 font-medium">
-              {step === 1 ? "Informe seu e-mail ou username para receber o código." : 
+              {step === 1 ? "Informe seu e-mail ou @username para receber o código." : 
                step === 2 ? `Digite o código enviado para ${maskedEmail}` : 
                "Crie uma nova senha segura para sua conta."}
             </CardDescription>
@@ -141,9 +142,9 @@ export default function RedefinirSenhaPage() {
             {step === 1 && (
               <form onSubmit={handleStep1} className="space-y-6">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">E-mail ou @username</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Identificador</Label>
                   <Input 
-                    placeholder="Ex: joao@email.com" 
+                    placeholder="E-mail ou @username" 
                     value={identifier} 
                     onChange={e => setIdentifier(e.target.value)}
                     className="h-12 rounded-xl border-dashed border-secondary/30 focus-visible:ring-secondary/30"
@@ -164,7 +165,7 @@ export default function RedefinirSenhaPage() {
                     {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Validar Código"}
                   </Button>
                   <Button variant="link" type="button" onClick={() => setStep(1)} className="text-[10px] font-black uppercase text-muted-foreground hover:text-primary transition-colors">
-                    Não recebi o código / Voltar
+                    Não recebi / Voltar
                   </Button>
                 </div>
               </form>
@@ -198,5 +199,13 @@ export default function RedefinirSenhaPage() {
       </div>
       <Footer />
     </div>
+  )
+}
+
+export default function RedefinirSenhaPage() {
+  return (
+    <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#f8fafc]"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>}>
+      <RedefinirSenhaContent />
+    </React.Suspense>
   )
 }
