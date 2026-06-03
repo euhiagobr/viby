@@ -58,10 +58,11 @@ export default function LandingPageClient() {
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
+    // Busca eventos ativos. Nota: se houver erro de permissão aqui, o useCollection logará no console.
     return query(collection(db, "events"), where("status", "==", "Ativo"), limit(150))
   }, [db])
 
-  const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
+  const { data: events, loading: eventsLoading, error: eventsError } = useCollection<any>(eventsQuery)
 
   const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
@@ -83,24 +84,45 @@ export default function LandingPageClient() {
 
   React.useEffect(() => {
     getCurrentLocation()
-      .then(setUserLocation)
-      .catch(() => {
-        console.warn("GPS negado. Usando fallback por cidade.");
+      .then(loc => {
+        console.log("[Debug] Localização GPS obtida:", loc);
+        setUserLocation(loc);
+      })
+      .catch((err) => {
+        console.warn("[Debug] GPS negado ou falhou:", err.message);
       })
   }, [])
+
+  // Log de status das coleções
+  React.useEffect(() => {
+    if (!eventsLoading) {
+      console.log("[Debug] Firestore Events carregados:", events?.length || 0);
+      if (eventsError) console.error("[Debug] Erro Firestore Events:", eventsError);
+    }
+  }, [events, eventsLoading, eventsError]);
 
   const filteredAndSortedEvents = React.useMemo(() => {
     if (!events || events.length === 0) return []
 
-    let result = events.filter(e => {
-      // Check visibility
-      if (!isEventVisible(e)) return false;
+    console.log("[Debug] Iniciando filtragem de eventos...");
 
+    let result = events.filter(e => {
+      // 1. Visibilidade Básica
+      if (!isEventVisible(e)) {
+        // console.log(`[Debug] Evento Ocultado (isEventVisible): ${e.title}`);
+        return false;
+      }
+
+      // 2. Busca por Nome
       const matchesSearch = !searchName || e.title?.toLowerCase().includes(searchName.toLowerCase());
+      if (!matchesSearch) return false;
+
+      // 3. Cidade e Categoria
       const matchesCity = selectedCity === 'all' || e.city === selectedCity;
       const matchesCategory = selectedCategory === 'all' || e.categoryId === selectedCategory;
+      if (!matchesCity || !matchesCategory) return false;
       
-      // Robust Date Parsing
+      // 4. Parsing de Data Robusto
       const parseDate = (val: any) => {
         if (!val) return null;
         if (val.toDate) return val.toDate();
@@ -109,25 +131,28 @@ export default function LandingPageClient() {
       };
 
       const eventDate = parseDate(e.date);
-      if (!eventDate) return false;
+      if (!eventDate) {
+        console.warn(`[Debug] Evento sem data válida ignorado: ${e.title}`, e.date);
+        return false;
+      }
 
       const endDate = parseDate(e.endDate) || new Date(eventDate.getTime() + 4 * 60 * 60 * 1000);
       const now = new Date();
 
-      // Filtro Inteligente: Acontecendo Agora ou em 1h
+      // 5. Filtro Inteligente: Acontecendo Agora ou em 1h
       if (showLiveOnly) {
         const startsInLessOneHour = (eventDate.getTime() - now.getTime()) <= 3600000 && (eventDate.getTime() - now.getTime()) > 0;
         const isLive = now >= eventDate && now <= endDate;
         if (!isLive && !startsInLessOneHour) return false;
       }
 
-      // Filtro Inteligente: Na sua região (Raio fixo de 20km para este filtro rápido)
+      // 6. Filtro Inteligente: Na sua região (Raio fixo de 20km)
       if (showRegionOnly && userLocation && e.latitude && e.longitude) {
         const dist = calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude });
         if (dist > 20) return false;
       }
 
-      // Filtro de Data Normal
+      // 7. Filtro de Data Normal
       let matchesDate = true;
       if (dateFilter !== 'all') {
         const today = startOfToday();
@@ -142,24 +167,29 @@ export default function LandingPageClient() {
           matchesDate = isSameDay(eventDate, customDate);
         }
       }
+      if (!matchesDate) return false;
 
-      // Filtro de Raio Geral (do seletor)
+      // 8. Filtro de Raio Geral (do seletor)
       let matchesRadius = true;
       if (userLocation && radiusKm !== 'unlimited' && e.latitude && e.longitude) {
         const dist = calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude });
         matchesRadius = dist <= parseInt(radiusKm);
       }
+      if (!matchesRadius) return false;
 
-      return matchesSearch && matchesCity && matchesCategory && matchesRadius && matchesDate;
+      return true;
     });
 
-    return result.map(e => ({
+    const final = result.map(e => ({
       ...e,
       _score: calculateEventScore(e, {
         userLocation,
         maxRadiusKm: radiusKm === 'unlimited' ? 500 : parseInt(radiusKm)
       })
     })).sort((a, b) => b._score - a._score);
+
+    console.log("[Debug] Filtragem concluída. Exibindo:", final.length, "eventos.");
+    return final;
   }, [events, searchName, selectedCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate, showLiveOnly, showRegionOnly])
 
   const interleavedContent = React.useMemo(() => {
