@@ -19,52 +19,50 @@ export function SocialLoginButtons() {
   const [error, setError] = React.useState<string | null>(null);
   const pipelineStarted = React.useRef(false);
 
-  // Monitor de Resultado de Redirecionamento e Restauração de Sessão
+  // Efeito 1: Captura o resultado do redirecionamento na montagem
   React.useEffect(() => {
     if (!auth || !db || !isInitialized || pipelineStarted.current) return;
 
     const runAuthPipeline = async () => {
       pipelineStarted.current = true;
-      console.log('[Auth-Debug] SocialButtons Pipeline Started', {
-        hasUser: !!auth.currentUser,
-        initialized: isInitialized
-      });
+      console.log('[Auth-Debug] SocialButtons Pipeline Started', { hasUser: !!auth.currentUser, initialized: isInitialized });
       
       try {
         const result = await handleSocialLoginResult(auth, db);
         if (result) {
           setIsProcessing(true);
           const isComplete = result.profile?.username && result.profile?.cpf;
-          console.log('[Auth-Debug] Pipeline result obtained. Complete:', !!isComplete);
+          console.log('[Auth-Debug] Pipeline success. Complete:', !!isComplete);
           router.replace(isComplete ? "/dashboard" : "/onboarding");
         }
       } catch (error: any) {
         console.error("[Auth-Debug] Pipeline Error:", error);
-        if (error.code === 'auth/unauthorized-domain') {
-          setError("Domínio não autorizado no Firebase.");
-        }
+        setError(error.code === 'auth/unauthorized-domain' ? "Domínio não autorizado no Firebase." : "Falha na sincronização.");
       }
     };
 
     runAuthPipeline();
   }, [auth, db, isInitialized, router]);
 
-  // Fallback: Se o usuário aparecer mas o perfil demorar (restauração de sessão)
+  // Efeito 2: Reatividade para "Usuário detectado mas perfil ausente" (Destrava o limbo)
   React.useEffect(() => {
     if (!isInitialized || !user || isProcessing) return;
 
+    // Se o usuário apareceu via onAuthStateChanged mas o profile ainda está nulo,
+    // significa que é um novo login social ou uma restauração que precisa de sincronização.
     if (!profile) {
-      console.log('[Auth-Debug] User detected without profile. Ensuring profile creation...');
+      console.log('[Auth-Debug] User detected without profile. Triggering ensureUserProfile...');
       const syncProfile = async () => {
         setIsProcessing(true);
         try {
           const synced = await ensureUserProfile(user, db);
           if (synced) {
             const isComplete = synced.username && synced.cpf;
+            console.log('[Auth-Debug] Sync finished. Redirecting...');
             router.replace(isComplete ? "/dashboard" : "/onboarding");
           }
         } catch (e) {
-          console.error('[Auth-Debug] Profile sync fallback failed:', e);
+          console.error('[Auth-Debug] Profile sync failed:', e);
           setIsProcessing(false);
         }
       };
@@ -79,11 +77,7 @@ export function SocialLoginButtons() {
     try {
       await startSocialLogin(auth, provider);
     } catch (error: any) {
-      toast({ 
-        variant: "destructive", 
-        title: "Erro de Conexão", 
-        description: "Não foi possível iniciar o login social." 
-      });
+      toast({ variant: "destructive", title: "Erro de Conexão", description: "Não foi possível iniciar o login social." });
       setLoadingProvider(null);
     }
   };

@@ -32,30 +32,19 @@ function LoginContent() {
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
-  // REDIRECIONAMENTO INTELIGENTE COM LOGS
+  // REDIRECIONAMENTO INTELIGENTE
   useEffect(() => {
     if (!isInitialized || authLoading) return;
 
-    console.log('[Auth-Debug] Login Page State', {
-      isInitialized,
-      hasUser: !!user,
-      hasProfile: !!profile,
-      authLoading
-    });
+    console.log('[Auth-Debug] Login Page State Check', { isInitialized, hasUser: !!user, hasProfile: !!profile });
 
     if (user && profile) {
       const isComplete = profile.username && profile.cpf;
       const redirect = searchParams.get('redirect') || "/dashboard";
       const target = isComplete ? redirect : "/onboarding";
       
-      if (isComplete) {
-        console.log('[Auth-Debug] Redirecting To Dashboard');
-      } else {
-        console.log('[Auth-Debug] Redirecting To Onboarding');
-      }
+      console.log(`[Auth-Debug] User authenticated. Redirecting to ${target}`);
       router.replace(target);
-    } else {
-      console.log('[Auth-Debug] Staying On Login');
     }
   }, [user, profile, isInitialized, authLoading, router, searchParams]);
 
@@ -87,17 +76,14 @@ function LoginContent() {
       await signInWithEmailAndPassword(auth, emailToUse, password)
       toast({ title: "Bem-vindo!" })
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Falha no Acesso",
-        description: "E-mail ou senha incorretos."
-      })
+      toast({ variant: "destructive", title: "Falha no Acesso", description: "E-mail ou senha incorretos." })
     } finally {
       setLoading(false)
     }
   }
 
-  const showForm = isInitialized && !user;
+  // Só esconde o formulário se já estiver redirecionando
+  const isRedirecting = user && profile;
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30 font-body text-foreground">
@@ -135,7 +121,7 @@ function LoginContent() {
             <CardContent className="space-y-6 px-8">
               <SocialLoginButtons />
               
-              {showForm && (
+              {!isRedirecting && (
                 <>
                   <div className="relative">
                     <div className="absolute inset-0 flex items-center"><Separator className="w-full" /></div>
@@ -153,7 +139,10 @@ function LoginContent() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <div className="flex justify-between mb-1"><Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Sua Senha</Label><Link href="/redefinir-senha" className="text-[10px] font-black uppercase tracking-widest text-secondary hover:underline">Esqueceu?</Link></div>
+                      <div className="flex justify-between mb-1">
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Sua Senha</Label>
+                        <Link href="/redefinir-senha" className="text-[10px] font-black uppercase tracking-widest text-secondary hover:underline">Esqueceu?</Link>
+                      </div>
                       <Input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="rounded-xl h-12" />
                     </div>
                     <Button type="submit" className="w-full bg-primary text-white font-black h-14 rounded-2xl uppercase italic mt-2" disabled={loading}>
@@ -161,6 +150,13 @@ function LoginContent() {
                     </Button>
                   </form>
                 </>
+              )}
+
+              {isRedirecting && (
+                <div className="flex flex-col items-center justify-center py-10 gap-3 text-center animate-in fade-in">
+                  <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+                  <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Redirecionando você...</p>
+                </div>
               )}
             </CardContent>
             <CardFooter className="flex flex-col items-center gap-4 border-t border-border mt-6 py-8 bg-muted/20">

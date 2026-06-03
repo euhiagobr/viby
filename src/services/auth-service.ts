@@ -18,7 +18,8 @@ import {
   serverTimestamp, 
   Firestore,
   runTransaction,
-  increment
+  increment,
+  setDoc
 } from "firebase/firestore";
 import { sendWelcomeEmail } from "@/app/actions/email";
 import { recordAuditLog } from "@/app/actions/audit";
@@ -31,27 +32,23 @@ export const authConfig = {
 
 /**
  * Garante que o documento do usuário exista no Firestore.
+ * @fileOverview Pipeline de sincronização de perfil social.
  */
 export async function ensureUserProfile(user: any, db: Firestore) {
   if (!user || !db) return null;
   
   const userRef = doc(db, "users", user.uid);
-  console.log('[Auth-Debug] Firestore Profile Lookup Started for ensureUserProfile. UID:', user.uid);
+  console.log('[Auth-Debug] Executing ensureUserProfile for UID:', user.uid);
   
   try {
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
-      console.log('[Auth-Debug] Firestore Profile Missing, creating base profile for:', user.email);
+      console.log('[Auth-Debug] Profile not found. Creating base document for:', user.email);
       
       const initialName = user.displayName || user.email?.split('@')[0] || "Membro Viby";
       
-      let officialOrgId = null;
-      try {
-        const vibyIdxSnap = await getDoc(doc(db, "usernames", "viby"));
-        if (vibyIdxSnap.exists()) officialOrgId = vibyIdxSnap.data().uid;
-      } catch (e) {}
-
+      // Dados base do usuário
       const userData = {
         uid: user.uid,
         email: user.email?.toLowerCase().trim() || "",
@@ -64,16 +61,28 @@ export async function ensureUserProfile(user: any, db: Firestore) {
         profileComplete: false,
         role: "user",
         status: "Ativo",
-        followingCount: officialOrgId ? 1 : 0,
+        followingCount: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
 
+      // Tenta localizar a conta oficial da Viby para o auto-follow
+      let officialOrgId = null;
+      try {
+        const vibyIdxSnap = await getDoc(doc(db, "usernames", "viby"));
+        if (vibyIdxSnap.exists()) officialOrgId = vibyIdxSnap.data().uid;
+      } catch (e) {
+        console.warn("[Auth-Debug] Could not find @viby for auto-follow");
+      }
+
+      // Criação atômica do perfil
       await runTransaction(db, async (transaction) => {
         transaction.set(userRef, userData);
+        
         if (officialOrgId) {
           const followRef = doc(db, "follows", `${user.uid}_${officialOrgId}`);
           const vibyOrgRef = doc(db, "organizations", officialOrgId);
+          
           transaction.set(followRef, {
             followerId: user.uid,
             followingId: officialOrgId,
@@ -81,19 +90,31 @@ export async function ensureUserProfile(user: any, db: Firestore) {
             timestamp: serverTimestamp()
           });
           transaction.update(vibyOrgRef, { followersCount: increment(1) });
+          // Incrementa o contador do usuário localmente no objeto que será retornado
+          userData.followingCount = 1;
         }
       });
 
       console.log('[Auth-Debug] Firestore Profile Created Successfully');
 
+      // Disparos assíncronos (não bloqueantes)
       if (user.email) {
-        sendWelcomeEmail({ to: user.email, userName: initialName }).catch(() => {});
+        sendWelcomeEmail({ to: user.email, userName: initialName }).catch(e => console.error("Email error:", e));
       }
+
+      await recordAuditLog({
+        userId: user.uid,
+        userEmail: user.email,
+        action: 'signup',
+        category: 'auth',
+        success: true,
+        metadata: { method: 'social_sync' }
+      });
 
       return { ...userData, isNew: true };
     }
 
-    console.log('[Auth-Debug] Firestore Profile Found in ensureUserProfile');
+    console.log('[Auth-Debug] Existing profile loaded for UID:', user.uid);
     return { ...userSnap.data(), isNew: false };
   } catch (error) {
     console.error('[Auth-Debug] Error in ensureUserProfile:', error);
@@ -109,7 +130,7 @@ export async function startSocialLogin(auth: Auth, providerName: 'google' | 'fac
   
   switch (providerName) {
     case 'google':
-      console.log('[Auth-Debug] Starting Google Login');
+      console.log('[Auth-Debug] Initializing Google Provider Redirect');
       provider = new GoogleAuthProvider();
       provider.addScope('profile');
       provider.addScope('email');
@@ -126,12 +147,11 @@ export async function startSocialLogin(auth: Auth, providerName: 'google' | 'fac
   }
 
   try {
-    // Forçar persistência antes do redirect
+    // Forçar persistência antes do redirect para garantir restauração de sessão
     await setPersistence(auth, indexedDBLocalPersistence);
-    console.log('[Auth-Debug] Persistence verified before redirect');
     return signInWithRedirect(auth, provider, browserPopupRedirectResolver);
   } catch (error) {
-    console.error("[Auth-Debug] Login Redirect Initiation Error:", error);
+    console.error("[Auth-Debug] Redirect Initiation Error:", error);
     throw error;
   }
 }
@@ -143,19 +163,20 @@ export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
   try {
     console.log('[Auth-Debug] Capturing redirect result...');
     const result = await getRedirectResult(auth, browserPopupRedirectResolver);
-    console.log('[Auth-Debug] getRedirectResult returned:', result);
     
     if (!result) {
-      // Se não houver resultado, verificamos se o usuário já foi restaurado pelo onAuthStateChanged
+      console.log('[Auth-Debug] No redirect result found in URL/State.');
+      // Se não há resultado oficial de redirect, mas o Auth já tem um usuário, 
+      // significa que a sessão foi restaurada silenciosamente.
       if (auth.currentUser) {
-        console.log('[Auth-Debug] No redirect result, but user is already present. Restoring session.');
+        console.log('[Auth-Debug] Auth state restored post-redirect. Syncing profile...');
         const profile = await ensureUserProfile(auth.currentUser, db);
-        return { user: auth.currentUser, profile, isNew: profile?.isNew };
+        return { user: auth.currentUser, profile };
       }
       return null;
     }
 
-    console.log('[Auth-Debug] Redirect Successful. User:', result.user.email);
+    console.log('[Auth-Debug] Redirect captured successfully for:', result.user.email);
     const profile = await ensureUserProfile(result.user, db);
 
     await recordAuditLog({
@@ -167,16 +188,12 @@ export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
       metadata: { method: 'social_redirect', provider: result.providerId }
     });
 
-    return { user: result.user, profile, isNew: profile?.isNew };
+    return { user: result.user, profile };
   } catch (error: any) {
-    console.error(`[Auth-Debug] Redirect Result Error Code:`, error.code);
-    console.error(`[Auth-Debug] Redirect Result Error Message:`, error.message);
-    
+    console.error(`[Auth-Debug] Redirect Processing Error:`, error.code, error.message);
     if (error.code === 'auth/unauthorized-domain') {
-      console.error('!!! ATENÇÃO !!! O domínio atual não está autorizado no Firebase Console.');
-      console.error('Acesse: Authentication > Settings > Authorized Domains e adicione:', window.location.hostname);
+      console.error('!!! ATENÇÃO !!! Domínio não autorizado no Firebase Console.');
     }
-    
     throw error;
   }
 }
