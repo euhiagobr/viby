@@ -6,6 +6,7 @@ import { doc, getDoc, getFirestore, writeBatch, serverTimestamp, collection, inc
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import { logSystemError } from '@/lib/error-manager';
+import { recordAuditLog } from './audit';
 
 async function getFirebaseComponents() {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -130,6 +131,17 @@ export async function processStripeRefund(params: {
     // 3. Comprometer todas as alterações (Se falhar aqui, nada muda)
     await batch.commit();
 
+    await recordAuditLog({
+      userId: executorUid,
+      ticketId: registrationId,
+      eventId: regData.eventId,
+      organizationId: regData.organizationId,
+      action: 'ticket_cancel',
+      category: 'ticket',
+      success: true,
+      metadata: { refundId, refundType, role }
+    });
+
     return { success: true, refundId };
   } catch (error: any) {
     console.error("[Stripe Refund Action Error]", error);
@@ -139,6 +151,16 @@ export async function processStripeRefund(params: {
       severity: 'error',
       metadata: { registrationId, role }
     });
+    
+    await recordAuditLog({
+      userId: executorUid,
+      ticketId: registrationId,
+      action: 'ticket_cancel',
+      category: 'ticket',
+      success: false,
+      errorMessage: error.message
+    });
+
     return { success: false, error: error.message };
   }
 }

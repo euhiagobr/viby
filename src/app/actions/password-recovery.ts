@@ -1,3 +1,4 @@
+
 'use server';
 
 import { 
@@ -20,6 +21,7 @@ import { maskEmail } from '@/lib/crypto-utils';
 import { sendOTPRecoveryEmail, sendPasswordChangedNotificationEmail } from './email';
 import { getAdminAuth } from '@/lib/firebase/admin';
 import { headers } from 'next/headers';
+import { recordAuditLog } from './audit';
 
 /**
  * @fileOverview Ações de Recuperação de Senha via OTP (6 dígitos).
@@ -77,6 +79,14 @@ export async function requestPasswordRecovery(identifier: string) {
     }
 
     if (!userId || !targetEmail) {
+      await recordAuditLog({
+        action: 'password_recovery_request',
+        category: 'auth',
+        userEmail: identifier,
+        success: false,
+        errorMessage: "Usuário não localizado para recuperação.",
+        route: '/redefinir-senha'
+      });
       return { success: true, maskedEmail: "seu e-mail cadastrado" };
     }
 
@@ -95,6 +105,15 @@ export async function requestPasswordRecovery(identifier: string) {
     });
 
     if (recentRequests.length >= 3) {
+      await recordAuditLog({
+        userId,
+        userEmail: targetEmail,
+        action: 'password_recovery_request',
+        category: 'auth',
+        success: false,
+        errorMessage: "Rate limit de recuperação atingido.",
+        route: '/redefinir-senha'
+      });
       return { success: false, error: "Muitas solicitações. Tente novamente em 20 minutos." };
     }
 
@@ -125,6 +144,16 @@ export async function requestPasswordRecovery(identifier: string) {
       to: targetEmail,
       userName: userName,
       otpCode: otpCode
+    });
+
+    await recordAuditLog({
+      userId,
+      userEmail: targetEmail,
+      action: 'password_recovery_request',
+      category: 'auth',
+      success: true,
+      metadata: { requestId: resetRef.id },
+      route: '/redefinir-senha'
     });
 
     return { 
@@ -224,6 +253,15 @@ export async function resetPasswordWithCode(requestId: string, code: string, pas
       location,
       timestamp
     }).catch(e => console.warn("[Security Email] Failed to send notification", e));
+
+    await recordAuditLog({
+      userId,
+      userEmail: targetEmail,
+      action: 'password_reset_success',
+      category: 'auth',
+      success: true,
+      route: '/redefinir-senha'
+    });
 
     return { success: true };
   } catch (error: any) {

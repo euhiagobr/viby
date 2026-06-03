@@ -5,6 +5,7 @@ import { doc, runTransaction, serverTimestamp, collection, increment, getDoc, ge
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import { calculateRefundAmount, calculateRetainedGatewayFee } from '@/lib/financial-utils';
+import { recordAuditLog } from './audit';
 
 /**
  * @fileOverview Server Actions para operações financeiras utilizando o Client SDK de forma isomórfica.
@@ -19,7 +20,7 @@ export async function processTicketRefund(registrationId: string, executorUid: s
   try {
     const db = await getDb();
     
-    return await runTransaction(db, async (transaction) => {
+    const result = await runTransaction(db, async (transaction) => {
       const regRef = doc(db, "registrations", registrationId);
       const regSnap = await transaction.get(regRef);
 
@@ -73,7 +74,7 @@ export async function processTicketRefund(registrationId: string, executorUid: s
           cancelledBy: executorUid,
           cancelReason: reason
         });
-        return { success: true, isFree: true };
+        return { success: true, isFree: true, orgId: regData.organizationId, eventId: regData.eventId };
       }
 
       const refundAmount = calculateRefundAmount(totalPaid);
@@ -104,10 +105,33 @@ export async function processTicketRefund(registrationId: string, executorUid: s
         updatedAt: serverTimestamp()
       });
 
-      return { success: true, refundAmount };
+      return { success: true, refundAmount, orgId: regData.organizationId, eventId: regData.eventId };
     });
+
+    await recordAuditLog({
+      userId: executorUid,
+      ticketId: registrationId,
+      organizationId: result.orgId,
+      eventId: result.eventId,
+      action: 'ticket_cancel',
+      category: 'ticket',
+      success: true,
+      metadata: { refundAmount: result.refundAmount, reason }
+    });
+
+    return result;
   } catch (error: any) {
     console.error("Erro no estorno:", error.message);
+    
+    await recordAuditLog({
+      userId: executorUid,
+      ticketId: registrationId,
+      action: 'ticket_cancel',
+      category: 'ticket',
+      success: false,
+      errorMessage: error.message
+    });
+
     return { success: false, error: error.message };
   }
 }

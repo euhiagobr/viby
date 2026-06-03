@@ -1,3 +1,4 @@
+
 'use client';
 
 import { 
@@ -21,6 +22,7 @@ import {
   increment
 } from "firebase/firestore";
 import { sendWelcomeEmail } from "@/app/actions/email";
+import { recordAuditLog } from "@/app/actions/audit";
 
 export const authConfig = {
   google: process.env.NEXT_PUBLIC_AUTH_GOOGLE === 'true' || true,
@@ -115,8 +117,26 @@ export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
         }).catch(err => console.warn("[Auth Service] Falha ao enviar e-mail de boas-vindas social", err));
       }
 
+      await recordAuditLog({
+        userId: user.uid,
+        userEmail: user.email,
+        action: 'signup',
+        category: 'auth',
+        success: true,
+        metadata: { method: 'social', provider: userData.provider }
+      });
+
       return { user, isNew: true };
     }
+
+    await recordAuditLog({
+      userId: user.uid,
+      userEmail: user.email,
+      action: 'login',
+      category: 'auth',
+      success: true,
+      metadata: { method: 'social' }
+    });
 
     return { user, isNew: false };
   } catch (error: any) {
@@ -126,5 +146,15 @@ export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
 }
 
 export async function logout(auth: Auth) {
+  const user = auth.currentUser;
+  if (user) {
+    await recordAuditLog({
+      userId: user.uid,
+      userEmail: user.email,
+      action: 'logout',
+      category: 'auth',
+      success: true
+    });
+  }
   return signOut(auth);
 }

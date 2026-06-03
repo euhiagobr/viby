@@ -1,0 +1,31 @@
+
+{
+  "collection": "audit_logs",
+  "description": "Registro imutável de ações críticas para segurança e auditoria (Compliance LGPD).",
+  "fields": {
+    "id": "string (auto-id)",
+    "userId": "string (UID do executor)",
+    "userEmail": "string (E-mail do executor)",
+    "organizationId": "string (opcional)",
+    "eventId": "string (opcional)",
+    "ticketId": "string (opcional)",
+    "action": "string (login | signup | password_reset | etc)",
+    "category": "string (auth | profile | org | event | ticket | admin | finance | system)",
+    "route": "string (URL da ocorrência)",
+    "ip": "string (IP real mascarado em visualizações públicas)",
+    "userAgent": "string (UA completo)",
+    "device": "string (mobile | desktop)",
+    "platform": "string (fixed: viby)",
+    "browser": "string",
+    "country": "string",
+    "state": "string",
+    "city": "string",
+    "sessionId": "string (hash)",
+    "requestId": "string (ID único da transação)",
+    "success": "boolean",
+    "errorMessage": "string (opcional)",
+    "metadata": "map (dados adicionais da operação)",
+    "createdAt": "timestamp (UTC)"
+  },
+  "security_rules": "Leitura restrita a Admin. Criação via Server. Update/Delete PROIBIDOS."
+}

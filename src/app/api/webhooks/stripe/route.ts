@@ -4,6 +4,7 @@ import Stripe from 'stripe';
 import { doc, getFirestore, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, limit, increment, addDoc } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
+import { recordAuditLog } from '@/app/actions/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +48,13 @@ export async function POST(req: Request) {
   }
 
   try {
+    await recordAuditLog({
+      action: 'stripe_operation',
+      category: 'finance',
+      success: true,
+      metadata: { type: 'webhook_received', event: event.type, eventId: event.id }
+    });
+
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
@@ -81,6 +89,15 @@ export async function POST(req: Request) {
               description: `Recarga de Saldo Ads (Webhook)${session.metadata.couponCode ? ` (Cupom: ${session.metadata.couponCode})` : ''}`,
               createdAt: serverTimestamp()
             });
+
+            await recordAuditLog({
+              userId,
+              organizationId: orgId,
+              action: 'ad_topup_success',
+              category: 'finance',
+              success: true,
+              metadata: { amount, finalBalance, sessionId: session.id }
+            });
           }
         }
         break;
@@ -102,6 +119,14 @@ export async function POST(req: Request) {
             stripeDetailsSubmitted: account.details_submitted,
             "payoutSettings.status": isApproved ? 'verified' : (account.details_submitted ? 'pending_admin' : 'none'),
             updatedAt: serverTimestamp()
+          });
+
+          await recordAuditLog({
+            organizationId: orgId,
+            action: 'stripe_operation',
+            category: 'finance',
+            success: true,
+            metadata: { op: 'account_updated_webhook', charges: account.charges_enabled }
           });
         }
         break;

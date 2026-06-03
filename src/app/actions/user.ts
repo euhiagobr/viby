@@ -1,8 +1,10 @@
+
 'use server';
 
 import { db } from '@/firebase/database';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { decryptData, encryptDeterministic } from '@/lib/crypto-utils';
+import { recordAuditLog } from './audit';
 
 /**
  * @fileOverview Server Actions para manipulação de dados sensíveis utilizando o Client SDK de forma isomórfica.
@@ -26,6 +28,15 @@ export async function getUserCPF(userId: string, requestingUid: string) {
     
     if (sensitiveDoc.exists()) {
       const encryptedCpf = sensitiveDoc.data()?.cpf;
+      
+      await recordAuditLog({
+        userId: requestingUid,
+        action: 'cpf_view',
+        category: 'profile',
+        metadata: { targetUserId: userId },
+        success: true
+      });
+
       // Retorna o CPF descriptografado apenas para o dono ou admin
       return { success: true, cpf: decryptData(encryptedCpf) };
     }
@@ -49,6 +60,13 @@ export async function updateUserCPF(userId: string, cpf: string) {
       cpf: encryptedCpf,
       updatedAt: serverTimestamp()
     }, { merge: true });
+
+    await recordAuditLog({
+      userId,
+      action: 'cpf_update',
+      category: 'profile',
+      success: true
+    });
 
     return { success: true };
   } catch (e: any) {

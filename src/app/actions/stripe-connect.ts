@@ -1,3 +1,4 @@
+
 'use server';
 
 import { headers } from 'next/headers';
@@ -5,6 +6,7 @@ import Stripe from 'stripe';
 import { doc, getDoc, getFirestore, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
+import { recordAuditLog } from './audit';
 
 /**
  * @fileOverview Server Actions para Stripe Connect Express com proteção de integridade.
@@ -83,6 +85,14 @@ export async function createStripeConnectAccount(orgId: string) {
     const linkRes = await createAccountOnboardingLink(orgId, accountId);
     if (!linkRes.success) throw new Error(linkRes.error);
 
+    await recordAuditLog({
+      organizationId: orgId,
+      action: 'stripe_operation',
+      category: 'finance',
+      success: true,
+      metadata: { op: 'connect_account_init', accountId }
+    });
+
     return { success: true, accountId, url: linkRes.url };
   } catch (error: any) {
     console.error("[Stripe Action Error]", error.message);
@@ -138,6 +148,14 @@ export async function retrieveStripeAccount(accountId: string, orgId?: string) {
         stripeDetailsSubmitted: account.details_submitted,
         "payoutSettings.status": isApproved ? 'verified' : (account.details_submitted ? 'pending_admin' : 'none'),
         updatedAt: serverTimestamp()
+      });
+
+      await recordAuditLog({
+        organizationId: orgId,
+        action: 'stripe_operation',
+        category: 'finance',
+        success: true,
+        metadata: { op: 'account_sync', accountId, charges: account.charges_enabled }
       });
     }
 
