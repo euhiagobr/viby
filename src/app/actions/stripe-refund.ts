@@ -26,6 +26,7 @@ export type RefundType = 'shared' | 'platform_absorbed';
 /**
  * Processa o estorno de um ingresso via Stripe Connect Destination Charges.
  * Implementa devolução de estoque e sincronização de status.
+ * Ajustado para lidar com casos onde o Stripe já processou o estorno mas o DB não.
  */
 export async function processStripeRefund(params: {
   registrationId: string;
@@ -43,9 +44,9 @@ export async function processStripeRefund(params: {
     if (!regSnap.exists()) throw new Error('Ingresso não localizado.');
     const regData = regSnap.data();
 
-    // Idempotência
+    // Idempotência no DB
     if (regData.status === 'refunded' || regData.status === 'cancelled' || regData.paymentStatus === 'Estornado') {
-      throw new Error('Este ingresso já foi estornado.');
+      return { success: true, message: 'Este ingresso já consta como estornado no sistema.' };
     }
 
     if (!regData.stripeSessionId) {
@@ -69,11 +70,21 @@ export async function processStripeRefund(params: {
       refund_application_fee: true,
     };
 
-    // 3. Executar reembolso no Stripe
-    const refund = await stripe.refunds.create(refundParams);
+    // 3. Executar reembolso no Stripe com captura de erro específico
+    let refundId = "SYNC_ONLY";
+    try {
+      const refund = await stripe.refunds.create(refundParams);
+      refundId = refund.id;
+    } catch (stripeError: any) {
+      // Se já foi estornado no Stripe (dessincronização), prosseguimos para atualizar o DB
+      if (stripeError.code === 'charge_already_refunded' || stripeError.message?.includes('already been refunded')) {
+        console.warn(`[Refund Sync] Charge ${paymentIntentId} already refunded in Stripe. Syncing Firestore.`);
+      } else {
+        throw stripeError; // Outros erros (ex: saldo insuficiente) devem falhar
+      }
+    }
 
     // 4. Atualizar Inventário (Devolver vaga)
-    // Usamos auth == null no servidor para garantir que as regras de decremento passem
     const eventRef = doc(db, "events", regData.eventId);
     await updateDoc(eventRef, { 
       ingressosVendidos: increment(-1),
@@ -92,7 +103,7 @@ export async function processStripeRefund(params: {
     await updateDoc(regRef, {
       status: 'refunded',
       paymentStatus: 'Estornado',
-      refundId: refund.id,
+      refundId: refundId,
       refundType: refundType,
       refundedBy: role,
       refundedAt: serverTimestamp(),
@@ -109,14 +120,15 @@ export async function processStripeRefund(params: {
       description: `Estorno ${refundType === 'shared' ? 'Compartilhado' : 'Absorvido pela Viby'} processado via Stripe.`,
       metadata: {
         registrationId,
-        refundId: refund.id,
+        refundId: refundId,
         amount: regData.price,
-        type: refundType
+        type: refundType,
+        isSync: refundId === "SYNC_ONLY"
       },
       timestamp: serverTimestamp()
     });
 
-    return { success: true, refundId: refund.id };
+    return { success: true, refundId };
   } catch (error: any) {
     await logSystemError({
       error: { message: error.message, stack: error.stack },
