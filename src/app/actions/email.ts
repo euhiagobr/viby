@@ -1,12 +1,13 @@
 'use server';
 
 import nodemailer from 'nodemailer';
-import { doc, getDoc, collection, addDoc, serverTimestamp, getFirestore } from 'firebase/firestore';
+import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 
 /**
- * @fileOverview Serviço de e-mail unificado.
+ * @fileOverview Serviço de e-mail (AUDITORIA ATIVA).
+ * Adicionados logs para verificar conexão SMTP.
  */
 
 async function getDb() {
@@ -17,21 +18,30 @@ async function getDb() {
 async function getTransporter() {
   const db = await getDb();
   const snap = await getDoc(doc(db, 'settings', 'email'));
-  const data = snap.data();
-
-  if (!snap.exists() || !data?.smtpUser || !data?.smtpPass) {
-    throw new Error("Serviço de E-mail não configurado no painel Admin.");
+  
+  if (!snap.exists()) {
+    console.error("[SMTP Audit] Documento settings/email não encontrado no Firestore.");
+    throw new Error("Serviço de E-mail não configurado.");
   }
 
+  const data = snap.data();
+  if (!data?.smtpUser || !data?.smtpPass) {
+    console.error("[SMTP Audit] Credenciais de e-mail incompletas no Firestore.");
+    throw new Error("Credenciais SMTP ausentes.");
+  }
+
+  console.log(`[SMTP Audit] Iniciando transporte Nodemailer via ${data.smtpHost || 'smtp.gmail.com'}`);
+
   return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
+    host: data.smtpHost || 'smtp.gmail.com',
+    port: Number(data.smtpPort) || 465,
+    secure: (data.smtpPort === '465' || !data.smtpPort),
     auth: { user: data.smtpUser, pass: data.smtpPass },
   });
 }
 
 export async function sendPasswordResetLinkEmail(data: any) {
+  console.log(`[Email Action] Preparando envio de OTP para: ${data.to}`);
   try {
     const transporter = await getTransporter();
     const db = await getDb();
@@ -53,21 +63,21 @@ export async function sendPasswordResetLinkEmail(data: any) {
       </div>
     `;
 
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: `"Viby Security" <${smtpUser}>`,
       to: data.to,
       subject: `🔐 Código de Acesso: ${data.otpCode}`,
       html: htmlContent
     });
 
+    console.log(`[Email Action] Mensagem enviada: ${info.messageId}`);
     return { success: true };
   } catch (e: any) { 
-    console.error("[Email Error]", e);
+    console.error("[Email Action Error]", e.message);
     return { success: false, error: e.message }; 
   }
 }
 
-// ... manter demais funções existentes ...
 export async function sendWelcomeEmail(data: any) {
   try {
     const transporter = await getTransporter();
