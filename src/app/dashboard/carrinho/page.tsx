@@ -64,7 +64,7 @@ export default function CarrinhoPage() {
   const promosRef = React.useMemo(() => db ? doc(db, 'settings', 'promotions') : null, [db])
   const { data: promotions } = useDoc<any>(promosRef)
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!expiresAt || items.length === 0) {
       setTimeLeft(null);
       return;
@@ -227,7 +227,7 @@ export default function CarrinhoPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-10 pb-20 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div className="flex flex-col gap-6 md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-1">
            <h1 className="text-4xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
              <ShoppingCart className="w-10 h-10 text-secondary" /> Carrinho
@@ -300,7 +300,6 @@ export default function CarrinhoPage() {
                                  </div>
                               </div>
 
-                              {/* ÁREA DE CUPOM POR ITEM */}
                               <div className="bg-muted/10 rounded-2xl border-2 border-dashed p-4 transition-all">
                                  {item.couponCode ? (
                                     <div className="flex items-center justify-between animate-in zoom-in-95">

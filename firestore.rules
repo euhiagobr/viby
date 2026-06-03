@@ -22,6 +22,11 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
     }
 
+    function isOwnerOfRegistration(regId) {
+      return isSignedIn() && 
+             get(/databases/$(database)/documents/registrations/$(regId)).data.userId == request.auth.uid;
+    }
+
     // --- REGRAS POR COLEÇÃO ---
 
     match /users/{userId} {
@@ -90,7 +95,7 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if isSignedIn();
       allow update: if isServer() || isAdmin();
     }
@@ -136,6 +141,13 @@ service cloud.firestore {
       allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if isSignedIn();
       allow update: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.targetUid == request.auth.uid);
+      allow create: if true; 
+      allow update: if isAdmin() || (isSignedIn() && resource.data.targetUid == request.auth.uid);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.targetUid == request.auth.uid);
     }
     
     match /usernames/{username} { allow read: if true; allow write: if isSignedIn() || isServer(); }
