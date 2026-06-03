@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -41,28 +42,28 @@ export default function LandingPageClient() {
   const auth = useAuth()
   const { user } = useUser(auth)
 
+  const [hasMounted, setHasMounted] = React.useState(false)
   const [searchName, setSearchName] = React.useState("")
   const [selectedCity, setSelectedCity] = React.useState("all")
   const [selectedCategory, setSelectedCategory] = React.useState("all")
-  const [radiusKm, setRadiusKm] = React.useState("50")
+  const [radiusKm, setRadiusKm] = React.useState("unlimited") // Alterado para ilimitado por padrão
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
   
   const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
 
   const [showLiveOnly, setShowLiveOnly] = React.useState(false)
-  const [showRegionOnly, setShowRegionOnly] = React.useState(false)
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
-    console.log("[Landing] Creating events query...");
+    console.log("[Landing] Criando consulta de eventos ativos...");
     return query(collection(db, "events"), where("status", "==", "Ativo"), limit(100))
   }, [db])
 
-  const { data: events, loading: eventsLoading, error: eventsError } = useCollection<any>(eventsQuery)
+  const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
 
   const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
@@ -78,33 +79,31 @@ export default function LandingPageClient() {
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-bg')?.imageUrl || "https://picsum.photos/seed/vibyhero-event/1920/1080"
 
   React.useEffect(() => {
+    setHasMounted(true);
     getCurrentLocation()
       .then(loc => {
-        console.log("[Debug] Localização GPS obtida:", loc);
+        console.log("[Debug] Localização GPS detectada:", loc);
         setUserLocation(loc);
       })
       .catch((err) => {
-        console.warn("[Debug] GPS negado ou falhou:", err.message);
+        console.warn("[Debug] GPS indisponível:", err.message);
       })
   }, [])
 
   const filteredAndSortedEvents = React.useMemo(() => {
     if (!events) return []
 
-    console.log(`[Debug] Filtrando ${events.length} eventos...`);
+    console.log(`[Debug] Iniciando filtragem de ${events.length} eventos (Raio: ${radiusKm}km)...`);
 
     let result = events.filter(e => {
-      // 1. Status
-      if (e.status !== 'Ativo') return false;
-
-      // 2. Busca por Nome
+      // 1. Busca por Nome
       if (searchName && !e.title?.toLowerCase().includes(searchName.toLowerCase())) return false;
 
-      // 3. Cidade e Categoria
+      // 2. Cidade e Categoria
       if (selectedCity !== 'all' && e.city !== selectedCity) return false;
       if (selectedCategory !== 'all' && e.categoryId !== selectedCategory) return false;
       
-      // 4. Parsing de Data (Melhorado)
+      // 3. Parsing de Data
       const parseDate = (val: any) => {
         if (!val) return null;
         if (val.toDate) return val.toDate();
@@ -117,14 +116,7 @@ export default function LandingPageClient() {
 
       const now = new Date();
 
-      // 5. Filtro Inteligente: Acontecendo Agora ou em 1h
-      if (showLiveOnly) {
-        const startsInLessOneHour = (eventDate.getTime() - now.getTime()) <= 3600000 && (eventDate.getTime() - now.getTime()) > 0;
-        const isLive = now >= eventDate; // Simplificado para debugging
-        if (!isLive && !startsInLessOneHour) return false;
-      }
-
-      // 6. Filtro de Data
+      // 4. Filtro de Data
       let matchesDate = true;
       if (dateFilter !== 'all') {
         const today = startOfToday();
@@ -135,10 +127,14 @@ export default function LandingPageClient() {
       }
       if (!matchesDate) return false;
 
-      // 7. Filtro de Raio
+      // 5. Filtro de Raio (Causa do desaparecimento)
       if (userLocation && radiusKm !== 'unlimited' && e.latitude && e.longitude) {
         const dist = calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude });
-        if (dist > parseInt(radiusKm)) return false;
+        console.log(`[Debug] Evento "${e.title}" está a ${dist.toFixed(1)}km`);
+        if (dist > parseInt(radiusKm)) {
+          console.log(`[Debug] Ocultando "${e.title}" por distância (> ${radiusKm}km)`);
+          return false;
+        }
       }
 
       return true;
@@ -152,9 +148,9 @@ export default function LandingPageClient() {
       })
     })).sort((a, b) => b._score - a._score);
 
-    console.log(`[Debug] Exibindo ${final.length} eventos após filtros.`);
+    console.log(`[Debug] Filtragem concluída. Exibindo ${final.length} eventos.`);
     return final;
-  }, [events, searchName, selectedCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate, showLiveOnly, showRegionOnly])
+  }, [events, searchName, selectedCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
 
   const interleavedContent = React.useMemo(() => {
     if (!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) return []
@@ -237,49 +233,56 @@ export default function LandingPageClient() {
                     onChange={(e) => setSearchName(e.target.value)}
                   />
                 </div>
-                <div className="md:col-span-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("bg-white/5 border-white/10 h-14 w-full rounded-2xl text-white justify-start font-normal", !customDate && dateFilter === 'all' && "text-white/60")}>
-                        <CalendarIcon className="mr-2 h-4 w-4 text-secondary" />
-                        {dateFilter === 'today' ? "Hoje" : dateFilter === 'tomorrow' ? "Amanhã" : dateFilter === 'week' ? "Semana" : customDate ? format(customDate, "dd/MM") : "Quando?"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
-                      <div className="p-3 border-b grid grid-cols-3 gap-2">
-                          <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>Hoje</Button>
-                          <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('tomorrow'); setCustomDate(undefined); }}>Amanhã</Button>
-                          <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('week'); setCustomDate(undefined); }}>Semana</Button>
-                      </div>
-                      <Calendar mode="single" selected={customDate} onSelect={(d) => { if(d) { setCustomDate(d); setDateFilter('custom'); } }} locale={ptBR} />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="md:col-span-2">
-                  <Select value={selectedCity} onValueChange={setSelectedCity}>
-                    <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white">
-                        <MapPin className="w-4 h-4 text-secondary mr-2" />
-                        <SelectValue placeholder="Cidade" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas as cidades</SelectItem>
-                      {uniqueCities.map(city => <SelectItem key={city} value={city}>{city}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="md:col-span-2">
-                  <Select value={radiusKm} onValueChange={setRadiusKm}>
-                    <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white">
-                        <Navigation className="w-4 h-4 text-secondary mr-2" />
-                        <SelectValue placeholder="Raio" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">Até 10km</SelectItem>
-                      <SelectItem value="50">Até 50km</SelectItem>
-                      <SelectItem value="unlimited">Ilimitado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                
+                {hasMounted && (
+                  <>
+                    <div className="md:col-span-2">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("bg-white/5 border-white/10 h-14 w-full rounded-2xl text-white justify-start font-normal", !customDate && dateFilter === 'all' && "text-white/60")}>
+                            <CalendarIcon className="mr-2 h-4 w-4 text-secondary" />
+                            {dateFilter === 'today' ? "Hoje" : dateFilter === 'tomorrow' ? "Amanhã" : dateFilter === 'week' ? "Semana" : customDate ? format(customDate, "dd/MM") : "Quando?"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
+                          <div className="p-3 border-b grid grid-cols-3 gap-2">
+                              <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>Hoje</Button>
+                              <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('tomorrow'); setCustomDate(undefined); }}>Amanhã</Button>
+                              <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('week'); setCustomDate(undefined); }}>Semana</Button>
+                          </div>
+                          <Calendar mode="single" selected={customDate} onSelect={(d) => { if(d) { setCustomDate(d); setDateFilter('custom'); } }} locale={ptBR} />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="md:col-span-2">
+                      <Select value={selectedCity} onValueChange={setSelectedCity}>
+                        <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white">
+                            <MapPin className="w-4 h-4 text-secondary mr-2" />
+                            <SelectValue placeholder="Cidade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas as cidades</SelectItem>
+                          {uniqueCities.map(city => <SelectItem key={city} value={city}>{city}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <Select value={radiusKm} onValueChange={setRadiusKm}>
+                        <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white">
+                            <Navigation className="w-4 h-4 text-secondary mr-2" />
+                            <SelectValue placeholder="Raio" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="10">Até 10km</SelectItem>
+                          <SelectItem value="50">Até 50km</SelectItem>
+                          <SelectItem value="100">Até 100km</SelectItem>
+                          <SelectItem value="unlimited">Ilimitado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+
                 <div className="md:col-span-2">
                   <Button className="w-full h-14 bg-secondary text-white font-black uppercase italic rounded-2xl shadow-xl">
                     Explorar
@@ -316,7 +319,7 @@ export default function LandingPageClient() {
                 <Inbox className="w-10 h-10 text-muted-foreground opacity-20" />
              </div>
              <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Nenhum evento localizado</h3>
-             <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSelectedCity("all"); setSelectedCategory("all"); setRadiusKm("50"); setDateFilter("all"); }}>Limpar Todos os Filtros</Button>
+             <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSelectedCity("all"); setSelectedCategory("all"); setRadiusKm("unlimited"); setDateFilter("all"); }}>Limpar Todos os Filtros</Button>
           </div>
         )}
       </section>
