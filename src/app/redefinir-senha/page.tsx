@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -9,12 +8,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { ArrowLeft, Loader2, KeyRound, Mail, Send, CheckCircle2, ShieldCheck, Lock } from "lucide-react"
+import { ArrowLeft, Loader2, KeyRound, Mail, ShieldCheck, Lock, CheckCircle2 } from "lucide-react"
 import Link from "next/link"
-import Footer from "@/components/layout/Footer"
 import { useRouter } from "next/navigation"
 import { requestPasswordRecovery, verifyRecoveryCode, resetPasswordWithCode } from "@/app/actions/password-recovery"
 import { OTPInput } from "@/components/auth/OTPInput"
+import Footer from "@/components/layout/Footer"
 
 export default function RedefinirSenhaPage() {
   const router = useRouter()
@@ -44,10 +43,16 @@ export default function RedefinirSenhaPage() {
     try {
       const result = await requestPasswordRecovery(identifier)
       if (result.success) {
-        setRequestId(result.requestId!)
-        setMaskedEmail(result.maskedEmail!)
-        setStep(2)
-        toast({ title: "Código enviado!", description: "Verifique seu e-mail." })
+        if (result.requestId) {
+          setRequestId(result.requestId)
+          setMaskedEmail(result.maskedEmail || "")
+          setStep(2)
+          toast({ title: "Código enviado!", description: "Verifique seu e-mail." })
+        } else {
+          // Usuário não encontrado, mas mostramos mensagem de sucesso por segurança
+          setStep(2)
+          setMaskedEmail("seu e-mail cadastrado")
+        }
       } else {
         toast({ variant: "destructive", title: "Erro", description: result.error })
       }
@@ -64,6 +69,11 @@ export default function RedefinirSenhaPage() {
 
     setLoading(true)
     try {
+      if (!requestId) {
+        toast({ variant: "destructive", title: "Código Inválido", description: "O código informado não confere com nossos registros." })
+        setLoading(false)
+        return
+      }
       const result = await verifyRecoveryCode(requestId, otp)
       if (result.success) {
         setStep(3)
@@ -84,6 +94,11 @@ export default function RedefinirSenhaPage() {
       return
     }
 
+    if (newPassword.length < 6) {
+      toast({ variant: "destructive", title: "Senha Fraca", description: "A senha deve ter no mínimo 6 caracteres." })
+      return
+    }
+
     setLoading(true)
     try {
       const result = await resetPasswordWithCode(requestId, otp, newPassword)
@@ -101,7 +116,7 @@ export default function RedefinirSenhaPage() {
   }
 
   if (authLoading) {
-    return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
+    return <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
   }
 
   return (
@@ -115,7 +130,7 @@ export default function RedefinirSenhaPage() {
             <CardTitle className="text-3xl font-black italic uppercase tracking-tighter text-primary">
               {step === 1 ? "Recuperar Acesso" : step === 2 ? "Validar Código" : "Nova Senha"}
             </CardTitle>
-            <CardDescription className="px-6">
+            <CardDescription className="px-6 font-medium">
               {step === 1 ? "Informe seu e-mail ou username para receber o código." : 
                step === 2 ? `Digite o código enviado para ${maskedEmail}` : 
                "Crie uma nova senha segura para sua conta."}
@@ -131,11 +146,11 @@ export default function RedefinirSenhaPage() {
                     placeholder="Ex: joao@email.com" 
                     value={identifier} 
                     onChange={e => setIdentifier(e.target.value)}
-                    className="h-12 rounded-xl border-dashed border-secondary/30"
+                    className="h-12 rounded-xl border-dashed border-secondary/30 focus-visible:ring-secondary/30"
                     required
                   />
                 </div>
-                <Button type="submit" disabled={loading} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                <Button type="submit" disabled={loading} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic hover:scale-[1.02] transition-transform">
                   {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Enviar Código"}
                 </Button>
               </form>
@@ -148,8 +163,8 @@ export default function RedefinirSenhaPage() {
                   <Button type="submit" disabled={loading || otp.length < 6} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
                     {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Validar Código"}
                   </Button>
-                  <Button variant="link" type="button" onClick={() => setStep(1)} className="text-[10px] font-black uppercase text-muted-foreground">
-                    Não recebi o código
+                  <Button variant="link" type="button" onClick={() => setStep(1)} className="text-[10px] font-black uppercase text-muted-foreground hover:text-primary transition-colors">
+                    Não recebi o código / Voltar
                   </Button>
                 </div>
               </form>
@@ -159,12 +174,12 @@ export default function RedefinirSenhaPage() {
               <form onSubmit={handleStep3} className="space-y-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Nova Senha</Label>
-                    <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="h-12 rounded-xl" required />
+                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Nova Senha</Label>
+                    <Input type="password" placeholder="••••••••" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="h-12 rounded-xl" required />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Confirmar Nova Senha</Label>
-                    <Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="h-12 rounded-xl" required />
+                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Confirmar Nova Senha</Label>
+                    <Input type="password" placeholder="••••••••" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="h-12 rounded-xl" required />
                   </div>
                 </div>
                 <Button type="submit" disabled={loading} className="w-full bg-primary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
@@ -175,7 +190,7 @@ export default function RedefinirSenhaPage() {
           </CardContent>
 
           <CardFooter className="flex justify-center border-t border-border py-6 bg-muted/20">
-            <Link href="/login" className="text-xs font-bold text-muted-foreground hover:text-primary flex items-center gap-2">
+            <Link href="/login" className="text-xs font-bold text-muted-foreground hover:text-primary flex items-center gap-2 transition-colors">
               <ArrowLeft className="w-4 h-4" /> Voltar ao Login
             </Link>
           </CardFooter>

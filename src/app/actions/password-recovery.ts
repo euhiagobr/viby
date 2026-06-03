@@ -1,7 +1,20 @@
-
 'use server';
 
-import { collection, query, where, getDocs, limit, getFirestore, addDoc, serverTimestamp, doc, updateDoc, Timestamp, getDoc as firestoreGetDoc } from 'firebase/firestore';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  limit, 
+  getFirestore, 
+  addDoc, 
+  serverTimestamp, 
+  doc, 
+  updateDoc, 
+  Timestamp, 
+  getDoc as firestoreGetDoc,
+  writeBatch
+} from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import { maskEmail } from '@/lib/crypto-utils';
@@ -9,7 +22,8 @@ import { sendPasswordResetLinkEmail } from './email';
 import { getAdminAuth } from '@/lib/firebase/admin';
 
 /**
- * @fileOverview Recuperação de senha utilizando código numérico (OTP) e Admin SDK.
+ * @fileOverview Ações de Recuperação de Senha por Código OTP.
+ * Utiliza Admin SDK apenas para atualização final da senha.
  */
 
 async function getDb() {
@@ -18,7 +32,7 @@ async function getDb() {
 }
 
 /**
- * Solicita a recuperação de senha gerando um código OTP.
+ * Inicia o processo de recuperação enviando um código OTP de 6 dígitos.
  */
 export async function requestPasswordRecovery(identifier: string) {
   try {
@@ -34,24 +48,40 @@ export async function requestPasswordRecovery(identifier: string) {
       searchValue = inputClean;
     }
 
+    // Busca usuário
     const q = query(collection(db, "users"), where(searchField, "==", searchValue), limit(1));
     const userSnap = await getDocs(q);
     
+    // REGRA DE SEGURANÇA: Retorna sucesso genérico mesmo se não existir
     if (userSnap.empty) {
-      return { success: false, error: 'Usuário não localizado.' }; 
+      return { success: true, maskedEmail: "seu e-mail" }; 
     }
     
     const userData = userSnap.docs[0].data();
     const targetEmail = userData.email;
-    const userName = userData.name || userData.displayName || "Usuário";
+    const userId = userSnap.docs[0].id;
 
+    // LIMITE DE SOLICITAÇÃO: Máximo 3 por hora
+    const oneHourAgo = new Date();
+    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+    const rateQ = query(
+      collection(db, "password_reset_codes"), 
+      where("userId", "==", userId),
+      where("createdAt", ">", Timestamp.fromDate(oneHourAgo))
+    );
+    const rateSnap = await getDocs(rateQ);
+    if (rateSnap.size >= 3) {
+      return { success: false, error: "Muitas solicitações. Tente novamente em uma hora." };
+    }
+
+    // Geração do código
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 1);
+    expiresAt.setMinutes(expiresAt.getMinutes() + 15);
 
     const resetRef = await addDoc(collection(db, "password_reset_codes"), {
       email: targetEmail,
-      userId: userSnap.docs[0].id,
+      userId: userId,
       code: otpCode,
       createdAt: serverTimestamp(),
       expiresAt: Timestamp.fromDate(expiresAt),
@@ -61,7 +91,7 @@ export async function requestPasswordRecovery(identifier: string) {
 
     await sendPasswordResetLinkEmail({
       to: targetEmail,
-      userName: userName,
+      userName: userData.name || userData.displayName || "Usuário",
       otpCode: otpCode
     });
 
@@ -77,7 +107,7 @@ export async function requestPasswordRecovery(identifier: string) {
 }
 
 /**
- * Verifica se o código OTP informado é válido.
+ * Valida o código informado pelo usuário.
  */
 export async function verifyRecoveryCode(requestId: string, code: string) {
   try {
@@ -93,6 +123,10 @@ export async function verifyRecoveryCode(requestId: string, code: string) {
 
     if (data.used) return { success: false, error: "Este código já foi utilizado." };
     if (now > expiresAt) return { success: false, error: "Este código expirou." };
+    
+    // LIMITE DE TENTATIVAS: 10 validações por código
+    if ((data.attempts || 0) >= 10) return { success: false, error: "Limite de tentativas excedido." };
+
     if (data.code !== code) {
       await updateDoc(resetRef, { attempts: (data.attempts || 0) + 1 });
       return { success: false, error: "Código incorreto." };
@@ -105,7 +139,7 @@ export async function verifyRecoveryCode(requestId: string, code: string) {
 }
 
 /**
- * Redefine a senha utilizando o Admin SDK para atualizar o Firebase Auth.
+ * Finaliza a redefinição atualizando a senha no Auth via Admin SDK.
  */
 export async function resetPasswordWithCode(requestId: string, code: string, password: string) {
   try {
@@ -116,32 +150,37 @@ export async function resetPasswordWithCode(requestId: string, code: string, pas
     if (!resetSnap.exists()) return { success: false, error: "Sessão expirada." };
     const resetData = resetSnap.data();
 
+    // Verificação de segurança final
     if (resetData.code !== code || resetData.used) {
       return { success: false, error: "Código inválido ou já utilizado." };
     }
 
     const userId = resetData.userId;
-    if (!userId) {
-       return { success: false, error: "Dados do usuário corrompidos." };
-    }
-
-    // 1. Atualiza a senha no Firebase Auth via Admin SDK
-    const adminAuth = getAdminAuth();
-    console.log(`[Admin Auth] Redefinindo senha para UID: ${userId}`);
     
+    // 1. Atualização no Firebase Auth via Admin SDK
+    const adminAuth = getAdminAuth();
     await adminAuth.updateUser(userId, {
       password: password
     });
 
-    // 2. Marca código como usado no Firestore
-    await updateDoc(resetRef, { 
-      used: true, 
-      usedAt: serverTimestamp() 
+    // 2. Invalidação de todos os códigos do usuário
+    const batch = writeBatch(db);
+    const allCodesQ = query(collection(db, "password_reset_codes"), where("userId", "==", userId), where("used", "==", false));
+    const allCodesSnap = await getDocs(allCodesQ);
+    
+    allCodesSnap.forEach(d => {
+      batch.update(d.ref, { 
+        used: true, 
+        usedAt: serverTimestamp(),
+        usedByRequestId: requestId 
+      });
     });
+
+    await batch.commit();
 
     return { success: true };
   } catch (error: any) {
-    console.error("[Admin Auth Reset Error Details]:", error);
-    return { success: false, error: `Falha técnica ao atualizar senha: ${error.message || 'Erro desconhecido'}` };
+    console.error("[Reset Password Final Error]:", error);
+    return { success: false, error: `Falha ao atualizar senha: ${error.message}` };
   }
 }
