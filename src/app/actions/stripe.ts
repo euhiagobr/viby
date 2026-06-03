@@ -170,6 +170,7 @@ export async function createAdBalanceTopUpSession(data: {
   orgUsername: string;
   orgName: string;
   userEmail: string;
+  userId: string;
   baseAmount: number;
   finalBalance: number;
   totalToPay: number;
@@ -205,6 +206,7 @@ export async function createAdBalanceTopUpSession(data: {
         type: 'ad_topup',
         orgId: data.orgId,
         orgUsername: data.orgUsername,
+        userId: data.userId,
         baseAmount: data.baseAmount.toString(),
         finalBalance: data.finalBalance.toString(),
         totalPaid: data.totalToPay.toString(),
@@ -236,6 +238,7 @@ export async function finalizeAdTopUpSession(sessionId: string) {
     const finalBalance = parseFloat(metadata.finalBalance);
     const totalPaid = parseFloat(metadata.totalPaid);
     const orgId = metadata.orgId;
+    const userId = metadata.userId;
 
     return await runTransaction(db, async (transaction) => {
       const orgRef = doc(db, "organizations", orgId);
@@ -257,6 +260,7 @@ export async function finalizeAdTopUpSession(sessionId: string) {
       const txRef = doc(collection(db, "organizations", orgId, "transactions"));
       transaction.set(txRef, {
         type: 'ad_topup',
+        userId: userId,
         amount: finalBalance,
         totalCharged: totalPaid,
         couponCode: metadata.couponCode || null,

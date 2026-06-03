@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { doc, getFirestore, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, limit, increment } from 'firebase/firestore';
+import { doc, getFirestore, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, limit, increment, addDoc } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 
@@ -54,22 +54,34 @@ export async function POST(req: Request) {
         // Trata recargas de Ad Balance
         if (session.metadata?.type === 'ad_topup') {
           const orgId = session.metadata.orgId;
+          const userId = session.metadata.userId;
           const amount = parseFloat(session.metadata.baseAmount);
+          const finalBalance = parseFloat(session.metadata.finalBalance);
+          const totalPaid = parseFloat(session.metadata.totalPaid);
           const orgRef = doc(db, 'organizations', orgId);
           
-          await updateDoc(orgRef, {
-            adBalance: increment(amount),
-            updatedAt: serverTimestamp()
-          });
+          // Verificação de duplicidade por session ID antes de gravar
+          const txQ = query(collection(db, 'organizations', orgId, 'transactions'), where('stripeSessionId', '==', session.id), limit(1));
+          const txSnap = await getDocs(txQ);
+          
+          if (txSnap.empty) {
+            await updateDoc(orgRef, {
+              adBalance: increment(finalBalance),
+              updatedAt: serverTimestamp()
+            });
 
-          await addDoc(collection(db, 'organizations', orgId, 'transactions'), {
-            type: 'ad_topup',
-            amount,
-            status: 'completed',
-            stripeSessionId: session.id,
-            description: 'Recarga de Saldo Ads (Webhook)',
-            createdAt: serverTimestamp()
-          });
+            await addDoc(collection(db, 'organizations', orgId, 'transactions'), {
+              type: 'ad_topup',
+              userId: userId,
+              amount: finalBalance,
+              totalCharged: totalPaid,
+              couponCode: session.metadata.couponCode || null,
+              status: 'completed',
+              stripeSessionId: session.id,
+              description: `Recarga de Saldo Ads (Webhook)${session.metadata.couponCode ? ` (Cupom: ${session.metadata.couponCode})` : ''}`,
+              createdAt: serverTimestamp()
+            });
+          }
         }
         break;
       }

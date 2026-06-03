@@ -147,9 +147,9 @@ service cloud.firestore {
     }
 
     match /support_tickets/{id} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
       allow create: if isSignedIn();
-      allow update: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
     }
 
     match /notifications/{notifId} {
@@ -167,5 +167,10 @@ service cloud.firestore {
     match /wallets/{uid} { allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin()); allow write: if isServer() || isAdmin(); }
     match /wallet_transactions/{id} { allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin()); allow write: if isServer() || isAdmin(); }
     match /payout_requests/{id} { allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin()); allow write: if isSignedIn() || isServer() || isAdmin(); }
+
+    // --- REGRAS DE COLLECTION GROUP (Consultas Globais) ---
+    match /{path=**}/transactions/{txId} {
+      allow read: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+    }
   }
 }
