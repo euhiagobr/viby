@@ -5,7 +5,8 @@ import {
   collection, 
   addDoc, 
   updateDoc, 
-  getDoc
+  getDoc,
+  serverTimestamp
 } from "firebase/firestore";
 import { db as staticDb } from "@/firebase/database";
 import { createCheckoutSession } from "@/app/actions/stripe";
@@ -63,7 +64,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   }
 
   // 2. FLUXO PAGO (Stripe Connect)
-  // O ticketCode será gerado apenas na finalização do pagamento (Server Side)
   const orderData = {
     userId: user.uid,
     userEmail: user.email,

@@ -156,7 +156,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 </div>
              </div>
 
-             {/* DESCRIÇÃO DO EVENTO - AGORA NO TOPO PARA NARRATIVA */}
              <Card className="border-none shadow-sm rounded-[2rem] bg-white p-10">
                 <h3 className="text-xl font-black uppercase italic tracking-tighter mb-8 flex items-center gap-3 text-primary"><ShieldCheck className="w-5 h-5 text-secondary" /> Informações do Evento</h3>
                 <div className="space-y-8">
@@ -165,7 +164,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 </div>
              </Card>
 
-             {/* SELETOR DE DATAS PARA EVENTOS RECORRENTES */}
              {event.isRecurring && (
                <section className="space-y-6 animate-in slide-in-from-top-4 duration-500">
                   <div className="flex items-center gap-3 px-2">
@@ -208,23 +206,11 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                             </div>
                          </button>
                        ))}
-                       {occurrences.length > 6 && (
-                         <Button variant="ghost" asChild className="h-auto p-6 rounded-[2rem] border-2 border-dashed border-border/60 flex flex-col gap-2 uppercase font-black italic hover:bg-muted/50">
-                            <Link href={`/recorrente/serie/${event.id}`}>
-                               <Plus className="w-6 h-6 text-secondary" /> Ver Toda a Agenda
-                            </Link>
-                         </Button>
-                       )}
                     </div>
                   ) : (
                     <div className="p-8 bg-muted/20 rounded-[2rem] border-2 border-dashed flex flex-col items-center gap-3 text-center">
                        <CalendarX className="w-8 h-8 text-muted-foreground opacity-30" />
                        <p className="text-xs font-bold text-muted-foreground uppercase">Nenhuma data disponível no momento</p>
-                       {isOwner && (
-                         <Button asChild size="sm" variant="outline" className="text-secondary font-black uppercase text-[10px] border-secondary/20 mt-2">
-                            <Link href={`/dashboard/evento/${event.id}/editar`}>Gerar Ocorrências na Agenda</Link>
-                         </Button>
-                       )}
                     </div>
                   )}
                </section>
@@ -272,21 +258,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                         orgSettings={organization} 
                       />
                   </div>
-                )}
-
-                {/* Exibição informativa de lotes se recorrente mas sem data selecionada */}
-                {event.isRecurring && !selectedOccurrence && event.batches?.length > 0 && (
-                   <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 opacity-60">
-                      <div className="space-y-4">
-                         <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2"><Ticket className="w-3 h-3" /> Valores Estimados</h4>
-                         {event.batches[0].ticketTypes?.map((t: any) => (
-                           <div key={t.id} className="flex justify-between items-center py-2 border-b border-dashed last:border-none">
-                              <span className="text-xs font-bold uppercase">{t.name}</span>
-                              <span className="font-black text-sm text-primary">{formatCurrency(t.price)}</span>
-                           </div>
-                         ))}
-                      </div>
-                   </Card>
                 )}
              </div>
 
