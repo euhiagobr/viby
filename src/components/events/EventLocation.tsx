@@ -31,6 +31,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { getCoordinatesFromAddress } from "@/lib/location-utils"
 
 interface Location {
   id: string
@@ -106,6 +107,24 @@ export function EventLocation({
     return parts.length > 0 ? parts.join(" • ") : "Local Confirmado";
   };
 
+  /**
+   * Lógica para buscar coordenadas automaticamente quando o endereço é preenchido.
+   */
+  const triggerGeocoding = async (index: number, updatedAddr: any) => {
+    const addressStr = `${updatedAddr.street}, ${updatedAddr.number}, ${updatedAddr.city}, ${updatedAddr.state}, Brasil`;
+    const coords = await getCoordinatesFromAddress(addressStr);
+    
+    if (coords) {
+      if (isMultiLocation) {
+        const newLocs = [...locations];
+        newLocs[index] = { ...updatedAddr, ...coords };
+        onLocationsChange?.(newLocs);
+      } else {
+        onChange?.({ ...updatedAddr, ...coords });
+      }
+    }
+  };
+
   const handleCepBlur = async (index: number) => {
     const target = isMultiLocation ? locations[index] : { ...address };
     const cep = target.cep?.replace(/\D/g, "");
@@ -126,13 +145,8 @@ export function EventLocation({
           state: data.uf || target.state
         };
 
-        if (isMultiLocation) {
-          const newLocs = [...locations];
-          newLocs[index] = updated as Location;
-          onLocationsChange?.(newLocs);
-        } else {
-          onChange?.(updated);
-        }
+        // Após preencher a rua via CEP, tenta buscar a coordenada
+        await triggerGeocoding(index, updated);
       }
     } catch (e) {
       console.warn("Erro ao buscar CEP");
@@ -155,8 +169,18 @@ export function EventLocation({
       const newLocs = [...locations];
       newLocs[index] = { ...newLocs[index], [field]: finalValue };
       onLocationsChange?.(newLocs);
+      
+      // Se mudar o número, tenta re-geocodificar para maior precisão
+      if (field === 'number' && finalValue) {
+        triggerGeocoding(index, newLocs[index]);
+      }
     } else {
-      onChange?.({ ...address, [field]: finalValue });
+      const updated = { ...address, [field]: finalValue };
+      onChange?.(updated);
+      
+      if (field === 'number' && finalValue) {
+        triggerGeocoding(index, updated);
+      }
     }
   };
 
@@ -455,8 +479,8 @@ export function EventLocation({
       <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
          <Zap className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
          <div className="space-y-1">
-            <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Mapa Inteligente Ativo</h4>
-            <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed uppercase">
+            <h4 className="font-black uppercase text-secondary">Mapa Inteligente Ativo</h4>
+            <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed">
                O Viby exibirá para o público o local correto baseando-se no horário da programação. Certifique-se de que os horários de cada parada estão corretos.
             </p>
          </div>

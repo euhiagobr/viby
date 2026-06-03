@@ -32,6 +32,8 @@ import { getAgeRatingConfig } from "@/lib/age-rating"
 import { generateOccurrences } from "@/services/recurring-event-service"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
+const DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fcapa.jpeg?alt=media";
+
 export default function EditarEventoPage() {
   const params = useParams()
   const router = useRouter()
@@ -76,7 +78,7 @@ export default function EditarEventoPage() {
     if (event) {
       setFormData({
         title: event.title || "",
-        image: event.image || "",
+        image: event.image || DEFAULT_EVENT_IMAGE,
         type: event.type || "interno",
         externalUrl: event.externalUrl || "",
         categoryId: event.categoryId || "",

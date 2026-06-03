@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Utilitários para geolocalização e cálculo de distância.
  */
@@ -52,4 +51,32 @@ export async function getCurrentLocation(): Promise<Coordinates> {
       { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
     );
   });
+}
+
+/**
+ * Busca coordenadas (Lat/Lng) baseado em um endereço textual usando OpenStreetMap (Nominatim).
+ */
+export async function getCoordinatesFromAddress(address: string): Promise<Coordinates | null> {
+  if (!address) return null;
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'VibyClub/1.0'
+      }
+    });
+    const data = await response.json();
+    
+    if (data && data.length > 0) {
+      return {
+        latitude: parseFloat(data[0].lat),
+        longitude: parseFloat(data[0].lon)
+      };
+    }
+    return null;
+  } catch (e) {
+    console.warn("[Geocoding] Falha ao resolver endereço:", e);
+    return null;
+  }
 }

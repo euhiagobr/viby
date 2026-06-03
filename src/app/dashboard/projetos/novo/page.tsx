@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -30,6 +29,8 @@ import { Label } from "@/components/ui/label"
 import { getAgeRatingConfig } from "@/lib/age-rating"
 import { generateOccurrences } from "@/services/recurring-event-service"
 
+const DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fcapa.jpeg?alt=media";
+
 export default function NovoEventoPage() {
   const router = useRouter()
   const db = useFirestore()
@@ -47,7 +48,7 @@ export default function NovoEventoPage() {
   
   const [formData, setFormData] = useState({
     title: "",
-    image: "",
+    image: DEFAULT_EVENT_IMAGE,
     type: "interno",
     externalUrl: "",
     categoryId: "",
