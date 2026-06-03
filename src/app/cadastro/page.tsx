@@ -75,11 +75,11 @@ function CadastroContent() {
   const siteName = settings?.siteName || "Viby"
 
   useEffect(() => {
-    if (isInitialized && user) {
-      const isComplete = profile?.profileComplete || (profile?.username && profile?.cpf);
-      if (!isComplete && profile) {
+    if (isInitialized && user && profile) {
+      const isComplete = profile.profileComplete || (profile.username && profile.cpf);
+      if (!isComplete) {
         router.replace("/onboarding");
-      } else if (isComplete) {
+      } else {
         router.replace("/dashboard");
       }
     }
@@ -255,7 +255,7 @@ function CadastroContent() {
     }
   }
 
-  if (authLoading || (user && !profile)) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30">
         <Loader2 className="w-10 h-10 animate-spin text-secondary" />

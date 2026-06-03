@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -34,12 +33,12 @@ function LoginContent() {
   const siteName = settings?.siteName || "Viby"
 
   useEffect(() => {
-    if (isInitialized && user) {
-      const isComplete = profile?.profileComplete || (profile?.username && profile?.cpf);
+    if (isInitialized && user && profile) {
+      const isComplete = profile.profileComplete || (profile.username && profile.cpf);
       
-      if (!isComplete && profile) {
+      if (!isComplete) {
         router.replace("/onboarding");
-      } else if (isComplete) {
+      } else {
         const redirect = searchParams.get('redirect') || "/dashboard";
         router.replace(redirect);
       }
@@ -84,7 +83,7 @@ function LoginContent() {
     }
   }
 
-  if (authLoading || (user && !profile)) {
+  if (authLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-muted/30"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
   }
 
@@ -107,7 +106,7 @@ function LoginContent() {
       </nav>
 
       <div className="flex-1 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md border-none shadow-xl rounded-[2.5rem] overflow-hidden bg-white">
+        <Card className="w-full max-w-md border-none shadow-xl rounded-[2rem] overflow-hidden bg-white">
           <CardHeader className="space-y-1 flex flex-col items-center pt-10 pb-6">
             <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-secondary/20">
               <KeyRound className="text-white w-7 h-7" />

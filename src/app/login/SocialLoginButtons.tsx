@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { useAuth, useFirestore } from "@/firebase";
+import { useAuth, useUser, useFirestore } from "@/firebase";
 import { startSocialLogin, handleSocialLoginResult, authConfig } from "@/services/auth-service";
 import { Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -13,7 +13,7 @@ export function SocialLoginButtons() {
   const db = useFirestore();
   const router = useRouter();
   const [loading, setLoading] = React.useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = React.useState(true);
+  const [isProcessing, setIsProcessing] = React.useState(false);
 
   // Efeito para capturar o resultado do redirecionamento ao montar o componente
   React.useEffect(() => {
@@ -21,13 +21,16 @@ export function SocialLoginButtons() {
 
     const checkRedirect = async () => {
       try {
+        // Tentamos capturar o resultado. Se não houver (null), a página segue normal.
         const result = await handleSocialLoginResult(auth, db);
         if (result) {
+          setIsProcessing(true); // Mostra carregamento apenas se detectou um evento de login
           toast({ 
             title: result.isNew ? "Bem-vindo à Viby!" : "Bem-vindo de volta!",
             description: "Autenticação social concluída."
           });
-          router.push("/dashboard");
+          // Redirecionamento forçado imediato
+          router.replace("/dashboard");
         }
       } catch (error: any) {
         console.error("[Social Redirect Error]", error);
@@ -50,7 +53,6 @@ export function SocialLoginButtons() {
     if (!auth) return;
     setLoading(provider);
     try {
-      // Inicia o redirecionamento. A página será recarregada.
       await startSocialLogin(auth, provider);
     } catch (error: any) {
       toast({ 
@@ -64,8 +66,9 @@ export function SocialLoginButtons() {
 
   if (isProcessing) {
     return (
-      <div className="flex justify-center py-4">
-        <Loader2 className="w-6 h-6 animate-spin text-secondary opacity-40" />
+      <div className="flex flex-col items-center justify-center py-6 gap-3 animate-in fade-in">
+        <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Finalizando conexão...</p>
       </div>
     );
   }

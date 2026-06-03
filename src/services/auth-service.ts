@@ -10,13 +10,11 @@ import {
   Auth,
   browserPopupRedirectResolver,
   indexedDBLocalPersistence,
-  setPersistence,
-  UserCredential
+  setPersistence
 } from "firebase/auth";
 import { 
   doc, 
   getDoc, 
-  setDoc, 
   serverTimestamp, 
   Firestore,
   runTransaction,
@@ -32,7 +30,6 @@ export const authConfig = {
 
 /**
  * Inicia o fluxo de login social via Redirecionamento.
- * Necessário para ambientes onde o Popup é bloqueado por políticas de COOP.
  */
 export async function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook' | 'x') {
   let provider;
