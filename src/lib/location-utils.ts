@@ -55,28 +55,42 @@ export async function getCurrentLocation(): Promise<Coordinates> {
 
 /**
  * Busca coordenadas (Lat/Lng) baseado em um endereço textual usando OpenStreetMap (Nominatim).
+ * Implementa estratégia de fallback caso o endereço específico falhe.
  */
-export async function getCoordinatesFromAddress(address: string): Promise<Coordinates | null> {
+export async function getCoordinatesFromAddress(address: string, fallbackCep?: string): Promise<Coordinates | null> {
   if (!address) return null;
-  try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
-    const response = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'VibyClub/1.0'
+
+  const tryFetch = async (query: string) => {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'VibyClub/1.0'
+        }
+      });
+      const data = await response.json();
+      if (data && data.length > 0) {
+        return {
+          latitude: parseFloat(data[0].lat),
+          longitude: parseFloat(data[0].lon)
+        };
       }
-    });
-    const data = await response.json();
-    
-    if (data && data.length > 0) {
-      return {
-        latitude: parseFloat(data[0].lat),
-        longitude: parseFloat(data[0].lon)
-      };
+      return null;
+    } catch (e) {
+      console.warn(`[Geocoding] Falha na busca para: ${query}`, e);
+      return null;
     }
-    return null;
-  } catch (e) {
-    console.warn("[Geocoding] Falha ao resolver endereço:", e);
-    return null;
+  };
+
+  // Tenta 1: Endereço completo (Mais preciso)
+  let result = await tryFetch(address);
+
+  // Tenta 2: Caso falhe e tenhamos o CEP, busca pelo CEP (Menos preciso, mas evita PIN parado)
+  if (!result && fallbackCep) {
+    console.log(`[Geocoding] Fallback para CEP: ${fallbackCep}`);
+    result = await tryFetch(fallbackCep);
   }
+
+  return result;
 }

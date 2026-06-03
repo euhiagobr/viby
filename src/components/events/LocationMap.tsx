@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -29,11 +28,14 @@ function ChangeView({ latitude, longitude }: { latitude: number; longitude: numb
   
   useEffect(() => {
     if (latitude && longitude) {
-      map.setView([latitude, longitude], map.getZoom());
-      // Forçar atualização do tamanho do container para evitar tiles cinzas
-      setTimeout(() => {
+      // Forçamos a centralização com animação suave se o ponto existir
+      map.setView([latitude, longitude], map.getZoom(), { animate: true });
+      
+      // Essencial: Invalida o tamanho após o render para corrigir tiles cinzas
+      const timer = setTimeout(() => {
         map.invalidateSize();
-      }, 100);
+      }, 150);
+      return () => clearTimeout(timer);
     }
   }, [latitude, longitude, map]);
 
@@ -43,6 +45,16 @@ function ChangeView({ latitude, longitude }: { latitude: number; longitude: numb
 // Componente para o Marcador que reage a props e permite arrasto
 function DraggableMarker({ latitude, longitude, onChange, interactive }: LocationMapProps) {
   const markerRef = useRef<L.Marker>(null);
+
+  // Efeito para mover o marcador programaticamente caso a prop mude externamente
+  useEffect(() => {
+    if (markerRef.current) {
+      const currentPos = markerRef.current.getLatLng();
+      if (currentPos.lat !== latitude || currentPos.lng !== longitude) {
+        markerRef.current.setLatLng([latitude, longitude]);
+      }
+    }
+  }, [latitude, longitude]);
 
   const eventHandlers = React.useMemo(
     () => ({
@@ -82,7 +94,7 @@ export function LocationMap({ latitude, longitude, onChange, interactive = true 
     );
   }
 
-  // Garantir que temos valores válidos
+  // Garantir que temos valores válidos ou fallback para centro de SP
   const lat = Number(latitude) || -23.55052;
   const lng = Number(longitude) || -46.633308;
 
@@ -93,6 +105,7 @@ export function LocationMap({ latitude, longitude, onChange, interactive = true 
         zoom={15} 
         scrollWheelZoom={false}
         className="w-full h-full"
+        key={`${lat}-${lng}`} // Key dinâmica para forçar re-render parcial se necessário
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'

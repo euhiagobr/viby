@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -53,7 +52,7 @@ interface Location {
 }
 
 interface EventLocationProps {
-  address: any // Legacy
+  address: any 
   locations?: Location[]
   isMultiLocation?: boolean
   onChange?: (address: any) => void
@@ -109,16 +108,16 @@ export function EventLocation({
   };
 
   /**
-   * Lógica de Geocoding aprimorada para reagir a CEP e Número
+   * Lógica de Geocoding robusta com fallback.
    */
   const triggerGeocoding = async (index: number, updatedAddr: any) => {
     if (!updatedAddr.street || !updatedAddr.city) return;
 
-    // String de busca completa para Nominatim
-    const searchString = `${updatedAddr.title ? updatedAddr.title + ', ' : ''}${updatedAddr.street}, ${updatedAddr.number || ''}, ${updatedAddr.neighborhood}, ${updatedAddr.city}, ${updatedAddr.state}, Brasil`;
+    // String de busca ideal: Logradouro, Número, Cidade, Estado, Brasil
+    const searchString = `${updatedAddr.street}, ${updatedAddr.number || ''}, ${updatedAddr.city}, ${updatedAddr.state}, Brasil`;
     
-    console.log(`[Geocoding] Buscando coordenadas para: ${searchString}`);
-    const coords = await getCoordinatesFromAddress(searchString);
+    setIsSearching(isMultiLocation ? updatedAddr.id : 'legacy');
+    const coords = await getCoordinatesFromAddress(searchString, updatedAddr.cep);
     
     if (coords) {
       if (isMultiLocation) {
@@ -129,6 +128,7 @@ export function EventLocation({
         onChange?.({ ...updatedAddr, ...coords });
       }
     }
+    setIsSearching(null);
   };
 
   const handleCepBlur = async (index: number) => {
@@ -151,7 +151,7 @@ export function EventLocation({
           state: data.uf || target.state
         };
 
-        // Salva os dados textuais primeiro
+        // Atualiza campos de texto
         if (isMultiLocation) {
           const newLocs = [...locations];
           newLocs[index] = updated;
@@ -160,7 +160,7 @@ export function EventLocation({
           onChange?.(updated);
         }
 
-        // Tenta buscar o ponto no mapa
+        // Dispara a busca do mapa imediatamente
         await triggerGeocoding(index, updated);
       }
     } catch (e) {
@@ -183,15 +183,15 @@ export function EventLocation({
       newLocs[index] = { ...newLocs[index], [field]: finalValue };
       onLocationsChange?.(newLocs);
       
-      // Se mudar o número, tenta re-geocodificar para maior precisão
-      if (field === 'number' && finalValue && newLocs[index].street) {
+      // Ao mudar número ou logradouro, tenta atualizar mapa
+      if ((field === 'number' || field === 'street') && finalValue) {
         triggerGeocoding(index, newLocs[index]);
       }
     } else {
       const updated = { ...address, [field]: finalValue };
       onChange?.(updated);
       
-      if (field === 'number' && finalValue && updated.street) {
+      if ((field === 'number' || field === 'street') && finalValue) {
         triggerGeocoding(index, updated);
       }
     }
@@ -353,7 +353,7 @@ export function EventLocation({
                         placeholder="00000-000" 
                         className="rounded-xl h-11 pl-8" 
                       />
-                      <Search className={cn("absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30", isSearching === (isMulti ? currentLoc.id : 'legacy') && "animate-spin")} />
+                      <Search className={cn("absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30", isSearching === (isMulti ? currentLoc.id : 'legacy') && "animate-spin text-secondary opacity-100")} />
                     </div>
                  </div>
                  <div className="col-span-3 space-y-2">
@@ -436,7 +436,7 @@ export function EventLocation({
                  <div>
                     <h2 className="text-xl font-black uppercase italic tracking-tighter">Itinerário e Logística</h2>
                     <p className="text-xs font-medium text-muted-foreground">O evento possui mais de um local ou é itinerante?</p>
-                 </div>
+              </div>
               </div>
               <div className="flex items-center gap-4 bg-white px-6 py-3 rounded-2xl shadow-sm border border-border/40">
                  <TooltipProvider>
@@ -460,7 +460,7 @@ export function EventLocation({
                       <TooltipContent className="rounded-xl p-3 max-w-xs shadow-2xl border-none">
                          <p className="text-[10px] font-bold uppercase leading-relaxed">
                             Ative para eventos que mudam de lugar (ex: Trios elétricos, paradas, tours). 
-                            O público verá qual local é o atual baseando-se no horário.
+                            O público verá qual local é o outro baseando-se no horário.
                          </p>
                       </TooltipContent>
                     </Tooltip>
