@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Utilitários financeiros oficiais do Viby.
  * Implementa a regra única e centralizada para toda a plataforma.
