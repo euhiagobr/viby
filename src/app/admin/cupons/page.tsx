@@ -137,8 +137,13 @@ export default function AdminCuponsPage() {
 
         setUsageData(results.sort((a, b) => b.date.getTime() - a.date.getTime()));
       } catch (e: any) {
-        console.error(e);
-        toast({ variant: "destructive", title: "Erro ao carregar métricas", description: "Verifique os índices do Firestore." });
+        if (e.code === 'failed-precondition') {
+          console.error("ERRO DE ÍNDICE DETECTADO! Clique no link abaixo para criar o índice de grupo de coleções necessário:\n", e.message);
+          toast({ variant: "destructive", title: "Índice Necessário", description: "Verifique o console (F12) e clique no link para criar o índice do Firebase." });
+        } else {
+          console.error(e);
+          toast({ variant: "destructive", title: "Erro ao carregar métricas" });
+        }
       } finally {
         setLoadingMetrics(false);
       }

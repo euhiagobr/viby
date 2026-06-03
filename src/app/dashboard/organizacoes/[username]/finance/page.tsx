@@ -53,7 +53,7 @@ import { toast } from '@/hooks/use-toast';
 import { createAdBalanceTopUpSession, finalizeAdTopUpSession } from '@/app/actions/stripe';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/separator'; // Corrigido para import relativo ou alias correto se necessário, mantendo o padrão do projeto
 import Link from 'next/link';
 
 function OrganizationFinanceContent() {
@@ -163,9 +163,18 @@ function OrganizationFinanceContent() {
            where('couponCode', '==', data.code),
            where('status', '==', 'completed')
         );
-        const usagesSnap = await getDocs(usagesQuery);
-        if (usagesSnap.size >= data.maxUsesPerUser) {
-           throw new Error(`Você já atingiu o limite de ${data.maxUsesPerUser} uso(s) para este cupom.`);
+        
+        try {
+          const usagesSnap = await getDocs(usagesQuery);
+          if (usagesSnap.size >= data.maxUsesPerUser) {
+             throw new Error(`Você já atingiu o limite de ${data.maxUsesPerUser} uso(s) para este cupom.`);
+          }
+        } catch (idxError: any) {
+          if (idxError.code === 'failed-precondition') {
+             console.error("FALTANDO ÍNDICE PARA CUPONS! Clique no link abaixo para criar:\n", idxError.message);
+             throw new Error("Configuração técnica pendente. Verifique o console do navegador.");
+          }
+          throw idxError;
         }
       }
 
@@ -432,7 +441,7 @@ function OrganizationFinanceContent() {
 
 export default function OrganizationFinancePage() {
   return (
-    <React.Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>}>
+    <React.Suspense fallback={<div className="flex flex-col items-center justify-center py-32 gap-4"><Loader2 className="w-12 h-12 animate-spin text-secondary" /><p className="text-[10px] font-black uppercase tracking-widest animate-pulse text-muted-foreground">Carregando...</p></div>}>
       <OrganizationFinanceContent />
     </React.Suspense>
   );
