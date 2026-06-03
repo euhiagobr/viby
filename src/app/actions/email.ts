@@ -1,29 +1,15 @@
 'use server';
 
 import nodemailer from 'nodemailer';
-import { doc, getDoc, getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { firebaseConfig } from '@/firebase/config';
+import * as admin from 'firebase-admin';
+import { getAdminDb } from '@/lib/firebase/admin';
 
-/**
- * @fileOverview Serviço de e-mail SMTP auditado com branding dinâmico e ícones resilientes.
- */
-
-async function getDb() {
-  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  return getFirestore(app);
-}
-
-/**
- * Recupera as configurações de branding (Logo e Nome) do banco com fallbacks seguros.
- */
 async function getBranding() {
   try {
-    const db = await getDb();
-    const snap = await getDoc(doc(db, 'settings', 'site'));
+    const db = getAdminDb();
+    const snap = await db.collection('settings').doc('site').get();
     const data = snap.data();
     
-    // Logo padrão da Viby caso não haja uma configurada no admin
     const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Flogo_placeholder.png?alt=media";
     
     return {
@@ -41,10 +27,10 @@ async function getBranding() {
 }
 
 async function getTransporter() {
-  const db = await getDb();
-  const snap = await getDoc(doc(db, 'settings', 'email'));
+  const db = getAdminDb();
+  const snap = await db.collection('settings').doc('email').get();
   
-  if (!snap.exists()) {
+  if (!snap.exists) {
     throw new Error("Serviço de E-mail não configurado.");
   }
 
@@ -61,9 +47,6 @@ async function getTransporter() {
   });
 }
 
-/**
- * Registra uma cópia do e-mail para auditoria administrativa.
- */
 async function logSentEmail(data: {
   recipientEmail: string;
   recipientName: string;
@@ -73,19 +56,16 @@ async function logSentEmail(data: {
   sender: string;
 }) {
   try {
-    const db = await getDb();
-    await addDoc(collection(db, 'sent_emails'), {
+    const db = getAdminDb();
+    await db.collection('sent_emails').add({
       ...data,
-      timestamp: serverTimestamp()
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
   } catch (e) {
     console.warn("[Email Audit Log] Falha ao registrar cópia de segurança", e);
   }
 }
 
-/**
- * Template base para e-mails oficiais.
- */
 function getEmailTemplate(branding: any, content: string) {
   return `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; background-color: #f8fafc;">
@@ -109,7 +89,9 @@ export async function sendOTPRecoveryEmail(data: { to: string; userName: string;
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
 
     const content = `
       <h2 style="color: #2C52EE; font-style: italic; text-transform: uppercase; margin-bottom: 10px; font-weight: 900;">Recuperação de Acesso</h2>
@@ -153,7 +135,9 @@ export async function sendPasswordChangedNotificationEmail(data: {
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
 
     const content = `
       <div style="text-align: center; margin-bottom: 20px;">
@@ -203,7 +187,9 @@ export async function sendVerificationStatusEmail(data: {
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
 
     const isApproved = data.status === 'approved';
     const label = data.type === 'user' 
@@ -279,7 +265,9 @@ export async function sendTicketEmail(data: {
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
 
     const content = `
       <div style="text-align: center; margin-bottom: 20px;">
@@ -324,7 +312,9 @@ export async function sendWelcomeEmail(data: any) {
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
 
     const content = `
       <div style="text-align: center; margin-bottom: 20px;">
@@ -371,7 +361,9 @@ export async function resendLoggedEmail(data: {
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
 
     await transporter.sendMail({
       from: `"${branding.siteName} Club" <${smtpUser}>`,
@@ -388,7 +380,9 @@ export async function sendTeamInvitationEmail(data: { to: string; orgName: strin
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
 
     const content = `
       <div style="text-align: center; margin-bottom: 20px;">
@@ -434,7 +428,9 @@ export async function sendTeamInvitationStatusEmail(data: {
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
 
     const statusLabel = data.status === 'accepted' ? 'aceitou' : 'recusou';
     const content = `
@@ -475,7 +471,9 @@ export async function sendPayoutConfirmedEmail(data: {
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const smtpUser = (await getDoc(doc(await getDb(), 'settings', 'email'))).data()?.smtpUser;
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
 
     const content = `
       <div style="text-align: center; margin-bottom: 20px;">

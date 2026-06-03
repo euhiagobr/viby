@@ -1,28 +1,19 @@
-
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { doc, getFirestore, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, limit, increment, addDoc, writeBatch } from 'firebase/firestore';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { firebaseConfig } from '@/firebase/config';
-import { recordAuditLog } from '@/app/actions/audit';
-import { finalizeCheckoutSession } from '@/app/actions/stripe';
+import * as admin from 'firebase-admin';
+import { getAdminDb } from '@/lib/firebase/admin';
 
 export const dynamic = 'force-dynamic';
 
-async function getFirebaseDb() {
-  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  return getFirestore(app);
-}
-
-async function getStripeInstance(db: any) {
-  const snap = await getDoc(doc(db, 'settings', 'stripe'));
+async function getStripeInstance(db: admin.firestore.Firestore) {
+  const snap = await db.collection('settings').doc('stripe').get();
   const data = snap.data();
   if (!data?.secretKey) throw new Error("Stripe Secret Key not found.");
   return new Stripe(data.secretKey, { apiVersion: '2024-12-18.acacia' as any });
 }
 
 export async function POST(req: Request) {
-  const db = await getFirebaseDb();
+  const db = getAdminDb();
   const payload = await req.text();
   const sig = req.headers.get('stripe-signature')!;
 
@@ -30,7 +21,8 @@ export async function POST(req: Request) {
 
   try {
     const stripe = await getStripeInstance(db);
-    const stripeSettings = (await getDoc(doc(db, 'settings', 'stripe'))).data();
+    const stripeSettingsSnap = await db.collection('settings').doc('stripe').get();
+    const stripeSettings = stripeSettingsSnap.data();
     const webhookSecret = stripeSettings?.webhookSecret;
     
     event = webhookSecret 
@@ -42,90 +34,89 @@ export async function POST(req: Request) {
 
   try {
     switch (event.type) {
-      // CORREÇÃO CRÍTICA 01: Fulfillment centralizado no servidor
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         
-        if (session.metadata?.type === 'order_checkout') {
-          await finalizeCheckoutSession(session.id);
-          console.log(`[Webhook] Fulfillment concluded for order: ${session.metadata.orderId}`);
-        }
-        
-        // Recargas Ad Balance
-        if (session.metadata?.type === 'ad_topup') {
-          const orgId = session.metadata.orgId;
-          const finalBalance = parseFloat(session.metadata.finalBalance);
-          const txQ = query(collection(db, 'organizations', orgId, 'transactions'), where('stripeSessionId', '==', session.id), limit(1));
-          const txSnap = await getDocs(txQ);
+        if (session.metadata?.type === 'order_checkout' && session.metadata?.orderId) {
+          const orderId = session.metadata.orderId;
+          const orderRef = db.collection("orders").doc(orderId);
+          const orderSnap = await orderRef.get();
           
-          if (txSnap.empty) {
-            await updateDoc(doc(db, 'organizations', orgId), {
-              adBalance: increment(finalBalance),
-              updatedAt: serverTimestamp()
-            });
-            await addDoc(collection(db, 'organizations', orgId, 'transactions'), {
-              type: 'ad_topup',
-              amount: finalBalance,
-              status: 'completed',
-              stripeSessionId: session.id,
-              createdAt: serverTimestamp()
+          if (orderSnap.exists && orderSnap.data()?.status !== 'paid') {
+            await db.runTransaction(async (transaction) => {
+              const orderData = orderSnap.data()!;
+              const userId = session.metadata!.userId;
+              const items = orderData.items || [];
+
+              for (const item of items) {
+                const targetRef = item.occurrenceId 
+                  ? db.collection("recurring_occurrences").doc(item.occurrenceId) 
+                  : db.collection("events").doc(item.eventId);
+                
+                transaction.update(targetRef, { 
+                  ingressosVendidos: admin.firestore.FieldValue.increment(item.quantity),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+
+                for (let j = 0; j < item.quantity; j++) {
+                  const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+                  const regRef = db.collection("registrations").doc();
+                  
+                  transaction.set(regRef, {
+                    eventId: item.eventId,
+                    eventTitle: item.eventTitle,
+                    eventImage: item.eventImage || '',
+                    eventDate: item.eventDate,
+                    eventCity: item.eventCity,
+                    userId: userId,
+                    userName: orderData.userName,
+                    userEmail: orderData.userEmail,
+                    organizationId: item.organizationId,
+                    ticketBasePrice: item.price,
+                    price: item.financials?.customerFinalPrice || item.price,
+                    administrativeFeeAmount: item.financials?.administrativeFeeAmount || 0,
+                    producerFeeAmount: item.financials?.producerFeeAmount || 0,
+                    producerNetAmount: item.financials?.producerNetAmount || item.price,
+                    ticketTypeName: item.ticketTypeName,
+                    batchName: item.batchName,
+                    paymentStatus: "Pago",
+                    status: "active",
+                    ticketCode,
+                    stripeSessionId: session.id,
+                    orderId,
+                    confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    timestamp: admin.firestore.FieldValue.serverTimestamp()
+                  });
+                }
+              }
+              transaction.update(orderRef, { status: 'paid', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
             });
           }
         }
         break;
       }
 
-      // CORREÇÃO CRÍTICA 05: Sincronização de estornos externos
       case 'charge.refunded': {
         const charge = event.data.object as Stripe.Charge;
         const paymentIntentId = charge.payment_intent as string;
-        
         if (paymentIntentId) {
-          const regsQ = query(collection(db, "registrations"), where("paymentIntentId", "==", paymentIntentId));
-          const regsSnap = await getDocs(regsQ);
-          
-          if (!regsSnap.empty) {
-            const batch = writeBatch(db);
-            regsSnap.forEach(regDoc => {
-              const data = regDoc.data();
-              if (data.status !== 'refunded') {
-                batch.update(regDoc.ref, { 
-                  status: 'refunded', 
-                  paymentStatus: 'Estornado (Dashboard)',
-                  updatedAt: serverTimestamp() 
-                });
-                // Devolve capacidade
-                const targetRef = data.occurrenceId ? doc(db, "recurring_occurrences", data.occurrenceId) : doc(db, "events", data.eventId);
-                batch.update(targetRef, { ingressosVendidos: increment(-1) });
-              }
+          const regsSnap = await db.collection("registrations").where("paymentIntentId", "==", paymentIntentId).get();
+          const batch = db.batch();
+          regsSnap.forEach(regDoc => {
+            batch.update(regDoc.ref, { 
+              status: 'refunded', 
+              paymentStatus: 'Estornado (Stripe)',
+              updatedAt: admin.firestore.FieldValue.serverTimestamp() 
             });
-            await batch.commit();
-            console.log(`[Webhook] Synced external refund for PI: ${paymentIntentId}`);
-          }
-        }
-        break;
-      }
-
-      case 'account.updated': {
-        const account = event.data.object as Stripe.Account;
-        const orgId = account.metadata?.orgId;
-        if (orgId) {
-          const isApproved = account.charges_enabled && account.payouts_enabled;
-          await updateDoc(doc(db, 'organizations', orgId), {
-            stripeOnboardingComplete: account.details_submitted,
-            stripeChargesEnabled: account.charges_enabled,
-            stripePayoutsEnabled: account.payouts_enabled,
-            "payoutSettings.status": isApproved ? 'verified' : (account.details_submitted ? 'pending_admin' : 'none'),
-            updatedAt: serverTimestamp()
           });
+          await batch.commit();
         }
         break;
       }
     }
-
     return NextResponse.json({ received: true });
   } catch (error: any) {
-    console.error('[Stripe Webhook Processing Error]', error.message);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

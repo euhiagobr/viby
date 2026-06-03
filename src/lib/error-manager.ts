@@ -1,9 +1,7 @@
-import { db } from '@/firebase/database';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-
 /**
- * @fileOverview ErrorManager Isomórfico.
- * Removida a diretiva 'use client' para permitir chamadas do lado do servidor.
+ * @fileOverview Gerenciador de Erros do Sistema.
+ * Refatorado para ser seguro no cliente e no servidor (Next.js).
+ * Utiliza o Admin SDK apenas no ambiente de servidor para evitar erros de bundling.
  */
 
 export type ErrorSeverity = 'info' | 'warning' | 'error' | 'critical';
@@ -71,11 +69,20 @@ export async function logSystemError(params: {
   };
 
   try {
-    // Gravação segura no Firestore usando o Client SDK no servidor
-    await addDoc(collection(db, 'system_logs'), {
-      ...logData,
-      createdAt: serverTimestamp()
-    });
+    // Utilizamos importação dinâmica para evitar que o firebase-admin seja incluído no bundle do browser
+    if (typeof window === 'undefined') {
+      const admin = await import('firebase-admin');
+      const { getAdminDb } = await import('@/lib/firebase/admin');
+      const db = getAdminDb();
+      await db.collection('system_logs').add({
+        ...logData,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    } else {
+      // No cliente, chamamos uma Server Action dedicada para persistir o log
+      const { saveSystemErrorAction } = await import('@/app/actions/error-logs');
+      await saveSystemErrorAction(logData);
+    }
   } catch (e) {
     console.error('[ErrorManager Fallback]', code, logData);
   }

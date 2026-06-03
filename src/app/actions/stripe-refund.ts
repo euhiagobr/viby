@@ -1,22 +1,14 @@
-
 'use server';
 
 import Stripe from 'stripe';
-import { doc, getDoc, getFirestore, writeBatch, serverTimestamp, collection, increment } from 'firebase/firestore';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { firebaseConfig } from '@/firebase/config';
+import * as admin from 'firebase-admin';
+import { getAdminDb } from '@/lib/firebase/admin';
 import { logSystemError } from '@/lib/error-manager';
 import { recordAuditLog } from './audit';
 
-async function getFirebaseComponents() {
-  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  const db = getFirestore(app);
-  return { db };
-}
-
-async function getStripeInstance(db: any) {
-  const snap = await getDoc(doc(db, 'settings', 'stripe'));
-  if (!snap.exists()) throw new Error('Configurações do Stripe não localizadas.');
+async function getStripeInstance(db: admin.firestore.Firestore) {
+  const snap = await db.collection('settings').doc('stripe').get();
+  if (!snap.exists) throw new Error('Configurações do Stripe não localizadas.');
   const data = snap.data();
   const secretKey = data?.secretKey?.trim();
   if (!secretKey) throw new Error('Secret Key do Stripe ausente.');
@@ -25,9 +17,6 @@ async function getStripeInstance(db: any) {
 
 export type RefundType = 'shared' | 'platform_absorbed';
 
-/**
- * Processa o estorno de um ingresso via Stripe Connect de forma atômica.
- */
 export async function processStripeRefund(params: {
   registrationId: string;
   executorUid: string;
@@ -35,16 +24,15 @@ export async function processStripeRefund(params: {
   refundType: RefundType;
 }) {
   const { registrationId, executorUid, role, refundType } = params;
-  const { db } = await getFirebaseComponents();
+  const db = getAdminDb();
 
   try {
-    const regRef = doc(db, 'registrations', registrationId);
-    const regSnap = await getDoc(regRef);
+    const regRef = db.collection('registrations').doc(registrationId);
+    const regSnap = await regRef.get();
 
-    if (!regSnap.exists()) throw new Error('Ingresso não localizado.');
-    const regData = regSnap.data();
+    if (!regSnap.exists) throw new Error('Ingresso não localizado.');
+    const regData = regSnap.data()!;
 
-    // Idempotência no Firestore
     if (regData.status === 'refunded' || regData.paymentStatus === 'Estornado') {
       return { success: true, message: 'Este ingresso já consta como estornado no banco.' };
     }
@@ -54,8 +42,6 @@ export async function processStripeRefund(params: {
     }
 
     const stripe = await getStripeInstance(db);
-
-    // 1. Executar reembolso no Stripe
     const session = await stripe.checkout.sessions.retrieve(regData.stripeSessionId);
     const paymentIntentId = session.payment_intent as string;
 
@@ -72,7 +58,6 @@ export async function processStripeRefund(params: {
       });
       refundId = refund.id;
     } catch (stripeError: any) {
-      // Caso o Stripe já tenha estornado (duplo clique ou erro de rede anterior)
       if (stripeError.code === 'charge_already_refunded' || stripeError.message?.includes('already been refunded')) {
         console.warn(`[Refund Sync] Charge already refunded in Stripe. Proceeding to sync Firestore.`);
       } else {
@@ -80,39 +65,33 @@ export async function processStripeRefund(params: {
       }
     }
 
-    // 2. Preparar atualizações atômicas no Firestore via BATCH
-    const batch = writeBatch(db);
-
-    // Devolver vaga no evento pai
-    const eventRef = doc(db, "events", regData.eventId);
+    const batch = db.batch();
+    const eventRef = db.collection("events").doc(regData.eventId);
     batch.update(eventRef, { 
-      ingressosVendidos: increment(-1),
-      updatedAt: serverTimestamp()
+      ingressosVendidos: admin.firestore.FieldValue.increment(-1),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    // Devolver vaga na ocorrência se existir
     if (regData.occurrenceId) {
-      const occRef = doc(db, "recurring_occurrences", regData.occurrenceId);
+      const occRef = db.collection("recurring_occurrences").doc(regData.occurrenceId);
       batch.update(occRef, {
-        ingressosVendidos: increment(-1),
-        updatedAt: serverTimestamp()
+        ingressosVendidos: admin.firestore.FieldValue.increment(-1),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
     }
 
-    // Atualizar o ingresso para status terminal
     batch.update(regRef, {
       status: 'refunded',
       paymentStatus: 'Estornado',
       refundId: refundId,
       refundType: refundType,
       refundedBy: role,
-      refundedAt: serverTimestamp(),
+      refundedAt: admin.firestore.FieldValue.serverTimestamp(),
       refundExecutorId: executorUid,
-      updatedAt: serverTimestamp()
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    // Registrar Log Financeiro (Essencial para auditoria ERP)
-    const logRef = doc(collection(db, 'financial_logs'));
+    const logRef = db.collection('financial_logs').doc();
     batch.set(logRef, {
       action: 'ticket_refund',
       category: 'payout',
@@ -125,10 +104,9 @@ export async function processStripeRefund(params: {
         amount: regData.price,
         isSync: refundId === "SYNC_ONLY"
       },
-      timestamp: serverTimestamp()
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    // 3. Comprometer todas as alterações (Se falhar aqui, nada muda)
     await batch.commit();
 
     await recordAuditLog({

@@ -1,13 +1,7 @@
 'use server';
 
-import { db } from '@/firebase/database';
-import { collection, doc, serverTimestamp, runTransaction } from 'firebase/firestore';
-import { generateUniqueTicketCode } from '@/lib/ticket-utils';
-
-/**
- * @fileOverview Server Action para geração de ingressos gratuitos.
- * Garante que a criação ocorra apenas no servidor.
- */
+import * as admin from 'firebase-admin';
+import { getAdminDb } from '@/lib/firebase/admin';
 
 export async function generateFreeTickets(data: {
   userId: string;
@@ -17,14 +11,15 @@ export async function generateFreeTickets(data: {
 }) {
   try {
     const { userId, userName, userEmail, items } = data;
+    const db = getAdminDb();
 
-    return await runTransaction(db, async (transaction) => {
+    return await db.runTransaction(async (transaction) => {
       const results = [];
 
       for (const item of items) {
         for (let i = 0; i < item.quantity; i++) {
-          const ticketCode = await generateUniqueTicketCode(db);
-          const regRef = doc(collection(db, "registrations"));
+          const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+          const regRef = db.collection("registrations").doc();
 
           const ticketData = {
             ticketCode,
@@ -45,11 +40,11 @@ export async function generateFreeTickets(data: {
             occurrenceId: item.occurrenceId || null,
             price: 0,
             paymentStatus: "Disponível",
-            status: "active", // Padrão solicitado: active, used, cancelled
+            status: "active",
             checkedIn: false,
             checkedInAt: null,
-            createdAt: serverTimestamp(),
-            timestamp: serverTimestamp()
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
           };
 
           transaction.set(regRef, ticketData);

@@ -1,37 +1,26 @@
-
 'use server';
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { doc, getDoc, getFirestore, runTransaction, serverTimestamp, increment, collection, query, where, getDocs, limit, addDoc } from 'firebase/firestore';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { firebaseConfig } from '@/firebase/config';
+import * as admin from 'firebase-admin';
+import { getAdminDb } from '@/lib/firebase/admin';
 import { logSystemError } from '@/lib/error-manager';
 import { calculateVibyOfficialSplit, toCents } from '@/lib/financial-utils';
 import { generateUniqueTicketCode } from '@/lib/ticket-utils';
 import { sendTicketEmail } from '@/app/actions/email';
 
-async function getFirebaseComponents() {
-  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  const db = getFirestore(app);
-  return { db };
-}
-
-async function getStripeInstance(db: any) {
-  const snap = await getDoc(doc(db, 'settings', 'stripe'));
-  if (!snap.exists()) throw new Error('Configurações do Stripe não localizadas.');
+async function getStripeInstance(db: admin.firestore.Firestore) {
+  const snap = await db.collection('settings').doc('stripe').get();
+  if (!snap.exists) throw new Error('Configurações do Stripe não localizadas.');
   const data = snap.data();
   const secretKey = data?.secretKey?.trim();
   if (!secretKey) throw new Error('Secret Key do Stripe ausente.');
   return new Stripe(secretKey, { apiVersion: '2024-12-18.acacia' as any });
 }
 
-/**
- * Cria sessão de checkout para reserva de ingressos
- */
 export async function createCheckoutSession(data: any) {
   try {
-    const { db } = await getFirebaseComponents();
+    const db = getAdminDb();
     const head = await headers();
     const origin = head.get('origin') || 'https://viby.club';
     const stripe = await getStripeInstance(db);
@@ -71,13 +60,9 @@ export async function createCheckoutSession(data: any) {
   }
 }
 
-/**
- * Finaliza a sessão de checkout gerando os ingressos (Idempotente e Auditado)
- * Agora responsável pelo fulfillment oficial via Webhook.
- */
 export async function finalizeCheckoutSession(sessionId: string) {
   try {
-    const { db } = await getFirebaseComponents();
+    const db = getAdminDb();
     const stripe = await getStripeInstance(db);
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
@@ -88,39 +73,39 @@ export async function finalizeCheckoutSession(sessionId: string) {
     const metadata = session.metadata;
     if (!metadata) return { success: false, error: 'Sessão inválida.' };
 
-    return await runTransaction(db, async (transaction) => {
+    return await db.runTransaction(async (transaction) => {
       if (metadata.type === 'order_checkout' && metadata.orderId) {
-        const orderRef = doc(db, "orders", metadata.orderId);
+        const orderRef = db.collection("orders").doc(metadata.orderId);
         const orderSnap = await transaction.get(orderRef);
         
-        if (!orderSnap.exists()) throw new Error("Pedido não localizado.");
+        if (!orderSnap.exists) throw new Error("Pedido não localizado.");
         
         const orderData = orderSnap.data()!;
-        // IDEMPOTÊNCIA: Se já foi pago, não gera novamente
         if (orderData.status === 'paid') return { success: true, alreadyProcessed: true };
 
         const userId = metadata.userId;
         const items = orderData.items || [];
-        const ticketPromises: Promise<void>[] = [];
 
         for (const item of items) {
-          const targetRef = item.occurrenceId ? doc(db, "recurring_occurrences", item.occurrenceId) : doc(db, "events", item.eventId);
+          const targetRef = item.occurrenceId 
+            ? db.collection("recurring_occurrences").doc(item.occurrenceId) 
+            : db.collection("events").doc(item.eventId);
           
           transaction.update(targetRef, { 
-            ingressosVendidos: increment(item.quantity),
-            updatedAt: serverTimestamp()
+            ingressosVendidos: admin.firestore.FieldValue.increment(item.quantity),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
 
           if (item.occurrenceId) {
-             transaction.update(doc(db, "events", item.eventId), {
-               ingressosVendidos: increment(item.quantity),
-               updatedAt: serverTimestamp()
+             transaction.update(db.collection("events").doc(item.eventId), {
+               ingressosVendidos: admin.firestore.FieldValue.increment(item.quantity),
+               updatedAt: admin.firestore.FieldValue.serverTimestamp()
              });
           }
 
           for (let j = 0; j < item.quantity; j++) {
-            const ticketCode = await generateUniqueTicketCode(db);
-            const regRef = doc(collection(db, "registrations"));
+            const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+            const regRef = db.collection("registrations").doc();
             
             const regData = {
               eventId: item.eventId,
@@ -147,14 +132,13 @@ export async function finalizeCheckoutSession(sessionId: string) {
               paymentIntentId: session.payment_intent,
               orderId: metadata.orderId,
               occurrenceId: item.occurrenceId || null,
-              confirmedAt: serverTimestamp(),
-              createdAt: serverTimestamp(),
-              timestamp: serverTimestamp()
+              confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              timestamp: admin.firestore.FieldValue.serverTimestamp()
             };
 
             transaction.set(regRef, regData);
 
-            // Disparo de e-mail integrado ao fulfillment
             const eventDateObj = item.eventDate?.toDate ? item.eventDate.toDate() : new Date(item.eventDate);
             sendTicketEmail({
               to: orderData.userEmail,
@@ -171,7 +155,7 @@ export async function finalizeCheckoutSession(sessionId: string) {
           status: 'paid', 
           stripeSessionId: sessionId, 
           paymentIntentId: session.payment_intent,
-          updatedAt: serverTimestamp() 
+          updatedAt: admin.firestore.FieldValue.serverTimestamp() 
         });
 
         return { success: true };

@@ -1,14 +1,8 @@
-
 'use server';
 
 import { headers } from 'next/headers';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/firebase/database';
-
-/**
- * @fileOverview Serviço de Auditoria Centralizado (Audit Log Engine).
- * Captura metadados de rede e contexto para rastreabilidade total.
- */
+import * as admin from 'firebase-admin';
+import { getAdminDb } from '@/lib/firebase/admin';
 
 export type AuditAction = 
   | 'login' | 'logout' | 'signup' 
@@ -38,27 +32,21 @@ export interface AuditLogParams {
   sessionId?: string;
 }
 
-/**
- * Registra uma entrada no log de auditoria de forma assíncrona e isolada.
- */
 export async function recordAuditLog(params: AuditLogParams) {
   try {
+    const db = getAdminDb();
     const head = await headers();
     
-    // Captura de IP Real (Suporte a Vercel, Firebase App Hosting e Proxy)
     const ip = head.get('x-forwarded-for')?.split(',')[0] || 
                head.get('x-real-ip') || 
                head.get('x-apphosting-ip') || 
                '0.0.0.0';
                
     const userAgent = head.get('user-agent') || 'unknown';
-    
-    // Metadados Geográficos (Vercel/AppHosting Headers)
     const city = head.get('x-vercel-ip-city') || head.get('x-apphosting-city') || 'unknown';
     const country = head.get('x-vercel-ip-country') || head.get('x-apphosting-country') || 'unknown';
     const state = head.get('x-vercel-ip-country-region') || head.get('x-apphosting-region') || 'unknown';
 
-    // Detecção simplificada de dispositivo/browser
     const isMobile = /Mobile|Android|iPhone/i.test(userAgent);
     const device = isMobile ? 'mobile' : 'desktop';
     
@@ -69,10 +57,10 @@ export async function recordAuditLog(params: AuditLogParams) {
 
     const cleanIp = ip.replace(/^(::ffff:)/, '');
 
-    await addDoc(collection(db, 'audit_logs'), {
+    await db.collection('audit_logs').add({
       ...params,
       ip: cleanIp,
-      userAgent: userAgent.substring(0, 500), // Proteção contra logs gigantes
+      userAgent: userAgent.substring(0, 500),
       device,
       browser,
       city,
@@ -80,12 +68,11 @@ export async function recordAuditLog(params: AuditLogParams) {
       state,
       platform: 'viby',
       requestId: crypto.randomUUID(),
-      createdAt: serverTimestamp()
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
     console.log(`[Audit] Action logged: ${params.action} by ${params.userEmail || 'Anonymous'}`);
   } catch (e) {
-    // Falha silenciosa para não interromper o fluxo principal do usuário
     console.warn("[Audit Log] Failed to record entry:", e);
   }
 }

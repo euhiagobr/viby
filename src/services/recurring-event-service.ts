@@ -1,3 +1,5 @@
+'use server';
+
 import { 
   addDays, 
   addWeeks, 
@@ -7,11 +9,12 @@ import {
   parseISO, 
   format 
 } from 'date-fns';
-import { db } from '@/firebase/database';
-import { collection, doc, writeBatch, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import * as admin from 'firebase-admin';
+import { getAdminDb } from '@/lib/firebase/admin';
 
 /**
- * @fileOverview Serviço de lógica para geração de ocorrências de eventos recorrentes.
+ * @fileOverview Serviço de Eventos Recorrentes.
+ * Marcado como 'use server' para atuar como Server Action e isolar o Admin SDK do cliente.
  */
 
 export type RecurrenceType = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly';
@@ -30,28 +33,24 @@ export interface RecurringEventInput {
   maxOccurrences?: number;
 }
 
-/**
- * Gera as ocorrências individuais de uma série recorrente.
- */
 export async function generateOccurrences(parentId: string, input: RecurringEventInput) {
-  // 1. Limpar ocorrências existentes para evitar duplicidade ao re-gerar
+  const db = getAdminDb();
+  
   try {
-    const oldOccsQ = query(collection(db, 'recurring_occurrences'), where('parentId', '==', parentId));
-    const oldSnap = await getDocs(oldOccsQ);
-    if (!oldSnap.empty) {
-      const deleteBatch = writeBatch(db);
-      oldSnap.forEach(d => deleteBatch.delete(d.ref));
+    const oldOccsSnap = await db.collection('recurring_occurrences').where('parentId', '==', parentId).get();
+    if (!oldOccsSnap.empty) {
+      const deleteBatch = db.batch();
+      oldOccsSnap.forEach(d => deleteBatch.delete(d.ref));
       await deleteBatch.commit();
     }
   } catch (e) {
     console.warn("[Recurrence] Falha ao limpar agenda antiga, prosseguindo...");
   }
 
-  const batch = writeBatch(db);
-  const occurrencesRef = collection(db, 'recurring_occurrences');
+  const batch = db.batch();
+  const occurrencesRef = db.collection('recurring_occurrences');
   
   let currentDate = parseISO(input.startDate);
-  // Default de 6 meses se não houver data final
   const finalDate = input.endDate ? parseISO(input.endDate) : addMonths(currentDate, 6);
   const max = input.maxOccurrences || 150;
   
@@ -63,7 +62,7 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
   }
 
   while ((isBefore(currentDate, finalDate) || format(currentDate, 'yyyy-MM-dd') === input.endDate) && count < max) {
-    const occRef = doc(occurrencesRef);
+    const occRef = occurrencesRef.doc();
     const dateStr = format(currentDate, 'yyyy-MM-dd');
     
     batch.set(occRef, {
@@ -78,7 +77,7 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
       ingressosVendidos: 0,
       checkinsRealizados: 0,
       order: count,
-      createdAt: serverTimestamp()
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
     const previousDate = new Date(currentDate);

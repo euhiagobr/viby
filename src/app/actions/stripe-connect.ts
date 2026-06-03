@@ -1,28 +1,16 @@
-
 'use server';
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { doc, getDoc, getFirestore, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { firebaseConfig } from '@/firebase/config';
+import * as admin from 'firebase-admin';
+import { getAdminDb } from '@/lib/firebase/admin';
 import { recordAuditLog } from './audit';
 
-/**
- * @fileOverview Server Actions para Stripe Connect Express com proteção de integridade.
- */
-
-async function getFirebaseComponents() {
-  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  const db = getFirestore(app);
-  return { db };
-}
-
-async function getStripeInstance(db: any) {
-  const stripeSettingsRef = doc(db, 'settings', 'stripe');
-  const snap = await getDoc(stripeSettingsRef);
+async function getStripeInstance(db: admin.firestore.Firestore) {
+  const stripeSettingsRef = db.collection('settings').doc('stripe');
+  const snap = await stripeSettingsRef.get();
   
-  if (!snap.exists()) {
+  if (!snap.exists) {
     throw new Error('Configurações do Stripe não localizadas no Firestore (settings/stripe).');
   }
 
@@ -36,20 +24,17 @@ async function getStripeInstance(db: any) {
   return new Stripe(secretKey, { apiVersion: '2024-12-18.acacia' as any });
 }
 
-/**
- * Cria ou recupera uma conta Stripe Connect Express para a organização.
- */
 export async function createStripeConnectAccount(orgId: string) {
   try {
-    const { db } = await getFirebaseComponents();
-    const orgRef = doc(db, 'organizations', orgId);
-    const orgSnap = await getDoc(orgRef);
+    const db = getAdminDb();
+    const orgRef = db.collection('organizations').doc(orgId);
+    const orgSnap = await orgRef.get();
 
-    if (!orgSnap.exists()) {
+    if (!orgSnap.exists) {
       throw new Error('Organização não encontrada.');
     }
     
-    const orgData = orgSnap.data();
+    const orgData = orgSnap.data()!;
     let accountId = orgData.stripeAccountId;
 
     if (!accountId) {
@@ -73,11 +58,10 @@ export async function createStripeConnectAccount(orgId: string) {
       
       accountId = account.id;
 
-      // Persistência com proteção de regras customizadas
-      await updateDoc(orgRef, {
+      await orgRef.update({
         stripeAccountId: accountId,
         stripeOnboardingComplete: false,
-        updatedAt: serverTimestamp()
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
       console.log(`[AUDIT] stripeAccountId salvo com sucesso: ${accountId}`);
     }
@@ -100,12 +84,9 @@ export async function createStripeConnectAccount(orgId: string) {
   }
 }
 
-/**
- * Gera o link de onboarding do Stripe.
- */
 export async function createAccountOnboardingLink(orgId: string, accountId: string) {
   try {
-    const { db } = await getFirebaseComponents();
+    const db = getAdminDb();
     const stripe = await getStripeInstance(db);
     const head = await headers();
     const origin = head.get('origin') || 'https://viby.club';
@@ -123,31 +104,27 @@ export async function createAccountOnboardingLink(orgId: string, accountId: stri
   }
 }
 
-/**
- * Recupera os dados de uma conta diretamente da API do Stripe e SINCRONIZA com o Firestore.
- */
 export async function retrieveStripeAccount(accountId: string, orgId?: string) {
   try {
-    const { db } = await getFirebaseComponents();
+    const db = getAdminDb();
     const stripe = await getStripeInstance(db);
     
     console.log(`[Diagnostic] Consulting Stripe for account: ${accountId}`);
     const account = await stripe.accounts.retrieve(accountId);
 
-    // LÓGICA DE SINCRONIZAÇÃO FORÇADA
     if (orgId) {
       console.log(`[Diagnostic] Syncing Stripe state to Firestore for org: ${orgId}`);
-      const orgRef = doc(db, 'organizations', orgId);
+      const orgRef = db.collection('organizations').doc(orgId);
       
       const isApproved = account.charges_enabled && account.payouts_enabled;
       
-      await updateDoc(orgRef, {
+      await orgRef.update({
         stripeOnboardingComplete: account.details_submitted,
         stripeChargesEnabled: account.charges_enabled,
         stripePayoutsEnabled: account.payouts_enabled,
         stripeDetailsSubmitted: account.details_submitted,
         "payoutSettings.status": isApproved ? 'verified' : (account.details_submitted ? 'pending_admin' : 'none'),
-        updatedAt: serverTimestamp()
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
       await recordAuditLog({

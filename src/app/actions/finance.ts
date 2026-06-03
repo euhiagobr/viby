@@ -1,40 +1,28 @@
-
 'use server';
 
-import { doc, runTransaction, serverTimestamp, collection, increment, getDoc, getFirestore } from 'firebase/firestore';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { firebaseConfig } from '@/firebase/config';
+import * as admin from 'firebase-admin';
+import { getAdminDb } from '@/lib/firebase/admin';
 import { calculateRefundAmount, calculateRetainedGatewayFee } from '@/lib/financial-utils';
 import { recordAuditLog } from './audit';
 
-/**
- * @fileOverview Server Actions para operações financeiras utilizando o Client SDK de forma isomórfica.
- */
-
-async function getDb() {
-  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  return getFirestore(app);
-}
-
 export async function processTicketRefund(registrationId: string, executorUid: string, reason: string) {
   try {
-    const db = await getDb();
+    const db = getAdminDb();
     
-    const result = await runTransaction(db, async (transaction) => {
-      const regRef = doc(db, "registrations", registrationId);
+    const result = await db.runTransaction(async (transaction) => {
+      const regRef = db.collection("registrations").doc(registrationId);
       const regSnap = await transaction.get(regRef);
 
-      if (!regSnap.exists()) throw new Error("Registro não encontrado.");
+      if (!regSnap.exists) throw new Error("Registro não encontrado.");
       const regData = regSnap.data()!;
 
-      // Validação de Segurança
-      const userSnap = await transaction.get(doc(db, "users", executorUid));
-      const isAdmin = userSnap.exists() && userSnap.data()?.role === 'admin';
+      const userSnap = await transaction.get(db.collection("users").doc(executorUid));
+      const isAdmin = userSnap.exists && userSnap.data()?.role === 'admin';
       
       const memberSnap = await transaction.get(
-        doc(db, "organizations", regData.organizationId, "members", executorUid)
+        db.collection("organizations").doc(regData.organizationId).collection("members").doc(executorUid)
       );
-      const isOrgManager = memberSnap.exists() && ['owner', 'admin', 'editor'].includes(memberSnap.data()?.role);
+      const isOrgManager = memberSnap.exists && ['owner', 'admin', 'editor'].includes(memberSnap.data()?.role);
 
       if (!isAdmin && !isOrgManager) throw new Error("Acesso negado.");
       if (regData.status === 'cancelled') throw new Error("Já estornado.");
@@ -45,32 +33,30 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       const eventId = regData.eventId;
       const occurrenceId = regData.occurrenceId;
 
-      // 1. Devolução de Capacidade
       if (occurrenceId) {
-        const occRef = doc(db, "recurring_occurrences", occurrenceId);
+        const occRef = db.collection("recurring_occurrences").doc(occurrenceId);
         const occSnap = await transaction.get(occRef);
-        if (occSnap.exists() && (occSnap.data()?.ingressosVendidos || 0) > 0) {
+        if (occSnap.exists && (occSnap.data()?.ingressosVendidos || 0) > 0) {
           transaction.update(occRef, { 
-            ingressosVendidos: increment(-1),
-            updatedAt: serverTimestamp() 
+            ingressosVendidos: admin.firestore.FieldValue.increment(-1),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp() 
           });
         }
       }
       
-      const eventRef = doc(db, "events", eventId);
+      const eventRef = db.collection("events").doc(eventId);
       const eventSnap = await transaction.get(eventRef);
-      if (eventSnap.exists() && (eventSnap.data()?.ingressosVendidos || 0) > 0) {
+      if (eventSnap.exists && (eventSnap.data()?.ingressosVendidos || 0) > 0) {
         transaction.update(eventRef, { 
-          ingressosVendidos: increment(-1),
-          updatedAt: serverTimestamp() 
+          ingressosVendidos: admin.firestore.FieldValue.increment(-1),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp() 
         });
       }
 
-      // Se for gratuito
       if (totalPaid <= 0) {
         transaction.update(regRef, {
           status: 'cancelled',
-          cancelledAt: serverTimestamp(),
+          cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
           cancelledBy: executorUid,
           cancelReason: reason
         });
@@ -80,29 +66,27 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       const refundAmount = calculateRefundAmount(totalPaid);
       const retainedFee = calculateRetainedGatewayFee(totalPaid);
 
-      // 2. Atualizar Registro do Ingresso
       transaction.update(regRef, {
         status: 'cancelled',
         paymentStatus: 'refunded_wallet',
-        cancelledAt: serverTimestamp(),
+        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
         cancelledBy: executorUid,
         cancelReason: reason,
         refundAmount: refundAmount,
         retainedFee: retainedFee,
-        updatedAt: serverTimestamp()
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // 3. Devolução para Carteira
-      const walletRef = doc(db, "wallets", userId);
+      const walletRef = db.collection("wallets").doc(userId);
       transaction.set(walletRef, {
-        balance: increment(refundAmount),
-        updatedAt: serverTimestamp()
+        balance: admin.firestore.FieldValue.increment(refundAmount),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
 
-      const userRef = doc(db, "users", userId);
+      const userRef = db.collection("users").doc(userId);
       transaction.update(userRef, {
-        walletBalance: increment(refundAmount),
-        updatedAt: serverTimestamp()
+        walletBalance: admin.firestore.FieldValue.increment(refundAmount),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
       return { success: true, refundAmount, orgId: regData.organizationId, eventId: regData.eventId };
