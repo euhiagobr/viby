@@ -1,6 +1,7 @@
+
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { doc, getFirestore, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, getFirestore, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, limit, increment } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 
@@ -47,6 +48,32 @@ export async function POST(req: Request) {
 
   try {
     switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        
+        // Trata recargas de Ad Balance
+        if (session.metadata?.type === 'ad_topup') {
+          const orgId = session.metadata.orgId;
+          const amount = parseFloat(session.metadata.baseAmount);
+          const orgRef = doc(db, 'organizations', orgId);
+          
+          await updateDoc(orgRef, {
+            adBalance: increment(amount),
+            updatedAt: serverTimestamp()
+          });
+
+          await addDoc(collection(db, 'organizations', orgId, 'transactions'), {
+            type: 'ad_topup',
+            amount,
+            status: 'completed',
+            stripeSessionId: session.id,
+            description: 'Recarga de Saldo Ads (Webhook)',
+            createdAt: serverTimestamp()
+          });
+        }
+        break;
+      }
+
       case 'account.updated': {
         const account = event.data.object as Stripe.Account;
         const orgId = account.metadata?.orgId;
@@ -54,7 +81,6 @@ export async function POST(req: Request) {
         if (orgId) {
           console.log(`[Webhook] Syncing account ${account.id} for org ${orgId}`);
           const orgRef = doc(db, 'organizations', orgId);
-          
           const isApproved = account.charges_enabled && account.payouts_enabled;
 
           await updateDoc(orgRef, {
@@ -66,18 +92,6 @@ export async function POST(req: Request) {
             updatedAt: serverTimestamp()
           });
         }
-        break;
-      }
-
-      case 'capability.updated': {
-        const capability = event.data.object as Stripe.Capability;
-        // Se uma capacidade mudar, o account.updated normalmente também dispara,
-        // mas podemos forçar a busca aqui se necessário.
-        break;
-      }
-
-      case 'payout.paid': {
-        // Lógica para registrar sucesso de repasse no histórico da organização
         break;
       }
     }

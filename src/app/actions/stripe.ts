@@ -1,3 +1,4 @@
+
 'use server';
 
 import { headers } from 'next/headers';
@@ -24,6 +25,9 @@ async function getStripeInstance(db: any) {
   return new Stripe(secretKey, { apiVersion: '2024-12-18.acacia' as any });
 }
 
+/**
+ * Cria sessão de checkout para reserva de ingressos
+ */
 export async function createCheckoutSession(data: any) {
   try {
     const { db } = await getFirebaseComponents();
@@ -66,6 +70,9 @@ export async function createCheckoutSession(data: any) {
   }
 }
 
+/**
+ * Finaliza a sessão de checkout gerando os ingressos (Idempotente)
+ */
 export async function finalizeCheckoutSession(sessionId: string) {
   try {
     const { db } = await getFirebaseComponents();
@@ -83,9 +90,11 @@ export async function finalizeCheckoutSession(sessionId: string) {
       if (metadata.type === 'order_checkout' && metadata.orderId) {
         const orderRef = doc(db, "orders", metadata.orderId);
         const orderSnap = await transaction.get(orderRef);
+        
         if (!orderSnap.exists()) throw new Error("Pedido não localizado.");
         
         const orderData = orderSnap.data()!;
+        // IDEMPOTÊNCIA: Se o pedido já está pago, não gera novos ingressos
         if (orderData.status === 'paid') return { success: true, alreadyProcessed: true };
 
         const userId = metadata.userId;
@@ -93,23 +102,21 @@ export async function finalizeCheckoutSession(sessionId: string) {
 
         for (const item of items) {
           const targetRef = item.occurrenceId ? doc(db, "recurring_occurrences", item.occurrenceId) : doc(db, "events", item.eventId);
-          const snap = await transaction.get(targetRef);
-          if (snap.exists()) {
-            transaction.update(targetRef, { 
-              ingressosVendidos: increment(item.quantity),
-              updatedAt: serverTimestamp()
-            });
-            if (item.occurrenceId) {
-               transaction.update(doc(db, "events", item.eventId), {
-                 ingressosVendidos: increment(item.quantity),
-                 updatedAt: serverTimestamp()
-               });
-            }
+          
+          transaction.update(targetRef, { 
+            ingressosVendidos: increment(item.quantity),
+            updatedAt: serverTimestamp()
+          });
+
+          if (item.occurrenceId) {
+             transaction.update(doc(db, "events", item.eventId), {
+               ingressosVendidos: increment(item.quantity),
+               updatedAt: serverTimestamp()
+             });
           }
 
           for (let j = 0; j < item.quantity; j++) {
             // GERAR CÓDIGO ÚNICO DE 16 DÍGITOS NO FORMATO XXXX-XXXX-XXXX-XXXX
-            // Nota: No runTransaction, usamos db para consulta de unicidade
             const ticketCode = await generateUniqueTicketCode(db);
             const regRef = doc(collection(db, "registrations"));
             
@@ -132,10 +139,10 @@ export async function finalizeCheckoutSession(sessionId: string) {
               batchName: item.batchName,
               paymentStatus: "Pago",
               payoutMode: "stripe_connect",
-              status: "active", // Padrão solicitado: active, used, cancelled
+              status: "active",
               ticketCode,
               stripeSessionId: sessionId,
-              paymentIntentId: session.payment_intent, // Idempotência via PI
+              paymentIntentId: session.payment_intent,
               orderId: metadata.orderId,
               occurrenceId: item.occurrenceId || null,
               confirmedAt: serverTimestamp(),
@@ -153,6 +160,96 @@ export async function finalizeCheckoutSession(sessionId: string) {
     });
   } catch (error: any) {
     console.error("[Checkout Finalization Error]", error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Cria sessão de checkout para recarga de saldo Ads
+ */
+export async function createAdBalanceTopUpSession(data: {
+  orgId: string;
+  orgName: string;
+  userEmail: string;
+  baseAmount: number;
+  transactionId: string;
+}) {
+  try {
+    const { db } = await getFirebaseComponents();
+    const head = await headers();
+    const origin = head.get('origin') || 'https://viby.club';
+    const stripe = await getStripeInstance(db);
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'brl',
+            product_data: {
+              name: `Recarga de Saldo Ads - ${data.orgName}`,
+              description: 'Crédito exclusivo para impulsionamento de eventos na Viby Club',
+            },
+            unit_amount: Math.round(data.baseAmount * 100),
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      customer_email: data.userEmail,
+      success_url: `${origin}/dashboard/organizacoes/${data.orgId}/finance?session_id={CHECKOUT_SESSION_ID}&success=true`,
+      cancel_url: `${origin}/dashboard/organizacoes/${data.orgId}/finance?cancel=true`,
+      metadata: {
+        type: 'ad_topup',
+        orgId: data.orgId,
+        baseAmount: data.baseAmount.toString(),
+        transactionId: data.transactionId
+      },
+    });
+
+    return { success: true, url: session.url };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Finaliza a recarga de saldo Ads
+ */
+export async function finalizeAdTopUpSession(sessionId: string) {
+  try {
+    const { db } = await getFirebaseComponents();
+    const stripe = await getStripeInstance(db);
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (session.payment_status !== 'paid') throw new Error("Pagamento não aprovado.");
+
+    const metadata = session.metadata;
+    if (metadata?.type !== 'ad_topup') throw new Error("Sessão inválida.");
+
+    const amount = parseFloat(metadata.baseAmount);
+    const orgId = metadata.orgId;
+
+    await runTransaction(db, async (transaction) => {
+      const orgRef = doc(db, "organizations", orgId);
+      transaction.update(orgRef, {
+        adBalance: increment(amount),
+        updatedAt: serverTimestamp()
+      });
+
+      const txRef = doc(collection(db, "organizations", orgId, "transactions"));
+      transaction.set(txRef, {
+        type: 'ad_topup',
+        amount,
+        status: 'completed',
+        stripeSessionId: sessionId,
+        description: 'Recarga de Saldo Ads via Cartão',
+        createdAt: serverTimestamp()
+      });
+    });
+
+    return { success: true };
+  } catch (error: any) {
     return { success: false, error: error.message };
   }
 }
