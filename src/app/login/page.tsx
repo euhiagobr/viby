@@ -15,7 +15,6 @@ import { Loader2, User, Mail, ArrowLeft, KeyRound, ShieldCheck } from "lucide-re
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import Image from "next/image"
-import { SocialLoginButtons } from "./SocialLoginButtons"
 import { Separator } from "@/components/ui/separator"
 
 function LoginContent() {
@@ -117,15 +116,6 @@ function LoginContent() {
               </div>
             ) : (
               <>
-                <SocialLoginButtons />
-                
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center"><Separator className="w-full" /></div>
-                  <div className="relative flex justify-center text-[10px] uppercase font-black">
-                    <span className="bg-white px-3 text-muted-foreground">Ou com sua senha</span>
-                  </div>
-                </div>
-
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Usuário ou E-mail</Label>

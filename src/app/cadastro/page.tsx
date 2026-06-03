@@ -10,18 +10,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
-import { Globe, Loader2, Check, X, ArrowLeft, Fingerprint, ShieldAlert, UserPlus } from "lucide-react"
+import { Loader2, ArrowLeft, UserPlus } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
-import { cn } from "@/lib/utils"
-import { sendWelcomeEmail } from "@/app/actions/email"
 import Image from "next/image"
 import { updateUserCPF } from "@/app/actions/user"
 import { maskCPF } from "@/lib/crypto-utils"
-import { SocialLoginButtons } from "../login/SocialLoginButtons"
-import { Separator } from "@/components/ui/separator"
+import { sendWelcomeEmail } from "@/app/actions/email"
 
 const DEFAULT_PROFILE_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media";
 
@@ -109,8 +105,8 @@ function CadastroContent() {
         username: username.toLowerCase().trim(),
         email: email.toLowerCase().trim(),
         avatar: DEFAULT_PROFILE_IMAGE,
-        birthDate,
-        gender,
+        birthDate: "", // Será preenchido no perfil depois se desejado
+        gender: "",
         cpf: maskCPF(cleanCPF),
         profileComplete: true,
         role: "user",
@@ -170,56 +166,45 @@ function CadastroContent() {
                  <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground animate-pulse">Iniciando Viby...</p>
               </div>
             ) : (
-              <>
-                <SocialLoginButtons />
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Nome Completo</Label>
+                  <Input placeholder="Seu nome" value={name} onChange={e => setName(e.target.value)} required className="rounded-xl h-11" />
+                </div>
                 
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center"><Separator className="w-full" /></div>
-                  <div className="relative flex justify-center text-[10px] uppercase font-black">
-                    <span className="bg-white px-3 text-muted-foreground">Ou preencha os campos</span>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Username (@)</Label>
+                    <div className="relative">
+                      <Input 
+                        placeholder="joao_viby" 
+                        value={username} 
+                        onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))} 
+                        className="rounded-xl h-11"
+                        required 
+                      />
+                      {checkingUsername && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin opacity-40" />}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60 ml-1">CPF</Label>
+                    <Input placeholder="00000000000" value={cpf} onChange={e => setCpf(formatCPF(e.target.value))} required className="rounded-xl h-11" />
                   </div>
                 </div>
 
-                <form onSubmit={handleRegister} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Nome Completo</Label>
-                    <Input placeholder="Seu nome" value={name} onChange={e => setName(e.target.value)} required className="rounded-xl h-11" />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Username (@)</Label>
-                      <div className="relative">
-                        <Input 
-                          placeholder="joao_viby" 
-                          value={username} 
-                          onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))} 
-                          className="rounded-xl h-11"
-                          required 
-                        />
-                        {checkingUsername && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin opacity-40" />}
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase opacity-60 ml-1">CPF</Label>
-                      <Input placeholder="00000000000" value={cpf} onChange={e => setCpf(formatCPF(e.target.value))} required className="rounded-xl h-11" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60 ml-1">E-mail</Label>
-                    <Input type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} required className="rounded-xl h-11" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Senha</Label>
-                    <Input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required className="rounded-xl h-11" />
-                  </div>
-                  
-                  <Button type="submit" className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic mt-4" disabled={loading || usernameStatus !== 'valid'}>
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Concluir Cadastro"}
-                  </Button>
-                </form>
-              </>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60 ml-1">E-mail</Label>
+                  <Input type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} required className="rounded-xl h-11" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Senha</Label>
+                  <Input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required className="rounded-xl h-11" />
+                </div>
+                
+                <Button type="submit" className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic mt-4" disabled={loading || usernameStatus !== 'valid'}>
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Concluir Cadastro"}
+                </Button>
+              </form>
             )}
           </CardContent>
           <CardFooter className="flex justify-center border-t border-border mt-0 py-6 bg-muted/20">

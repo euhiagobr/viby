@@ -10,11 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Check, X, ShieldCheck, User as UserIcon, Fingerprint, Mail, AtSign } from "lucide-react";
+import { Loader2, Check, X, ShieldCheck, User as UserIcon, Fingerprint, Mail, AtSign, Lock } from "lucide-react";
 import { cn, validateCPF, validateUsername } from "@/lib/utils";
 import { maskCPF, encryptDeterministic } from "@/lib/crypto-utils";
 import { updateUserCPF } from "@/app/actions/user";
 import { recordAuditLog } from "@/app/actions/audit";
+import { Separator } from "@/components/ui/separator";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -104,13 +105,8 @@ export default function OnboardingPage() {
     setCheckingCPF(true);
     const timer = setTimeout(async () => {
       try {
-        // Verifica se este CPF já está em uso (buscando pelo hash determinístico)
-        const encryptedCpf = encryptDeterministic(cleanCPF);
         const q = query(collection(db, "users"), where("cpf", "==", maskCPF(cleanCPF)), limit(1));
         const snap = await getDocs(q);
-        
-        // No protótipo, verificamos se o documento com esse CPF mascarado existe
-        // Em um sistema real, faríamos o check na subcoleção restrita via Server Action
         setCPFStatus(snap.empty ? 'valid' : 'taken');
       } catch (e) {
         setCPFStatus('idle');
@@ -197,17 +193,17 @@ export default function OnboardingPage() {
         <CardContent className="px-10 py-10 space-y-8">
           <form onSubmit={handleOnboarding} className="space-y-6">
             
-            {/* Campos Imutáveis (Read-only do Google) */}
+            {/* Campos Imutáveis */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 opacity-60 grayscale-[0.5]">
                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black uppercase tracking-widest ml-1">Seu Nome (Google)</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest ml-1">Seu Nome</Label>
                   <div className="relative">
                      <Input value={user?.displayName || ""} readOnly className="rounded-xl h-11 bg-muted border-none font-bold" />
                      <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
                   </div>
                </div>
                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black uppercase tracking-widest ml-1">E-mail (Google)</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest ml-1">E-mail da Conta</Label>
                   <div className="relative">
                      <Input value={user?.email || ""} readOnly className="rounded-xl h-11 bg-muted border-none font-bold text-xs" />
                      <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />

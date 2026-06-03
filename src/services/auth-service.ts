@@ -22,9 +22,10 @@ import { recordAuditLog } from "@/app/actions/audit";
 
 /**
  * Configuração de provedores de autenticação social ativos.
+ * Google desativado conforme solicitação.
  */
 export const authConfig = {
-  google: true
+  google: false
 };
 
 /**
@@ -121,6 +122,10 @@ export async function ensureUserProfile(user: any, db: Firestore) {
  * Inicia o login do Google via redirecionamento.
  */
 export async function startSocialLogin(auth: Auth, providerName: 'google') {
+  if (!authConfig.google) {
+    throw new Error("Login com Google está desativado.");
+  }
+
   const provider = new GoogleAuthProvider();
   provider.addScope('profile');
   provider.addScope('email');
