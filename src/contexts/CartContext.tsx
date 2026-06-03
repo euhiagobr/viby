@@ -18,7 +18,8 @@ export interface CartItem {
   batchName: string;
   poolId?: string;
   poolName?: string;
-  price: number; // Base price
+  price: number; // Current price (may be discounted)
+  originalPrice: number; // Price without discount
   quantity: number;
   requiresProof: boolean;
   sectorId?: string;
@@ -27,6 +28,8 @@ export interface CartItem {
   seatCode?: string;
   ageRating?: string;
   occurrenceId?: string | null;
+  couponCode?: string | null;
+  discountAmount?: number;
 }
 
 interface CartContextType {
@@ -124,7 +127,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (existing) {
         return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + item.quantity } : i);
       }
-      return [...prev, item];
+      return [...prev, { ...item, originalPrice: item.originalPrice || item.price }];
     });
   };
 
@@ -137,7 +140,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         if (idx > -1) {
           current[idx] = { ...current[idx], quantity: current[idx].quantity + item.quantity };
         } else {
-          current.push(item);
+          current.push({ ...item, originalPrice: item.originalPrice || item.price });
         }
       });
       return current;

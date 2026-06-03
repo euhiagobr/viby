@@ -65,8 +65,10 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
             userId: user.uid,
             userName: profile?.name || user.displayName || "Comprador",
             userEmail: user.email,
-            ticketBasePrice: item.price,
+            ticketBasePrice: item.originalPrice || item.price,
             price: 0,
+            discountAmount: item.discountAmount || 0,
+            couponCode: item.couponCode || null,
             administrativeFeeAmount: 0,
             producerFeeAmount: 0,
             producerNetAmount: 0,
@@ -117,7 +119,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
         currency: 'brl',
         product_data: {
           name: `${item.eventTitle} - ${item.ticketTypeName}`,
-          description: `Lote: ${item.batchName}`,
+          description: `Lote: ${item.batchName}${item.couponCode ? ` (Cupom: ${item.couponCode})` : ''}`,
           images: item.eventImage ? [item.eventImage] : []
         },
         unit_amount: toCents(split.totalCharged),

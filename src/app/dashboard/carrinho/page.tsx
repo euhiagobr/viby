@@ -3,13 +3,14 @@
 import * as React from "react"
 import { useCart, CartItem } from "@/contexts/CartContext"
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
-import { doc, getDoc } from "firebase/firestore"
+import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Progress } from "@/components/ui/progress"
+import { Input } from "@/components/ui/input"
 import { 
   ShoppingCart, 
   Trash2, 
@@ -24,7 +25,10 @@ import {
   AlertCircle,
   ShieldCheck,
   Calendar,
-  RefreshCw
+  RefreshCw,
+  TicketPercent,
+  CheckCircle2,
+  X
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -43,8 +47,9 @@ export default function CarrinhoPage() {
   const [orgsData, setOrgsData] = React.useState<Record<string, any>>({})
   const [isRevalidating, setIsRevalidating] = React.useState(false)
   const [timeLeft, setTimeLeft] = React.useState<{ min: number, sec: number, percent: number } | null>(null)
+  const [couponInputs, setCouponInputs] = React.useState<Record<string, string>>({})
+  const [applyingCoupon, setApplyingCoupon] = React.useState<string | null>(null)
 
-  // Ref para evitar loop infinito de revalidação
   const isProcessingRef = React.useRef(false)
 
   const walletRef = React.useMemo(() => (db && user) ? doc(db, "wallets", user.uid) : null, [db, user]);
@@ -59,112 +64,74 @@ export default function CarrinhoPage() {
   const promosRef = React.useMemo(() => db ? doc(db, 'settings', 'promotions') : null, [db])
   const { data: promotions } = useDoc<any>(promosRef)
 
-  // Lógica do Contador Visual (5 minutos)
-  React.useEffect(() => {
+  useEffect(() => {
     if (!expiresAt || items.length === 0) {
       setTimeLeft(null);
       return;
     }
-
     const interval = setInterval(() => {
       const now = Date.now();
       const diff = expiresAt - now;
-
       if (diff <= 0) {
         setTimeLeft({ min: 0, sec: 0, percent: 0 });
         clearInterval(interval);
         return;
       }
-
       const totalMs = 5 * 60 * 1000;
       const percent = (diff / totalMs) * 100;
       const min = Math.floor(diff / 60000);
       const sec = Math.floor((diff % 60000) / 1000);
-
       setTimeLeft({ min, sec, percent });
     }, 1000);
-
     return () => clearInterval(interval);
   }, [expiresAt, items.length]);
 
-  // Motor de Revalidação de Disponibilidade (Refatorado para evitar loops)
   const revalidateCart = React.useCallback(async () => {
     if (!db || items.length === 0 || isProcessingRef.current) return;
-
     isProcessingRef.current = true;
     setIsRevalidating(true);
-
     try {
       const updatedItems: CartItem[] = [];
       let hadChanges = false;
       const eventCache: Record<string, any> = {};
-
       for (const item of items) {
         try {
           if (!eventCache[item.eventId]) {
             const eSnap = await getDoc(doc(db, "events", item.eventId));
             if (eSnap.exists()) eventCache[item.eventId] = eSnap.data();
           }
-
           const eventData = eventCache[item.eventId];
           if (!eventData || eventData.status !== 'Ativo') {
-            hadChanges = true;
-            continue; 
+            hadChanges = true; continue; 
           }
-
           const batch = eventData.batches?.find((b: any) => b.id === item.batchId);
           const type = batch?.ticketTypes?.find((t: any) => t.id === item.ticketTypeId);
-
           if (!batch || !type || type.quantity <= 0) {
-            hadChanges = true;
-            continue;
+            hadChanges = true; continue;
           }
-
-          if (type.price !== item.price) {
+          if (type.price !== (item.originalPrice || item.price)) {
             hadChanges = true;
-            updatedItems.push({ ...item, price: type.price });
+            updatedItems.push({ ...item, originalPrice: type.price, price: item.couponCode ? item.price : type.price });
           } else {
             updatedItems.push(item);
           }
-        } catch (e) {
-          updatedItems.push(item); // Mantém no carrinho se falhar a verificação técnica
-        }
+        } catch (e) { updatedItems.push(item); }
       }
-
       if (hadChanges) {
         setItems(updatedItems);
-        toast({ 
-          title: "Carrinho Atualizado", 
-          description: "Ajustamos preços ou disponibilidade com base no estoque real." 
-        });
+        toast({ title: "Carrinho Atualizado", description: "Ajustamos disponibilidade com base no estoque real." });
       }
-    } catch (err) {
-      console.error("[Cart Revalidation Error]", err);
-    } finally {
-      setIsRevalidating(false);
-      isProcessingRef.current = false;
+    } catch (err) { console.error(err); } finally {
+      setIsRevalidating(false); isProcessingRef.current = false;
     }
   }, [db, items, setItems]);
 
-  // Revalidar ao focar na página ou montar
   React.useEffect(() => {
     revalidateCart();
     const handleFocus = () => revalidateCart();
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, [revalidateCart]);
-
-  React.useEffect(() => {
-    const handleExpired = () => {
-      toast({
-        variant: "destructive",
-        title: "Tempo esgotado",
-        description: "Seu carrinho expirou para garantir a disponibilidade dos ingressos para outros usuários."
-      });
-    };
-    window.addEventListener('viby-cart-expired', handleExpired);
-    return () => window.removeEventListener('viby-cart-expired', handleExpired);
-  }, []);
 
   React.useEffect(() => {
     if (!db || items.length === 0) return;
@@ -182,6 +149,69 @@ export default function CarrinhoPage() {
     fetchData()
   }, [db, items]);
 
+  const handleApplyCoupon = async (cartItemId: string) => {
+    const code = couponInputs[cartItemId]?.trim().toUpperCase();
+    if (!code || !db) return;
+
+    const item = items.find(i => i.id === cartItemId);
+    if (!item) return;
+
+    setApplyingCoupon(cartItemId);
+    try {
+      const q = query(collection(db, "coupons"), where("code", "==", code), limit(1));
+      const snap = await getDocs(q);
+
+      if (snap.empty) throw new Error("Cupom não encontrado.");
+      
+      const coupon = { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
+
+      if (coupon.status !== 'Ativo') throw new Error("Este cupom não está mais ativo.");
+      if (coupon.eventId !== item.eventId) throw new Error("Este cupom não pertence a este evento.");
+      if (coupon.maxUses > 0 && coupon.currentUses >= coupon.maxUses) throw new Error("Limite de usos do cupom atingido.");
+      
+      const now = new Date();
+      if (coupon.validFrom && now < new Date(coupon.validFrom)) throw new Error("Cupom ainda não está disponível.");
+      if (coupon.validUntil && now > new Date(coupon.validUntil)) throw new Error("Este cupom expirou.");
+
+      let discountAmount = 0;
+      if (coupon.discountType === 'percentage') {
+        discountAmount = (item.originalPrice || item.price) * (coupon.discountValue / 100);
+      } else if (coupon.discountType === 'fixed') {
+        discountAmount = coupon.discountValue;
+      } else if (coupon.discountType === 'free_ticket') {
+        discountAmount = (item.originalPrice || item.price);
+      }
+
+      const newPrice = Math.max(0, (item.originalPrice || item.price) - discountAmount);
+
+      const updatedItems = items.map(i => i.id === cartItemId ? {
+        ...i,
+        price: newPrice,
+        couponCode: code,
+        discountAmount: discountAmount
+      } : i);
+
+      setItems(updatedItems);
+      toast({ title: "Cupom Aplicado!", description: `Desconto de ${coupon.discountType === 'percentage' ? coupon.discountValue + '%' : formatCurrency(discountAmount)} aplicado.` });
+      setCouponInputs(prev => ({ ...prev, [cartItemId]: "" }));
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro no Cupom", description: e.message });
+    } finally {
+      setApplyingCoupon(null);
+    }
+  };
+
+  const handleRemoveCoupon = (cartItemId: string) => {
+    const updatedItems = items.map(i => i.id === cartItemId ? {
+      ...i,
+      price: i.originalPrice || i.price,
+      couponCode: null,
+      discountAmount: 0
+    } : i);
+    setItems(updatedItems);
+    toast({ title: "Cupom Removido" });
+  };
+
   const cartTotals = React.useMemo(() => {
     let subtotal = 0; let fees = 0;
     items.forEach(item => { 
@@ -195,23 +225,6 @@ export default function CarrinhoPage() {
     return { subtotal, fees, balanceUsed, total: Number((totalBeforeBalance - balanceUsed).toFixed(2)) };
   }, [items, globalFees, promotions, orgsData, useBalance, wallet?.balance]);
 
-  if (items.length === 0) {
-    return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center space-y-6 animate-in fade-in duration-700">
-        <div className="w-24 h-24 bg-muted/50 rounded-full flex items-center justify-center mb-4">
-           <ShoppingCart className="w-12 h-12 text-muted-foreground opacity-20" />
-        </div>
-        <div className="text-center space-y-2">
-           <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Carrinho Vazio</h2>
-           <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Suas experiências aparecerão aqui</p>
-        </div>
-        <Button asChild className="bg-secondary text-white font-black rounded-full px-12 h-14 uppercase italic shadow-xl hover:scale-105 transition-all">
-           <Link href="/dashboard">Explorar Eventos</Link>
-        </Button>
-      </div>
-    )
-  }
-
   return (
     <div className="max-w-6xl mx-auto space-y-10 pb-20 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -221,12 +234,9 @@ export default function CarrinhoPage() {
            </h1>
            <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest ml-1">Itens revalidados em tempo real</p>
         </div>
-        <div className="flex items-center gap-3">
-           {isRevalidating && <div className="flex items-center gap-2 text-[9px] font-black uppercase text-secondary animate-pulse"><RefreshCw className="w-3 h-3 animate-spin" /> Sincronizando...</div>}
-           <Button variant="ghost" className="text-destructive font-black uppercase text-[10px] tracking-widest h-10 px-6 hover:bg-destructive/5 rounded-xl" onClick={clearCart}>
-              Esvaziar
-           </Button>
-        </div>
+        <Button variant="ghost" className="text-destructive font-black uppercase text-[10px] tracking-widest h-10 px-6 hover:bg-destructive/5 rounded-xl" onClick={clearCart}>
+           Esvaziar
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
@@ -236,11 +246,11 @@ export default function CarrinhoPage() {
                 <CardContent className="p-6">
                    <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
-                         <div className={cn("p-2 rounded-xl transition-colors", timeLeft.min < 1 ? "bg-red-100 text-red-600" : "bg-secondary/10 text-secondary")}>
+                         <div className={cn("p-2 rounded-xl", timeLeft.min < 1 ? "bg-red-100 text-red-600" : "bg-secondary/10 text-secondary")}>
                             <Timer className={cn("w-4 h-4", timeLeft.min < 1 && "animate-pulse")} />
                          </div>
                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Expiração do Carrinho</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Expiração</p>
                             <p className={cn("text-xs font-black uppercase italic", timeLeft.min < 1 ? "text-red-600" : "text-primary")}>
                               {timeLeft.min.toString().padStart(2, '0')}:{timeLeft.sec.toString().padStart(2, '0')}
                             </p>
@@ -252,42 +262,80 @@ export default function CarrinhoPage() {
              </Card>
            )}
 
-           <div className="space-y-4">
+           <div className="space-y-6">
               {items.map((item) => {
                 const res = calculateFinancialBreakdown(item.price, globalFees, promotions, orgsData[item.organizationId]);
                 return (
                   <Card key={item.id} className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white group hover:shadow-md transition-all">
                      <div className="flex flex-col sm:flex-row">
-                        <div className="relative w-full sm:w-56 h-40 bg-muted">
-                           <Image src={item.eventImage || "https://picsum.photos/seed/event/400/300"} alt={item.eventTitle} fill className="object-cover group-hover:scale-110 transition-transform duration-700" unoptimized />
+                        <div className="relative w-full sm:w-56 h-48 bg-muted">
+                           <Image src={item.eventImage || "https://picsum.photos/seed/event/400/300"} alt={item.eventTitle} fill className="object-cover group-hover:scale-105 transition-transform duration-700" unoptimized />
                         </div>
-                        <CardContent className="p-8 flex-1 flex flex-col justify-between">
+                        <CardContent className="p-6 flex-1 flex flex-col justify-between">
                            <div className="flex justify-between items-start gap-4">
                               <div className="space-y-1">
                                  <div className="flex items-center gap-2 mb-1">
                                     <Badge className="bg-secondary text-white border-none text-[8px] font-black uppercase h-5">{item.batchName}</Badge>
-                                    {item.requiresProof && <Badge variant="outline" className="text-[8px] font-black uppercase h-5 border-orange-200 text-orange-600">Meia/Social</Badge>}
                                  </div>
                                  <h3 className="font-black text-xl uppercase italic tracking-tighter text-primary leading-none group-hover:text-secondary transition-colors">{item.eventTitle}</h3>
-                                 <div className="flex items-center gap-1.5 text-[10px] font-black text-secondary uppercase mt-1">
-                                    <Calendar className="w-3 h-3" />
-                                    {new Date(item.eventDate?.seconds * 1000 || item.eventDate).toLocaleDateString('pt-BR')}
-                                 </div>
                                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{item.ticketTypeName}</p>
                               </div>
-                              <Button variant="ghost" size="icon" className="h-10 w-10 text-destructive hover:bg-red-50 rounded-full" onClick={() => removeItem(item.id)}>
+                              <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-red-50 rounded-full" onClick={() => removeItem(item.id)}>
                                  <Trash2 className="w-4 h-4" />
                               </Button>
                            </div>
-                           <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-8 pt-4 border-t border-dashed gap-4">
-                              <div className="flex items-center gap-4 bg-muted/30 p-1.5 rounded-2xl border border-border/40 w-fit">
-                                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-white shadow-sm" onClick={() => updateQuantity(item.id, item.quantity - 1)} disabled={item.quantity <= 1}><Minus className="w-3 i-3" /></Button>
-                                 <span className="font-black text-sm w-6 text-center">{item.quantity}</span>
-                                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-white shadow-sm" onClick={() => updateQuantity(item.id, item.quantity + 1)}><Plus className="w-3 i-3" /></Button>
+
+                           <div className="mt-4 pt-4 border-t border-dashed space-y-4">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                 <div className="flex items-center gap-4 bg-muted/30 p-1.5 rounded-2xl border w-fit">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-xl hover:bg-white" onClick={() => updateQuantity(item.id, item.quantity - 1)} disabled={item.quantity <= 1}><Minus className="w-3 i-3" /></Button>
+                                    <span className="font-black text-sm w-6 text-center">{item.quantity}</span>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-xl hover:bg-white" onClick={() => updateQuantity(item.id, item.quantity + 1)}><Plus className="w-3 i-3" /></Button>
+                                 </div>
+                                 <div className="text-right">
+                                    {item.couponCode && (
+                                       <p className="text-[10px] font-bold text-muted-foreground line-through uppercase">{formatCurrency(item.originalPrice * item.quantity)}</p>
+                                    )}
+                                    <p className="text-2xl font-black text-primary italic tracking-tighter">{formatCurrency(res.customerFinalPrice * item.quantity)}</p>
+                                 </div>
                               </div>
-                              <div className="text-right">
-                                 <p className="text-[9px] font-black text-muted-foreground uppercase opacity-40 mb-0.5">Subtotal Item</p>
-                                 <p className="text-2xl font-black text-primary italic tracking-tighter">{formatCurrency(res.customerFinalPrice * item.quantity)}</p>
+
+                              {/* ÁREA DE CUPOM POR ITEM */}
+                              <div className="bg-muted/10 rounded-2xl border-2 border-dashed p-4 transition-all">
+                                 {item.couponCode ? (
+                                    <div className="flex items-center justify-between animate-in zoom-in-95">
+                                       <div className="flex items-center gap-2">
+                                          <div className="p-2 bg-green-50 rounded-xl text-green-600"><TicketPercent className="w-4 h-4" /></div>
+                                          <div className="space-y-0.5">
+                                             <p className="text-[9px] font-black uppercase text-green-700">Cupom Aplicado: {item.couponCode}</p>
+                                             <p className="text-[8px] font-bold text-green-600 uppercase">-{formatCurrency(item.discountAmount! * item.quantity)} de desconto</p>
+                                          </div>
+                                       </div>
+                                       <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-full" onClick={() => handleRemoveCoupon(item.id)}>
+                                          <X className="w-4 h-4" />
+                                       </Button>
+                                    </div>
+                                 ) : (
+                                    <div className="flex gap-2">
+                                       <div className="relative flex-1">
+                                          <TicketPercent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground opacity-40" />
+                                          <Input 
+                                            placeholder="CÓDIGO PROMOCIONAL" 
+                                            value={couponInputs[item.id] || ""}
+                                            onChange={e => setCouponInputs(prev => ({...prev, [item.id]: e.target.value.toUpperCase()}))}
+                                            className="h-10 pl-9 rounded-xl text-[10px] font-black uppercase border-none focus-visible:ring-secondary/20"
+                                          />
+                                       </div>
+                                       <Button 
+                                         variant="secondary" 
+                                         className="h-10 rounded-xl px-4 text-[9px] font-black uppercase italic"
+                                         disabled={applyingCoupon === item.id || !couponInputs[item.id]}
+                                         onClick={() => handleApplyCoupon(item.id)}
+                                       >
+                                          {applyingCoupon === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Aplicar"}
+                                       </Button>
+                                    </div>
+                                 )}
                               </div>
                            </div>
                         </CardContent>
@@ -314,16 +362,16 @@ export default function CarrinhoPage() {
 
            <Card className="border-none shadow-2xl rounded-[3rem] bg-white border-t-[12px] border-secondary">
               <CardHeader className="pb-2">
-                 <CardTitle className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-2">Resumo</CardTitle>
+                 <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Resumo</CardTitle>
               </CardHeader>
               <CardContent className="p-8 space-y-8">
                  <div className="space-y-4">
                     <div className="flex justify-between text-[11px] font-bold uppercase opacity-40">
-                       <span>Itens ({items.length})</span>
+                       <span>Total Bruto</span>
                        <span>{formatCurrency(cartTotals.subtotal)}</span>
                     </div>
                     <div className="flex justify-between text-[11px] font-bold uppercase opacity-40">
-                       <span>Serviço</span>
+                       <span>Taxa de Serviço</span>
                        <span>{formatCurrency(cartTotals.fees)}</span>
                     </div>
                     {cartTotals.balanceUsed > 0 && (
@@ -346,8 +394,8 @@ export default function CarrinhoPage() {
            <div className="p-6 bg-muted/30 rounded-[2rem] border-2 border-dashed border-border flex items-start gap-4">
               <ShieldCheck className="w-6 h-6 text-muted-foreground opacity-30 shrink-0 mt-0.5" />
               <div className="space-y-1">
-                 <h4 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Garantia de Vaga</h4>
-                 <p className="text-[9px] text-muted-foreground font-medium leading-relaxed uppercase">O carrinho não reserva vagas no estoque. Sua vaga é confirmada apenas após a aprovação do pagamento.</p>
+                 <h4 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Segurança VIBY</h4>
+                 <p className="text-[9px] text-muted-foreground font-medium leading-relaxed uppercase">O carrinho não reserva vagas no estoque. Cupons aplicados são validados novamente no processamento do pagamento.</p>
               </div>
            </div>
         </div>
