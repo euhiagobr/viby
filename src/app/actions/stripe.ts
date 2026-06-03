@@ -1,8 +1,9 @@
+
 'use server';
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { doc, getDoc, getFirestore, runTransaction, serverTimestamp, increment, collection } from 'firebase/firestore';
+import { doc, getDoc, getFirestore, runTransaction, serverTimestamp, increment, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import { logSystemError } from '@/lib/error-manager';
@@ -186,9 +187,9 @@ export async function createAdBalanceTopUpSession(data: {
             currency: 'brl',
             product_data: {
               name: `Recarga de Saldo Ads - ${data.orgName}`,
-              description: 'Crédito exclusivo para impulsionamento de eventos na Viby Club (Inclui 11% de Impostos)',
+              description: 'Crédito exclusivo para impulsionamento de eventos na Viby Club (Inclui 5% de Taxa de Processamento)',
             },
-            unit_amount: Math.round(data.baseAmount * 1.11 * 100),
+            unit_amount: Math.round(data.baseAmount * 1.05 * 100), // Taxa de processamento de 5%
           },
           quantity: 1,
         },
@@ -233,7 +234,7 @@ export async function finalizeAdTopUpSession(sessionId: string) {
       const orgRef = doc(db, "organizations", orgId);
       const orgSnap = await transaction.get(orgRef);
       
-      // Idempotência baseada no transactionId (devemos verificar no histórico de transações)
+      // Idempotência baseada na sessão do Stripe
       const txQuery = query(
         collection(db, "organizations", orgId, "transactions"),
         where("stripeSessionId", "==", sessionId),
@@ -251,7 +252,7 @@ export async function finalizeAdTopUpSession(sessionId: string) {
       transaction.set(txRef, {
         type: 'ad_topup',
         amount: amount,
-        totalCharged: amount * 1.11,
+        totalCharged: amount * 1.05, // Registra o valor total pago com a taxa de 5%
         status: 'completed',
         stripeSessionId: sessionId,
         description: 'Recarga de Saldo Ads via Cartão (Confirmada)',

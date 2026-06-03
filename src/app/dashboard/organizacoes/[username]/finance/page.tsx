@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -238,7 +239,7 @@ export default function OrganizationFinancePage() {
            <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8">
               <div className="flex flex-col md:flex-row gap-10">
                  <div className="flex-1 space-y-6">
-                    <h3 className="text-xl font-black uppercase italic tracking-tighter">Recarregar Saldo Ads</h3>
+                    <h3 className="text-xl font-black italic uppercase tracking-tighter">Recarregar Saldo Ads</h3>
                     <p className="text-sm text-muted-foreground leading-relaxed">Adicione crédito para promover sua marca e eventos. Recargas via cartão ou PIX.</p>
                     <div className="space-y-4">
                        <Label className="text-[10px] font-black uppercase opacity-60">Valor da Recarga</Label>
@@ -252,7 +253,7 @@ export default function OrganizationFinancePage() {
                  </div>
                  <div className="w-full md:w-1/3 p-6 bg-muted/30 rounded-3xl space-y-4">
                     <div className="flex items-center gap-3 text-secondary"><Zap className="w-5 h-5" /><span className="text-[10px] font-black uppercase">Entrega Imediata</span></div>
-                    <p className="text-[10px] text-muted-foreground leading-relaxed uppercase italic">O saldo para anúncios é independente das vendas de ingressos e deve ser gerenciado por aqui. Uma taxa de 11% (impostos) será somada ao valor.</p>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed uppercase italic">O saldo para anúncios é independente das vendas de ingressos e deve ser gerenciado por aqui. Uma taxa de 5% (processamento) será somada ao valor final no checkout.</p>
                  </div>
               </div>
            </Card>

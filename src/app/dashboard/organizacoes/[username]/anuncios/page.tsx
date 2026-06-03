@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -131,19 +132,18 @@ export default function OrganizationAdsPage() {
 
   const adPlanSummary = React.useMemo(() => {
     const daily = parseFloat(dailyBudgetInput) || 0
-    if (!startDateInput || !endDateInput) return { daily, totalDays: 0, rawBudget: 0, tax: 0, totalReserved: 0 }
+    if (!startDateInput || !endDateInput) return { daily, totalDays: 0, rawBudget: 0, totalReserved: 0 }
     
     const start = new Date(startDateInput)
     const end = new Date(endDateInput)
-    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) return { daily, totalDays: 0, rawBudget: 0, tax: 0, totalReserved: 0 }
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) return { daily, totalDays: 0, rawBudget: 0, totalReserved: 0 }
     
     const diffTime = Math.abs(end.getTime() - start.getTime())
     const totalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)))
     const rawBudget = daily * totalDays
-    const tax = rawBudget * 0.11
-    const totalReserved = rawBudget + tax
+    const totalReserved = rawBudget // Agora 1:1 pois a taxa é paga na recarga
 
-    return { daily, totalDays, rawBudget, tax, totalReserved }
+    return { daily, totalDays, rawBudget, totalReserved }
   }, [dailyBudgetInput, startDateInput, endDateInput])
 
   React.useEffect(() => {
@@ -164,13 +164,12 @@ export default function OrganizationAdsPage() {
 
       for (const ad of expired) {
         const remainingRaw = Math.max(0, ad.remainingBudget || 0);
-        const refundWithTax = remainingRaw * 1.11; 
-        totalRefund += refundWithTax;
+        totalRefund += remainingRaw;
         
         batch.update(doc(db, "ads", ad.id), { 
           status: "Finalizado", 
           remainingBudget: 0, 
-          refundedAmount: refundWithTax, 
+          refundedAmount: remainingRaw, 
           updatedAt: serverTimestamp() 
         });
         
@@ -178,11 +177,10 @@ export default function OrganizationAdsPage() {
         const taxSnap = await getDocs(taxQ);
         if (!taxSnap.empty) {
           const consumedRaw = (ad.initialBudget || ad.budget) - remainingRaw;
-          const consumedTax = consumedRaw * 0.11;
           batch.update(taxSnap.docs[0].ref, {
              status: 'finalizado',
-             grossValue: consumedRaw + consumedTax,
-             taxValue: consumedTax,
+             grossValue: consumedRaw,
+             taxValue: 0,
              netValue: consumedRaw,
              updatedAt: serverTimestamp()
           });
@@ -191,7 +189,7 @@ export default function OrganizationAdsPage() {
         batch.set(doc(collection(db, 'organizations', currentOrg.id, 'transactions')), {
           type: 'ad_refund',
           description: `Expirado: ${ad.eventTitle}`,
-          amount: refundWithTax,
+          amount: remainingRaw,
           status: 'completed',
           createdAt: serverTimestamp(),
           userId: user?.uid
@@ -255,7 +253,7 @@ export default function OrganizationAdsPage() {
       initialBudget: adPlanSummary.rawBudget, 
       remainingBudget: adPlanSummary.rawBudget, 
       budget: adPlanSummary.rawBudget, 
-      taxRate: 0.11,
+      taxRate: 0,
       totalReserved: adPlanSummary.totalReserved,
       durationDays: adPlanSummary.totalDays, 
       startDate: new Date(startDateInput), 
@@ -285,7 +283,7 @@ export default function OrganizationAdsPage() {
       batch.update(doc(db, "organizations", currentOrg.id), orgUpdate)
       batch.set(doc(collection(db, 'organizations', currentOrg.id, 'transactions')), {
         type: 'ad_reservation', 
-        description: `Reserva: ${adData.eventTitle} (Incl. Impostos)`, 
+        description: `Reserva: ${adData.eventTitle}`, 
         amount: adPlanSummary.totalReserved, 
         status: 'completed', 
         createdAt: serverTimestamp(), 
@@ -305,8 +303,8 @@ export default function OrganizationAdsPage() {
          endDate: endDateInput,
          status: status.toLowerCase(),
          grossValue: adPlanSummary.totalReserved, 
-         taxPercent: 11,
-         taxValue: adPlanSummary.tax,
+         taxPercent: 0,
+         taxValue: 0,
          netValue: adPlanSummary.rawBudget,
          nfDeadlineDate: lastDay,
          nfStatus: 'pendente',
@@ -352,25 +350,24 @@ export default function OrganizationAdsPage() {
     try {
       const batch = writeBatch(db)
       const remainingRaw = Math.max(0, adToCancel.remainingBudget || 0)
-      const refundWithTax = remainingRaw * 1.11
       
       batch.update(doc(db, "ads", adToCancel.id), { 
         status: "Cancelado", 
         remainingBudget: 0, 
-        refundedAmount: refundWithTax, 
+        refundedAmount: remainingRaw, 
         updatedAt: serverTimestamp() 
       })
       
-      if (refundWithTax > 0) {
+      if (remainingRaw > 0) {
         batch.update(doc(db, "organizations", currentOrg.id), { 
-          adBalance: increment(refundWithTax), 
-          blockedBalance: increment(-refundWithTax), 
+          adBalance: increment(remainingRaw), 
+          blockedBalance: increment(-remainingRaw), 
           updatedAt: serverTimestamp() 
         })
         batch.set(doc(collection(db, 'organizations', currentOrg.id, 'transactions')), {
           type: 'ad_refund', 
           description: `Estorno: ${adToCancel.eventTitle}`, 
-          amount: refundWithTax, 
+          amount: remainingRaw, 
           status: 'completed', 
           createdAt: serverTimestamp(), 
           userId: user?.uid
@@ -381,11 +378,10 @@ export default function OrganizationAdsPage() {
       const taxSnap = await getDocs(taxQ);
       if (!taxSnap.empty) {
         const consumedRaw = (adToCancel.initialBudget || adToCancel.budget) - remainingRaw;
-        const consumedTax = consumedRaw * 0.11;
         batch.update(taxSnap.docs[0].ref, {
            status: 'cancelado',
-           grossValue: consumedRaw + consumedTax,
-           taxValue: consumedTax,
+           grossValue: consumedRaw,
+           taxValue: 0,
            netValue: consumedRaw,
            updatedAt: serverTimestamp()
         });
@@ -483,8 +479,7 @@ export default function OrganizationAdsPage() {
                     <div className="p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 space-y-4 animate-in slide-in-from-top-2 duration-300">
                          <div className="space-y-2">
                             <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Período:</span> <span className="text-primary">{adPlanSummary.totalDays} dias</span></div>
-                            <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Orçamento Líquido:</span> <span className="text-primary">{formatCurrency(adPlanSummary.rawBudget)}</span></div>
-                            <div className="flex justify-between text-[10px] font-black uppercase text-secondary"><span>Imposto Recolhido (11%):</span> <span>+ {formatCurrency(adPlanSummary.tax)}</span></div>
+                            <div className="flex justify-between text-[10px] font-bold uppercase opacity-60"><span>Consumo de Saldo:</span> <span className="text-primary">{formatCurrency(adPlanSummary.rawBudget)}</span></div>
                          </div>
                          <Separator className="bg-secondary/10" />
                          <div className="flex justify-between items-center">
@@ -493,7 +488,7 @@ export default function OrganizationAdsPage() {
                          </div>
                          <div className="flex gap-2 p-3 bg-white rounded-xl shadow-sm items-start">
                             <Info className="w-3.5 h-3.5 text-secondary shrink-0 mt-0.5" />
-                            <p className="text-[8px] text-muted-foreground font-medium uppercase leading-tight">O imposto de 11% é somado ao seu orçamento. Valores não consumidos são estornados integralmente (crédito + imposto proporcional).</p>
+                            <p className="text-[8px] text-muted-foreground font-medium uppercase leading-tight">Taxas e impostos foram processados na recarga do saldo livre. O lançamento consome créditos 1:1.</p>
                          </div>
                       </div>
                   </div>
@@ -593,7 +588,7 @@ export default function OrganizationAdsPage() {
                          <div className="col-span-1 text-center"><span className="font-black text-xs bg-muted px-2 py-0.5 rounded-full">{ctr.toFixed(2)}%</span></div>
                          <div className="col-span-2 text-right space-y-0.5">
                             <p className="font-black text-xs">{formatCurrency(ad.initialBudget || ad.budget || 0)}</p>
-                            <p className="text-[8px] font-bold text-secondary uppercase">Restante (+Tax): {formatCurrency(isFinished ? ad.refundedAmount || 0 : (ad.remainingBudget * 1.11) || 0)}</p>
+                            <p className="text-[8px] font-bold text-secondary uppercase">Restante: {formatCurrency(isFinished ? ad.refundedAmount || 0 : (ad.remainingBudget) || 0)}</p>
                          </div>
                          <div className="col-span-3 flex items-center justify-end gap-2">
                             <Button variant="outline" size="sm" className="h-8 rounded-lg border-secondary/20 text-secondary gap-1.5 font-bold text-[9px] uppercase" onClick={() => setSelectedAdForMetrics(ad)}>
@@ -618,7 +613,7 @@ export default function OrganizationAdsPage() {
             </div>
           ) : (
             <div className="py-24 text-center">
-              <Inbox className="w-16 h-16 text-muted-foreground opacity-10 mx-auto mb-4" />
+              <Inbox className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-10" />
               <p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-xs">Nenhuma campanha registrada.</p>
             </div>
           )}
@@ -683,7 +678,7 @@ export default function OrganizationAdsPage() {
         <AlertDialogContent className="rounded-[2.5rem]">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Confirmar Cancelamento?</AlertDialogTitle>
-            <AlertDialogDescription>Esta ação encerrará a campanha e devolverá <strong>{formatCurrency((adToCancel?.remainingBudget || 0) * 1.11)}</strong> ao seu saldo livre (Crédito Bruto + Imposto Proporcional).</AlertDialogDescription>
+            <AlertDialogDescription>Esta ação encerrará a campanha e devolverá <strong>{formatCurrency(adToCancel?.remainingBudget || 0)}</strong> ao seu saldo livre.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Não</AlertDialogCancel><AlertDialogAction onClick={handleCancelAd} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] px-8">Confirmar e Estornar</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
