@@ -169,7 +169,7 @@ export default function AdminCuponsPage() {
 
                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Mín. Recarga (R$)</Label>
+                       <Label className="text-[10px) font-black uppercase opacity-60">Mín. Recarga (R$)</Label>
                        <Input name="minRecharge" type="number" step="0.01" placeholder="10.00" className="rounded-xl h-11" />
                     </div>
                     <div className="space-y-2">

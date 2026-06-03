@@ -10,7 +10,8 @@ import {
   where, 
   getDocs, 
   limit,
-  collectionGroup
+  collectionGroup,
+  doc
 } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -33,7 +34,8 @@ import {
   Landmark,
   TicketPercent,
   X,
-  Inbox
+  Inbox,
+  CreditCard
 } from 'lucide-react';
 import { formatCurrency, calculateFinancialBreakdown } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
@@ -139,7 +141,6 @@ function OrganizationFinanceContent() {
       
       const amount = parseFloat(topUpAmount);
 
-      // 1. Validação de Regras de Recarga
       if (amount < (data.minRecharge || 0)) {
          throw new Error(`Este cupom exige recarga mínima de ${formatCurrency(data.minRecharge)}`);
       }
@@ -150,13 +151,10 @@ function OrganizationFinanceContent() {
          throw new Error("Este cupom não está vigente para a data atual.");
       }
 
-      // 2. Validação de Estoque Global
       if (data.maxTotalUses > 0 && data.currentUses >= data.maxTotalUses) {
          throw new Error("Este cupom atingiu o limite máximo de utilizações.");
       }
 
-      // 3. Validação de Limite por Usuário
-      // Buscamos em todas as transações de todas as organizações que esse usuário já usou esse cupom
       if (data.maxUsesPerUser > 0) {
         const usagesQuery = query(
            collectionGroup(db, 'transactions'),
@@ -238,15 +236,13 @@ function OrganizationFinanceContent() {
     );
   }
 
-  if (!currentOrg) return null;
-
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
           <Wallet className="w-8 h-8 text-secondary" /> Finanças da Marca
         </h1>
-        <p className="text-muted-foreground font-medium">Gestão de saldo Ads e extrato para <strong>{currentOrg.name}</strong>.</p>
+        <p className="text-muted-foreground font-medium">Gestão de saldo Ads e extrato para <strong>{currentOrg?.name}</strong>.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -267,7 +263,7 @@ function OrganizationFinanceContent() {
         <Card className="border-none shadow-sm bg-white border-l-4 border-secondary">
            <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Saldo Livre Ads</CardTitle></CardHeader>
            <CardContent>
-              <div className="text-2xl font-black">{formatCurrency(currentOrg.adBalance || 0)}</div>
+              <div className="text-2xl font-black">{formatCurrency(currentOrg?.adBalance || 0)}</div>
               <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">Disponível para impulsionamento</p>
            </CardContent>
         </Card>
