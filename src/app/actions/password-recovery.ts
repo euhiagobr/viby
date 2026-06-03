@@ -1,4 +1,3 @@
-
 'use server';
 
 import { collection, query, where, getDocs, limit, getFirestore, addDoc, serverTimestamp, doc, updateDoc, Timestamp, getDoc as firestoreGetDoc } from 'firebase/firestore';
@@ -6,7 +5,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import { maskEmail } from '@/lib/crypto-utils';
 import { sendPasswordResetLinkEmail } from './email';
-import { adminAuth } from '@/lib/firebase/admin';
+import { getAdminAuth } from '@/lib/firebase/admin';
 
 /**
  * @fileOverview Recuperação de senha utilizando código numérico (OTP) e Admin SDK.
@@ -25,8 +24,14 @@ export async function requestPasswordRecovery(identifier: string) {
     const db = await getDb();
     const inputClean = identifier.trim().toLowerCase();
     const isEmail = inputClean.includes("@");
-    const searchField = isEmail ? "email" : "username";
-    const searchValue = inputClean.replace('@', '');
+    
+    let searchField = "username";
+    let searchValue = inputClean.replace('@', '');
+
+    if (isEmail) {
+      searchField = "email";
+      searchValue = inputClean;
+    }
 
     const q = query(collection(db, "users"), where(searchField, "==", searchValue), limit(1));
     const userSnap = await getDocs(q);
@@ -120,6 +125,7 @@ export async function resetPasswordWithCode(requestId: string, code: string, pas
     }
 
     // 1. Atualiza a senha no Firebase Auth via Admin SDK
+    const adminAuth = getAdminAuth();
     await adminAuth.updateUser(userId, {
       password: password
     });
@@ -132,7 +138,7 @@ export async function resetPasswordWithCode(requestId: string, code: string, pas
 
     return { success: true };
   } catch (error: any) {
-    console.error("[Admin Auth Reset Error]", error.message);
-    return { success: false, error: "Falha técnica ao atualizar senha no servidor." };
+    console.error("[Admin Auth Reset Error Details]:", error);
+    return { success: false, error: `Falha técnica ao atualizar senha: ${error.message || 'Erro desconhecido'}` };
   }
 }

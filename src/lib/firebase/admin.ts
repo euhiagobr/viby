@@ -7,7 +7,11 @@ import * as admin from 'firebase-admin';
 
 function getServiceAccount() {
   const sa = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!sa) return null;
+  if (!sa) {
+    console.error("[Admin SDK] FIREBASE_SERVICE_ACCOUNT não definida no .env");
+    return null;
+  }
+  
   try {
     const config = JSON.parse(sa);
     // Garantir tratamento correto das quebras de linha na chave privada
@@ -16,25 +20,30 @@ function getServiceAccount() {
     }
     return config;
   } catch (e) {
-    console.error("[Admin SDK] Erro ao parsear FIREBASE_SERVICE_ACCOUNT");
+    console.error("[Admin SDK] Erro ao parsear FIREBASE_SERVICE_ACCOUNT. Verifique o formato JSON.");
     return null;
   }
 }
 
-export function getAdminApp() {
+function getAdminApp() {
   if (admin.apps.length > 0) return admin.apps[0]!;
   
   const serviceAccount = getServiceAccount();
   
   if (serviceAccount) {
-    return admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
-    });
+    try {
+      return admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+    } catch (e) {
+      console.error("[Admin SDK] Falha ao inicializar com service account:", e);
+    }
   }
 
   // Fallback para ambientes com Application Default Credentials (ADC)
   return admin.initializeApp();
 }
 
-export const adminAuth = getAdminApp().auth();
-export const adminDb = getAdminApp().firestore();
+// Inicializa preguiçosamente para evitar erros durante a build se as variáveis não estiverem lá
+export const getAdminAuth = () => getAdminApp().auth();
+export const getAdminDb = () => getAdminApp().firestore();
