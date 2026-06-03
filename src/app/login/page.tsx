@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, User, Mail, ArrowLeft, KeyRound } from "lucide-react"
+import { Loader2, User, Mail, ArrowLeft, KeyRound, ShieldCheck } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import Image from "next/image"
@@ -32,18 +32,15 @@ function LoginContent() {
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
-  // REDIRECIONAMENTO INTELIGENTE
+  // REDIRECIONAMENTO IMEDIATO
   useEffect(() => {
     if (!isInitialized || authLoading) return;
 
-    console.log('[Auth-Debug] Login Page State Check', { isInitialized, hasUser: !!user, hasProfile: !!profile });
-
     if (user && profile) {
+      console.log('[Auth-Debug] Logged in. Deciding destination...');
       const isComplete = profile.username && profile.cpf;
       const redirect = searchParams.get('redirect') || "/dashboard";
       const target = isComplete ? redirect : "/onboarding";
-      
-      console.log(`[Auth-Debug] User authenticated. Redirecting to ${target}`);
       router.replace(target);
     }
   }, [user, profile, isInitialized, authLoading, router, searchParams]);
@@ -61,32 +58,24 @@ function LoginContent() {
         const usernameRef = doc(db, "usernames", usernameClean)
         const usernameSnap = await getDoc(usernameRef)
         
-        if (!usernameSnap.exists()) throw new Error("Perfil não encontrado.")
-        const uData = usernameSnap.data();
-        
-        if (uData.email) {
-          emailToUse = uData.email;
-        } else {
-          const userSnap = await getDoc(doc(db, "users", uData.uid))
-          if (!userSnap.exists()) throw new Error("Perfil não localizado.")
-          emailToUse = userSnap.data().email
-        }
+        if (!usernameSnap.exists()) throw new Error("Usuário não encontrado.")
+        emailToUse = usernameSnap.data().email
       }
 
       await signInWithEmailAndPassword(auth, emailToUse, password)
-      toast({ title: "Bem-vindo!" })
+      toast({ title: "Acesso liberado!" })
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Falha no Acesso", description: "E-mail ou senha incorretos." })
+      toast({ variant: "destructive", title: "Erro no login", description: "Credenciais incorretas." })
     } finally {
       setLoading(false)
     }
   }
 
-  // Só esconde o formulário se já estiver redirecionando
-  const isRedirecting = user && profile;
+  // Se estiver carregando Auth OU se o usuário existir mas o perfil ainda não carregou (Sincronização)
+  const showSync = !isInitialized || authLoading || (user && !profile);
 
   return (
-    <div className="min-h-screen flex flex-col bg-muted/30 font-body text-foreground">
+    <div className="min-h-screen flex flex-col bg-muted/30">
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
@@ -104,66 +93,58 @@ function LoginContent() {
       </nav>
 
       <div className="flex-1 flex items-center justify-center p-4">
-        {!isInitialized ? (
-          <div className="flex flex-col items-center gap-4 text-center">
-             <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Iniciando Viby...</p>
-          </div>
-        ) : (
-          <Card className="w-full max-w-md border-none shadow-xl rounded-[2rem] overflow-hidden bg-white">
-            <CardHeader className="space-y-1 flex flex-col items-center pt-10 pb-6">
-              <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-secondary/20">
-                <KeyRound className="text-white w-7 h-7" />
+        <Card className="w-full max-w-md border-none shadow-xl rounded-[2.5rem] overflow-hidden bg-white">
+          <CardHeader className="space-y-1 flex flex-col items-center pt-10 pb-6 text-center">
+            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 shadow-lg">
+              <KeyRound className="text-white w-7 h-7" />
+            </div>
+            <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Acessar Viby</CardTitle>
+            <CardDescription className="font-medium">Vença o tédio. Viva experiências.</CardDescription>
+          </CardHeader>
+          
+          <CardContent className="space-y-6 px-8 pb-10">
+            {showSync ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-4 text-center">
+                 <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+                 <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando conta...</p>
               </div>
-              <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Acessar Viby</CardTitle>
-              <CardDescription className="font-medium text-center">Entre para viver experiências memoráveis.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6 px-8">
-              <SocialLoginButtons />
-              
-              {!isRedirecting && (
-                <>
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center"><Separator className="w-full" /></div>
-                    <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-white px-3 text-muted-foreground">Ou use sua senha</span></div>
+            ) : (
+              <>
+                <SocialLoginButtons />
+                
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center"><Separator className="w-full" /></div>
+                  <div className="relative flex justify-center text-[10px] uppercase font-black">
+                    <span className="bg-white px-3 text-muted-foreground">Ou com sua senha</span>
                   </div>
-
-                  <form onSubmit={handleLogin} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Identificador</Label>
-                      <div className="relative">
-                        <Input placeholder="E-mail ou @username" value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="pl-10 h-12 rounded-xl" required />
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary">
-                          {identifier.includes("@") ? <Mail className="h-4 w-4" /> : <User className="h-4 w-4" />}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between mb-1">
-                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Sua Senha</Label>
-                        <Link href="/redefinir-senha" className="text-[10px] font-black uppercase tracking-widest text-secondary hover:underline">Esqueceu?</Link>
-                      </div>
-                      <Input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="rounded-xl h-12" />
-                    </div>
-                    <Button type="submit" className="w-full bg-primary text-white font-black h-14 rounded-2xl uppercase italic mt-2" disabled={loading}>
-                      {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Entrar com Senha"}
-                    </Button>
-                  </form>
-                </>
-              )}
-
-              {isRedirecting && (
-                <div className="flex flex-col items-center justify-center py-10 gap-3 text-center animate-in fade-in">
-                  <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-                  <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Redirecionando você...</p>
                 </div>
-              )}
-            </CardContent>
-            <CardFooter className="flex flex-col items-center gap-4 border-t border-border mt-6 py-8 bg-muted/20">
-              <p className="text-xs font-bold text-muted-foreground">Novo por aqui? <Link href="/cadastro" className="text-secondary font-black hover:underline uppercase italic">Criar conta gratuita</Link></p>
-            </CardFooter>
-          </Card>
-        )}
+
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Usuário ou E-mail</Label>
+                    <Input placeholder="Identificador" value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="h-12 rounded-xl" required />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between mb-1">
+                      <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Sua Senha</Label>
+                      <Link href="/redefinir-senha" className="text-[10px] font-black uppercase text-secondary hover:underline">Esqueceu?</Link>
+                    </div>
+                    <Input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="rounded-xl h-12" />
+                  </div>
+                  <Button type="submit" className="w-full bg-primary text-white font-black h-14 rounded-2xl uppercase italic mt-2 shadow-lg" disabled={loading}>
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Entrar agora"}
+                  </Button>
+                </form>
+              </>
+            )}
+          </CardContent>
+
+          <CardFooter className="flex flex-col items-center gap-4 border-t border-border mt-0 py-8 bg-muted/20">
+            <p className="text-xs font-bold text-muted-foreground">
+              Novo no clube? <Link href="/cadastro" className="text-secondary font-black hover:underline uppercase italic">Criar conta grátis</Link>
+            </p>
+          </CardFooter>
+        </Card>
       </div>
       <Footer />
     </div>
@@ -172,7 +153,7 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-muted/30"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>}>
+    <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>}>
       <LoginContent />
     </React.Suspense>
   )

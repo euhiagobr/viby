@@ -12,13 +12,12 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
-import { Globe, Loader2, Check, X, ArrowLeft, Fingerprint, ShieldAlert } from "lucide-react"
+import { Globe, Loader2, Check, X, ArrowLeft, Fingerprint, ShieldAlert, UserPlus } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import { cn } from "@/lib/utils"
 import { sendWelcomeEmail } from "@/app/actions/email"
 import Image from "next/image"
-import { processGamificationEvent } from "@/lib/gamification-service"
 import { updateUserCPF } from "@/app/actions/user"
 import { maskCPF } from "@/lib/crypto-utils"
 import { SocialLoginButtons } from "../login/SocialLoginButtons"
@@ -36,8 +35,7 @@ function CadastroContent() {
   const [cpf, setCpf] = useState("")
   const [loading, setLoading] = useState(false)
   const [checkingUsername, setCheckingUsername] = useState(false)
-  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken' | 'error'>('idle')
-  const [isUsernameCustom, setIsUsernameCustom] = useState(false)
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
   
   const router = useRouter()
   const auth = useAuth()
@@ -48,96 +46,43 @@ function CadastroContent() {
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
-  const blockedRef = React.useMemo(() => (db ? doc(db, 'settings', 'blocked_usernames') : null), [db]);
-  const { data: blockedData } = useDoc<any>(blockedRef);
-
-  // REDIRECIONAMENTO INTELIGENTE COM LOGS
+  // REDIRECIONAMENTO IMEDIATO
   useEffect(() => {
     if (!isInitialized || authLoading) return;
-
-    console.log('[Auth-Debug] Login Page State', {
-      isInitialized,
-      hasUser: !!user,
-      hasProfile: !!profile,
-      authLoading
-    });
 
     if (user && profile) {
       const isComplete = profile.username && profile.cpf;
       const target = isComplete ? "/dashboard" : "/onboarding";
-      
-      if (isComplete) {
-        console.log('[Auth-Debug] Redirecting To Dashboard');
-      } else {
-        console.log('[Auth-Debug] Redirecting To Onboarding');
-      }
       router.replace(target);
-    } else {
-      console.log('[Auth-Debug] Staying On Cadastro');
     }
   }, [user, profile, isInitialized, authLoading, router]);
 
   useEffect(() => {
-    if (!db || !username) {
+    if (!db || !username || username.length < 5) {
       setUsernameStatus('idle')
       return
     }
 
     const newUsername = username.toLowerCase().trim()
-    const regex = /^[a-zA-Z0-9]+$/
-    
-    if (newUsername.length < 5 || !regex.test(newUsername)) {
-      setUsernameStatus('invalid')
-      return
-    }
-
-    if (blockedData?.list?.includes(newUsername)) {
-      setUsernameStatus('taken')
-      return
-    }
-
     setCheckingUsername(true)
     const timer = setTimeout(async () => {
       try {
         const usernameRef = doc(db, "usernames", newUsername)
         const usernameSnap = await getDoc(usernameRef)
         setUsernameStatus(usernameSnap.exists() ? 'taken' : 'valid')
-      } catch (e: any) {
-        setUsernameStatus('error')
+      } catch (e) {
+        setUsernameStatus('idle')
       } finally {
         setCheckingUsername(false)
       }
     }, 600)
 
     return () => clearTimeout(timer)
-  }, [username, db, blockedData])
-
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setName(val);
-    
-    if (!isUsernameCustom) {
-      const suggested = val
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, "")
-        .substring(0, 20);
-      setUsername(suggested);
-    }
-  }
-
-  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ""));
-    setIsUsernameCustom(true);
-  }
+  }, [username, db])
 
   const formatCPF = (v: string) => {
     v = v.replace(/\D/g, "");
     if (v.length > 11) v = v.slice(0, 11);
-    if (v.length > 9) return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-    if (v.length > 6) return v.replace(/(\d{3})(\d{3})(\d{1,3})/, "$1.$2.$3");
-    if (v.length > 3) return v.replace(/(\d{3})(\d{1,3})/, "$1.$2");
     return v;
   }
 
@@ -146,7 +91,7 @@ function CadastroContent() {
     if (!auth || !db) return
     
     if (usernameStatus !== 'valid') {
-      toast({ variant: "destructive", title: "Username inválido" })
+      toast({ variant: "destructive", title: "Username indisponível" })
       return
     }
 
@@ -156,12 +101,6 @@ function CadastroContent() {
       const user = userCredential.user
 
       await updateProfile(user, { displayName: name })
-
-      let officialOrgId = null;
-      try {
-        const vibyIdxSnap = await getDoc(doc(db, "usernames", "viby"));
-        if (vibyIdxSnap.exists()) officialOrgId = vibyIdxSnap.data().uid;
-      } catch (e) {}
 
       const cleanCPF = cpf.replace(/\D/g, "");
       const userData = {
@@ -173,25 +112,22 @@ function CadastroContent() {
         birthDate,
         gender,
         cpf: maskCPF(cleanCPF),
-        plan: "free",
-        platform: "viby",
+        profileComplete: true,
         role: "user",
         status: "Ativo",
-        followingCount: officialOrgId ? 1 : 0,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       };
 
       await runTransaction(db, async (transaction) => {
-        const usernameRef = doc(db, "usernames", userData.username)
-        const userRef = doc(db, "users", user.uid)
-        transaction.set(usernameRef, { uid: user.uid, type: 'user', email: userData.email })
-        transaction.set(userRef, userData)
+        transaction.set(doc(db, "usernames", userData.username), { uid: user.uid, type: 'user', email: userData.email })
+        transaction.set(doc(db, "users", user.uid), userData)
       });
 
       await updateUserCPF(user.uid, cleanCPF);
       sendWelcomeEmail({ to: email, userName: name }).catch(() => {});
 
-      toast({ title: "Conta criada!" })
+      toast({ title: "Bem-vindo ao clube!" })
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao cadastrar", description: error.message })
     } finally {
@@ -199,18 +135,16 @@ function CadastroContent() {
     }
   }
 
-  const showForm = isInitialized && !user;
+  const showSync = !isInitialized || authLoading || (user && !profile);
 
   return (
-    <div className="min-h-screen flex flex-col bg-muted/30 font-body text-foreground">
+    <div className="min-h-screen flex flex-col bg-muted/30">
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            {settings?.logoUrl ? (
-              <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-10 w-auto object-contain" priority unoptimized />
-            ) : (
-              <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center"><span className="text-white font-bold text-lg">{siteName.charAt(0)}</span></div>
-            )}
+            <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-lg">{siteName.charAt(0)}</span>
+            </div>
             <span className="text-xl font-bold tracking-tight">{siteName}</span>
           </Link>
           <Button variant="ghost" asChild className="font-semibold text-xs uppercase tracking-widest">
@@ -220,108 +154,80 @@ function CadastroContent() {
       </nav>
 
       <div className="flex-1 flex items-center justify-center p-4">
-        {!isInitialized ? (
-          <div className="flex flex-col items-center gap-4 text-center">
-             <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Iniciando Viby...</p>
-          </div>
-        ) : (
-          <Card className="w-full max-w-md border-none shadow-xl rounded-[2rem] overflow-hidden bg-white">
-            <CardHeader className="space-y-1 flex flex-col items-center pt-8 pb-4">
-              <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-secondary/20">
-                 <Globe className="text-white w-7 h-7" />
+        <Card className="w-full max-w-md border-none shadow-xl rounded-[2rem] overflow-hidden bg-white">
+          <CardHeader className="space-y-1 flex flex-col items-center pt-8 pb-4 text-center">
+            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 shadow-lg">
+              <UserPlus className="text-white w-7 h-7" />
+            </div>
+            <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Criar Conta</CardTitle>
+            <CardDescription className="font-medium">O seu passaporte para o agora.</CardDescription>
+          </CardHeader>
+          
+          <CardContent className="space-y-6 px-8 pb-10">
+            {showSync ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-4 text-center">
+                 <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+                 <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground animate-pulse">Iniciando Viby...</p>
               </div>
-              <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Criar Conta Viby</CardTitle>
-              <CardDescription className="font-medium">Junte-se à comunidade.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6 px-8">
-              <SocialLoginButtons />
-              
-              {showForm && (
-                <>
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center"><Separator className="w-full" /></div>
-                    <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-white px-3 text-muted-foreground">Ou use o formulário</span></div>
+            ) : (
+              <>
+                <SocialLoginButtons />
+                
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center"><Separator className="w-full" /></div>
+                  <div className="relative flex justify-center text-[10px] uppercase font-black">
+                    <span className="bg-white px-3 text-muted-foreground">Ou preencha os campos</span>
                   </div>
+                </div>
 
-                  <form onSubmit={handleRegister} className="space-y-4">
+                <form onSubmit={handleRegister} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Nome Completo</Label>
+                    <Input placeholder="Seu nome" value={name} onChange={e => setName(e.target.value)} required className="rounded-xl h-11" />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome Completo</Label>
-                      <Input placeholder="Seu nome" value={name} onChange={handleNameChange} required className="rounded-xl h-11" />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome de Usuário (@)</Label>
+                      <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Username (@)</Label>
                       <div className="relative">
                         <Input 
-                          placeholder="ex: joaosilva" 
+                          placeholder="joao_viby" 
                           value={username} 
-                          onChange={handleUsernameChange} 
-                          className={cn(
-                            "rounded-xl h-11 pr-10", 
-                            usernameStatus === 'valid' && 'border-green-500', 
-                            (usernameStatus === 'taken' || usernameStatus === 'invalid' || usernameStatus === 'error') && 'border-destructive'
-                          )}
+                          onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))} 
+                          className="rounded-xl h-11"
                           required 
                         />
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /> : 
-                           usernameStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : 
-                           usernameStatus === 'taken' || usernameStatus === 'invalid' ? <X className="w-4 h-4 text-destructive" /> : null}
-                        </div>
+                        {checkingUsername && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin opacity-40" />}
                       </div>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Gênero</Label>
-                        <Select value={gender} onValueChange={setGender} required>
-                          <SelectTrigger className="rounded-xl h-11">
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="masculino">Masculino</SelectItem>
-                            <SelectItem value="feminino">Feminino</SelectItem>
-                            <SelectItem value="outro">Outro</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Nascimento</Label>
-                        <Input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} required className="rounded-xl h-11" />
-                      </div>
-                    </div>
-
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
-                        <Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF
-                      </Label>
-                      <Input placeholder="000.000.000-00" value={cpf} onChange={(e) => setCpf(formatCPF(e.target.value))} required className="rounded-xl h-11" />
+                      <Label className="text-[10px] font-black uppercase opacity-60 ml-1">CPF</Label>
+                      <Input placeholder="00000000000" value={cpf} onChange={e => setCpf(formatCPF(e.target.value))} required className="rounded-xl h-11" />
                     </div>
+                  </div>
 
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">E-mail</Label>
-                      <Input type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="rounded-xl h-11" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Senha</Label>
-                      <Input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="rounded-xl h-11" />
-                    </div>
-                    
-                    <Button type="submit" className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic mt-4" disabled={loading || usernameStatus !== 'valid'}>
-                      {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Criar Minha Conta"}
-                    </Button>
-                  </form>
-                </>
-              )}
-            </CardContent>
-            <CardFooter className="flex justify-center border-t border-border mt-6 py-6 bg-muted/20">
-              <p className="text-xs font-bold text-muted-foreground">
-                Já tem conta? <Link href="/login" className="text-secondary font-black hover:underline uppercase italic">Entrar</Link>
-              </p>
-            </CardFooter>
-          </Card>
-        )}
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60 ml-1">E-mail</Label>
+                    <Input type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} required className="rounded-xl h-11" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Senha</Label>
+                    <Input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required className="rounded-xl h-11" />
+                  </div>
+                  
+                  <Button type="submit" className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic mt-4" disabled={loading || usernameStatus !== 'valid'}>
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Concluir Cadastro"}
+                  </Button>
+                </form>
+              </>
+            )}
+          </CardContent>
+          <CardFooter className="flex justify-center border-t border-border mt-0 py-6 bg-muted/20">
+            <p className="text-xs font-bold text-muted-foreground">
+              Já tem conta? <Link href="/login" className="text-secondary font-black hover:underline uppercase italic">Entrar</Link>
+            </p>
+          </CardFooter>
+        </Card>
       </div>
       <Footer />
     </div>
@@ -330,7 +236,7 @@ function CadastroContent() {
 
 export default function CadastroPage() {
   return (
-    <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-muted/30"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>}>
+    <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>}>
       <CadastroContent />
     </React.Suspense>
   )
