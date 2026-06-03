@@ -24,7 +24,8 @@ async function getStripeInstance(db: any) {
 export type RefundType = 'shared' | 'platform_absorbed';
 
 /**
- * Processa o estorno de um ingresso via Stripe Connect Destination Charges
+ * Processa o estorno de um ingresso via Stripe Connect Destination Charges.
+ * Implementa devolução de estoque e sincronização de status.
  */
 export async function processStripeRefund(params: {
   registrationId: string;
@@ -42,7 +43,8 @@ export async function processStripeRefund(params: {
     if (!regSnap.exists()) throw new Error('Ingresso não localizado.');
     const regData = regSnap.data();
 
-    if (regData.status === 'refunded' || regData.paymentStatus === 'Estornado') {
+    // Idempotência
+    if (regData.status === 'refunded' || regData.status === 'cancelled' || regData.paymentStatus === 'Estornado') {
       throw new Error('Este ingresso já foi estornado.');
     }
 
@@ -58,13 +60,9 @@ export async function processStripeRefund(params: {
 
     if (!paymentIntentId) throw new Error('Payment Intent não localizado para esta sessão.');
 
-    // 2. Definir parâmetros do reembolso baseado nas regras de negócio
-    // Organizador: Sempre compartilhado (reverse_transfer=true)
-    // Admin: Pode escolher
+    // 2. Definir parâmetros do reembolso
     const shouldReverseTransfer = role === 'admin' ? (refundType === 'shared') : true;
     
-    // Na Viby, em estornos autorizados, a plataforma sempre devolve sua taxa (refund_application_fee)
-    // para que o cliente receba 100% do valor pago.
     const refundParams: Stripe.RefundCreateParams = {
       payment_intent: paymentIntentId,
       reverse_transfer: shouldReverseTransfer,
@@ -75,6 +73,7 @@ export async function processStripeRefund(params: {
     const refund = await stripe.refunds.create(refundParams);
 
     // 4. Atualizar Inventário (Devolver vaga)
+    // Usamos auth == null no servidor para garantir que as regras de decremento passem
     const eventRef = doc(db, "events", regData.eventId);
     await updateDoc(eventRef, { 
       ingressosVendidos: increment(-1),
@@ -89,7 +88,7 @@ export async function processStripeRefund(params: {
       });
     }
 
-    // 5. Atualizar Firestore
+    // 5. Atualizar Firestore do Ingresso
     await updateDoc(regRef, {
       status: 'refunded',
       paymentStatus: 'Estornado',
