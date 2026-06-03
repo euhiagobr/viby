@@ -37,30 +37,21 @@ import { processGamificationEvent } from "@/lib/gamification-service"
 function parseToLocalDate(dateInput: any, timeInput?: string) {
   if (!dateInput) return new Date();
   
-  // 1. Se for Timestamp do Firebase
   if (dateInput?.toDate) return dateInput.toDate();
-
-  // 2. Se for objeto Date direto
   if (dateInput instanceof Date) return dateInput;
 
-  // 3. Se for string
   const dateStr = String(dateInput);
 
-  // Se já tiver tempo (ISO ou datetime-local: YYYY-MM-DDTHH:mm)
   if (dateStr.includes('T')) {
     const d = new Date(dateStr);
     if (!isNaN(d.getTime())) return d;
   }
 
-  // Fallback: Parse manual garantindo fuso local do navegador
-  // Formato esperado: YYYY-MM-DD
   const parts = dateStr.split('-');
   if (parts.length === 3) {
     const [year, month, day] = parts.map(Number);
     const finalTime = timeInput || "00:00";
     const [hours, minutes] = finalTime.split(':').map(Number);
-    
-    // Construtor new Date(year, monthIndex, day, hours, ...) SEMPRE usa local time
     const d = new Date(year, month - 1, day, hours, minutes);
     if (!isNaN(d.getTime())) return d;
   }
@@ -129,7 +120,6 @@ export default function AdminScannerPage() {
     try {
       let targetDoc: any = null;
 
-      // Busca por ID do documento ou Código impresso
       if (cleanInput.length >= 20 && !cleanInput.includes('-')) {
         const docRef = doc(db, "registrations", cleanInput);
         const docSnap = await getDoc(docRef);
@@ -150,33 +140,23 @@ export default function AdminScannerPage() {
         setError("Ingresso não encontrado ou código inválido.");
       } else {
         const isCancelled = targetDoc.status === 'cancelled' || targetDoc.status === 'refunded' || targetDoc.paymentStatus === 'refunded_wallet' || targetDoc.status === 'Cancelado';
-        
         const now = new Date();
-        
-        // RESOLUÇÃO DE HORÁRIOS LOCALIZADA
         const eventStart = parseToLocalDate(targetDoc.eventDate, targetDoc.startTime || targetDoc.horarioOcorrencia);
         
-        // Se não houver horário de fim, assume 6h de duração padrão
         let eventEnd = parseToLocalDate(targetDoc.eventEndDate || targetDoc.eventDate, targetDoc.endTime || targetDoc.horarioFim || "23:59");
         if (!targetDoc.endTime && !targetDoc.horarioFim) {
            eventEnd = new Date(eventStart.getTime() + 6 * 60 * 60 * 1000);
         }
 
-        // REGRA DA JANELA: 2h antes até 6h após o fim
         const windowStart = new Date(eventStart.getTime() - (2 * 60 * 60 * 1000));
         const windowEnd = new Date(eventEnd.getTime() + (6 * 60 * 60 * 1000));
-
         const invalidTime = now < windowStart || now > windowEnd;
 
         setTicketData({ 
           ...targetDoc, 
           isCancelled, 
           invalidTime,
-          windowInfo: { 
-            start: eventStart, 
-            end: eventEnd,
-            now: now
-          } 
+          windowInfo: { start: eventStart, end: eventEnd, now: now } 
         });
       }
     } catch (err: any) {
@@ -202,7 +182,8 @@ export default function AdminScannerPage() {
     
     try {
       const regRef = doc(db, "registrations", ticketData.id)
-      
+      const nowLocal = new Date()
+
       await runTransaction(db, async (transaction) => {
         const regSnap = await transaction.get(regRef)
         if (!regSnap.exists()) throw new Error("Registro de ingresso não localizado.")
@@ -222,7 +203,7 @@ export default function AdminScannerPage() {
 
       processGamificationEvent(db, ticketData.userId, 'on_checkin', { eventTitle: ticketData.eventTitle }, ticketData.id);
       
-      setTicketData({ ...ticketData, checkedIn: true })
+      setTicketData({ ...ticketData, checkedIn: true, checkedInAt: nowLocal })
       toast({ title: "Check-in realizado!", description: "Acesso liberado para " + ticketData.userName });
     } catch (err: any) { 
       setError(err.message)
@@ -239,6 +220,12 @@ export default function AdminScannerPage() {
     setTicketData(null); 
     setError(null); 
     setManualCode(""); 
+  }
+
+  const formatDisplayTime = (val: any) => {
+    if (!val) return "---";
+    const d = val.toDate ? val.toDate() : (val instanceof Date ? val : new Date(val));
+    return isNaN(d.getTime()) ? "---" : d.toLocaleString('pt-BR');
   }
 
   return (
@@ -320,13 +307,23 @@ export default function AdminScannerPage() {
                   </CardTitle>
                </CardHeader>
                <CardContent className="p-10 space-y-8">
-                  {ticketData.invalidTime && !ticketData.checkedIn && (
+                  {ticketData.checkedIn && (
+                    <div className="p-4 bg-orange-50 border-2 border-dashed border-orange-200 rounded-2xl flex items-start gap-4 animate-in slide-in-from-top-2">
+                       <ShieldAlert className="w-6 h-6 text-orange-600 shrink-0 mt-1" />
+                       <div className="space-y-1">
+                          <p className="font-black uppercase text-[10px] text-orange-800">Acesso Negado</p>
+                          <p className="text-[9px] font-medium text-orange-700 uppercase leading-tight">Este ingresso já foi validado anteriormente e não pode ser reutilizado.</p>
+                       </div>
+                    </div>
+                  )}
+
+                  {!ticketData.checkedIn && ticketData.invalidTime && (
                      <div className="p-4 bg-orange-50 border-2 border-dashed border-orange-200 rounded-2xl flex items-start gap-4 animate-in slide-in-from-top-2">
                         <Clock className="w-6 h-6 text-orange-600 shrink-0 mt-1" />
                         <div className="space-y-1">
                            <p className="font-black uppercase text-[10px] text-orange-800">Fora da Janela Oficial</p>
                            <p className="text-[9px] font-medium text-orange-700 uppercase">Horário esperado: {ticketData.windowInfo.start?.toLocaleString('pt-BR')}</p>
-                           <p className="text-[8px] font-bold text-orange-400 uppercase italic">Aviso: Check-in liberado 2h antes do início.</p>
+                           <p className="text-[8px] font-bold text-orange-400 uppercase italic">Check-in liberado 2h antes do início.</p>
                         </div>
                      </div>
                   )}
@@ -347,9 +344,13 @@ export default function AdminScannerPage() {
                        {isValidating ? <Loader2 className="animate-spin" /> : "LIBERAR ACESSO"}
                     </Button>
                   ) : (
-                    <div className="p-6 bg-muted/30 rounded-2xl border-2 border-dashed border-border/60 text-center">
-                       <p className="text-[10px] font-black uppercase text-muted-foreground mb-1">Check-in realizado em</p>
-                       <p className="font-bold text-sm text-primary">{ticketData.checkedInAt?.toDate ? ticketData.checkedInAt.toDate().toLocaleString('pt-BR') : '---'}</p>
+                    <div className="p-6 bg-muted/30 rounded-2xl border-2 border-dashed border-border/60 text-center space-y-2">
+                       <div>
+                          <p className="text-[10px] font-black uppercase text-muted-foreground mb-1">Check-in realizado em</p>
+                          <p className="font-bold text-sm text-primary">{formatDisplayTime(ticketData.checkedInAt)}</p>
+                       </div>
+                       <Separator className="border-dashed" />
+                       <p className="text-[8px] font-black uppercase text-orange-600 italic tracking-widest">Não pode ser usado novamente</p>
                     </div>
                   )}
                   <Button variant="ghost" className="w-full h-12 font-black text-muted-foreground uppercase text-[10px] hover:bg-muted/50 rounded-xl" onClick={resetScanner}>Voltar / Novo Scan</Button>
