@@ -117,7 +117,7 @@ export async function sendPasswordChangedNotificationEmail(data: {
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #eee;">
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 20px; border: 1px solid #eee;">
         <h1 style="color: #2C52EE; text-transform: uppercase;">Viby Security</h1>
         <h2>Sua senha foi alterada</h2>
         <p>Olá, <strong>${data.userName}</strong>. Uma alteração de senha foi detectada.</p>
@@ -152,37 +152,53 @@ export async function sendPasswordChangedNotificationEmail(data: {
 }
 
 /**
- * Notifica sobre a aprovação do selo de verificação.
+ * Notifica sobre a aprovação ou remoção do selo de verificação.
  */
 export async function sendVerificationStatusEmail(data: {
   to: string;
   userName: string;
   targetName: string;
   type: 'user' | 'organization';
+  status: 'approved' | 'removed';
 }) {
   try {
     const transporter = await getTransporter();
     const snap = await getDoc(doc(await getDb(), 'settings', 'email'));
     const smtpUser = snap.data()?.smtpUser;
 
-    const label = data.type === 'user' ? 'Perfil Verificado' : 'Marca Verificada';
-    const msg = data.type === 'user' 
-      ? `Seu perfil <strong>${data.targetName}</strong> agora possui o selo oficial de verificação.`
-      : `Sua marca <strong>${data.targetName}</strong> foi aprovada e agora é Verificada na plataforma.`;
+    const isApproved = data.status === 'approved';
+    const label = data.type === 'user' 
+      ? (isApproved ? 'Perfil Verificado' : 'Verificação Removida') 
+      : (isApproved ? 'Marca Verificada' : 'Selo de Marca Removido');
+    
+    let msg = "";
+    if (isApproved) {
+      msg = data.type === 'user' 
+        ? `Seu perfil <strong>${data.targetName}</strong> agora possui o selo oficial de verificação.`
+        : `Sua marca <strong>${data.targetName}</strong> foi aprovada e agora é Verificada na plataforma.`;
+    } else {
+      msg = data.type === 'user'
+        ? `O selo oficial de verificação do seu perfil <strong>${data.targetName}</strong> foi removido.`
+        : `O selo oficial da sua marca <strong>${data.targetName}</strong> foi removido por decisão administrativa.`;
+    }
 
     const htmlContent = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #eee; border-radius: 20px;">
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 20px; border: 1px solid #eee; background: #fff;">
         <h1 style="color: #2C52EE; font-style: italic;">Viby Oficial</h1>
-        <h2 style="color: #333;">🌟 ${label}</h2>
+        <h2 style="color: ${isApproved ? '#10b981' : '#ef4444'};">${isApproved ? '🌟' : '⚠️'} ${label}</h2>
         <p>Olá, <strong>${data.userName}</strong>.</p>
         <p>${msg}</p>
-        <div style="background: #f0f4ff; padding: 20px; border-radius: 15px; margin: 25px 0; text-align: center; border: 1px solid #dbeafe;">
-          <p style="color: #2C52EE; font-weight: 900; margin: 0;">SELO DE CONFIANÇA ATIVADO</p>
+        <div style="background: ${isApproved ? '#f0f4ff' : '#fff1f2'}; padding: 20px; border-radius: 15px; margin: 25px 0; text-align: center; border: 1px solid ${isApproved ? '#dbeafe' : '#fecaca'};">
+          <p style="color: ${isApproved ? '#2C52EE' : '#e11d48'}; font-weight: 900; margin: 0;">${isApproved ? 'SELO DE CONFIANÇA ATIVADO' : 'STATUS ATUALIZADO'}</p>
         </div>
+        ${!isApproved ? '<p style="font-size: 11px; color: #666; margin-top: 20px;">Se você acredita que isso foi um erro, entre em contato com nosso suporte.</p>' : ''}
       </div>
     `;
 
-    const subject = `🌟 Parabéns! Sua verificação foi aprovada: ${data.targetName}`;
+    const subject = isApproved 
+      ? `🌟 Parabéns! Sua verificação foi aprovada: ${data.targetName}`
+      : `⚠️ Importante: Status de verificação alterado: ${data.targetName}`;
+
     await transporter.sendMail({
       from: `"Viby Oficial" <${smtpUser}>`,
       to: data.to,
@@ -220,7 +236,7 @@ export async function sendTicketEmail(data: {
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #eee;">
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 20px; border: 1px solid #eee;">
         <h1 style="color: #2C52EE;">Viby Ingressos</h1>
         <h2>Sua presença está garantida!</h2>
         <p>Evento: <strong>${data.eventTitle}</strong></p>
@@ -257,7 +273,7 @@ export async function sendWelcomeEmail(data: any) {
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #eee;">
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 20px; border: 1px solid #eee;">
         <h1 style="color: #2C52EE; text-transform: uppercase;">${data.siteName || "Viby"}</h1>
         <h2>Bem-vindo ao Clube!</h2>
         <p>Olá, <strong>${data.userName}</strong>. Sua conta foi criada com sucesso.</p>
@@ -318,7 +334,7 @@ export async function sendTeamInvitationEmail(data: { to: string; orgName: strin
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #eee;">
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 20px; border: 1px solid #eee;">
         <h1 style="color: #2C52EE;">Viby Team</h1>
         <h2>Convite de Colaboração</h2>
         <p><strong>${data.inviterName}</strong> convidou você para ser <strong>${data.role}</strong> na marca <strong>${data.orgName}</strong>.</p>
@@ -360,7 +376,7 @@ export async function sendTeamInvitationStatusEmail(data: {
 
     const statusLabel = data.status === 'accepted' ? 'aceitou' : 'recusou';
     const htmlContent = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border-radius: 10px; border: 1px solid #eee;">
         <h2>Status de Convite</h2>
         <p><strong>${data.userName}</strong> ${statusLabel} o convite para a marca <strong>${data.orgName}</strong>.</p>
       </div>
@@ -400,7 +416,7 @@ export async function sendPayoutConfirmedEmail(data: {
     const smtpUser = snap.data()?.smtpUser;
 
     const htmlContent = `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #eee;">
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 20px; border: 1px solid #eee;">
         <h1 style="color: #2C52EE;">Viby Finance</h1>
         <h2>Pagamento Processado</h2>
         <p>Olá, <strong>${data.userName}</strong>. O repasse para <strong>${data.orgName}</strong> de <strong>R$ ${data.amount.toFixed(2)}</strong> foi realizado.</p>

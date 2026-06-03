@@ -89,13 +89,14 @@ export default function AdminUsuariosPage() {
       const { id, ...data } = editingUser
       await updateDoc(doc(db, "users", id), { ...data, updatedAt: serverTimestamp() })
       
-      // Gatilho de e-mail exclusivo para o usuário se verificado agora
-      if (editingUser.isVerified && !originalUser?.isVerified) {
+      // Gatilho de e-mail exclusivo para o usuário se o status de verificação mudou
+      if (editingUser.isVerified !== originalUser?.isVerified) {
         sendVerificationStatusEmail({
            to: editingUser.email,
            userName: editingUser.name || editingUser.displayName || "Usuário",
            targetName: `@${editingUser.username}`,
-           type: 'user'
+           type: 'user',
+           status: editingUser.isVerified ? 'approved' : 'removed'
         }).catch(err => console.warn("Falha ao enviar e-mail de verificação para o usuário", err));
       }
 
@@ -246,7 +247,7 @@ export default function AdminUsuariosPage() {
         </Table>
       </Card>
 
-      <Dialog open={setIsEditUserOpen} onOpenChange={setIsEditUserOpen}>
+      <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
         <DialogContent className="max-w-xl rounded-[2.5rem]">
            <DialogHeader>
               <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Editar Usuário</DialogTitle>

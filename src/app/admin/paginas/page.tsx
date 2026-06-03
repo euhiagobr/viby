@@ -213,13 +213,14 @@ export default function AdminPaginasPage() {
         transaction.update(doc(db, "organizations", id), { ...data, updatedAt: serverTimestamp() });
       });
 
-      // Gatilho de e-mail exclusivo para o PROPRIETÁRIO se verificado agora
-      if (editingOrg.verified && !originalOrg?.verified && editingOrg.ownerProfile?.email) {
+      // Gatilho de e-mail exclusivo para o PROPRIETÁRIO se o status de verificação mudou
+      if (editingOrg.verified !== originalOrg?.verified && editingOrg.ownerProfile?.email) {
          sendVerificationStatusEmail({
             to: editingOrg.ownerProfile.email,
             userName: editingOrg.ownerProfile.name || editingOrg.ownerProfile.displayName || "Proprietário",
             targetName: editingOrg.name,
-            type: 'organization'
+            type: 'organization',
+            status: editingOrg.verified ? 'approved' : 'removed'
          }).catch(err => console.warn("Falha ao notificar proprietário da marca", err));
       }
 
