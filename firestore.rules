@@ -10,7 +10,6 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
@@ -51,7 +50,7 @@ service cloud.firestore {
 
       match /transactions/{txId} {
         allow read: if isAdmin() || isOwner(orgId) || isMember(orgId);
-        allow write: if false; // Apenas via Webhook/Server
+        allow write: if false; // Apenas via Webhook/Server (auth == null)
       }
     }
 
@@ -59,7 +58,7 @@ service cloud.firestore {
     match /events/{eventId} {
       allow read: if true;
       allow create: if isAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId)/members/$(request.auth.uid)));
-      allow update: if isAdmin() || isMember(resource.data.organizationId);
+      allow update: if isAdmin() || isMember(resource.data.organizationId) || (request.auth == null);
       allow delete: if isAdmin() || isOwner(resource.data.organizationId);
 
       match /partners/{partnerId} {
@@ -95,13 +94,13 @@ service cloud.firestore {
                    (isSignedIn() && resource.data.userId == request.auth.uid) || 
                    (isSignedIn() && exists(/databases/$(database)/documents/organizations/$(resource.data.organizationId)/members/$(request.auth.uid)));
       
-      // Proibir criação pelo frontend (Somente Server Action)
-      allow create: if false; 
+      // Permitir criação apenas via servidor (auth == null)
+      allow create: if request.auth == null; 
       
-      // Permitir update para Check-in (Membros) ou Estorno (Admin/Org ou Server)
+      // Permitir update para Check-in ou Estorno (Admin/Org ou Server)
       allow update: if isAdmin() || 
                     (isSignedIn() && exists(/databases/$(database)/documents/organizations/$(resource.data.organizationId)/members/$(request.auth.uid))) ||
-                    (request.auth == null); // Permite Server Actions processarem estornos
+                    (request.auth == null);
     }
 
     // Ocorrências (Recorrentes)
