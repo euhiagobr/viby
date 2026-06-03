@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -52,7 +53,6 @@ service cloud.firestore {
     match /events/{eventId} {
       allow read: if true;
       allow create: if isAdmin(request.auth.uid) || (isSignedIn() && isMemberOfOrg(request.auth.uid, request.resource.data.organizationId));
-      // Permitir update para estorno (decremento de estoque) via Server Action (auth == null) ou Admin/Org
       allow update: if (request.auth == null) || 
                     isAdmin(request.auth.uid) || 
                     isMemberOfOrg(request.auth.uid, resource.data.organizationId);
@@ -78,8 +78,6 @@ service cloud.firestore {
     match /registrations/{regId} {
       allow read: if true;
       allow create: if request.auth == null;
-      
-      // Estorno: Permitir se servidor (auth == null), Admin ou Membro da Org
       allow update: if (request.auth == null) || 
                     isAdmin(request.auth.uid) || 
                     isMemberOfOrg(request.auth.uid, resource.data.organizationId);
@@ -121,7 +119,7 @@ service cloud.firestore {
     
     match /financial_logs/{id} {
       allow read: if isAdmin(request.auth.uid);
-      allow create: if true; // Permite que o servidor registre logs financeiros
+      allow create: if (request.auth == null) || isAdmin(request.auth.uid);
     }
 
     match /tax_tickets/{id} { allow read: if isAdmin(request.auth.uid); allow write: if request.auth == null; }

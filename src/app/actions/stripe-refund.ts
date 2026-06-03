@@ -1,7 +1,8 @@
+
 'use server';
 
 import Stripe from 'stripe';
-import { doc, getDoc, getFirestore, updateDoc, serverTimestamp, collection, addDoc, increment } from 'firebase/firestore';
+import { doc, getDoc, getFirestore, writeBatch, serverTimestamp, collection, increment } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import { logSystemError } from '@/lib/error-manager';
@@ -24,9 +25,8 @@ async function getStripeInstance(db: any) {
 export type RefundType = 'shared' | 'platform_absorbed';
 
 /**
- * Processa o estorno de um ingresso via Stripe Connect Destination Charges.
- * Implementa devolução de estoque e sincronização de status.
- * Ajustado para lidar com casos onde o Stripe já processou o estorno mas o DB não.
+ * Processa o estorno de um ingresso via Stripe Connect.
+ * Utiliza writeBatch para garantir que status, estoque e logs sejam atualizados de forma atômica.
  */
 export async function processStripeRefund(params: {
   registrationId: string;
@@ -44,63 +44,62 @@ export async function processStripeRefund(params: {
     if (!regSnap.exists()) throw new Error('Ingresso não localizado.');
     const regData = regSnap.data();
 
-    // Idempotência no DB
-    if (regData.status === 'refunded' || regData.status === 'cancelled' || regData.paymentStatus === 'Estornado') {
-      return { success: true, message: 'Este ingresso já consta como estornado no sistema.' };
+    // Idempotência
+    if (regData.status === 'refunded' || regData.paymentStatus === 'Estornado') {
+      return { success: true, message: 'Este ingresso já foi estornado.' };
     }
 
     if (!regData.stripeSessionId) {
-      throw new Error('Este ingresso não possui um ID de transação Stripe válido.');
+      throw new Error('ID de transação Stripe ausente.');
     }
 
     const stripe = await getStripeInstance(db);
 
-    // 1. Recuperar a sessão para obter o PaymentIntent
+    // 1. Executar reembolso no Stripe
     const session = await stripe.checkout.sessions.retrieve(regData.stripeSessionId);
     const paymentIntentId = session.payment_intent as string;
 
-    if (!paymentIntentId) throw new Error('Payment Intent não localizado para esta sessão.');
+    if (!paymentIntentId) throw new Error('Payment Intent não localizado.');
 
-    // 2. Definir parâmetros do reembolso
     const shouldReverseTransfer = role === 'admin' ? (refundType === 'shared') : true;
     
-    const refundParams: Stripe.RefundCreateParams = {
-      payment_intent: paymentIntentId,
-      reverse_transfer: shouldReverseTransfer,
-      refund_application_fee: true,
-    };
-
-    // 3. Executar reembolso no Stripe com captura de erro específico
     let refundId = "SYNC_ONLY";
     try {
-      const refund = await stripe.refunds.create(refundParams);
+      const refund = await stripe.refunds.create({
+        payment_intent: paymentIntentId,
+        reverse_transfer: shouldReverseTransfer,
+        refund_application_fee: true,
+      });
       refundId = refund.id;
     } catch (stripeError: any) {
-      // Se já foi estornado no Stripe (dessincronização), prosseguimos para atualizar o DB
       if (stripeError.code === 'charge_already_refunded' || stripeError.message?.includes('already been refunded')) {
-        console.warn(`[Refund Sync] Charge ${paymentIntentId} already refunded in Stripe. Syncing Firestore.`);
+        console.warn(`[Refund Sync] Charge already refunded in Stripe.`);
       } else {
-        throw stripeError; // Outros erros (ex: saldo insuficiente) devem falhar
+        throw stripeError;
       }
     }
 
-    // 4. Atualizar Inventário (Devolver vaga)
+    // 2. Preparar atualizações atômicas no Firestore
+    const batch = writeBatch(db);
+
+    // Devolver vaga no evento pai
     const eventRef = doc(db, "events", regData.eventId);
-    await updateDoc(eventRef, { 
+    batch.update(eventRef, { 
       ingressosVendidos: increment(-1),
       updatedAt: serverTimestamp()
     });
 
+    // Devolver vaga na ocorrência se existir
     if (regData.occurrenceId) {
       const occRef = doc(db, "recurring_occurrences", regData.occurrenceId);
-      await updateDoc(occRef, {
+      batch.update(occRef, {
         ingressosVendidos: increment(-1),
         updatedAt: serverTimestamp()
       });
     }
 
-    // 5. Atualizar Firestore do Ingresso
-    await updateDoc(regRef, {
+    // Atualizar o ingresso
+    batch.update(regRef, {
       status: 'refunded',
       paymentStatus: 'Estornado',
       refundId: refundId,
@@ -111,25 +110,29 @@ export async function processStripeRefund(params: {
       updatedAt: serverTimestamp()
     });
 
-    // 6. Log de Auditoria
-    await addDoc(collection(db, 'financial_logs'), {
+    // Registrar Log Financeiro
+    const logRef = doc(collection(db, 'financial_logs'));
+    batch.set(logRef, {
       action: 'ticket_refund',
       category: 'payout',
       userId: executorUid,
       targetId: registrationId,
-      description: `Estorno ${refundType === 'shared' ? 'Compartilhado' : 'Absorvido pela Viby'} processado via Stripe.`,
+      description: `Estorno ${refundType === 'shared' ? 'Compartilhado' : 'Absorvido'} processado via Stripe.`,
       metadata: {
         registrationId,
         refundId: refundId,
         amount: regData.price,
-        type: refundType,
         isSync: refundId === "SYNC_ONLY"
       },
       timestamp: serverTimestamp()
     });
 
+    // 3. Comprometer todas as alterações
+    await batch.commit();
+
     return { success: true, refundId };
   } catch (error: any) {
+    console.error("[Stripe Refund Action Error]", error);
     await logSystemError({
       error: { message: error.message, stack: error.stack },
       type: 'stripe_refund_failure',
