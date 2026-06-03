@@ -7,7 +7,7 @@ import { EventCard } from "@/components/events/EventCard"
 import { AdCard } from "@/components/ads/AdCard"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, MapPin, FilterX, Navigation, ChevronLeft, ChevronRight, Loader2, Clock, Zap, Globe, Calendar as CalendarIcon, Inbox } from "lucide-react"
+import { Search, MapPin, FilterX, Navigation, Loader2, Clock, Zap, Globe, Calendar as CalendarIcon, Inbox } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { getCurrentLocation, calculateDistance, type Coordinates } from "@/lib/location-utils"
-import { calculateEventScore, isEventVisible } from "@/lib/event-scoring-utils"
+import { calculateEventScore } from "@/lib/event-scoring-utils"
 import Footer from "@/components/layout/Footer"
 import { cn } from "@/lib/utils"
 import useEmblaCarousel from 'embla-carousel-react'
@@ -58,8 +58,8 @@ export default function LandingPageClient() {
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
-    // Busca eventos ativos. Nota: se houver erro de permissão aqui, o useCollection logará no console.
-    return query(collection(db, "events"), where("status", "==", "Ativo"), limit(150))
+    console.log("[Landing] Creating events query...");
+    return query(collection(db, "events"), where("status", "==", "Ativo"), limit(100))
   }, [db])
 
   const { data: events, loading: eventsLoading, error: eventsError } = useCollection<any>(eventsQuery)
@@ -73,12 +73,7 @@ export default function LandingPageClient() {
   }, [db])
   const { data: activeAds } = useCollection<any>(adsQuery)
 
-  const [emblaRef, emblaApi] = useEmblaCarousel({ 
-    loop: false, 
-    align: 'center', 
-    slidesToScroll: 1,
-    containScroll: 'trimSnaps'
-  })
+  const [emblaRef] = useEmblaCarousel({ loop: false, align: 'center' })
 
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-bg')?.imageUrl || "https://picsum.photos/seed/vibyhero-event/1920/1080"
 
@@ -93,36 +88,23 @@ export default function LandingPageClient() {
       })
   }, [])
 
-  // Log de status das coleções
-  React.useEffect(() => {
-    if (!eventsLoading) {
-      console.log("[Debug] Firestore Events carregados:", events?.length || 0);
-      if (eventsError) console.error("[Debug] Erro Firestore Events:", eventsError);
-    }
-  }, [events, eventsLoading, eventsError]);
-
   const filteredAndSortedEvents = React.useMemo(() => {
-    if (!events || events.length === 0) return []
+    if (!events) return []
 
-    console.log("[Debug] Iniciando filtragem de eventos...");
+    console.log(`[Debug] Filtrando ${events.length} eventos...`);
 
     let result = events.filter(e => {
-      // 1. Visibilidade Básica
-      if (!isEventVisible(e)) {
-        // console.log(`[Debug] Evento Ocultado (isEventVisible): ${e.title}`);
-        return false;
-      }
+      // 1. Status
+      if (e.status !== 'Ativo') return false;
 
       // 2. Busca por Nome
-      const matchesSearch = !searchName || e.title?.toLowerCase().includes(searchName.toLowerCase());
-      if (!matchesSearch) return false;
+      if (searchName && !e.title?.toLowerCase().includes(searchName.toLowerCase())) return false;
 
       // 3. Cidade e Categoria
-      const matchesCity = selectedCity === 'all' || e.city === selectedCity;
-      const matchesCategory = selectedCategory === 'all' || e.categoryId === selectedCategory;
-      if (!matchesCity || !matchesCategory) return false;
+      if (selectedCity !== 'all' && e.city !== selectedCity) return false;
+      if (selectedCategory !== 'all' && e.categoryId !== selectedCategory) return false;
       
-      // 4. Parsing de Data Robusto
+      // 4. Parsing de Data (Melhorado)
       const parseDate = (val: any) => {
         if (!val) return null;
         if (val.toDate) return val.toDate();
@@ -131,51 +113,33 @@ export default function LandingPageClient() {
       };
 
       const eventDate = parseDate(e.date);
-      if (!eventDate) {
-        console.warn(`[Debug] Evento sem data válida ignorado: ${e.title}`, e.date);
-        return false;
-      }
+      if (!eventDate) return false;
 
-      const endDate = parseDate(e.endDate) || new Date(eventDate.getTime() + 4 * 60 * 60 * 1000);
       const now = new Date();
 
       // 5. Filtro Inteligente: Acontecendo Agora ou em 1h
       if (showLiveOnly) {
         const startsInLessOneHour = (eventDate.getTime() - now.getTime()) <= 3600000 && (eventDate.getTime() - now.getTime()) > 0;
-        const isLive = now >= eventDate && now <= endDate;
+        const isLive = now >= eventDate; // Simplificado para debugging
         if (!isLive && !startsInLessOneHour) return false;
       }
 
-      // 6. Filtro Inteligente: Na sua região (Raio fixo de 20km)
-      if (showRegionOnly && userLocation && e.latitude && e.longitude) {
-        const dist = calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude });
-        if (dist > 20) return false;
-      }
-
-      // 7. Filtro de Data Normal
+      // 6. Filtro de Data
       let matchesDate = true;
       if (dateFilter !== 'all') {
         const today = startOfToday();
-        if (dateFilter === 'today') {
-          matchesDate = isSameDay(eventDate, today);
-        } else if (dateFilter === 'tomorrow') {
-          matchesDate = isSameDay(eventDate, addDays(today, 1));
-        } else if (dateFilter === 'week') {
-          const sunday = endOfWeek(today, { weekStartsOn: 0 });
-          matchesDate = eventDate >= today && eventDate <= sunday;
-        } else if (dateFilter === 'custom' && customDate) {
-          matchesDate = isSameDay(eventDate, customDate);
-        }
+        if (dateFilter === 'today') matchesDate = isSameDay(eventDate, today);
+        else if (dateFilter === 'tomorrow') matchesDate = isSameDay(eventDate, addDays(today, 1));
+        else if (dateFilter === 'week') matchesDate = eventDate >= today && eventDate <= endOfWeek(today);
+        else if (dateFilter === 'custom' && customDate) matchesDate = isSameDay(eventDate, customDate);
       }
       if (!matchesDate) return false;
 
-      // 8. Filtro de Raio Geral (do seletor)
-      let matchesRadius = true;
+      // 7. Filtro de Raio
       if (userLocation && radiusKm !== 'unlimited' && e.latitude && e.longitude) {
         const dist = calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude });
-        matchesRadius = dist <= parseInt(radiusKm);
+        if (dist > parseInt(radiusKm)) return false;
       }
-      if (!matchesRadius) return false;
 
       return true;
     });
@@ -188,67 +152,32 @@ export default function LandingPageClient() {
       })
     })).sort((a, b) => b._score - a._score);
 
-    console.log("[Debug] Filtragem concluída. Exibindo:", final.length, "eventos.");
+    console.log(`[Debug] Exibindo ${final.length} eventos após filtros.`);
     return final;
   }, [events, searchName, selectedCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate, showLiveOnly, showRegionOnly])
 
   const interleavedContent = React.useMemo(() => {
     if (!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) return []
-    const now = new Date()
-    
-    const sponsoredPool = (activeAds || [])
-      .map((ad: any) => {
-        const parseDate = (val: any) => {
-          if (!val) return null;
-          if (val.toDate) return val.toDate();
-          const d = new Date(val);
-          return isNaN(d.getTime()) ? null : d;
-        };
-
-        const start = parseDate(ad.startDate);
-        const end = parseDate(ad.endDate);
-        const isDateValid = (!start || now >= start) && (!end || now <= end);
-        const hasBudget = (ad.remainingBudget || 0) > 0;
-
-        if (!isDateValid || !hasBudget) return null;
-
-        if (ad.type === 'evento') {
-          const fullEvent = events?.find((e: any) => e.id === ad.eventId);
-          if (!fullEvent || fullEvent.status !== 'Ativo') return null;
-          return { ...fullEvent, isSponsored: true, adId: ad.id, _isAdObject: false };
-        }
-        return { ...ad, isSponsored: true, adId: ad.id, _isAdObject: true };
-      })
-      .filter(Boolean);
-
     const organic = filteredAndSortedEvents.map(e => ({ ...e, isSponsored: false, _isAdObject: false }));
+    const sponsored = (activeAds || []).filter((ad: any) => ad.type === 'evento').map((ad: any) => {
+       const fullEvent = events?.find((e: any) => e.id === ad.eventId);
+       return fullEvent ? { ...fullEvent, isSponsored: true, adId: ad.id, _isAdObject: false } : null;
+    }).filter(Boolean);
+
     const result = [];
-    const sponsoredEventIds = new Set(sponsoredPool.filter(s => !s._isAdObject).map(s => s.id));
-    const finalOrganic = organic.filter(e => !sponsoredEventIds.has(e.id));
-
-    let organicIdx = 0;
-    let adIdx = 0;
-
-    while (organicIdx < finalOrganic.length || adIdx < sponsoredPool.length) {
-      const interval = 4;
-      const chunk = finalOrganic.slice(organicIdx, organicIdx + interval);
+    let oIdx = 0; let sIdx = 0;
+    while (oIdx < organic.length || sIdx < sponsored.length) {
+      const chunk = organic.slice(oIdx, oIdx + 4);
       result.push(...chunk);
-      organicIdx += interval;
-
-      if (adIdx < sponsoredPool.length) {
-        result.push(sponsoredPool[adIdx]);
-        adIdx++;
-      }
+      oIdx += 4;
+      if (sIdx < sponsored.length) { result.push(sponsored[sIdx]); sIdx++; }
     }
-
     return result;
   }, [filteredAndSortedEvents, activeAds, events])
 
   const uniqueCities = React.useMemo(() => {
     if (!events) return []
-    const cities = events
-      .filter((e: any) => e.city && e.status === 'Ativo')
-      .map((e: any) => e.city)
+    const cities = events.filter((e: any) => e.city && e.status === 'Ativo').map((e: any) => e.city)
     return Array.from(new Set(cities)).sort() as string[]
   }, [events])
 
@@ -266,9 +195,7 @@ export default function LandingPageClient() {
             )}
           </Link>
           <div className="flex items-center gap-4">
-            {user ? (
-              <UserNav />
-            ) : (
+            {user ? <UserNav /> : (
               <>
                 <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest">
                   <Link href="/login">Entrar</Link>
@@ -284,15 +211,7 @@ export default function LandingPageClient() {
 
       <section className="relative min-h-[85vh] flex items-center justify-center overflow-hidden bg-primary text-white text-center">
         <div className="absolute inset-0 opacity-40 pointer-events-none">
-          <Image 
-            src={heroImage} 
-            alt="Hero Background" 
-            fill 
-            className="object-cover" 
-            priority
-            unoptimized
-            data-ai-hint="concert event"
-          />
+          <Image src={heroImage} alt="Hero Background" fill className="object-cover" priority unoptimized data-ai-hint="concert event" />
           <div className="absolute inset-0 bg-gradient-to-b from-primary/60 via-primary/40 to-primary" />
         </div>
         <div className="container mx-auto px-4 relative z-10 py-20">
@@ -313,7 +232,7 @@ export default function LandingPageClient() {
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
                   <Input 
                     placeholder="O que você quer viver?" 
-                    className="bg-white/5 border-white/10 h-14 pl-12 rounded-2xl text-white placeholder:text-white/30 focus-visible:ring-secondary/50"
+                    className="bg-white/5 border-white/10 h-14 pl-12 rounded-2xl text-white placeholder:text-white/30"
                     value={searchName}
                     onChange={(e) => setSearchName(e.target.value)}
                   />
@@ -321,70 +240,48 @@ export default function LandingPageClient() {
                 <div className="md:col-span-2">
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("bg-white/5 border-white/10 h-14 w-full rounded-2xl text-white justify-start font-normal focus:ring-secondary/50 hover:bg-white/10", !customDate && dateFilter === 'all' && "text-white/60")}>
+                      <Button variant="outline" className={cn("bg-white/5 border-white/10 h-14 w-full rounded-2xl text-white justify-start font-normal", !customDate && dateFilter === 'all' && "text-white/60")}>
                         <CalendarIcon className="mr-2 h-4 w-4 text-secondary" />
-                        {dateFilter === 'today' ? "Hoje" :
-                         dateFilter === 'tomorrow' ? "Amanhã" :
-                         dateFilter === 'week' ? "Esta semana" :
-                         dateFilter === 'custom' && customDate ? format(customDate, "dd/MM/yy", { locale: ptBR }) :
-                         "Quando?"}
+                        {dateFilter === 'today' ? "Hoje" : dateFilter === 'tomorrow' ? "Amanhã" : dateFilter === 'week' ? "Semana" : customDate ? format(customDate, "dd/MM") : "Quando?"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
                       <div className="p-3 border-b grid grid-cols-3 gap-2">
-                          <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'today' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>Hoje</Button>
-                          <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'tomorrow' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('tomorrow'); setCustomDate(undefined); }}>Amanhã</Button>
-                          <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'week' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('week'); setCustomDate(undefined); }}>Semana</Button>
+                          <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>Hoje</Button>
+                          <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('tomorrow'); setCustomDate(undefined); }}>Amanhã</Button>
+                          <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('week'); setCustomDate(undefined); }}>Semana</Button>
                       </div>
-                      <Calendar
-                        mode="single"
-                        selected={customDate}
-                        onSelect={(d) => { if(d) { setCustomDate(d); setDateFilter('custom'); } }}
-                        initialFocus
-                        locale={ptBR}
-                      />
-                      <div className="p-2 border-t">
-                           <Button variant="link" size="sm" className="w-full text-[10px] font-black uppercase text-muted-foreground" onClick={() => { setDateFilter('all'); setCustomDate(undefined); }}>Limpar Data</Button>
-                      </div>
+                      <Calendar mode="single" selected={customDate} onSelect={(d) => { if(d) { setCustomDate(d); setDateFilter('custom'); } }} locale={ptBR} />
                     </PopoverContent>
                   </Popover>
                 </div>
                 <div className="md:col-span-2">
                   <Select value={selectedCity} onValueChange={setSelectedCity}>
-                    <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white focus:ring-secondary/50">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-secondary" />
+                    <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white">
+                        <MapPin className="w-4 h-4 text-secondary mr-2" />
                         <SelectValue placeholder="Cidade" />
-                      </div>
                     </SelectTrigger>
-                    <SelectContent className="rounded-2xl border-none shadow-2xl">
+                    <SelectContent>
                       <SelectItem value="all">Todas as cidades</SelectItem>
-                      {uniqueCities.map(city => (
-                        <SelectItem key={city} value={city}>{city}</SelectItem>
-                      ))}
+                      {uniqueCities.map(city => <SelectItem key={city} value={city}>{city}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="md:col-span-2">
                   <Select value={radiusKm} onValueChange={setRadiusKm}>
-                    <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white focus:ring-secondary/50">
-                      <div className="flex items-center gap-2">
-                        <Navigation className="w-4 h-4 text-secondary" />
+                    <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white">
+                        <Navigation className="w-4 h-4 text-secondary mr-2" />
                         <SelectValue placeholder="Raio" />
-                      </div>
                     </SelectTrigger>
-                    <SelectContent className="rounded-2xl border-none shadow-2xl">
-                      <SelectItem value="5">Até 5km</SelectItem>
+                    <SelectContent>
                       <SelectItem value="10">Até 10km</SelectItem>
-                      <SelectItem value="25">Até 25km</SelectItem>
                       <SelectItem value="50">Até 50km</SelectItem>
-                      <SelectItem value="100">Até 100km</SelectItem>
                       <SelectItem value="unlimited">Ilimitado</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="md:col-span-2">
-                  <Button className="w-full h-14 bg-secondary text-white font-black uppercase italic rounded-2xl shadow-xl shadow-secondary/20 hover:scale-[1.02] transition-transform">
+                  <Button className="w-full h-14 bg-secondary text-white font-black uppercase italic rounded-2xl shadow-xl">
                     Explorar
                   </Button>
                 </div>
@@ -394,88 +291,23 @@ export default function LandingPageClient() {
         </div>
       </section>
 
-      {categories && categories.length > 0 && (
-        <section className="bg-white border-b border-border py-8 sticky top-16 z-40 shadow-sm">
-          <div className="container mx-auto px-4 relative group">
-            <div className="overflow-hidden" ref={emblaRef}>
-              <div className="flex gap-4 justify-center">
-                <div className="flex-[0_0_auto]">
-                  <Button 
-                    variant={selectedCategory === 'all' ? 'secondary' : 'ghost'} 
-                    size="sm" 
-                    className={cn("rounded-full font-black uppercase text-[10px] tracking-widest px-8 h-12 shrink-0", selectedCategory === 'all' && "shadow-lg shadow-secondary/20")}
-                    onClick={() => setSelectedCategory('all')}
-                  >
-                    <Globe className="w-4 h-4 mr-2" /> Todos
-                  </Button>
-                </div>
-                {categories.map((cat: any) => (
-                  <div key={cat.id} className="flex-[0_0_auto]">
-                    <Button 
-                      variant={selectedCategory === cat.id ? 'secondary' : 'ghost'} 
-                      size="sm" 
-                      className={cn("rounded-full font-black uppercase text-[10px] tracking-widest px-8 h-12 shrink-0", selectedCategory === cat.id && "shadow-lg shadow-secondary/20")}
-                      onClick={() => setSelectedCategory(cat.id)}
-                    >
-                      {cat.name}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
       <section className="py-20 container mx-auto px-4 flex-1">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16">
           <div className="space-y-2">
-            <h2 className="text-5xl font-black uppercase italic tracking-tighter text-primary">
-              {radiusKm === 'unlimited' ? 'Experiências Globais' : 'Perto de Você'}
-            </h2>
-            <p className="text-muted-foreground font-medium text-lg">Ordenados por relevância geográfica e temporal.</p>
-          </div>
-          
-          <div className="flex items-center gap-4 bg-muted/50 p-2 rounded-2xl border border-dashed">
-            <button 
-              onClick={() => setShowLiveOnly(!showLiveOnly)}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-xl transition-all",
-                showLiveOnly ? "bg-white shadow-sm scale-105" : "opacity-40 hover:opacity-100"
-              )}
-            >
-               <Clock className={cn("w-4 h-4", showLiveOnly ? "text-secondary" : "text-primary")} />
-               <span className="text-[10px] font-black uppercase tracking-widest">
-                 {showLiveOnly ? 'Acontecendo Agora' : 'Acontece em Breve'}
-               </span>
-            </button>
-
-            <button 
-              onClick={() => setShowRegionOnly(!showRegionOnly)}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-xl transition-all",
-                showRegionOnly ? "bg-white shadow-sm scale-105" : "opacity-40 hover:opacity-100"
-              )}
-            >
-               <MapPin className={cn("w-4 h-4", showRegionOnly ? "text-secondary" : "text-primary")} />
-               <span className="text-[10px] font-black uppercase tracking-widest">Na sua região</span>
-            </button>
+            <h2 className="text-5xl font-black uppercase italic tracking-tighter text-primary">Próximas Experiências</h2>
+            <p className="text-muted-foreground font-medium text-lg">Perto de você, no seu tempo.</p>
           </div>
         </div>
 
         {eventsLoading ? (
           <div className="py-32 flex flex-col items-center justify-center gap-4">
             <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Sincronizando experiências...</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Sincronizando experiências...</p>
           </div>
         ) : interleavedContent.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
             {interleavedContent.map((item: any, idx: number) => (
-              item._isAdObject ? (
-                <AdCard key={`ad-${item.adId}-${idx}`} ad={item} />
-              ) : (
-                <EventCard key={`ev-${item.id}-${idx}`} event={item} userLocation={userLocation} isSponsored={item.isSponsored} />
-              )
+              <EventCard key={`${item.id}-${idx}`} event={item} userLocation={userLocation} isSponsored={item.isSponsored} />
             ))}
           </div>
         ) : (
@@ -484,12 +316,10 @@ export default function LandingPageClient() {
                 <Inbox className="w-10 h-10 text-muted-foreground opacity-20" />
              </div>
              <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Nenhum evento localizado</h3>
-             <p className="text-muted-foreground font-medium uppercase tracking-widest text-xs mt-2">Tente expandir o raio de busca ou mudar os filtros.</p>
-             <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSelectedCity("all"); setSelectedCategory("all"); setRadiusKm("50"); setDateFilter("all"); setCustomDate(undefined); setShowLiveOnly(false); setShowRegionOnly(false); }}>Limpar Todos os Filtros</Button>
+             <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSelectedCity("all"); setSelectedCategory("all"); setRadiusKm("50"); setDateFilter("all"); }}>Limpar Todos os Filtros</Button>
           </div>
         )}
       </section>
-
       <Footer />
     </div>
   )
