@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -49,7 +48,7 @@ const validateCPF = (cpf: string) => {
   return true;
 };
 
-export default function CadastroPage() {
+function CadastroContent() {
   const [name, setName] = useState("")
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
@@ -278,7 +277,7 @@ export default function CadastroPage() {
             )}
             <span className="text-xl font-bold tracking-tight">{siteName}</span>
           </Link>
-          <Button variant="ghost" asChild className="font-semibold">
+          <Button variant="ghost" asChild className="font-semibold text-xs uppercase tracking-widest">
             <Link href="/">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Início
@@ -394,5 +393,13 @@ export default function CadastroPage() {
       </div>
       <Footer />
     </div>
+  )
+}
+
+export default function CadastroPage() {
+  return (
+    <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-muted/30"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>}>
+      <CadastroContent />
+    </React.Suspense>
   )
 }
