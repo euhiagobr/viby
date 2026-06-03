@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -378,7 +377,7 @@ export default function AdminFinanceiroPage() {
                  <Input 
                    placeholder="0,00" 
                    value={depositAmount} 
-                   onChange={(e) => setDepositAmount(e.target.value)}
+                   onChange={(e) => setDailyBudgetInput(e.target.value)}
                    className="text-3xl font-black h-20 text-center rounded-[1.5rem] pl-8 border-secondary/20 focus-visible:ring-secondary/30"
                  />
               </div>

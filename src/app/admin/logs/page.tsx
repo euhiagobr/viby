@@ -93,7 +93,7 @@ export default function AdminLogsPage() {
   const getSeverityColor = (sev: string) => {
     switch (sev) {
       case 'critical': return 'bg-red-600 text-white';
-      case 'error': return 'bg-orange-500 text-white';
+      case 'error': return 'bg-orange-50 text-white';
       case 'warning': return 'bg-yellow-500 text-black';
       default: return 'bg-blue-500 text-white';
     }
