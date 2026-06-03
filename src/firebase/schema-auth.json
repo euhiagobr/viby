@@ -1,0 +1,27 @@
+
+{
+  "collections": {
+    "users": {
+      "id": "UID do Firebase Auth",
+      "fields": {
+        "uid": "string",
+        "email": "string",
+        "photoURL": "string",
+        "provider": "string (google | facebook | x)",
+        "username": "string (único, 3-20 chars, a-z, 0-9, _)",
+        "cpf": "string (apenas números, salvo criptografado no sub-doc ou mascarado no principal)",
+        "profileComplete": "boolean",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "role": "string (user | admin)"
+      }
+    },
+    "usernames": {
+      "id": "username (lowercase)",
+      "fields": {
+        "uid": "UID do usuário",
+        "type": "fixed: 'user'"
+      }
+    }
+  }
+}

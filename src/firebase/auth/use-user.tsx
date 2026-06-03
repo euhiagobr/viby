@@ -3,9 +3,12 @@
 
 import { useState, useEffect } from 'react';
 import { User, onAuthStateChanged, Auth } from 'firebase/auth';
+import { doc, onSnapshot, Firestore } from 'firebase/firestore';
+import { db } from '../database';
 
 export function useUser(auth: Auth | null) {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -16,14 +19,31 @@ export function useUser(auth: Auth | null) {
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-      setIsInitialized(true);
+    const unsubscribeAuth = onAuthStateChanged(auth, (authUser) => {
+      if (authUser) {
+        setUser(authUser);
+        // Escuta o documento do usuário no Firestore para reatividade do onboarding
+        const unsubscribeProfile = onSnapshot(doc(db, "users", authUser.uid), (snap) => {
+          if (snap.exists()) {
+            setProfile(snap.data());
+          } else {
+            setProfile(null);
+          }
+          setLoading(false);
+          setIsInitialized(true);
+        });
+
+        return () => unsubscribeProfile();
+      } else {
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
+        setIsInitialized(true);
+      }
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, [auth]);
 
-  return { user, loading, isInitialized };
+  return { user, profile, loading, isInitialized };
 }
