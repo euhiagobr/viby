@@ -7,7 +7,7 @@ import { EventCard } from "@/components/events/EventCard"
 import { AdCard } from "@/components/ads/AdCard"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, MapPin, FilterX, Settings, Navigation, ChevronLeft, ChevronRight, Loader2, Clock, Zap, Globe, Calendar as CalendarIcon } from "lucide-react"
+import { Search, MapPin, FilterX, Navigation, ChevronLeft, ChevronRight, Loader2, Clock, Zap, Globe, Calendar as CalendarIcon, Inbox } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
@@ -50,7 +50,6 @@ export default function LandingPageClient() {
   const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
 
-  // Novos estados para filtros rápidos
   const [showLiveOnly, setShowLiveOnly] = React.useState(false)
   const [showRegionOnly, setShowRegionOnly] = React.useState(false)
 
@@ -91,16 +90,28 @@ export default function LandingPageClient() {
   }, [])
 
   const filteredAndSortedEvents = React.useMemo(() => {
-    if (!events) return []
+    if (!events || events.length === 0) return []
 
     let result = events.filter(e => {
-      const visible = isEventVisible(e);
+      // Check visibility
+      if (!isEventVisible(e)) return false;
+
       const matchesSearch = !searchName || e.title?.toLowerCase().includes(searchName.toLowerCase());
       const matchesCity = selectedCity === 'all' || e.city === selectedCity;
       const matchesCategory = selectedCategory === 'all' || e.categoryId === selectedCategory;
       
-      const eventDate = e.date?.toDate ? e.date.toDate() : new Date(e.date);
-      const endDate = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(eventDate.getTime() + 4 * 60 * 60 * 1000));
+      // Robust Date Parsing
+      const parseDate = (val: any) => {
+        if (!val) return null;
+        if (val.toDate) return val.toDate();
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? null : d;
+      };
+
+      const eventDate = parseDate(e.date);
+      if (!eventDate) return false;
+
+      const endDate = parseDate(e.endDate) || new Date(eventDate.getTime() + 4 * 60 * 60 * 1000);
       const now = new Date();
 
       // Filtro Inteligente: Acontecendo Agora ou em 1h
@@ -139,7 +150,7 @@ export default function LandingPageClient() {
         matchesRadius = dist <= parseInt(radiusKm);
       }
 
-      return visible && matchesSearch && matchesCity && matchesCategory && matchesRadius && matchesDate;
+      return matchesSearch && matchesCity && matchesCategory && matchesRadius && matchesDate;
     });
 
     return result.map(e => ({
@@ -152,13 +163,20 @@ export default function LandingPageClient() {
   }, [events, searchName, selectedCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate, showLiveOnly, showRegionOnly])
 
   const interleavedContent = React.useMemo(() => {
-    if (filteredAndSortedEvents.length === 0) return []
+    if (!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) return []
     const now = new Date()
     
     const sponsoredPool = (activeAds || [])
       .map((ad: any) => {
-        const start = ad.startDate?.toDate ? ad.startDate.toDate() : new Date(ad.startDate);
-        const end = ad.endDate?.toDate ? ad.endDate.toDate() : new Date(ad.endDate);
+        const parseDate = (val: any) => {
+          if (!val) return null;
+          if (val.toDate) return val.toDate();
+          const d = new Date(val);
+          return isNaN(d.getTime()) ? null : d;
+        };
+
+        const start = parseDate(ad.startDate);
+        const end = parseDate(ad.endDate);
         const isDateValid = (!start || now >= start) && (!end || now <= end);
         const hasBudget = (ad.remainingBudget || 0) > 0;
 
@@ -389,7 +407,6 @@ export default function LandingPageClient() {
           </div>
           
           <div className="flex items-center gap-4 bg-muted/50 p-2 rounded-2xl border border-dashed">
-            {/* Botão Acontecendo Agora / Acontece em Breve */}
             <button 
               onClick={() => setShowLiveOnly(!showLiveOnly)}
               className={cn(
@@ -403,7 +420,6 @@ export default function LandingPageClient() {
                </span>
             </button>
 
-            {/* Botão Na sua região (Raio 20km) */}
             <button 
               onClick={() => setShowRegionOnly(!showRegionOnly)}
               className={cn(
@@ -435,7 +451,7 @@ export default function LandingPageClient() {
         ) : (
           <div className="py-40 text-center bg-white rounded-[4rem] border-2 border-dashed border-border shadow-inner">
              <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
-                <FilterX className="w-10 h-10 text-muted-foreground opacity-20" />
+                <Inbox className="w-10 h-10 text-muted-foreground opacity-20" />
              </div>
              <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Nenhum evento localizado</h3>
              <p className="text-muted-foreground font-medium uppercase tracking-widest text-xs mt-2">Tente expandir o raio de busca ou mudar os filtros.</p>

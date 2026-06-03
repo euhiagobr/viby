@@ -46,8 +46,15 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const [liveStatus, setLiveStatus] = React.useState<{ label: string; colorClass: string; icon?: any } | null>(null);
 
   const eventDates = React.useMemo(() => {
-    const start = event.date?.toDate ? event.date.toDate() : new Date(event.date);
-    const end = event.endDate?.toDate ? event.endDate.toDate() : (event.endDate ? new Date(event.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+    const parseDate = (val: any) => {
+      if (!val) return null;
+      if (val.toDate) return val.toDate();
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    };
+
+    const start = parseDate(event.date) || new Date();
+    const end = parseDate(event.endDate) || new Date(start.getTime() + 4 * 60 * 60 * 1000);
     return { start, end };
   }, [event.date, event.endDate]);
 
@@ -109,9 +116,12 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       let genderKey = 'desconhecido';
       if (rawGender === 'masculino') genderKey = 'masculino';
       else if (rawGender === 'feminino') genderKey = 'feminino';
+      else if (rawGender === 'agênero') genderKey = 'agenero';
+      else if (rawGender === 'gênero fluido') genderKey = 'genero_fluido';
+      else if (rawGender === 'bigênero') genderKey = 'bigenero';
+      else if (rawGender === 'demigênero') genderKey = 'demigenero';
       else if (rawGender === 'homem trans') genderKey = 'homem_trans';
       else if (rawGender === 'mulher trans') genderKey = 'mulher_trans';
-      else if (rawGender === 'agênero') genderKey = 'agenero';
       else if (rawGender === 'outro') genderKey = 'outro';
       
       update[`stats_gender_${genderKey}`] = increment(1);
@@ -170,7 +180,13 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
     try {
-      let d: Date = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
+      let d: Date;
+      if (dateValue.toDate) {
+        d = dateValue.toDate();
+      } else {
+        d = new Date(dateValue);
+      }
+      if (isNaN(d.getTime())) return "A definir";
       return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
     } catch (e) { return "A definir"; }
   };
@@ -178,7 +194,13 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const formatTime = (dateValue: any) => {
     if (!dateValue) return "";
     try {
-      let d: Date = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
+      let d: Date;
+      if (dateValue.toDate) {
+        d = dateValue.toDate();
+      } else {
+        d = new Date(dateValue);
+      }
+      if (isNaN(d.getTime())) return "";
       return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     } catch (e) { return ""; }
   };

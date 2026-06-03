@@ -305,7 +305,7 @@ export default function CarrinhoPage() {
                                      </div>
                                      <div className="text-right">
                                         {item.couponCode && (
-                                           <p className="text-[10px] font-bold text-muted-foreground line-through uppercase">{formatCurrency(item.originalPrice * item.quantity)}</p>
+                                           <p className="text-[10px] font-bold text-muted-foreground line-through uppercase">{formatCurrency((item.originalPrice || item.price) * item.quantity)}</p>
                                         )}
                                         <p className="text-2xl font-black text-primary italic tracking-tighter">{formatCurrency(res.customerFinalPrice * item.quantity)}</p>
                                      </div>
@@ -318,7 +318,7 @@ export default function CarrinhoPage() {
                                               <div className="p-2 bg-green-50 rounded-xl text-green-600"><TicketPercent className="w-4 h-4" /></div>
                                               <div className="space-y-0.5">
                                                  <p className="text-[9px] font-black uppercase text-green-700">Cupom Aplicado: {item.couponCode}</p>
-                                                 <p className="text-[8px] font-bold text-green-600 uppercase">-{formatCurrency(item.discountAmount! * item.quantity)} de desconto</p>
+                                                 <p className="text-[8px] font-bold text-green-600 uppercase">-{formatCurrency((item.discountAmount || 0) * item.quantity)} de desconto</p>
                                               </div>
                                            </div>
                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-full" onClick={() => handleRemoveCoupon(item.id)}>
