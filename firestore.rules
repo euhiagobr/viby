@@ -16,10 +16,6 @@ service cloud.firestore {
       );
     }
 
-    function isServer() {
-      return request.auth == null;
-    }
-
     function isMemberOfOrg(orgId) {
       return isSignedIn() && 
              exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
@@ -49,7 +45,7 @@ service cloud.firestore {
 
       match /transactions/{txId} {
         allow read: if isAdmin() || isMemberOfOrg(orgId);
-        allow write: if isServer() || isAdmin(); 
+        allow write: if isAdmin(); 
       }
     }
 
@@ -86,31 +82,31 @@ service cloud.firestore {
     }
 
     match /registrations/{regId} {
-      allow read: if isAdmin() || isServer() || (isSignedIn() && (request.auth.uid == resource.data.userId || isMemberOfOrg(resource.data.organizationId)));
-      allow create: if isServer() || isAdmin() || isSignedIn();
-      allow update: if isServer() || isAdmin() || isMemberOfOrg(resource.data.organizationId) || (isSignedIn() && request.auth.uid == resource.data.userId);
+      allow read: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.userId || isMemberOfOrg(resource.data.organizationId)));
+      allow create: if isAdmin();
+      allow update: if isAdmin() || isMemberOfOrg(resource.data.organizationId) || (isSignedIn() && request.auth.uid == resource.data.userId);
     }
 
     match /orders/{orderId} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if isSignedIn();
-      allow update: if isServer() || isAdmin();
+      allow update: if isAdmin();
     }
 
     match /recurring_occurrences/{occId} {
       allow read: if true;
-      allow update: if isServer() || isAdmin() || isMemberOfOrg(resource.data.organizationId);
-      allow create: if isServer() || isAdmin() || isMemberOfOrg(request.resource.data.organizationId);
+      allow update: if isAdmin() || isMemberOfOrg(resource.data.organizationId);
+      allow create: if isAdmin();
     }
 
     match /user_gamification/{uid} { 
       allow read: if true; 
-      allow write: if isServer() || isAdmin() || (isSignedIn() && request.auth.uid == uid); 
+      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == uid); 
     }
     
     match /xp_logs/{id} { 
       allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid); 
-      allow write: if isServer() || isAdmin(); 
+      allow write: if isAdmin(); 
     }
     
     match /follows/{followId} {
@@ -121,17 +117,17 @@ service cloud.firestore {
 
     match /financial_logs/{id} {
       allow read: if isAdmin();
-      allow create: if isServer() || isAdmin();
+      allow create: if isAdmin();
     }
 
-    match /tax_tickets/{id} { allow read: if isAdmin(); allow write: if isServer() || isAdmin(); }
-    match /tax_ads/{id} { allow read: if isAdmin(); allow write: if isServer() || isAdmin(); }
+    match /tax_tickets/{id} { allow read: if isAdmin(); allow write: if isAdmin(); }
+    match /tax_ads/{id} { allow read: if isAdmin(); allow write: if isAdmin(); }
     match /internal_expenses/{id} { allow read: if isAdmin(); allow write: if isAdmin(); }
     
     match /ads/{id} {
       allow read: if true;
-      allow create: if isSignedIn() || isAdmin();
-      allow update: if isServer() || isAdmin() || isMemberOfOrg(resource.data.organizationId);
+      allow create: if isAdmin() || isSignedIn();
+      allow update: if isAdmin() || isMemberOfOrg(resource.data.organizationId);
       allow delete: if isAdmin() || isMemberOfOrg(resource.data.organizationId);
     }
 
@@ -152,19 +148,25 @@ service cloud.firestore {
       allow update: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
     }
     
-    match /usernames/{username} { allow read: if true; allow write: if isSignedIn() || isServer() || isAdmin(); }
-    match /password_reset_codes/{id} { allow read: if true; allow write: if isServer() || isAdmin(); }
+    match /usernames/{username} { 
+      allow read: if true; 
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    match /password_reset_codes/{id} { allow read: if isAdmin(); allow write: if isAdmin(); }
     match /settings/{docId} { allow read: if true; allow write: if isAdmin(); }
-    match /system_logs/{id} { allow read: if isAdmin(); allow create: if true; allow update: if isAdmin(); }
-    match /sent_emails/{id} { allow read: if isAdmin(); allow create: if isServer() || isAdmin(); }
+    match /system_logs/{id} { allow read: if isAdmin(); allow create: if isSignedIn(); allow update: if isAdmin(); }
+    match /sent_emails/{id} { allow read: if isAdmin(); allow write: if isAdmin(); }
     match /categories/{id} { allow read: if true; allow write: if isAdmin(); }
-    match /wallets/{uid} { allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin()); allow write: if isServer() || isAdmin(); }
-    match /wallet_transactions/{id} { allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin()); allow write: if isServer() || isAdmin(); }
-    match /payout_requests/{id} { allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin()); allow write: if isSignedIn() || isServer() || isAdmin(); }
+    match /wallets/{uid} { allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin()); allow write: if isAdmin(); }
+    match /wallet_transactions/{id} { allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin()); allow write: if isAdmin(); }
+    match /payout_requests/{id} { allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin()); allow write: if isAdmin(); }
 
     match /audit_logs/{id} {
       allow read: if isAdmin();
-      allow create: if isSignedIn() || isServer();
+      allow create: if isAdmin();
       allow update, delete: if false;
     }
 
