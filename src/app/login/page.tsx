@@ -5,21 +5,21 @@ import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
-import { signInWithEmailAndPassword, signOut } from "firebase/auth"
-import { doc, getDoc, setDoc } from "firebase/firestore"
+import { signInWithEmailAndPassword } from "firebase/auth"
+import { doc, getDoc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { Globe, Loader2, User, Mail, ArrowLeft, KeyRound, SeparatorHorizontal } from "lucide-react"
+import { Loader2, User, Mail, ArrowLeft, KeyRound } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import Image from "next/image"
 import { SocialLoginButtons } from "./SocialLoginButtons"
 import { Separator } from "@/components/ui/separator"
 
-export default function LoginPage() {
+function LoginContent() {
   const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
@@ -35,7 +35,6 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isInitialized && user) {
-      // Verifica integridade real do cadastro
       const isComplete = profile?.profileComplete || (profile?.username && profile?.cpf);
       
       if (!isComplete && profile) {
@@ -150,5 +149,13 @@ export default function LoginPage() {
       </div>
       <Footer />
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-muted/30"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>}>
+      <LoginContent />
+    </React.Suspense>
   )
 }

@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -155,7 +156,6 @@ function OrganizationFinanceContent() {
       }
 
       if (data.maxUsesPerUser > 0) {
-        // Busca todas as transações de Ads do usuário em todas as marcas
         const usagesQuery = query(
            collectionGroup(db, 'transactions'),
            where('userId', '==', user.uid),
