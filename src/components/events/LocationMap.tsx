@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -27,7 +28,7 @@ function ChangeView({ latitude, longitude }: { latitude: number; longitude: numb
   const map = useMap();
   
   useEffect(() => {
-    if (latitude && longitude) {
+    if (latitude && longitude && !isNaN(latitude) && !isNaN(longitude)) {
       // Forçamos a centralização com animação suave se o ponto existir
       map.setView([latitude, longitude], map.getZoom(), { animate: true });
       
@@ -105,7 +106,6 @@ export function LocationMap({ latitude, longitude, onChange, interactive = true 
         zoom={15} 
         scrollWheelZoom={false}
         className="w-full h-full"
-        key={`${lat}-${lng}`} // Key dinâmica para forçar re-render parcial se necessário
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'

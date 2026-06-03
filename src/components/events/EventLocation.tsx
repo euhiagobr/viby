@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -90,22 +91,14 @@ export function EventLocation({
 }: EventLocationProps) {
   const [isSearching, setIsSearching] = React.useState<string | null>(null);
   const [currentTime, setCurrentTime] = React.useState<Date>(new Date());
+  
+  // Ref para evitar loops infinitos de geocoding
+  const lastGeocodedRef = React.useRef<string>("");
 
   React.useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
-
-  const formatFullAddress = (addr: any) => {
-    if (!addr || Object.keys(addr).length === 0) return "Local Confirmado";
-    const parts = [
-      addr.street ? `${addr.street}${addr.number ? `, ${addr.number}` : ''}` : null,
-      addr.neighborhood || addr.location,
-      addr.city ? `${addr.city}${addr.state ? ` - ${addr.state}` : ''}` : null
-    ].filter(Boolean);
-    
-    return parts.length > 0 ? parts.join(" • ") : "Local Confirmado";
-  };
 
   /**
    * Lógica de Geocoding robusta com fallback.
@@ -113,9 +106,12 @@ export function EventLocation({
   const triggerGeocoding = async (index: number, updatedAddr: any) => {
     if (!updatedAddr.street || !updatedAddr.city) return;
 
-    // String de busca ideal: Logradouro, Número, Cidade, Estado, Brasil
     const searchString = `${updatedAddr.street}, ${updatedAddr.number || ''}, ${updatedAddr.city}, ${updatedAddr.state}, Brasil`;
     
+    // Evita chamadas duplicadas para o mesmo endereço
+    if (searchString === lastGeocodedRef.current) return;
+    lastGeocodedRef.current = searchString;
+
     setIsSearching(isMultiLocation ? updatedAddr.id : 'legacy');
     const coords = await getCoordinatesFromAddress(searchString, updatedAddr.cep);
     
@@ -130,6 +126,30 @@ export function EventLocation({
     }
     setIsSearching(null);
   };
+
+  // Debounce para mudanças em qualquer campo
+  React.useEffect(() => {
+    if (isPublic) return;
+
+    const timer = setTimeout(() => {
+      if (isMultiLocation) {
+        locations.forEach((loc, idx) => {
+          if (loc.street && loc.city) triggerGeocoding(idx, loc);
+        });
+      } else if (address?.street && address?.city) {
+        triggerGeocoding(0, address);
+      }
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [
+    address?.street, 
+    address?.number, 
+    address?.city, 
+    address?.cep, 
+    isMultiLocation, 
+    locations.map(l => `${l.street}${l.number}${l.cep}`).join('|')
+  ]);
 
   const handleCepBlur = async (index: number) => {
     const target = isMultiLocation ? { ...locations[index] } : { ...address };
@@ -151,7 +171,6 @@ export function EventLocation({
           state: data.uf || target.state
         };
 
-        // Atualiza campos de texto
         if (isMultiLocation) {
           const newLocs = [...locations];
           newLocs[index] = updated;
@@ -159,9 +178,6 @@ export function EventLocation({
         } else {
           onChange?.(updated);
         }
-
-        // Dispara a busca do mapa imediatamente
-        await triggerGeocoding(index, updated);
       }
     } catch (e) {
       console.warn("[CEP] Erro na consulta ViaCEP");
@@ -182,29 +198,20 @@ export function EventLocation({
       const newLocs = [...locations];
       newLocs[index] = { ...newLocs[index], [field]: finalValue };
       onLocationsChange?.(newLocs);
-      
-      // Ao mudar número ou logradouro, tenta atualizar mapa
-      if ((field === 'number' || field === 'street') && finalValue) {
-        triggerGeocoding(index, newLocs[index]);
-      }
     } else {
-      const updated = { ...address, [field]: finalValue };
-      onChange?.(updated);
-      
-      if ((field === 'number' || field === 'street') && finalValue) {
-        triggerGeocoding(index, updated);
-      }
+      onChange?.({ ...address, [field]: finalValue });
     }
   };
 
-  const handleCoordsChange = (index: number, lat: number, lng: number) => {
-    if (isMultiLocation) {
-      const newLocs = [...locations];
-      newLocs[index] = { ...newLocs[index], latitude: lat, longitude: lng };
-      onLocationsChange?.(newLocs);
-    } else {
-      onChange?.({ ...address, latitude: lat, longitude: lng });
-    }
+  const formatFullAddress = (addr: any) => {
+    if (!addr || Object.keys(addr).length === 0) return "Local Confirmado";
+    const parts = [
+      addr.street ? `${addr.street}${addr.number ? `, ${addr.number}` : ''}` : null,
+      addr.neighborhood || addr.location,
+      addr.city ? `${addr.city}${addr.state ? ` - ${addr.state}` : ''}` : null
+    ].filter(Boolean);
+    
+    return parts.length > 0 ? parts.join(" • ") : "Local Confirmado";
   };
 
   if (isPublic) {
@@ -353,7 +360,9 @@ export function EventLocation({
                         placeholder="00000-000" 
                         className="rounded-xl h-11 pl-8" 
                       />
-                      <Search className={cn("absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30", isSearching === (isMulti ? currentLoc.id : 'legacy') && "animate-spin text-secondary opacity-100")} />
+                      {isSearching === (isMulti ? currentLoc.id : 'legacy') && (
+                        <Loader2 className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-secondary" />
+                      )}
                     </div>
                  </div>
                  <div className="col-span-3 space-y-2">
@@ -385,14 +394,22 @@ export function EventLocation({
 
            <div className="space-y-3">
               <Label className="text-[10px] font-black uppercase opacity-60 flex justify-between items-center">
-                 Ajuste do Pin no Mapa
-                 <span className="text-[8px] opacity-40">Arraste o PIN para precisão total</span>
+                 PIN no Mapa
+                 <span className="text-[8px] opacity-40">PIN atualiza automaticamente ou via arraste</span>
               </Label>
               <div className="h-[280px] w-full rounded-2xl overflow-hidden border-2 border-muted relative shadow-inner bg-muted/10">
                  <LocationMap 
                     latitude={currentLoc.latitude || -23.55052} 
                     longitude={currentLoc.longitude || -46.633308} 
-                    onChange={(lat, lng) => handleCoordsChange(index, lat, lng)} 
+                    onChange={(lat, lng) => {
+                      if (isMulti) {
+                        const newLocs = [...locations];
+                        newLocs[index] = { ...newLocs[index], latitude: lat, longitude: lng };
+                        onLocationsChange?.(newLocs);
+                      } else {
+                        onChange?.({ ...address, latitude: lat, longitude: lng });
+                      }
+                    }} 
                     interactive={true}
                  />
               </div>
@@ -494,7 +511,7 @@ export function EventLocation({
          <div className="space-y-1">
             <h4 className="font-black uppercase text-secondary">Mapa Inteligente Ativo</h4>
             <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed">
-               O Viby exibirá para o público o local correto baseando-se no horário da programação. Certifique-se de que os horários de cada parada estão corretos.
+               O Viby monitora as mudanças no endereço e atualiza o PIN automaticamente para garantir a precisão no radar de geolocalização.
             </p>
          </div>
       </div>
