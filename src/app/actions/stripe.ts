@@ -1,4 +1,3 @@
-
 'use server';
 
 import { headers } from 'next/headers';
@@ -94,7 +93,6 @@ export async function finalizeCheckoutSession(sessionId: string) {
         if (!orderSnap.exists()) throw new Error("Pedido não localizado.");
         
         const orderData = orderSnap.data()!;
-        // IDEMPOTÊNCIA: Se o pedido já está pago, não gera novos ingressos
         if (orderData.status === 'paid') return { success: true, alreadyProcessed: true };
 
         const userId = metadata.userId;
@@ -116,7 +114,6 @@ export async function finalizeCheckoutSession(sessionId: string) {
           }
 
           for (let j = 0; j < item.quantity; j++) {
-            // GERAR CÓDIGO ÚNICO DE 16 DÍGITOS NO FORMATO XXXX-XXXX-XXXX-XXXX
             const ticketCode = await generateUniqueTicketCode(db);
             const regRef = doc(collection(db, "registrations"));
             
@@ -169,6 +166,7 @@ export async function finalizeCheckoutSession(sessionId: string) {
  */
 export async function createAdBalanceTopUpSession(data: {
   orgId: string;
+  orgUsername: string;
   orgName: string;
   userEmail: string;
   baseAmount: number;
@@ -188,20 +186,21 @@ export async function createAdBalanceTopUpSession(data: {
             currency: 'brl',
             product_data: {
               name: `Recarga de Saldo Ads - ${data.orgName}`,
-              description: 'Crédito exclusivo para impulsionamento de eventos na Viby Club',
+              description: 'Crédito exclusivo para impulsionamento de eventos na Viby Club (Inclui 11% de Impostos)',
             },
-            unit_amount: Math.round(data.baseAmount * 100),
+            unit_amount: Math.round(data.baseAmount * 1.11 * 100),
           },
           quantity: 1,
         },
       ],
       mode: 'payment',
       customer_email: data.userEmail,
-      success_url: `${origin}/dashboard/organizacoes/${data.orgId}/finance?session_id={CHECKOUT_SESSION_ID}&success=true`,
-      cancel_url: `${origin}/dashboard/organizacoes/${data.orgId}/finance?cancel=true`,
+      success_url: `${origin}/dashboard/organizacoes/${data.orgUsername}/finance?session_id={CHECKOUT_SESSION_ID}&success=true`,
+      cancel_url: `${origin}/dashboard/organizacoes/${data.orgUsername}/finance?cancel=true`,
       metadata: {
         type: 'ad_topup',
         orgId: data.orgId,
+        orgUsername: data.orgUsername,
         baseAmount: data.baseAmount.toString(),
         transactionId: data.transactionId
       },
@@ -230,8 +229,19 @@ export async function finalizeAdTopUpSession(sessionId: string) {
     const amount = parseFloat(metadata.baseAmount);
     const orgId = metadata.orgId;
 
-    await runTransaction(db, async (transaction) => {
+    return await runTransaction(db, async (transaction) => {
       const orgRef = doc(db, "organizations", orgId);
+      const orgSnap = await transaction.get(orgRef);
+      
+      // Idempotência baseada no transactionId (devemos verificar no histórico de transações)
+      const txQuery = query(
+        collection(db, "organizations", orgId, "transactions"),
+        where("stripeSessionId", "==", sessionId),
+        limit(1)
+      );
+      const txSnap = await getDocs(txQuery);
+      if (!txSnap.empty) return { success: true, alreadyProcessed: true };
+
       transaction.update(orgRef, {
         adBalance: increment(amount),
         updatedAt: serverTimestamp()
@@ -240,16 +250,18 @@ export async function finalizeAdTopUpSession(sessionId: string) {
       const txRef = doc(collection(db, "organizations", orgId, "transactions"));
       transaction.set(txRef, {
         type: 'ad_topup',
-        amount,
+        amount: amount,
+        totalCharged: amount * 1.11,
         status: 'completed',
         stripeSessionId: sessionId,
-        description: 'Recarga de Saldo Ads via Cartão',
+        description: 'Recarga de Saldo Ads via Cartão (Confirmada)',
         createdAt: serverTimestamp()
       });
-    });
 
-    return { success: true };
+      return { success: true };
+    });
   } catch (error: any) {
+    console.error("[Ad TopUp Finalization Error]", error.message);
     return { success: false, error: error.message };
   }
 }

@@ -34,7 +34,6 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if true;
       allow create: if isSignedIn() && request.auth.uid == userId;
-      // Permite update apenas se não tentar mudar campos de sistema como role ou xp após definidos
       allow update: if isAdmin() || (
         isSignedIn() && request.auth.uid == userId && 
         isFieldUnchanged('role') && 
@@ -49,7 +48,7 @@ service cloud.firestore {
     match /organizations/{orgId} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow update: if isAdmin() || isMemberOfOrg(orgId);
+      allow update: if isServer() || isAdmin() || isMemberOfOrg(orgId);
 
       match /members/{memberId} {
         allow read: if true;
@@ -57,7 +56,7 @@ service cloud.firestore {
       }
 
       match /transactions/{txId} {
-        allow read: if isAdmin() || isMemberOfOrg(orgId);
+        allow read: if isServer() || isAdmin() || isMemberOfOrg(orgId);
         allow write: if isServer() || isAdmin(); 
       }
     }
@@ -96,7 +95,7 @@ service cloud.firestore {
     }
 
     match /registrations/{regId} {
-      allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isMemberOfOrg(resource.data.organizationId) || isAdmin());
+      allow read: if isServer() || isSignedIn() && (request.auth.uid == resource.data.userId || isMemberOfOrg(resource.data.organizationId) || isAdmin());
       allow create: if isServer() || isAdmin();
       allow update: if isServer() || isAdmin() || isMemberOfOrg(resource.data.organizationId) || (isSignedIn() && request.auth.uid == resource.data.userId);
     }
