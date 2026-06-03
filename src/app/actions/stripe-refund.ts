@@ -25,8 +25,7 @@ async function getStripeInstance(db: any) {
 export type RefundType = 'shared' | 'platform_absorbed';
 
 /**
- * Processa o estorno de um ingresso via Stripe Connect.
- * Utiliza writeBatch para garantir que status, estoque e logs sejam atualizados de forma atômica.
+ * Processa o estorno de um ingresso via Stripe Connect de forma atômica.
  */
 export async function processStripeRefund(params: {
   registrationId: string;
@@ -44,9 +43,9 @@ export async function processStripeRefund(params: {
     if (!regSnap.exists()) throw new Error('Ingresso não localizado.');
     const regData = regSnap.data();
 
-    // Idempotência
+    // Idempotência no Firestore
     if (regData.status === 'refunded' || regData.paymentStatus === 'Estornado') {
-      return { success: true, message: 'Este ingresso já foi estornado.' };
+      return { success: true, message: 'Este ingresso já consta como estornado no banco.' };
     }
 
     if (!regData.stripeSessionId) {
@@ -72,14 +71,15 @@ export async function processStripeRefund(params: {
       });
       refundId = refund.id;
     } catch (stripeError: any) {
+      // Caso o Stripe já tenha estornado (duplo clique ou erro de rede anterior)
       if (stripeError.code === 'charge_already_refunded' || stripeError.message?.includes('already been refunded')) {
-        console.warn(`[Refund Sync] Charge already refunded in Stripe.`);
+        console.warn(`[Refund Sync] Charge already refunded in Stripe. Proceeding to sync Firestore.`);
       } else {
         throw stripeError;
       }
     }
 
-    // 2. Preparar atualizações atômicas no Firestore
+    // 2. Preparar atualizações atômicas no Firestore via BATCH
     const batch = writeBatch(db);
 
     // Devolver vaga no evento pai
@@ -98,7 +98,7 @@ export async function processStripeRefund(params: {
       });
     }
 
-    // Atualizar o ingresso
+    // Atualizar o ingresso para status terminal
     batch.update(regRef, {
       status: 'refunded',
       paymentStatus: 'Estornado',
@@ -110,14 +110,14 @@ export async function processStripeRefund(params: {
       updatedAt: serverTimestamp()
     });
 
-    // Registrar Log Financeiro
+    // Registrar Log Financeiro (Essencial para auditoria ERP)
     const logRef = doc(collection(db, 'financial_logs'));
     batch.set(logRef, {
       action: 'ticket_refund',
       category: 'payout',
       userId: executorUid,
       targetId: registrationId,
-      description: `Estorno ${refundType === 'shared' ? 'Compartilhado' : 'Absorvido'} processado via Stripe.`,
+      description: `Estorno ${refundType === 'shared' ? 'Compartilhado' : 'Absorvido'} processado.`,
       metadata: {
         registrationId,
         refundId: refundId,
@@ -127,7 +127,7 @@ export async function processStripeRefund(params: {
       timestamp: serverTimestamp()
     });
 
-    // 3. Comprometer todas as alterações
+    // 3. Comprometer todas as alterações (Se falhar aqui, nada muda)
     await batch.commit();
 
     return { success: true, refundId };
