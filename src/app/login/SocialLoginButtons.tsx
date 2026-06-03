@@ -16,21 +16,23 @@ export function SocialLoginButtons() {
   
   const [loading, setLoading] = React.useState<string | null>(null);
   const [isProcessing, setIsProcessing] = React.useState(false);
+  const checkPerformed = React.useRef(false);
 
   // Monitor de redirecionamento e integridade
   React.useEffect(() => {
-    if (!auth || !db) return;
+    if (!auth || !db || !isInitialized || checkPerformed.current) return;
 
     const runAuthPipeline = async () => {
+      checkPerformed.current = true;
       try {
-        console.log("[Auth-Debug] SocialLoginButtons: Pipeline Iniciado");
+        console.log("[Auth-Debug] SocialLoginButtons: Iniciando checagem de resultado...");
         
         // 1. Tenta capturar resultado do Google Redirect
         const result = await handleSocialLoginResult(auth, db);
         
         if (result) {
           setIsProcessing(true);
-          console.log("[Auth-Debug] Resultado social capturado. Encaminhando...");
+          console.log("[Auth-Debug] Login Social confirmado. Verificando destino...");
           
           const isComplete = result.profile?.username && result.profile?.cpf;
           const target = isComplete ? "/dashboard" : "/onboarding";
@@ -39,9 +41,10 @@ export function SocialLoginButtons() {
           return;
         }
 
-        // 2. Se já existe usuário mas o perfil não carregou no contexto (limbo)
-        if (user && !profile && isInitialized) {
-          console.log("[Auth-Debug] Usuário autenticado sem perfil. Forçando sincronização...");
+        // 2. Fallback: Se o redirect retornou null mas o Firebase Auth já está logado
+        // Isso acontece quando o navegador perde o evento de redirect mas mantém o token.
+        if (user && !profile) {
+          console.log("[Auth-Debug] Usuário logado via Token mas sem Perfil. Forçando criação...");
           setIsProcessing(true);
           const syncedProfile = await ensureUserProfile(user, db);
           
@@ -51,9 +54,13 @@ export function SocialLoginButtons() {
           }
         }
       } catch (error: any) {
-        console.error("[Auth-Debug] Erro no Pipeline:", error);
+        console.error("[Auth-Debug] Falha no Pipeline Social:", error);
         if (error.code !== 'auth/no-auth-event') {
-          toast({ variant: "destructive", title: "Erro na autenticação", description: "Tente novamente." });
+          toast({ 
+            variant: "destructive", 
+            title: "Erro de Autenticação", 
+            description: "Não foi possível validar sua conta social. Tente novamente." 
+          });
         }
       } finally {
         setIsProcessing(false);
@@ -67,8 +74,10 @@ export function SocialLoginButtons() {
     if (!auth) return;
     setLoading(provider);
     try {
+      console.log(`[Auth-Debug] Disparando Redirect para ${provider}...`);
       await startSocialLogin(auth, provider);
     } catch (error: any) {
+      console.error("[Auth-Debug] Erro ao iniciar login:", error);
       toast({ variant: "destructive", title: "Erro de Conexão", description: "Não foi possível iniciar o login social." });
       setLoading(null);
     }
@@ -78,7 +87,7 @@ export function SocialLoginButtons() {
     return (
       <div className="flex flex-col items-center justify-center py-6 gap-3 animate-in fade-in">
         <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando conta...</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Confirmando identidade...</p>
       </div>
     );
   }
@@ -100,7 +109,7 @@ export function SocialLoginButtons() {
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
           )}
-          {loading === 'google' ? 'Redirecionando...' : 'Entrar com Google'}
+          {loading === 'google' ? 'Aguarde...' : 'Entrar com Google'}
         </Button>
       )}
     </div>

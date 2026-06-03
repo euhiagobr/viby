@@ -53,22 +53,23 @@ function CadastroContent() {
 
   // REDIRECIONAMENTO INTELIGENTE
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!isInitialized || authLoading) return;
 
-    console.log("[Auth-Debug] Página de Cadastro - Estado Atual:", { 
-      authIniciado: isInitialized, 
-      temUsuario: !!user, 
-      temPerfil: !!profile 
+    console.log("[Auth-Debug] Cadastro Page State:", { 
+      isInitialized, 
+      hasUser: !!user, 
+      hasProfile: !!profile,
+      authLoading
     });
 
     if (user && profile) {
       const isComplete = profile.username && profile.cpf;
       const target = isComplete ? "/dashboard" : "/onboarding";
       
-      console.log(`[Auth-Debug] Cadastro detectado. Perfil Completo: ${!!isComplete}. Redirecionando para: ${target}`);
+      console.log(`[Auth-Debug] Cadastro Ativo. Perfil Completo: ${!!isComplete}. Indo para: ${target}`);
       router.replace(target);
     }
-  }, [user, profile, isInitialized, router]);
+  }, [user, profile, isInitialized, authLoading, router]);
 
   useEffect(() => {
     if (!db || !username) {

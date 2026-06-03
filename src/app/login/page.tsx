@@ -34,12 +34,13 @@ function LoginContent() {
 
   // REDIRECIONAMENTO INTELIGENTE
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!isInitialized || authLoading) return;
 
-    console.log("[Auth-Debug] Página de Login - Estado Atual:", { 
-      authIniciado: isInitialized, 
-      temUsuario: !!user, 
-      temPerfil: !!profile 
+    console.log("[Auth-Debug] Login Page State:", { 
+      isInitialized, 
+      hasUser: !!user, 
+      hasProfile: !!profile,
+      authLoading
     });
 
     if (user && profile) {
@@ -47,10 +48,10 @@ function LoginContent() {
       const redirect = searchParams.get('redirect') || "/dashboard";
       const target = isComplete ? redirect : "/onboarding";
       
-      console.log(`[Auth-Debug] Login detectado. Perfil Completo: ${!!isComplete}. Redirecionando para: ${target}`);
+      console.log(`[Auth-Debug] Login Ativo. Perfil Completo: ${!!isComplete}. Indo para: ${target}`);
       router.replace(target);
     }
-  }, [user, profile, isInitialized, router, searchParams]);
+  }, [user, profile, isInitialized, authLoading, router, searchParams]);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -90,7 +91,6 @@ function LoginContent() {
     }
   }
 
-  // Permitimos a renderização para que SocialLoginButtons possa processar o redirecionamento
   const showForm = isInitialized && !user;
 
   return (
