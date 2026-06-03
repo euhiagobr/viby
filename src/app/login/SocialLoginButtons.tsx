@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth, useFirestore } from "@/firebase";
-import { signInWithProvider, authConfig } from "@/services/auth-service";
+import { startSocialLogin, handleSocialLoginResult, authConfig } from "@/services/auth-service";
 import { Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -13,51 +13,62 @@ export function SocialLoginButtons() {
   const db = useFirestore();
   const router = useRouter();
   const [loading, setLoading] = React.useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = React.useState(true);
+
+  // Efeito para capturar o resultado do redirecionamento ao montar o componente
+  React.useEffect(() => {
+    if (!auth || !db) return;
+
+    const checkRedirect = async () => {
+      try {
+        const result = await handleSocialLoginResult(auth, db);
+        if (result) {
+          toast({ 
+            title: result.isNew ? "Bem-vindo à Viby!" : "Bem-vindo de volta!",
+            description: "Autenticação social concluída."
+          });
+          router.push("/dashboard");
+        }
+      } catch (error: any) {
+        console.error("[Social Redirect Error]", error);
+        if (error.code !== 'auth/no-auth-event') {
+          toast({ 
+            variant: "destructive", 
+            title: "Erro na autenticação", 
+            description: "Não foi possível completar o login via rede social." 
+          });
+        }
+      } finally {
+        setIsProcessing(false);
+      }
+    };
+
+    checkRedirect();
+  }, [auth, db, router]);
 
   const handleSocialLogin = async (provider: 'google' | 'facebook' | 'x') => {
-    if (!auth || !db) return;
-    
+    if (!auth) return;
     setLoading(provider);
     try {
-      const { user, isNew } = await signInWithProvider(auth, db, provider);
-      
-      // Pequeno delay para garantir que o documento do usuário esteja disponível na próxima rota
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      toast({ 
-        title: isNew ? "Bem-vindo à Viby!" : "Bem-vindo de volta!",
-        description: "Autenticação realizada com sucesso."
-      });
-      
-      router.push("/dashboard");
+      // Inicia o redirecionamento. A página será recarregada.
+      await startSocialLogin(auth, provider);
     } catch (error: any) {
-      // Erro auth/popup-blocked: comum quando o navegador bloqueia popups automaticamente
-      if (error.code === 'auth/popup-blocked') {
-        toast({ 
-          variant: "destructive", 
-          title: "Popup Bloqueado", 
-          description: "Por favor, permita popups neste site para entrar com redes sociais." 
-        });
-      } 
-      // Erro auth/popup-closed-by-user: o usuário fechou ou houve erro de COOP (Cross-Origin)
-      else if (error.code === 'auth/popup-closed-by-user') {
-        toast({ 
-          variant: "destructive", 
-          title: "Login Cancelado", 
-          description: "A janela de autenticação foi fechada antes da conclusão." 
-        });
-      }
-      else {
-        toast({ 
-          variant: "destructive", 
-          title: "Erro na autenticação", 
-          description: "Não foi possível completar o login. Tente novamente." 
-        });
-      }
-    } finally {
+      toast({ 
+        variant: "destructive", 
+        title: "Erro de Conexão", 
+        description: "Não foi possível iniciar o login social." 
+      });
       setLoading(null);
     }
   };
+
+  if (isProcessing) {
+    return (
+      <div className="flex justify-center py-4">
+        <Loader2 className="w-6 h-6 animate-spin text-secondary opacity-40" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3 w-full">
@@ -76,7 +87,7 @@ export function SocialLoginButtons() {
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
           )}
-          {loading === 'google' ? 'Conectando...' : 'Entrar com Google'}
+          {loading === 'google' ? 'Redirecionando...' : 'Entrar com Google'}
         </Button>
       )}
 

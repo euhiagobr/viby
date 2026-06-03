@@ -139,8 +139,9 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         console.error("Erro ao sincronizar marcas via membros:", e);
       }
     }, (err) => {
+      // Silenciar aviso de índice ausente para evitar console spam
       if (err.code === 'failed-precondition') {
-        console.warn("[OrganizationContext] O índice de Collection Group para 'members' é necessário. Verifique o link no console.");
+        console.warn("[Viby] O índice de Collection Group para 'members' ainda não foi criado. Verifique o link no console do Firebase para ativar.");
       }
     });
 

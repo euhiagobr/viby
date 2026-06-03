@@ -4,12 +4,14 @@ import {
   GoogleAuthProvider, 
   FacebookAuthProvider, 
   TwitterAuthProvider, 
-  signInWithPopup, 
+  signInWithRedirect, 
+  getRedirectResult,
   signOut,
   Auth,
   browserPopupRedirectResolver,
   indexedDBLocalPersistence,
-  setPersistence
+  setPersistence,
+  UserCredential
 } from "firebase/auth";
 import { 
   doc, 
@@ -29,10 +31,10 @@ export const authConfig = {
 };
 
 /**
- * Serviço de autenticação social otimizado para lidar com políticas de Cross-Origin
- * e garantir persistência de sessão.
+ * Inicia o fluxo de login social via Redirecionamento.
+ * Necessário para ambientes onde o Popup é bloqueado por políticas de COOP.
  */
-export async function signInWithProvider(auth: Auth, db: Firestore, providerName: 'google' | 'facebook' | 'x') {
+export async function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook' | 'x') {
   let provider;
   
   switch (providerName) {
@@ -52,18 +54,25 @@ export async function signInWithProvider(auth: Auth, db: Firestore, providerName
       throw new Error("Provedor não suportado");
   }
 
+  await setPersistence(auth, indexedDBLocalPersistence);
+  return signInWithRedirect(auth, provider, browserPopupRedirectResolver);
+}
+
+/**
+ * Processa o resultado do redirecionamento e executa a lógica de criação de perfil/onboarding social.
+ */
+export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
   try {
-    await setPersistence(auth, indexedDBLocalPersistence);
-    const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+    const result = await getRedirectResult(auth, browserPopupRedirectResolver);
+    if (!result) return null;
+
     const user = result.user;
-    
     const userRef = doc(db, "users", user.uid);
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
       const initialName = user.displayName || user.email?.split('@')[0] || "Membro Viby";
       
-      // Localizar UID da organização oficial @viby para auto-follow
       const vibyIdxSnap = await getDoc(doc(db, "usernames", "viby"));
       const officialOrgId = vibyIdxSnap.exists() ? vibyIdxSnap.data().uid : null;
 
@@ -73,7 +82,7 @@ export async function signInWithProvider(auth: Auth, db: Firestore, providerName
         name: initialName,
         photoURL: user.photoURL || "",
         avatar: user.photoURL || "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media",
-        provider: providerName,
+        provider: user.providerData[0]?.providerId || 'social',
         username: null,
         cpf: null,
         profileComplete: false,
@@ -102,7 +111,6 @@ export async function signInWithProvider(auth: Auth, db: Firestore, providerName
         }
       });
 
-      // Disparar e-mail de boas-vindas para o novo usuário social
       if (user.email) {
         sendWelcomeEmail({
           to: user.email,
@@ -111,19 +119,11 @@ export async function signInWithProvider(auth: Auth, db: Firestore, providerName
       }
 
       return { user, isNew: true };
-    } else {
-      const existingData = userSnap.data();
-      if (!existingData.name && user.displayName) {
-        await setDoc(userRef, { 
-          name: user.displayName, 
-          updatedAt: serverTimestamp() 
-        }, { merge: true });
-      }
     }
 
     return { user, isNew: false };
   } catch (error: any) {
-    console.error(`[Auth Service Error] ${providerName}:`, error.code, error.message);
+    console.error(`[Auth Service Result Error]`, error.code, error.message);
     throw error;
   }
 }
