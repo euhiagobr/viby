@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -8,7 +9,8 @@ import {
   query, 
   where, 
   getDocs, 
-  limit
+  limit,
+  collectionGroup
 } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -70,7 +72,6 @@ function OrganizationFinanceContent() {
 
   const sessionId = searchParams.get('session_id');
 
-  // Processar finalização de recarga
   React.useEffect(() => {
     if (!sessionId || isProcessingSession || !currentOrg) return;
 
@@ -116,7 +117,7 @@ function OrganizationFinanceContent() {
   }, [rawSales, salesSearch]);
 
   const handleValidateCoupon = async () => {
-    if (!db || !couponCode.trim()) return;
+    if (!db || !user || !couponCode.trim()) return;
     setIsValidatingCoupon(true);
     try {
       const q = query(
@@ -126,29 +127,51 @@ function OrganizationFinanceContent() {
         limit(1)
       );
       const snap = await getDocs(q);
+      
       if (snap.empty) {
-        toast({ variant: "destructive", title: "Cupom inválido", description: "Código não encontrado ou expirado." });
-        setAppliedCoupon(null);
-      } else {
-        const data = snap.docs[0].data();
-        const now = new Date();
-        const start = data.startAt?.toDate ? data.startAt.toDate() : new Date(data.startAt);
-        const end = data.endAt?.toDate ? data.endAt.toDate() : new Date(data.endAt);
-        
-        const amount = parseFloat(topUpAmount);
-        if (amount < (data.minRecharge || 0)) {
-           throw new Error(`Este cupom exige recarga mínima de ${formatCurrency(data.minRecharge)}`);
-        }
-        if (data.maxRecharge && amount > data.maxRecharge) {
-           throw new Error(`Este cupom é válido para recargas de até ${formatCurrency(data.maxRecharge)}`);
-        }
-        if (now < start || now > end) {
-           throw new Error("Este cupom não está vigente para a data atual.");
-        }
-
-        setAppliedCoupon({ id: snap.docs[0].id, ...data });
-        toast({ title: "Cupom Aplicado!" });
+        throw new Error("Código não encontrado ou expirado.");
       }
+
+      const data = { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
+      const now = new Date();
+      const start = data.startAt?.toDate ? data.startAt.toDate() : new Date(data.startAt);
+      const end = data.endAt?.toDate ? data.endAt.toDate() : new Date(data.endAt);
+      
+      const amount = parseFloat(topUpAmount);
+
+      // 1. Validação de Regras de Recarga
+      if (amount < (data.minRecharge || 0)) {
+         throw new Error(`Este cupom exige recarga mínima de ${formatCurrency(data.minRecharge)}`);
+      }
+      if (data.maxRecharge && amount > data.maxRecharge) {
+         throw new Error(`Este cupom é válido para recargas de até ${formatCurrency(data.maxRecharge)}`);
+      }
+      if (now < start || now > end) {
+         throw new Error("Este cupom não está vigente para a data atual.");
+      }
+
+      // 2. Validação de Estoque Global
+      if (data.maxTotalUses > 0 && data.currentUses >= data.maxTotalUses) {
+         throw new Error("Este cupom atingiu o limite máximo de utilizações.");
+      }
+
+      // 3. Validação de Limite por Usuário
+      // Buscamos em todas as transações de todas as organizações que esse usuário já usou esse cupom
+      if (data.maxUsesPerUser > 0) {
+        const usagesQuery = query(
+           collectionGroup(db, 'transactions'),
+           where('userId', '==', user.uid),
+           where('couponCode', '==', data.code),
+           where('status', '==', 'completed')
+        );
+        const usagesSnap = await getDocs(usagesQuery);
+        if (usagesSnap.size >= data.maxUsesPerUser) {
+           throw new Error(`Você já atingiu o limite de ${data.maxUsesPerUser} uso(s) para este cupom.`);
+        }
+      }
+
+      setAppliedCoupon(data);
+      toast({ title: "Cupom Aplicado!" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro no Cupom", description: e.message });
       setAppliedCoupon(null);
