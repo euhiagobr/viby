@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -39,6 +38,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     if (!isInitialized || authLoading) return;
 
     if (!user) {
+      console.log("[Auth-Debug] Dashboard Guard: No authenticated user, redirecting to login.");
       router.replace(`/login?redirect=${encodeURIComponent(pathname || '/dashboard')}`);
       return;
     }
@@ -47,11 +47,13 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     const isProfileIncomplete = profile && (!profile.profileComplete && (!profile.username || !profile.cpf));
 
     if (isProfileIncomplete && pathname !== '/onboarding') {
+      console.warn("[Auth-Debug] Dashboard Guard: Profile incomplete, forcing /onboarding");
       router.replace('/onboarding');
       return;
     }
 
     if (profile && profile.status === 'Bloqueado' && pathname !== '/dashboard/suporte') {
+      console.warn("[Auth-Debug] Dashboard Guard: Account blocked, restricting access to support.");
       router.replace('/dashboard/suporte');
     }
   }, [user, profile, isInitialized, authLoading, pathname, router]);

@@ -54,6 +54,7 @@ export async function startSocialLogin(auth: Auth, providerName: 'google' | 'fac
   }
 
   await setPersistence(auth, indexedDBLocalPersistence);
+  console.log(`[Auth-Debug] Starting ${providerName} login via redirect...`);
   return signInWithRedirect(auth, provider, browserPopupRedirectResolver);
 }
 
@@ -62,14 +63,22 @@ export async function startSocialLogin(auth: Auth, providerName: 'google' | 'fac
  */
 export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
   try {
+    console.log("[Auth-Debug] Checking for redirect result...");
     const result = await getRedirectResult(auth, browserPopupRedirectResolver);
-    if (!result) return null;
+    
+    if (!result) {
+      console.log("[Auth-Debug] No redirect result found.");
+      return null;
+    }
 
     const user = result.user;
+    console.log("[Auth-Debug] Redirect result found for user:", user.uid);
+
     const userRef = doc(db, "users", user.uid);
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
+      console.log("[Auth-Debug] New social user detected. Initializing Firestore document...");
       const initialName = user.displayName || user.email?.split('@')[0] || "Membro Viby";
       
       const vibyIdxSnap = await getDoc(doc(db, "usernames", "viby"));
@@ -127,12 +136,15 @@ export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
         metadata: { method: 'social', provider: userData.provider }
       });
 
+      console.log("[Auth-Debug] Social profile created successfully.");
       return { user, isNew: true };
     } else {
+      console.log("[Auth-Debug] Existing social user logged in. Validating completion status.");
       // Perfil já existe, garantimos que o campo profileComplete reflita o estado real
       const data = userSnap.data();
       const isComplete = data?.username && data?.cpf;
       if (data?.profileComplete !== isComplete) {
+        console.log("[Auth-Debug] Updating profileComplete flag to:", isComplete);
         await setDoc(userRef, { profileComplete: isComplete }, { merge: true });
       }
     }
@@ -148,7 +160,7 @@ export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
 
     return { user, isNew: false };
   } catch (error: any) {
-    console.error(`[Auth Service Result Error]`, error.code, error.message);
+    console.error(`[Auth-Debug] Error processing redirect result:`, error.code, error.message);
     throw error;
   }
 }

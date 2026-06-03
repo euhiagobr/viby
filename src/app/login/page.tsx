@@ -34,20 +34,26 @@ function LoginContent() {
 
   // REDIRECIONAMENTO CRÍTICO: Usuário já autenticado
   useEffect(() => {
+    console.log("[Auth-Debug] Login Page State:", { isInitialized, hasUser: !!user, hasProfile: !!profile, authLoading });
+
     if (isInitialized && user) {
-      // Se autenticado, avaliamos o perfil
       if (profile) {
         const isComplete = profile.username && profile.cpf;
+        console.log("[Auth-Debug] Profile loaded. Completion Status:", { isComplete, username: !!profile.username, cpf: !!profile.cpf });
+        
         if (!isComplete) {
+          console.log("[Auth-Debug] Redirecting to /onboarding - Profile incomplete.");
           router.replace("/onboarding");
         } else {
           const redirect = searchParams.get('redirect') || "/dashboard";
+          console.log(`[Auth-Debug] Redirecting to ${redirect} - Profile complete.`);
           router.replace(redirect);
         }
+      } else {
+        console.warn("[Auth-Debug] User is authenticated but profile document is null. Waiting for creation or loading...");
       }
-      // Se user existe mas profile é null, aguardamos SocialLoginButtons processar o retorno
     }
-  }, [user, profile, isInitialized, router, searchParams]);
+  }, [user, profile, isInitialized, router, searchParams, authLoading]);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()

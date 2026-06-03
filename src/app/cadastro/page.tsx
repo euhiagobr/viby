@@ -76,14 +76,22 @@ function CadastroContent() {
 
   // REDIRECIONAMENTO CRÍTICO
   useEffect(() => {
+    console.log("[Auth-Debug] Signup Page State:", { isInitialized, hasUser: !!user, hasProfile: !!profile, authLoading });
+
     if (isInitialized && user) {
       if (profile) {
         const isComplete = profile.username && profile.cpf;
+        console.log("[Auth-Debug] Profile loaded in Signup. Completion Status:", { isComplete });
+        
         if (!isComplete) {
+          console.log("[Auth-Debug] Redirecting to /onboarding - Profile incomplete.");
           router.replace("/onboarding");
         } else {
+          console.log("[Auth-Debug] Redirecting to /dashboard - Already has complete account.");
           router.replace("/dashboard");
         }
+      } else {
+        console.warn("[Auth-Debug] User is authenticated in Signup but profile document is missing.");
       }
     }
   }, [user, profile, isInitialized, router]);

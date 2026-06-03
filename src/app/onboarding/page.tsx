@@ -30,7 +30,10 @@ export default function OnboardingPage() {
 
   // Guard e Redirecionamento
   useEffect(() => {
+    console.log("[Auth-Debug] Onboarding State:", { isInitialized, hasUser: !!user, hasProfile: !!profile });
+
     if (isInitialized && !user) {
+      console.log("[Auth-Debug] Onboarding: No user found, forcing /login");
       router.replace("/login");
       return;
     }
@@ -38,7 +41,10 @@ export default function OnboardingPage() {
     // Se o perfil carregou e já está completo, pula o onboarding
     if (isInitialized && profile) {
        const isComplete = profile.username && profile.cpf && profile.name;
+       console.log("[Auth-Debug] Onboarding check profile completion:", { isComplete, username: profile.username, cpf: !!profile.cpf, name: profile.name });
+       
        if (profile.profileComplete || isComplete) {
+         console.log("[Auth-Debug] Profile already complete, skipping onboarding to /dashboard");
          router.replace("/dashboard");
          return;
        }
