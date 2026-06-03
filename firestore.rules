@@ -90,13 +90,14 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      // isServer é necessário para que a finalizeCheckoutSession possa ler o pedido após o pagamento
+      allow read: if isServer() || isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if isSignedIn();
       allow update: if isServer() || isAdmin();
     }
 
     match /coupons/{id} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isAdmin() || isMemberOfOrg(resource.data.organizationId);
     }
 
@@ -122,15 +123,38 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (resource.data.targetUid == request.auth.uid || isAdmin());
     }
     
+    match /recurring_occurrences/{occId} {
+      allow read: if true;
+      allow update: if isServer() || isAdmin() || isMemberOfOrg(resource.data.organizationId);
+      allow create: if isServer() || isAdmin() || isMemberOfOrg(request.resource.data.organizationId);
+    }
+
     match /usernames/{username} { allow read: if true; allow write: if isSignedIn() || isServer(); }
     match /system_logs/{id} { allow read: if isAdmin(); allow create: if true; allow update: if isAdmin(); }
     match /financial_logs/{id} { allow read: if isAdmin(); allow create: if isServer() || isAdmin(); }
     match /tax_tickets/{id} { allow read: if isAdmin(); allow write: if isServer(); }
     match /tax_ads/{id} { allow read: if isAdmin(); allow write: if isServer(); }
+    
     match /support_tickets/{id} { 
       allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if isSignedIn();
       allow update: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    match /ads/{id} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isServer() || isAdmin() || isMemberOfOrg(resource.data.organizationId);
+    }
+
+    match /password_reset_codes/{docId} {
+      allow read: if true;
+      allow write: if isServer() || isAdmin();
+    }
+
+    match /sent_emails/{id} {
+      allow read: if isAdmin();
+      allow create: if isServer();
     }
   }
 }
