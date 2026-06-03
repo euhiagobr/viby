@@ -14,12 +14,12 @@ export function OTPInput({ value, onChange, disabled }: OTPInputProps) {
   const inputRefs = React.useRef<(HTMLInputElement | null)[]>([])
 
   const handleChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.toUpperCase()
+    const val = e.target.value.replace(/[^0-9]/g, "")
     if (val.length > 1) return
 
     const newValue = value.split("")
     newValue[index] = val
-    const joined = newValue.join("")
+    const joined = newValue.join("").substring(0, 6)
     onChange(joined)
 
     if (val && index < 5) {
@@ -34,12 +34,14 @@ export function OTPInput({ value, onChange, disabled }: OTPInputProps) {
   }
 
   return (
-    <div className="flex justify-between gap-2 max-w-sm mx-auto">
+    <div className="flex justify-center gap-3">
       {Array.from({ length: 6 }).map((_, i) => (
         <input
           key={i}
           ref={(el) => { inputRefs.current[i] = el }}
           type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
           maxLength={1}
           value={value[i] || ""}
           onChange={(e) => handleChange(i, e)}
