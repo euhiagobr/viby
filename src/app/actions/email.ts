@@ -6,8 +6,8 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 
 /**
- * @fileOverview Serviço de e-mail (AUDITORIA ATIVA).
- * Adicionados logs para verificar conexão SMTP.
+ * @fileOverview Serviço de e-mail exclusivo via SMTP.
+ * Fluxo de recuperação por link mágico removido.
  */
 
 async function getDb() {
@@ -20,17 +20,13 @@ async function getTransporter() {
   const snap = await getDoc(doc(db, 'settings', 'email'));
   
   if (!snap.exists()) {
-    console.error("[SMTP Audit] Documento settings/email não encontrado no Firestore.");
     throw new Error("Serviço de E-mail não configurado.");
   }
 
   const data = snap.data();
   if (!data?.smtpUser || !data?.smtpPass) {
-    console.error("[SMTP Audit] Credenciais de e-mail incompletas no Firestore.");
     throw new Error("Credenciais SMTP ausentes.");
   }
-
-  console.log(`[SMTP Audit] Iniciando transporte Nodemailer via ${data.smtpHost || 'smtp.gmail.com'}`);
 
   return nodemailer.createTransport({
     host: data.smtpHost || 'smtp.gmail.com',
@@ -40,8 +36,7 @@ async function getTransporter() {
   });
 }
 
-export async function sendPasswordResetLinkEmail(data: any) {
-  console.log(`[Email Action] Preparando envio de OTP para: ${data.to}`);
+export async function sendPasswordResetLinkEmail(data: { to: string; userName: string; otpCode: string }) {
   try {
     const transporter = await getTransporter();
     const db = await getDb();
@@ -63,17 +58,16 @@ export async function sendPasswordResetLinkEmail(data: any) {
       </div>
     `;
 
-    const info = await transporter.sendMail({
+    await transporter.sendMail({
       from: `"Viby Security" <${smtpUser}>`,
       to: data.to,
       subject: `🔐 Código de Acesso: ${data.otpCode}`,
       html: htmlContent
     });
 
-    console.log(`[Email Action] Mensagem enviada: ${info.messageId}`);
     return { success: true };
   } catch (e: any) { 
-    console.error("[Email Action Error]", e.message);
+    console.error("[Email Error]", e.message);
     return { success: false, error: e.message }; 
   }
 }
