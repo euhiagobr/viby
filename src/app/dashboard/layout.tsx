@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -35,7 +34,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { totalCount } = useCart()
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!isInitialized || authLoading) return;
 
     if (!user) {
