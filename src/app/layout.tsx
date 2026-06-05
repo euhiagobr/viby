@@ -10,6 +10,9 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import Script from 'next/script';
 
+/**
+ * Busca configurações globais do site para injeção dinâmica de SEO e Branding.
+ */
 async function getSiteSettings() {
   try {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -25,7 +28,15 @@ async function getSiteSettings() {
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSiteSettings();
   const siteName = settings?.siteName || 'Viby';
-  const iconUrl = settings?.iconUrl || '/favicon.ico';
+  
+  // Priorização do ícone configurado no admin (iconUrl ou siteIconUrl) com fallback local
+  const rawIconUrl = settings?.iconUrl || settings?.siteIconUrl || '/favicon.ico';
+  
+  // Adiciona parâmetro de versão para forçar atualização de cache quando alterado
+  const version = settings?.imageVersion || Date.now();
+  const separator = rawIconUrl.includes('?') ? '&' : '?';
+  const iconUrl = rawIconUrl.startsWith('http') ? `${rawIconUrl}${separator}v=${version}` : rawIconUrl;
+
   const description = 'Centralize seus eventos, promova experiências e utilize IA para alavancar seus resultados.';
 
   return {
@@ -39,7 +50,8 @@ export async function generateMetadata(): Promise<Metadata> {
       icon: [
         { url: iconUrl },
         { url: iconUrl, sizes: '32x32', type: 'image/png' },
-        { url: iconUrl, sizes: '16x16', type: 'image/png' },
+        { url: iconUrl, sizes: '192x192', type: 'image/png' },
+        { url: iconUrl, sizes: '512x512', type: 'image/png' },
       ],
       apple: [
         { url: iconUrl, sizes: '180x180', type: 'image/png' },
@@ -93,7 +105,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-        {/* Google AdSense Script - Pure Injection to prevent data-nscript attribute error */}
+        {/* Google AdSense Script - Pure Injection */}
         <script 
           async 
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3790085999731396"
