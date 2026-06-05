@@ -43,12 +43,13 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // REGRA DE INTEGRIDADE: Se autenticado mas sem username ou CPF, bloqueia acesso e manda para onboarding
+    // REGRA DE INTEGRIDADE: Verificação baseada em dados reais do Firestore
+    // O onboarding deve aparecer se o documento não existir OU faltar username OU faltar CPF
     const hasMandatoryData = !!(profile?.username && profile?.cpf);
-    const isProfileIncomplete = !hasMandatoryData || profile?.profileComplete === false;
+    const needsOnboarding = profile === null || !hasMandatoryData;
 
-    if (isProfileIncomplete && pathname !== '/onboarding') {
-      console.log('[Auth-Debug] Incomplete Profile detected in Dashboard, forcing Onboarding');
+    if (needsOnboarding && pathname !== '/onboarding') {
+      console.log('[Auth-Debug] Incomplete Profile detected, forcing Onboarding');
       router.replace('/onboarding');
       return;
     }
@@ -58,7 +59,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     }
   }, [user, profile, isInitialized, authLoading, pathname, router]);
 
-  if (!isInitialized || authLoading || (user && !profile)) {
+  // Loading guard baseado apenas na inicialização técnica, permitindo profile ser null (caso não exista doc)
+  if (!isInitialized || authLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">

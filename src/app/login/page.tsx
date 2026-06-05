@@ -35,14 +35,15 @@ function LoginContent() {
   useEffect(() => {
     if (!isInitialized || authLoading) return;
 
-    if (user && profile) {
+    if (user) {
       console.log('[Auth-Debug] User authenticated, evaluating profile completeness...');
       
-      const hasMandatoryData = !!(profile.username && profile.cpf);
-      const isComplete = profile.profileComplete && hasMandatoryData;
+      // O perfil é considerado completo se existir no Firestore E possuir username e CPF
+      const hasMandatoryData = !!(profile?.username && profile?.cpf);
+      const isComplete = profile !== null && hasMandatoryData;
 
       if (!isComplete) {
-        console.log('[Auth-Debug] Redirecting To Onboarding (Incomplete profile)');
+        console.log('[Auth-Debug] Redirecting To Onboarding (Missing Firestore data)');
         router.replace("/onboarding");
       } else {
         const redirect = searchParams.get('redirect') || "/dashboard";
@@ -78,7 +79,7 @@ function LoginContent() {
     }
   }
 
-  const showSync = !isInitialized || authLoading || (user && !profile);
+  const showSync = !isInitialized || authLoading;
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30">
@@ -155,3 +156,5 @@ export default function LoginPage() {
     </React.Suspense>
   )
 }
+
+import { KeyRound } from "lucide-react"

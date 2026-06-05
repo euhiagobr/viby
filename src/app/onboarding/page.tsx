@@ -42,8 +42,9 @@ export default function OnboardingPage() {
       return;
     }
     
-    // Se o perfil já estiver completo, expulsa do onboarding para o dashboard
-    if (profile && profile.username && profile.cpf && profile.profileComplete) {
+    // Se o perfil já estiver completo (tem username e CPF), expulsa do onboarding para o dashboard
+    const hasMandatoryData = !!(profile?.username && profile?.cpf);
+    if (profile !== null && hasMandatoryData) {
       console.log('[Auth-Debug] Profile already complete, moving to dashboard');
       router.replace("/dashboard");
       return;
@@ -52,7 +53,7 @@ export default function OnboardingPage() {
     if (profile) {
       if (!name && profile.name) setName(profile.name);
     }
-  }, [user, profile, isInitialized, authLoading, router]);
+  }, [user, profile, isInitialized, authLoading, router, name]);
 
   // Validação de Username em tempo real
   useEffect(() => {

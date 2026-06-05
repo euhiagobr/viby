@@ -26,7 +26,7 @@ function CadastroContent() {
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [birthDate, setBirthDate] = useState("")
+  const [ birthDate, setBirthDate] = useState("")
   const [gender, setGender] = useState("")
   const [cpf, setCpf] = useState("")
   const [loading, setLoading] = useState(false)
@@ -46,8 +46,11 @@ function CadastroContent() {
   useEffect(() => {
     if (!isInitialized || authLoading) return;
 
-    if (user && profile) {
-      const isComplete = profile.username && profile.cpf;
+    if (user) {
+      // Se autenticado, verificamos se o perfil está completo nos dados reais
+      const hasMandatoryData = !!(profile?.username && profile?.cpf);
+      const isComplete = profile !== null && hasMandatoryData;
+      
       const target = isComplete ? "/dashboard" : "/onboarding";
       router.replace(target);
     }
@@ -105,7 +108,7 @@ function CadastroContent() {
         username: username.toLowerCase().trim(),
         email: email.toLowerCase().trim(),
         avatar: DEFAULT_PROFILE_IMAGE,
-        birthDate: "", // Será preenchido no perfil depois se desejado
+        birthDate: "", 
         gender: "",
         cpf: maskCPF(cleanCPF),
         profileComplete: true,
@@ -131,7 +134,7 @@ function CadastroContent() {
     }
   }
 
-  const showSync = !isInitialized || authLoading || (user && !profile);
+  const showSync = !isInitialized || authLoading;
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30">
