@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -68,25 +67,9 @@ export function UserGamification({ gamification }: UserGamificationProps) {
                      </div>
                   </div>
                </div>
-
-               <div className="grid grid-cols-3 gap-4">
-                  <MiniStat icon={Zap} label="Energia" value="High" />
-                  <MiniStat icon={Star} label="Prestígio" value="94%" />
-                  <MiniStat icon={Award} label="Badges" value="12" />
-               </div>
             </div>
          </div>
       </Card>
-    </div>
-  );
-}
-
-function MiniStat({ icon: Icon, label, value }: { icon: any, label: string, value: string }) {
-  return (
-    <div className="p-4 bg-muted/20 rounded-2xl border border-border/50 flex flex-col items-center gap-1 text-center">
-       <Icon className="w-4 h-4 text-secondary mb-1" />
-       <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">{label}</p>
-       <p className="text-xs font-bold text-primary">{value}</p>
     </div>
   );
 }

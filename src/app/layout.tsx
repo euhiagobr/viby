@@ -5,9 +5,10 @@ import { FirebaseClientProvider } from '@/firebase';
 import { CartProvider } from '@/contexts/CartContext';
 import { ErrorManagerProvider } from '@/components/error-manager/ErrorManagerProvider';
 import { GlobalErrorBoundary } from '@/components/error-manager/GlobalErrorBoundary';
-import { getAdminDb } from '@/lib/firebase/admin';
 
 export const revalidate = 0;
+
+const DEFAULT_FAVICON = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FiconUrl_1780427863977?alt=media&token=1ab99264-b05c-4d1d-ab5a-0c27b7bfb77b";
 
 export const viewport: Viewport = {
   themeColor: '#000000',
@@ -18,6 +19,7 @@ export const viewport: Viewport = {
 
 async function getSiteSettings() {
   try {
+    const { getAdminDb } = await import('@/lib/firebase/admin');
     const db = getAdminDb();
     const snap = await db.collection('settings').doc('site').get();
     return snap.exists ? snap.data() : null;
@@ -31,10 +33,10 @@ export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSiteSettings();
   const siteName = settings?.siteName || 'Viby';
   
-  // Fonte única oficial vinda do Firestore baseada na URL direta fornecida pelo usuário
-  const rawIconUrl = settings?.siteIconUrl || settings?.iconUrl || '/favicon.ico';
+  // Fonte única oficial vinda do Firestore com fallback para o link direto fornecido
+  const rawIconUrl = settings?.siteIconUrl || settings?.iconUrl || DEFAULT_FAVICON;
   
-  // Cache busting agressivo: usando imageVersion do DB ou timestamp para forçar invalidação no navegador
+  // Cache busting para forçar a atualização no navegador
   const version = settings?.imageVersion || Date.now();
   const separator = rawIconUrl.includes('?') ? '&' : '?';
   const iconUrl = rawIconUrl.startsWith('http') ? `${rawIconUrl}${separator}cache_v=${version}` : rawIconUrl;
