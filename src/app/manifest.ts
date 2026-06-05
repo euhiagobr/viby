@@ -1,15 +1,11 @@
-
 import { MetadataRoute } from 'next';
-import { doc, getDoc, getFirestore } from 'firebase/firestore';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { firebaseConfig } from '@/firebase/config';
+import { getAdminDb } from '@/lib/firebase/admin';
 
 async function getSiteSettings() {
   try {
-    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    const db = getFirestore(app);
-    const snap = await getDoc(doc(db, 'settings', 'site'));
-    return snap.exists() ? snap.data() : null;
+    const db = getAdminDb();
+    const snap = await db.collection('settings').doc('site').get();
+    return snap.exists ? snap.data() : null;
   } catch (e) {
     return null;
   }

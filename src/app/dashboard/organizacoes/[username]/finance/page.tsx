@@ -181,22 +181,26 @@ function OrganizationFinanceContent() {
 
   const rechargeCalcs = React.useMemo(() => {
     const base = parseFloat(topUpAmount) || 0;
-    const fee = base * 0.05;
-    let totalToPay = base + fee;
+    const fee = Number((base * 0.05).toFixed(2));
+    const subtotal = base + fee;
+    
+    let discountAmount = 0;
     let finalBalance = base;
 
     if (appliedCoupon) {
        const val = appliedCoupon.value || 0;
        if (appliedCoupon.type === 'discount') {
-          totalToPay -= (totalToPay * (val / 100));
+          discountAmount = Number((subtotal * (val / 100)).toFixed(2));
        } else if (appliedCoupon.type === 'bonus_percent') {
-          finalBalance += (base * (val / 100));
+          finalBalance = Number((base + (base * (val / 100))).toFixed(2));
        } else if (appliedCoupon.type === 'bonus_fixed') {
-          finalBalance += val;
+          finalBalance = base + val;
        }
     }
 
-    return { base, fee, totalToPay, finalBalance };
+    const totalToPay = Number((subtotal - discountAmount).toFixed(2));
+
+    return { base, fee, discountAmount, totalToPay, finalBalance };
   }, [topUpAmount, appliedCoupon]);
 
   const handleTopUp = async () => {
@@ -394,7 +398,7 @@ function OrganizationFinanceContent() {
                        {appliedCoupon?.type === 'discount' && (
                          <div className="flex justify-between items-center text-sm font-black text-green-600">
                             <span className="uppercase">Desconto Cupom:</span>
-                            <span>-{formatCurrency((rechargeCalcs.base + rechargeCalcs.fee) * (appliedCoupon.value / 100))}</span>
+                            <span>-{formatCurrency(rechargeCalcs.discountAmount)}</span>
                          </div>
                        )}
                        <Separator className="border-dashed" />
