@@ -34,7 +34,10 @@ import {
   CheckCircle2,
   Users,
   Zap,
-  CreditCard
+  CreditCard,
+  Edit,
+  Save,
+  ShieldAlert
 } from "lucide-react"
 import {
   Dialog,
@@ -58,7 +61,7 @@ import { useRouter, useParams } from "next/navigation"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/financial-utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
-import { createAdAction } from "@/app/actions/ads"
+import { createAdAction, updateAdAction } from "@/app/actions/ads"
 
 export default function OrganizationAdsPage() {
   const db = useFirestore()
@@ -96,16 +99,18 @@ export default function OrganizationAdsPage() {
   const { data: myEvents } = useCollection<any>(eventsQuery)
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false)
+  const [editingAd, setEditingAd] = React.useState<any>(null)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [selectedEventId, setSelectedEventId] = React.useState("")
   const [adType, setAdType] = React.useState("evento")
+  const [selectedEventId, setSelectedEventId] = React.useState("")
   const [dailyBudgetInput, setDailyBudgetInput] = React.useState("10.00")
   const [startDateInput, setStartDateInput] = React.useState("")
   const [endDateInput, setEndDateInput] = React.useState("")
-  const [selectedAdForMetrics, setSelectedAdForMetrics] = React.useState<any>(null)
-  
   const [adImageUrl, setAdImageUrl] = React.useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
+
+  // Estados do Form de Edição
+  const [editForm, setEditForm] = React.useState({ title: "", url: "" })
 
   const adPlanSummary = React.useMemo(() => {
     const daily = parseFloat(dailyBudgetInput) || 0
@@ -132,7 +137,7 @@ export default function OrganizationAdsPage() {
       const uploadTask = uploadBytesResumable(storageRef, file);
       uploadTask.on('state_changed', 
         (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), 
-        () => setUploadProgress(null), 
+        () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
           setAdImageUrl(downloadURL); 
@@ -178,6 +183,43 @@ export default function OrganizationAdsPage() {
     } finally { 
       setIsSubmitting(false) 
     }
+  }
+
+  const handleUpdateAd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAd || isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      const result = await updateAdAction({
+        adId: editingAd.id,
+        title: editForm.title,
+        externalUrl: editForm.url,
+        adImage: adImageUrl || editingAd.adImage
+      });
+
+      if (result.success) {
+        const msg = (editingAd.type === 'banner' || editingAd.type === 'site') 
+          ? "Alterações salvas. O anúncio passará por moderação novamente."
+          : "Anúncio atualizado com sucesso!";
+        
+        toast({ title: "Sucesso!", description: msg });
+        setEditingAd(null);
+        refreshOrg();
+      } else {
+        toast({ variant: "destructive", title: "Erro ao salvar", description: result.error });
+      }
+    } catch (err) {
+      toast({ variant: "destructive", title: "Erro no servidor" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  const openEdit = (ad: any) => {
+    setEditingAd(ad);
+    setEditForm({ title: ad.eventTitle || "", url: ad.externalUrl || "" });
+    setAdImageUrl(ad.adImage || null);
   }
 
   const metricsStats = React.useMemo(() => {
@@ -280,6 +322,70 @@ export default function OrganizationAdsPage() {
         </div>
       </div>
 
+      {/* MODAL DE EDIÇÃO */}
+      <Dialog open={!!editingAd} onOpenChange={(o) => !o && setEditingAd(null)}>
+         <DialogContent className="max-w-md h-[80vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
+            <DialogHeader className="p-8 border-b bg-muted/30">
+               <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Editar Anúncio</DialogTitle>
+               <DialogDescription className="font-bold text-secondary uppercase text-[10px]">Alteração de criativos e metas</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleUpdateAd} className="flex-1 overflow-y-auto p-8 space-y-6">
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Título / Nome</Label>
+                  <Input 
+                    value={editForm.title} 
+                    onChange={e => setEditForm({...editForm, title: e.target.value})}
+                    required
+                    className="rounded-xl h-11"
+                  />
+               </div>
+
+               {(editingAd?.type === 'banner' || editingAd?.type === 'site') && (
+                 <>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">Link de Destino</Label>
+                       <Input 
+                         value={editForm.url} 
+                         onChange={e => setEditForm({...editForm, url: e.target.value})}
+                         placeholder="https://..."
+                         className="rounded-xl h-11"
+                       />
+                    </div>
+                    <div className="space-y-3">
+                       <Label className="text-[10px] font-black uppercase opacity-60">Imagem Criativa</Label>
+                       <div className="relative aspect-video bg-muted rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden cursor-pointer" onClick={() => document.getElementById('ad-image-edit-up')?.click()}>
+                          {adImageUrl ? <img src={adImageUrl} className="w-full h-full object-cover" /> : <div className="text-center opacity-40"><Camera className="w-8 h-8 mx-auto mb-2" /><p className="text-[8px] font-black uppercase">Trocar imagem</p></div>}
+                          <input id="ad-image-edit-up" type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                       </div>
+                       {uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}
+                    </div>
+
+                    <div className="p-4 bg-orange-50 rounded-2xl border border-orange-200 flex items-start gap-3">
+                       <ShieldAlert className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+                       <p className="text-[10px] text-orange-700 font-bold uppercase leading-tight">
+                         Aviso: Ao editar este anúncio de divulgação, ele será pausado e enviado para nova aprovação do suporte.
+                       </p>
+                    </div>
+                 </>
+               )}
+
+               {editingAd?.type === 'evento' && (
+                  <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
+                     <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                     <p className="text-[10px] text-secondary font-bold uppercase leading-tight">
+                        Este anúncio está vinculado a um evento. Para mudar a imagem ou datas, edite o projeto principal.
+                     </p>
+                  </div>
+               )}
+            </form>
+            <div className="p-8 border-t bg-muted/30">
+               <Button type="submit" onClick={handleUpdateAd} disabled={isSubmitting || uploadProgress !== null} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Salvar Alterações"}
+               </Button>
+            </div>
+         </DialogContent>
+      </Dialog>
+
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
         <Card className="border-none shadow-sm bg-primary text-white overflow-hidden relative group">
           <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Visualizações</CardTitle></CardHeader>
@@ -331,13 +437,15 @@ export default function OrganizationAdsPage() {
                                <h4 className="font-bold text-xs uppercase truncate max-w-[150px]">{ad.eventTitle}</h4>
                                <Badge className={cn("text-[7px] font-black uppercase h-3.5 px-1", ad.status === 'Ativo' ? "bg-green-50" : ad.status === 'Pendente' ? "bg-orange-50" : "bg-muted")}>{ad.status}</Badge>
                              </div>
+                             <p className="text-[9px] font-bold text-muted-foreground uppercase">{ad.type}</p>
                            </div>
                          </div>
                          <div className="col-span-2 text-center"><p className="text-[8px] uppercase opacity-40">Visu / Cliques</p><span className="font-black text-xs">{ad.reach || 0} / {ad.clicks || 0}</span></div>
                          <div className="col-span-2 text-center"><p className="text-[8px] uppercase opacity-40">CTR</p><span className="font-black text-xs">{ctr.toFixed(2)}%</span></div>
                          <div className="col-span-2 text-right"><p className="text-[8px] uppercase opacity-40">Saldo Restante</p><p className="font-black text-xs text-primary">{formatCurrency(ad.remainingBudget || 0)}</p></div>
-                         <div className="col-span-2 flex items-center justify-end">
-                            <Button variant="ghost" size="icon" onClick={() => setSelectedAdForMetrics(ad)}><TrendingUp className="w-4 h-4" /></Button>
+                         <div className="col-span-2 flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => openEdit(ad)} title="Editar"><Edit className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" title="Métricas"><TrendingUp className="w-4 h-4" /></Button>
                          </div>
                        </div>
                      );

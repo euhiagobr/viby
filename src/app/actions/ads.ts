@@ -31,11 +31,6 @@ export async function createAdAction(params: {
       
       const orgData = orgSnap.data()!;
       
-      // Validação de Permissão (Simplificada para o contexto)
-      if (orgData.ownerId !== params.userId) {
-         // Em produção, verificaríamos a coleção de membros
-      }
-
       const start = new Date(params.startDate);
       const end = new Date(params.endDate);
       const diffTime = Math.abs(end.getTime() - start.getTime());
@@ -45,6 +40,8 @@ export async function createAdAction(params: {
       if ((orgData.adBalance || 0) < totalBudget) {
         throw new Error("Saldo Ads insuficiente para esta campanha.");
       }
+
+      const needsApproval = params.type === 'banner' || params.type === 'site';
 
       const adRef = db.collection('ads').doc();
       const adData = {
@@ -56,8 +53,8 @@ export async function createAdAction(params: {
         eventId: params.eventId || null,
         externalUrl: params.externalUrl || null,
         adImage: params.adImage || null,
-        status: 'Pendente',
-        approved: false,
+        status: needsApproval ? 'Pendente' : 'Ativo',
+        approved: !needsApproval,
         dailyBudget: params.dailyBudget,
         initialBudget: totalBudget,
         remainingBudget: totalBudget,
@@ -72,7 +69,6 @@ export async function createAdAction(params: {
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       };
 
-      // Reserva de Saldo Transacional
       transaction.set(adRef, adData);
       transaction.update(orgRef, {
         adBalance: admin.firestore.FieldValue.increment(-totalBudget),
@@ -80,7 +76,6 @@ export async function createAdAction(params: {
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // Registro Financeiro ERP
       const taxRef = db.collection('tax_ads').doc();
       transaction.set(taxRef, {
         adId: adRef.id,
@@ -95,6 +90,38 @@ export async function createAdAction(params: {
     });
   } catch (e: any) {
     console.error("[Ads Action] Create Failure:", e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+export async function updateAdAction(params: {
+  adId: string;
+  title: string;
+  externalUrl?: string | null;
+  adImage?: string | null;
+}) {
+  const db = getAdminDb();
+  try {
+    const adRef = db.collection('ads').doc(params.adId);
+    const adSnap = await adRef.get();
+    
+    if (!adSnap.exists) throw new Error("Anúncio não encontrado.");
+    const adData = adSnap.data()!;
+
+    // Regra: banner e site voltam para aprovação. Evento e Pagina não.
+    const needsApproval = adData.type === 'banner' || adData.type === 'site';
+
+    await adRef.update({
+      eventTitle: params.title,
+      externalUrl: params.externalUrl || null,
+      adImage: params.adImage || null,
+      status: needsApproval ? 'Pendente' : 'Ativo',
+      approved: !needsApproval,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (e: any) {
     return { success: false, error: e.message };
   }
 }
