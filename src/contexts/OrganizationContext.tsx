@@ -139,9 +139,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         console.error("Erro ao sincronizar marcas via membros:", e);
       }
     }, (err) => {
-      // Silenciar aviso de índice ausente para evitar console spam
       if (err.code === 'failed-precondition') {
-        console.warn("[Viby] O índice de Collection Group para 'members' ainda não foi criado. Verifique o link no console do Firebase para ativar.");
+        console.warn("[Viby] Índice de membros pendente.");
       }
     });
 
@@ -195,9 +194,14 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     setCurrentOrg(org);
     const role = org?._memberData?.role || (org?.ownerId === user?.uid ? 'owner' : null);
     setUserRole(role);
-    if (org && typeof window !== 'undefined') {
-      localStorage.setItem('viby_current_org', org.id);
-      localStorage.setItem('viby_user_role', role || 'member');
+    if (typeof window !== 'undefined') {
+      if (org) {
+        localStorage.setItem('viby_current_org', org.id);
+        localStorage.setItem('viby_user_role', role || 'member');
+      } else {
+        localStorage.removeItem('viby_current_org');
+        localStorage.removeItem('viby_user_role');
+      }
     }
   };
 

@@ -26,22 +26,6 @@
       ]
     },
     {
-      "collectionGroup": "transactions",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "couponCode", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "type", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "viewers",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
-      ]
-    },
-    {
       "collectionId": "events",
       "queryScope": "COLLECTION",
       "fields": [
@@ -87,6 +71,15 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "eventId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionId": "registrations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "paymentStatus", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
     },

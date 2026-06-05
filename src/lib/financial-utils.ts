@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Utilitários financeiros oficiais do Viby.
  * Implementa a regra única e centralizada para toda a plataforma.
@@ -13,7 +12,7 @@ export const VIBY_TAX_RATE = 0.11; // 11% de imposto sobre a receita da platafor
  * Converte valor para centavos (inteiro para Stripe)
  */
 export function toCents(amount: number): number {
-  return Math.round(Number(amount.toFixed(2)) * 100);
+  return Math.round(Number((amount || 0).toFixed(2)) * 100);
 }
 
 /**
@@ -105,9 +104,9 @@ export function calculateDetailedVibyBreakdown(facePrice: number, quantity: numb
 }
 
 /**
- * Alias para compatibilidade legada
+ * Alias para compatibilidade legada - Adicionado Null Guard
  */
-export function calculateFinancialBreakdown(facePrice: number) {
+export function calculateFinancialBreakdown(facePrice: number, globalFees?: any, promotions?: any, orgSettings?: any) {
   const split = calculateVibyOfficialSplit(facePrice);
   return {
     ticketBasePrice: split.facePrice,
@@ -132,5 +131,6 @@ export function calculateRefundAmount(totalPaid: number): number {
  * Calcula a taxa de gateway retida que não será devolvida no estorno.
  */
 export function calculateRetainedGatewayFee(totalPaid: number): number {
+  if (!totalPaid || totalPaid <= 0) return 0;
   return Number(((totalPaid * 0.0499) + 1.00).toFixed(2));
 }
