@@ -1,0 +1,36 @@
+
+{
+  "collections": {
+    "users": {
+      "fields": {
+        "imageVersion": "number (auto-incremented on avatar change)",
+        "avatar": "string (URL with ?v= decoration)"
+      }
+    },
+    "organizations": {
+      "fields": {
+        "imageVersion": "number (auto-incremented on logo/banner change)",
+        "avatar": "string (URL)",
+        "banner": "string (URL)"
+      }
+    },
+    "events": {
+      "fields": {
+        "imageVersion": "number (auto-incremented on image change)",
+        "image": "string (URL)"
+      }
+    },
+    "settings": {
+      "fields": {
+        "imageVersion": "number (auto-incremented on site branding change)",
+        "logoUrl": "string (URL)",
+        "iconUrl": "string (URL)"
+      }
+    }
+  },
+  "storage": {
+    "metadata": {
+      "cacheControl": "public,max-age=31536000,immutable"
+    }
+  }
+}

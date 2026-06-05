@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -14,6 +15,7 @@ import { useFirestore, useDoc, useAuth, useUser } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { AgeRatingBadge } from "@/lib/age-rating"
 import { EventInterest } from "./EventInterest"
+import { getVersionedImageUrl } from "@/lib/image-utils"
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (
@@ -84,7 +86,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     return () => clearInterval(interval);
   }, [eventDates]);
 
-  // Tracking de anúncios movido para API em AdCard e mantido centralizado no servidor
   React.useEffect(() => {
     if (!isSponsored || !adId || hasTrackedImpression.current) return
 
@@ -163,6 +164,8 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     router.push(`/${event.organizer?.username || 'evento'}/${event.id}`)
   }
 
+  const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
+
   return (
     <Card 
       ref={cardRef}
@@ -183,11 +186,11 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
       <div className="relative h-56 w-full bg-muted">
         <Image
-          src={event.image || `https://picsum.photos/seed/${event.id}/600/400`}
+          src={versionedImageUrl || `https://picsum.photos/seed/${event.id}/600/400`}
           alt={event.title}
           fill
+          sizes="(max-width: 768px) 100vw, 33vw"
           className="object-cover transition-transform duration-700 group-hover:scale-110"
-          unoptimized
         />
         
         <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">

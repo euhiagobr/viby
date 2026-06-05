@@ -9,6 +9,7 @@ import { GlobalErrorBoundary } from '@/components/error-manager/GlobalErrorBound
 import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
+import Script from 'next/script';
 
 async function getSiteSettings() {
   try {
@@ -104,6 +105,19 @@ export default function RootLayout({
             </GlobalErrorBoundary>
           </ErrorManagerProvider>
         </FirebaseClientProvider>
+        <Script id="register-sw">
+          {`
+            if ('serviceWorker' in navigator) {
+              window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js').then(function(registration) {
+                  console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                }, function(err) {
+                  console.log('ServiceWorker registration failed: ', err);
+                });
+              });
+            }
+          `}
+        </Script>
       </body>
     </html>
   );

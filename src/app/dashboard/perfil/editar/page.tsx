@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -8,6 +9,7 @@ import {
   doc, 
   updateDoc, 
   serverTimestamp, 
+  increment
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -37,6 +39,7 @@ import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { getUserCPF, updateUserCPF } from "@/app/actions/user"
 import { maskCPF } from "@/lib/crypto-utils"
+import { IMAGE_CACHE_METADATA } from "@/lib/image-utils"
 
 const DEFAULT_PROFILE_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media";
 
@@ -146,7 +149,7 @@ export default function EditarPerfilPage() {
     setUploadProgress(0)
     try {
       const storageRef = ref(storage, `users/${user.uid}/avatar_${Date.now()}`)
-      const uploadTask = uploadBytesResumable(storageRef, file)
+      const uploadTask = uploadBytesResumable(storageRef, file, IMAGE_CACHE_METADATA);
       uploadTask.on('state_changed', 
         (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
         (error) => { 
@@ -190,6 +193,11 @@ export default function EditarPerfilPage() {
       const updateData: any = {
         ...safeData,
         updatedAt: serverTimestamp()
+      }
+
+      // Increment version if avatar changed
+      if (formData.avatar !== profile.avatar) {
+        updateData.imageVersion = increment(1);
       }
 
       if (!hasOriginalCPF && cpf && cpf.length >= 11 && !cpf.includes('*')) {
@@ -287,7 +295,7 @@ export default function EditarPerfilPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2 ml-1">
                 <Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF (Identificador Permanente)
               </Label>
               <div className="relative">

@@ -26,13 +26,6 @@
       ]
     },
     {
-      "collectionId": "users",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
       "collectionId": "events",
       "queryScope": "COLLECTION",
       "fields": [

@@ -1,8 +1,9 @@
+
 'use client';
 
 import * as React from 'react';
 import { useFirestore, useDoc, useFirebaseApp, useAuth, useUser } from '@/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,6 +35,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import { IMAGE_CACHE_METADATA } from '@/lib/image-utils';
 
 export default function AdminConfiguracoesPage() {
   const db = useFirestore();
@@ -95,7 +97,7 @@ export default function AdminConfiguracoesPage() {
     try {
       const fileName = `admin/site/${type}_${Date.now()}`;
       const storageRef = ref(storage, fileName);
-      const uploadTask = uploadBytesResumable(storageRef, file);
+      const uploadTask = uploadBytesResumable(storageRef, file, IMAGE_CACHE_METADATA);
 
       uploadTask.on('state_changed', 
         (snapshot) => {
@@ -122,15 +124,16 @@ export default function AdminConfiguracoesPage() {
     if (!db) return;
     setSaving(true);
     
-    // Limpar o objeto de campos do Firestore (como id e timestamps) para não tentar salvar como dado
     const { id, createdAt, ...cleanData } = data;
+    
+    // Increment version if images are involved
+    const updatePayload: any = { ...cleanData, updatedAt: serverTimestamp() };
+    if (docId === 'site') {
+      updatePayload.imageVersion = increment(1);
+    }
 
     try {
-      await setDoc(doc(db, 'settings', docId), { 
-        ...cleanData, 
-        updatedAt: serverTimestamp() 
-      }, { merge: true });
-      
+      await setDoc(doc(db, 'settings', docId), updatePayload, { merge: true });
       toast({ title: 'Configuração salva!', description: `Os dados de "${docId}" foram atualizados.` });
     } catch (error: any) {
       console.error(`[Admin Config Save Error] ${docId}:`, error);
