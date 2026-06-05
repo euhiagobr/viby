@@ -93,11 +93,12 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-        {/* Google AdSense Script - Standard Injection to avoid data-nscript attribute issues */}
+        {/* Google AdSense Script - Pure Injection to prevent data-nscript attribute error */}
         <script 
           async 
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3790085999731396"
           crossOrigin="anonymous"
+          dangerouslySetInnerHTML={{ __html: '' }}
         />
       </head>
       <body className="font-body antialiased bg-[#f8fafc] text-[#000000] flex flex-col min-h-screen">
@@ -113,7 +114,7 @@ export default function RootLayout({
             </GlobalErrorBoundary>
           </ErrorManagerProvider>
         </FirebaseClientProvider>
-        <Script id="register-sw">
+        <Script id="register-sw" strategy="afterInteractive">
           {`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {

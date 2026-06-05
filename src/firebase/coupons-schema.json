@@ -1,0 +1,31 @@
+{
+  "collections": {
+    "ad_coupons": {
+      "description": "Cupons globais para recarga de saldo publicitário (Viby Ads).",
+      "fields": {
+        "code": "string (uppercase unique)",
+        "type": "discount | bonus_percent | bonus_fixed",
+        "value": "number",
+        "minRecharge": "number",
+        "maxTotalUses": "number",
+        "currentUses": "number",
+        "startAt": "timestamp",
+        "endAt": "timestamp",
+        "status": "active | paused"
+      }
+    },
+    "coupons": {
+      "description": "Cupons de desconto criados por organizadores para eventos específicos.",
+      "fields": {
+        "code": "string (uppercase)",
+        "eventId": "string (ref:events)",
+        "discountType": "percentage | fixed | free_ticket",
+        "discountValue": "number",
+        "maxUses": "number",
+        "currentUses": "number",
+        "validUntil": "timestamp",
+        "status": "Ativo | Inativo"
+      }
+    }
+  }
+}
