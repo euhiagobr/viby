@@ -1,8 +1,9 @@
+
 "use client";
 
 import * as React from "react";
 import { useFirestore, useAuth, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase";
-import { doc, getDoc, collection, query, where, getDocs, collectionGroup } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, collectionGroup, orderBy, limit } from "firebase/firestore";
 import { Loader2, Lock, ArrowLeft, Home, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AdsRenderer } from "@/components/ads/AdsRenderer";
@@ -22,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UserHero } from "@/components/profile/user/UserHero";
 import { UserSocialContent } from "@/components/profile/user/UserSocialContent";
 import { UserEventsContent } from "@/components/profile/user/UserEventsContent";
+import { UserGamification } from "@/components/profile/user/UserGamification";
 
 import Footer from "@/components/layout/Footer";
 
@@ -109,6 +111,39 @@ export default function ProfilePageClient({ username }: { username: string }) {
     checkOwnership();
   }, [db, loggedUser?.uid, profileData, profileType]);
 
+  // Busca de Dados de Gamificação (Apenas se for usuário)
+  const gamificationRef = React.useMemo(() => 
+    (db && profileType === 'user' && profileData?.id) ? doc(db, "user_gamification", profileData.id) : null, 
+    [db, profileType, profileData?.id]
+  );
+  const { data: gamification } = useDoc<any>(gamificationRef);
+
+  const statsRef = React.useMemo(() => 
+    (db && profileType === 'user' && profileData?.id) ? doc(db, "cultural_stats", profileData.id) : null, 
+    [db, profileType, profileData?.id]
+  );
+  const { data: culturalStats } = useDoc<any>(statsRef);
+
+  const activitiesQuery = useMemoFirebase(() => {
+    if (!db || profileType !== 'user' || !profileData?.id || (!isOwner && profileData.privacy?.hideStats)) return null;
+    return query(
+      collection(db, "xp_logs"),
+      where("userId", "==", profileData.id),
+      orderBy("timestamp", "desc"),
+      limit(15)
+    );
+  }, [db, profileType, profileData?.id, isOwner, profileData?.privacy?.hideStats]);
+  const { data: activities } = useCollection<any>(activitiesQuery);
+
+  const userRegistrationsQuery = useMemoFirebase(() => {
+    if (!db || profileType !== 'user' || !profileData?.id || !isOwner) return null;
+    return query(
+      collection(db, "registrations"),
+      where("userId", "==", profileData.id)
+    );
+  }, [db, profileType, profileData?.id, isOwner]);
+  const { data: userRegistrations } = useCollection<any>(userRegistrationsQuery);
+
   // Busca de Eventos da Organização
   const orgEventsQuery = useMemoFirebase(() => {
     if (!db || !profileData?.id || profileType !== 'organization') return null;
@@ -121,7 +156,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
   const { data: orgEvents } = useCollection<any>(orgEventsQuery);
 
-  // Busca de Eventos em Parceria (Co-organização) via Collection Group
+  // Busca de Eventos em Parceria
   React.useEffect(() => {
     if (!db || !profileData?.id || profileType !== 'organization') return;
 
@@ -316,7 +351,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
             <div className="space-y-12">
               <UserHero 
                 profile={profileData} 
-                gamification={null}
+                gamification={gamification}
                 followersCount={profileData.followersCount || 0}
                 followingCount={profileData.followingCount || 0}
                 eventsCount={profileData.totalEventsCount || 0}
@@ -325,20 +360,22 @@ export default function ProfilePageClient({ username }: { username: string }) {
               <div className="container mx-auto px-4 max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-12">
                  <div className="lg:col-span-8 space-y-20">
                     {(!profileData.privacy?.hideGamification || isOwner) ? (
-                      <div className="p-12 border-2 border-dashed rounded-[3rem] text-center bg-muted/10 opacity-40">
-                        <Lock className="w-10 h-10 text-muted-foreground opacity-20 mx-auto mb-2" />
-                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">O progresso cultural deste membro é sincronizado internamente.</p>
-                      </div>
+                      <UserGamification gamification={gamification} />
                     ) : (
                       <div className="p-12 border-2 border-dashed rounded-[3rem] text-center bg-muted/10">
                         <Lock className="w-10 h-10 text-muted-foreground opacity-20 mx-auto mb-2" />
                         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">O progresso cultural deste membro é privado.</p>
                       </div>
                     )}
-                    <UserSocialContent profile={profileData} stats={{}} activities={[]} isOwner={isOwner} />
+                    <UserSocialContent 
+                      profile={profileData} 
+                      stats={culturalStats} 
+                      activities={activities || []} 
+                      isOwner={isOwner} 
+                    />
                  </div>
                  <aside className="lg:col-span-4 space-y-12">
-                    <UserEventsContent registrations={[]} isOwner={isOwner} />
+                    <UserEventsContent registrations={userRegistrations || []} isOwner={isOwner} />
                  </aside>
               </div>
             </div>
@@ -349,3 +386,4 @@ export default function ProfilePageClient({ username }: { username: string }) {
     </div>
   );
 }
+
