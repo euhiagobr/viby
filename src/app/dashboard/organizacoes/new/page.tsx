@@ -267,7 +267,7 @@ export default function NovaOrganizacaoPage() {
           username: normalizedUsername,
           slug: normalizedUsername,
           createdBy: user.uid,
-          ownerId: user.uid, 
+          ownerId: user.uid, // OBRIGATÓRIO: Vincula o criador como proprietário real no banco
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           verified: false,

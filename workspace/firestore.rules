@@ -1,65 +1,46 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // --- FUNÇÕES DE AUXÍLIO GLOBAIS ---
     
     function isSignedIn() {
       return request.auth != null;
     }
 
     function isAdmin() {
-      return isSignedIn() && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isSignedIn() && (
+        request.auth.token.admin == true ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
     }
 
-    function isMemberOfOrg(orgId) {
-      return isSignedIn() && 
-             exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    // --- FUNÇÕES DE HIERARQUIA DE ORGANIZAÇÃO ---
+
+    function getMemberData(orgId) {
+      return get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data;
     }
 
-    // --- REGRAS DE ANÚNCIOS (ADS) ---
-    // Blindagem financeira: Mutações permitidas apenas via Admin SDK (Backend)
-    match /ads/{id} {
-      allow read: if true;
-      allow create: if false; // Criado exclusivamente via createAdAction
-      allow update: if false; // Atualizado exclusivamente via track API ou moderationAction
-      allow delete: if isAdmin();
-      
-      match /viewers/{vId} {
-        allow read: if isAdmin();
-        allow write: if false; // Gerenciado pelo servidor
-      }
+    function isOrgOwner(orgId) {
+      return isSignedIn() && (
+        get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId == request.auth.uid ||
+        getMemberData(orgId).role == 'owner'
+      );
     }
 
-    match /tax_ads/{id} {
-      allow read: if isAdmin();
-      allow write: if false;
+    function isOrgAdmin(orgId) {
+      return isSignedIn() && (isOrgOwner(orgId) || getMemberData(orgId).role == 'admin');
     }
 
-    // --- PROTEÇÃO DE CARTEIRAS ---
-    match /wallets/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow write: if false; // Mutações financeiras exclusivas do backend
+    function isOrgEditor(orgId) {
+      return isSignedIn() && (isOrgAdmin(orgId) || getMemberData(orgId).role == 'editor');
     }
 
-    // Proteção de PII e Ingressos
-    match /registrations/{regId} {
-      allow read: if isAdmin() || 
-                    (isSignedIn() && (
-                      resource.data.userId == request.auth.uid || 
-                      isMemberOfOrg(resource.data.organizationId)
-                    ));
-      allow create: if false; // Backend Only
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+    function isOrgMember(orgId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
     }
 
-    match /usernames/{username} {
-      allow read: if true;
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow delete: if isAdmin();
-    }
+    // --- REGRAS POR COLEÇÃO ---
 
     match /users/{userId} {
       allow read: if true;
@@ -73,29 +54,37 @@ service cloud.firestore {
 
     match /organizations/{orgId} {
       allow read: if true;
-      allow create: if isSignedIn();
-      allow update: if isAdmin() || isMemberOfOrg(orgId);
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      
+      allow update: if isAdmin() || isOrgAdmin(orgId);
+
+      // Impedir alteração de campos críticos via Client SDK por qualquer pessoa que não seja Owner ou Admin Global
+      allow update: if (isAdmin() || isOrgOwner(orgId)) 
+                    || (isOrgAdmin(orgId) 
+                        && !request.resource.data.diff(resource.data).affectedKeys()
+                           .hasAny(['ownerId', 'verified', 'status', 'plan', 'stripeAccountId', 'adBalance', 'blockedBalance']));
 
       match /members/{memberId} {
-        allow read: if true;
-        allow write: if isAdmin() || isMemberOfOrg(orgId) || (isSignedIn() && memberId == request.auth.uid);
+        allow read: if isOrgMember(orgId);
+        allow create, update: if isAdmin() || isOrgOwner(orgId) || (isOrgAdmin(orgId) && request.resource.data.role in ['editor', 'member']);
+        allow update: if request.auth.uid != memberId || isAdmin();
+        allow delete: if isAdmin() || isOrgOwner(orgId) || (isOrgAdmin(orgId) && resource.data.role != 'owner');
       }
 
       match /transactions/{txId} {
-        allow read: if isAdmin() || isMemberOfOrg(orgId);
-        allow write: if false; // Backend Only
+        allow read: if isAdmin() || isOrgAdmin(orgId);
+        allow write: if false;
       }
     }
 
     match /events/{eventId} {
       allow read: if true;
-      allow create: if isAdmin() || isSignedIn();
-      allow update: if isAdmin() || isMemberOfOrg(resource.data.organizationId);
-      allow delete: if isAdmin() || isMemberOfOrg(resource.data.organizationId);
+      allow create: if isAdmin() || isOrgEditor(request.resource.data.organizationId);
+      allow update, delete: if isAdmin() || isOrgEditor(resource.data.organizationId);
 
       match /partners/{partnerId} {
         allow read: if true;
-        allow write: if isAdmin() || isMemberOfOrg(get(/databases/$(database)/documents/events/$(eventId)).data.organizationId);
+        allow write: if isAdmin() || isOrgAdmin(get(/databases/$(database)/documents/events/$(eventId)).data.organizationId);
       }
 
       match /interests/{userId} {
@@ -110,69 +99,37 @@ service cloud.firestore {
       }
     }
 
+    match /registrations/{regId} {
+      allow read: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.userId || isOrgMember(resource.data.organizationId)));
+      allow create: if false;
+      allow update: if isAdmin();
+    }
+
     match /orders/{orderId} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if isSignedIn();
       allow update: if isAdmin();
     }
 
-    match /recurring_occurrences/{occId} {
+    match /ads/{id} {
       allow read: if true;
+      allow create: if isAdmin() || isOrgAdmin(request.resource.data.organizationId);
       allow update: if isAdmin();
-      allow create: if false; // Backend Only
+      allow delete: if isAdmin() || isOrgOwner(resource.data.organizationId);
     }
 
-    match /user_gamification/{uid} { 
+    match /usernames/{username} { 
       allow read: if true; 
-      allow write: if false; // Backend Only (Gamification Service)
-    }
-    
-    match /xp_logs/{id} { 
-      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid); 
-      allow write: if false; 
-    }
-    
-    match /follows/{followId} {
-      allow read: if true;
-      allow create: if isSignedIn() && request.auth.uid == request.resource.data.followerId;
-      allow delete: if isSignedIn() && request.auth.uid == resource.data.followerId;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin();
     }
 
-    match /financial_logs/{id} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /audit_logs/{id} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
-    match /support_tickets/{id} {
-      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
-      allow create: if isSignedIn();
-      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
-    }
-    
-    match /password_reset_codes/{id} { 
-      allow read: if false; 
-      allow write: if false; 
-    }
-    
-    match /settings/{docId} { 
-      allow read: if true; 
-      allow write: if isAdmin(); 
-    }
-    
-    match /system_logs/{id} { 
-      allow read: if isAdmin(); 
-      allow create: if isSignedIn(); 
-      allow update: if false; 
-    }
-    
-    match /sent_emails/{id} { 
-      allow read: if isAdmin(); 
-      allow write: if false; 
-    }
+    match /password_reset_codes/{id} { allow read, write: if false; }
+    match /wallets/{uid} { allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin()); allow write: if false; }
+    match /wallet_transactions/{id} { allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin()); allow write: if false; }
+    match /payout_requests/{id} { allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin()); allow write: if false; }
+    match /audit_logs/{id} { allow read: if isAdmin(); allow write: if false; }
+    match /system_logs/{id} { allow read: if isAdmin(); allow create: if isSignedIn(); }
+    match /sent_emails/{id} { allow read: if isAdmin(); allow write: if false; }
   }
 }
