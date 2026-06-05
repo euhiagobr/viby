@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -8,6 +9,8 @@ import { doc, setDoc, deleteDoc, serverTimestamp, increment, updateDoc, getDoc }
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { processGamificationEvent } from "@/lib/gamification-service";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 interface FollowButtonProps {
   organizationId: string;
@@ -44,7 +47,7 @@ export function FollowButton({ organizationId, username, targetType = 'organizat
     e.preventDefault();
     e.stopPropagation();
     
-    if (!db || !user) {
+    if (!db || !user || !followRef) {
       toast({ title: "Ação necessária", description: "Faça login para acompanhar este perfil." });
       return;
     }
@@ -65,7 +68,15 @@ export function FollowButton({ organizationId, username, targetType = 'organizat
 
       if (isFollowing) {
         // Unfollow
-        await deleteDoc(followRef!);
+        await deleteDoc(followRef).catch(async (err) => {
+          if (err.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: followRef.path,
+              operation: 'delete'
+            }));
+          }
+          throw err;
+        });
         
         // Atualiza contadores em ambos os lados
         await updateDoc(targetRef, { followersCount: increment(-1), updatedAt: serverTimestamp() });
@@ -74,11 +85,22 @@ export function FollowButton({ organizationId, username, targetType = 'organizat
         toast({ title: "Deixou de seguir" });
       } else {
         // Follow
-        await setDoc(followRef!, {
+        const followData = {
           followerId: user.uid,
           followingId: organizationId,
           targetType,
           timestamp: serverTimestamp()
+        };
+
+        await setDoc(followRef, followData).catch(async (err) => {
+          if (err.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: followRef.path,
+              operation: 'create',
+              requestResourceData: followData
+            }));
+          }
+          throw err;
         });
         
         await updateDoc(targetRef, { followersCount: increment(1), updatedAt: serverTimestamp() });
@@ -97,7 +119,8 @@ export function FollowButton({ organizationId, username, targetType = 'organizat
         toast({ title: "Seguindo!", description: `Agora você acompanha as novidades de ${targetName}.` });
       }
     } catch (e) {
-      toast({ variant: "destructive", title: "Erro na operação", description: "Tente novamente em alguns instantes." });
+      console.error("[Follow Error]", e);
+      // O erro já foi emitido para o FirebaseErrorListener se for permissão
     } finally {
       setLoading(false);
     }
