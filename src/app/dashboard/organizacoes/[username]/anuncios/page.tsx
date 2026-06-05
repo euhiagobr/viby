@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -53,22 +52,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useRouter, useParams } from "next/navigation"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/financial-utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
-import { Separator } from "@/components/ui/separator"
 import { createAdAction } from "@/app/actions/ads"
 
 export default function OrganizationAdsPage() {
@@ -76,8 +65,7 @@ export default function OrganizationAdsPage() {
   const auth = useAuth()
   const app = useFirebaseApp()
   const { user } = useUser(auth)
-  const router = useRouter()
-  const { currentOrg, userRole, loading: orgLoading, refreshOrg } = useCurrentOrganization()
+  const { currentOrg, loading: orgLoading, refreshOrg } = useCurrentOrganization()
 
   const storage = React.useMemo(() => {
     if (!app) return null;

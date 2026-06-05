@@ -9,7 +9,6 @@ import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import Script from 'next/script';
-import { GoogleAdScript } from '@/components/ads/GoogleAdScript';
 
 async function getSiteSettings() {
   try {
@@ -94,7 +93,12 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-        <GoogleAdScript />
+        {/* Google AdSense Script - Standard Injection to avoid data-nscript attribute issues */}
+        <script 
+          async 
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3790085999731396"
+          crossOrigin="anonymous"
+        />
       </head>
       <body className="font-body antialiased bg-[#f8fafc] text-[#000000] flex flex-col min-h-screen">
         <FirebaseClientProvider>
