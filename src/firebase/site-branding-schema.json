@@ -6,7 +6,7 @@
     "siteName": "string (Nome exibido na aba do navegador e metadados)",
     "logoUrl": "string (URL do logotipo principal)",
     "iconUrl": "string (URL do favicon e ícones de app PWA)",
-    "siteIconUrl": "string (alias de compatibilidade para iconUrl)",
+    "siteIconUrl": "string (Alias de prioridade para favicon dinâmico)",
     "imageVersion": "number (Contador incremental para invalidação de cache de imagens de branding)",
     "updatedAt": "timestamp (Momento da última alteração)",
     "updatedBy": "string (UID do administrador responsável)"

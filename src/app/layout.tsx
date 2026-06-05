@@ -10,9 +10,6 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import Script from 'next/script';
 
-/**
- * Busca configurações globais do site para injeção dinâmica de SEO e Branding.
- */
 async function getSiteSettings() {
   try {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -29,10 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSiteSettings();
   const siteName = settings?.siteName || 'Viby';
   
-  // Priorização do ícone configurado no admin (iconUrl ou siteIconUrl) com fallback local
-  const rawIconUrl = settings?.iconUrl || settings?.siteIconUrl || '/favicon.ico';
-  
-  // Adiciona parâmetro de versão para forçar atualização de cache quando alterado
+  const rawIconUrl = settings?.siteIconUrl || settings?.iconUrl || '/favicon.ico';
   const version = settings?.imageVersion || Date.now();
   const separator = rawIconUrl.includes('?') ? '&' : '?';
   const iconUrl = rawIconUrl.startsWith('http') ? `${rawIconUrl}${separator}v=${version}` : rawIconUrl;
@@ -105,7 +99,6 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-        {/* Google AdSense Script - Pure Injection */}
         <script 
           async 
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3790085999731396"

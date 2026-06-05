@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -14,32 +13,20 @@ import {
   Loader2, 
   Save, 
   CreditCard, 
-  Eye, 
-  EyeOff, 
-  Info,
-  Globe,
-  Zap,
-  ShieldCheck,
-  Mail,
-  Coins,
-  ShieldAlert,
-  Megaphone,
-  Layout,
-  Upload,
-  ImageIcon,
-  Camera,
-  Target,
-  RefreshCw,
-  CheckCircle2,
-  XCircle
+  Globe, 
+  Mail, 
+  Coins, 
+  Layout, 
+  Upload, 
+  ImageIcon, 
+  Camera, 
+  Target, 
+  RefreshCw
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { Separator } from '@/components/ui/separator';
-import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
-import { cn } from '@/lib/utils';
-import Image from 'next/image';
+import { Textarea } from '@/components/ui/textarea';
 import { IMAGE_CACHE_METADATA } from '@/lib/image-utils';
 
 export default function AdminConfiguracoesPage() {
@@ -53,40 +40,41 @@ export default function AdminConfiguracoesPage() {
     return getStorage(app);
   }, [app]);
 
-  // Queries
   const siteRef = React.useMemo(() => (db ? doc(db, 'settings', 'site') : null), [db]);
   const stripeRef = React.useMemo(() => (db ? doc(db, 'settings', 'stripe') : null), [db]);
   const emailRef = React.useMemo(() => (db ? doc(db, 'settings', 'email') : null), [db]);
   const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db]);
-  const adsSettingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
   const googleAdsRef = React.useMemo(() => (db ? doc(db, 'system_settings', 'google_ads') : null), [db]);
 
   const { data: siteSettings, loading: loadingSite } = useDoc<any>(siteRef);
   const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
   const { data: emailSettings, loading: loadingEmail } = useDoc<any>(emailRef);
   const { data: globalFees, loading: loadingFees } = useDoc<any>(feesRef);
-  const { data: adsSettings, loading: loadingAds } = useDoc<any>(adsSettingsRef);
   const { data: googleAds, loading: loadingGoogle } = useDoc<any>(googleAdsRef);
 
   const [saving, setSaving] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState<{ [key: string]: number | null }>({});
 
-  // Form States
-  const [siteForm, setSiteForm] = React.useState({ siteName: 'Viby', logoUrl: '', iconUrl: '' });
+  const [siteForm, setSiteForm] = React.useState({ siteName: 'Viby', logoUrl: '', iconUrl: '', siteIconUrl: '' });
   const [stripeForm, setStripeForm] = React.useState({ publishableKey: '', secretKey: '', feePercent: '3.99', feeFixed: '0.39', mode: 'test' });
   const [emailForm, setEmailForm] = React.useState({ smtpHost: 'smtp.gmail.com', smtpPort: '465', smtpUser: '', smtpPass: '' });
   const [feesForm, setFeesForm] = React.useState({ buyerMarkupPercent: '15', organizerBasePercent: '10', organizerMinFee: '3.99' });
   const [googleAdsForm, setGoogleAdsForm] = React.useState({ enabled: false, publisherId: '', adsenseCode: '', autoAds: true, testMode: false });
 
   React.useEffect(() => {
-    if (siteSettings) setSiteForm({ siteName: siteSettings.siteName || 'Viby', logoUrl: siteSettings.logoUrl || '', iconUrl: siteSettings.iconUrl || '' });
+    if (siteSettings) setSiteForm({ 
+      siteName: siteSettings.siteName || 'Viby', 
+      logoUrl: siteSettings.logoUrl || '', 
+      iconUrl: siteSettings.iconUrl || '',
+      siteIconUrl: siteSettings.siteIconUrl || siteSettings.iconUrl || ''
+    });
     if (stripeKeys) setStripeForm({ publishableKey: stripeKeys.publishableKey || '', secretKey: stripeKeys.secretKey || '', feePercent: stripeKeys.feePercent?.toString() || '3.99', feeFixed: stripeKeys.feeFixed?.toString() || '0.39', mode: stripeKeys.mode || 'test' });
     if (emailSettings) setEmailForm({ smtpHost: emailSettings.smtpHost || 'smtp.gmail.com', smtpPort: emailSettings.smtpPort?.toString() || '465', smtpUser: emailSettings.smtpUser || '', smtpPass: emailSettings.smtpPass || '' });
     if (globalFees) setFeesForm({ buyerMarkupPercent: globalFees.buyerMarkupPercent?.toString() || '15', organizerBasePercent: globalFees.organizerBasePercent?.toString() || '10', organizerMinFee: globalFees.organizerMinFee?.toString() || '3.99' });
     if (googleAds) setGoogleAdsForm({ enabled: googleAds.enabled ?? false, publisherId: googleAds.publisherId || '', adsenseCode: googleAds.adsenseCode || '', autoAds: googleAds.autoAds ?? true, testMode: googleAds.testMode ?? false });
   }, [siteSettings, stripeKeys, emailSettings, globalFees, googleAds]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logoUrl' | 'iconUrl') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logoUrl' | 'siteIconUrl') => {
     const file = e.target.files?.[0];
     if (!file || !storage || !user) return;
 
@@ -108,7 +96,7 @@ export default function AdminConfiguracoesPage() {
         },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          setSiteForm(prev => ({ ...prev, [type]: downloadURL }));
+          setSiteForm(prev => ({ ...prev, [type]: downloadURL, iconUrl: type === 'siteIconUrl' ? downloadURL : prev.iconUrl }));
           setUploadProgress(prev => ({ ...prev, [type]: null }));
           toast({ title: "Upload concluído!", description: `${type === 'logoUrl' ? 'Logo' : 'Ícone'} atualizado.` });
         }
@@ -168,7 +156,7 @@ export default function AdminConfiguracoesPage() {
           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
             <CardHeader className="bg-muted/30 p-8 border-b">
                <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Identidade da Plataforma</CardTitle>
-               <CardDescription>Gerencie o nome, logo e ícone de navegação do site.</CardDescription>
+               <CardDescription>Gerencie o nome, logo e o favicon oficial do site.</CardDescription>
             </CardHeader>
             <CardContent className="p-8 space-y-8">
               <div className="space-y-2">
@@ -191,16 +179,16 @@ export default function AdminConfiguracoesPage() {
                     </div>
                  </div>
                  <div className="space-y-4">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Ícone (Favicon)</Label>
+                    <Label className="text-[10px] font-black uppercase opacity-60">Ícone Global (Favicon)</Label>
                     <div className="relative h-24 bg-muted/20 rounded-2xl border-2 border-dashed border-border flex items-center justify-center overflow-hidden group">
-                       {siteForm.iconUrl ? (
-                         <img src={siteForm.iconUrl} className="h-12 w-12 object-contain" alt="Icon" />
+                       {siteForm.siteIconUrl ? (
+                         <img src={siteForm.siteIconUrl} className="h-12 w-12 object-contain" alt="Icon" />
                        ) : <Target className="w-8 h-8 opacity-10" />}
                        <label htmlFor="icon-up" className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-white">
                           <Upload className="w-6 h-6" />
                        </label>
-                       <input id="icon-up" type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'iconUrl')} />
-                       {uploadProgress.iconUrl !== null && <Progress value={uploadProgress.iconUrl} className="absolute bottom-0 h-1" />}
+                       <input id="icon-up" type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'siteIconUrl')} />
+                       {uploadProgress.siteIconUrl !== null && <Progress value={uploadProgress.siteIconUrl} className="absolute bottom-0 h-1" />}
                     </div>
                  </div>
               </div>
@@ -220,7 +208,7 @@ export default function AdminConfiguracoesPage() {
             </CardHeader>
             <CardContent className="p-8 space-y-6">
               <div className="grid grid-cols-2 gap-2">
-                 <Button variant={stripeForm.mode === 'test' ? 'secondary' : 'outline'} className="rounded-xl h-11 font-bold gap-2" onClick={() => setStripeForm({...stripeForm, mode: 'test'})}><Zap className="w-4 h-4" /> Modo Teste</Button>
+                 <Button variant={stripeForm.mode === 'test' ? 'secondary' : 'outline'} className="rounded-xl h-11 font-bold gap-2" onClick={() => setStripeForm({...stripeForm, mode: 'test'})}><RefreshCw className="w-4 h-4" /> Modo Teste</Button>
                  <Button variant={stripeForm.mode === 'live' ? 'secondary' : 'outline'} className="rounded-xl h-11 font-bold gap-2" onClick={() => setStripeForm({...stripeForm, mode: 'live'})}><Globe className="w-4 h-4" /> Modo Produção</Button>
               </div>
               <div className="space-y-4">
@@ -230,12 +218,10 @@ export default function AdminConfiguracoesPage() {
                  </div>
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60">Secret Key</Label>
-                    <div className="relative">
-                       <Input type="password" value={stripeForm.secretKey} onChange={e => setStripeForm({...stripeForm, secretKey: e.target.value})} className="rounded-xl h-11 font-mono text-xs" placeholder="sk_..." />
-                    </div>
+                    <Input type="password" value={stripeForm.secretKey} onChange={e => setStripeForm({...stripeForm, secretKey: e.target.value})} className="rounded-xl h-11 font-mono text-xs" placeholder="sk_..." />
                  </div>
               </div>
-              <Button onClick={() => handleSave('settings', 'stripe', stripeForm)} disabled={saving} className="w-full h-12 bg-primary text-white font-black rounded-xl uppercase italic mt-4">
+              <Button onClick={() => handleSave('settings', 'stripe', stripeForm)} disabled={saving} className="w-full h-12 bg-primary text-white font-black rounded-xl uppercase italic">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />} Atualizar Stripe
               </Button>
             </CardContent>
@@ -325,32 +311,6 @@ export default function AdminConfiguracoesPage() {
                       onChange={e => setGoogleAdsForm({...googleAdsForm, adsenseCode: e.target.value})}
                       className="rounded-xl min-h-[120px] font-mono text-xs" 
                     />
-                 </div>
-                 <div className="grid grid-cols-2 gap-6">
-                    <div className="flex items-center justify-between p-4 bg-muted/20 rounded-xl border border-dashed">
-                       <div className="space-y-0.5">
-                          <p className="text-[10px] font-black uppercase">Auto Ads</p>
-                          <p className="text-[8px] font-bold text-muted-foreground">Posicionamento Automático</p>
-                       </div>
-                       <Switch 
-                         checked={googleAdsForm.autoAds} 
-                         onCheckedChange={(v) => setGoogleAdsForm({...googleAdsForm, autoAds: v})} 
-                       />
-                    </div>
-                    <div className="flex items-center justify-between p-4 bg-muted/20 rounded-xl border border-dashed">
-                       <div className="space-y-0.5">
-                          <p className="text-[10px] font-black uppercase">Modo Teste</p>
-                          <p className="text-[8px] font-bold text-muted-foreground">Anúncios de Exemplo</p>
-                       </div>
-                       <Switch 
-                         checked={googleAdsForm.testMode} 
-                         onCheckedChange={(v) => setGoogleAdsForm({...googleAdsForm, testMode: v})} 
-                       />
-                    </div>
-                 </div>
-                 <div className="p-4 bg-secondary/5 rounded-xl flex gap-3">
-                    <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-                    <p className="text-[10px] text-secondary font-medium leading-relaxed uppercase">Ao ativar, o script do Google será injetado em todas as páginas públicas. A alternância com anúncios Viby (50/50) é automática.</p>
                  </div>
                  <Button onClick={() => handleSave('system_settings', 'google_ads', googleAdsForm)} disabled={saving} className="w-full h-12 bg-primary text-white font-black rounded-xl uppercase italic">
                    {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />} Salvar Google Ads
