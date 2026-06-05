@@ -13,7 +13,8 @@ import {
   getDocs, 
   getDoc,
   serverTimestamp,
-  limit
+  limit,
+  orderBy
 } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -32,7 +33,8 @@ import {
   UserMinus,
   Building2,
   BadgeCheck,
-  ArrowRight
+  ArrowRight,
+  Inbox
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -108,30 +110,46 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
     setIsSearching(true)
     try {
       const cleanTerm = searchTerm.toLowerCase().replace('@', '').trim()
-      // Busca na coleção de usernames usando consulta de campo 'username' para suporte a prefixo
-      const q = query(
-        collection(db, "usernames"), 
-        where("username", ">=", cleanTerm),
-        where("username", "<=", cleanTerm + "\uf8ff"),
-        limit(5)
-      )
-      const snap = await getDocs(q)
       
-      const results = await Promise.all(snap.docs.map(async (d) => {
+      // Busca 1: Via Índice de Usernames (Usando __name__ para prefixo em IDs)
+      const qIndex = query(
+        collection(db, "usernames"), 
+        where("__name__", ">=", cleanTerm),
+        where("__name__", "<=", cleanTerm + "\uf8ff"),
+        limit(10)
+      )
+      const snapIndex = await getDocs(qIndex)
+      
+      let results = await Promise.all(snapIndex.docs.map(async (d) => {
         const data = d.data()
-        // Filtra apenas organizações e remove a org atual da busca
         if (data.type !== 'organization' || data.uid === currentOrgId) return null
-        
         const orgSnap = await getDoc(doc(db, "organizations", data.uid))
-        if (orgSnap.exists()) {
-          return { id: orgSnap.id, ...orgSnap.data() }
-        }
-        return null
+        return orgSnap.exists() ? { id: orgSnap.id, ...orgSnap.data() } : null
       }))
 
-      setSearchResults(results.filter(Boolean))
+      let finalResults = results.filter(Boolean)
+
+      // Busca 2 (Fallback): Se não achou no índice, tenta busca direta na coleção de organizações
+      if (finalResults.length === 0) {
+        const qDirect = query(
+          collection(db, "organizations"),
+          where("username", ">=", cleanTerm),
+          where("username", "<=", cleanTerm + "\uf8ff"),
+          limit(5)
+        )
+        const snapDirect = await getDocs(qDirect)
+        finalResults = snapDirect.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(o => o.id !== currentOrgId)
+      }
+
+      setSearchResults(finalResults)
+      
+      if (finalResults.length === 0) {
+        toast({ title: "Nenhuma marca localizada", description: "Verifique o @username e tente novamente." })
+      }
     } catch (e) {
-      toast({ variant: "destructive", title: "Erro na busca" })
+      toast({ variant: "destructive", title: "Erro na busca", description: "Não foi possível consultar os perfis." })
     } finally {
       setIsSearching(false)
     }
@@ -219,11 +237,7 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
                   <Input 
                     placeholder="Ex: @vibe_night" 
                     value={searchTerm}
-                    onChange={e => {
-                       const val = e.target.value;
-                       setSearchTerm(val);
-                       if (val.length > 2) handleSearch(); // Dispara busca automática ao digitar
-                    }}
+                    onChange={e => setSearchTerm(e.target.value)}
                     className="pl-10 rounded-xl h-11 border-dashed border-secondary/30"
                     onKeyDown={e => e.key === 'Enter' && handleSearch()}
                   />
