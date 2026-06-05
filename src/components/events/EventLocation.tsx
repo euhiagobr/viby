@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -92,26 +91,29 @@ export function EventLocation({
   const [isSearching, setIsSearching] = React.useState<string | null>(null);
   const [currentTime, setCurrentTime] = React.useState<Date>(new Date());
   
-  // Ref para evitar loops infinitos de geocoding
-  const lastGeocodedRef = React.useRef<string>("");
+  // Estados locais para digitação de coordenadas sem quebrar o mapa no tempo real
+  const [localCoords, setLocalCoords] = React.useState<{lat: string, lng: string}>({ lat: "", lng: "" });
 
   React.useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
-  /**
-   * Lógica de Geocoding robusta com fallback.
-   */
+  // Sincroniza localCoords com props
+  React.useEffect(() => {
+    if (!isMultiLocation) {
+      setLocalCoords({
+        lat: address?.latitude?.toString() || "",
+        lng: address?.longitude?.toString() || ""
+      });
+    }
+  }, [address?.latitude, address?.longitude, isMultiLocation]);
+
   const triggerGeocoding = async (index: number, updatedAddr: any) => {
     if (!updatedAddr.street || !updatedAddr.city) return;
 
     const searchString = `${updatedAddr.street}, ${updatedAddr.number || ''}, ${updatedAddr.city}, ${updatedAddr.state}, Brasil`;
     
-    // Evita chamadas duplicadas para o mesmo endereço
-    if (searchString === lastGeocodedRef.current) return;
-    lastGeocodedRef.current = searchString;
-
     setIsSearching(isMultiLocation ? updatedAddr.id : 'legacy');
     const coords = await getCoordinatesFromAddress(searchString, updatedAddr.cep);
     
@@ -126,30 +128,6 @@ export function EventLocation({
     }
     setIsSearching(null);
   };
-
-  // Debounce para mudanças em qualquer campo que afete o endereço
-  React.useEffect(() => {
-    if (isPublic) return;
-
-    const timer = setTimeout(() => {
-      if (isMultiLocation) {
-        locations.forEach((loc, idx) => {
-          if (loc.street && loc.city) triggerGeocoding(idx, loc);
-        });
-      } else if (address?.street && address?.city) {
-        triggerGeocoding(0, address);
-      }
-    }, 2000); // Debounce maior para evitar excesso de chamadas
-
-    return () => clearTimeout(timer);
-  }, [
-    address?.street, 
-    address?.number, 
-    address?.city, 
-    address?.cep, 
-    isMultiLocation, 
-    locations.map(l => `${l.street}${l.number}${l.cep}`).join('|')
-  ]);
 
   const handleCepBlur = async (index: number) => {
     const target = isMultiLocation ? { ...locations[index] } : { ...address };
@@ -178,6 +156,7 @@ export function EventLocation({
         } else {
           onChange?.(updated);
         }
+        triggerGeocoding(index, updated);
       }
     } catch (e) {
       console.warn("[CEP] Erro na consulta ViaCEP");
@@ -187,20 +166,26 @@ export function EventLocation({
   };
 
   const handleUpdateLocation = (index: number, field: string, value: any) => {
-    let finalValue = value;
-    
-    if (field === 'latitude' || field === 'longitude') {
-      if (value === "" || value === "-") return; // Permite digitar sinal de menos ou apagar sem quebrar
-      finalValue = parseFloat(value);
-      if (isNaN(finalValue)) return;
-    }
-
     if (isMultiLocation) {
       const newLocs = [...locations];
-      newLocs[index] = { ...newLocs[index], [field]: finalValue };
+      newLocs[index] = { ...newLocs[index], [field]: value };
       onLocationsChange?.(newLocs);
     } else {
-      onChange?.({ ...address, [field]: finalValue });
+      onChange?.({ ...address, [field]: value });
+    }
+  };
+
+  // Handler especial para coordenadas manuais
+  const handleCoordsChange = (field: 'lat' | 'lng', value: string) => {
+    setLocalCoords(prev => ({ ...prev, [field]: value }));
+    
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue)) {
+      if (field === 'lat' && Math.abs(numValue) <= 90) {
+        handleUpdateLocation(0, 'latitude', numValue);
+      } else if (field === 'lng' && Math.abs(numValue) <= 180) {
+        handleUpdateLocation(0, 'longitude', numValue);
+      }
     }
   };
 
@@ -242,15 +227,15 @@ export function EventLocation({
                    {isMultiLocation && (
                      <div className="flex gap-2 mb-2">
                         {isCurrent ? (
-                          <Badge className="bg-green-600 text-white border-none text-[9px] font-black uppercase px-3 py-1 animate-pulse">
+                          <Badge className="bg-green-600 text-white border-none text-[10px] font-black uppercase px-3 py-1 animate-pulse">
                              Acontecendo Agora
                           </Badge>
                         ) : isNext ? (
-                          <Badge variant="outline" className="text-[9px] font-black uppercase px-3 py-1 border-dashed">
+                          <Badge variant="outline" className="text-[10px] font-black uppercase px-3 py-1 border-dashed">
                              Próxima Parada
                           </Badge>
                         ) : (
-                          <Badge variant="secondary" className="text-[9px] font-black uppercase px-3 py-1 opacity-50">
+                          <Badge variant="secondary" className="text-[10px] font-black uppercase px-3 py-1 opacity-50">
                              Programação
                           </Badge>
                         )}
@@ -396,12 +381,12 @@ export function EventLocation({
            <div className="space-y-3">
               <Label className="text-[10px] font-black uppercase opacity-60 flex justify-between items-center">
                  PIN no Mapa
-                 <span className="text-[8px] opacity-40">PIN atualiza automaticamente ou via arraste</span>
+                 <span className="text-[8px] opacity-40">PIN atualiza via endereço ou arraste</span>
               </Label>
               <div className="h-[280px] w-full rounded-2xl overflow-hidden border-2 border-muted relative shadow-inner bg-muted/10">
                  <LocationMap 
-                    latitude={Number(currentLoc.latitude) || -23.55052} 
-                    longitude={Number(currentLoc.longitude) || -46.633308} 
+                    latitude={Number(isMulti ? currentLoc.latitude : address?.latitude) || -23.55052} 
+                    longitude={Number(isMulti ? currentLoc.longitude : address?.longitude) || -46.633308} 
                     onChange={(lat, lng) => {
                       if (isMulti) {
                         const newLocs = [...locations];
@@ -418,20 +403,18 @@ export function EventLocation({
                  <div className="space-y-1">
                     <Label className="text-[8px] font-black uppercase opacity-40">Latitude</Label>
                     <Input 
-                      type="number" 
-                      step="any"
-                      value={currentLoc.latitude ?? ""} 
-                      onChange={e => handleUpdateLocation(index, 'latitude', e.target.value)}
+                      type="text" 
+                      value={isMulti ? (currentLoc.latitude || "") : localCoords.lat} 
+                      onChange={e => isMulti ? handleUpdateLocation(index, 'latitude', e.target.value) : handleCoordsChange('lat', e.target.value)}
                       className="h-9 text-[11px] font-mono rounded-xl bg-muted/20"
                     />
                  </div>
                  <div className="space-y-1">
                     <Label className="text-[8px] font-black uppercase opacity-40">Longitude</Label>
                     <Input 
-                      type="number" 
-                      step="any"
-                      value={currentLoc.longitude ?? ""} 
-                      onChange={e => handleUpdateLocation(index, 'longitude', e.target.value)}
+                      type="text" 
+                      value={isMulti ? (currentLoc.longitude || "") : localCoords.lng} 
+                      onChange={e => isMulti ? handleUpdateLocation(index, 'longitude', e.target.value) : handleCoordsChange('lng', e.target.value)}
                       className="h-9 text-[11px] font-mono rounded-xl bg-muted/20"
                     />
                  </div>
@@ -452,9 +435,9 @@ export function EventLocation({
                     <MapIcon className="w-6 h-6" />
                  </div>
                  <div>
-                    <h2 className="text-xl font-black uppercase italic tracking-tighter">Itinerário e Logística</h2>
+                    <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary">Itinerário e Logística</h2>
                     <p className="text-xs font-medium text-muted-foreground">O evento possui mais de um local ou é itinerante?</p>
-              </div>
+                 </div>
               </div>
               <div className="flex items-center gap-4 bg-white px-6 py-3 rounded-2xl shadow-sm border border-border/40">
                  <TooltipProvider>
@@ -476,9 +459,9 @@ export function EventLocation({
                          </div>
                       </TooltipTrigger>
                       <TooltipContent className="rounded-xl p-3 max-w-xs shadow-2xl border-none">
-                         <p className="text-[10px] font-bold uppercase leading-relaxed">
-                            Ative para eventos que mudam de lugar (ex: Trios elétricos, paradas, tours). 
-                            O público verá qual local é o outro baseando-se no horário.
+                         <p className="text-[10px] font-bold uppercase leading-relaxed text-center">
+                            Ative para eventos que mudam de lugar (ex: Trios elétricos, tours). 
+                            O público verá as paradas conforme o horário.
                          </p>
                       </TooltipContent>
                     </Tooltip>
@@ -510,9 +493,9 @@ export function EventLocation({
       <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
          <Zap className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
          <div className="space-y-1">
-            <h4 className="font-black uppercase text-secondary">Mapa Inteligente Ativo</h4>
+            <h4 className="font-black uppercase text-secondary italic">Radar Geográfico Ativo</h4>
             <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed">
-               O Viby monitora as mudanças no endereço e atualiza o PIN automaticamente para garantir a precisão no radar de geolocalização.
+               O Viby sanitiza as coordenadas em tempo real. O PIN no mapa é a sua garantia de precisão para que o público encontre sua experiência sem erros.
             </p>
          </div>
       </div>
