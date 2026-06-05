@@ -1,3 +1,4 @@
+
 'use server';
 
 import { headers } from 'next/headers';
@@ -5,7 +6,7 @@ import Stripe from 'stripe';
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { logSystemError } from '@/lib/error-manager';
-import { calculateVibyOfficialSplit, toCents } from '@/lib/financial-utils';
+import { calculateVibyOfficialSplit, toCents, formatCurrency } from '@/lib/financial-utils';
 import { generateUniqueTicketCode } from '@/lib/ticket-utils';
 import { sendTicketEmail } from '@/app/actions/email';
 
@@ -173,5 +174,121 @@ export async function finalizeCheckoutSession(sessionId: string) {
   } catch (error: any) {
     console.error("[Webhook Fulfillment Error]", error.message);
     return { success: false, error: error.message };
+  }
+}
+
+export async function createAdBalanceTopUpSession(data: any) {
+  try {
+    const db = getAdminDb();
+    const head = await headers();
+    const origin = head.get('origin') || 'https://viby.club';
+    const stripe = await getStripeInstance(db);
+
+    const { orgId, orgUsername, userEmail, userId, baseAmount, finalBalance, totalToPay, couponCode } = data;
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: 'brl',
+          product_data: {
+            name: `Recarga Saldo Ads - Viby`,
+            description: `Crédito de ${formatCurrency(finalBalance)} para publicidade.`,
+          },
+          unit_amount: toCents(totalToPay),
+        },
+        quantity: 1,
+      }],
+      mode: 'payment',
+      customer_email: userEmail,
+      success_url: `${origin}/dashboard/organizacoes/${orgUsername}/finance?session_id={CHECKOUT_SESSION_ID}&success=true`,
+      cancel_url: `${origin}/dashboard/organizacoes/${orgUsername}/finance`,
+      metadata: {
+        type: 'ad_topup',
+        orgId,
+        userId,
+        finalBalance: finalBalance.toString(),
+        couponCode: couponCode || "",
+        baseAmount: baseAmount.toString()
+      },
+    });
+
+    return { success: true, url: session.url };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function finalizeAdTopUpSession(sessionId: string) {
+  const db = getAdminDb();
+  try {
+    const stripe = await getStripeInstance(db);
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (session.payment_status !== 'paid') {
+      return { success: false, error: 'Pagamento pendente.' };
+    }
+
+    const m = session.metadata;
+    if (m?.type !== 'ad_topup') return { success: false, error: 'Sessão inválida.' };
+
+    const { orgId, finalBalance, couponCode, userId, baseAmount } = m;
+
+    return await db.runTransaction(async (transaction) => {
+      const orgRef = db.collection('organizations').doc(orgId);
+      const orgSnap = await transaction.get(orgRef);
+      if (!orgSnap.exists) throw new Error("Organização não encontrada para crédito.");
+
+      const txId = `stripe_ad_${sessionId}`;
+      const txRef = db.collection('organizations').doc(orgId).collection('transactions').doc(txId);
+      const txSnap = await transaction.get(txRef);
+      
+      if (txSnap.exists) return { success: true, alreadyProcessed: true };
+
+      // Incrementar saldo
+      transaction.update(orgRef, {
+        adBalance: admin.firestore.FieldValue.increment(parseFloat(finalBalance)),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Registrar transação
+      transaction.set(txRef, {
+        type: 'ad_topup',
+        status: 'completed',
+        amount: parseFloat(baseAmount),
+        finalBalanceCredited: parseFloat(finalBalance),
+        couponCode: couponCode || null,
+        stripeSessionId: sessionId,
+        userId: userId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Auditoria Global
+      const taxRef = db.collection('tax_ads').doc();
+      transaction.set(taxRef, {
+        adId: txId,
+        orgId: orgId,
+        orgName: orgSnap.data()?.name || "Org",
+        grossValue: parseFloat(baseAmount),
+        netValue: parseFloat(finalBalance),
+        taxValue: 0, 
+        status: 'completado',
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Incrementar uso do cupom se existir
+      if (couponCode) {
+        const couponsSnap = await db.collection('ad_coupons').where('code', '==', couponCode).limit(1).get();
+        if (!couponsSnap.empty) {
+          transaction.update(couponsSnap.docs[0].ref, {
+            currentUses: admin.firestore.FieldValue.increment(1)
+          });
+        }
+      }
+
+      return { success: true };
+    });
+  } catch (e: any) {
+    return { success: false, error: e.message };
   }
 }
