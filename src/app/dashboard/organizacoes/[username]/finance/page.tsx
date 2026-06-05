@@ -1,9 +1,8 @@
-
 'use client';
 
 import * as React from 'react';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
-import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useFirebaseApp } from '@/firebase';
 import { 
   collection, 
   query, 
@@ -60,6 +59,7 @@ function OrganizationFinanceContent() {
   const { currentOrg, userRole, refreshOrg, loading: orgLoading } = useCurrentOrganization();
   const db = useFirestore();
   const auth = useAuth();
+  const app = useFirebaseApp();
   const { user } = useUser(auth);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -163,17 +163,9 @@ function OrganizationFinanceContent() {
            where('status', '==', 'completed')
         );
         
-        try {
-          const usagesSnap = await getDocs(usagesQuery);
-          if (usagesSnap.size >= data.maxUsesPerUser) {
-             throw new Error(`Você já atingiu o limite de ${data.maxUsesPerUser} uso(s) para este cupom.`);
-          }
-        } catch (idxError: any) {
-          if (idxError.code === 'failed-precondition') {
-             console.error("FALTANDO ÍNDICE PARA CUPONS! Clique no link abaixo para criar:\n", idxError.message);
-             throw new Error("Configuração técnica pendente. Verifique o console do navegador.");
-          }
-          throw idxError;
+        const usagesSnap = await getDocs(usagesQuery);
+        if (usagesSnap.size >= data.maxUsesPerUser) {
+           throw new Error(`Você já atingiu o limite de ${data.maxUsesPerUser} uso(s) para este cupom.`);
         }
       }
 

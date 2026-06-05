@@ -55,7 +55,7 @@ export default function OrganizationSettingsPage() {
   const auth = useAuth();
   const router = useRouter();
   const app = useFirebaseApp();
-  const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app]);
+  const storage = React.useMemo(() => app ? getStorage(app) : null, [app]);
 
   const [saving, setSaving] = React.useState(false);
   const [formData, setFormData] = React.useState<any>(null);
@@ -511,7 +511,7 @@ export default function OrganizationSettingsPage() {
            </Button>
            <Button 
              type="submit" 
-             className="bg-secondary text-white font-black h-14 rounded-2xl px-12 shadow-xl shadow-secondary/20 uppercase italic transition-all hover:scale-[1.02]"
+             className="bg-secondary text-white font-black h-14 rounded-2xl px-12 shadow-xl shadow-secondary/20 uppercase italic transition-all hover:scale-102"
              disabled={saving}
            >
               {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}

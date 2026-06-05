@@ -38,7 +38,7 @@ export default function NovoEventoPage() {
   const { user } = useUser(auth)
   const app = useFirebaseApp()
   const { currentOrg } = useCurrentOrganization()
-  const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
+  const storage = React.useMemo(() => app ? getStorage(app) : null, [app])
 
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
@@ -244,7 +244,7 @@ export default function NovoEventoPage() {
           />
         )}
 
-        <Button type="submit" disabled={loading} className="w-full h-20 bg-secondary text-white font-black text-xl rounded-[2.5rem] shadow-xl uppercase italic hover:scale-[1.02] transition-all">
+        <Button type="submit" disabled={loading} className="w-full h-20 bg-secondary text-white font-black text-xl rounded-[2.5rem] shadow-xl uppercase italic hover:scale-102 transition-all">
           {loading ? <Loader2 className="animate-spin mr-2" /> : "Publicar Experiência"}
         </Button>
       </form>

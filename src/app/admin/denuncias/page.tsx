@@ -1,8 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from "@/firebase"
 import { collection, query, orderBy, doc, updateDoc, deleteDoc } from "firebase/firestore"
+import { getStorage } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -43,6 +44,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 
 export default function AdminDenunciasPage() {
   const db = useFirestore()
+  const app = useFirebaseApp()
   const [search, setSearch] = React.useState("")
   const [actionLoadingId, setActionLoadingId] = React.useState<string | null>(null)
 
@@ -199,7 +201,7 @@ export default function AdminDenunciasPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
-                        <Clock className="w-3 h-3" />
+                        <Clock className="w-3.5 h-3.5" />
                         {formatTimestamp(report.timestamp)}
                       </div>
                     </TableCell>

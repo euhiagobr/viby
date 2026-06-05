@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -41,7 +40,7 @@ export default function SuportePage() {
   const auth = useAuth()
   const app = useFirebaseApp()
   const { user } = useUser(auth)
-  const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
+  const storage = React.useMemo(() => app ? getStorage(app) : null, [app])
 
   const ticketsQuery = useMemoFirebase(() => {
     if (!db || !user) return null

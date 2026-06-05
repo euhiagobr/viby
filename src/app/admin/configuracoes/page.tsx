@@ -316,7 +316,7 @@ export default function AdminConfiguracoesPage() {
                     <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Comissão Produtor (%)</Label><Input type="number" value={feesForm.organizerBasePercent} onChange={e => setFeesForm({...feesForm, organizerBasePercent: e.target.value})} className="rounded-xl h-11" /></div>
                     <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Taxa Mínima (R$)</Label><Input type="number" value={feesForm.organizerMinFee} onChange={e => setFeesForm({...feesForm, organizerMinFee: e.target.value})} className="rounded-xl h-11" /></div>
                  </div>
-                 <Button onClick={() => handleSave('fees', feesForm)} disabled={saving} className="w-full h-12 bg-primary text-white font-black rounded-xl uppercase italic">
+                 <Button onClick={() => handleSave('fees', { buyerMarkupPercent: parseFloat(feesForm.buyerMarkupPercent), organizerBasePercent: parseFloat(feesForm.organizerBasePercent), organizerMinFee: parseFloat(feesForm.organizerMinFee) })} disabled={saving} className="w-full h-12 bg-primary text-white font-black rounded-xl uppercase italic">
                    {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />} Salvar Taxas
                  </Button>
               </CardContent>

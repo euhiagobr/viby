@@ -494,8 +494,8 @@ export default function NovaOrganizacaoPage() {
                   <div className="flex items-center justify-between">
                     <Label htmlFor="street" className="text-[10px] font-black uppercase tracking-widest opacity-60">Logradouro</Label>
                     <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showAddress ? 'Público' : 'Oculto'}</span>
-                      <Switch checked={formData.showAddress} onCheckedChange={v => setFormData({...formData, showAddress: v})} />
+                       <span className="text-[8px] font-bold uppercase opacity-40">{formData.showAddress ? 'Público' : 'Oculto'}</span>
+                       <Switch checked={formData.showAddress} onCheckedChange={v => setFormData({...formData, showAddress: v})} />
                     </div>
                   </div>
                   <Input id="street" value={formData.street} onChange={e => setFormData(prev => ({ ...prev, street: e.target.value }))} required className="rounded-xl h-11" />
@@ -514,8 +514,8 @@ export default function NovaOrganizacaoPage() {
                   <div className="flex items-center justify-between">
                     <Label htmlFor="neighborhood" className="text-[10px] font-black uppercase tracking-widest opacity-60">Bairro</Label>
                     <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showNeighborhood ? 'Público' : 'Oculto'}</span>
-                      <Switch checked={formData.showNeighborhood} onCheckedChange={v => setFormData({...formData, showNeighborhood: v})} />
+                       <span className="text-[8px] font-bold uppercase opacity-40">{formData.showNeighborhood ? 'Público' : 'Oculto'}</span>
+                       <Switch checked={formData.showNeighborhood} onCheckedChange={v => setFormData({...formData, showNeighborhood: v})} />
                     </div>
                   </div>
                   <Input id="neighborhood" value={formData.neighborhood} onChange={e => setFormData(prev => ({ ...prev, neighborhood: e.target.value }))} required className="rounded-xl h-11" />
@@ -524,8 +524,8 @@ export default function NovaOrganizacaoPage() {
                   <div className="flex items-center justify-between">
                     <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest opacity-60">Cidade / UF</Label>
                     <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showState ? 'Público' : 'Oculto'}</span>
-                      <Switch checked={formData.showState} onCheckedChange={v => setFormData({...formData, showState: v})} />
+                       <span className="text-[8px] font-bold uppercase opacity-40">{formData.showState ? 'Público' : 'Oculto'}</span>
+                       <Switch checked={formData.showState} onCheckedChange={v => setFormData({...formData, showState: v})} />
                     </div>
                   </div>
                   <div className="flex gap-2">

@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -57,7 +56,7 @@ export default function AdminExpensesPage() {
   const auth = useAuth();
   const { user } = useUser(auth);
   const app = useFirebaseApp();
-  const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app]);
+  const storage = React.useMemo(() => app ? getStorage(app) : null, [app]);
 
   const [search, setSearch] = React.useState("");
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);

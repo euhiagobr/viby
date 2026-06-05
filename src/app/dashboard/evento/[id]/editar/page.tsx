@@ -43,7 +43,7 @@ export default function EditarEventoPage() {
   const { user } = useUser(auth)
   const app = useFirebaseApp()
   const { currentOrg } = useCurrentOrganization()
-  const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
+  const storage = React.useMemo(() => app ? getStorage(app) : null, [app])
 
   const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)

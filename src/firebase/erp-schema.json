@@ -1,6 +1,5 @@
 
 {
-  "database": "eventosviby",
   "collections": {
     "internal_expenses": {
       "description": "Controle de despesas operacionais da plataforma Viby",

@@ -3,7 +3,7 @@
   "audit_version": "1.0.0",
   "current_architecture": {
     "auth": "Firebase Auth (Email/Password)",
-    "database_mode": "Isolated (eventosviby)",
+    "database_mode": "Default",
     "user_model": "Hybrid (User with accountType field)",
     "risks": [
       "Rigid accountType (Usuário vs Empresa) in /users collection",

@@ -1,15 +1,5 @@
-
 {
   "projects": {
-    "default": "ong-desafios-3942a"
-  },
-  "targets": {
-    "ong-desafios-3942a": {
-      "hosting": {
-        "viby": [
-          "eventosviby"
-        ]
-      }
-    }
+    "default": "vibyeventos"
   }
 }

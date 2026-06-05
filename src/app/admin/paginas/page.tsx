@@ -105,7 +105,7 @@ const ORG_ROLES = [
 export default function AdminPaginasPage() {
   const db = useFirestore()
   const app = useFirebaseApp()
-  const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
+  const storage = React.useMemo(() => app ? getStorage(app) : null, [app])
 
   const [search, setSearch] = React.useState("")
   const [activeTypeFilter, setActiveTypeFilter] = React.useState("all")

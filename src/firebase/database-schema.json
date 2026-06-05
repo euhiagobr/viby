@@ -1,6 +1,5 @@
 
 {
-  "database": "eventosviby",
   "collections": {
     "events": {
       "fields": {

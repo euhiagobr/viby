@@ -1,5 +1,5 @@
-// ARQUIVO DEPRECADO APÓS MIGRAÇÃO
-// As regras ativas estão em firestore.rules utilizando caminhos dinâmicos $(database)
+// ARQUIVO REMOVIDO EM AUDITORIA DE INFRAESTRUTURA
+// A plataforma utiliza exclusivamente firestore.rules na raiz.
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {

@@ -1,6 +1,5 @@
-
 {
-  "database": "eventosviby",
+  "database": "(default)",
   "collections": {
     "ticket_logs": {
       "description": "Log de auditoria para ações manuais em ingressos",
@@ -60,7 +59,7 @@
         "updatedAt": "timestamp"
       }
     },
-    "ticket_blocklist": {
+    "ticket_support_p": {
       "description": "Usuários banidos de eventos específicos",
       "fields": {
         "userId": "string",
