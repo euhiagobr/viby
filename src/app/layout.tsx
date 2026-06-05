@@ -21,7 +21,6 @@ async function getSiteSettings() {
   try {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
-    // Explicitly fetching from the 'settings' collection, 'site' document
     const snap = await getDoc(doc(db, 'settings', 'site'));
     return snap.exists() ? snap.data() : null;
   } catch (e) {
@@ -34,10 +33,10 @@ export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSiteSettings();
   const siteName = settings?.siteName || 'Viby';
   
-  // Primary source is siteIconUrl, fallback to iconUrl, then local favicon
+  // Fonte única oficial: siteIconUrl (Alias de prioridade para favicon dinâmico)
   const rawIconUrl = settings?.siteIconUrl || settings?.iconUrl || '/favicon.ico';
   
-  // Cache busting: using imageVersion from DB or current timestamp if missing
+  // Cache busting: usando imageVersion do DB ou timestamp para garantir atualização
   const version = settings?.imageVersion || Date.now();
   const separator = rawIconUrl.includes('?') ? '&' : '?';
   const iconUrl = rawIconUrl.startsWith('http') ? `${rawIconUrl}${separator}v=${version}` : rawIconUrl;
@@ -54,7 +53,7 @@ export async function generateMetadata(): Promise<Metadata> {
     manifest: '/manifest.json',
     icons: {
       icon: [
-        { url: iconUrl },
+        { url: iconUrl, type: 'image/x-icon' },
         { url: iconUrl, sizes: '32x32', type: 'image/png' },
         { url: iconUrl, sizes: '192x192', type: 'image/png' },
         { url: iconUrl, sizes: '512x512', type: 'image/png' },
@@ -100,10 +99,7 @@ export async function generateMetadata(): Promise<Metadata> {
     robots: {
       index: true,
       follow: true,
-    },
-    other: {
-      "google-adsense-account": "ca-pub-3790085999731396",
-    },
+    }
   };
 }
 
@@ -118,12 +114,6 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-        <script 
-          async 
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3790085999731396"
-          crossOrigin="anonymous"
-          dangerouslySetInnerHTML={{ __html: '' }}
-        />
       </head>
       <body className="font-body antialiased bg-[#f8fafc] text-[#000000] flex flex-col min-h-screen">
         <FirebaseClientProvider>

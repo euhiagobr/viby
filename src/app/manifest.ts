@@ -17,7 +17,11 @@ async function getSiteSettings() {
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const settings = await getSiteSettings();
   const siteName = settings?.siteName || 'Viby';
+  
+  // Fonte única oficial
   const rawIconUrl = settings?.siteIconUrl || settings?.iconUrl || '/favicon.ico';
+  
+  // Cache busting
   const version = settings?.imageVersion || Date.now();
   const separator = rawIconUrl.includes('?') ? '&' : '?';
   const iconUrl = rawIconUrl.startsWith('http') ? `${rawIconUrl}${separator}v=${version}` : rawIconUrl;
