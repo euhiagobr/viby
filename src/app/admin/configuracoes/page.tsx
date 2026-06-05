@@ -29,6 +29,7 @@ import { toast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { Separator } from '@/components/ui/separator';
 import { IMAGE_CACHE_METADATA } from '@/lib/image-utils';
 
 export default function AdminConfiguracoesPage() {
@@ -303,7 +304,7 @@ export default function AdminConfiguracoesPage() {
               </CardHeader>
               <CardContent className="p-8 space-y-8">
                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Zap className="w-4 h-4 text-secondary" /> Valor Mínimo para Recarga (R$)</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Zap className="w-4 h-4 text-secondary" /> Valor Mínimo para Recarga (R$)</Label>
                     <div className="relative">
                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold opacity-30">R$</span>
                        <Input 

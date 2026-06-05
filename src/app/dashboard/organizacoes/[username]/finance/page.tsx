@@ -36,7 +36,7 @@ import {
   Inbox,
   CreditCard
 } from 'lucide-react';
-import { formatCurrency, calculateFinancialBreakdown } from '@/lib/financial-utils';
+import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -264,7 +264,7 @@ function OrganizationFinanceContent() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className={cn("border-none shadow-sm overflow-hidden relative border-l-4", isConnectActive ? "border-green-500 bg-white" : "border-orange-500 bg-orange-50")}>
-           <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Status de Repasse</CardTitle></CardHeader>
+           <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest flex justify-between">Status de Repasse</CardTitle></CardHeader>
            <CardContent className="space-y-3 relative z-10">
               <div className="flex items-center gap-2">
                  <div className={cn("w-2 h-2 rounded-full", isConnectActive ? "bg-green-500" : "bg-orange-500 animate-pulse")} />
