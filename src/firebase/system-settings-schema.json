@@ -1,0 +1,18 @@
+
+{
+  "collection": "system_settings",
+  "description": "Configurações globais do sistema e integrações de terceiros.",
+  "documents": {
+    "google_ads": {
+      "fields": {
+        "enabled": "boolean (Ativa/Desativa AdSense em toda a plataforma)",
+        "publisherId": "string (ex: pub-XXXXXXXXXXXXXXXX)",
+        "adsenseCode": "string (Script de integração fornecido pelo Google)",
+        "autoAds": "boolean (Habilita anúncios automáticos)",
+        "testMode": "boolean (Modo de desenvolvimento)",
+        "updatedAt": "timestamp",
+        "updatedBy": "string (UID do administrador)"
+      }
+    }
+  }
+}

@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -5,6 +6,7 @@ import { useFirestore, useAuth, useUser, useDoc, useCollection, useMemoFirebase 
 import { doc, getDoc, collection, query, where, orderBy, limit, collectionGroup, getDocs } from "firebase/firestore";
 import { Loader2, Lock, ShieldCheck, HelpCircle, ArrowLeft, Handshake, ShieldAlert, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AdsRenderer } from "@/components/ads/AdsRenderer";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/hooks/use-toast";
@@ -182,6 +184,23 @@ export default function ProfilePageClient({ username }: { username: string }) {
     return { upcomingEvents: upcoming, pastEvents: past };
   }, [orgEvents]);
 
+  const interleavedUpcoming = React.useMemo(() => {
+    const result = [];
+    let eventIdx = 0;
+    let adSlotIdx = 0;
+
+    while (eventIdx < upcomingEvents.length) {
+      const chunk = upcomingEvents.slice(eventIdx, eventIdx + 6);
+      result.push(...chunk.map(e => ({ ...e, _type: 'event' })));
+      eventIdx += 6;
+
+      if (eventIdx < upcomingEvents.length) {
+        result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+      }
+    }
+    return result;
+  }, [upcomingEvents]);
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
   }
@@ -253,7 +272,18 @@ export default function ProfilePageClient({ username }: { username: string }) {
                     </TabsList>
                   </div>
                   <TabsContent value="upcoming" className="animate-in fade-in duration-500">
-                    <OrganizerEvents events={upcomingEvents} title="Próximos Eventos" />
+                    <div className="space-y-8">
+                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                          {interleavedUpcoming.map((item: any, idx: number) => (
+                            item._type === 'ad' ? (
+                              <AdsRenderer key={`ad-${idx}`} location="profile" index={idx} googleSlotId="profile-feed-slot" />
+                            ) : (
+                              <OrganizerEvents key={item.id} events={[item]} title="" />
+                            )
+                          ))}
+                       </div>
+                       {interleavedUpcoming.length === 0 && <OrganizerEvents events={[]} title="Próximos Eventos" />}
+                    </div>
                   </TabsContent>
                   <TabsContent value="partnerships" className="animate-in fade-in duration-500">
                     <OrganizerEvents events={partnershipEvents} title="Eventos em Co-realização" />

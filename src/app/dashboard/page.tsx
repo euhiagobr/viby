@@ -1,10 +1,11 @@
+
 "use client"
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
 import { collection, doc, query, where, limit, orderBy } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
-import { AdCard } from "@/components/ads/AdCard"
+import { AdsRenderer } from "@/components/ads/AdsRenderer"
 import { Button } from "@/components/ui/button"
 import { 
   Search, 
@@ -78,12 +79,6 @@ export default function ExplorarPage() {
 
   const { data: allEvents, loading: eventsLoading } = useCollection<any>(eventsQuery)
 
-  const adsQuery = useMemoFirebase(() => {
-    if (!db) return null
-    return query(collection(db, "ads"), where("status", "==", "Ativo"))
-  }, [db])
-  const { data: activeAds } = useCollection<any>(adsQuery)
-
   useEffect(() => {
     getCurrentLocation()
       .then(setUserLocation)
@@ -141,7 +136,6 @@ export default function ExplorarPage() {
       });
     }
 
-    // Default Score (Híbrido)
     return result.map(e => ({
       ...e,
       _score: calculateEventScore(e, { userLocation, maxRadiusKm: radiusKm === 'unlimited' ? 500 : parseInt(radiusKm) })
@@ -149,28 +143,23 @@ export default function ExplorarPage() {
   }, [allEvents, search, activeTab, userLocation, radiusKm, selectedCategory, dateFilter, customDate])
 
   const interleavedContent = React.useMemo(() => {
-    if (!filteredAndSortedEvents) return []
-    const sponsoredPool = (activeAds || [])
-      .map((ad: any) => {
-        const fullEvent = allEvents?.find((e: any) => e.id === ad.eventId);
-        if (ad.type === 'evento' && fullEvent) return { ...fullEvent, isSponsored: true, adId: ad.id, _isAdObject: false };
-        return { ...ad, isSponsored: true, adId: ad.id, _isAdObject: true };
-      })
-      .filter(ad => ad.status === 'Ativo');
-
-    const organic = filteredAndSortedEvents.map(e => ({ ...e, isSponsored: false, _isAdObject: false }));
+    if (!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) return []
+    
     const result = [];
-    let organicIdx = 0;
-    let adIdx = 0;
+    let eventIdx = 0;
+    let adSlotIdx = 0;
 
-    while (organicIdx < organic.length || adIdx < sponsoredPool.length) {
-      const chunk = organic.slice(organicIdx, organicIdx + 4);
-      result.push(...chunk);
-      organicIdx += 4;
-      if (adIdx < sponsoredPool.length) { result.push(sponsoredPool[adIdx]); adIdx++; }
+    while (eventIdx < filteredAndSortedEvents.length) {
+      const chunk = filteredAndSortedEvents.slice(eventIdx, eventIdx + 6);
+      result.push(...chunk.map(e => ({ ...e, _type: 'event' })));
+      eventIdx += 6;
+
+      if (eventIdx < filteredAndSortedEvents.length || filteredAndSortedEvents.length > 3) {
+        result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+      }
     }
     return result;
-  }, [filteredAndSortedEvents, activeAds, allEvents])
+  }, [filteredAndSortedEvents])
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -253,7 +242,11 @@ export default function ExplorarPage() {
            ) : interleavedContent.length > 0 ? (
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
                 {interleavedContent.map((item: any, idx: number) => (
-                  item._isAdObject ? <AdCard key={`ad-${item.adId}-${idx}`} ad={item} /> : <EventCard key={`ev-${item.id}-${idx}`} event={item} userLocation={userLocation} isSponsored={item.isSponsored} />
+                  item._type === 'ad' ? (
+                    <AdsRenderer key={`ad-${item.adSlotIdx}`} location="feed" index={item.adSlotIdx} googleSlotId="discovery-feed-slot" />
+                  ) : (
+                    <EventCard key={`ev-${item.id}-${idx}`} event={item} userLocation={userLocation} isSponsored={item.isSponsored} />
+                  )
                 ))}
              </div>
            ) : (

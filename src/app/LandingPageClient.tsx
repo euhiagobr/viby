@@ -1,10 +1,11 @@
+
 "use client"
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
 import { collection, query, limit, doc, where } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
-import { AdCard } from "@/components/ads/AdCard"
+import { AdsRenderer } from "@/components/ads/AdsRenderer"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Search, MapPin, FilterX, Navigation, Loader2, Clock, Zap, Globe, Calendar as CalendarIcon, Inbox } from "lucide-react"
@@ -61,30 +62,11 @@ export default function LandingPageClient() {
 
   const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
 
-  const categoriesQuery = useMemoFirebase(() => db ? collection(db, "categories") : null, [db])
-  const { data: categories } = useCollection<any>(categoriesQuery)
-
-  const adsQuery = useMemoFirebase(() => {
-    if (!db) return null
-    return query(collection(db, "ads"), where("status", "==", "Ativo"))
-  }, [db])
-  const { data: activeAds } = useCollection<any>(adsQuery)
-
-  const [emblaRef] = useEmblaCarousel({ loop: false, align: 'center' })
-
-  const heroImage = PlaceHolderImages.find(img => img.id === 'hero-bg')?.imageUrl || "https://picsum.photos/seed/vibyhero-event/1920/1080"
-
-  React.useEffect(() => {
-    setHasMounted(true);
-    // Audit fix: Increased timeout and explicit fallback to prevent discovery block
-    getCurrentLocation()
-      .then(loc => {
-        if (loc) setUserLocation(loc);
-      })
-      .catch((err) => {
-        console.warn("[GPS] Unavailable or Timeout. Defaulting to no-radius sorting.", err.message);
-      })
-  }, [])
+  const uniqueCities = React.useMemo(() => {
+    if (!events) return []
+    const cities = events.filter((e: any) => e.city && e.status === 'Ativo').map((e: any) => e.city)
+    return Array.from(new Set(cities)).sort() as string[]
+  }, [events])
 
   const filteredAndSortedEvents = React.useMemo(() => {
     if (!events) return []
@@ -135,28 +117,33 @@ export default function LandingPageClient() {
 
   const interleavedContent = React.useMemo(() => {
     if (!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) return []
-    const organic = filteredAndSortedEvents.map(e => ({ ...e, isSponsored: false, _isAdObject: false }));
-    const sponsored = (activeAds || []).filter((ad: any) => ad.type === 'evento').map((ad: any) => {
-       const fullEvent = events?.find((e: any) => e.id === ad.eventId);
-       return fullEvent ? { ...fullEvent, isSponsored: true, adId: ad.id, _isAdObject: false } : null;
-    }).filter(Boolean);
-
+    
     const result = [];
-    let oIdx = 0; let sIdx = 0;
-    while (oIdx < organic.length || sIdx < sponsored.length) {
-      const chunk = organic.slice(oIdx, oIdx + 4);
-      result.push(...chunk);
-      oIdx += 4;
-      if (sIdx < sponsored.length) { result.push(sponsored[sIdx]); sIdx++; }
+    let eventIdx = 0;
+    let adSlotIdx = 0;
+
+    while (eventIdx < filteredAndSortedEvents.length) {
+      // Adicionar 6 eventos
+      const chunk = filteredAndSortedEvents.slice(eventIdx, eventIdx + 6);
+      result.push(...chunk.map(e => ({ ...e, _type: 'event' })));
+      eventIdx += 6;
+
+      // Adicionar 1 slot de anúncio (AdsRenderer decidirá o tipo)
+      if (eventIdx < filteredAndSortedEvents.length || filteredAndSortedEvents.length > 3) {
+        result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+      }
     }
     return result;
-  }, [filteredAndSortedEvents, activeAds, events])
+  }, [filteredAndSortedEvents])
 
-  const uniqueCities = React.useMemo(() => {
-    if (!events) return []
-    const cities = events.filter((e: any) => e.city && e.status === 'Ativo').map((e: any) => e.city)
-    return Array.from(new Set(cities)).sort() as string[]
-  }, [events])
+  const heroImage = PlaceHolderImages.find(img => img.id === 'hero-bg')?.imageUrl || "https://picsum.photos/seed/vibyhero-event/1920/1080"
+
+  React.useEffect(() => {
+    setHasMounted(true);
+    getCurrentLocation()
+      .then(loc => { if (loc) setUserLocation(loc); })
+      .catch(() => {})
+  }, [])
 
   const siteName = settings?.siteName || "Viby"
 
@@ -291,7 +278,11 @@ export default function LandingPageClient() {
         ) : interleavedContent.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
             {interleavedContent.map((item: any, idx: number) => (
-              <EventCard key={`${item.id}-${idx}`} event={item} userLocation={userLocation} isSponsored={item.isSponsored} />
+              item._type === 'ad' ? (
+                <AdsRenderer key={`ad-${item.adSlotIdx}`} location="feed" index={item.adSlotIdx} googleSlotId="home-feed-slot" />
+              ) : (
+                <EventCard key={`${item.id}-${idx}`} event={item} userLocation={userLocation} isSponsored={item.isSponsored} />
+              )
             ))}
           </div>
         ) : (

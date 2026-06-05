@@ -10,6 +10,7 @@ import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import Script from 'next/script';
+import { GoogleAdScript } from '@/components/ads/GoogleAdScript';
 
 async function getSiteSettings() {
   try {
@@ -98,6 +99,7 @@ export default function RootLayout({
             <GlobalErrorBoundary>
               <CartProvider>
                 <div className="flex-1 flex flex-col">
+                  <GoogleAdScript />
                   {children}
                 </div>
                 <Toaster />

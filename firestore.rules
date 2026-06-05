@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -56,7 +57,6 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       
-      // Unificação crítica: Proteção de titularidade e campos financeiros
       allow update: if (isAdmin() || isOrgOwner(orgId)) 
                     || (isOrgAdmin(orgId) 
                         && !request.resource.data.diff(resource.data).affectedKeys()
@@ -98,7 +98,7 @@ service cloud.firestore {
 
     match /registrations/{regId} {
       allow read: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.userId || isOrgMember(resource.data.organizationId)));
-      allow create: if false; // Emissão exclusiva via Server SDK/API
+      allow create: if false; 
       allow update: if isAdmin();
     }
 
@@ -127,6 +127,11 @@ service cloud.firestore {
     }
 
     match /settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /system_settings/{id} {
       allow read: if true;
       allow write: if isAdmin();
     }
@@ -192,7 +197,6 @@ service cloud.firestore {
       allow read, write: if false; 
     }
 
-    // Suporte a collectionGroup
     match /{path=**}/partners/{partnerId} { allow read: if true; }
     match /{path=**}/members/{memberId} { allow read: if isOrgMember(path.split('/')[1]) || (isSignedIn() && request.auth.uid == memberId); }
   }
