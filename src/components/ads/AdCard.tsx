@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ExternalLink, Globe, Megaphone, Navigation, Users, CheckCircle2, ArrowRight, ImageIcon, BadgeCheck } from "lucide-react"
+import { ExternalLink, Globe, Megaphone, Navigation, Users, CheckCircle2, ArrowRight, ImageIcon, BadgeCheck, MousePointer2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,7 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useFirestore, useDoc, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
-import { doc, updateDoc, increment, serverTimestamp, collection, query, where, getDoc, setDoc } from "firebase/firestore"
+import { collection, query, where, doc } from "firebase/firestore"
 import { EventCard } from "../events/EventCard"
 
 function VerifiedBadge({ className }: { className?: string }) {
@@ -36,95 +36,33 @@ export function AdCard({ ad }: AdCardProps) {
   const orgRef = React.useMemo(() => (db && ad.organizationId) ? doc(db, "organizations", ad.organizationId) : null, [db, ad.organizationId])
   const { data: organization } = useDoc<any>(orgRef)
 
-  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
-  const { data: userProfile } = useDoc<any>(userDocRef)
-
   const followersQuery = useMemoFirebase(() => {
     if (!db || !ad.organizationId) return null
     return query(collection(db, "follows"), where("followingId", "==", ad.organizationId))
   }, [db, ad.organizationId])
   const { data: followers } = useCollection<any>(followersQuery)
 
-  const adsSettingsRef = React.useMemo(() => db ? doc(db, 'settings', 'ads') : null, [db])
-  const { data: adsSettings } = useDoc<any>(adsSettingsRef)
-
-  const getAgeGroup = (birthDate: string) => {
-    if (!birthDate) return "desconhecido";
-    try {
-      const birth = new Date(birthDate);
-      const age = new Date().getFullYear() - birth.getFullYear();
-      if (age <= 18) return "0_18";
-      if (age <= 24) return "19_24";
-      if (age <= 30) return "25_30";
-      if (age <= 34) return "31_34";
-      if (age <= 40) return "35_40";
-      if (age <= 44) return "41_44";
-      if (age <= 50) return "45_50";
-      if (age <= 75) return "51_75";
-      return "75plus";
-    } catch (e) { return "desconhecido"; }
-  }
-
-  const getDemographicsUpdate = () => {
-    const update: any = {}
-    if (userProfile) {
-      const rawGender = (userProfile.gender || "desconhecido").toLowerCase().trim();
-      const ageGroup = getAgeGroup(userProfile.birthDate);
-      
-      let genderKey = 'desconhecido';
-      if (rawGender === 'masculino') genderKey = 'masculino';
-      else if (rawGender === 'feminino') genderKey = 'feminino';
-      else if (rawGender === 'agênero') genderKey = 'agenero';
-      else if (rawGender === 'gênero fluido') genderKey = 'genero_fluido';
-      else if (rawGender === 'bigênero') genderKey = 'bigenero';
-      else if (rawGender === 'demigênero') genderKey = 'demigenero';
-      else if (rawGender === 'homem trans') genderKey = 'homem_trans';
-      else if (rawGender === 'mulher trans') genderKey = 'mulher_trans';
-      else if (rawGender === 'outro') genderKey = 'outro';
-      
-      update[`stats_gender_${genderKey}`] = increment(1);
-      update[`stats_age_${ageGroup}`] = increment(1);
-    }
-    return update;
-  }
-
+  // Rastreamento de Impressão via API (Server-Side)
   React.useEffect(() => {
-    if (!db || !adsSettings || hasTrackedImpression.current || !adId || (user && !userProfile)) return
+    if (hasTrackedImpression.current || !adId) return
 
     const observer = new IntersectionObserver(
       async (entries) => {
         if (entries[0].isIntersecting && !hasTrackedImpression.current) {
           hasTrackedImpression.current = true
           
-          const rawCost = (adsSettings.cpmValue || 0) / 1000
-          const totalDeduction = rawCost * 1.11 
-          
-          const adRef = doc(db, "ads", adId)
-          const updateData: any = { 
-            reach: increment(1),
-            remainingBudget: increment(-rawCost),
-            updatedAt: serverTimestamp()
-          };
-
-          if (user) {
-            const viewerRef = doc(db, "ads", adId, "viewers", user.uid);
-            const viewerSnap = await getDoc(viewerRef);
-            if (!viewerSnap.exists()) {
-              await setDoc(viewerRef, { timestamp: serverTimestamp() });
-              updateData.uniqueReach = increment(1);
-              
-              const demoUpdate = getDemographicsUpdate();
-              Object.assign(updateData, demoUpdate);
-            }
-          }
-
-          updateDoc(adRef, updateData).then(() => {
-            if (ad.organizationId) {
-              updateDoc(doc(db, "organizations", ad.organizationId), {
-                blockedBalance: increment(-totalDeduction)
-              });
-            }
+          fetch('/api/ads/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              adId,
+              eventType: 'impression',
+              userId: user?.uid || null
+            })
+          }).catch(() => {
+             // Silently ignore tracking errors in frontend
           });
+          
           observer.disconnect()
         }
       },
@@ -133,32 +71,21 @@ export function AdCard({ ad }: AdCardProps) {
 
     if (cardRef.current) observer.observe(cardRef.current)
     return () => observer.disconnect()
-  }, [adId, ad.organizationId, db, adsSettings, userProfile, user])
+  }, [adId, user?.uid])
 
-  const handleClick = () => {
-    if (db && adsSettings && adId) {
-      const rawCost = adsSettings.cpcValue || 0
-      const totalDeduction = rawCost * 1.11 
-      
-      const adRef = doc(db, "ads", adId)
-      const demoUpdate = getDemographicsUpdate()
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
 
-      updateDoc(adRef, { 
-        clicks: increment(1),
-        remainingBudget: increment(-rawCost),
-        updatedAt: serverTimestamp(),
-        ...Object.keys(demoUpdate).reduce((acc: any, key) => {
-          acc[key.replace('stats_', 'click_stats_')] = increment(1);
-          return acc;
-        }, {})
-      }).then(() => {
-        if (ad.organizationId) {
-          updateDoc(doc(db, "organizations", ad.organizationId), {
-            blockedBalance: increment(-totalDeduction)
-          });
-        }
-      });
-    }
+    // Rastreamento de Clique via API (Server-Side)
+    fetch('/api/ads/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adId,
+        eventType: 'click',
+        userId: user?.uid || null
+      })
+    }).catch(() => {});
 
     if ((ad.type === 'site' || ad.type === 'banner') && ad.externalUrl) {
       window.open(ad.externalUrl, '_blank')
@@ -232,7 +159,7 @@ export function AdCard({ ad }: AdCardProps) {
         </div>
         <div className="relative aspect-video w-full bg-muted">
            {ad.adImage ? (
-             <Image src={ad.adImage} alt="Anúncio" fill className="object-cover group-hover:scale-105 transition-transform duration-700" unoptimized data-ai-hint="ad banner" />
+             <Image src={ad.adImage} alt="Anúncio" fill className="object-cover group-hover:scale-105 transition-transform duration-700" unoptimized />
            ) : (
              <div className="flex flex-col items-center justify-center h-full opacity-20"><ImageIcon className="w-12 h-12" /></div>
            )}

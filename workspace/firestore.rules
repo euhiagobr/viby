@@ -17,6 +17,31 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
     }
 
+    // --- REGRAS DE ANÚNCIOS (ADS) ---
+    // Blindagem financeira: Mutações permitidas apenas via Admin SDK (Backend)
+    match /ads/{id} {
+      allow read: if true;
+      allow create: if false; // Criado exclusivamente via createAdAction
+      allow update: if false; // Atualizado exclusivamente via track API ou moderationAction
+      allow delete: if isAdmin();
+      
+      match /viewers/{vId} {
+        allow read: if isAdmin();
+        allow write: if false; // Gerenciado pelo servidor
+      }
+    }
+
+    match /tax_ads/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // --- PROTEÇÃO DE CARTEIRAS ---
+    match /wallets/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if false; // Mutações financeiras exclusivas do backend
+    }
+
     // Proteção de PII e Ingressos
     match /registrations/{regId} {
       allow read: if isAdmin() || 
@@ -24,17 +49,16 @@ service cloud.firestore {
                       resource.data.userId == request.auth.uid || 
                       isMemberOfOrg(resource.data.organizationId)
                     ));
-      allow create: if isAdmin(); 
-      allow update: if isAdmin() || (isSignedIn() && isMemberOfOrg(resource.data.organizationId));
+      allow create: if false; // Backend Only
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
-    // Prevenção de Sequestro de Username
     match /usernames/{username} {
       allow read: if true;
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
-      allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow update: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAdmin();
     }
 
     match /users/{userId} {
@@ -59,7 +83,7 @@ service cloud.firestore {
 
       match /transactions/{txId} {
         allow read: if isAdmin() || isMemberOfOrg(orgId);
-        allow write: if isAdmin(); 
+        allow write: if false; // Backend Only
       }
     }
 
@@ -94,18 +118,18 @@ service cloud.firestore {
 
     match /recurring_occurrences/{occId} {
       allow read: if true;
-      allow update: if isAdmin() || isMemberOfOrg(resource.data.organizationId);
-      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow create: if false; // Backend Only
     }
 
     match /user_gamification/{uid} { 
       allow read: if true; 
-      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == uid); 
+      allow write: if false; // Backend Only (Gamification Service)
     }
     
     match /xp_logs/{id} { 
       allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid); 
-      allow write: if isAdmin(); 
+      allow write: if false; 
     }
     
     match /follows/{followId} {
@@ -116,17 +140,12 @@ service cloud.firestore {
 
     match /financial_logs/{id} {
       allow read: if isAdmin();
-      allow create: if isAdmin();
+      allow write: if false;
     }
 
-    match /tax_tickets/{id} { allow read: if isAdmin(); allow write: if isAdmin(); }
-    match /tax_ads/{id} { allow read: if isAdmin(); allow write: if isAdmin(); }
-    match /internal_expenses/{id} { allow read: if isAdmin(); allow write: if isAdmin(); }
-    
-    match /ads/{id} {
-      allow read: if true;
-      allow create: if isSignedIn();
-      allow update: if isAdmin() || isMemberOfOrg(resource.data.organizationId);
+    match /audit_logs/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     match /support_tickets/{id} {
@@ -135,15 +154,25 @@ service cloud.firestore {
       allow update: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
     }
     
-    match /password_reset_codes/{id} { allow read: if isAdmin(); allow write: if isAdmin(); }
-    match /settings/{docId} { allow read: if true; allow write: if isAdmin(); }
-    match /system_logs/{id} { allow read: if isAdmin(); allow create: if isSignedIn(); allow update: if isAdmin(); }
-    match /sent_emails/{id} { allow read: if isAdmin(); allow write: if isAdmin(); }
-
-    match /audit_logs/{id} {
-      allow read: if isAdmin();
-      allow create: if isAdmin();
-      allow update, delete: if false;
+    match /password_reset_codes/{id} { 
+      allow read: if false; 
+      allow write: if false; 
+    }
+    
+    match /settings/{docId} { 
+      allow read: if true; 
+      allow write: if isAdmin(); 
+    }
+    
+    match /system_logs/{id} { 
+      allow read: if isAdmin(); 
+      allow create: if isSignedIn(); 
+      allow update: if false; 
+    }
+    
+    match /sent_emails/{id} { 
+      allow read: if isAdmin(); 
+      allow write: if false; 
     }
   }
 }
