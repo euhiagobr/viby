@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -216,10 +217,12 @@ function OrganizationFinanceContent() {
 
   const handleTopUp = async () => {
     if (!currentOrg || !user || !db) return;
+    
     if (rechargeCalcs.base < minRechargeValue) {
       toast({ variant: "destructive", title: "Valor mínimo", description: `O valor mínimo para recarga é ${formatCurrency(minRechargeValue)}.` });
       return;
     }
+
     setIsTopUpLoading(true);
     try {
       const result = await createAdBalanceTopUpSession({ 
@@ -234,9 +237,18 @@ function OrganizationFinanceContent() {
         couponCode: appliedCoupon?.code,
         transactionId: crypto.randomUUID() 
       });
-      if (result.url) window.location.href = result.url;
-    } catch (e) { 
-      toast({ variant: "destructive", title: "Erro no Checkout" }); 
+
+      if (result.success && result.url) {
+        window.location.href = result.url;
+      } else {
+        toast({ 
+          variant: "destructive", 
+          title: "Erro no Checkout", 
+          description: result.error || "Ocorreu um erro ao gerar a sessão de pagamento. Verifique as configurações do Stripe." 
+        });
+      }
+    } catch (e: any) { 
+      toast({ variant: "destructive", title: "Erro de Comunicação", description: "Falha técnica ao iniciar o pagamento." }); 
     } finally { 
       setIsTopUpLoading(false); 
     }

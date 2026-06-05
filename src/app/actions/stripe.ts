@@ -169,7 +169,7 @@ export async function finalizeCheckoutSession(sessionId: string) {
         return { success: true };
       }
 
-      return { success: false, error: 'Sessão não identificada para fulfillment.' };
+      return { success: false, error: 'Sessão não identificada para fufillment.' };
     });
   } catch (error: any) {
     console.error("[Webhook Fulfillment Error]", error.message);
@@ -216,6 +216,7 @@ export async function createAdBalanceTopUpSession(data: any) {
 
     return { success: true, url: session.url };
   } catch (error: any) {
+    console.error("[Stripe Ad TopUp Error]", error.message);
     return { success: false, error: error.message };
   }
 }
