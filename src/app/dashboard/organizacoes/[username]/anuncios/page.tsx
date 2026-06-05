@@ -29,7 +29,9 @@ import {
   Wallet,
   MousePointer2,
   Inbox,
-  Info
+  Info,
+  Globe,
+  CheckCircle2
 } from "lucide-react"
 import {
   Dialog,
@@ -52,7 +54,6 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -76,7 +77,7 @@ export default function OrganizationAdsPage() {
 
   const storage = React.useMemo(() => {
     if (!app) return null;
-    return getStorage(app, "gs://viby");
+    return getStorage(app);
   }, [app]);
 
   const adsQuery = useMemoFirebase(() => {
@@ -336,7 +337,7 @@ export default function OrganizationAdsPage() {
                            <div className="space-y-1">
                              <div className="flex items-center gap-2">
                                <h4 className="font-bold text-xs uppercase truncate max-w-[150px]">{ad.eventTitle}</h4>
-                               <Badge className={cn("text-[7px] font-black uppercase h-3.5 px-1", ad.status === 'Ativo' ? "bg-green-500" : ad.status === 'Pendente' ? "bg-orange-500" : "bg-muted")}>{ad.status}</Badge>
+                               <Badge className={cn("text-[7px] font-black uppercase h-3.5 px-1", ad.status === 'Ativo' ? "bg-green-50" : ad.status === 'Pendente' ? "bg-orange-50" : "bg-muted")}>{ad.status}</Badge>
                              </div>
                            </div>
                          </div>

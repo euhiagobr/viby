@@ -101,7 +101,7 @@ export default function EventoDetalhesPage() {
     setRegistering(true)
     
     try {
-      // Audit fix: Utiliza a Server Action para garantir atomicidade no incremento dos contadores.
+      // Utilizamos a Server Action para garantir atomicidade no incremento dos contadores e conformidade com as regras.
       const result = await generateFreeTickets({
         userId: user.uid,
         userName: currentUserProfile?.name || user.displayName || user.email || "Usuário",

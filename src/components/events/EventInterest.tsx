@@ -59,8 +59,8 @@ export function EventInterest({ event, className, showButton = true, variant = '
   const { data: userInterest } = useDoc<any>(interestRef)
   const isInterested = !!userInterest
 
-  // Audit fix: Removida consulta direta à coleção 'registrations' por motivos de segurança e performance.
-  // Utilizamos o campo agregado 'ingressosVendidos' do documento do evento.
+  // Usamos o campo agregado ingressosVendidos do documento do evento para exibir o público
+  // Isso evita erros de permissão ao tentar listar a coleção registrations privadamente.
   const confirmedCount = event?.ingressosVendidos || 0
   const [toggling, setToggling] = React.useState(false)
 
