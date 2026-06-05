@@ -127,7 +127,7 @@ export function EventLocation({
     setIsSearching(null);
   };
 
-  // Debounce para mudanças em qualquer campo
+  // Debounce para mudanças em qualquer campo que afete o endereço
   React.useEffect(() => {
     if (isPublic) return;
 
@@ -139,7 +139,7 @@ export function EventLocation({
       } else if (address?.street && address?.city) {
         triggerGeocoding(0, address);
       }
-    }, 1200);
+    }, 2000); // Debounce maior para evitar excesso de chamadas
 
     return () => clearTimeout(timer);
   }, [
@@ -190,7 +190,8 @@ export function EventLocation({
     let finalValue = value;
     
     if (field === 'latitude' || field === 'longitude') {
-      finalValue = value === "" ? 0 : parseFloat(value);
+      if (value === "" || value === "-") return; // Permite digitar sinal de menos ou apagar sem quebrar
+      finalValue = parseFloat(value);
       if (isNaN(finalValue)) return;
     }
 
@@ -221,8 +222,8 @@ export function EventLocation({
       const currentAddrObj = isMultiLocation ? loc : address;
       const addrString = formatFullAddress(currentAddrObj);
       
-      const lat = isMultiLocation ? loc.latitude : address?.latitude || -23.55052;
-      const lng = isMultiLocation ? loc.longitude : address?.longitude || -46.633308;
+      const lat = Number(isMultiLocation ? loc.latitude : address?.latitude) || -23.55052;
+      const lng = Number(isMultiLocation ? loc.longitude : address?.longitude) || -46.633308;
       
       const titleFallback = address?.neighborhood || address?.city || "Local do Evento";
       const title = isMultiLocation ? (loc.title || "Ponto de Encontro") : titleFallback;
@@ -399,15 +400,15 @@ export function EventLocation({
               </Label>
               <div className="h-[280px] w-full rounded-2xl overflow-hidden border-2 border-muted relative shadow-inner bg-muted/10">
                  <LocationMap 
-                    latitude={currentLoc.latitude || -23.55052} 
-                    longitude={currentLoc.longitude || -46.633308} 
+                    latitude={Number(currentLoc.latitude) || -23.55052} 
+                    longitude={Number(currentLoc.longitude) || -46.633308} 
                     onChange={(lat, lng) => {
                       if (isMulti) {
                         const newLocs = [...locations];
-                        newLocs[index] = { ...newLocs[index], latitude: lat, longitude: lng };
+                        newLocs[index] = { ...newLocs[index], latitude: Number(lat), longitude: Number(lng) };
                         onLocationsChange?.(newLocs);
                       } else {
-                        onChange?.({ ...address, latitude: lat, longitude: lng });
+                        onChange?.({ ...address, latitude: Number(lat), longitude: Number(lng) });
                       }
                     }} 
                     interactive={true}
@@ -419,7 +420,7 @@ export function EventLocation({
                     <Input 
                       type="number" 
                       step="any"
-                      value={currentLoc.latitude || ""} 
+                      value={currentLoc.latitude ?? ""} 
                       onChange={e => handleUpdateLocation(index, 'latitude', e.target.value)}
                       className="h-9 text-[11px] font-mono rounded-xl bg-muted/20"
                     />
@@ -429,7 +430,7 @@ export function EventLocation({
                     <Input 
                       type="number" 
                       step="any"
-                      value={currentLoc.longitude || ""} 
+                      value={currentLoc.longitude ?? ""} 
                       onChange={e => handleUpdateLocation(index, 'longitude', e.target.value)}
                       className="h-9 text-[11px] font-mono rounded-xl bg-muted/20"
                     />

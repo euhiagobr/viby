@@ -28,14 +28,17 @@ function ChangeView({ latitude, longitude }: { latitude: number; longitude: numb
   const map = useMap();
   
   useEffect(() => {
-    if (latitude && longitude && !isNaN(latitude) && !isNaN(longitude)) {
-      // Forçamos a centralização com animação suave se o ponto existir
-      map.setView([latitude, longitude], map.getZoom(), { animate: true });
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+
+    if (!isNaN(lat) && !isNaN(lng)) {
+      // Forçamos a centralização com animação suave se o ponto for válido
+      map.setView([lat, lng], map.getZoom(), { animate: true });
       
       // Essencial: Invalida o tamanho após o render para corrigir tiles cinzas
       const timer = setTimeout(() => {
         map.invalidateSize();
-      }, 150);
+      }, 200);
       return () => clearTimeout(timer);
     }
   }, [latitude, longitude, map]);
@@ -49,10 +52,13 @@ function DraggableMarker({ latitude, longitude, onChange, interactive }: Locatio
 
   // Efeito para mover o marcador programaticamente caso a prop mude externamente
   useEffect(() => {
-    if (markerRef.current) {
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+
+    if (markerRef.current && !isNaN(lat) && !isNaN(lng)) {
       const currentPos = markerRef.current.getLatLng();
-      if (currentPos.lat !== latitude || currentPos.lng !== longitude) {
-        markerRef.current.setLatLng([latitude, longitude]);
+      if (currentPos.lat !== lat || currentPos.lng !== lng) {
+        markerRef.current.setLatLng([lat, lng]);
       }
     }
   }, [latitude, longitude]);
@@ -70,11 +76,16 @@ function DraggableMarker({ latitude, longitude, onChange, interactive }: Locatio
     [onChange]
   );
 
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+
+  if (isNaN(lat) || isNaN(lng)) return null;
+
   return (
     <Marker
       draggable={interactive}
       eventHandlers={eventHandlers}
-      position={[latitude, longitude]}
+      position={[lat, lng]}
       ref={markerRef}
     />
   );
@@ -95,9 +106,10 @@ export function LocationMap({ latitude, longitude, onChange, interactive = true 
     );
   }
 
-  // Garantir que temos valores válidos ou fallback para centro de SP
-  const lat = Number(latitude) || -23.55052;
-  const lng = Number(longitude) || -46.633308;
+  // Garantir que temos valores numéricos válidos. 
+  // Fallback apenas se for NaN (0 é um valor válido)
+  const lat = (!isNaN(Number(latitude)) && latitude !== null) ? Number(latitude) : -23.55052;
+  const lng = (!isNaN(Number(longitude)) && longitude !== null) ? Number(longitude) : -46.633308;
 
   return (
     <div className="w-full h-full relative rounded-[1.5rem] overflow-hidden">
