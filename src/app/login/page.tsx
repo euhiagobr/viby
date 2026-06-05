@@ -156,5 +156,3 @@ export default function LoginPage() {
     </React.Suspense>
   )
 }
-
-import { KeyRound } from "lucide-react"
