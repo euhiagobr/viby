@@ -52,7 +52,7 @@ export function EventHeader({ title, onTitleChange, image, onImageUpload, upload
           value={title} 
           onChange={e => onTitleChange?.(e.target.value)} 
           required 
-          className="rounded-xl h-14 text-xl font-black italic uppercase tracking-tighter border-dashed border-secondary/30"
+          className="rounded-xl h-14 text-xl font-black italic tracking-tighter border-dashed border-secondary/30"
           placeholder="Dê um nome impactante..."
         />
       </div>
