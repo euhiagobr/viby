@@ -161,7 +161,8 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
              </div>
 
              <div className="py-4">
-               <AdsRenderer location="event_page" googleSlotId="event-page-top-slot" className="min-h-[120px]" />
+               {/* 1 Bloco de Anúncio: Prioridade Viby > Google conforme regra 3.4 */}
+               <AdsRenderer location="event_page" googleSlotId="event-page-top-slot" className="min-h-[140px]" />
              </div>
 
              <Card className="border-none shadow-sm rounded-[2rem] bg-white p-10">

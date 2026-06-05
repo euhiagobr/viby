@@ -154,6 +154,7 @@ export default function ExplorarPage() {
       return result;
     }
     
+    // Regra de Frequência: 1 Ad a cada 6 eventos
     let eventIdx = 0;
     while (eventIdx < filteredAndSortedEvents.length) {
       const chunk = filteredAndSortedEvents.slice(eventIdx, eventIdx + 6);

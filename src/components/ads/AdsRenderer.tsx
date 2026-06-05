@@ -6,23 +6,30 @@ import { useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase
 import { doc, collection, query, where, limit } from "firebase/firestore"
 import { AdCard } from "./AdCard"
 import { GoogleAd } from "./GoogleAd"
-import { Loader2 } from "lucide-react"
 
 interface AdsRendererProps {
   location: string
-  index?: number
+  index?: number // Índice do slot de anúncio para alternância
   className?: string
   googleSlotId?: string
 }
 
+/**
+ * Motor de Mediação de Anúncios Viby
+ * Regras:
+ * 1. Se Google OFF -> Viby 100%
+ * 2. Se Viby OFF -> Google 100%
+ * 3. Ambos ON -> Alternância 50/50 baseada no índice do slot
+ * 4. Fallback: Se Viby não tiver campanhas ativas -> Google 100%
+ */
 export function AdsRenderer({ location, index = 0, className, googleSlotId = "default-slot" }: AdsRendererProps) {
   const db = useFirestore()
 
-  // 1. Buscar Configurações do Google Ads
+  // 1. Buscar Configurações Globais do Google Ads
   const googleSettingsRef = React.useMemo(() => db ? doc(db, "system_settings", "google_ads") : null, [db])
   const { data: googleSettings } = useDoc<any>(googleSettingsRef)
 
-  // 2. Buscar Anúncios Viby Ativos
+  // 2. Buscar Campanhas Viby Ads Ativas
   const vibyAdsQuery = useMemoFirebase(() => {
     if (!db) return null
     return query(collection(db, "ads"), where("status", "==", "Ativo"), limit(10))
@@ -30,21 +37,26 @@ export function AdsRenderer({ location, index = 0, className, googleSlotId = "de
   const { data: vibyAds } = useCollection<any>(vibyAdsQuery)
 
   const isGoogleEnabled = googleSettings?.enabled === true
-  const hasVibyAds = vibyAds && vibyAds.length > 0
+  const hasVibyCampaigns = vibyAds && vibyAds.length > 0
 
-  // Lógica de Alternância 50/50 baseada no index
-  const showGoogle = React.useMemo(() => {
-    if (isGoogleEnabled && !hasVibyAds) return true
-    if (!isGoogleEnabled && hasVibyAds) return false
-    if (isGoogleEnabled && hasVibyAds) {
-      return index % 2 === 0 // Par = Google, Ímpar = Viby
+  // Determinar qual provedor exibir neste slot específico
+  const provider = React.useMemo(() => {
+    if (!isGoogleEnabled && hasVibyCampaigns) return "viby"
+    if (isGoogleEnabled && !hasVibyCampaigns) return "google"
+    if (isGoogleEnabled && hasVibyCampaigns) {
+      // Regra de Alternância 50/50 baseada na posição do slot
+      return index % 2 === 0 ? "google" : "viby"
     }
-    return false
-  }, [isGoogleEnabled, hasVibyAds, index])
+    // Se ambos estiverem OFF ou Google ON mas sem campanhas Viby (e vice-versa)
+    if (isGoogleEnabled) return "google"
+    if (hasVibyCampaigns) return "viby"
+    
+    return null
+  }, [isGoogleEnabled, hasVibyCampaigns, index])
 
-  if (!isGoogleEnabled && !hasVibyAds) return null
+  if (!provider) return null
 
-  if (showGoogle && googleSettings?.publisherId) {
+  if (provider === "google" && googleSettings?.publisherId) {
     return (
       <GoogleAd 
         publisherId={googleSettings.publisherId} 
@@ -54,8 +66,8 @@ export function AdsRenderer({ location, index = 0, className, googleSlotId = "de
     )
   }
 
-  if (hasVibyAds) {
-    // Escolher um anúncio Viby aleatório ou baseado no index para distribuição
+  if (provider === "viby" && hasVibyCampaigns) {
+    // Seleção de campanha Viby (Round-robin simples baseado no index)
     const selectedAd = vibyAds[index % vibyAds.length]
     return <AdCard ad={selectedAd} />
   }

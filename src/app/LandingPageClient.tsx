@@ -25,7 +25,6 @@ import { getCurrentLocation, calculateDistance, type Coordinates } from "@/lib/l
 import { calculateEventScore, isEventVisible } from "@/lib/event-scoring-utils"
 import Footer from "@/components/layout/Footer"
 import { cn } from "@/lib/utils"
-import useEmblaCarousel from 'embla-carousel-react'
 import { PlaceHolderImages } from "@/lib/placeholder-images"
 import { UserNav } from "@/components/layout/UserNav"
 import { Calendar } from "@/components/ui/calendar"
@@ -119,7 +118,7 @@ export default function LandingPageClient() {
     const result = [];
     let adSlotIdx = 0;
 
-    // Se não há eventos, garantir que ainda mostramos alguns anúncios no grid
+    // Se não há eventos, mostramos 3 slots de anúncios fixos
     if (!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) {
       result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
       result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
@@ -127,12 +126,14 @@ export default function LandingPageClient() {
       return result;
     }
     
+    // Regra de Frequência: 1 Ad a cada 6 eventos
     let eventIdx = 0;
     while (eventIdx < filteredAndSortedEvents.length) {
       const chunk = filteredAndSortedEvents.slice(eventIdx, eventIdx + 6);
       result.push(...chunk.map(e => ({ ...e, _type: 'event' })));
       eventIdx += 6;
 
+      // Inserir anúncio após o bloco de 6
       if (eventIdx < filteredAndSortedEvents.length || filteredAndSortedEvents.length > 3) {
         result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
       }

@@ -184,17 +184,19 @@ export default function ProfilePageClient({ username }: { username: string }) {
     return { upcomingEvents: upcoming, pastEvents: past };
   }, [orgEvents]);
 
+  // Lógica de Mediação de Anúncios no Perfil
   const interleavedUpcoming = React.useMemo(() => {
     const result = [];
     let adSlotIdx = 0;
 
-    // Se não há eventos futuros, garantir que ainda mostramos slots de anúncios
+    // Se não há eventos futuros, mostramos 2 ads fixos
     if (upcomingEvents.length === 0) {
       result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
       result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
       return result;
     }
 
+    // Regra: 1 Ad a cada 6 eventos
     let eventIdx = 0;
     while (eventIdx < upcomingEvents.length) {
       const chunk = upcomingEvents.slice(eventIdx, eventIdx + 6);
@@ -286,7 +288,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                             {interleavedUpcoming.map((item: any, idx: number) => (
                               item._type === 'ad' ? (
-                                <AdsRenderer key={`ad-${idx}`} location="profile" index={idx} googleSlotId="profile-feed-slot" />
+                                <AdsRenderer key={`ad-${item.adSlotIdx}`} location="profile" index={item.adSlotIdx} googleSlotId="profile-feed-slot" />
                               ) : (
                                 <OrganizerEvents key={item.id} events={[item]} title="" />
                               )
