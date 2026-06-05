@@ -58,31 +58,21 @@ service cloud.firestore {
       
       allow update: if isAdmin() || isOrgAdmin(orgId);
 
-      // Impedir alteração de campos críticos via Client SDK por qualquer pessoa que não seja Owner ou Admin Global
-      // Campos protegidos: ownerId, verified, status, plan, stripeAccountId
+      // Impedir alteração de campos críticos via Client SDK
       allow update: if (isAdmin() || isOrgOwner(orgId)) 
-                    || (isOrgAdmin(orgId) 
-                        && !request.resource.data.diff(resource.data).affectedKeys()
-                           .hasAny(['ownerId', 'verified', 'status', 'plan', 'stripeAccountId', 'adBalance', 'blockedBalance']));
+                    && !request.resource.data.diff(resource.data).affectedKeys()
+                       .hasAny(['ownerId', 'verified', 'status', 'plan', 'stripeAccountId', 'adBalance', 'blockedBalance']);
 
       match /members/{memberId} {
-        allow read: if isOrgMember(orgId);
-        
-        // Regras de Gestão de Equipe
-        // 1. Apenas Owner ou Admin Global podem criar/remover membros gestores (admin/owner)
-        // 2. Admins podem gerenciar membros comuns (editor/member)
+        allow read: if isOrgMember(orgId) || (isSignedIn() && request.auth.uid == memberId);
         allow create, update: if isAdmin() || isOrgOwner(orgId) || (isOrgAdmin(orgId) && request.resource.data.role in ['editor', 'member']);
-        
-        // 3. Impedir que um membro altere seu próprio cargo (Escalonamento)
         allow update: if request.auth.uid != memberId || isAdmin();
-        
-        // 4. Impedir que um Admin remova um Owner
         allow delete: if isAdmin() || isOrgOwner(orgId) || (isOrgAdmin(orgId) && resource.data.role != 'owner');
       }
 
       match /transactions/{txId} {
         allow read: if isAdmin() || isOrgAdmin(orgId);
-        allow write: if false; // Exclusivo via Admin SDK (Servidor)
+        allow write: if false; 
       }
     }
 
@@ -110,7 +100,7 @@ service cloud.firestore {
 
     match /registrations/{regId} {
       allow read: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.userId || isOrgMember(resource.data.organizationId)));
-      allow create: if false; // Criado apenas via Webhook (Admin SDK)
+      allow create: if false; 
       allow update: if isAdmin();
     }
 
@@ -122,9 +112,13 @@ service cloud.firestore {
 
     match /ads/{id} {
       allow read: if true;
-      allow create: if isAdmin() || isOrgAdmin(request.resource.data.organizationId);
+      allow create: if false; // Exclusivo via Server Action
       allow update: if isAdmin();
-      allow delete: if isAdmin() || isOrgOwner(resource.data.organizationId);
+      allow delete: if isAdmin();
+      
+      match /viewers/{viewerId} {
+        allow read, write: if false; // Exclusivo via Admin API
+      }
     }
 
     match /usernames/{username} { 
@@ -133,12 +127,31 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    match /categories/{catId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /reports/{id} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /payout_requests/{id} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
     match /password_reset_codes/{id} { allow read, write: if false; }
     match /wallets/{uid} { allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin()); allow write: if false; }
     match /wallet_transactions/{id} { allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin()); allow write: if false; }
-    match /payout_requests/{id} { allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin()); allow write: if false; }
     match /audit_logs/{id} { allow read: if isAdmin(); allow write: if false; }
     match /system_logs/{id} { allow read: if isAdmin(); allow create: if isSignedIn(); }
     match /sent_emails/{id} { allow read: if isAdmin(); allow write: if false; }
+
+    // Suporte a collectionGroup para parcerias e membros
+    match /{path=**}/partners/{partnerId} { allow read: if true; }
+    match /{path=**}/members/{memberId} { allow read: if isSignedIn() && request.auth.uid == memberId; }
   }
 }

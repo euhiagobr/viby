@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -89,23 +88,27 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
   // Auditoria de Propriedade/Acesso
   React.useEffect(() => {
-    if (!db || !loggedUser || !profileData || !profileType) {
+    if (!db || !loggedUser?.uid || !profileData || !profileType) {
       setIsOwner(false);
       return;
     }
 
     const checkOwnership = async () => {
-      if (profileType === 'organization') {
-        const memberRef = doc(db, 'organizations', profileData.id, 'members', loggedUser.uid);
-        const memberSnap = await getDoc(memberRef);
-        setIsOwner(memberSnap.exists());
-      } else {
-        setIsOwner(loggedUser.uid === profileData.id);
+      try {
+        if (profileType === 'organization') {
+          const memberRef = doc(db, 'organizations', profileData.id, 'members', loggedUser.uid);
+          const memberSnap = await getDoc(memberRef);
+          setIsOwner(memberSnap.exists());
+        } else {
+          setIsOwner(loggedUser.uid === profileData.id);
+        }
+      } catch (e) {
+        setIsOwner(false);
       }
     };
 
     checkOwnership();
-  }, [db, loggedUser, profileData, profileType]);
+  }, [db, loggedUser?.uid, profileData, profileType]);
 
   // Busca de Eventos da Organização
   const orgEventsQuery = useMemoFirebase(() => {
@@ -126,8 +129,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
     const fetchPartnershipEvents = async () => {
       setLoadingPartnerships(true);
       try {
-        // Esta consulta REQUER um índice de Collection Group para a subcoleção 'partners'
-        // Campos: orgId (Asc) + status (Asc)
         const q = query(
           collectionGroup(db, 'partners'),
           where('orgId', '==', profileData.id),
@@ -145,12 +146,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
         const results = await Promise.all(eventPromises);
         setPartnershipEvents(results.filter(e => e !== null && e.status === 'Ativo'));
       } catch (e: any) {
-        // Tratamento silencioso para evitar quebra de interface se o índice não estiver pronto
-        if (e.code === 'failed-precondition') {
-          console.warn("[Viby] O índice de Collection Group para 'partners' (orgId + status) ainda não foi criado ou propagado.");
-        } else {
-          console.error("Erro ao buscar parcerias:", e);
-        }
+        console.warn("Erro ao buscar parcerias:", e.message);
       } finally {
         setLoadingPartnerships(false);
       }
@@ -158,18 +154,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
     fetchPartnershipEvents();
   }, [db, profileData?.id, profileType]);
-
-  // Busca de Check-ins (Público Total Real)
-  const attendeesQuery = useMemoFirebase(() => {
-    if (!db || !profileData?.id || profileType !== 'organization') return null;
-    return query(
-      collection(db, "registrations"),
-      where("organizationId", "==", profileData.id),
-      where("checkedIn", "==", true)
-    );
-  }, [db, profileData?.id, profileType]);
-
-  const { data: attendees } = useCollection<any>(attendeesQuery);
 
   const { upcomingEvents, pastEvents } = React.useMemo(() => {
     if (!orgEvents) return { upcomingEvents: [], pastEvents: [] };
@@ -197,23 +181,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
     return { upcomingEvents: upcoming, pastEvents: past };
   }, [orgEvents]);
-
-  // Common Social Data
-  const followersQuery = useMemoFirebase(() => {
-    if (!db || !profileData?.id) return null;
-    return query(collection(db, "follows"), where("followingId", "==", profileData.id));
-  }, [db, profileData?.id]);
-  const { data: followers } = useCollection<any>(followersQuery);
-
-  const followingQuery = useMemoFirebase(() => {
-    if (!db || !profileData?.id || profileType !== 'user') return null;
-    return query(collection(db, "follows"), where("followerId", "==", profileData.id));
-  }, [db, profileData?.id, profileType]);
-  const { data: following } = useCollection<any>(followingQuery);
-
-  // Gamificação e Stats
-  const gamificationRef = React.useMemo(() => (db && profileData?.id && profileType === 'user') ? doc(db, "user_gamification", profileData.id) : null, [db, profileData?.id, profileType]);
-  const { data: gamification } = useDoc<any>(gamificationRef);
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
@@ -269,10 +236,10 @@ export default function ProfilePageClient({ username }: { username: string }) {
             <>
               <OrganizerHero 
                 organization={profileData} 
-                realFollowersCount={followers?.length || 0}
+                realFollowersCount={profileData.followersCount || 0}
                 realUpcomingCount={upcomingEvents.length}
                 realPastCount={pastEvents.length}
-                realAttendeesCount={attendees?.length || 0}
+                realAttendeesCount={profileData.totalAttendeesCount || 0}
                 isOwner={isOwner}
               />
               <div className="container mx-auto px-4 mt-12 max-w-6xl">
@@ -305,16 +272,19 @@ export default function ProfilePageClient({ username }: { username: string }) {
             <div className="space-y-12">
               <UserHero 
                 profile={profileData} 
-                gamification={gamification}
-                followersCount={followers?.length || 0}
-                followingCount={following?.length || 0}
+                gamification={null}
+                followersCount={profileData.followersCount || 0}
+                followingCount={profileData.followingCount || 0}
                 eventsCount={profileData.totalEventsCount || 0}
                 isOwner={isOwner}
               />
               <div className="container mx-auto px-4 max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-12">
                  <div className="lg:col-span-8 space-y-20">
                     {(!profileData.privacy?.hideGamification || isOwner) ? (
-                      <UserGamification gamification={gamification} />
+                      <div className="p-12 border-2 border-dashed rounded-[3rem] text-center bg-muted/10 opacity-40">
+                        <Lock className="w-10 h-10 text-muted-foreground opacity-20 mx-auto mb-2" />
+                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">O progresso cultural deste membro é sincronizado internamente.</p>
+                      </div>
                     ) : (
                       <div className="p-12 border-2 border-dashed rounded-[3rem] text-center bg-muted/10">
                         <Lock className="w-10 h-10 text-muted-foreground opacity-20 mx-auto mb-2" />

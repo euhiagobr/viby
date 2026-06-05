@@ -27,7 +27,7 @@ export function SocialLoginButtons() {
       checkStarted.current = true;
       try {
         const result = await handleSocialLoginResult(auth, db);
-        if (result) {
+        if (result && result.profile) {
           setIsProcessing(true);
           const hasMandatory = !!(result.profile?.username && result.profile?.cpf);
           const isComplete = result.profile?.profileComplete && hasMandatory;

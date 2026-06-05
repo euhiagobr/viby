@@ -9,8 +9,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { useFirestore, useDoc, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
-import { collection, query, where, doc } from "firebase/firestore"
+import { useFirestore, useDoc, useAuth, useUser } from "@/firebase"
+import { doc } from "firebase/firestore"
 import { EventCard } from "../events/EventCard"
 
 function VerifiedBadge({ className }: { className?: string }) {
@@ -35,12 +35,6 @@ export function AdCard({ ad }: AdCardProps) {
 
   const orgRef = React.useMemo(() => (db && ad.organizationId) ? doc(db, "organizations", ad.organizationId) : null, [db, ad.organizationId])
   const { data: organization } = useDoc<any>(orgRef)
-
-  const followersQuery = useMemoFirebase(() => {
-    if (!db || !ad.organizationId) return null
-    return query(collection(db, "follows"), where("followingId", "==", ad.organizationId))
-  }, [db, ad.organizationId])
-  const { data: followers } = useCollection<any>(followersQuery)
 
   // Rastreamento de Impressão via API (Server-Side)
   React.useEffect(() => {
@@ -133,7 +127,7 @@ export function AdCard({ ad }: AdCardProps) {
           </div>
           <div className="flex items-center justify-center gap-6 mt-6 py-4 border-y border-dashed border-border/60">
              <div className="text-center">
-                <p className="text-xs font-black">{followers?.length || 0}</p>
+                <p className="text-xs font-black">{organization?.followersCount || 0}</p>
                 <p className="text-[8px] font-bold text-muted-foreground uppercase">Seguidores</p>
              </div>
              <div className="w-px h-6 bg-border" />

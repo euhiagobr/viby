@@ -27,12 +27,16 @@ export function UserNav() {
   const [profile, setProfile] = React.useState<any>(null)
 
   React.useEffect(() => {
-    if (db && user) {
+    if (db && user?.uid) {
       getDoc(doc(db, "users", user.uid)).then(snap => {
         if (snap.exists()) setProfile(snap.data())
+      }).catch(() => {
+        // Silently handle profile fetch error
       })
+    } else {
+      setProfile(null)
     }
-  }, [db, user])
+  }, [db, user?.uid])
 
   const handleLogout = async () => {
     if (!auth) return
@@ -53,9 +57,9 @@ export function UserNav() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-10 w-10 rounded-full border-2 border-secondary/20 p-0 hover:bg-transparent focus-visible:ring-secondary">
           <Avatar className="h-9 w-9">
-            <AvatarImage src={profile?.avatar || user.photoURL || ""} alt={user.displayName || ""} />
+            <AvatarImage src={profile?.avatar || user?.photoURL || ""} alt={user?.displayName || ""} />
             <AvatarFallback className="font-bold text-xs uppercase bg-muted">
-              {profile?.name?.charAt(0) || user.displayName?.charAt(0) || "U"}
+              {profile?.name?.charAt(0) || user?.displayName?.charAt(0) || "U"}
             </AvatarFallback>
           </Avatar>
         </Button>
@@ -63,7 +67,7 @@ export function UserNav() {
       <DropdownMenuContent className="w-56 rounded-2xl" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-black uppercase italic tracking-tight">{profile?.name || user.displayName || "Usuário"}</p>
+            <p className="text-sm font-black uppercase italic tracking-tight">{profile?.name || user?.displayName || "Usuário"}</p>
             <p className="text-[10px] font-medium text-muted-foreground leading-none">@{profile?.username || "vibyuser"}</p>
           </div>
         </DropdownMenuLabel>

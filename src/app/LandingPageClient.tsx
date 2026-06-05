@@ -56,7 +56,6 @@ export default function LandingPageClient() {
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
-    console.log("[Landing] Criando consulta de eventos ativos...");
     return query(collection(db, "events"), where("status", "==", "Ativo"), limit(100))
   }, [db])
 
@@ -79,21 +78,17 @@ export default function LandingPageClient() {
     setHasMounted(true);
     getCurrentLocation()
       .then(loc => {
-        console.log("[Debug] Localização GPS detectada:", loc);
         setUserLocation(loc);
       })
-      .catch((err) => {
-        console.warn("[Debug] GPS indisponível:", err.message);
+      .catch(() => {
+        // GPS unavailable
       })
   }, [])
 
   const filteredAndSortedEvents = React.useMemo(() => {
     if (!events) return []
 
-    console.log(`[Debug] Iniciando filtragem de ${events.length} eventos (Raio: ${radiusKm}km)...`);
-
     let result = events.filter(e => {
-      // Regra de visibilidade baseada em data de encerramento
       if (!isEventVisible(e)) return false;
 
       if (searchName && !e.title?.toLowerCase().includes(searchName.toLowerCase())) return false;
