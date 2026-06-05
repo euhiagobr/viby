@@ -56,12 +56,11 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       
-      allow update: if isAdmin() || isOrgAdmin(orgId);
-
-      // Impedir alteração de campos críticos via Client SDK
+      // Unificação crítica: Proteção de titularidade e campos financeiros
       allow update: if (isAdmin() || isOrgOwner(orgId)) 
-                    && !request.resource.data.diff(resource.data).affectedKeys()
-                       .hasAny(['ownerId', 'verified', 'status', 'plan', 'stripeAccountId', 'adBalance', 'blockedBalance']);
+                    || (isOrgAdmin(orgId) 
+                        && !request.resource.data.diff(resource.data).affectedKeys()
+                           .hasAny(['ownerId', 'verified', 'status', 'plan', 'stripeAccountId', 'adBalance', 'blockedBalance']));
 
       match /members/{memberId} {
         allow read: if isOrgMember(orgId) || (isSignedIn() && request.auth.uid == memberId);
@@ -99,7 +98,7 @@ service cloud.firestore {
 
     match /registrations/{regId} {
       allow read: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.userId || isOrgMember(resource.data.organizationId)));
-      allow create: if false; 
+      allow create: if false; // Emissão exclusiva via Server SDK/API
       allow update: if isAdmin();
     }
 
@@ -111,13 +110,9 @@ service cloud.firestore {
 
     match /ads/{id} {
       allow read: if true;
-      allow create: if false; // Exclusivo via Server Action
+      allow create: if isAdmin() || isOrgAdmin(request.resource.data.organizationId);
       allow update: if isAdmin();
-      allow delete: if isAdmin();
-      
-      match /viewers/{viewerId} {
-        allow read, write: if false; // Exclusivo via Admin API
-      }
+      allow delete: if isAdmin() || isOrgOwner(resource.data.organizationId);
     }
 
     match /usernames/{username} { 
@@ -131,29 +126,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    match /reports/{id} {
-      allow create: if isSignedIn();
-      allow read, update, delete: if isAdmin();
-    }
-
-    match /payout_requests/{id} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isAdmin();
-    }
-
-    // Novas coleções identificadas na auditoria
     match /settings/{id} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
     match /recurring_occurrences/{id} {
-      allow read: if true;
-      allow write: if isAdmin() || isOrgEditor(request.resource.data.organizationId);
-    }
-
-    match /recurring_events/{id} {
       allow read: if true;
       allow write: if isAdmin() || isOrgEditor(request.resource.data.organizationId);
     }
@@ -173,15 +151,49 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    match /password_reset_codes/{id} { allow read, write: if false; }
-    match /wallets/{uid} { allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin()); allow write: if false; }
-    match /wallet_transactions/{id} { allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin()); allow write: if false; }
-    match /audit_logs/{id} { allow read: if isAdmin(); allow write: if false; }
-    match /system_logs/{id} { allow read: if isAdmin(); allow create: if isSignedIn(); }
-    match /sent_emails/{id} { allow read: if isAdmin(); allow write: if false; }
+    match /reports/{id} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isAdmin();
+    }
 
-    // Suporte a collectionGroup para parcerias e membros
+    match /payout_requests/{id} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /wallets/{uid} { 
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin()); 
+      allow write: if false; 
+    }
+    
+    match /wallet_transactions/{id} { 
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin()); 
+      allow write: if false; 
+    }
+
+    match /audit_logs/{id} { 
+      allow read: if isAdmin(); 
+      allow write: if false; 
+    }
+
+    match /system_logs/{id} { 
+      allow read: if isAdmin(); 
+      allow create: if isSignedIn(); 
+    }
+
+    match /sent_emails/{id} { 
+      allow read: if isAdmin(); 
+      allow write: if false; 
+    }
+
+    match /password_reset_codes/{id} { 
+      allow read, write: if false; 
+    }
+
+    // Suporte a collectionGroup
     match /{path=**}/partners/{partnerId} { allow read: if true; }
-    match /{path=**}/members/{memberId} { allow read: if isSignedIn() && request.auth.uid == memberId; }
+    match /{path=**}/members/{memberId} { allow read: if isOrgMember(path.split('/')[1]) || (isSignedIn() && request.auth.uid == memberId); }
   }
 }

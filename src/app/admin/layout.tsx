@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -48,7 +47,7 @@ export default function AdminLayout({
 }) {
   const auth = useAuth();
   const db = useFirestore();
-  const { user, loading: authLoading } = useUser(auth);
+  const { user, profile, loading: authLoading, isInitialized } = useUser(auth);
   const router = useRouter();
   const pathname = usePathname();
   const [verifying, setVerifying] = useState(true);
@@ -60,13 +59,14 @@ export default function AdminLayout({
 
   useEffect(() => {
     async function checkAdmin() {
-      if (authLoading) return;
+      if (!isInitialized || authLoading) return;
       
       if (!user) {
         router.push('/login');
         return;
       }
 
+      // Verificação robusta de role admin
       if (db && user) {
         try {
           const userDoc = await getDoc(doc(db, 'users', user.uid));
@@ -76,12 +76,12 @@ export default function AdminLayout({
             toast({
               variant: 'destructive',
               title: 'Acesso Negado',
-              description: 'Área restrita a administradores Viby.',
+              description: 'Esta área é restrita a administradores globais.',
             });
             router.push('/dashboard');
           }
         } catch (e) {
-          console.error("Erro na verificação admin:", e);
+          console.error("[Admin Guard] Error:", e);
           router.push('/dashboard');
         }
       }
@@ -89,12 +89,13 @@ export default function AdminLayout({
     }
 
     checkAdmin();
-  }, [user, authLoading, db, router]);
+  }, [user, profile, isInitialized, authLoading, db, router]);
 
-  if (authLoading || verifying) {
+  if (authLoading || verifying || !isInitialized) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-background gap-4">
+        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Autenticando Admin...</p>
       </div>
     );
   }
@@ -150,15 +151,15 @@ export default function AdminLayout({
           </Link>
         </div>
 
-        <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
+        <nav className="flex-1 px-4 space-y-1 overflow-y-auto custom-scrollbar">
           <p className="px-4 text-[10px] font-black uppercase text-white/40 tracking-widest mb-4">Gestão do Sistema</p>
           {navItems.map((item) => (
             <Link 
               key={item.url} 
               href={item.url}
               className={cn(
-                'flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-semibold text-sm',
-                (pathname === item.url || (item.url !== '/admin' && pathname?.startsWith(item.url))) ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white hover:bg-white/5'
+                'flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-semibold text-sm',
+                (pathname === item.url || (item.url !== '/admin' && pathname?.startsWith(item.url))) ? 'bg-white/10 text-white shadow-inner' : 'text-white/60 hover:text-white hover:bg-white/5'
               )}
             >
               <item.icon className="w-4 h-4" />
@@ -167,7 +168,7 @@ export default function AdminLayout({
           ))}
         </nav>
 
-        <div className="p-4 mt-auto space-y-2">
+        <div className="p-4 mt-auto space-y-2 border-t border-white/5">
           <Button variant="ghost" className="w-full justify-start text-white/60 hover:text-white hover:bg-white/5 gap-3" asChild>
             <Link href="/dashboard">
               <ArrowLeft className="w-4 h-4" />
@@ -195,9 +196,9 @@ export default function AdminLayout({
             <h2 className="font-bold text-xs uppercase tracking-widest">Plataforma Administrativa</h2>
           </div>
           <div className="flex items-center gap-4">
-             <div className="flex flex-col items-end hidden sm:flex">
-                <span className="text-xs font-bold">{user?.displayName || 'Administrador'}</span>
-                <span className="text-[10px] font-bold text-muted-foreground uppercase">Viby Control Center</span>
+             <div className="flex flex-col items-end hidden sm:flex text-right">
+                <span className="text-xs font-black uppercase italic text-primary leading-none">{profile?.name || 'Administrador'}</span>
+                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Viby Control Center</span>
              </div>
              <UserNav />
           </div>

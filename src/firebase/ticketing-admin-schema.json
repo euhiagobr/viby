@@ -58,16 +58,6 @@
         "createdAt": "timestamp",
         "updatedAt": "timestamp"
       }
-    },
-    "ticket_support_p": {
-      "description": "Usuários banidos de eventos específicos",
-      "fields": {
-        "userId": "string",
-        "eventId": "string",
-        "reason": "string",
-        "blockedBy": "string",
-        "timestamp": "timestamp"
-      }
     }
   }
 }

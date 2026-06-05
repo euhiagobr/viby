@@ -3,15 +3,15 @@
 import * as React from "react"
 import { Calendar, MapPin, Clock, Ticket, Navigation, Megaphone, BadgeCheck, Zap, ArrowRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { calculateDistance, type Coordinates } from "@/lib/location-utils"
-import { useFirestore, useDoc, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
-import { doc, updateDoc, increment, serverTimestamp, getDoc, setDoc } from "firebase/firestore"
+import { useFirestore, useDoc, useAuth, useUser } from "@/firebase"
+import { doc } from "firebase/firestore"
 import { AgeRatingBadge } from "@/lib/age-rating"
 import { EventInterest } from "./EventInterest"
 
@@ -37,12 +37,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
   const adId = event.adId;
 
-  const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
-  const { data: userProfile } = useDoc<any>(userDocRef)
-
-  const adsSettingsRef = React.useMemo(() => db ? doc(db, 'settings', 'ads') : null, [db])
-  const { data: adsSettings } = useDoc<any>(adsSettingsRef)
-  
   const [liveStatus, setLiveStatus] = React.useState<{ label: string; colorClass: string; icon?: any } | null>(null);
 
   const eventDates = React.useMemo(() => {
@@ -90,82 +84,24 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     return () => clearInterval(interval);
   }, [eventDates]);
 
-  const getAgeGroup = (birthDate: string) => {
-    if (!birthDate) return "desconhecido";
-    try {
-      const birth = new Date(birthDate);
-      const age = new Date().getFullYear() - birth.getFullYear();
-      if (age <= 18) return "0_18";
-      if (age <= 24) return "19_24";
-      if (age <= 30) return "25_30";
-      if (age <= 34) return "31_34";
-      if (age <= 40) return "35_40";
-      if (age <= 44) return "41_44";
-      if (age <= 50) return "45_50";
-      if (age <= 75) return "51_75";
-      return "75plus";
-    } catch (e) { return "desconhecido"; }
-  }
-
-  const getDemographicsUpdate = () => {
-    const update: any = {}
-    if (userProfile) {
-      const rawGender = (userProfile.gender || "desconhecido").toLowerCase().trim();
-      const ageGroup = getAgeGroup(userProfile.birthDate);
-      
-      let genderKey = 'desconhecido';
-      if (rawGender === 'masculino') genderKey = 'masculino';
-      else if (rawGender === 'feminino') genderKey = 'feminino';
-      else if (rawGender === 'agênero') genderKey = 'agenero';
-      else if (rawGender === 'gênero fluido') genderKey = 'genero_fluido';
-      else if (rawGender === 'bigênero') genderKey = 'bigenero';
-      else if (rawGender === 'demigênero') genderKey = 'demigenero';
-      else if (rawGender === 'homem trans') genderKey = 'homem_trans';
-      else if (rawGender === 'mulher trans') genderKey = 'mulher_trans';
-      else if (rawGender === 'outro') genderKey = 'outro';
-      
-      update[`stats_gender_${genderKey}`] = increment(1);
-      update[`stats_age_${ageGroup}`] = increment(1);
-    }
-    return update;
-  }
-  
+  // Tracking de anúncios movido para API em AdCard e mantido centralizado no servidor
   React.useEffect(() => {
-    if (!isSponsored || !adId || !db || !adsSettings || hasTrackedImpression.current || (user && !userProfile)) return
+    if (!isSponsored || !adId || hasTrackedImpression.current) return
 
     const observer = new IntersectionObserver(
       async (entries) => {
         if (entries[0].isIntersecting && !hasTrackedImpression.current) {
           hasTrackedImpression.current = true
           
-          const cpmValue = adsSettings.cpmValue || 0
-          const costPerImpression = cpmValue / 1000
-
-          const adRef = doc(db, "ads", adId)
-          const updateData: any = { 
-            reach: increment(1),
-            remainingBudget: increment(-costPerImpression),
-            updatedAt: serverTimestamp()
-          };
-
-          if (user) {
-            const viewerRef = doc(db, "ads", adId, "viewers", user.uid);
-            const viewerSnap = await getDoc(viewerRef);
-            if (!viewerSnap.exists()) {
-              await setDoc(viewerRef, { timestamp: serverTimestamp() });
-              updateData.uniqueReach = increment(1);
-              const demoUpdate = getDemographicsUpdate();
-              Object.assign(updateData, demoUpdate);
-            }
-          }
-
-          updateDoc(adRef, updateData).then(() => {
-            if (event.organizationId) {
-              updateDoc(doc(db, "organizations", event.organizationId), {
-                blockedBalance: increment(-costPerImpression)
-              });
-            }
-          });
+          fetch('/api/ads/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              adId,
+              eventType: 'impression',
+              userId: user?.uid || null
+            })
+          }).catch(() => {});
           
           observer.disconnect()
         }
@@ -175,7 +111,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
     if (cardRef.current) observer.observe(cardRef.current)
     return () => observer.disconnect()
-  }, [isSponsored, adId, db, adsSettings, userProfile, event.organizationId, user]);
+  }, [isSponsored, adId, user?.uid]);
 
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
@@ -213,26 +149,16 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }, [userLocation, event.latitude, event.longitude]);
 
   const handleCardClick = () => {
-    if (isSponsored && adId && db && adsSettings) {
-      const cpcValue = adsSettings.cpcValue || 0
-      const adRef = doc(db, "ads", adId);
-      const demoUpdate = getDemographicsUpdate();
-
-      updateDoc(adRef, { 
-        clicks: increment(1),
-        remainingBudget: increment(-cpcValue),
-        updatedAt: serverTimestamp(),
-        ...Object.keys(demoUpdate).reduce((acc: any, key) => {
-          acc[key.replace('stats_', 'click_stats_')] = increment(1);
-          return acc;
-        }, {})
-      }).then(() => {
-        if (event.organizationId) {
-          updateDoc(doc(db, "organizations", event.organizationId), {
-            blockedBalance: increment(-cpcValue)
-          });
-        }
-      });
+    if (isSponsored && adId) {
+      fetch('/api/ads/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adId,
+          eventType: 'click',
+          userId: user?.uid || null
+        })
+      }).catch(() => {});
     }
     router.push(`/${event.organizer?.username || 'evento'}/${event.id}`)
   }
@@ -310,7 +236,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
               <div className="flex items-center gap-1.5 text-xs font-black text-primary">
                  <Calendar className="w-3.5 h-3.5 text-secondary" />
                  {formatDate(event.date)}
-                 <span className="opacity-30">|</span>
+                 <span className="opacity-30 mx-1">|</span>
                  <Clock className="w-3.5 h-3.5 text-secondary" />
                  {formatTime(event.date)}
               </div>

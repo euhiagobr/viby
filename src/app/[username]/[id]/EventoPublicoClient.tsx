@@ -3,8 +3,8 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, increment, updateDoc, collection, query, where, orderBy } from 'firebase/firestore';
-import { Loader2, ArrowLeft, Calendar, MapPin, Clock, Ticket, BadgeCheck, ShieldCheck, ArrowRight, RefreshCw, Plus, AlertCircle, ShoppingCart, CalendarX, Inbox } from 'lucide-react';
+import { doc, collection, query, where } from 'firebase/firestore';
+import { Loader2, ArrowLeft, Calendar, Clock, Ticket, BadgeCheck, ShieldCheck, ArrowRight, RefreshCw, AlertCircle, ShoppingCart, CalendarX, Inbox } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,7 +28,6 @@ import {
   EventCoOrganizers
 } from '@/components/events';
 import { AgeRatingBadge } from '@/lib/age-rating';
-import { formatCurrency } from '@/lib/financial-utils';
 
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
   const router = useRouter()
@@ -60,7 +59,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const { data: membership } = useCollection<any>(memberQuery);
   const isOwner = membership && membership.length > 0;
 
-  // Ocorrências se for recorrente - USA O UID REAL DO EVENTO
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !event?.isRecurring || !event?.id) return null;
     return query(
@@ -79,16 +77,21 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
 
   const [selectedOccurrence, setSelectedOccurrence] = React.useState<any>(null);
 
+  // Analytics movido para o servidor: Disparo via fetch API
   React.useEffect(() => {
-    if (!db || !id || event?.status !== 'Ativo') return
+    if (!id || event?.status !== 'Ativo') return
     const key = `viby_v_${id}`
     const last = localStorage.getItem(key)
     const now = Date.now()
     if (!last || now - parseInt(last) > 1000 * 60 * 30) {
-      updateDoc(doc(db, "events", id), { viewsCount: increment(1) })
+      fetch('/api/events/track-view', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: id })
+      }).catch(() => {});
       localStorage.setItem(key, now.toString())
     }
-  }, [db, id, event?.status])
+  }, [id, event?.status])
 
   if (eventLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-secondary" /></div>
   if (!event) return null
