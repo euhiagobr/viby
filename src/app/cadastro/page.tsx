@@ -20,14 +20,13 @@ import { maskCPF } from "@/lib/crypto-utils"
 import { sendWelcomeEmail } from "@/app/actions/email"
 
 const DEFAULT_PROFILE_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media";
+const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
 function CadastroContent() {
   const [name, setName] = useState("")
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [ birthDate, setBirthDate] = useState("")
-  const [gender, setGender] = useState("")
   const [cpf, setCpf] = useState("")
   const [loading, setLoading] = useState(false)
   const [checkingUsername, setCheckingUsername] = useState(false)
@@ -42,15 +41,11 @@ function CadastroContent() {
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
-  // REDIRECIONAMENTO IMEDIATO
   useEffect(() => {
     if (!isInitialized || authLoading) return;
-
     if (user) {
-      // Se autenticado, verificamos se o perfil está completo nos dados reais
       const hasMandatoryData = !!(profile?.username && profile?.cpf);
       const isComplete = profile !== null && hasMandatoryData;
-      
       const target = isComplete ? "/dashboard" : "/onboarding";
       router.replace(target);
     }
@@ -61,7 +56,6 @@ function CadastroContent() {
       setUsernameStatus('idle')
       return
     }
-
     const newUsername = username.toLowerCase().trim()
     setCheckingUsername(true)
     const timer = setTimeout(async () => {
@@ -75,7 +69,6 @@ function CadastroContent() {
         setCheckingUsername(false)
       }
     }, 600)
-
     return () => clearTimeout(timer)
   }, [username, db])
 
@@ -114,13 +107,31 @@ function CadastroContent() {
         profileComplete: true,
         role: "user",
         status: "Ativo",
+        followingCount: 1, // Começa seguindo a Viby
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
 
       await runTransaction(db, async (transaction) => {
+        // 1. Índices e Perfil
         transaction.set(doc(db, "usernames", userData.username), { uid: user.uid, type: 'user', email: userData.email })
         transaction.set(doc(db, "users", user.uid), userData)
+
+        // 2. Auto-follow Viby Oficial
+        const followRef = doc(db, "follows", `${user.uid}_${VIBY_OFFICIAL_UID}`);
+        const vibyOrgRef = doc(db, "organizations", VIBY_OFFICIAL_UID);
+        
+        transaction.set(followRef, {
+          followerId: user.uid,
+          followingId: VIBY_OFFICIAL_UID,
+          targetType: 'organization',
+          timestamp: serverTimestamp()
+        });
+        
+        transaction.update(vibyOrgRef, { 
+          followersCount: increment(1),
+          updatedAt: serverTimestamp() 
+        });
       });
 
       await updateUserCPF(user.uid, cleanCPF);
