@@ -66,7 +66,8 @@ service cloud.firestore {
 
       match /members/{memberId} {
         allow read: if isOrgMember(orgId) || (isSignedIn() && request.auth.uid == memberId);
-        allow create, update: if isAdmin() || isOrgOwner(orgId) || (isOrgAdmin(orgId) && request.resource.data.role in ['editor', 'member']);
+        allow create: if isSignedIn() && (isAdmin() || request.auth.uid == memberId || isOrgAdmin(orgId));
+        allow update: if isAdmin() || isOrgOwner(orgId) || (isOrgAdmin(orgId) && request.resource.data.role in ['editor', 'member']);
         allow delete: if isAdmin() || isOrgOwner(orgId) || (isOrgAdmin(orgId) && resource.data.role != 'owner');
       }
 
@@ -140,7 +141,7 @@ service cloud.firestore {
 
     match /usernames/{username} { 
       allow read: if true; 
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn() && (request.resource.data.uid == request.auth.uid || request.resource.data.type == 'organization');
       allow update, delete: if isAdmin();
     }
 
@@ -236,7 +237,7 @@ service cloud.firestore {
     match /follows/{id} {
       allow read: if true;
       allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
+      allow delete: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
     }
 
     match /audit_logs/{id} { 
