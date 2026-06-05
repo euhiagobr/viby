@@ -116,19 +116,23 @@ export default function LandingPageClient() {
   }, [events, searchName, selectedCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
 
   const interleavedContent = React.useMemo(() => {
-    if (!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) return []
-    
     const result = [];
-    let eventIdx = 0;
     let adSlotIdx = 0;
 
+    // Se não há eventos, garantir que ainda mostramos alguns anúncios no grid
+    if (!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) {
+      result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+      result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+      result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+      return result;
+    }
+    
+    let eventIdx = 0;
     while (eventIdx < filteredAndSortedEvents.length) {
-      // Adicionar 6 eventos
       const chunk = filteredAndSortedEvents.slice(eventIdx, eventIdx + 6);
       result.push(...chunk.map(e => ({ ...e, _type: 'event' })));
       eventIdx += 6;
 
-      // Adicionar 1 slot de anúncio (AdsRenderer decidirá o tipo)
       if (eventIdx < filteredAndSortedEvents.length || filteredAndSortedEvents.length > 3) {
         result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
       }
@@ -275,24 +279,30 @@ export default function LandingPageClient() {
             <Loader2 className="w-12 h-12 animate-spin text-secondary" />
             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Sincronizando experiências...</p>
           </div>
-        ) : interleavedContent.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
-            {interleavedContent.map((item: any, idx: number) => (
-              item._type === 'ad' ? (
-                <AdsRenderer key={`ad-${item.adSlotIdx}`} location="feed" index={item.adSlotIdx} googleSlotId="home-feed-slot" />
-              ) : (
-                <EventCard key={`${item.id}-${idx}`} event={item} userLocation={userLocation} isSponsored={item.isSponsored} />
-              )
-            ))}
-          </div>
         ) : (
-          <div className="py-40 text-center bg-white rounded-[4rem] border-2 border-dashed border-border shadow-inner">
-             <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
-                <Inbox className="w-10 h-10 text-muted-foreground opacity-20" />
-             </div>
-             <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Nenhum evento localizado</h3>
-             <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSelectedCity("all"); setSelectedCategory("all"); setRadiusKm("unlimited"); setDateFilter("all"); }}>Limpar Todos os Filtros</Button>
-          </div>
+          <>
+            {filteredAndSortedEvents.length === 0 && (
+              <div className="py-20 text-center bg-white rounded-[4rem] border-2 border-dashed border-border shadow-inner mb-20">
+                <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Inbox className="w-10 h-10 text-muted-foreground opacity-20" />
+                </div>
+                <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Nenhum evento localizado</h3>
+                <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSelectedCity("all"); setSelectedCategory("all"); setRadiusKm("unlimited"); setDateFilter("all"); }}>Limpar Todos os Filtros</Button>
+              </div>
+            )}
+
+            {interleavedContent.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
+                {interleavedContent.map((item: any, idx: number) => (
+                  item._type === 'ad' ? (
+                    <AdsRenderer key={`ad-${item.adSlotIdx}`} location="feed" index={item.adSlotIdx} googleSlotId="home-feed-slot" />
+                  ) : (
+                    <EventCard key={`${item.id}-${idx}`} event={item} userLocation={userLocation} isSponsored={item.isSponsored} />
+                  )
+                ))}
+              </div>
+            )}
+          </>
         )}
       </section>
       <Footer />

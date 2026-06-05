@@ -186,15 +186,22 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
   const interleavedUpcoming = React.useMemo(() => {
     const result = [];
-    let eventIdx = 0;
     let adSlotIdx = 0;
 
+    // Se não há eventos futuros, garantir que ainda mostramos slots de anúncios
+    if (upcomingEvents.length === 0) {
+      result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+      result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+      return result;
+    }
+
+    let eventIdx = 0;
     while (eventIdx < upcomingEvents.length) {
       const chunk = upcomingEvents.slice(eventIdx, eventIdx + 6);
       result.push(...chunk.map(e => ({ ...e, _type: 'event' })));
       eventIdx += 6;
 
-      if (eventIdx < upcomingEvents.length) {
+      if (eventIdx < upcomingEvents.length || upcomingEvents.length > 3) {
         result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
       }
     }
@@ -273,16 +280,19 @@ export default function ProfilePageClient({ username }: { username: string }) {
                   </div>
                   <TabsContent value="upcoming" className="animate-in fade-in duration-500">
                     <div className="space-y-8">
-                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                          {interleavedUpcoming.map((item: any, idx: number) => (
-                            item._type === 'ad' ? (
-                              <AdsRenderer key={`ad-${idx}`} location="profile" index={idx} googleSlotId="profile-feed-slot" />
-                            ) : (
-                              <OrganizerEvents key={item.id} events={[item]} title="" />
-                            )
-                          ))}
-                       </div>
-                       {interleavedUpcoming.length === 0 && <OrganizerEvents events={[]} title="Próximos Eventos" />}
+                       {upcomingEvents.length === 0 && <OrganizerEvents events={[]} title="Próximos Eventos" />}
+                       
+                       {interleavedUpcoming.length > 0 && (
+                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {interleavedUpcoming.map((item: any, idx: number) => (
+                              item._type === 'ad' ? (
+                                <AdsRenderer key={`ad-${idx}`} location="profile" index={idx} googleSlotId="profile-feed-slot" />
+                              ) : (
+                                <OrganizerEvents key={item.id} events={[item]} title="" />
+                              )
+                            ))}
+                         </div>
+                       )}
                     </div>
                   </TabsContent>
                   <TabsContent value="partnerships" className="animate-in fade-in duration-500">

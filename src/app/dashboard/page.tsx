@@ -143,12 +143,18 @@ export default function ExplorarPage() {
   }, [allEvents, search, activeTab, userLocation, radiusKm, selectedCategory, dateFilter, customDate])
 
   const interleavedContent = React.useMemo(() => {
-    if (!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) return []
-    
     const result = [];
-    let eventIdx = 0;
     let adSlotIdx = 0;
 
+    // Garantir exibição de anúncios mesmo com 0 eventos encontrados
+    if (!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) {
+      result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+      result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+      result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+      return result;
+    }
+    
+    let eventIdx = 0;
     while (eventIdx < filteredAndSortedEvents.length) {
       const chunk = filteredAndSortedEvents.slice(eventIdx, eventIdx + 6);
       result.push(...chunk.map(e => ({ ...e, _type: 'event' })));
@@ -239,18 +245,26 @@ export default function ExplorarPage() {
         <TabsContent value={activeTab} className="mt-8">
            {eventsLoading ? (
              <div className="py-32 flex flex-col items-center justify-center gap-4"><Loader2 className="w-12 h-12 animate-spin text-secondary" /><p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Cruzando dados...</p></div>
-           ) : interleavedContent.length > 0 ? (
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-                {interleavedContent.map((item: any, idx: number) => (
-                  item._type === 'ad' ? (
-                    <AdsRenderer key={`ad-${item.adSlotIdx}`} location="feed" index={item.adSlotIdx} googleSlotId="discovery-feed-slot" />
-                  ) : (
-                    <EventCard key={`ev-${item.id}-${idx}`} event={item} userLocation={userLocation} isSponsored={item.isSponsored} />
-                  )
-                ))}
-             </div>
            ) : (
-             <div className="py-40 text-center bg-white rounded-[3rem] border-2 border-dashed opacity-40"><p className="text-xs font-black uppercase tracking-widest">Nenhum resultado encontrado.</p></div>
+             <>
+               {filteredAndSortedEvents.length === 0 && (
+                 <div className="py-40 text-center bg-white rounded-[3rem] border-2 border-dashed opacity-40 mb-10">
+                   <p className="text-xs font-black uppercase tracking-widest">Nenhum evento encontrado para este filtro.</p>
+                 </div>
+               )}
+
+               {interleavedContent.length > 0 && (
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                    {interleavedContent.map((item: any, idx: number) => (
+                      item._type === 'ad' ? (
+                        <AdsRenderer key={`ad-${item.adSlotIdx}`} location="feed" index={item.adSlotIdx} googleSlotId="discovery-feed-slot" />
+                      ) : (
+                        <EventCard key={`ev-${item.id}-${idx}`} event={item} userLocation={userLocation} isSponsored={item.isSponsored} />
+                      )
+                    ))}
+                 </div>
+               )}
+             </>
            )}
         </TabsContent>
       </Tabs>
