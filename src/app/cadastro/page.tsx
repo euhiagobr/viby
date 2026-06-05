@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -95,10 +96,11 @@ function CadastroContent() {
       await updateProfile(user, { displayName: name })
 
       const cleanCPF = cpf.replace(/\D/g, "");
+      const finalUsername = username.toLowerCase().trim();
       const userData = {
         uid: user.uid,
         name,
-        username: username.toLowerCase().trim(),
+        username: finalUsername,
         email: email.toLowerCase().trim(),
         avatar: DEFAULT_PROFILE_IMAGE,
         birthDate: "", 
@@ -114,7 +116,12 @@ function CadastroContent() {
 
       await runTransaction(db, async (transaction) => {
         // 1. Índices e Perfil
-        transaction.set(doc(db, "usernames", userData.username), { uid: user.uid, type: 'user', email: userData.email })
+        transaction.set(doc(db, "usernames", finalUsername), { 
+          uid: user.uid, 
+          type: 'user', 
+          email: userData.email,
+          username: finalUsername 
+        })
         transaction.set(doc(db, "users", user.uid), userData)
 
         // 2. Auto-follow Viby Oficial

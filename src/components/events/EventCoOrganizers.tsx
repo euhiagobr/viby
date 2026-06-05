@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -107,16 +108,18 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
     setIsSearching(true)
     try {
       const cleanTerm = searchTerm.toLowerCase().replace('@', '').trim()
+      // Busca na coleção de usernames usando consulta de campo 'username' para suporte a prefixo
       const q = query(
         collection(db, "usernames"), 
-        where("__name__", ">=", cleanTerm),
-        where("__name__", "<=", cleanTerm + "\uf8ff"),
+        where("username", ">=", cleanTerm),
+        where("username", "<=", cleanTerm + "\uf8ff"),
         limit(5)
       )
       const snap = await getDocs(q)
       
       const results = await Promise.all(snap.docs.map(async (d) => {
         const data = d.data()
+        // Filtra apenas organizações e remove a org atual da busca
         if (data.type !== 'organization' || data.uid === currentOrgId) return null
         
         const orgSnap = await getDoc(doc(db, "organizations", data.uid))
@@ -216,7 +219,11 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
                   <Input 
                     placeholder="Ex: @vibe_night" 
                     value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
+                    onChange={e => {
+                       const val = e.target.value;
+                       setSearchTerm(val);
+                       if (val.length > 2) handleSearch(); // Dispara busca automática ao digitar
+                    }}
                     className="pl-10 rounded-xl h-11 border-dashed border-secondary/30"
                     onKeyDown={e => e.key === 'Enter' && handleSearch()}
                   />
@@ -243,7 +250,7 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
                       <Button 
                         size="sm" 
                         onClick={() => handleInvite(org)} 
-                        disabled={isActionLoading === org.id || partners?.some(p => p.id === org.id)}
+                        disabled={isActionLoading === org.id || partners?.some(p => p.orgId === org.id)}
                         className="h-8 rounded-lg bg-secondary text-white font-black text-[9px] uppercase gap-1.5 shadow-lg"
                       >
                          {isActionLoading === org.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
@@ -285,7 +292,7 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
                        <Button 
                          variant="ghost" 
                          size="icon" 
-                         className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full" 
+                         className="h-8 w-8 text-destructive hover:bg-red-50 rounded-full" 
                          onClick={() => handleRemove(p.id)}
                          disabled={isActionLoading === p.id}
                        >

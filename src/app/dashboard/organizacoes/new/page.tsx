@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -259,7 +260,12 @@ export default function NovaOrganizacaoPage() {
         const usernameSnap = await transaction.get(usernameRef)
         if (usernameSnap.exists()) throw new Error("Username já ocupado.")
 
-        transaction.set(usernameRef, { uid: orgId, type: 'organization' })
+        // Adiciona campo username para permitir buscas por prefixo
+        transaction.set(usernameRef, { 
+          uid: orgId, 
+          type: 'organization',
+          username: normalizedUsername
+        })
 
         transaction.set(orgRef, {
           id: orgId,
@@ -267,7 +273,7 @@ export default function NovaOrganizacaoPage() {
           username: normalizedUsername,
           slug: normalizedUsername,
           createdBy: user.uid,
-          ownerId: user.uid, // OBRIGATÓRIO: Vincula o criador como proprietário real no banco
+          ownerId: user.uid, 
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           verified: false,
@@ -362,7 +368,7 @@ export default function NovaOrganizacaoPage() {
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome Comercial</Label>
+                  <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Nome Comercial</Label>
                   <Input 
                     id="name" 
                     placeholder="Ex: Viby Entretenimento" 
@@ -374,7 +380,7 @@ export default function NovaOrganizacaoPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="username" className="text-[10px] font-black uppercase tracking-widest opacity-60">Username exclusivo (@)</Label>
+                  <Label htmlFor="username" className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username exclusivo (@)</Label>
                   <div className="relative">
                     <Input 
                       id="username" 

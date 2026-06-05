@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -203,9 +204,17 @@ export default function AdminPaginasPage() {
           if (oldUsername) {
             transaction.delete(doc(db, "usernames", oldUsername));
           }
-          transaction.set(newIdxRef, { uid: editingOrg.id, type: 'organization' });
+          transaction.set(newIdxRef, { 
+            uid: editingOrg.id, 
+            type: 'organization',
+            username: newUsername
+          });
         } else if (newUsername) {
-          transaction.set(doc(db, "usernames", newUsername), { uid: editingOrg.id, type: 'organization' }, { merge: true });
+          transaction.set(doc(db, "usernames", newUsername), { 
+            uid: editingOrg.id, 
+            type: 'organization',
+            username: newUsername
+          }, { merge: true });
         }
 
         const { id, ownerProfile, ...data } = editingOrg
@@ -598,7 +607,7 @@ function OrgMembersList({ orgId }: { orgId: string }) {
     setAdding(true)
     try {
       const cleanUser = newMemberUser.toLowerCase().trim().replace('@', '')
-      const uSnap = await getDocs(query(collection(db, "users"), where("username", "==", cleanUser), limit(1)))
+      const uSnap = await getDocs(query(collection(db, "usernames"), where("username", "==", cleanUser), limit(1)))
       if (uSnap.empty) throw new Error("Usuário não encontrado.")
       const uid = uSnap.docs[0].id
       await setDoc(doc(db, "organizations", orgId, "members", uid), { userId: uid, role: 'editor', status: 'accepted', updatedAt: serverTimestamp() })

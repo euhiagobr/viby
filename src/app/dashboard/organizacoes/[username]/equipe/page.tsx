@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -13,7 +14,8 @@ import {
   deleteDoc, 
   getDocs, 
   getDoc,
-  serverTimestamp 
+  serverTimestamp,
+  limit
 } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -89,10 +91,7 @@ export default function OrganizationMembersPage() {
   const [isInviteOpen, setIsInviteOpen] = React.useState(false);
   const [inviteLoading, setInviteLoading] = React.useState(false);
   
-  // Estado para troca de cargo
   const [pendingRoleChange, setPendingRoleChange] = React.useState<{ userId: string, userName: string, newRole: string } | null>(null);
-  
-  // Estado para exclusão de membro
   const [memberToDelete, setMemberToDelete] = React.useState<{ userId: string, userName: string, isInvite: boolean } | null>(null);
   const [roleActionLoading, setRoleActionLoading] = React.useState(false);
   const [deleteActionLoading, setDeleteActionLoading] = React.useState(false);
@@ -125,18 +124,17 @@ export default function OrganizationMembersPage() {
     const role = formData.get('role') as string;
 
     try {
-      if (!usernameInput) {
-        throw new Error("Informe o nome de usuário.");
-      }
+      if (!usernameInput) throw new Error("Informe o nome de usuário.");
 
-      const usernameRef = doc(db, 'usernames', usernameInput);
-      const usernameSnap = await getDoc(usernameRef);
+      // Busca otimizada via campo 'username'
+      const usernameQ = query(collection(db, "usernames"), where("username", "==", usernameInput), limit(1));
+      const usernameSnap = await getDocs(usernameQ);
 
-      if (!usernameSnap.exists()) {
+      if (usernameSnap.empty) {
         throw new Error("Usuário não encontrado.");
       }
 
-      const uData = usernameSnap.data();
+      const uData = usernameSnap.docs[0].data();
       if (uData.type !== 'user') {
         throw new Error("Apenas perfis pessoais podem ser convidados para a equipe.");
       }
@@ -150,9 +148,7 @@ export default function OrganizationMembersPage() {
       }
 
       const targetUserSnap = await getDoc(doc(db, 'users', targetUid));
-      if (!targetUserSnap.exists()) {
-        throw new Error("Dados do usuário não localizados.");
-      }
+      if (!targetUserSnap.exists()) throw new Error("Dados do usuário não localizados.");
       const targetUser = targetUserSnap.data();
 
       const expiresAt = new Date();
@@ -180,15 +176,6 @@ export default function OrganizationMembersPage() {
           orgName: currentOrg.name,
           role: ROLES.find(r => r.value === role)?.label || role,
           inviterName: inviteData.inviterName
-        });
-      }
-
-      if (inviteData.inviterEmail) {
-        await sendTeamInvitationNoticeEmail({
-          to: inviteData.inviterEmail,
-          inviteeName: inviteData.inviteeName,
-          orgName: currentOrg.name,
-          role: ROLES.find(r => r.value === role)?.label || role
         });
       }
 
@@ -413,7 +400,6 @@ export default function OrganizationMembersPage() {
         </Table>
       </Card>
 
-      {/* ALERT DIALOG PARA CONFIRMAÇÃO DE TROCA DE CARGO */}
       <AlertDialog open={!!pendingRoleChange} onOpenChange={(open) => !open && setPendingRoleChange(null)}>
         <AlertDialogContent className="rounded-[2rem]">
           <AlertDialogHeader>
@@ -442,7 +428,6 @@ export default function OrganizationMembersPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ALERT DIALOG PARA CONFIRMAÇÃO DE REMOÇÃO DE MEMBRO */}
       <AlertDialog open={!!memberToDelete} onOpenChange={(open) => !open && setMemberToDelete(null)}>
         <AlertDialogContent className="rounded-[2rem]">
           <AlertDialogHeader>
@@ -467,7 +452,7 @@ export default function OrganizationMembersPage() {
             <AlertDialogAction 
               onClick={handleConfirmRemoveMember}
               disabled={deleteActionLoading}
-              className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-destructive/20 h-11 px-8"
+              className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-secondary/20 h-11 px-8"
             >
               {deleteActionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
               Confirmar Remoção
@@ -475,16 +460,6 @@ export default function OrganizationMembersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
-         <AlertTriangle className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
-         <div className="space-y-1">
-            <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Nota de Segurança</h4>
-            <p className="text-xs text-muted-foreground leading-relaxed font-medium italic">
-               A alteração de cargo concede ou restringe o acesso a dados financeiros e de edição. Certifique-se de que o colaborador é de sua total confiança antes de torná-lo um <strong>Administrador</strong>.
-            </p>
-         </div>
-      </div>
     </div>
   );
 }
