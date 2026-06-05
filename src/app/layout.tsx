@@ -1,3 +1,4 @@
+
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
@@ -8,7 +9,6 @@ import { GlobalErrorBoundary } from '@/components/error-manager/GlobalErrorBound
 import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
-import Script from 'next/script';
 
 export const revalidate = 0;
 
@@ -35,10 +35,10 @@ export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSiteSettings();
   const siteName = settings?.siteName || 'Viby';
   
-  // Fonte única oficial vinda do Firestore
+  // Fonte única oficial vinda do Firestore baseada na URL direta fornecida pelo usuário
   const rawIconUrl = settings?.siteIconUrl || settings?.iconUrl || '/favicon.ico';
   
-  // Cache busting agressivo: usando imageVersion do DB ou timestamp
+  // Cache busting agressivo: usando imageVersion do DB ou timestamp para forçar invalidação no navegador
   const version = settings?.imageVersion || Date.now();
   const separator = rawIconUrl.includes('?') ? '&' : '?';
   const iconUrl = rawIconUrl.startsWith('http') ? `${rawIconUrl}${separator}cache_v=${version}` : rawIconUrl;
@@ -52,10 +52,9 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description,
     metadataBase: new URL('https://viby.club'),
-    manifest: '/manifest.json',
     icons: {
       icon: [
-        { url: iconUrl, type: 'image/x-icon' },
+        { url: iconUrl, type: 'image/png' },
         { url: iconUrl, sizes: '32x32', type: 'image/png' },
         { url: iconUrl, sizes: '192x192', type: 'image/png' },
         { url: iconUrl, sizes: '512x512', type: 'image/png' },
@@ -65,6 +64,7 @@ export async function generateMetadata(): Promise<Metadata> {
       ],
       shortcut: [iconUrl],
     },
+    manifest: '/manifest.webmanifest',
     alternates: {
       canonical: '/',
     },
@@ -123,19 +123,6 @@ export default function RootLayout({
             </GlobalErrorBoundary>
           </ErrorManagerProvider>
         </FirebaseClientProvider>
-        <Script id="register-sw" strategy="afterInteractive">
-          {`
-            if ('serviceWorker' in navigator) {
-              window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/sw.js').then(function(registration) {
-                  console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                }, function(err) {
-                  console.log('ServiceWorker registration failed: ', err);
-                });
-              });
-            }
-          `}
-        </Script>
       </body>
     </html>
   );

@@ -1,3 +1,4 @@
+
 import { MetadataRoute } from 'next';
 import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
@@ -21,7 +22,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   // Fonte única oficial
   const rawIconUrl = settings?.siteIconUrl || settings?.iconUrl || '/favicon.ico';
   
-  // Cache busting
+  // Cache busting para o manifest
   const version = settings?.imageVersion || Date.now();
   const separator = rawIconUrl.includes('?') ? '&' : '?';
   const iconUrl = rawIconUrl.startsWith('http') ? `${rawIconUrl}${separator}cache_v=${version}` : rawIconUrl;
