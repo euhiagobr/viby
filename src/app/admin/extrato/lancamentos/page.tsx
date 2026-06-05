@@ -73,14 +73,14 @@ export default function AdminLedgerPage() {
         list.push({
           id: ad.id,
           type: 'ad',
-          title: ad.adTitle,
-          subtitle: `Anunciante: ${ad.advertiserName}`,
-          org: ad.advertiserName,
-          date: ad.createdAt || ad.startDate,
+          title: ad.adTitle || 'Recarga Saldo Ads',
+          subtitle: `Anunciante: ${ad.orgName || ad.advertiserName}`,
+          org: ad.orgName || ad.advertiserName,
+          date: ad.timestamp || ad.createdAt || ad.startDate,
           gross: ad.grossValue,
           vibyNet: ad.netValue,
           stripe: 0,
-          tax: ad.taxValue,
+          tax: ad.taxValue || 0,
           payout: 0,
           status: ad.nfStatus || 'pendente'
         });
@@ -88,9 +88,12 @@ export default function AdminLedgerPage() {
     }
 
     return list.sort((a, b) => {
-      const tA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime();
-      const tB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
-      return tB - tA;
+      const getTime = (val: any) => {
+        if (!val) return 0;
+        if (val.toDate) return val.toDate().getTime();
+        return new Date(val).getTime();
+      };
+      return getTime(b.date) - getTime(a.date);
     });
   }, [tickets, ads]);
 
@@ -189,8 +192,14 @@ export default function AdminLedgerPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex flex-col text-[9px] font-bold text-red-500 uppercase">
-                       <span>Stripe: -{formatCurrency(e.stripe)}</span>
-                       <span>Imposto: -{formatCurrency(e.tax)}</span>
+                       {e.type === 'ticket' ? (
+                         <>
+                           <span>Stripe: -{formatCurrency(e.stripe)}</span>
+                           <span>Imposto: -{formatCurrency(e.tax)}</span>
+                         </>
+                       ) : (
+                         <span>Imposto: -{formatCurrency(e.tax)}</span>
+                       )}
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-black text-sm text-green-600">

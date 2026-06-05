@@ -209,7 +209,8 @@ export async function createAdBalanceTopUpSession(data: any) {
         userId,
         finalBalance: finalBalance.toString(),
         couponCode: couponCode || "",
-        baseAmount: baseAmount.toString()
+        baseAmount: baseAmount.toString(),
+        totalToPay: totalToPay.toString()
       },
     });
 
@@ -232,12 +233,13 @@ export async function finalizeAdTopUpSession(sessionId: string) {
     const m = session.metadata;
     if (m?.type !== 'ad_topup') return { success: false, error: 'Sessão inválida.' };
 
-    const { orgId, finalBalance, couponCode, userId, baseAmount } = m;
+    const { orgId, finalBalance, couponCode, userId, baseAmount, totalToPay } = m;
 
     return await db.runTransaction(async (transaction) => {
       const orgRef = db.collection('organizations').doc(orgId);
       const orgSnap = await transaction.get(orgRef);
       if (!orgSnap.exists) throw new Error("Organização não encontrada para crédito.");
+      const orgData = orgSnap.data()!;
 
       const txId = `stripe_ad_${sessionId}`;
       const txRef = db.collection('organizations').doc(orgId).collection('transactions').doc(txId);
@@ -251,11 +253,12 @@ export async function finalizeAdTopUpSession(sessionId: string) {
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // Registrar transação
+      // Registrar transação na carteira da org
       transaction.set(txRef, {
         type: 'ad_topup',
         status: 'completed',
         amount: parseFloat(baseAmount),
+        totalCharged: parseFloat(totalToPay),
         finalBalanceCredited: parseFloat(finalBalance),
         couponCode: couponCode || null,
         stripeSessionId: sessionId,
@@ -263,17 +266,23 @@ export async function finalizeAdTopUpSession(sessionId: string) {
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // Auditoria Global
+      // Auditoria Global ERP - Ponto fixo de receita
+      // Bruto = o que o usuário pagou (totalToPay)
+      // Lucro Viby = totalToPay - finalBalance
+      const profit = parseFloat(totalToPay) - parseFloat(finalBalance);
       const taxRef = db.collection('tax_ads').doc();
       transaction.set(taxRef, {
         adId: txId,
         orgId: orgId,
-        orgName: orgSnap.data()?.name || "Org",
-        grossValue: parseFloat(baseAmount),
-        netValue: parseFloat(finalBalance),
-        taxValue: 0, 
+        orgName: orgData.name || "Org",
+        adTitle: "Recarga Saldo Ads",
+        advertiserName: orgData.name || "Org",
+        grossValue: parseFloat(totalToPay),
+        netValue: parseFloat(profit.toFixed(2)),
+        taxValue: parseFloat((profit * 0.11).toFixed(2)), // 11% tax provision
         status: 'completado',
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
       });
 
       // Incrementar uso do cupom se existir

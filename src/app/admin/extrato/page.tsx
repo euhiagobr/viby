@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -72,8 +73,13 @@ export default function AdminERPDashboard() {
            m.totalRefunds += (t.totalFacePrice || 0);
            return;
         }
-        m.grossRevenue += (t.totalFacePrice || 0) + (t.buyerFeeAmount || 0);
+        // Bruto = o que o usuário pagou (Face + Taxa)
+        const totalBrutoTicket = (t.totalFacePrice || 0) + (t.buyerFeeAmount || 0);
+        m.grossRevenue += totalBrutoTicket;
+        
+        // NetRevenue da plataforma para tickets = Markup + Comissão Produtor
         m.netRevenue += (t.vibyGrossProfit || 0);
+        
         m.totalStripeFees += (t.stripeFeeAmount || 0);
         m.totalTaxes += (t.taxAmount || 0);
         m.totalPayouts += (t.payoutToProducer || 0);
@@ -82,10 +88,16 @@ export default function AdminERPDashboard() {
 
     if (ads) {
       ads.forEach(ad => {
-        if (ad.status === 'cancelado') return;
-        m.totalAdsRevenue += (ad.grossValue || 0);
+        if (ad.status === 'cancelado' || ad.status === 'rejeitado') return;
+        
+        // Bruto Ads = o que o anunciante pagou no Stripe
+        m.grossRevenue += (ad.grossValue || 0);
+        
+        // Receita da Plataforma em Ads = lucro da recarga (netValue do tax_ads)
+        const adProfit = (ad.netValue || 0);
+        m.totalAdsRevenue += adProfit;
+        m.netRevenue += adProfit;
         m.totalTaxes += (ad.taxValue || 0);
-        m.netRevenue += (ad.netValue || 0);
       });
     }
 
@@ -106,7 +118,7 @@ export default function AdminERPDashboard() {
   }, [tickets, ads, expenses, payouts]);
 
   const chartData = [
-    { name: 'Faturamento', value: metrics.grossRevenue + metrics.totalAdsRevenue, color: 'hsl(var(--primary))' },
+    { name: 'Faturamento', value: metrics.grossRevenue, color: 'hsl(var(--primary))' },
     { name: 'Repasses', value: metrics.totalPayouts, color: 'hsl(var(--secondary))' },
     { name: 'Impostos/Taxas', value: metrics.totalStripeFees + metrics.totalTaxes, color: '#ef4444' },
     { name: 'DRE Líquido', value: metrics.realProfit, color: '#10b981' },
@@ -126,7 +138,7 @@ export default function AdminERPDashboard() {
   return (
     <div className="space-y-8 pb-20">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPI kpiTitle="Volume Bruto (GMV)" value={metrics.grossRevenue + metrics.totalAdsRevenue} icon={TrendingUp} color="blue" />
+        <KPI kpiTitle="Volume Bruto (GMV)" value={metrics.grossRevenue} icon={TrendingUp} color="blue" />
         <KPI kpiTitle="Lucro Líquido Real" value={metrics.realProfit} icon={CheckCircle2} color="green" />
         <KPI kpiTitle="Repasses Pendentes" value={metrics.pendingPayouts} icon={Clock} color="orange" />
         <KPI kpiTitle="Despesa Operacional" value={metrics.internalExpenses} icon={ArrowDownRight} color="red" />
@@ -180,7 +192,7 @@ export default function AdminERPDashboard() {
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-50">Margem de Lucro Real</p>
                 <div className="flex items-baseline gap-2">
                    <p className="text-5xl font-black italic tracking-tighter">
-                     {metrics.grossRevenue > 0 ? ((metrics.realProfit / (metrics.grossRevenue + metrics.totalAdsRevenue)) * 100).toFixed(1) : 0}%
+                     {metrics.grossRevenue > 0 ? ((metrics.realProfit / metrics.grossRevenue) * 100).toFixed(1) : 0}%
                    </p>
                 </div>
              </div>
