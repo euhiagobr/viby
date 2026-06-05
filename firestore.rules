@@ -68,7 +68,7 @@ service cloud.firestore {
       }
 
       match /transactions/{txId} {
-        allow read: if isAdmin() || isOrgAdmin(orgId);
+        allow read: if isAdmin() || isOrgAdmin(orgId) || (isSignedIn() && request.auth.uid == resource.data.userId);
         allow write: if false; 
       }
     }
@@ -109,7 +109,7 @@ service cloud.firestore {
     match /registrations/{regId} {
       allow read: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.userId || isOrgMember(resource.data.organizationId)));
       allow create: if false; 
-      allow update: if isAdmin();
+      allow update: if isAdmin() || (isSignedIn() && isOrgEditor(resource.data.organizationId));
     }
 
     match /orders/{orderId} {
@@ -198,6 +198,23 @@ service cloud.firestore {
       allow write: if false; 
     }
 
+    // --- GAMIFICAÇÃO ---
+
+    match /levels/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /badges/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /xp_rules/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /user_gamification/{uid} {
       allow read: if true;
       allow write: if isAdmin();
@@ -205,6 +222,11 @@ service cloud.firestore {
 
     match /xp_logs/{id} {
       allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+      allow write: if isAdmin();
+    }
+
+    match /cultural_stats/{uid} {
+      allow read: if true;
       allow write: if isAdmin();
     }
 
@@ -235,5 +257,6 @@ service cloud.firestore {
 
     match /{path=**}/partners/{partnerId} { allow read: if true; }
     match /{path=**}/members/{memberId} { allow read: if isOrgMember(path.split('/')[1]) || (isSignedIn() && request.auth.uid == memberId); }
+    match /{path=**}/transactions/{id} { allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId); }
   }
 }

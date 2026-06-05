@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -15,6 +14,7 @@ import { FirestorePermissionError } from '../errors';
 /**
  * Hook resiliente para escutar coleções do Firestore.
  * Aprimorado com lógica profunda de extração de path para melhor depuração no ErrorManager.
+ * Adicionada proteção contra erros de asserção interna do SDK (ID: ca9/b815).
  */
 export function useCollection<T = DocumentData>(query: Query<T> | null) {
   const [data, setData] = useState<T[] | null>(null);
@@ -34,70 +34,63 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
 
     setLoading(true);
 
-    const unsubscribe = onSnapshot(
-      query,
-      (snapshot: QuerySnapshot<T>) => {
-        if (!isMounted.current) return;
-        
-        const items = snapshot.docs.map((doc) => ({
-          ...(doc.data() as T),
-          id: doc.id,
-        }));
-        
-        setData(items);
-        setLoading(false);
-        setError(null);
-      },
-      (serverError: FirestoreError) => {
-        if (!isMounted.current) return;
+    let unsubscribe: () => void;
 
-        if (serverError.code === 'permission-denied') {
-          // Extração ultra-robusta do caminho da coleção para o ErrorManager
-          let path = 'collection_query';
-          try {
-            const q = query as any;
+    try {
+      unsubscribe = onSnapshot(
+        query,
+        (snapshot: QuerySnapshot<T>) => {
+          if (!isMounted.current) return;
+          
+          const items = snapshot.docs.map((doc) => ({
+            ...(doc.data() as T),
+            id: doc.id,
+          }));
+          
+          setData(items);
+          setLoading(false);
+          setError(null);
+        },
+        (serverError: FirestoreError) => {
+          if (!isMounted.current) return;
+
+          if (serverError.code === 'permission-denied') {
+            let path = 'collection_query';
+            try {
+              const q = query as any;
+              if (q._query?.path?.segments) {
+                path = q._query.path.segments.join('/');
+              } else if (q.query?.path?.segments) {
+                path = q.query.path.segments.join('/');
+              } else if (q.path) {
+                path = q.path;
+              }
+            } catch (e) {
+              console.warn("[Path Extraction Failed]", e);
+            }
             
-            // Tentativa 1: Modular SDK structure (v9/v11)
-            if (q._query?.path?.segments) {
-              path = q._query.path.segments.join('/');
-            } 
-            // Tentativa 2: Outra estrutura comum do SDK
-            else if (q.query?.path?.segments) {
-              path = q.query.path.segments.join('/');
-            }
-            // Tentativa 3: Caminho direto se disponível
-            else if (q.path) {
-              path = q.path;
-            }
-            // Tentativa 4: String representation
-            else if (typeof q.toString === 'function') {
-              const qStr = q.toString();
-              // Extrai o nome da coleção de strings como "Query(users/123/items)"
-              const match = qStr.match(/Query\((.*?)\)/);
-              if (match) path = match[1];
-            }
-          } catch (e) {
-            console.warn("[Path Extraction Failed]", e);
+            const permissionError = new FirestorePermissionError({
+              path: path,
+              operation: 'list',
+            });
+            
+            errorEmitter.emit('permission-error', permissionError);
+            setData([]);
+          } else {
+            console.error(`[Firestore Collection Error] ${serverError.code}`, serverError);
+            setError(serverError);
           }
-          
-          const permissionError = new FirestorePermissionError({
-            path: path,
-            operation: 'list',
-          });
-          
-          errorEmitter.emit('permission-error', permissionError);
-          setData([]);
-        } else {
-          console.error(`[Firestore Collection Error] ${serverError.code}`, serverError);
-          setError(serverError);
+          setLoading(false);
         }
-        setLoading(false);
-      }
-    );
+      );
+    } catch (e) {
+      console.warn("[Firestore] Collection sync starting failed.");
+      setLoading(false);
+    }
 
     return () => {
       isMounted.current = false;
-      unsubscribe();
+      if (unsubscribe) unsubscribe();
     };
   }, [query]);
 
