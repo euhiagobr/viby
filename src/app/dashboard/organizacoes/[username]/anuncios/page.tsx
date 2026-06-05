@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -31,7 +32,10 @@ import {
   Inbox,
   Info,
   Globe,
-  CheckCircle2
+  CheckCircle2,
+  Users,
+  Zap,
+  CreditCard
 } from "lucide-react"
 import {
   Dialog,
