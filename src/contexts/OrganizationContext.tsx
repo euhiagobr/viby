@@ -65,6 +65,9 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
 
+  // Memoize org IDs to avoid infinite loops in partnership listener
+  const orgIdsKey = organizations.map(o => o.id).sort().join(',');
+
   useEffect(() => {
     if (!isInitialized || !db || !user) {
       setOrganizations([]);
@@ -170,6 +173,60 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     };
   }, [db, user, isInitialized]);
 
+  // Listener para Parcerias (Co-organização)
+  useEffect(() => {
+    if (!isInitialized || !db || !user || organizations.length === 0) {
+      setPendingPartnerships([]);
+      return;
+    }
+
+    const orgIds = organizations.map(o => o.id);
+    const slicedIds = orgIds.slice(0, 30); // Limite do operador 'in' do Firestore
+
+    const partnersQuery = query(
+      collectionGroup(db, 'partners'),
+      where('orgId', 'in', slicedIds),
+      where('status', '==', 'pending')
+    );
+
+    const unsubscribe = onSnapshot(partnersQuery, async (snapshot) => {
+      try {
+        const pings = await Promise.all(snapshot.docs.map(async (pDoc) => {
+          const pData = pDoc.data();
+          const eventId = pDoc.ref.parent.parent?.id;
+          if (!eventId) return null;
+
+          const eventSnap = await getDoc(doc(db, 'events', eventId));
+          if (!eventSnap.exists()) return null;
+          
+          const eventData = eventSnap.data();
+          return {
+            id: pDoc.id,
+            eventId,
+            eventTitle: eventData.title,
+            inviterOrgId: pData.inviterOrgId,
+            inviterOrgName: pData.inviterOrgName || eventData.organizer?.name || "Outra Marca",
+            orgId: pData.orgId,
+            orgName: pData.orgName,
+            status: pData.status,
+            invitedAt: pData.invitedAt,
+            expiresAt: pData.expiresAt
+          };
+        }));
+
+        setPendingPartnerships(pings.filter(p => p !== null));
+      } catch (e) {
+        console.error("Erro ao processar solicitações de parceria:", e);
+      }
+    }, (err) => {
+      if (err.code === 'failed-precondition') {
+        console.warn("[Viby] Índice de coleção cruzada (partners) pendente.");
+      }
+    });
+
+    return () => unsubscribe();
+  }, [db, user, isInitialized, orgIdsKey]);
+
   useEffect(() => {
     if (!isInitialized || !db || !user || loading) return;
     const usernameFromUrl = params?.username as string;
@@ -191,7 +248,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   };
 
   const handleSetCurrentOrg = (org: Organization | null) => {
-    // Audit fix: Eliminate race condition if user logs out while this is firing
     if (!user && org !== null) return;
 
     setCurrentOrg(org);

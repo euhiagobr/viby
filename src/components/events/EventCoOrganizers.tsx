@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -39,6 +38,7 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
+import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 
 interface EventCoOrganizersProps {
   eventId: string
@@ -92,6 +92,7 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
+  const { currentOrg } = useCurrentOrganization()
   
   const [searchTerm, setSearchTerm] = React.useState("")
   const [isSearching, setIsSearching] = React.useState(false)
@@ -111,7 +112,6 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
     try {
       const cleanTerm = searchTerm.toLowerCase().replace('@', '').trim()
       
-      // Busca 1: Via Índice de Usernames (Usando __name__ para prefixo em IDs)
       const qIndex = query(
         collection(db, "usernames"), 
         where("__name__", ">=", cleanTerm),
@@ -129,7 +129,6 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
 
       let finalResults = results.filter(Boolean)
 
-      // Busca 2 (Fallback): Se não achou no índice, tenta busca direta na coleção de organizações
       if (finalResults.length === 0) {
         const qDirect = query(
           collection(db, "organizations"),
@@ -156,10 +155,14 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
   }
 
   const handleInvite = async (org: any) => {
-    if (!db || !eventId || !user) return
+    if (!db || !eventId || !user || !currentOrg) return
     setIsActionLoading(org.id)
     
     const partnerRef = doc(db, "events", eventId, "partners", org.id)
+    
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24);
+
     const inviteData = {
       orgId: org.id,
       orgName: org.name,
@@ -168,7 +171,9 @@ export function EventCoOrganizers({ eventId, currentOrgId, isPublic, className }
       status: 'pending',
       invitedAt: serverTimestamp(),
       invitedBy: user.uid,
-      inviterOrgId: currentOrgId
+      inviterOrgId: currentOrgId,
+      inviterOrgName: currentOrg.name,
+      expiresAt: expiresAt.toISOString()
     }
 
     try {
