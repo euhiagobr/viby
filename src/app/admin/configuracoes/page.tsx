@@ -69,7 +69,6 @@ export default function AdminConfiguracoesPage() {
   const { data: googleAds, loading: loadingGoogle } = useDoc<any>(googleAdsRef);
 
   const [saving, setSaving] = React.useState(false);
-  const [showSecret, setShowSecret] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState<{ [key: string]: number | null }>({});
 
   // Form States
