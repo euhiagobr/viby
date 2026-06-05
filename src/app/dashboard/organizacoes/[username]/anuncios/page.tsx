@@ -37,7 +37,9 @@ import {
   CreditCard,
   Edit,
   Save,
-  ShieldAlert
+  ShieldAlert,
+  ArrowUpRight,
+  UserCircle
 } from "lucide-react"
 import {
   Dialog,
@@ -62,6 +64,8 @@ import Link from "next/link"
 import { formatCurrency } from "@/lib/financial-utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { createAdAction, updateAdAction } from "@/app/actions/ads"
+import { Separator } from "@/components/ui/separator"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 export default function OrganizationAdsPage() {
   const db = useFirestore()
@@ -100,6 +104,7 @@ export default function OrganizationAdsPage() {
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false)
   const [editingAd, setEditingAd] = React.useState<any>(null)
+  const [selectedAdForMetrics, setSelectedAdForMetrics] = React.useState<any>(null)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [adType, setAdType] = React.useState("evento")
   const [selectedEventId, setSelectedEventId] = React.useState("")
@@ -109,7 +114,6 @@ export default function OrganizationAdsPage() {
   const [adImageUrl, setAdImageUrl] = React.useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
 
-  // Estados do Form de Edição
   const [editForm, setEditForm] = React.useState({ title: "", url: "" })
 
   const adPlanSummary = React.useMemo(() => {
@@ -386,6 +390,105 @@ export default function OrganizationAdsPage() {
          </DialogContent>
       </Dialog>
 
+      {/* MODAL DE MÉTRICAS */}
+      <Dialog open={!!selectedAdForMetrics} onOpenChange={(o) => !o && setSelectedAdForMetrics(null)}>
+         <DialogContent className="max-w-2xl h-[85vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
+            <DialogHeader className="p-8 border-b bg-muted/30">
+               <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-4">
+                     <div className="p-3 bg-secondary/10 rounded-2xl text-secondary">
+                        <TrendingUp className="w-6 h-6" />
+                     </div>
+                     <div>
+                        <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Performance: {selectedAdForMetrics?.eventTitle}</DialogTitle>
+                        <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">Relatório Analítico de Campanha</DialogDescription>
+                     </div>
+                  </div>
+                  <Badge className="bg-secondary text-white font-black uppercase text-[8px] h-5">{selectedAdForMetrics?.status}</Badge>
+               </div>
+            </DialogHeader>
+            
+            <ScrollArea className="flex-1">
+               <div className="p-8 space-y-10">
+                  {/* KPI Row */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                     <AdStat label="Visualizações" value={selectedAdForMetrics?.reach || 0} icon={Eye} />
+                     <AdStat label="Alcance Único" value={selectedAdForMetrics?.uniqueReach || 0} icon={Users} />
+                     <AdStat label="Cliques" value={selectedAdForMetrics?.clicks || 0} icon={MousePointer2} />
+                     <AdStat 
+                        label="Taxa (CTR)" 
+                        value={((selectedAdForMetrics?.clicks || 0) / (selectedAdForMetrics?.reach || 1) * 100).toFixed(2) + "%"} 
+                        icon={Zap} 
+                     />
+                  </div>
+
+                  <Separator className="border-dashed" />
+
+                  {/* Budget Health */}
+                  <div className="space-y-6">
+                     <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                        <Wallet className="w-3 h-3" /> Consumo de Orçamento
+                     </h4>
+                     <div className="p-6 bg-muted/30 rounded-3xl border space-y-4">
+                        <div className="flex justify-between items-end">
+                           <div className="space-y-1">
+                              <p className="text-[8px] font-black uppercase opacity-40">Saldo Restante</p>
+                              <p className="text-3xl font-black text-primary">{formatCurrency(selectedAdForMetrics?.remainingBudget || 0)}</p>
+                           </div>
+                           <p className="text-xs font-bold text-muted-foreground">De {formatCurrency(selectedAdForMetrics?.initialBudget || 0)}</p>
+                        </div>
+                        <div className="space-y-2">
+                           <div className="flex justify-between text-[9px] font-black uppercase">
+                              <span>Consumido: {Math.round((1 - (selectedAdForMetrics?.remainingBudget / selectedAdForMetrics?.initialBudget)) * 100)}%</span>
+                           </div>
+                           <Progress value={(1 - (selectedAdForMetrics?.remainingBudget / selectedAdForMetrics?.initialBudget)) * 100} className="h-2" />
+                        </div>
+                     </div>
+                  </div>
+
+                  {/* Demographic Placeholder */}
+                  <div className="space-y-6">
+                     <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                        <Target className="w-3 h-3" /> Perfil de Audiência
+                     </h4>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-4 rounded-2xl border flex items-center gap-3">
+                           <div className="p-2 bg-pink-50 text-pink-500 rounded-lg"><UserCircle className="w-4 h-4" /></div>
+                           <div className="flex-1">
+                              <p className="text-[8px] font-black uppercase opacity-40">Masculino</p>
+                              <div className="flex items-center gap-2">
+                                 <span className="text-sm font-bold">{selectedAdForMetrics?.stats_gender_masculino || 0}</span>
+                                 <Progress value={(selectedAdForMetrics?.stats_gender_masculino / (selectedAdForMetrics?.uniqueReach || 1)) * 100} className="h-1 flex-1" />
+                              </div>
+                           </div>
+                        </div>
+                        <div className="p-4 rounded-2xl border flex items-center gap-3">
+                           <div className="p-2 bg-purple-50 text-purple-500 rounded-lg"><UserCircle className="w-4 h-4" /></div>
+                           <div className="flex-1">
+                              <p className="text-[8px] font-black uppercase opacity-40">Feminino</p>
+                              <div className="flex items-center gap-2">
+                                 <span className="text-sm font-bold">{selectedAdForMetrics?.stats_gender_feminino || 0}</span>
+                                 <Progress value={(selectedAdForMetrics?.stats_gender_feminino / (selectedAdForMetrics?.uniqueReach || 1)) * 100} className="h-1 flex-1" />
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+
+                  <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
+                     <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                     <p className="text-[9px] text-secondary font-bold uppercase leading-tight italic">
+                        Os dados demográficos são capturados de forma anônima com base no perfil dos usuários logados que visualizaram o anúncio.
+                     </p>
+                  </div>
+               </div>
+            </ScrollArea>
+            <DialogFooter className="p-6 border-t">
+               <Button onClick={() => setSelectedAdForMetrics(null)} className="w-full bg-primary text-white font-black h-12 rounded-xl uppercase italic">Fechar Relatório</Button>
+            </DialogFooter>
+         </DialogContent>
+      </Dialog>
+
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
         <Card className="border-none shadow-sm bg-primary text-white overflow-hidden relative group">
           <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Visualizações</CardTitle></CardHeader>
@@ -435,7 +538,7 @@ export default function OrganizationAdsPage() {
                            <div className="space-y-1">
                              <div className="flex items-center gap-2">
                                <h4 className="font-bold text-xs uppercase truncate max-w-[150px]">{ad.eventTitle}</h4>
-                               <Badge className={cn("text-[7px] font-black uppercase h-3.5 px-1", ad.status === 'Ativo' ? "bg-green-50" : ad.status === 'Pendente' ? "bg-orange-50" : "bg-muted")}>{ad.status}</Badge>
+                               <Badge className={cn("text-[7px] font-black uppercase h-3.5 px-1", ad.status === 'Ativo' ? "bg-green-50 text-green-600 border-green-200" : ad.status === 'Pendente' ? "bg-orange-50 text-orange-600 border-orange-200" : "bg-muted")}>{ad.status}</Badge>
                              </div>
                              <p className="text-[9px] font-bold text-muted-foreground uppercase">{ad.type}</p>
                            </div>
@@ -445,7 +548,7 @@ export default function OrganizationAdsPage() {
                          <div className="col-span-2 text-right"><p className="text-[8px] uppercase opacity-40">Saldo Restante</p><p className="font-black text-xs text-primary">{formatCurrency(ad.remainingBudget || 0)}</p></div>
                          <div className="col-span-2 flex items-center justify-end gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => openEdit(ad)} title="Editar"><Edit className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" title="Métricas"><TrendingUp className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" onClick={() => setSelectedAdForMetrics(ad)} title="Métricas"><TrendingUp className="w-4 h-4" /></Button>
                          </div>
                        </div>
                      );
@@ -462,4 +565,16 @@ export default function OrganizationAdsPage() {
       </Card>
     </div>
   )
+}
+
+function AdStat({ label, value, icon: Icon }: { label: string, value: string | number, icon: any }) {
+   return (
+      <div className="p-4 bg-white rounded-2xl border shadow-sm flex flex-col items-center gap-2 text-center">
+         <Icon className="w-4 h-4 text-secondary opacity-40" />
+         <div>
+            <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">{label}</p>
+            <p className="text-sm font-black text-primary uppercase italic">{value.toLocaleString()}</p>
+         </div>
+      </div>
+   )
 }
