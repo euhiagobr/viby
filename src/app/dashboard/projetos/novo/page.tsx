@@ -92,9 +92,10 @@ export default function NovoEventoPage() {
     e.preventDefault()
     if (!db || !user || !currentOrg) return
 
-    const isPaid = ticketMode !== 'free';
+    // Validação correta: só bloqueia se o modo for PAGO (single ou batches)
+    const isPaid = ticketMode === 'paid_single' || ticketMode === 'batches';
     if (isPaid && !isStripeVerified) {
-       toast({ variant: "destructive", title: "Ação Bloqueada", description: "Sua conta de recebimento não está aprovada no Stripe. Você só pode publicar eventos gratuitos." });
+       toast({ variant: "destructive", title: "Ação Bloqueada", description: "Sua conta de recebimento não está aprovada no Stripe. Você só pode publicar eventos gratuitos ou sem bilheteria interna." });
        return;
     }
 
