@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
@@ -10,10 +10,18 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import Script from 'next/script';
 
+export const viewport: Viewport = {
+  themeColor: '#000000',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+};
+
 async function getSiteSettings() {
   try {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
+    // Explicitly fetching from the 'settings' collection, 'site' document
     const snap = await getDoc(doc(db, 'settings', 'site'));
     return snap.exists() ? snap.data() : null;
   } catch (e) {
@@ -26,7 +34,10 @@ export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSiteSettings();
   const siteName = settings?.siteName || 'Viby';
   
+  // Primary source is siteIconUrl, fallback to iconUrl, then local favicon
   const rawIconUrl = settings?.siteIconUrl || settings?.iconUrl || '/favicon.ico';
+  
+  // Cache busting: using imageVersion from DB or current timestamp if missing
   const version = settings?.imageVersion || Date.now();
   const separator = rawIconUrl.includes('?') ? '&' : '?';
   const iconUrl = rawIconUrl.startsWith('http') ? `${rawIconUrl}${separator}v=${version}` : rawIconUrl;
@@ -40,6 +51,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description,
     metadataBase: new URL('https://viby.club'),
+    manifest: '/manifest.json',
     icons: {
       icon: [
         { url: iconUrl },
@@ -50,7 +62,14 @@ export async function generateMetadata(): Promise<Metadata> {
       apple: [
         { url: iconUrl, sizes: '180x180', type: 'image/png' },
       ],
-      shortcut: [iconUrl],
+      shortcut: [{ url: iconUrl }],
+      other: [
+        {
+          rel: 'mask-icon',
+          url: iconUrl,
+          color: '#000000',
+        },
+      ],
     },
     alternates: {
       canonical: '/',
