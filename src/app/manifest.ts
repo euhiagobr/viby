@@ -24,7 +24,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   // Cache busting
   const version = settings?.imageVersion || Date.now();
   const separator = rawIconUrl.includes('?') ? '&' : '?';
-  const iconUrl = rawIconUrl.startsWith('http') ? `${rawIconUrl}${separator}v=${version}` : rawIconUrl;
+  const iconUrl = rawIconUrl.startsWith('http') ? `${rawIconUrl}${separator}cache_v=${version}` : rawIconUrl;
 
   return {
     name: siteName,

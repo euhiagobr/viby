@@ -10,6 +10,8 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import Script from 'next/script';
 
+export const revalidate = 0;
+
 export const viewport: Viewport = {
   themeColor: '#000000',
   width: 'device-width',
@@ -33,13 +35,13 @@ export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSiteSettings();
   const siteName = settings?.siteName || 'Viby';
   
-  // Fonte única oficial: siteIconUrl (Alias de prioridade para favicon dinâmico)
+  // Fonte única oficial vinda do Firestore
   const rawIconUrl = settings?.siteIconUrl || settings?.iconUrl || '/favicon.ico';
   
-  // Cache busting: usando imageVersion do DB ou timestamp para garantir atualização
+  // Cache busting agressivo: usando imageVersion do DB ou timestamp
   const version = settings?.imageVersion || Date.now();
   const separator = rawIconUrl.includes('?') ? '&' : '?';
-  const iconUrl = rawIconUrl.startsWith('http') ? `${rawIconUrl}${separator}v=${version}` : rawIconUrl;
+  const iconUrl = rawIconUrl.startsWith('http') ? `${rawIconUrl}${separator}cache_v=${version}` : rawIconUrl;
 
   const description = 'Centralize seus eventos, promova experiências e utilize IA para alavancar seus resultados.';
 
@@ -61,14 +63,7 @@ export async function generateMetadata(): Promise<Metadata> {
       apple: [
         { url: iconUrl, sizes: '180x180', type: 'image/png' },
       ],
-      shortcut: [{ url: iconUrl }],
-      other: [
-        {
-          rel: 'mask-icon',
-          url: iconUrl,
-          color: '#000000',
-        },
-      ],
+      shortcut: [iconUrl],
     },
     alternates: {
       canonical: '/',
