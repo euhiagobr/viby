@@ -66,8 +66,6 @@ export function isEventVisible(event: any): boolean {
   // Se não tem data de término, assume 8 horas após o início para evitar sumir imediatamente
   const end = parseDate(event.endDate) || new Date(start.getTime() + 8 * 60 * 60 * 1000);
   
-  // No modo de restauração, permitimos eventos até 24h após o término para evitar desaparecimento súbito
-  const persistenceThreshold = new Date(end.getTime() + 24 * 60 * 60 * 1000);
-  
-  return persistenceThreshold >= now;
+  // Eventos encerrados param de ser exibidos no Discovery global imediatamente
+  return end >= now;
 }

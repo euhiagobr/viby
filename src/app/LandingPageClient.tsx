@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { getCurrentLocation, calculateDistance, type Coordinates } from "@/lib/location-utils"
-import { calculateEventScore } from "@/lib/event-scoring-utils"
+import { calculateEventScore, isEventVisible } from "@/lib/event-scoring-utils"
 import Footer from "@/components/layout/Footer"
 import { cn } from "@/lib/utils"
 import useEmblaCarousel from 'embla-carousel-react'
@@ -93,6 +93,9 @@ export default function LandingPageClient() {
     console.log(`[Debug] Iniciando filtragem de ${events.length} eventos (Raio: ${radiusKm}km)...`);
 
     let result = events.filter(e => {
+      // Regra de visibilidade baseada em data de encerramento
+      if (!isEventVisible(e)) return false;
+
       if (searchName && !e.title?.toLowerCase().includes(searchName.toLowerCase())) return false;
       if (selectedCity !== 'all' && e.city !== selectedCity) return false;
       if (selectedCategory !== 'all' && e.categoryId !== selectedCategory) return false;
