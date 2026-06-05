@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -32,7 +31,10 @@ import {
   Fingerprint,
   AlertTriangle,
   Camera,
-  Trash2
+  Trash2,
+  Instagram,
+  Globe,
+  Phone
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -332,6 +334,51 @@ export default function EditarPerfilPage() {
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Sua Bio (Curta e Direta)</Label>
               <Textarea value={formData.bio} maxLength={150} onChange={(e) => setFormData((prev:any) => ({...prev, bio: e.target.value}))} placeholder="Conte um pouco sobre você..." className="min-h-[100px] resize-none rounded-xl border-dashed" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* REDES SOCIAIS */}
+        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+          <CardHeader className="bg-muted/30">
+            <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Conexões e Redes</CardTitle>
+            <CardDescription className="font-medium">Vincule suas redes para que outros membros te encontrem.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-8 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2 ml-1">
+                   <Instagram className="w-3 h-3" /> Instagram (@)
+                </Label>
+                <Input 
+                  value={formData.instagram} 
+                  onChange={e => setFormData({...formData, instagram: e.target.value.replace("@", "")})} 
+                  placeholder="usuario_viby" 
+                  className="rounded-xl h-11" 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2 ml-1">
+                   <Globe className="w-3 h-3" /> Site Oficial
+                </Label>
+                <Input 
+                  value={formData.website} 
+                  onChange={e => setFormData({...formData, website: e.target.value})} 
+                  placeholder="https://..." 
+                  className="rounded-xl h-11" 
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2 ml-1">
+                 <Phone className="w-3 h-3" /> WhatsApp
+              </Label>
+              <Input 
+                value={formData.whatsapp} 
+                onChange={e => setFormData({...formData, whatsapp: e.target.value})} 
+                placeholder="(00) 00000-0000" 
+                className="rounded-xl h-11" 
+              />
             </div>
           </CardContent>
         </Card>
