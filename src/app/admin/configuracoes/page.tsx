@@ -175,11 +175,122 @@ export default function AdminConfiguracoesPage() {
                 <Label className="text-[10px] font-black uppercase opacity-60">Nome da Plataforma</Label>
                 <Input value={siteForm.siteName} onChange={e => setSiteForm({...siteForm, siteName: e.target.value})} className="rounded-xl h-11" placeholder="Ex: Viby.Club" />
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                 <div className="space-y-4">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Logotipo Principal</Label>
+                    <div className="relative h-24 bg-muted/20 rounded-2xl border-2 border-dashed border-border flex items-center justify-center overflow-hidden group">
+                       {siteForm.logoUrl ? (
+                         <img src={siteForm.logoUrl} className="max-h-full object-contain" alt="Logo" />
+                       ) : <ImageIcon className="w-8 h-8 opacity-10" />}
+                       <label htmlFor="logo-up" className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-white">
+                          <Upload className="w-6 h-6" />
+                       </label>
+                       <input id="logo-up" type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'logoUrl')} />
+                       {uploadProgress.logoUrl !== null && <Progress value={uploadProgress.logoUrl} className="absolute bottom-0 h-1" />}
+                    </div>
+                 </div>
+                 <div className="space-y-4">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Ícone (Favicon)</Label>
+                    <div className="relative h-24 bg-muted/20 rounded-2xl border-2 border-dashed border-border flex items-center justify-center overflow-hidden group">
+                       {siteForm.iconUrl ? (
+                         <img src={siteForm.iconUrl} className="h-12 w-12 object-contain" alt="Icon" />
+                       ) : <Target className="w-8 h-8 opacity-10" />}
+                       <label htmlFor="icon-up" className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-white">
+                          <Upload className="w-6 h-6" />
+                       </label>
+                       <input id="icon-up" type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'iconUrl')} />
+                       {uploadProgress.iconUrl !== null && <Progress value={uploadProgress.iconUrl} className="absolute bottom-0 h-1" />}
+                    </div>
+                 </div>
+              </div>
+
               <Button onClick={() => handleSave('settings', 'site', siteForm)} disabled={saving} className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg transition-transform">
                 {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />} Salvar Identidade
               </Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="pagamentos" className="animate-in fade-in slide-in-from-top-2 duration-300">
+          <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-2xl">
+            <CardHeader className="bg-muted/30 p-8 border-b">
+               <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Gateway Stripe</CardTitle>
+               <CardDescription>Conecte as chaves da API para habilitar transações reais.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8 space-y-6">
+              <div className="grid grid-cols-2 gap-2">
+                 <Button variant={stripeForm.mode === 'test' ? 'secondary' : 'outline'} className="rounded-xl h-11 font-bold gap-2" onClick={() => setStripeForm({...stripeForm, mode: 'test'})}><Zap className="w-4 h-4" /> Modo Teste</Button>
+                 <Button variant={stripeForm.mode === 'live' ? 'secondary' : 'outline'} className="rounded-xl h-11 font-bold gap-2" onClick={() => setStripeForm({...stripeForm, mode: 'live'})}><Globe className="w-4 h-4" /> Modo Produção</Button>
+              </div>
+              <div className="space-y-4">
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Publishable Key</Label>
+                    <Input value={stripeForm.publishableKey} onChange={e => setStripeForm({...stripeForm, publishableKey: e.target.value})} className="rounded-xl h-11 font-mono text-xs" placeholder="pk_..." />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Secret Key</Label>
+                    <div className="relative">
+                       <Input type="password" value={stripeForm.secretKey} onChange={e => setStripeForm({...stripeForm, secretKey: e.target.value})} className="rounded-xl h-11 font-mono text-xs" placeholder="sk_..." />
+                    </div>
+                 </div>
+              </div>
+              <Button onClick={() => handleSave('settings', 'stripe', stripeForm)} disabled={saving} className="w-full h-12 bg-primary text-white font-black rounded-xl uppercase italic mt-4">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />} Atualizar Stripe
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="email" className="animate-in fade-in slide-in-from-top-2 duration-300">
+           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-2xl">
+              <CardHeader className="bg-muted/30 p-8 border-b">
+                 <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Servidor SMTP</CardTitle>
+                 <CardDescription>Configurações para disparos de e-mails transacionais.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-8 space-y-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Host SMTP</Label><Input value={emailForm.smtpHost} onChange={e => setEmailForm({...emailForm, smtpHost: e.target.value})} className="rounded-xl h-11" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Porta</Label><Input value={emailForm.smtpPort} onChange={e => setEmailForm({...emailForm, smtpPort: e.target.value})} className="rounded-xl h-11" /></div>
+                 </div>
+                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Usuário / E-mail</Label><Input value={emailForm.smtpUser} onChange={e => setEmailForm({...emailForm, smtpUser: e.target.value})} className="rounded-xl h-11" /></div>
+                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Senha / App Key</Label><Input type="password" value={emailForm.smtpPass} onChange={e => setEmailForm({...emailForm, smtpPass: e.target.value})} className="rounded-xl h-11" /></div>
+                 <Button onClick={() => handleSave('settings', 'email', emailForm)} disabled={saving} className="w-full h-12 bg-primary text-white font-black rounded-xl uppercase italic">
+                   {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />} Salvar SMTP
+                 </Button>
+              </CardContent>
+           </Card>
+        </TabsContent>
+
+        <TabsContent value="taxas" className="animate-in fade-in slide-in-from-top-2 duration-300">
+           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-2xl">
+              <CardHeader className="bg-muted/30 p-8 border-b">
+                 <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Taxas Globais</CardTitle>
+                 <CardDescription>Parâmetros financeiros padrão da plataforma.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-8 space-y-6">
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Taxa do Usuário (Markup %)</Label>
+                    <div className="relative">
+                      <Input value={feesForm.buyerMarkupPercent} onChange={e => setFeesForm({...feesForm, buyerMarkupPercent: e.target.value})} className="rounded-xl h-11 pr-10 font-bold" />
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">%</span>
+                    </div>
+                 </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">Comissão Produtor (%)</Label>
+                       <Input value={feesForm.organizerBasePercent} onChange={e => setFeesForm({...feesForm, organizerBasePercent: e.target.value})} className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">Valor Mínimo (R$)</Label>
+                       <Input value={feesForm.organizerMinFee} onChange={e => setFeesForm({...feesForm, organizerMinFee: e.target.value})} className="rounded-xl h-11" />
+                    </div>
+                 </div>
+                 <Button onClick={() => handleSave('settings', 'fees', feesForm)} disabled={saving} className="w-full h-12 bg-primary text-white font-black rounded-xl uppercase italic">
+                   {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />} Salvar Taxas
+                 </Button>
+              </CardContent>
+           </Card>
         </TabsContent>
 
         <TabsContent value="google-ads" className="animate-in fade-in slide-in-from-top-2 duration-300">
@@ -246,23 +357,6 @@ export default function AdminConfiguracoesPage() {
                  </Button>
               </CardContent>
            </Card>
-        </TabsContent>
-
-        <TabsContent value="pagamentos" className="animate-in fade-in slide-in-from-top-2 duration-300">
-          <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-2xl">
-            <CardHeader className="bg-muted/30 p-8 border-b">
-               <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Gateway Stripe</CardTitle>
-            </CardHeader>
-            <CardContent className="p-8 space-y-6">
-              <div className="grid grid-cols-2 gap-2">
-                 <Button variant={stripeForm.mode === 'test' ? 'secondary' : 'outline'} className="rounded-xl h-11 font-bold gap-2" onClick={() => setStripeForm({...stripeForm, mode: 'test'})}><Zap className="w-4 h-4" /> Modo Teste</Button>
-                 <Button variant={stripeForm.mode === 'live' ? 'secondary' : 'outline'} className="rounded-xl h-11 font-bold gap-2" onClick={() => setStripeForm({...stripeForm, mode: 'live'})}><Globe className="w-4 h-4" /> Modo Produção</Button>
-              </div>
-              <Button onClick={() => handleSave('settings', 'stripe', stripeForm)} disabled={saving} className="w-full h-12 bg-primary text-white font-black rounded-xl uppercase italic mt-4">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />} Atualizar Stripe
-              </Button>
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
     </div>
