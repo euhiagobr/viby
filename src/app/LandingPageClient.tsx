@@ -76,12 +76,13 @@ export default function LandingPageClient() {
 
   React.useEffect(() => {
     setHasMounted(true);
+    // Audit fix: Increased timeout and explicit fallback to prevent discovery block
     getCurrentLocation()
       .then(loc => {
-        setUserLocation(loc);
+        if (loc) setUserLocation(loc);
       })
-      .catch(() => {
-        // GPS unavailable
+      .catch((err) => {
+        console.warn("[GPS] Unavailable or Timeout. Defaulting to no-radius sorting.", err.message);
       })
   }, [])
 

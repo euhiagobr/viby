@@ -191,6 +191,9 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   };
 
   const handleSetCurrentOrg = (org: Organization | null) => {
+    // Audit fix: Eliminate race condition if user logs out while this is firing
+    if (!user && org !== null) return;
+
     setCurrentOrg(org);
     const role = org?._memberData?.role || (org?.ownerId === user?.uid ? 'owner' : null);
     setUserRole(role);

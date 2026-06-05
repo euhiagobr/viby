@@ -51,7 +51,7 @@ export default function CarrinhoPage() {
   const { data: profile } = useDoc<any>(profileRef);
 
   const feesRef = React.useMemo(() => db ? doc(db, 'settings', 'fees') : null, [db])
-  const { data: globalFees } = useDoc<any>(feesRef)
+  const { data: globalFees, loading: feesLoading } = useDoc<any>(feesRef)
   
   const promosRef = React.useMemo(() => db ? doc(db, 'settings', 'promotions') : null, [db])
   const { data: promotions } = useDoc<any>(promosRef)
@@ -137,16 +137,34 @@ export default function CarrinhoPage() {
   };
 
   const cartTotals = React.useMemo(() => {
-    let subtotal = 0; let fees = 0;
+    let subtotal = 0;
+    let fees = 0;
+    
+    if (!items || items.length === 0) return { subtotal: 0, fees: 0, balanceUsed: 0, total: 0 };
+
     items.forEach(item => { 
-      subtotal += item.price * item.quantity;
-      const res = calculateFinancialBreakdown(item.price, globalFees, promotions, orgsData[item.organizationId]);
-      fees += res.administrativeFeeAmount * item.quantity;
+      const itemSubtotal = (item.price || 0) * (item.quantity || 0);
+      subtotal += itemSubtotal;
+      
+      // Audit fix: Loading and null guards for financial calculations
+      const org = orgsData?.[item.organizationId];
+      if (org && globalFees) {
+        const res = calculateFinancialBreakdown(item.price, globalFees, promotions, org);
+        fees += (res?.administrativeFeeAmount || 0) * (item.quantity || 0);
+      }
     });
+
     const totalBeforeBalance = Number((subtotal + fees).toFixed(2));
     const walletBalance = wallet?.balance || 0;
     const balanceUsed = useBalance ? Math.min(walletBalance, totalBeforeBalance) : 0;
-    return { subtotal, fees, balanceUsed, total: Number((totalBeforeBalance - balanceUsed).toFixed(2)) };
+    const finalTotal = Math.max(0, Number((totalBeforeBalance - balanceUsed).toFixed(2)));
+
+    return { 
+      subtotal, 
+      fees, 
+      balanceUsed, 
+      total: finalTotal 
+    };
   }, [items, globalFees, promotions, orgsData, useBalance, wallet?.balance]);
 
   return (
@@ -223,7 +241,7 @@ export default function CarrinhoPage() {
                   promotions={promotions} 
                   useBalance={useBalance} 
                   onSuccess={clearCart} 
-                  disabled={isRevalidating} 
+                  disabled={isRevalidating || feesLoading} 
                 />
              </Card>
           </div>
