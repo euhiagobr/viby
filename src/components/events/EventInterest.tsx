@@ -1,11 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { useFirestore, useAuth, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, updateDoc, increment, serverTimestamp, setDoc, deleteDoc, collection, query, where } from "firebase/firestore"
-import { Heart, Users, Loader2, CheckCircle2, Sparkles } from "lucide-react"
+import { useFirestore, useAuth, useUser, useDoc } from "@/firebase"
+import { doc, updateDoc, increment, serverTimestamp, setDoc, deleteDoc } from "firebase/firestore"
+import { Heart, Users, Loader2, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
@@ -32,18 +31,15 @@ function formatConfirmedCount(count: number): string {
   if (count < 10) return "+1 confirmados";
   
   if (count < 100) {
-    // 10-19 -> +10, 20-29 -> +20...
     const floorTen = Math.floor(count / 10) * 10;
     return `+${floorTen} confirmados`;
   }
   
   if (count < 1000) {
-    // 100-149 -> +100, 150-199 -> +150...
     const floorFifty = Math.floor(count / 50) * 50;
     return `+${floorFifty} confirmados`;
   }
   
-  // 1000+ -> +1k, +1.1k...
   const kValue = (Math.floor(count / 100) / 10).toFixed(1).replace('.0', '');
   return `+${kValue}k confirmados`;
 }
@@ -63,18 +59,9 @@ export function EventInterest({ event, className, showButton = true, variant = '
   const { data: userInterest } = useDoc<any>(interestRef)
   const isInterested = !!userInterest
 
-  const confirmedQuery = useMemoFirebase(() => {
-    if (!db || !eventId || !isInternal) return null
-    return query(
-      collection(db, "registrations"), 
-      where("eventId", "==", eventId),
-      where("paymentStatus", "in", ["Pago", "Disponível"])
-    )
-  }, [db, eventId, isInternal])
-  
-  const { data: registrations } = useCollection<any>(confirmedQuery)
-  const confirmedCount = registrations?.length || 0
-
+  // Audit fix: Removida consulta direta à coleção 'registrations' por motivos de segurança e performance.
+  // Utilizamos o campo agregado 'ingressosVendidos' do documento do evento.
+  const confirmedCount = event?.ingressosVendidos || 0
   const [toggling, setToggling] = React.useState(false)
 
   const handleToggleInterest = async (e: React.MouseEvent) => {

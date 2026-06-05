@@ -17,6 +17,28 @@ export async function generateFreeTickets(data: {
       const results = [];
 
       for (const item of items) {
+        // Incrementa contadores de venda no evento e métricas da organização
+        const eventRef = db.collection("events").doc(item.eventId);
+        const orgRef = db.collection("organizations").doc(item.organizationId);
+
+        transaction.update(eventRef, {
+          ingressosVendidos: admin.firestore.FieldValue.increment(item.quantity),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        transaction.update(orgRef, {
+          totalAttendeesCount: admin.firestore.FieldValue.increment(item.quantity),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        if (item.occurrenceId) {
+          const occRef = db.collection("recurring_occurrences").doc(item.occurrenceId);
+          transaction.update(occRef, {
+            ingressosVendidos: admin.firestore.FieldValue.increment(item.quantity),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+        }
+
         for (let i = 0; i < item.quantity; i++) {
           const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
           const regRef = db.collection("registrations").doc();

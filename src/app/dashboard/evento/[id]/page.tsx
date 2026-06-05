@@ -1,10 +1,9 @@
-
 "use client"
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser } from "@/firebase"
-import { doc, addDoc, collection, serverTimestamp, query, where, getDocs, getDoc } from "firebase/firestore"
+import { doc, collection, query, where, getDocs } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,10 +23,8 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
-import { errorEmitter } from "@/firebase/error-emitter"
-import { FirestorePermissionError } from "@/firebase/errors"
 import Link from "next/link"
-import { calculateFinancialBreakdown } from "@/lib/financial-utils"
+import { generateFreeTickets } from "@/app/actions/tickets"
 
 export default function EventoDetalhesPage() {
   const params = useParams()
@@ -49,9 +46,6 @@ export default function EventoDetalhesPage() {
   const currentUserRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: currentUserProfile } = useDoc<any>(currentUserRef)
 
-  const feesRef = React.useMemo(() => db ? doc(db, 'settings', 'fees') : null, [db])
-  const { data: globalFees, loading: feesLoading } = useDoc<any>(feesRef)
-  
   const [isRegistered, setIsRegistered] = React.useState(false)
   const [registering, setRegistering] = React.useState(false)
 
@@ -85,19 +79,6 @@ export default function EventoDetalhesPage() {
     }
   };
 
-  const generateTicketCode = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 16; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-      if ((i + 1) % 4 === 0 && i !== 15) {
-        result += '-';
-      }
-    }
-    return result;
-  }
-
-  // Função para renderizar texto com suporte a negrito **
   const renderFormattedText = (text: string) => {
     if (!text) return "";
     return text.split(/(\*\*.*?\*\*)/g).map((part, i) => {
@@ -115,50 +96,40 @@ export default function EventoDetalhesPage() {
       return
     }
 
-    if (!db || !eventId || !event || feesLoading) return
+    if (!db || !eventId || !event) return
 
     setRegistering(true)
     
     try {
-      const basePrice = event.isFree ? 0 : (event.batches?.[0]?.price || 0);
-      const batchName = event.isFree ? "Gratuito" : (event.batches?.[0]?.name || "Lote Único");
-      
-      const breakdown = calculateFinancialBreakdown(basePrice, globalFees);
-
-      const regData = {
-        eventId,
-        eventTitle: event.title,
-        eventImage: event.image || "",
-        eventDate: event.date,
-        eventCity: event.city || "",
+      // Audit fix: Utiliza a Server Action para garantir atomicidade no incremento dos contadores.
+      const result = await generateFreeTickets({
         userId: user.uid,
         userName: currentUserProfile?.name || user.displayName || user.email || "Usuário",
-        userEmail: user.email,
-        userGender: currentUserProfile?.gender || "Não informado",
-        userBirthDate: currentUserProfile?.birthDate || "",
-        organizationId: event.organizationId,
-        organizerId: event.organizerId,
-        timestamp: serverTimestamp(),
-        ticketBasePrice: basePrice,
-        price: breakdown.customerFinalPrice,
-        administrativeFeeAmount: breakdown.administrativeFeeAmount,
-        producerFeeAmount: breakdown.producerFeeAmount,
-        producerNetAmount: breakdown.producerNetAmount,
-        batchName: batchName,
-        checkedIn: false,
-        paymentStatus: event.isFree ? "Disponível" : "Pendente",
-        ticketCode: generateTicketCode()
-      }
+        userEmail: user.email!,
+        items: [{
+          eventId,
+          eventTitle: event.title,
+          eventImage: event.image || "",
+          eventDate: event.date,
+          eventCity: event.city || "",
+          organizationId: event.organizationId,
+          organizerId: event.organizerId,
+          ticketTypeId: "free",
+          ticketTypeName: "Gratuito",
+          batchId: "free",
+          batchName: "Gratuito",
+          quantity: 1
+        }]
+      });
 
-      await addDoc(collection(db, "registrations"), regData)
-      setIsRegistered(true)
-      toast({ title: "Inscrito com sucesso!", description: "Seu ingresso já está disponível em Meus Ingressos." })
+      if (result.success) {
+        setIsRegistered(true)
+        toast({ title: "Inscrito com sucesso!", description: "Seu ingresso já está disponível em Meus Ingressos." })
+      } else {
+        throw new Error(result.error);
+      }
     } catch (error: any) {
-      const permissionError = new FirestorePermissionError({
-        path: "registrations",
-        operation: "create"
-      })
-      errorEmitter.emit("permission-error", permissionError)
+      toast({ variant: "destructive", title: "Erro na inscrição", description: error.message });
     } finally {
       setRegistering(false)
     }
@@ -266,7 +237,7 @@ export default function EventoDetalhesPage() {
               </div>
               <div>
                 <p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Data do Evento</p>
-                <p className="text-lg font-bold">{start.date}</p>
+                <p className="font-bold text-sm">{start.date}</p>
               </div>
             </Card>
 
@@ -276,7 +247,7 @@ export default function EventoDetalhesPage() {
               </div>
               <div>
                 <p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Horário</p>
-                <p className="text-lg font-bold">
+                <p className="font-bold text-sm">
                   {start.time} {event.endDate && `até ${end.time}`}
                 </p>
               </div>

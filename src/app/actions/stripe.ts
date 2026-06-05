@@ -96,6 +96,13 @@ export async function finalizeCheckoutSession(sessionId: string) {
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
 
+          // Atualiza contador de público na organização
+          const orgRef = db.collection("organizations").doc(item.organizationId);
+          transaction.update(orgRef, {
+            totalAttendeesCount: admin.firestore.FieldValue.increment(item.quantity),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+
           if (item.occurrenceId) {
              transaction.update(db.collection("events").doc(item.eventId), {
                ingressosVendidos: admin.firestore.FieldValue.increment(item.quantity),
