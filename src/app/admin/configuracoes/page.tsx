@@ -21,7 +21,9 @@ import {
   ImageIcon, 
   Camera, 
   Target, 
-  RefreshCw
+  RefreshCw,
+  Megaphone,
+  Zap
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
@@ -44,12 +46,14 @@ export default function AdminConfiguracoesPage() {
   const stripeRef = React.useMemo(() => (db ? doc(db, 'settings', 'stripe') : null), [db]);
   const emailRef = React.useMemo(() => (db ? doc(db, 'settings', 'email') : null), [db]);
   const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db]);
+  const adsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
   const googleAdsRef = React.useMemo(() => (db ? doc(db, 'system_settings', 'google_ads') : null), [db]);
 
   const { data: siteSettings, loading: loadingSite } = useDoc<any>(siteRef);
   const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
   const { data: emailSettings, loading: loadingEmail } = useDoc<any>(emailRef);
   const { data: globalFees, loading: loadingFees } = useDoc<any>(feesRef);
+  const { data: adsSettings, loading: loadingAdsSettings } = useDoc<any>(adsRef);
   const { data: googleAds, loading: loadingGoogle } = useDoc<any>(googleAdsRef);
 
   const [saving, setSaving] = React.useState(false);
@@ -59,6 +63,7 @@ export default function AdminConfiguracoesPage() {
   const [stripeForm, setStripeForm] = React.useState({ publishableKey: '', secretKey: '', feePercent: '3.99', feeFixed: '0.39', mode: 'test' });
   const [emailForm, setEmailForm] = React.useState({ smtpHost: 'smtp.gmail.com', smtpPort: '465', smtpUser: '', smtpPass: '' });
   const [feesForm, setFeesForm] = React.useState({ buyerMarkupPercent: '15', organizerBasePercent: '10', organizerMinFee: '3.99' });
+  const [adsForm, setAdsForm] = React.useState({ minRechargeValue: '30.00', cpcValue: '0.50', cpmValue: '10.00' });
   const [googleAdsForm, setGoogleAdsForm] = React.useState({ enabled: false, publisherId: '', adsenseCode: '', autoAds: true, testMode: false });
 
   React.useEffect(() => {
@@ -71,8 +76,9 @@ export default function AdminConfiguracoesPage() {
     if (stripeKeys) setStripeForm({ publishableKey: stripeKeys.publishableKey || '', secretKey: stripeKeys.secretKey || '', feePercent: stripeKeys.feePercent?.toString() || '3.99', feeFixed: stripeKeys.feeFixed?.toString() || '0.39', mode: stripeKeys.mode || 'test' });
     if (emailSettings) setEmailForm({ smtpHost: emailSettings.smtpHost || 'smtp.gmail.com', smtpPort: emailSettings.smtpPort?.toString() || '465', smtpUser: emailSettings.smtpUser || '', smtpPass: emailSettings.smtpPass || '' });
     if (globalFees) setFeesForm({ buyerMarkupPercent: globalFees.buyerMarkupPercent?.toString() || '15', organizerBasePercent: globalFees.organizerBasePercent?.toString() || '10', organizerMinFee: globalFees.organizerMinFee?.toString() || '3.99' });
+    if (adsSettings) setAdsForm({ minRechargeValue: adsSettings.minRechargeValue?.toString() || '30.00', cpcValue: adsSettings.cpcValue?.toString() || '0.50', cpmValue: adsSettings.cpmValue?.toString() || '10.00' });
     if (googleAds) setGoogleAdsForm({ enabled: googleAds.enabled ?? false, publisherId: googleAds.publisherId || '', adsenseCode: googleAds.adsenseCode || '', autoAds: googleAds.autoAds ?? true, testMode: googleAds.testMode ?? false });
-  }, [siteSettings, stripeKeys, emailSettings, globalFees, googleAds]);
+  }, [siteSettings, stripeKeys, emailSettings, globalFees, adsSettings, googleAds]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logoUrl' | 'siteIconUrl') => {
     const file = e.target.files?.[0];
@@ -116,6 +122,15 @@ export default function AdminConfiguracoesPage() {
       updatedBy: user.uid
     };
 
+    // Converter strings numéricas para number no Firestore
+    if (docId === 'fees' || docId === 'ads' || docId === 'stripe') {
+      Object.keys(data).forEach(key => {
+        if (typeof data[key] === 'string' && !isNaN(parseFloat(data[key]))) {
+          updatePayload[key] = parseFloat(data[key]);
+        }
+      });
+    }
+
     if (docId === 'site') {
       updatePayload.imageVersion = increment(1);
     }
@@ -130,7 +145,7 @@ export default function AdminConfiguracoesPage() {
     }
   };
 
-  if (loadingSite || loadingStripe || loadingEmail || loadingFees || loadingGoogle) {
+  if (loadingSite || loadingStripe || loadingEmail || loadingFees || loadingAdsSettings || loadingGoogle) {
     return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="animate-spin text-secondary" /></div>;
   }
 
@@ -149,6 +164,7 @@ export default function AdminConfiguracoesPage() {
           <TabsTrigger value="pagamentos" className="rounded-lg px-6 font-bold gap-2"><CreditCard className="w-4 h-4" /> Pagamentos</TabsTrigger>
           <TabsTrigger value="email" className="rounded-lg px-6 font-bold gap-2"><Mail className="w-4 h-4" /> E-mail</TabsTrigger>
           <TabsTrigger value="taxas" className="rounded-lg px-6 font-bold gap-2"><Coins className="w-4 h-4" /> Taxas</TabsTrigger>
+          <TabsTrigger value="ads" className="rounded-lg px-6 font-bold gap-2"><Megaphone className="w-4 h-4" /> Anúncios</TabsTrigger>
           <TabsTrigger value="google-ads" className="rounded-lg px-6 font-bold gap-2"><Target className="w-4 h-4" /> Google Ads</TabsTrigger>
         </TabsList>
 
@@ -274,6 +290,63 @@ export default function AdminConfiguracoesPage() {
                  </div>
                  <Button onClick={() => handleSave('settings', 'fees', feesForm)} disabled={saving} className="w-full h-12 bg-primary text-white font-black rounded-xl uppercase italic">
                    {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />} Salvar Taxas
+                 </Button>
+              </CardContent>
+           </Card>
+        </TabsContent>
+
+        <TabsContent value="ads" className="animate-in fade-in slide-in-from-top-2 duration-300">
+           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-2xl">
+              <CardHeader className="bg-muted/30 p-8 border-b">
+                 <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Viby Ads Settings</CardTitle>
+                 <CardDescription>Parâmetros operacionais para anúncios e saldo Ads.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-8 space-y-8">
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Zap className="w-4 h-4 text-secondary" /> Valor Mínimo para Recarga (R$)</Label>
+                    <div className="relative">
+                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold opacity-30">R$</span>
+                       <Input 
+                         type="number" step="0.01" 
+                         value={adsForm.minRechargeValue} 
+                         onChange={e => setAdsForm({...adsForm, minRechargeValue: e.target.value})} 
+                         className="rounded-xl h-12 pl-10 font-black text-secondary" 
+                       />
+                    </div>
+                    <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">Define o valor base mínimo permitido no carrinho de recarga.</p>
+                 </div>
+
+                 <Separator className="border-dashed" />
+
+                 <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">CPC Base (R$)</Label>
+                       <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold opacity-30">R$</span>
+                          <Input 
+                            type="number" step="0.01" 
+                            value={adsForm.cpcValue} 
+                            onChange={e => setAdsForm({...adsForm, cpcValue: e.target.value})} 
+                            className="rounded-xl h-11 pl-10 font-bold" 
+                          />
+                       </div>
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">CPM Base (R$ / 1k)</Label>
+                       <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold opacity-30">R$</span>
+                          <Input 
+                            type="number" step="0.01" 
+                            value={adsForm.cpmValue} 
+                            onChange={e => setAdsForm({...adsForm, cpmValue: e.target.value})} 
+                            className="rounded-xl h-11 pl-10 font-bold" 
+                          />
+                       </div>
+                    </div>
+                 </div>
+
+                 <Button onClick={() => handleSave('settings', 'ads', adsForm)} disabled={saving} className="w-full h-12 bg-primary text-white font-black rounded-xl uppercase italic">
+                   {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />} Salvar Configurações Ads
                  </Button>
               </CardContent>
            </Card>

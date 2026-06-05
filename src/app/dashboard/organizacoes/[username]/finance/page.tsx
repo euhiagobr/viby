@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
-import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useFirebaseApp } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useFirebaseApp, useDoc } from '@/firebase';
 import { 
   collection, 
   query, 
@@ -64,7 +64,11 @@ function OrganizationFinanceContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const [topUpAmount, setTopUpAmount] = React.useState<string>("50.00");
+  const adsSettingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
+  const { data: adsSettings } = useDoc<any>(adsSettingsRef);
+  const minRechargeValue = adsSettings?.minRechargeValue || 30.00;
+
+  const [topUpAmount, setTopUpAmount] = React.useState<string>(minRechargeValue.toFixed(2));
   const [couponCode, setCouponCode] = React.useState("");
   const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null);
   const [isValidatingCoupon, setIsValidatingCoupon] = React.useState(false);
@@ -73,6 +77,13 @@ function OrganizationFinanceContent() {
   const [isProcessingSession, setIsProcessingSession] = React.useState(false);
 
   const sessionId = searchParams.get('session_id');
+
+  // Inicializa o valor com o mínimo configurado quando os dados carregarem
+  React.useEffect(() => {
+    if (adsSettings?.minRechargeValue) {
+      setTopUpAmount(adsSettings.minRechargeValue.toFixed(2));
+    }
+  }, [adsSettings?.minRechargeValue]);
 
   React.useEffect(() => {
     if (!sessionId || isProcessingSession || !currentOrg) return;
@@ -182,7 +193,7 @@ function OrganizationFinanceContent() {
   const rechargeCalcs = React.useMemo(() => {
     const base = parseFloat(topUpAmount) || 0;
     const fee = Number((base * 0.05).toFixed(2));
-    const subtotal = base + fee;
+    const subtotal = Number((base + fee).toFixed(2));
     
     let discountAmount = 0;
     let finalBalance = base;
@@ -198,15 +209,15 @@ function OrganizationFinanceContent() {
        }
     }
 
-    const totalToPay = Number((subtotal - discountAmount).toFixed(2));
+    const totalToPay = Number(Math.max(0, subtotal - discountAmount).toFixed(2));
 
     return { base, fee, discountAmount, totalToPay, finalBalance };
   }, [topUpAmount, appliedCoupon]);
 
   const handleTopUp = async () => {
     if (!currentOrg || !user || !db) return;
-    if (rechargeCalcs.base < 30) {
-      toast({ variant: "destructive", title: "Valor mínimo", description: "O valor mínimo para recarga é R$ 30,00." });
+    if (rechargeCalcs.base < minRechargeValue) {
+      toast({ variant: "destructive", title: "Valor mínimo", description: `O valor mínimo para recarga é ${formatCurrency(minRechargeValue)}.` });
       return;
     }
     setIsTopUpLoading(true);
@@ -419,12 +430,12 @@ function OrganizationFinanceContent() {
 
                     <Button 
                       onClick={handleTopUp} 
-                      disabled={isTopUpLoading || rechargeCalcs.base < 30} 
-                      className="h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform"
+                      disabled={isTopUpLoading || rechargeCalcs.base < minRechargeValue} 
+                      className="h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-all"
                     >
                       {isTopUpLoading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><CreditCard className="w-6 h-6 mr-2" /> Pagar com Stripe</>}
                     </Button>
-                    <p className="text-[9px] text-center text-muted-foreground font-medium uppercase italic">O valor mínimo para recarga é de R$ 30,00. Liberação instantânea após confirmação.</p>
+                    <p className="text-[9px] text-center text-muted-foreground font-medium uppercase italic">O valor mínimo para recarga é de {formatCurrency(minRechargeValue)}. Liberação instantânea após confirmação.</p>
                  </div>
               </div>
            </Card>
