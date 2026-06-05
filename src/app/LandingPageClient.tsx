@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -114,32 +113,33 @@ export default function LandingPageClient() {
     })).sort((a, b) => b._score - a._score);
   }, [events, searchName, selectedCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
 
-  const interleavedContent = React.useMemo(() => {
+  const unifiedFeed = React.useMemo(() => {
     const result = [];
-    let adSlotIdx = 0;
+    let eventCounter = 0;
+    let adIndex = 0;
 
-    // Se não há eventos, mostramos 3 slots de anúncios fixos
     if (!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) {
-      result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
-      result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
-      result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+      if (!eventsLoading) {
+        // Fallback para feed vazio conforme requisito de monetização
+        result.push({ type: "ad", adIndex: adIndex++ });
+        result.push({ type: "ad", adIndex: adIndex++ });
+        result.push({ type: "ad", adIndex: adIndex++ });
+      }
       return result;
     }
-    
-    // Regra de Frequência: 1 Ad a cada 6 eventos
-    let eventIdx = 0;
-    while (eventIdx < filteredAndSortedEvents.length) {
-      const chunk = filteredAndSortedEvents.slice(eventIdx, eventIdx + 6);
-      result.push(...chunk.map(e => ({ ...e, _type: 'event' })));
-      eventIdx += 6;
 
-      // Inserir anúncio após o bloco de 6
-      if (eventIdx < filteredAndSortedEvents.length || filteredAndSortedEvents.length > 3) {
-        result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+    for (let i = 0; i < filteredAndSortedEvents.length; i++) {
+      result.push({ type: "event", data: filteredAndSortedEvents[i] });
+      eventCounter++;
+
+      if (eventCounter === 6) {
+        result.push({ type: "ad", adIndex: adIndex++ });
+        eventCounter = 0;
       }
     }
+
     return result;
-  }, [filteredAndSortedEvents])
+  }, [filteredAndSortedEvents, eventsLoading])
 
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-bg')?.imageUrl || "https://picsum.photos/seed/vibyhero-event/1920/1080"
 
@@ -282,7 +282,7 @@ export default function LandingPageClient() {
           </div>
         ) : (
           <>
-            {filteredAndSortedEvents.length === 0 && (
+            {unifiedFeed.length === 0 && !eventsLoading && (
               <div className="py-20 text-center bg-white rounded-[4rem] border-2 border-dashed border-border shadow-inner mb-20">
                 <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
                     <Inbox className="w-10 h-10 text-muted-foreground opacity-20" />
@@ -292,13 +292,23 @@ export default function LandingPageClient() {
               </div>
             )}
 
-            {interleavedContent.length > 0 && (
+            {unifiedFeed.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
-                {interleavedContent.map((item: any, idx: number) => (
-                  item._type === 'ad' ? (
-                    <AdsRenderer key={`ad-${item.adSlotIdx}`} location="feed" index={item.adSlotIdx} googleSlotId="home-feed-slot" />
+                {unifiedFeed.map((item: any, idx: number) => (
+                  item.type === 'ad' ? (
+                    <AdsRenderer 
+                      key={`ad-slot-${item.adIndex}-${idx}`} 
+                      location="feed" 
+                      index={item.adIndex} 
+                      googleSlotId="home-feed-slot" 
+                    />
                   ) : (
-                    <EventCard key={`${item.id}-${idx}`} event={item} userLocation={userLocation} isSponsored={item.isSponsored} />
+                    <EventCard 
+                      key={`event-${item.data.id}-${idx}`} 
+                      event={item.data} 
+                      userLocation={userLocation} 
+                      isSponsored={item.data.isSponsored} 
+                    />
                   )
                 ))}
               </div>

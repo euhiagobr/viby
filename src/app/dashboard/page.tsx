@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -142,31 +141,33 @@ export default function ExplorarPage() {
     })).sort((a, b) => b._score - a._score);
   }, [allEvents, search, activeTab, userLocation, radiusKm, selectedCategory, dateFilter, customDate])
 
-  const interleavedContent = React.useMemo(() => {
+  const unifiedFeed = React.useMemo(() => {
     const result = [];
-    let adSlotIdx = 0;
+    let eventCounter = 0;
+    let adIndex = 0;
 
-    // Garantir exibição de anúncios mesmo com 0 eventos encontrados
     if (!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) {
-      result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
-      result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
-      result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+      if (!eventsLoading) {
+        // Feed unificado de ads para placeholder
+        result.push({ type: "ad", adIndex: adIndex++ });
+        result.push({ type: "ad", adIndex: adIndex++ });
+        result.push({ type: "ad", adIndex: adIndex++ });
+      }
       return result;
     }
-    
-    // Regra de Frequência: 1 Ad a cada 6 eventos
-    let eventIdx = 0;
-    while (eventIdx < filteredAndSortedEvents.length) {
-      const chunk = filteredAndSortedEvents.slice(eventIdx, eventIdx + 6);
-      result.push(...chunk.map(e => ({ ...e, _type: 'event' })));
-      eventIdx += 6;
 
-      if (eventIdx < filteredAndSortedEvents.length || filteredAndSortedEvents.length > 3) {
-        result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+    for (let i = 0; i < filteredAndSortedEvents.length; i++) {
+      result.push({ type: "event", data: filteredAndSortedEvents[i] });
+      eventCounter++;
+
+      if (eventCounter === 6) {
+        result.push({ type: "ad", adIndex: adIndex++ });
+        eventCounter = 0;
       }
     }
+
     return result;
-  }, [filteredAndSortedEvents])
+  }, [filteredAndSortedEvents, eventsLoading])
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -248,19 +249,29 @@ export default function ExplorarPage() {
              <div className="py-32 flex flex-col items-center justify-center gap-4"><Loader2 className="w-12 h-12 animate-spin text-secondary" /><p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Cruzando dados...</p></div>
            ) : (
              <>
-               {filteredAndSortedEvents.length === 0 && (
+               {unifiedFeed.length === 0 && !eventsLoading && (
                  <div className="py-40 text-center bg-white rounded-[3rem] border-2 border-dashed opacity-40 mb-10">
                    <p className="text-xs font-black uppercase tracking-widest">Nenhum evento encontrado para este filtro.</p>
                  </div>
                )}
 
-               {interleavedContent.length > 0 && (
+               {unifiedFeed.length > 0 && (
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-                    {interleavedContent.map((item: any, idx: number) => (
-                      item._type === 'ad' ? (
-                        <AdsRenderer key={`ad-${item.adSlotIdx}`} location="feed" index={item.adSlotIdx} googleSlotId="discovery-feed-slot" />
+                    {unifiedFeed.map((item: any, idx: number) => (
+                      item.type === 'ad' ? (
+                        <AdsRenderer 
+                          key={`ad-slot-${item.adIndex}-${idx}`} 
+                          location="feed" 
+                          index={item.adIndex} 
+                          googleSlotId="discovery-feed-slot" 
+                        />
                       ) : (
-                        <EventCard key={`ev-${item.id}-${idx}`} event={item} userLocation={userLocation} isSponsored={item.isSponsored} />
+                        <EventCard 
+                          key={`event-${item.data.id}-${idx}`} 
+                          event={item.data} 
+                          userLocation={userLocation} 
+                          isSponsored={item.data.isSponsored} 
+                        />
                       )
                     ))}
                  </div>

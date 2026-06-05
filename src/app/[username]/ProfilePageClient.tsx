@@ -1,15 +1,13 @@
-
 "use client";
 
 import * as React from "react";
 import { useFirestore, useAuth, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase";
-import { doc, getDoc, collection, query, where, orderBy, limit, collectionGroup, getDocs } from "firebase/firestore";
-import { Loader2, Lock, ShieldCheck, HelpCircle, ArrowLeft, Handshake, ShieldAlert, Home } from "lucide-react";
+import { doc, getDoc, collection, query, where, getDocs, collectionGroup } from "firebase/firestore";
+import { Loader2, Lock, ArrowLeft, Home, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AdsRenderer } from "@/components/ads/AdsRenderer";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
-import { toast } from "@/hooks/use-toast";
+import { motion } from "framer-motion";
 import Image from "next/image";
 import { UserNav } from "@/components/layout/UserNav";
 
@@ -22,7 +20,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Components - User (Social/Gamified)
 import { UserHero } from "@/components/profile/user/UserHero";
-import { UserGamification } from "@/components/profile/user/UserGamification";
 import { UserSocialContent } from "@/components/profile/user/UserSocialContent";
 import { UserEventsContent } from "@/components/profile/user/UserEventsContent";
 
@@ -184,31 +181,31 @@ export default function ProfilePageClient({ username }: { username: string }) {
     return { upcomingEvents: upcoming, pastEvents: past };
   }, [orgEvents]);
 
-  // Lógica de Mediação de Anúncios no Perfil
-  const interleavedUpcoming = React.useMemo(() => {
+  const unifiedUpcomingFeed = React.useMemo(() => {
     const result = [];
-    let adSlotIdx = 0;
+    let eventCounter = 0;
+    let adIndex = 0;
 
-    // Se não há eventos futuros, mostramos 2 ads fixos
     if (upcomingEvents.length === 0) {
-      result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
-      result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+      if (!loading && profileType === 'organization') {
+        result.push({ type: "ad", adIndex: adIndex++ });
+        result.push({ type: "ad", adIndex: adIndex++ });
+      }
       return result;
     }
 
-    // Regra: 1 Ad a cada 6 eventos
-    let eventIdx = 0;
-    while (eventIdx < upcomingEvents.length) {
-      const chunk = upcomingEvents.slice(eventIdx, eventIdx + 6);
-      result.push(...chunk.map(e => ({ ...e, _type: 'event' })));
-      eventIdx += 6;
+    for (let i = 0; i < upcomingEvents.length; i++) {
+      result.push({ type: "event", data: upcomingEvents[i] });
+      eventCounter++;
 
-      if (eventIdx < upcomingEvents.length || upcomingEvents.length > 3) {
-        result.push({ _type: 'ad', adSlotIdx: adSlotIdx++ });
+      if (eventCounter === 6) {
+        result.push({ type: "ad", adIndex: adIndex++ });
+        eventCounter = 0;
       }
     }
+
     return result;
-  }, [upcomingEvents]);
+  }, [upcomingEvents, loading, profileType]);
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
@@ -228,7 +225,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
             </div>
             <h1 className="text-5xl md:text-7xl font-black text-primary uppercase italic tracking-tighter leading-none mb-4">AVISO</h1>
             <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tight text-primary">Página <span className="text-secondary">Indisponível</span></h2>
-            <p className="mt-6 text-muted-foreground font-medium max-w-sm mx-auto leading-relaxed">A página que você solicitou não está mais disponível na plataforma Viby.</p>
+            <p className="mt-6 text-muted-foreground font-medium max-sm mx-auto leading-relaxed">A página que você solicitou não está mais disponível na plataforma Viby.</p>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 w-full max-md">
@@ -282,15 +279,20 @@ export default function ProfilePageClient({ username }: { username: string }) {
                   </div>
                   <TabsContent value="upcoming" className="animate-in fade-in duration-500">
                     <div className="space-y-8">
-                       {upcomingEvents.length === 0 && <OrganizerEvents events={[]} title="Próximos Eventos" />}
+                       {unifiedUpcomingFeed.length === 0 && <OrganizerEvents events={[]} title="Próximos Eventos" />}
                        
-                       {interleavedUpcoming.length > 0 && (
+                       {unifiedUpcomingFeed.length > 0 && (
                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {interleavedUpcoming.map((item: any, idx: number) => (
-                              item._type === 'ad' ? (
-                                <AdsRenderer key={`ad-${item.adSlotIdx}`} location="profile" index={item.adSlotIdx} googleSlotId="profile-feed-slot" />
+                            {unifiedUpcomingFeed.map((item: any, idx: number) => (
+                              item.type === 'ad' ? (
+                                <AdsRenderer 
+                                  key={`ad-slot-${item.adIndex}-${idx}`} 
+                                  location="profile" 
+                                  index={item.adIndex} 
+                                  googleSlotId="profile-feed-slot" 
+                                />
                               ) : (
-                                <OrganizerEvents key={item.id} events={[item]} title="" />
+                                <OrganizerEvents key={`event-${item.data.id}-${idx}`} events={[item.data]} title="" />
                               )
                             ))}
                          </div>
