@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { FollowButton } from "@/components/organizer/FollowButton";
 
 interface UserHeroProps {
   profile: any;
@@ -119,9 +120,7 @@ export function UserHero({
               </Button>
             ) : (
               <>
-                <Button className="bg-secondary text-white font-black uppercase italic h-12 px-8 rounded-2xl shadow-xl shadow-secondary/20 hover:scale-105 transition-all gap-2">
-                   <UserPlus className="w-4 h-4" /> Seguir
-                </Button>
+                <FollowButton organizationId={profile.id} username={profile.username} targetType="user" />
                 <Button variant="outline" size="icon" className="h-12 w-12 rounded-2xl border-2 hover:bg-muted">
                    <MessageCircle className="w-5 h-5" />
                 </Button>
