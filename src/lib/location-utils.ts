@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * @fileOverview Utilitários para geolocalização, cálculo de distância e busca global.
  * Atualizado para padronização ISO 3166-1 alpha-2 e resiliência de rede.
@@ -22,6 +24,7 @@ export interface AddressComponents {
   latitude: number | null;
   longitude: number | null;
   formattedAddress: string;
+  isCustomized?: boolean;
 }
 
 const NOMINATIM_TIMEOUT = 8000; // 8 segundos
@@ -100,22 +103,52 @@ export async function searchGlobalAddresses(query: string): Promise<any[]> {
 }
 
 /**
+ * Geocodificação Reversa: Obtém endereço completo a partir de coordenadas.
+ */
+export async function reverseGeocode(lat: number, lng: number): Promise<Partial<AddressComponents> | null> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), NOMINATIM_TIMEOUT);
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { 
+        'Accept-Language': 'pt-BR,en-US',
+        'User-Agent': 'VibyClub/1.1' 
+      }
+    });
+    clearTimeout(id);
+    const data = await response.json();
+    if (data && data.address) {
+      return mapNominatimToAddress(data);
+    }
+    return null;
+  } catch (e) {
+    console.warn("[Geocoding] Geocodificação reversa falhou.");
+    return null;
+  }
+}
+
+/**
  * Converte um resultado do Nominatim para a estrutura de AddressComponents da Viby.
  */
 export function mapNominatimToAddress(data: any): Partial<AddressComponents> {
   const addr = data.address;
   return {
     venueName: data.display_name.split(',')[0],
-    addressLine1: addr.road || addr.pedestrian || addr.suburb || "",
-    neighborhood: addr.neighbourhood || addr.suburb || addr.quarter || "",
-    city: addr.city || addr.town || addr.village || addr.municipality || "",
+    addressLine1: addr.road || addr.pedestrian || addr.suburb || addr.path || addr.cycleway || "",
+    streetNumber: addr.house_number || "",
+    neighborhood: addr.neighbourhood || addr.suburb || addr.quarter || addr.subdistrict || "",
+    city: addr.city || addr.town || addr.village || addr.municipality || addr.county || "",
     stateRegion: addr.state || addr.region || "",
     country: addr.country || "",
     countryCode: addr.country_code?.toUpperCase() || "",
     postalCode: addr.postcode || "",
     latitude: parseFloat(data.lat),
     longitude: parseFloat(data.lon),
-    formattedAddress: data.display_name
+    formattedAddress: data.display_name,
+    isCustomized: false
   };
 }
 

@@ -18,7 +18,8 @@
         "postalCode": "string (CEP / ZIP Code / Postal Code - Formato livre)",
         "latitude": "number (Obrigatório para status 'Ativo')",
         "longitude": "number (Obrigatório para status 'Ativo')",
-        "formattedAddress": "string (Endereço completo renderizado para SEO)"
+        "formattedAddress": "string (Endereço completo renderizado para SEO)",
+        "isCustomized": "boolean (Indica se o usuário alterou o endereço manualmente após a geocodificação)"
       },
       "required": ["countryCode", "city", "addressLine1"]
     },
@@ -30,7 +31,8 @@
   "validation_rules": {
     "publication": "Eventos com status 'Ativo' só podem ser salvos se latitude e longitude não forem nulas.",
     "draft": "Rascunhos permitem coordenadas nulas para preenchimento posterior.",
-    "network": "Timeout de 8 segundos implementado para geocodificação Nominatim."
+    "network": "Timeout de 8 segundos implementado para geocodificação Nominatim.",
+    "source_of_truth": "O PIN no mapa é a fonte primária de verdade. Movê-lo dispara reverse geocoding para atualizar o objeto address."
   },
   "migration_strategy": {
     "explicit_save": "A migração de dados legados ocorre apenas no salvamento explícito do usuário, nunca silenciosamente no carregamento.",
