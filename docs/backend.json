@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -19,7 +20,8 @@
         "country": { "type": "string" },
         "plan": { "type": "string", "enum": ["free", "pro", "top"] },
         "language": { "type": "string", "enum": ["pt-BR", "en-US"], "description": "Idioma preferencial do usuário" },
-        "walletBalance": { "type": "number", "description": "Saldo em reais disponível para uso na plataforma" },
+        "preferredCurrency": { "type": "string", "enum": ["BRL", "USD", "EUR"], "description": "Moeda preferencial para exibição de valores" },
+        "walletBalance": { "type": "number", "description": "Saldo em reais (BRL) disponível para uso na plataforma" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "username", "email", "plan"]

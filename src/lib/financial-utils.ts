@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Utilitários financeiros oficiais do Viby.
  * Implementa a regra única e centralizada para toda a plataforma.
@@ -16,7 +17,7 @@ export function toCents(amount: number): number {
 }
 
 /**
- * Formata moeda para exibição
+ * Formata moeda para exibição (Estático para BRL)
  */
 export function formatCurrency(value: number): string {
   if (isNaN(value) || value === null || value === undefined) return 'R$ 0,00';
@@ -27,8 +28,28 @@ export function formatCurrency(value: number): string {
 }
 
 /**
+ * Formata moeda para exibição dinâmica (Geral)
+ * @param value Valor numérico
+ * @param currency Código da moeda (BRL, USD, EUR)
+ */
+export function formatCurrencyDynamic(value: number, currency: string = 'BRL'): string {
+  if (isNaN(value) || value === null || value === undefined) return 'R$ 0,00';
+  
+  const locales: Record<string, string> = {
+    BRL: 'pt-BR',
+    USD: 'en-US',
+    EUR: 'de-DE'
+  };
+
+  return new Intl.NumberFormat(locales[currency] || 'pt-BR', {
+    style: 'currency',
+    currency: currency,
+  }).format(value);
+}
+
+/**
  * CÁLCULO OFICIAL VIBY - Única fonte de verdade para ingressos.
- * @param facePrice Preço base definido pelo produtor
+ * @param facePrice Preço base definido pelo produtor (Sempre em BRL)
  */
 export function calculateVibyOfficialSplit(facePrice: number) {
   const price = Math.max(0, Number(facePrice) || 0);
@@ -104,7 +125,7 @@ export function calculateDetailedVibyBreakdown(facePrice: number, quantity: numb
 }
 
 /**
- * Alias para compatibilidade legada - Adicionado Null Guard
+ * Alias para compatibilidade legada
  */
 export function calculateFinancialBreakdown(facePrice: number, globalFees?: any, promotions?: any, orgSettings?: any) {
   const split = calculateVibyOfficialSplit(facePrice);

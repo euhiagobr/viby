@@ -25,9 +25,10 @@ import {
   Trash2, 
   AlertTriangle,
   CheckCircle2,
-  RefreshCcw,
+  RefreshCw,
   ShieldCheck,
-  Building2
+  Building2,
+  Coins
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import Link from "next/link"
@@ -41,12 +42,21 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 
 export default function ConfiguraçõesContaPage() {
   const router = useRouter()
   const auth = useAuth()
   const { user } = useUser(auth)
   const db = useFirestore()
+  const { currency, setCurrency } = useCurrency()
 
   const userDocRef = React.useMemo(() => (db && user) ? doc(db, "users", user.uid) : null, [db, user])
   const { data: profile, loading: profileLoading } = useDoc<any>(userDocRef)
@@ -151,6 +161,39 @@ export default function ConfiguraçõesContaPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-7 space-y-8">
+          {/* MOEDA PREFERIDA */}
+          <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+            <CardHeader className="bg-muted/30 p-8">
+               <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+                 <Coins className="w-5 h-5 text-secondary" /> Moeda de Exibição
+               </CardTitle>
+               <CardDescription className="font-medium">Defina a moeda em que deseja ver todos os preços na plataforma.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8">
+               <div className="space-y-4">
+                  <div className="space-y-2">
+                     <Label className="text-[10px] font-black uppercase opacity-60">Sua Moeda Preferida</Label>
+                     <Select value={currency} onValueChange={(val) => setCurrency(val as CurrencyCode)}>
+                        <SelectTrigger className="rounded-xl h-12">
+                           <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                           <SelectItem value="BRL">Real Brasileiro (R$)</SelectItem>
+                           <SelectItem value="USD">US Dollar ($)</SelectItem>
+                           <SelectItem value="EUR">Euro (€)</SelectItem>
+                        </SelectContent>
+                     </Select>
+                  </div>
+                  <div className="p-4 bg-secondary/5 rounded-2xl flex gap-3 border border-secondary/10">
+                     <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                     <p className="text-[10px] text-secondary font-bold uppercase leading-relaxed">
+                        Os valores originais permanecem em BRL no sistema. A conversão é dinâmica baseada na cotação do momento.
+                     </p>
+                  </div>
+               </div>
+            </CardContent>
+          </Card>
+
           {/* TROCA DE SENHA */}
           <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
             <CardHeader className="bg-muted/30 p-8">
@@ -191,19 +234,6 @@ export default function ConfiguraçõesContaPage() {
                </form>
             </CardContent>
           </Card>
-
-          {/* PRIVACIDADE DE ORGANIZAÇÕES */}
-          <Card className="border-none shadow-sm rounded-[2rem] bg-orange-50 border-2 border-dashed border-orange-200">
-             <CardContent className="p-8 flex items-start gap-4">
-                <Building2 className="w-6 h-6 text-orange-600 shrink-0 mt-1" />
-                <div className="space-y-2">
-                   <h3 className="font-black uppercase text-xs text-orange-800 italic">Nota sobre Organizações</h3>
-                   <p className="text-[10px] text-orange-700 font-medium leading-relaxed uppercase">
-                      Se você for o único administrador de uma marca ou organização, ao desativar ou excluir sua conta, essas páginas também poderão ser suspensas ou removidas permanentemente por segurança.
-                   </p>
-                </div>
-             </CardContent>
-          </Card>
         </div>
 
         <div className="lg:col-span-5 space-y-8">
@@ -242,17 +272,9 @@ export default function ConfiguraçõesContaPage() {
                  </div>
               </CardContent>
            </Card>
-
-           <div className="p-6 bg-muted/30 rounded-3xl border border-dashed flex gap-4">
-              <ShieldCheck className="w-6 h-6 text-secondary opacity-30" />
-              <p className="text-[10px] font-medium text-muted-foreground leading-relaxed uppercase">
-                 Seus dados financeiros e histórico de ingressos são mantidos por períodos legais obrigatórios mesmo após a exclusão da conta.
-              </p>
-           </div>
         </div>
       </div>
 
-      {/* MODAL DE CONFIRMAÇÃO PARA AÇÕES SENSÍVEIS */}
       <Dialog open={!!isActionModalOpen} onOpenChange={() => setIsActionModalOpen(null)}>
         <DialogContent className="rounded-[2.5rem] max-w-sm">
            <DialogHeader>

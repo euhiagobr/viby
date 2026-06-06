@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -43,6 +44,7 @@ import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 import { useTranslation } from "@/i18n/i18n-context"
 import { LanguageSelector } from "./LanguageSelector"
+import { CurrencySelector } from "./CurrencySelector"
 
 export function AppSidebar() {
   const { t } = useTranslation()
@@ -143,8 +145,9 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
       <SidebarContent>
-        <div className="px-6 mb-4">
+        <div className="px-6 mb-4 flex flex-col gap-2">
           <LanguageSelector />
+          <CurrencySelector />
         </div>
         {currentOrg && (
           <SidebarGroup>

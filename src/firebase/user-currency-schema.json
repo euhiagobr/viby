@@ -1,0 +1,9 @@
+
+{
+  "collection": "users",
+  "description": "Armazenamento da preferência de moeda do usuário para exibição de valores convertidos.",
+  "fields": {
+    "preferredCurrency": "string ('BRL' | 'USD' | 'EUR')",
+    "updatedAt": "timestamp (servidor)"
+  }
+}

@@ -16,6 +16,7 @@ import { doc } from "firebase/firestore"
 import { AgeRatingBadge } from "@/lib/age-rating"
 import { EventInterest } from "./EventInterest"
 import { getVersionedImageUrl } from "@/lib/image-utils"
+import { useCurrency } from "@/contexts/CurrencyContext"
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (
@@ -34,6 +35,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
+  const { formatPrice } = useCurrency()
   const cardRef = React.useRef<HTMLDivElement>(null)
   const hasTrackedImpression = React.useRef(false)
 
@@ -164,6 +166,17 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     router.push(`/${event.organizer?.username || 'evento'}/${event.id}`)
   }
 
+  const minPrice = React.useMemo(() => {
+    if (!event.batches || event.batches.length === 0) return 0;
+    let min = Infinity;
+    event.batches.forEach((b: any) => {
+      b.ticketTypes?.forEach((t: any) => {
+        if (t.price < min) min = t.price;
+      });
+    });
+    return min === Infinity ? 0 : min;
+  }, [event.batches]);
+
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
 
   return (
@@ -228,9 +241,16 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
             </h3>
             <EventInterest event={event} showButton={false} variant="compact" />
           </div>
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">
-            {event.organizer?.name}
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">
+              {event.organizer?.name}
+            </p>
+            {minPrice > 0 ? (
+               <span className="text-[10px] font-black text-secondary uppercase italic">A partir de {formatPrice(minPrice)}</span>
+            ) : (
+               <span className="text-[10px] font-black text-green-600 uppercase italic">Entrada Gratuita</span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t border-dashed border-border/60">

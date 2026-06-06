@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -31,11 +32,12 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { cn } from "@/lib/utils"
-import { formatCurrency, calculateFinancialBreakdown } from "@/lib/financial-utils"
+import { calculateFinancialBreakdown } from "@/lib/financial-utils"
 import { useCart, CartItem } from "@/contexts/CartContext"
 import { toast } from "@/hooks/use-toast"
 import { useAuth, useUser } from "@/firebase"
 import { useRouter, usePathname } from "next/navigation"
+import { useCurrency } from "@/contexts/CurrencyContext"
 
 interface BilheteriaPublicProps {
   event: any
@@ -50,6 +52,7 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
   const { user } = useUser(auth)
   const router = useRouter()
   const pathname = usePathname()
+  const { formatPrice } = useCurrency()
 
   const [quantities, setQuantities] = React.useState<Record<string, number>>({})
 
@@ -249,9 +252,9 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
                       <div className="flex items-center gap-6">
                          <div className="text-right">
                             <p className="text-3xl font-black text-primary italic tracking-tighter">
-                               {displayInstance.price <= 0 ? "GRÁTIS" : formatCurrency(displayInstance.price)}
+                               {displayInstance.price <= 0 ? "GRÁTIS" : formatPrice(displayInstance.price)}
                             </p>
-                            {displayInstance.price > 0 && <p className="text-[8px] font-black text-muted-foreground uppercase opacity-50">+ {formatCurrency(breakdown.administrativeFeeAmount)} taxa</p>}
+                            {displayInstance.price > 0 && <p className="text-[8px] font-black text-muted-foreground uppercase opacity-50">+ {formatPrice(breakdown.administrativeFeeAmount)} taxa</p>}
                          </div>
                          <div className="flex items-center gap-3 bg-muted/40 p-2 rounded-2xl border">
                             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-white" onClick={() => handleUpdateQty(typeName, qty - 1)} disabled={qty <= 0 || status !== 'ativo'}><Minus className="w-3.5 h-3.5" /></Button>

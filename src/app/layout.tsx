@@ -1,3 +1,4 @@
+
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
@@ -7,6 +8,7 @@ import { ErrorManagerProvider } from '@/components/error-manager/ErrorManagerPro
 import { GlobalErrorBoundary } from '@/components/error-manager/GlobalErrorBoundary';
 import { GoogleAdsTag } from '@/components/analytics/GoogleAdsTag';
 import { I18nProvider } from '@/i18n/i18n-context';
+import { CurrencyProvider } from '@/contexts/CurrencyContext';
 
 export const revalidate = 0;
 
@@ -115,16 +117,18 @@ export default function RootLayout({
         <GoogleAdsTag />
         <FirebaseClientProvider>
           <I18nProvider>
-            <ErrorManagerProvider>
-              <GlobalErrorBoundary>
-                <CartProvider>
-                  <div className="flex-1 flex flex-col">
-                    {children}
-                  </div>
-                  <Toaster />
-                </CartProvider>
-              </GlobalErrorBoundary>
-            </ErrorManagerProvider>
+            <CurrencyProvider>
+              <ErrorManagerProvider>
+                <GlobalErrorBoundary>
+                  <CartProvider>
+                    <div className="flex-1 flex flex-col">
+                      {children}
+                    </div>
+                    <Toaster />
+                  </CartProvider>
+                </GlobalErrorBoundary>
+              </ErrorManagerProvider>
+            </CurrencyProvider>
           </I18nProvider>
         </FirebaseClientProvider>
       </body>

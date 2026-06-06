@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -36,6 +37,7 @@ import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useTranslation } from "@/i18n/i18n-context"
 import { LanguageSelector } from "@/components/layout/LanguageSelector"
+import { CurrencySelector } from "@/components/layout/CurrencySelector"
 
 export default function LandingPageClient() {
   const { t } = useTranslation()
@@ -167,7 +169,10 @@ export default function LandingPageClient() {
             )}
           </Link>
           <div className="flex items-center gap-4">
-            <LanguageSelector />
+            <div className="flex items-center gap-1">
+               <LanguageSelector />
+               <CurrencySelector />
+            </div>
             {user ? <UserNav /> : (
               <>
                 <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest">

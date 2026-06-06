@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -34,7 +35,8 @@ import {
   Trash2,
   Instagram,
   Globe,
-  Phone
+  Phone,
+  Coins
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -42,6 +44,7 @@ import Link from "next/link"
 import { getUserCPF, updateUserCPF } from "@/app/actions/user"
 import { maskCPF } from "@/lib/crypto-utils"
 import { IMAGE_CACHE_METADATA } from "@/lib/image-utils"
+import { CurrencyCode } from "@/contexts/CurrencyContext"
 
 const DEFAULT_PROFILE_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media";
 
@@ -76,6 +79,7 @@ export default function EditarPerfilPage() {
     whatsapp: "",
     email: "",
     cpf: "",
+    preferredCurrency: "BRL",
     showEmail: true,
     privacy: {
        profilePrivate: false,
@@ -87,7 +91,7 @@ export default function EditarPerfilPage() {
   })
   
   const [saving, setSaving] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [uploadProgress, setUploadProgress] = setUploadProgress(null)
   const [isFetchingCPF, setIsFetchingCPF] = useState(false)
   const [hasOriginalCPF, setHasOriginalCPF] = useState(false)
 
@@ -114,6 +118,7 @@ export default function EditarPerfilPage() {
         whatsapp: profile.whatsapp || "",
         email: profile.email || "",
         cpf: dbCpf,
+        preferredCurrency: profile.preferredCurrency || "BRL",
         showEmail: profile.showEmail !== undefined ? profile.showEmail : true,
         privacy: profile.privacy || {
            profilePrivate: false,
@@ -197,7 +202,6 @@ export default function EditarPerfilPage() {
         updatedAt: serverTimestamp()
       }
 
-      // Increment version if avatar changed
       if (formData.avatar !== profile.avatar) {
         updateData.imageVersion = increment(1);
       }
@@ -276,7 +280,21 @@ export default function EditarPerfilPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Nascimento</Label><Input type="date" value={formData.birthDate} onChange={(e) => setFormData((prev:any) => ({...prev, birthDate: e.target.value}))} required className="rounded-xl h-11" /></div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Preferência de Moeda</Label>
+                <Select value={formData.preferredCurrency} onValueChange={(val) => setFormData((prev:any) => ({...prev, preferredCurrency: val}))}>
+                  <SelectTrigger className="rounded-xl h-11">
+                    <div className="flex items-center gap-2">
+                      <Coins className="w-4 h-4 text-secondary" />
+                      <SelectValue />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="BRL">Real Brasileiro (R$)</SelectItem>
+                    <SelectItem value="USD">US Dollar ($)</SelectItem>
+                    <SelectItem value="EUR">Euro (€)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Sexo / Gênero</Label>
                 <Select key={formData.gender || 'loading'} value={formData.gender} onValueChange={(val) => setFormData((prev:any) => ({...prev, gender: val}))} required>
@@ -338,86 +356,6 @@ export default function EditarPerfilPage() {
           </CardContent>
         </Card>
 
-        {/* REDES SOCIAIS */}
-        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
-          <CardHeader className="bg-muted/30">
-            <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Conexões e Redes</CardTitle>
-            <CardDescription className="font-medium">Vincule suas redes para que outros membros te encontrem.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-8 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2 ml-1">
-                   <Instagram className="w-3 h-3" /> Instagram (@)
-                </Label>
-                <Input 
-                  value={formData.instagram} 
-                  onChange={e => setFormData({...formData, instagram: e.target.value.replace("@", "")})} 
-                  placeholder="usuario_viby" 
-                  className="rounded-xl h-11" 
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2 ml-1">
-                   <Globe className="w-3 h-3" /> Site Oficial
-                </Label>
-                <Input 
-                  value={formData.website} 
-                  onChange={e => setFormData({...formData, website: e.target.value})} 
-                  placeholder="https://..." 
-                  className="rounded-xl h-11" 
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2 ml-1">
-                 <Phone className="w-3 h-3" /> WhatsApp
-              </Label>
-              <Input 
-                value={formData.whatsapp} 
-                onChange={e => setFormData({...formData, whatsapp: e.target.value})} 
-                placeholder="(00) 00000-0000" 
-                className="rounded-xl h-11" 
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden border-t-8 border-secondary/20">
-           <CardHeader className="bg-secondary/5">
-              <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-                 <ShieldCheck className="w-5 h-5 text-secondary" /> Privacidade e LGPD
-              </CardTitle>
-              <CardDescription className="font-medium">Você tem controle total sobre seus dados na Viby.</CardDescription>
-           </CardHeader>
-           <CardContent className="p-8 space-y-6">
-              <PrivacyToggle 
-                label="Ocultar Minhas Estatísticas" 
-                desc="Gêneros musicais e bairros mais frequentados não serão exibidos publicamente."
-                checked={formData.privacy.hideStats}
-                onChange={v => setFormData((prev:any) => ({...prev, privacy: {...prev.privacy, hideStats: v}}))}
-              />
-              <PrivacyToggle 
-                label="Ocultar Gamificação" 
-                desc="Nível e XP não aparecerão para outros usuários."
-                checked={formData.privacy.hideGamification}
-                onChange={v => setFormData((prev:any) => ({...prev, privacy: {...prev.privacy, hideGamification: v}}))}
-              />
-              <PrivacyToggle 
-                label="Ocultar Localização" 
-                desc="Sua cidade e estado serão omitidos do perfil público."
-                checked={formData.privacy.hideLocation}
-                onChange={v => setFormData((prev:any) => ({...prev, privacy: {...prev.privacy, hideLocation: v}}))}
-              />
-              <PrivacyToggle 
-                label="Ocultar Meus Seguidores" 
-                desc="A lista de quem te acompanha ficará invisível."
-                checked={formData.privacy.hideFollowers}
-                onChange={v => setFormData((prev:any) => ({...prev, privacy: {...prev.privacy, hideFollowers: v}}))}
-              />
-           </CardContent>
-        </Card>
-
         <div className="flex justify-end gap-3 pt-6">
           <Button type="button" variant="ghost" onClick={() => router.back()} className="rounded-xl px-8 font-bold uppercase text-xs">Cancelar</Button>
           <Button type="submit" className="bg-secondary text-white font-black px-12 h-14 rounded-2xl shadow-xl uppercase italic text-lg" disabled={saving || uploadProgress !== null}>
@@ -426,21 +364,6 @@ export default function EditarPerfilPage() {
           </Button>
         </div>
       </form>
-    </div>
-  )
-}
-
-function PrivacyToggle({ label, desc, checked, onChange }: { label: string, desc: string, checked: boolean, onChange: (v: boolean) => void }) {
-  return (
-    <div className="flex items-start justify-between p-4 bg-muted/20 rounded-2xl border border-dashed border-border/50 group transition-all hover:bg-white hover:shadow-sm">
-       <div className="space-y-0.5">
-          <p className="font-bold text-sm text-primary flex items-center gap-2">
-             {checked ? <EyeOff className="w-4 h-4 text-orange-500" /> : <ShieldCheck className="w-4 h-4 text-green-500" />}
-             {label}
-          </p>
-          <p className="text-[10px] text-muted-foreground font-medium max-w-xs">{desc}</p>
-       </div>
-       <Switch checked={checked} onCheckedChange={onChange} />
     </div>
   )
 }
