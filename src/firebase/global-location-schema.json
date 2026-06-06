@@ -1,34 +1,39 @@
-
 {
   "collection": "events",
-  "description": "Estrutura de localização internacional para eventos na plataforma Viby.",
+  "description": "Estrutura de localização internacional padronizada para eventos Viby.",
   "fields": {
     "address": {
       "type": "object",
       "description": "Objeto consolidado de endereço global",
       "properties": {
         "venueName": "string (Nome do local/estabelecimento)",
-        "street": "string (addressLine1)",
-        "number": "string (streetNumber)",
-        "complement": "string (addressLine2)",
-        "neighborhood": "string",
-        "city": "string",
-        "state": "string (stateRegion)",
-        "country": "string",
-        "countryCode": "string (ISO 3166-1 alpha-2)",
-        "postalCode": "string (CEP / ZIP Code / Postal Code)",
-        "latitude": "number (Obrigatório)",
-        "longitude": "number (Obrigatório)",
-        "formattedAddress": "string (Endereço completo para exibição e SEO)"
-      }
+        "addressLine1": "string (Rua, Avenida, Logradouro Principal)",
+        "addressLine2": "string (Complemento, Apartamento, Suíte)",
+        "streetNumber": "string (Número da residência ou estabelecimento)",
+        "neighborhood": "string (Bairro ou distrito)",
+        "city": "string (Cidade ou localidade)",
+        "stateRegion": "string (Estado, Província ou Região)",
+        "country": "string (Nome do país por extenso para visualização)",
+        "countryCode": "string (ISO 3166-1 alpha-2 - Única fonte de verdade)",
+        "postalCode": "string (CEP / ZIP Code / Postal Code - Formato livre)",
+        "latitude": "number (Obrigatório para status 'Ativo')",
+        "longitude": "number (Obrigatório para status 'Ativo')",
+        "formattedAddress": "string (Endereço completo renderizado para SEO)"
+      },
+      "required": ["countryCode", "city", "addressLine1"]
     },
-    "location": "string (Alias para neighborhood/venueName - Compatibilidade retroativa)",
-    "city": "string (Alias para address.city - Compatibilidade retroativa)",
-    "latitude": "number (Alias para address.latitude - Compatibilidade retroativa)",
-    "longitude": "number (Alias para address.longitude - Compatibilidade retroativa)"
+    "city": "string (Alias de address.city para busca e indexação)",
+    "location": "string (Alias de address.neighborhood ou address.venueName)",
+    "latitude": "number (Alias de address.latitude)",
+    "longitude": "number (Alias de address.longitude)"
+  },
+  "validation_rules": {
+    "publication": "Eventos com status 'Ativo' só podem ser salvos se latitude e longitude não forem nulas.",
+    "draft": "Rascunhos permitem coordenadas nulas para preenchimento posterior.",
+    "network": "Timeout de 8 segundos implementado para geocodificação Nominatim."
   },
   "migration_strategy": {
-    "legacy_support": "O sistema mapeia automaticamente campos antigos (CEP, logradouro) para a nova estrutura de objeto 'address' durante a edição ou re-sincronização.",
-    "geocoding_fallback": "Eventos sem coordenadas são geocodificados automaticamente via OpenStreetMap (Nominatim) durante o carregamento administrativo."
+    "explicit_save": "A migração de dados legados ocorre apenas no salvamento explícito do usuário, nunca silenciosamente no carregamento.",
+    "normalization": "Campos de país são normalizados para ISO 3166-1 alpha-2 no momento da seleção."
   }
 }

@@ -9,7 +9,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft } from "lucide-react"
+import { Loader2, ArrowLeft, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -61,7 +61,21 @@ export default function NovoEventoPage() {
     description: "",
     status: "Ativo",
     tags: [] as string[],
-    address: { street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "", latitude: -23.55052, longitude: -46.633308 },
+    address: { 
+      venueName: "",
+      addressLine1: "", 
+      addressLine2: "",
+      streetNumber: "",
+      neighborhood: "", 
+      city: "", 
+      stateRegion: "", 
+      country: "Brasil", 
+      countryCode: "BR",
+      postalCode: "", 
+      latitude: null, 
+      longitude: null,
+      formattedAddress: ""
+    },
     isMultiLocation: false,
     locations: [] as any[],
     isRecurring: false,
@@ -93,6 +107,20 @@ export default function NovoEventoPage() {
     e.preventDefault()
     if (!db || !user || !currentOrg) return
 
+    // VALIDAÇÃO DE REGRAS DE PUBLICAÇÃO
+    const isPublic = formData.status === 'Ativo';
+    if (isPublic) {
+      const { address } = formData;
+      if (!address.countryCode || !address.city || !address.addressLine1 || !address.latitude || !address.longitude) {
+        toast({ 
+          variant: "destructive", 
+          title: "Localização Incompleta", 
+          description: "Eventos ativos exigem endereço completo e coordenadas no mapa." 
+        });
+        return;
+      }
+    }
+
     setLoading(true)
     try {
       const searchKeywords = [
@@ -113,6 +141,11 @@ export default function NovoEventoPage() {
         batches: formData.type === 'interno' ? batches : [],
         searchKeywords,
         date: formData.startDate,
+        // Fallback de campos legados para compatibilidade
+        city: formData.address.city,
+        location: formData.address.neighborhood || formData.address.venueName,
+        latitude: formData.address.latitude,
+        longitude: formData.address.longitude,
         createdAt: serverTimestamp()
       }
 
@@ -223,18 +256,11 @@ export default function NovoEventoPage() {
            </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm rounded-[2rem]">
-          <CardContent className="p-8">
-             <EventLocation 
-               address={formData.address} 
-               isMultiLocation={formData.isMultiLocation}
-               locations={formData.locations}
-               onChange={v => setFormData({...formData, address: v})} 
-               onLocationsChange={v => setFormData({...formData, locations: v})}
-               onToggleMultiLocation={v => setFormData({...formData, isMultiLocation: v})}
-             />
-          </CardContent>
-        </Card>
+        <EventLocation 
+          address={formData.address} 
+          onChange={v => setFormData({...formData, address: v})} 
+          status={formData.status}
+        />
 
         {formData.type === 'interno' && (
           <BilheteriaAdmin 

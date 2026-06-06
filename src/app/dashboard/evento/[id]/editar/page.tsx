@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -61,21 +60,22 @@ export default function EditarEventoPage() {
 
   useEffect(() => {
     if (event) {
-      // Migração de estrutura legada para objeto address
-      const addr = event.address || {
-        venueName: event.location || "",
-        street: "",
-        number: "",
-        complement: "",
-        neighborhood: event.location || "",
-        city: event.city || "",
-        state: event.state || "",
-        country: "Brasil",
-        countryCode: "BR",
-        postalCode: event.cep || "",
-        latitude: event.latitude || -23.55052,
-        longitude: event.longitude || -46.633308,
-        formattedAddress: ""
+      // MAPEAMENTO SEGURO DE DADOS LEGADOS (STATE LOCAL)
+      const legacyAddress = event.address || {};
+      const addr = {
+        venueName: legacyAddress.venueName || event.location || "",
+        addressLine1: legacyAddress.addressLine1 || legacyAddress.street || "",
+        addressLine2: legacyAddress.addressLine2 || legacyAddress.complement || "",
+        streetNumber: legacyAddress.streetNumber || legacyAddress.number || "",
+        neighborhood: legacyAddress.neighborhood || event.location || "",
+        city: legacyAddress.city || event.city || "",
+        stateRegion: legacyAddress.stateRegion || legacyAddress.state || event.state || "",
+        country: legacyAddress.country || "Brasil",
+        countryCode: legacyAddress.countryCode || "BR",
+        postalCode: legacyAddress.postalCode || event.cep || "",
+        latitude: legacyAddress.latitude || event.latitude || null,
+        longitude: legacyAddress.longitude || event.longitude || null,
+        formattedAddress: legacyAddress.formattedAddress || ""
       };
 
       setFormData({
@@ -122,6 +122,20 @@ export default function EditarEventoPage() {
     e.preventDefault()
     if (!db || !eventRef || !currentOrg) return
 
+    // VALIDAÇÃO DE REGRAS DE PUBLICAÇÃO
+    const isPublic = formData.status === 'Ativo';
+    if (isPublic) {
+      const { address } = formData;
+      if (!address.countryCode || !address.city || !address.addressLine1 || !address.latitude || !address.longitude) {
+        toast({ 
+          variant: "destructive", 
+          title: "Localização Incompleta", 
+          description: "Eventos ativos exigem endereço completo e coordenadas no mapa." 
+        });
+        return;
+      }
+    }
+
     setLoading(true)
     try {
       const searchKeywords = [
@@ -139,7 +153,7 @@ export default function EditarEventoPage() {
         capacidadeTotal: totalCapacity,
         batches: formData.type === 'interno' ? batches : [],
         searchKeywords,
-        // Aliases para compatibilidade
+        // Aliases para compatibilidade e busca eficiente
         city: formData.address.city,
         location: formData.address.neighborhood || formData.address.venueName,
         latitude: formData.address.latitude,
@@ -217,7 +231,11 @@ export default function EditarEventoPage() {
               </CardContent>
             </Card>
 
-            <EventLocation address={formData.address} onChange={v => setFormData({...formData, address: v})} />
+            <EventLocation 
+              address={formData.address} 
+              onChange={v => setFormData({...formData, address: v})} 
+              status={formData.status}
+            />
         </TabsContent>
 
         <TabsContent value="bilheteria">

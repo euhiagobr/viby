@@ -1,6 +1,6 @@
-
 /**
  * @fileOverview Utilitários para geolocalização, cálculo de distância e busca global.
+ * Atualizado para padronização ISO 3166-1 alpha-2 e resiliência de rede.
  */
 
 export interface Coordinates {
@@ -10,19 +10,21 @@ export interface Coordinates {
 
 export interface AddressComponents {
   venueName?: string;
-  street: string;
-  number: string;
-  complement: string;
+  addressLine1: string; // Substitui 'street'
+  addressLine2?: string; // Substitui 'complement'
+  streetNumber?: string;
   neighborhood: string;
   city: string;
-  state: string;
+  stateRegion: string; // Substitui 'state'
   country: string;
-  countryCode: string;
+  countryCode: string; // ISO 3166-1 alpha-2 (BR, US, etc)
   postalCode: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   formattedAddress: string;
 }
+
+const NOMINATIM_TIMEOUT = 8000; // 8 segundos
 
 /**
  * Calcula a distância entre dois pontos geográficos usando a fórmula de Haversine.
@@ -46,12 +48,12 @@ export function calculateDistance(
 }
 
 /**
- * Obtém a localização atual do dispositivo.
+ * Obtém a localização atual do dispositivo com tratamento de erro.
  */
-export async function getCurrentLocation(): Promise<Coordinates> {
-  return new Promise((resolve, reject) => {
+export async function getCurrentLocation(): Promise<Coordinates | null> {
+  return new Promise((resolve) => {
     if (typeof window === 'undefined' || !navigator.geolocation) {
-      reject(new Error("Geolocalização não suportada."));
+      resolve(null);
       return;
     }
 
@@ -62,30 +64,37 @@ export async function getCurrentLocation(): Promise<Coordinates> {
           longitude: position.coords.longitude,
         });
       },
-      (error) => {
-        reject(error);
+      () => {
+        resolve(null);
       },
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
     );
   });
 }
 
 /**
  * Busca endereços (Autocomplete Global) usando OpenStreetMap (Nominatim).
+ * Implementa timeout para evitar travamento da UI.
  */
 export async function searchGlobalAddresses(query: string): Promise<any[]> {
   if (!query || query.length < 3) return [];
+  
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), NOMINATIM_TIMEOUT);
+
   try {
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`;
     const response = await fetch(url, {
+      signal: controller.signal,
       headers: {
         'Accept-Language': 'pt-BR,en-US',
-        'User-Agent': 'VibyClub/1.0'
+        'User-Agent': 'VibyClub/1.1'
       }
     });
+    clearTimeout(id);
     return await response.json();
   } catch (e) {
-    console.error("[Geocoding] Erro na busca global:", e);
+    console.warn("[Geocoding] Busca global falhou ou excedeu o tempo limite.");
     return [];
   }
 }
@@ -97,11 +106,10 @@ export function mapNominatimToAddress(data: any): Partial<AddressComponents> {
   const addr = data.address;
   return {
     venueName: data.display_name.split(',')[0],
-    street: addr.road || addr.pedestrian || addr.suburb || "",
-    number: addr.house_number || "",
+    addressLine1: addr.road || addr.pedestrian || addr.suburb || "",
     neighborhood: addr.neighbourhood || addr.suburb || addr.quarter || "",
     city: addr.city || addr.town || addr.village || addr.municipality || "",
-    state: addr.state || "",
+    stateRegion: addr.state || addr.region || "",
     country: addr.country || "",
     countryCode: addr.country_code?.toUpperCase() || "",
     postalCode: addr.postcode || "",
@@ -112,15 +120,21 @@ export function mapNominatimToAddress(data: any): Partial<AddressComponents> {
 }
 
 /**
- * Busca coordenadas (Lat/Lng) baseado em um endereço textual.
+ * Busca coordenadas (Lat/Lng) baseado em um endereço textual com timeout.
  */
-export async function getCoordinatesFromAddress(address: string, fallbackCep?: string): Promise<Coordinates | null> {
+export async function getCoordinatesFromAddress(address: string): Promise<Coordinates | null> {
   if (!address) return null;
+  
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), NOMINATIM_TIMEOUT);
+
   try {
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
     const response = await fetch(url, {
-      headers: { 'User-Agent': 'VibyClub/1.0' }
+      signal: controller.signal,
+      headers: { 'User-Agent': 'VibyClub/1.1' }
     });
+    clearTimeout(id);
     const data = await response.json();
     if (data && data.length > 0) {
       return {
