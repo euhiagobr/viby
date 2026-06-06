@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { Metadata } from 'next';
 import { doc, getDoc, getFirestore } from 'firebase/firestore';
@@ -25,13 +26,18 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
     return { title: 'Evento não encontrado' };
   }
 
-  const title = `${event.title} • ${event.city || 'Brasil'} | Viby`;
+  const addr = event.address || {};
+  const city = addr.city || event.city || 'Brasil';
+  const region = addr.state || event.state || '';
+  const country = addr.country || 'Brasil';
+
+  const title = `${event.title} • ${city} ${region} | Viby`;
   const description = event.shortDescription || event.description?.substring(0, 160) || `Confira os detalhes de ${event.title} na Viby.`;
   
   const ogImageUrl = new URL('https://viby.club/api/og');
   ogImageUrl.searchParams.set('type', 'event');
   ogImageUrl.searchParams.set('title', event.title);
-  ogImageUrl.searchParams.set('subtitle', `${event.city} • ${event.organizer?.name || 'Viby'}`);
+  ogImageUrl.searchParams.set('subtitle', `${city} • ${event.organizer?.name || 'Viby'}`);
   ogImageUrl.searchParams.set('category', event.categoryName || 'Evento');
   if (event.image) ogImageUrl.searchParams.set('image', event.image);
 
@@ -46,6 +52,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
       images: [{ url: ogImageUrl.toString(), width: 1200, height: 630, alt: event.title }],
     },
     twitter: { card: 'summary_large_image', title, description, images: [ogImageUrl.toString()] },
+    keywords: [event.title, city, region, country, event.categoryName || 'evento']
   };
 }
 
@@ -71,6 +78,7 @@ export default async function EventoPublicoPage({ params }: { params: Promise<{ 
     );
   }
 
+  const addr = event.address || {};
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Event",
@@ -78,13 +86,14 @@ export default async function EventoPublicoPage({ params }: { params: Promise<{ 
     "startDate": event.date?.toDate ? event.date.toDate().toISOString() : event.date,
     "location": {
       "@type": "Place",
-      "name": event.location,
+      "name": addr.venueName || event.location,
       "address": {
         "@type": "PostalAddress",
-        "addressLocality": event.city,
-        "addressRegion": event.address?.state,
-        "streetAddress": `${event.address?.street || ''}, ${event.address?.number || ''}`,
-        "addressCountry": "BR"
+        "addressLocality": addr.city || event.city,
+        "addressRegion": addr.state || event.state,
+        "streetAddress": `${addr.street || ''}, ${addr.number || ''}`,
+        "postalCode": addr.postalCode || event.cep,
+        "addressCountry": addr.countryCode || "BR"
       }
     },
     "image": event.image,

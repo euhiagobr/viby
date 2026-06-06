@@ -1,0 +1,34 @@
+
+{
+  "collection": "events",
+  "description": "Estrutura de localização internacional para eventos na plataforma Viby.",
+  "fields": {
+    "address": {
+      "type": "object",
+      "description": "Objeto consolidado de endereço global",
+      "properties": {
+        "venueName": "string (Nome do local/estabelecimento)",
+        "street": "string (addressLine1)",
+        "number": "string (streetNumber)",
+        "complement": "string (addressLine2)",
+        "neighborhood": "string",
+        "city": "string",
+        "state": "string (stateRegion)",
+        "country": "string",
+        "countryCode": "string (ISO 3166-1 alpha-2)",
+        "postalCode": "string (CEP / ZIP Code / Postal Code)",
+        "latitude": "number (Obrigatório)",
+        "longitude": "number (Obrigatório)",
+        "formattedAddress": "string (Endereço completo para exibição e SEO)"
+      }
+    },
+    "location": "string (Alias para neighborhood/venueName - Compatibilidade retroativa)",
+    "city": "string (Alias para address.city - Compatibilidade retroativa)",
+    "latitude": "number (Alias para address.latitude - Compatibilidade retroativa)",
+    "longitude": "number (Alias para address.longitude - Compatibilidade retroativa)"
+  },
+  "migration_strategy": {
+    "legacy_support": "O sistema mapeia automaticamente campos antigos (CEP, logradouro) para a nova estrutura de objeto 'address' durante a edição ou re-sincronização.",
+    "geocoding_fallback": "Eventos sem coordenadas são geocodificados automaticamente via OpenStreetMap (Nominatim) durante o carregamento administrativo."
+  }
+}

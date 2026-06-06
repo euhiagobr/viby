@@ -1,10 +1,27 @@
+
 /**
- * @fileOverview Utilitários para geolocalização e cálculo de distância.
+ * @fileOverview Utilitários para geolocalização, cálculo de distância e busca global.
  */
 
 export interface Coordinates {
   latitude: number;
   longitude: number;
+}
+
+export interface AddressComponents {
+  venueName?: string;
+  street: string;
+  number: string;
+  complement: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  country: string;
+  countryCode: string;
+  postalCode: string;
+  latitude: number;
+  longitude: number;
+  formattedAddress: string;
 }
 
 /**
@@ -33,8 +50,8 @@ export function calculateDistance(
  */
 export async function getCurrentLocation(): Promise<Coordinates> {
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("Geolocalização não suportada pelo navegador."));
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      reject(new Error("Geolocalização não suportada."));
       return;
     }
 
@@ -54,43 +71,65 @@ export async function getCurrentLocation(): Promise<Coordinates> {
 }
 
 /**
- * Busca coordenadas (Lat/Lng) baseado em um endereço textual usando OpenStreetMap (Nominatim).
- * Implementa estratégia de fallback caso o endereço específico falhe.
+ * Busca endereços (Autocomplete Global) usando OpenStreetMap (Nominatim).
+ */
+export async function searchGlobalAddresses(query: string): Promise<any[]> {
+  if (!query || query.length < 3) return [];
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`;
+    const response = await fetch(url, {
+      headers: {
+        'Accept-Language': 'pt-BR,en-US',
+        'User-Agent': 'VibyClub/1.0'
+      }
+    });
+    return await response.json();
+  } catch (e) {
+    console.error("[Geocoding] Erro na busca global:", e);
+    return [];
+  }
+}
+
+/**
+ * Converte um resultado do Nominatim para a estrutura de AddressComponents da Viby.
+ */
+export function mapNominatimToAddress(data: any): Partial<AddressComponents> {
+  const addr = data.address;
+  return {
+    venueName: data.display_name.split(',')[0],
+    street: addr.road || addr.pedestrian || addr.suburb || "",
+    number: addr.house_number || "",
+    neighborhood: addr.neighbourhood || addr.suburb || addr.quarter || "",
+    city: addr.city || addr.town || addr.village || addr.municipality || "",
+    state: addr.state || "",
+    country: addr.country || "",
+    countryCode: addr.country_code?.toUpperCase() || "",
+    postalCode: addr.postcode || "",
+    latitude: parseFloat(data.lat),
+    longitude: parseFloat(data.lon),
+    formattedAddress: data.display_name
+  };
+}
+
+/**
+ * Busca coordenadas (Lat/Lng) baseado em um endereço textual.
  */
 export async function getCoordinatesFromAddress(address: string, fallbackCep?: string): Promise<Coordinates | null> {
   if (!address) return null;
-
-  const tryFetch = async (query: string) => {
-    try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
-      const response = await fetch(url, {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'VibyClub/1.0'
-        }
-      });
-      const data = await response.json();
-      if (data && data.length > 0) {
-        return {
-          latitude: parseFloat(data[0].lat),
-          longitude: parseFloat(data[0].lon)
-        };
-      }
-      return null;
-    } catch (e) {
-      console.warn(`[Geocoding] Falha na busca para: ${query}`, e);
-      return null;
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'VibyClub/1.0' }
+    });
+    const data = await response.json();
+    if (data && data.length > 0) {
+      return {
+        latitude: parseFloat(data[0].lat),
+        longitude: parseFloat(data[0].lon)
+      };
     }
-  };
-
-  // Tenta 1: Endereço completo (Mais preciso)
-  let result = await tryFetch(address);
-
-  // Tenta 2: Caso falhe e tenhamos o CEP, busca pelo CEP (Menos preciso, mas evita PIN parado)
-  if (!result && fallbackCep) {
-    console.log(`[Geocoding] Fallback para CEP: ${fallbackCep}`);
-    result = await tryFetch(fallbackCep);
+    return null;
+  } catch (e) {
+    return null;
   }
-
-  return result;
 }

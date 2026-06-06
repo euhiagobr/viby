@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -11,14 +12,13 @@ import {
   Clock, 
   Search, 
   Loader2, 
-  AlertCircle, 
-  Zap, 
-  CheckCircle2,
-  Calendar,
-  Layers,
-  ArrowRight,
+  Globe, 
   Map as MapIcon,
-  X
+  X,
+  Plus,
+  CheckCircle2,
+  Building2,
+  Locate
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { LocationMap } from "./LocationMap"
@@ -31,471 +31,272 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { getCoordinatesFromAddress } from "@/lib/location-utils"
+import { 
+  getCoordinatesFromAddress, 
+  searchGlobalAddresses, 
+  mapNominatimToAddress,
+  AddressComponents 
+} from "@/lib/location-utils"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
-interface Location {
-  id: string
-  title?: string
-  cep: string
-  street: string
-  number: string
-  complement: string
-  neighborhood: string
-  city: string
-  state: string
-  country: string
-  latitude: number
-  longitude: number
-  startAt: string
-  endAt: string
-  order: number
-}
+const COUNTRIES = [
+  { code: 'BR', name: 'Brasil', postalLabel: 'CEP' },
+  { code: 'US', name: 'Estados Unidos', postalLabel: 'ZIP Code' },
+  { code: 'CA', name: 'Canadá', postalLabel: 'Postal Code' },
+  { code: 'PT', name: 'Portugal', postalLabel: 'Código Postal' },
+  { code: 'ES', name: 'Espanha', postalLabel: 'Código Postal' },
+  { code: 'DE', name: 'Alemanha', postalLabel: 'Postleitzahl' },
+  { code: 'FR', name: 'França', postalLabel: 'Code Postal' },
+  { code: 'IT', name: 'Itália', postalLabel: 'Codice Postale' },
+  { code: 'GB', name: 'Reino Unido', postalLabel: 'Postcode' },
+  { code: 'AR', name: 'Argentina', postalLabel: 'Código Postal' },
+  { code: 'CL', name: 'Chile', postalLabel: 'Código Postal' },
+  { code: 'MX', name: 'México', postalLabel: 'Código Postal' },
+];
 
 interface EventLocationProps {
-  address: any 
-  locations?: Location[]
-  isMultiLocation?: boolean
+  address: Partial<AddressComponents>
   onChange?: (address: any) => void
-  onLocationsChange?: (locations: Location[]) => void
-  onToggleMultiLocation?: (val: boolean) => void
   isPublic?: boolean
+  className?: string
 }
 
-const DEFAULT_LOCATION: Location = {
-  id: "loc_1",
-  title: "",
-  cep: "",
-  street: "",
-  number: "",
-  complement: "",
-  neighborhood: "",
-  city: "",
-  state: "",
-  country: "Brasil",
-  latitude: -23.55052,
-  longitude: -46.633308,
-  startAt: "",
-  endAt: "",
-  order: 0
-};
+export function EventLocation({ address, onChange, isPublic, className }: EventLocationProps) {
+  const [isSearching, setIsSearching] = React.useState(false);
+  const [globalSearch, setGlobalSearch] = React.useState("");
+  const [suggestions, setSuggestions] = React.useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = React.useState(false);
 
-export function EventLocation({ 
-  address, 
-  locations = [], 
-  isMultiLocation = false,
-  onChange, 
-  onLocationsChange,
-  onToggleMultiLocation,
-  isPublic 
-}: EventLocationProps) {
-  const [isSearching, setIsSearching] = React.useState<string | null>(null);
-  const [currentTime, setCurrentTime] = React.useState<Date>(new Date());
-  
-  const [localCoords, setLocalCoords] = React.useState<{lat: string, lng: string}>({ lat: "", lng: "" });
+  const postalLabel = React.useMemo(() => {
+    const country = COUNTRIES.find(c => c.code === address?.countryCode || c.name === address?.country);
+    return country?.postalLabel || "Postal Code";
+  }, [address?.countryCode, address?.country]);
 
-  React.useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
-    return () => clearInterval(timer);
-  }, []);
-
-  React.useEffect(() => {
-    if (!isMultiLocation) {
-      setLocalCoords({
-        lat: address?.latitude?.toString() || "",
-        lng: address?.longitude?.toString() || ""
-      });
-    }
-  }, [address?.latitude, address?.longitude, isMultiLocation]);
-
-  const triggerGeocoding = async (index: number, updatedAddr: any) => {
-    if (!updatedAddr.street || !updatedAddr.city) return;
-
-    const searchString = `${updatedAddr.street}, ${updatedAddr.number || ''}, ${updatedAddr.city}, ${updatedAddr.state}, Brasil`;
-    
-    setIsSearching(isMultiLocation ? updatedAddr.id : 'legacy');
-    const coords = await getCoordinatesFromAddress(searchString, updatedAddr.cep);
-    
-    if (coords) {
-      if (isMultiLocation) {
-        const newLocs = [...locations];
-        newLocs[index] = { ...updatedAddr, ...coords };
-        onLocationsChange?.(newLocs);
-      } else {
-        onChange?.({ ...updatedAddr, ...coords });
-      }
-    }
-    setIsSearching(null);
+  const handleGlobalSearch = async () => {
+    if (!globalSearch || globalSearch.length < 3) return;
+    setIsSearching(true);
+    const results = await searchGlobalAddresses(globalSearch);
+    setSuggestions(results);
+    setShowSuggestions(true);
+    setIsSearching(false);
   };
 
-  const handleCepBlur = async (index: number) => {
-    const target = isMultiLocation ? { ...locations[index] } : { ...address };
-    const cep = target.cep?.replace(/\D/g, "");
-    
+  const selectSuggestion = (data: any) => {
+    const mapped = mapNominatimToAddress(data);
+    onChange?.({ ...address, ...mapped });
+    setShowSuggestions(false);
+    setGlobalSearch("");
+  };
+
+  const handleCepBlur = async () => {
+    if (address?.countryCode !== 'BR' && address?.country !== 'Brasil') return;
+    const cep = address?.postalCode?.replace(/\D/g, "");
     if (!cep || cep.length !== 8) return;
     
-    setIsSearching(isMultiLocation ? target.id : 'legacy');
+    setIsSearching(true);
     try {
       const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
       const data = await response.json();
-      
       if (!data.erro) {
         const updated = {
-          ...target,
-          street: data.logradouro || target.street,
-          neighborhood: data.bairro || target.neighborhood,
-          city: data.localidade || target.city,
-          state: data.uf || target.state
+          ...address,
+          street: data.logradouro || address.street,
+          neighborhood: data.bairro || address.neighborhood,
+          city: data.localidade || address.city,
+          state: data.uf || address.state,
+          country: "Brasil",
+          countryCode: "BR"
         };
-
-        if (isMultiLocation) {
-          const newLocs = [...locations];
-          newLocs[index] = updated;
-          onLocationsChange?.(newLocs);
-        } else {
-          onChange?.(updated);
-        }
-        triggerGeocoding(index, updated);
+        
+        const searchStr = `${updated.street}, ${updated.city}, BR`;
+        const coords = await getCoordinatesFromAddress(searchStr);
+        onChange?.({ ...updated, ...coords });
       }
     } catch (e) {
-      console.warn("[CEP] Erro na consulta ViaCEP");
+      console.warn("[Location] Falha no ViaCEP");
     } finally {
-      setIsSearching(null);
+      setIsSearching(false);
     }
-  };
-
-  const handleUpdateLocation = (index: number, field: string, value: any) => {
-    if (isMultiLocation) {
-      const newLocs = [...locations];
-      newLocs[index] = { ...newLocs[index], [field]: value };
-      onLocationsChange?.(newLocs);
-    } else {
-      onChange?.({ ...address, [field]: value });
-    }
-  };
-
-  const handleCoordsChange = (field: 'lat' | 'lng', value: string) => {
-    setLocalCoords(prev => ({ ...prev, [field]: value }));
-    
-    const numValue = parseFloat(value);
-    if (!isNaN(numValue)) {
-      if (field === 'lat' && Math.abs(numValue) <= 90) {
-        handleUpdateLocation(0, 'latitude', numValue);
-      } else if (field === 'lng' && Math.abs(numValue) <= 180) {
-        handleUpdateLocation(0, 'longitude', numValue);
-      }
-    }
-  };
-
-  const formatFullAddress = (addr: any) => {
-    if (!addr || Object.keys(addr).length === 0) return "Local Confirmado";
-    const parts = [
-      addr.street ? `${addr.street}${addr.number ? `, ${addr.number}` : ''}` : null,
-      addr.neighborhood || addr.location,
-      addr.city ? `${addr.city}${addr.state ? ` - ${addr.state}` : ''}` : null
-    ].filter(Boolean);
-    
-    return parts.length > 0 ? parts.join(" • ") : "Local Confirmado";
   };
 
   if (isPublic) {
-    const sortedLocs = [...locations].sort((a, b) => a.order - b.order);
-    
-    const renderLocationBlock = (loc: any, isCurrent: boolean, isNext: boolean) => {
-      const currentAddrObj = isMultiLocation ? loc : address;
-      const addrString = formatFullAddress(currentAddrObj);
-      
-      const lat = Number(isMultiLocation ? loc.latitude : address?.latitude) || -23.55052;
-      const lng = Number(isMultiLocation ? loc.longitude : address?.longitude) || -46.633308;
-      
-      const titleFallback = address?.neighborhood || address?.city || "Local do Evento";
-      const title = isMultiLocation ? (loc.title || "Ponto de Encontro") : titleFallback;
-
-      return (
-        <Card key={loc?.id || 'single'} className={cn(
-          "border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden transition-all",
-          (!isCurrent && isMultiLocation) && "opacity-60 bg-muted/30"
-        )}>
-          <div className="h-64 w-full">
-            <LocationMap latitude={lat} longitude={lng} interactive={false} onChange={() => {}} />
-          </div>
-          <CardContent className="p-8 space-y-6">
-             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div className="space-y-1">
-                   {isMultiLocation && (
-                     <div className="flex gap-2 mb-2">
-                        {isCurrent ? (
-                          <Badge className="bg-green-600 text-white border-none text-[10px] font-black uppercase px-3 py-1 animate-pulse">
-                             Acontecendo Agora
-                          </Badge>
-                        ) : isNext ? (
-                          <Badge variant="outline" className="text-[10px] font-black uppercase px-3 py-1 border-dashed">
-                             Próxima Parada
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-[10px] font-black uppercase px-3 py-1 opacity-50">
-                             Programação
-                          </Badge>
-                        )}
-                     </div>
-                   )}
-                   <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary">
-                     {title}
-                   </h3>
-                   <p className="text-sm font-medium text-muted-foreground leading-relaxed">{addrString}</p>
-                   
-                   {isMultiLocation && loc.startAt && (
-                     <div className="flex items-center gap-2 mt-2 text-[10px] font-black uppercase text-secondary">
-                        <Clock className="w-3.5 h-3.5" />
-                        {new Date(loc.startAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} 
-                        {loc.endAt && ` às ${new Date(loc.endAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
-                     </div>
-                   )}
-                </div>
-                <Button asChild variant="outline" className="rounded-xl font-black uppercase italic text-[10px] gap-2 border-secondary text-secondary hover:bg-secondary hover:text-white transition-all">
-                   <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addrString)}`} target="_blank">
-                      <Navigation className="w-4 h-4 fill-current" /> Abrir GPS
-                   </a>
-                </Button>
-             </div>
-          </CardContent>
-        </Card>
-      );
-    };
+    const addrString = address?.formattedAddress || 
+      `${address?.street || ''}${address?.number ? `, ${address?.number}` : ''} - ${address?.neighborhood || ''} ${address?.city || ''} ${address?.state || ''}`;
 
     return (
-      <div className="space-y-10">
+      <div className={cn("space-y-10", className)}>
         <div className="flex items-center gap-3 px-2">
           <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
             <MapIcon className="w-5 h-5" />
           </div>
-          <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">
-            {isMultiLocation ? "Itinerário do Evento" : "Localização"}
-          </h2>
+          <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Localização</h2>
         </div>
 
-        <div className="space-y-8">
-           {isMultiLocation ? (
-             sortedLocs.map((loc, idx) => {
-                const start = loc.startAt ? new Date(loc.startAt) : null;
-                const end = loc.endAt ? new Date(loc.endAt) : null;
-                const isCurrent = start && end && currentTime >= start && currentTime <= end;
-                const isNext = start && currentTime < start && (!sortedLocs[idx-1] || (sortedLocs[idx-1].endAt && currentTime > new Date(sortedLocs[idx-1].endAt)));
-                
-                return renderLocationBlock(loc, !!isCurrent, !!isNext);
-             })
-           ) : renderLocationBlock(null, true, false)}
-        </div>
+        <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
+          <div className="h-64 w-full">
+            <LocationMap 
+              latitude={address?.latitude || -23.55052} 
+              longitude={address?.longitude || -46.633308} 
+              interactive={false} 
+              onChange={() => {}} 
+            />
+          </div>
+          <CardContent className="p-8 space-y-6">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="space-y-1">
+                   <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary">
+                     {address?.venueName || "Local do Evento"}
+                   </h3>
+                   <p className="text-sm font-medium text-muted-foreground leading-relaxed">{addrString}</p>
+                </div>
+                <div className="flex gap-2">
+                   <Button asChild variant="outline" className="rounded-xl font-black uppercase italic text-[10px] gap-2 border-secondary text-secondary">
+                      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addrString)}`} target="_blank">
+                         <Navigation className="w-4 h-4" /> GPS
+                      </a>
+                   </Button>
+                </div>
+             </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  const renderLocationForm = (loc: any, index: number, isMulti: boolean) => {
-    const currentLoc = isMulti ? loc : address;
-
-    return (
-      <div key={isMulti ? loc.id : 'single'} className={cn("space-y-6 p-8 rounded-[2rem] border-2 border-dashed bg-white transition-all", isMulti ? "border-secondary/20" : "border-border/60")}>
-        <div className="flex items-center justify-between mb-4">
-           <div className="flex items-center gap-3">
-              <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-black italic shadow-sm", isMulti ? "bg-secondary text-white" : "bg-primary text-white")}>
-                {isMulti ? `L${index + 1}` : <MapPin className="w-5 h-5" />}
+  return (
+    <div className={cn("space-y-8", className)}>
+      <Card className="border-none shadow-sm rounded-[2.5rem] bg-muted/30 overflow-hidden">
+        <CardContent className="p-8 space-y-8">
+           <div className="space-y-4">
+              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                <Globe className="w-3.5 h-3.5" /> Busca Global de Endereços
+              </Label>
+              <div className="flex gap-2">
+                 <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      placeholder="Nome do local, arena, estádio ou endereço..." 
+                      value={globalSearch}
+                      onChange={e => setGlobalSearch(e.target.value)}
+                      className="pl-10 h-12 rounded-xl border-dashed border-secondary/30"
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleGlobalSearch())}
+                    />
+                 </div>
+                 <Button type="button" onClick={handleGlobalSearch} disabled={isSearching} className="h-12 rounded-xl px-6 bg-secondary text-white font-bold">
+                    {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : "Buscar"}
+                 </Button>
               </div>
-              <h3 className="text-lg font-black uppercase italic tracking-tighter text-primary">
-                {isMulti ? `Localização ${index + 1}` : "Endereço Principal"}
-              </h3>
-           </div>
-           {isMulti && (
-             <Button 
-               variant="ghost" 
-               size="icon" 
-               className="text-destructive hover:bg-red-50 rounded-full"
-               onClick={() => {
-                 const newList = locations.filter((_, i) => i !== index);
-                 onLocationsChange?.(newList);
-               }}
-             >
-                <X className="w-5 h-5" />
-             </Button>
-           )}
-        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-           <div className="space-y-6">
-              {isMulti && (
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Nome do Local (Opcional)</Label>
-                  <Input 
-                    value={currentLoc.title || ""} 
-                    onChange={e => handleUpdateLocation(index, 'title', e.target.value)}
-                    placeholder="Ex: Praça da Matriz"
-                    className="rounded-xl h-11"
-                  />
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="p-2 bg-white rounded-2xl border shadow-xl animate-in slide-in-from-top-2">
+                   {suggestions.map((s, i) => (
+                     <button
+                       key={i}
+                       type="button"
+                       onClick={() => selectSuggestion(s)}
+                       className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 rounded-xl text-left transition-colors group"
+                     >
+                        <MapPin className="w-4 h-4 text-secondary opacity-40 group-hover:opacity-100" />
+                        <div className="flex-1 min-w-0">
+                           <p className="text-xs font-bold truncate">{s.display_name}</p>
+                           <p className="text-[9px] text-muted-foreground uppercase font-black">{s.type || 'local'}</p>
+                        </div>
+                     </button>
+                   ))}
                 </div>
               )}
+           </div>
 
-              <div className="grid grid-cols-4 gap-4">
-                 <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">CEP</Label>
-                    <div className="relative">
-                      <Input 
-                        value={currentLoc.cep || ""} 
-                        onChange={e => handleUpdateLocation(index, 'cep', e.target.value)} 
-                        onBlur={() => handleCepBlur(index)}
-                        placeholder="00000-000" 
-                        className="rounded-xl h-11 pl-8" 
-                      />
-                      {isSearching === (isMulti ? currentLoc.id : 'legacy') && (
-                        <Loader2 className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-secondary" />
-                      )}
+           <Separator className="border-dashed" />
+
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div className="space-y-6">
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">País</Label>
+                       <Select 
+                        value={address?.countryCode || ""} 
+                        onValueChange={val => onChange?.({ ...address, countryCode: val, country: COUNTRIES.find(c => c.code === val)?.name })}
+                       >
+                          <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                             {COUNTRIES.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
+                          </SelectContent>
+                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">{postalLabel}</Label>
+                       <Input 
+                         value={address?.postalCode || ""} 
+                         onChange={e => onChange?.({ ...address, postalCode: e.target.value })} 
+                         onBlur={handleCepBlur}
+                         className="rounded-xl h-11" 
+                       />
                     </div>
                  </div>
-                 <div className="col-span-3 space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Logradouro / Rua</Label>
-                    <Input value={currentLoc.street || ""} onChange={e => handleUpdateLocation(index, 'street', e.target.value)} required className="rounded-xl h-11" />
+
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Nome do Local (Venue)</Label>
+                    <div className="relative">
+                       <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
+                       <Input value={address?.venueName || ""} onChange={e => onChange?.({ ...address, venueName: e.target.value })} placeholder="Ex: Madison Square Garden" className="pl-10 rounded-xl h-11" />
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-4 gap-4">
+                    <div className="col-span-3 space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">Logradouro / Rua</Label>
+                       <Input value={address?.street || ""} onChange={e => onChange?.({ ...address, street: e.target.value })} className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">Nº</Label>
+                       <Input value={address?.number || ""} onChange={e => onChange?.({ ...address, number: e.target.value })} className="rounded-xl h-11" />
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro / Neighborhood</Label><Input value={address?.neighborhood || ""} onChange={e => onChange?.({ ...address, neighborhood: e.target.value })} className="rounded-xl h-11" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade / City</Label><Input value={address?.city || ""} onChange={e => onChange?.({ ...address, city: e.target.value })} className="rounded-xl h-11" /></div>
+                 </div>
+                 
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Estado / Região</Label><Input value={address?.state || ""} onChange={e => onChange?.({ ...address, state: e.target.value })} className="rounded-xl h-11" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label><Input value={address?.complement || ""} onChange={e => onChange?.({ ...address, complement: e.target.value })} className="rounded-xl h-11" /></div>
                  </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nº</Label><Input value={currentLoc.number || ""} onChange={e => handleUpdateLocation(index, 'number', e.target.value)} required className="rounded-xl h-11" /></div>
-                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={currentLoc.neighborhood || ""} onChange={e => handleUpdateLocation(index, 'neighborhood', e.target.value)} required className="rounded-xl h-11" /></div>
-                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={currentLoc.city || ""} onChange={e => handleUpdateLocation(index, 'city', e.target.value)} className="rounded-xl h-11" /></div>
-                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">UF</Label><Input value={currentLoc.state || ""} onChange={e => handleUpdateLocation(index, 'state', e.target.value)} className="rounded-xl h-11 w-16" /></div>
-              </div>
-
-              {isMulti && (
-                <div className="grid grid-cols-2 gap-4 p-4 bg-secondary/5 rounded-2xl border border-secondary/10">
-                   <div className="space-y-2">
-                      <Label className="text-[9px] font-black uppercase text-secondary">Início neste Local</Label>
-                      <Input type="datetime-local" value={currentLoc.startAt} onChange={e => handleUpdateLocation(index, 'startAt', e.target.value)} required className="h-10 rounded-lg text-xs" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="text-[9px] font-black uppercase text-secondary">Fim neste Local</Label>
-                      <Input type="datetime-local" value={currentLoc.endAt} onChange={e => handleUpdateLocation(index, 'endAt', e.target.value)} required className="h-10 rounded-lg text-xs" />
-                   </div>
-                </div>
-              )}
-           </div>
-
-           <div className="space-y-3">
-              <Label className="text-[10px] font-black uppercase opacity-60 flex justify-between items-center">
-                 PIN no Mapa
-                 <span className="text-[8px] opacity-40">PIN atualiza via endereço ou arraste</span>
-              </Label>
-              <div className="h-[280px] w-full rounded-2xl overflow-hidden border-2 border-muted relative shadow-inner bg-muted/10">
-                 <LocationMap 
-                    latitude={Number(isMulti ? currentLoc.latitude : address?.latitude) || -23.55052} 
-                    longitude={Number(isMulti ? currentLoc.longitude : address?.longitude) || -46.633308} 
-                    onChange={(lat, lng) => {
-                      if (isMulti) {
-                        const newLocs = [...locations];
-                        newLocs[index] = { ...newLocs[index], latitude: Number(lat), longitude: Number(lng) };
-                        onLocationsChange?.(newLocs);
-                      } else {
-                        onChange?.({ ...address, latitude: Number(lat), longitude: Number(lng) });
-                      }
-                    }} 
-                    interactive={true}
-                 />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                 <div className="space-y-1">
-                    <Label className="text-[8px] font-black uppercase opacity-40">Latitude</Label>
-                    <Input 
-                      type="text" 
-                      value={isMulti ? (currentLoc.latitude || "") : localCoords.lat} 
-                      onChange={e => isMulti ? handleUpdateLocation(index, 'latitude', e.target.value) : handleCoordsChange('lat', e.target.value)}
-                      className="h-9 text-[11px] font-mono rounded-xl bg-muted/20"
+              <div className="space-y-4">
+                 <Label className="text-[10px] font-black uppercase opacity-60 flex justify-between items-center">
+                    Confirmação de Localização (PIN)
+                    <span className="text-[8px] opacity-40">Arraste para ajustar</span>
+                 </Label>
+                 <div className="h-[350px] w-full rounded-[2rem] overflow-hidden border-2 border-muted shadow-inner relative group/map">
+                    <LocationMap 
+                      latitude={address?.latitude || -23.55052} 
+                      longitude={address?.longitude || -46.633308} 
+                      onChange={(lat, lng) => onChange?.({ ...address, latitude: lat, longitude: lng })}
+                      interactive={true}
                     />
+                    <div className="absolute top-4 left-4 z-10 opacity-0 group-hover/map:opacity-100 transition-opacity">
+                       <Badge className="bg-white/90 text-primary border-none shadow-lg text-[9px] font-black uppercase">
+                          Lat: {address?.latitude?.toFixed(4)} | Lng: {address?.longitude?.toFixed(4)}
+                       </Badge>
+                    </div>
                  </div>
-                 <div className="space-y-1">
-                    <Label className="text-[8px] font-black uppercase opacity-40">Longitude</Label>
-                    <Input 
-                      type="text" 
-                      value={isMulti ? (currentLoc.longitude || "") : localCoords.lng} 
-                      onChange={e => isMulti ? handleUpdateLocation(index, 'longitude', e.target.value) : handleCoordsChange('lng', e.target.value)}
-                      className="h-9 text-[11px] font-mono rounded-xl bg-muted/20"
-                    />
+                 <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
+                    <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-secondary font-bold uppercase leading-tight italic">O posicionamento exato no mapa é fundamental para o sistema de recomendação de proximidade.</p>
                  </div>
-              </div>
-           </div>
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="space-y-8">
-      <Card className="border-none shadow-sm rounded-[2rem] bg-muted/30 overflow-hidden">
-        <CardContent className="p-8">
-           <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                 <div className="p-3 bg-white rounded-2xl shadow-sm text-secondary">
-                    <MapIcon className="w-6 h-6" />
-                 </div>
-                 <div>
-                    <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary">Itinerário e Logística</h2>
-                    <p className="text-xs font-medium text-muted-foreground">O evento possui mais de um local ou é itinerante?</p>
-                 </div>
-              </div>
-              <div className="flex items-center gap-4 bg-white px-6 py-3 rounded-2xl shadow-sm border border-border/40">
-                 <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                         <div className="flex items-center gap-3">
-                            <Label className="text-[10px] font-black uppercase tracking-widest cursor-help">Múltiplos Locais?</Label>
-                            <Switch 
-                               checked={isMultiLocation} 
-                               onCheckedChange={(val) => {
-                                  onToggleMultiLocation?.(val);
-                                  if (val && locations.length === 0) {
-                                     const L1 = { ...DEFAULT_LOCATION, ...address, id: "loc_1", order: 0 };
-                                     const L2 = { ...DEFAULT_LOCATION, id: "loc_2", order: 1 };
-                                     onLocationsChange?.([L1, L2]);
-                                  }
-                               }} 
-                            />
-                         </div>
-                      </TooltipTrigger>
-                      <TooltipContent className="rounded-xl p-3 max-w-xs shadow-2xl border-none">
-                         <p className="text-[10px] font-bold uppercase leading-relaxed text-center">
-                            Ative para eventos que mudam de lugar (ex: Trios elétricos, tours). 
-                            O público verá as paradas conforme o horário.
-                         </p>
-                      </TooltipContent>
-                    </Tooltip>
-                 </TooltipProvider>
               </div>
            </div>
         </CardContent>
       </Card>
-
-      <div className="space-y-8">
-         {isMultiLocation ? (
-           <>
-              {locations.map((loc, idx) => renderLocationForm(loc, idx, true))}
-              <Button 
-                type="button" 
-                variant="outline" 
-                className="w-full h-14 rounded-2xl border-2 border-dashed border-secondary/30 text-secondary font-black uppercase text-[10px] gap-2 hover:bg-secondary/5"
-                onClick={() => {
-                  const newLoc = { ...DEFAULT_LOCATION, id: `loc_${Date.now()}`, order: locations.length };
-                  onLocationsChange?.([...locations, newLoc]);
-                }}
-              >
-                <Plus className="w-4 h-4" /> Adicionar Parada no Itinerário
-              </Button>
-           </>
-         ) : renderLocationForm(null, 0, false)}
-      </div>
-
-      <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
-         <Zap className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
-         <div className="space-y-1">
-            <h4 className="font-black uppercase text-secondary italic">Radar Geográfico Ativo</h4>
-            <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed">
-               O Viby sanitiza as coordenadas em tempo real. O PIN no mapa é a sua garantia de precisão para que o público encontre sua experiêcia sem erros.
-            </p>
-         </div>
-      </div>
     </div>
   )
 }

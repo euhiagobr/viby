@@ -64,7 +64,21 @@ export default function NovoEventoPage() {
     description: "",
     status: "Ativo",
     tags: [] as string[],
-    address: { street: "", neighborhood: "", city: "", state: "", country: "Brasil", number: "", complement: "", cep: "", latitude: -23.55052, longitude: -46.633308 },
+    address: { 
+      venueName: "",
+      street: "", 
+      number: "", 
+      complement: "", 
+      neighborhood: "", 
+      city: "", 
+      state: "", 
+      country: "Brasil", 
+      countryCode: "BR",
+      postalCode: "",
+      latitude: -23.55052, 
+      longitude: -46.633308,
+      formattedAddress: ""
+    },
     isMultiLocation: false,
     locations: [] as any[],
     isRecurring: false,
@@ -73,7 +87,6 @@ export default function NovoEventoPage() {
     currency: dashboardCurrency || "BRL"
   })
 
-  // Sincroniza a moeda inicial caso o dashboardCurrency demore a carregar, mas apenas se o usuário ainda não mexeu
   useEffect(() => {
     if (dashboardCurrency && !formData.title && formData.currency !== dashboardCurrency) {
       setFormData(prev => ({ ...prev, currency: dashboardCurrency }));
@@ -108,7 +121,7 @@ export default function NovoEventoPage() {
 
     const isPaid = ticketMode === 'paid_single' || ticketMode === 'batches';
     if (isPaid && !isStripeVerified) {
-       toast({ variant: "destructive", title: "Ação Bloqueada", description: "Sua conta de recebimento não está aprovada no Stripe. Você só pode publicar eventos gratuitos ou sem bilheteria interna." });
+       toast({ variant: "destructive", title: "Ação Bloqueada", description: "Sua conta de recebimento não está aprovada no Stripe." });
        return;
     }
 
@@ -121,6 +134,7 @@ export default function NovoEventoPage() {
 
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
 
+      // Alias para compatibilidade retroativa
       const eventData: any = {
         ...formData,
         organizationId: currentOrg.id,
@@ -132,6 +146,10 @@ export default function NovoEventoPage() {
         batches: formData.type === 'interno' ? batches : [],
         searchKeywords,
         date: formData.startDate,
+        city: formData.address.city,
+        location: formData.address.neighborhood || formData.address.venueName,
+        latitude: formData.address.latitude,
+        longitude: formData.address.longitude,
         createdAt: serverTimestamp()
       }
 
@@ -197,8 +215,7 @@ export default function NovoEventoPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-2">
-                   <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
                    <Select value={formData.categoryId} onValueChange={v => setFormData({...formData, categoryId: v})}>
                       <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                       <SelectContent className="rounded-xl">
@@ -206,8 +223,7 @@ export default function NovoEventoPage() {
                       </SelectContent>
                    </Select>
                 </div>
-                <div className="space-y-2">
-                   <Label className="text-[10px] font-black uppercase opacity-60">Classificação</Label>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Classificação</Label>
                    <Select value={formData.ageRatingCode} onValueChange={v => setFormData({...formData, ageRatingCode: v})}>
                       <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
                       <SelectContent className="rounded-xl">
@@ -244,18 +260,10 @@ export default function NovoEventoPage() {
            </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm rounded-[2rem]">
-          <CardContent className="p-8">
-             <EventLocation 
-               address={formData.address} 
-               isMultiLocation={formData.isMultiLocation}
-               locations={formData.locations}
-               onChange={v => setFormData({...formData, address: v})} 
-               onLocationsChange={v => setFormData({...formData, locations: v})}
-               onToggleMultiLocation={v => setFormData({...formData, isMultiLocation: v})}
-             />
-          </CardContent>
-        </Card>
+        <EventLocation 
+          address={formData.address} 
+          onChange={v => setFormData({...formData, address: v})} 
+        />
 
         {formData.type === 'interno' && (
           <div className="space-y-6">
@@ -264,9 +272,7 @@ export default function NovoEventoPage() {
                   <ShieldAlert className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
                   <div className="space-y-1">
                      <h4 className="font-black uppercase text-xs italic text-red-800">Bilheteria Paga Bloqueada</h4>
-                     <p className="text-[10px] text-red-700 font-medium leading-relaxed uppercase">
-                        Sua conta de recebimento não está aprovada. Conecte sua organização ao Stripe Express no menu financeiro para cobrar por ingressos. Por enquanto, apenas eventos gratuitos são permitidos.
-                     </p>
+                     <p className="text-[10px] text-red-700 font-medium leading-relaxed uppercase">Sua conta Stripe não está aprovada. Apenas eventos gratuitos são permitidos.</p>
                   </div>
                </div>
              )}
@@ -283,7 +289,7 @@ export default function NovoEventoPage() {
           </div>
         )}
 
-        <Button type="submit" disabled={loading} className="w-full h-20 bg-secondary text-white font-black text-xl rounded-[2.5rem] shadow-xl uppercase italic hover:scale-[1.02] transition-all">
+        <Button type="submit" disabled={loading} className="w-full h-20 bg-secondary text-white font-black text-xl rounded-[2.5rem] shadow-xl uppercase italic">
           {loading ? <Loader2 className="animate-spin mr-2" /> : "Publicar Experiência"}
         </Button>
       </form>
