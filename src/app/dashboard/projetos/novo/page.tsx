@@ -2,7 +2,7 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { collection, addDoc, serverTimestamp, doc, query, orderBy } from "firebase/firestore"
@@ -29,7 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { getAgeRatingConfig } from "@/lib/age-rating"
 import { generateOccurrences } from "@/services/recurring-event-service"
-import { useCurrency } from "@/contexts/CurrencyContext"
+import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 
 const DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fcapa.jpeg?alt=media";
 
@@ -40,7 +40,7 @@ export default function NovoEventoPage() {
   const { user } = useUser(auth)
   const app = useFirebaseApp()
   const { currentOrg } = useCurrentOrganization()
-  const { currency } = useCurrency();
+  const { currency: dashboardCurrency } = useCurrency();
   const storage = React.useMemo(() => app ? getStorage(app) : null, [app])
 
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
@@ -69,8 +69,16 @@ export default function NovoEventoPage() {
     locations: [] as any[],
     isRecurring: false,
     frequency: "weekly",
-    recurringEndDate: ""
+    recurringEndDate: "",
+    currency: dashboardCurrency || "BRL"
   })
+
+  // Sincroniza a moeda inicial caso o dashboardCurrency demore a carregar, mas apenas se o usuário ainda não mexeu
+  useEffect(() => {
+    if (dashboardCurrency && !formData.title && formData.currency !== dashboardCurrency) {
+      setFormData(prev => ({ ...prev, currency: dashboardCurrency }));
+    }
+  }, [dashboardCurrency]);
 
   const [ticketMode, setTicketMode] = useState<any>('free')
   const [batches, setBatches] = useState<any[]>([])
@@ -124,7 +132,6 @@ export default function NovoEventoPage() {
         batches: formData.type === 'interno' ? batches : [],
         searchKeywords,
         date: formData.startDate,
-        currency: currency, // Moeda ativa no painel no momento da criação
         createdAt: serverTimestamp()
       }
 
@@ -265,17 +272,13 @@ export default function NovoEventoPage() {
              )}
              <BilheteriaAdmin 
                mode={ticketMode} 
-               onModeChange={v => {
-                  if (v !== 'free' && v !== 'none' && !isStripeVerified) {
-                    toast({ variant: "destructive", title: "Ação não permitida", description: "Verifique sua conta Stripe para habilitar ingressos pagos." });
-                    return;
-                  }
-                  setTicketMode(v);
-               }}
+               onModeChange={setTicketMode}
                batches={batches}
                onBatchesChange={setBatches}
                totalCapacity={totalCapacity}
                onTotalCapacityChange={setTotalCapacity}
+               eventCurrency={formData.currency as CurrencyCode}
+               onCurrencyChange={v => setFormData({...formData, currency: v})}
              />
           </div>
         )}

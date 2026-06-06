@@ -32,7 +32,7 @@ import { Label } from "@/components/ui/label"
 import { getAgeRatingConfig } from "@/lib/age-rating"
 import { generateOccurrences } from "@/services/recurring-event-service"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useCurrency } from "@/contexts/CurrencyContext"
+import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 
 const DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fcapa.jpeg?alt=media";
 
@@ -45,7 +45,7 @@ export default function EditarEventoPage() {
   const { user } = useUser(auth)
   const app = useFirebaseApp()
   const { currentOrg } = useCurrentOrganization()
-  const { currency } = useCurrency();
+  const { currency: dashboardCurrency } = useCurrency();
   const storage = React.useMemo(() => app ? getStorage(app) : null, [app])
 
   const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
@@ -100,13 +100,13 @@ export default function EditarEventoPage() {
         isRecurring: event.isRecurring || false,
         frequency: event.frequency || "weekly",
         recurringEndDate: event.recurringEndDate || "",
-        currency: event.currency || "BRL"
+        currency: event.currency || dashboardCurrency || "BRL"
       })
       setTicketMode(event.ticketMode || 'free')
       setBatches(event.batches || [])
       setTotalCapacity(event.capacidadeTotal || 100)
     }
-  }, [event])
+  }, [event, dashboardCurrency])
 
   const handleImageUpload = async (file: File) => {
     if (!storage || !user) return
@@ -190,7 +190,6 @@ export default function EditarEventoPage() {
         capacidadeTotal: totalCapacity,
         batches: formData.type === 'interno' ? batches : [],
         searchKeywords,
-        currency: currency, // Atualiza para a moeda que está no painel se houver alteração
         updatedAt: serverTimestamp()
       }
 
@@ -250,15 +249,6 @@ export default function EditarEventoPage() {
            </Button>
         </div>
       </div>
-
-      {formData.currency !== currency && formData.type === 'interno' && (
-        <div className="p-4 bg-orange-50 rounded-2xl border-2 border-dashed border-orange-200 flex items-center gap-3 animate-in zoom-in-95">
-           <Coins className="w-5 h-5 text-orange-600" />
-           <p className="text-[10px] font-black uppercase text-orange-800">
-             Moeda do Painel ({currency}) diferente da Moeda do Evento ({formData.currency}). Ao salvar, os preços serão vinculados a {currency}.
-           </p>
-        </div>
-      )}
 
       <Tabs defaultValue="geral" className="space-y-8">
         <div className="flex justify-center">
@@ -470,6 +460,8 @@ export default function EditarEventoPage() {
                   onBatchesChange={setBatches}
                   totalCapacity={totalCapacity}
                   onTotalCapacityChange={setTotalCapacity}
+                  eventCurrency={formData.currency as CurrencyCode}
+                  onCurrencyChange={v => setFormData({...formData, currency: v})}
                 />
              </div>
            ) : (
