@@ -21,7 +21,9 @@ import {
   AlertTriangle,
   Monitor,
   Camera,
-  Info
+  Info,
+  X,
+  Globe
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from '@/hooks/use-toast';
@@ -65,7 +67,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
   const [currentFormat, setCurrentFormat] = React.useState<Format>('A4');
   
   const renderRef = React.useRef<HTMLDivElement>(null);
-  const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}${data.url}?vsrc=qr`;
+  const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}${data.url}${data.url.includes('?') ? '&' : '?'}vsrc=qr`;
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -73,11 +75,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     const convertToBase64 = async (url: string, name: string): Promise<string | null> => {
       try {
         console.log(`[VIBY-LOGO-AUDIT] Loading asset: ${name}`);
-        // Forçar bypass de cache e garantir CORS via proxy ou headers limpos
-        const response = await fetch(url, { 
-          mode: 'cors',
-          credentials: 'omit'
-        });
+        const response = await fetch(url);
         if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
         const blob = await response.blob();
         return new Promise((resolve) => {
@@ -234,7 +232,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px' }}>
-          <p style={{ fontSize: '32px', fontWeight: 800, textTransform: 'uppercase', color: '#cbd5e1' }}>Powered by Viby.Club</p>
+          <p style={{ fontSize: '32px', fontWeight: 800, textTransform: 'uppercase', color: '#94a3b8' }}>Powered by Viby.Club</p>
           {vibyLogoBase64 && <img src={vibyLogoBase64} style={{ height: '80px', opacity: 1 }} alt="Viby Logo" />}
         </div>
       </div>
@@ -410,6 +408,13 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
                 <p className="text-[9px] text-orange-800 font-bold uppercase leading-tight italic">
                    Utilize o PNG gerado para gráficas ou divulgar em canais oficiais. O QR Code é gerado em nível H para máxima redundância.
                 </p>
+              </div>
+              
+              <div className="p-4 bg-blue-50 rounded-2xl border border-dashed border-blue-200 flex items-start gap-3">
+                 <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                 <p className="text-[9px] text-blue-800 font-bold uppercase leading-tight italic">
+                    Dica: O link oficial <strong>viby.club/{data.username}</strong> está impresso na arte para garantir o acesso manual.
+                 </p>
               </div>
             </div>
           </ScrollArea>
