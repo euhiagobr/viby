@@ -20,9 +20,15 @@ import {
   Instagram,
   AlertTriangle,
   Monitor,
-  Info,
   X,
-  RefreshCw
+  Palette,
+  Layout,
+  Star,
+  Zap,
+  ShieldCheck,
+  Building2,
+  Calendar,
+  Globe
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from '@/hooks/use-toast';
@@ -42,6 +48,7 @@ interface ShareModalProps {
     username: string;
     url: string;
     logoUrl?: string;
+    bannerUrl?: string;
     type: 'organization' | 'event';
     organizationId: string;
     eventId?: string;
@@ -49,6 +56,8 @@ interface ShareModalProps {
 }
 
 type Format = 'A4' | 'A5' | 'A6' | 'instagram' | 'stories';
+type Theme = 'viby' | 'claro' | 'escuro' | 'neon' | 'pride' | 'premium' | 'corporativo' | 'foto';
+type Template = 'classico' | 'moderno' | 'premium' | 'evento' | 'organizacao' | 'minimalista';
 
 const FORMAT_CONFIGS: Record<Format, { width: number; height: number; label: string }> = {
   'A4': { width: 1240, height: 1754, label: 'Folha A4' },
@@ -58,12 +67,37 @@ const FORMAT_CONFIGS: Record<Format, { width: number; height: number; label: str
   'stories': { width: 1080, height: 1920, label: 'Stories (9:16)' }
 };
 
+const THEMES: { id: Theme; label: string; icon: any }[] = [
+  { id: 'viby', label: 'Viby (Padrão)', icon: Zap },
+  { id: 'claro', label: 'Visual Claro', icon: Globe },
+  { id: 'escuro', label: 'Visual Escuro', icon: Monitor },
+  { id: 'neon', label: 'Cena Neon', icon: Zap },
+  { id: 'pride', label: 'Pride / Diversity', icon: Star },
+  { id: 'premium', label: 'Black & Gold', icon: ShieldCheck },
+  { id: 'corporativo', label: 'Corporativo', icon: Building2 },
+  { id: 'foto', label: 'Foto da Marca', icon: Camera }
+];
+
+const TEMPLATES: { id: Template; label: string }[] = [
+  { id: 'classico', label: 'Clássico' },
+  { id: 'moderno', label: 'Moderno' },
+  { id: 'premium', label: 'Premium' },
+  { id: 'evento', label: 'Foco Evento' },
+  { id: 'organizacao', label: 'Institucional' },
+  { id: 'minimalista', label: 'Minimalista' }
+];
+
 export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [isAssetsLoaded, setIsAssetsLoaded] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
+  
   const [orgLogoBase64, setOrgLogoBase64] = React.useState<string | null>(null);
   const [vibyLogoBase64, setVibyLogoBase64] = React.useState<string | null>(null);
+  const [bannerBase64, setBannerBase64] = React.useState<string | null>(null);
+  
+  const [selectedTheme, setSelectedTheme] = React.useState<Theme>('viby');
+  const [selectedTemplate, setSelectedTemplate] = React.useState<Template>('classico');
   const [currentFormat, setCurrentFormat] = React.useState<Format>('stories');
   
   const renderRef = React.useRef<HTMLDivElement>(null);
@@ -71,35 +105,26 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
   const loadAssets = React.useCallback(async () => {
     setIsAssetsLoaded(false);
-    console.log("[SHARE-AUDIT] Carregando ativos para geração de arte...");
     try {
       const promises: Promise<any>[] = [
         fetchImageAsBase64(VIBY_LOGO_OFFICIAL)
       ];
 
-      // Se houver logo da organização, carrega via proxy para evitar CORS no canvas
-      if (data.logoUrl && !data.logoUrl.includes('profile.jpeg') && !data.logoUrl.includes('organizacao.jpeg')) {
-        promises.push(fetchImageAsBase64(data.logoUrl));
-      }
+      if (data.logoUrl) promises.push(fetchImageAsBase64(data.logoUrl));
+      if (data.bannerUrl) promises.push(fetchImageAsBase64(data.bannerUrl));
 
-      const [vibyRes, orgRes] = await Promise.all(promises);
+      const [vibyRes, orgRes, bannerRes] = await Promise.all(promises);
 
-      if (vibyRes.success) {
-        setVibyLogoBase64(vibyRes.data!);
-        console.log("[SHARE-AUDIT] Logo Viby carregado.");
-      }
-      
-      if (orgRes && orgRes.success) {
-        setOrgLogoBase64(orgRes.data!);
-        console.log("[SHARE-AUDIT] Logo Organização carregado.");
-      }
+      if (vibyRes.success) setVibyLogoBase64(vibyRes.data!);
+      if (orgRes?.success) setOrgLogoBase64(orgRes.data!);
+      if (bannerRes?.success) setBannerBase64(bannerRes.data!);
 
       setIsAssetsLoaded(true);
     } catch (e) {
       console.error("[SHARE-AUDIT] Erro ao carregar ativos:", e);
       setIsAssetsLoaded(true); 
     }
-  }, [data.logoUrl]);
+  }, [data.logoUrl, data.bannerUrl]);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -107,6 +132,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     } else {
       setOrgLogoBase64(null);
       setVibyLogoBase64(null);
+      setBannerBase64(null);
       setIsAssetsLoaded(false);
     }
   }, [isOpen, loadAssets]);
@@ -126,9 +152,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           text: `Confira ${data.title} na Viby!`,
           url: shareUrl,
         });
-      } catch (err) {
-        // user cancel
-      }
+      } catch (err) { /* ignore */ }
     } else {
       handleCopyLink();
     }
@@ -140,312 +164,414 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    // Pequeno delay para garantir que o React renderizou o novo formato no node escondido
-    await new Promise(resolve => setTimeout(resolve, 600));
+    await new Promise(resolve => setTimeout(resolve, 800));
 
     try {
       const config = FORMAT_CONFIGS[format];
       const node = renderRef.current;
-
-      console.log(`[SHARE-AUDIT] Gerando PNG: ${format} (${config.width}x${config.height})`);
 
       const dataUrl = await toPng(node, {
         cacheBust: true,
         backgroundColor: '#ffffff',
         width: config.width,
         height: config.height,
-        pixelRatio: 1, // Garante tamanho exato em pixels independente da tela do usuário
-        style: {
-          transform: 'scale(1)',
-          transformOrigin: 'top left',
-        }
+        pixelRatio: 1,
+        style: { transform: 'scale(1)', transformOrigin: 'top left' }
       });
 
       const link = document.createElement('a');
-      link.download = `viby-${data.username}-${format}.png`;
+      link.download = `viby-${data.username}-${format}-${selectedTheme}.png`;
       link.href = dataUrl;
       link.click();
       
       toast({ title: "Arte baixada!", description: `Formato ${config.label} salvo.` });
     } catch (err: any) {
       console.error("[SHARE-AUDIT] Erro na geração:", err);
-      toast({ 
-        variant: "destructive", 
-        title: "Erro ao gerar imagem", 
-        description: "Tente novamente ou use a função Imprimir." 
-      });
+      toast({ variant: "destructive", title: "Erro ao gerar imagem" });
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // --- RENDERIZADORES DE SEÇÃO ---
-  
-  const renderLogo = (size: number) => (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', width: '100%' }}>
-      <div style={{ 
-        width: `${size}px`, 
-        height: `${size}px`, 
-        borderRadius: '50%', 
-        overflow: 'hidden', 
-        backgroundColor: '#f1f5f9',
-        border: '4px solid #ffffff',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        {orgLogoBase64 ? (
-          <img src={orgLogoBase64} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-        ) : (
-          <div style={{ fontSize: `${size/2}px`, fontWeight: 900, color: '#2C52EE' }}>
-            {data.title.charAt(0).toUpperCase()}
-          </div>
+  // --- LÓGICA DE ESTILOS DE TEMA ---
+
+  const getThemeStyle = (theme: Theme): React.CSSProperties => {
+    switch (theme) {
+      case 'viby':
+        return { background: 'linear-gradient(135deg, #000B26 0%, #2C52EE 60%, #8b5cf6 100%)', color: '#ffffff' };
+      case 'claro':
+        return { background: '#ffffff', color: '#000000' };
+      case 'escuro':
+        return { background: '#000000', color: '#ffffff' };
+      case 'neon':
+        return { background: 'linear-gradient(to bottom, #000000, #1a0033)', color: '#ffffff', border: '10px solid #2C52EE' };
+      case 'pride':
+        return { background: 'linear-gradient(45deg, #ff0000, #ff8000, #ffff00, #008000, #0000ff, #8000ff)', color: '#ffffff' };
+      case 'premium':
+        return { background: '#000000', color: '#D4AF37' };
+      case 'corporativo':
+        return { background: 'linear-gradient(to bottom, #f8fafc, #e2e8f0)', color: '#1e293b' };
+      case 'foto':
+        return { background: '#000000', color: '#ffffff' };
+      default:
+        return { background: '#ffffff', color: '#000000' };
+    }
+  };
+
+  const getQRColor = (theme: Theme) => {
+    if (theme === 'claro' || theme === 'corporativo') return '#000000';
+    if (theme === 'premium') return '#D4AF37';
+    return '#000000'; // QR Code sempre preto para legibilidade máxima
+  };
+
+  // --- COMPONENTES DE CONTEÚDO ---
+
+  const renderLogo = (size: number, theme: Theme) => {
+    const isDark = theme !== 'claro' && theme !== 'corporativo';
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', width: '100%' }}>
+        <div style={{ 
+          width: `${size}px`, 
+          height: `${size}px`, 
+          borderRadius: '50%', 
+          overflow: 'hidden', 
+          backgroundColor: isDark ? '#ffffff' : '#f1f5f9',
+          border: `6px solid ${theme === 'premium' ? '#D4AF37' : '#ffffff'}`,
+          boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          {orgLogoBase64 ? (
+            <img src={orgLogoBase64} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+          ) : (
+            <div style={{ fontSize: `${size/2}px`, fontWeight: 900, color: '#2C52EE' }}>
+              {data.title.charAt(0).toUpperCase()}
+            </div>
+          )}
+        </div>
+        <h1 style={{ 
+          fontSize: `${size/2.8}px`, 
+          fontWeight: 900, 
+          textTransform: 'uppercase', 
+          fontStyle: 'italic', 
+          textAlign: 'center', 
+          margin: 0, 
+          letterSpacing: '-0.05em', 
+          color: theme === 'premium' ? '#D4AF37' : (isDark ? '#ffffff' : '#000000'),
+          lineHeight: 0.85,
+          maxWidth: '90%'
+        }}>
+          {data.title}
+        </h1>
+      </div>
+    );
+  };
+
+  const renderQR = (qrSize: number, fontSize: number, theme: Theme) => {
+    const isDark = theme !== 'claro' && theme !== 'corporativo';
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '25px', width: '100%' }}>
+        <p style={{ fontSize: `${fontSize/1.8}px`, fontWeight: 800, color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.3em', margin: 0 }}>
+          Escaneie para acessar
+        </p>
+        <div style={{ 
+          padding: '30px', 
+          backgroundColor: '#ffffff', 
+          borderRadius: '50px', 
+          boxShadow: '0 30px 60px rgba(0,0,0,0.2)',
+          border: theme === 'premium' ? '8px solid #D4AF37' : 'none'
+        }}>
+          <QRCodeSVG value={shareUrl} size={qrSize} level="H" fgColor="#000000" />
+        </div>
+        <p style={{ 
+          fontSize: `${fontSize}px`, 
+          fontWeight: 900, 
+          color: theme === 'premium' ? '#D4AF37' : (isDark ? '#ffffff' : '#2C52EE'), 
+          margin: 0, 
+          fontFamily: 'monospace', 
+          letterSpacing: '-0.02em',
+          backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+          padding: '10px 30px',
+          borderRadius: '20px'
+        }}>
+          viby.club/{data.username}
+        </p>
+      </div>
+    );
+  };
+
+  const renderRodape = (logoHeight: number, theme: Theme) => {
+    const isDark = theme !== 'claro' && theme !== 'corporativo';
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', width: '100%' }}>
+        <p style={{ fontSize: `${logoHeight/3.2}px`, fontWeight: 800, textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)', margin: 0, letterSpacing: '0.3em' }}>
+          Powered by Viby.Club
+        </p>
+        {vibyLogoBase64 && (
+          <img 
+            src={vibyLogoBase64} 
+            style={{ 
+              height: `${logoHeight}px`, 
+              objectFit: 'contain',
+              filter: isDark ? 'brightness(0) invert(1)' : 'none',
+              opacity: 0.8
+            }} 
+            alt="Viby" 
+          />
         )}
       </div>
-      <h1 style={{ 
-        fontSize: `${size/3}px`, 
-        fontWeight: 900, 
-        textTransform: 'uppercase', 
-        fontStyle: 'italic', 
-        textAlign: 'center', 
-        margin: 0, 
-        letterSpacing: '-0.04em', 
-        color: '#000000',
-        lineHeight: 0.9,
-        maxWidth: '90%'
-      }}>
-        {data.title}
-      </h1>
-    </div>
-  );
+    );
+  };
 
-  const renderQR = (qrSize: number, fontSize: number) => (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', width: '100%' }}>
-      <p style={{ fontSize: `${fontSize/1.5}px`, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.2em', margin: 0 }}>
-        Escaneie para acessar
-      </p>
-      <div style={{ padding: '30px', backgroundColor: '#ffffff', borderRadius: '40px', border: '1px solid #f1f5f9', boxShadow: '0 20px 50px rgba(0,0,0,0.05)' }}>
-        <QRCodeSVG value={shareUrl} size={qrSize} level="H" />
+  const renderBackground = (theme: Theme) => {
+    if (theme === 'foto' && bannerBase64) {
+      return (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+          <img src={bannerBase64} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(30px) brightness(0.4)' }} alt="" />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0.4))' }} />
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // --- RENDERIZADOR DE TEMPLATE ---
+
+  const renderTemplate = (format: Format, theme: Theme, template: Template) => {
+    const config = FORMAT_CONFIGS[format];
+    const themeStyle = getThemeStyle(theme);
+    
+    // Dimensões base para Story (1080x1920)
+    let logoSize = 400;
+    let qrSize = 550;
+    let fontSize = 52;
+    let footerLogo = 80;
+    let padding = '180px 100px';
+
+    // Ajuste para Feed (1080x1080)
+    if (format === 'instagram') {
+      logoSize = 240;
+      qrSize = 400;
+      fontSize = 36;
+      footerLogo = 45;
+      padding = '100px';
+    }
+
+    // Ajuste para A4/A5/A6 (Base A4 1240x1754)
+    if (format === 'A4' || format === 'A5' || format === 'A6') {
+       logoSize = 300;
+       qrSize = 500;
+       fontSize = 48;
+       footerLogo = 60;
+       padding = '120px 80px';
+    }
+
+    const containerStyle: React.CSSProperties = {
+      ...themeStyle,
+      width: config.width,
+      height: config.height,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding,
+      fontFamily: 'sans-serif',
+      position: 'relative',
+      overflow: 'hidden'
+    };
+
+    // Estilos Específicos por Template
+    const templateContent = () => {
+      switch (template) {
+        case 'minimalista':
+          return (
+            <>
+              <div style={{ position: 'relative', zIndex: 10 }}>{renderLogo(logoSize * 0.7, theme)}</div>
+              <div style={{ position: 'relative', zIndex: 10 }}>{renderQR(qrSize * 0.9, fontSize * 0.9, theme)}</div>
+              <div style={{ position: 'relative', zIndex: 10 }}>{renderRodape(footerLogo * 0.8, theme)}</div>
+            </>
+          );
+        case 'moderno':
+          return (
+            <>
+              <div style={{ position: 'relative', zIndex: 10, alignSelf: 'flex-start' }}>{renderLogo(logoSize * 0.8, theme)}</div>
+              <div style={{ position: 'relative', zIndex: 10, alignSelf: 'center' }}>{renderQR(qrSize * 1.1, fontSize, theme)}</div>
+              <div style={{ position: 'relative', zIndex: 10, alignSelf: 'flex-end' }}>{renderRodape(footerLogo, theme)}</div>
+            </>
+          );
+        case 'premium':
+          return (
+            <>
+              <div style={{ position: 'relative', zIndex: 10, borderBottom: `2px solid ${themeStyle.color}20`, paddingBottom: '40px', width: '100%' }}>{renderLogo(logoSize, theme)}</div>
+              <div style={{ position: 'relative', zIndex: 10, padding: '40px', border: `1px solid ${themeStyle.color}30`, borderRadius: '60px' }}>{renderQR(qrSize, fontSize, theme)}</div>
+              <div style={{ position: 'relative', zIndex: 10 }}>{renderRodape(footerLogo, theme)}</div>
+            </>
+          );
+        default: // clássico, organizacao, evento
+          return (
+            <>
+              <div style={{ position: 'relative', zIndex: 10 }}>{renderLogo(logoSize, theme)}</div>
+              <div style={{ position: 'relative', zIndex: 10 }}>{renderQR(qrSize, fontSize, theme)}</div>
+              <div style={{ position: 'relative', zIndex: 10 }}>{renderRodape(footerLogo, theme)}</div>
+            </>
+          );
+      }
+    };
+
+    return (
+      <div style={containerStyle}>
+        {renderBackground(theme)}
+        {templateContent()}
       </div>
-      <p style={{ fontSize: `${fontSize}px`, fontWeight: 900, color: '#2C52EE', margin: 0, fontFamily: 'monospace', letterSpacing: '-0.02em' }}>
-        viby.club/{data.username}
-      </p>
-    </div>
-  );
-
-  const renderBranding = (logoHeight: number) => (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', width: '100%' }}>
-      <p style={{ fontSize: `${logoHeight/3}px`, fontWeight: 800, textTransform: 'uppercase', color: '#94a3b8', margin: 0, letterSpacing: '0.2em' }}>
-        Powered by Viby.Club
-      </p>
-      {vibyLogoBase64 && (
-        <img src={vibyLogoBase64} style={{ height: `${logoHeight}px`, objectFit: 'contain' }} alt="Viby" />
-      )}
-    </div>
-  );
+    );
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[95vh] md:max-h-[90vh]">
+      <DialogContent className="max-w-7xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[95vh] md:h-[90vh]">
         
-        {/* PAINEL DE PRÉVIA (ESQUERDA) */}
-        <div className="flex-1 p-6 md:p-10 bg-muted/20 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-dashed relative overflow-hidden">
+        {/* PAINEL DE CONFIGURAÇÃO (ESQUERDA) */}
+        <div className="w-full md:w-96 flex flex-col bg-white border-r">
+          <div className="p-8 border-b bg-muted/10">
+             <DialogHeader>
+                <div className="flex items-center gap-3 mb-2">
+                   <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Palette className="w-5 h-5" /></div>
+                   <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Customizar Arte</DialogTitle>
+                </div>
+                <DialogDescription className="font-bold text-[10px] uppercase opacity-60">Escolha o visual da sua divulgação.</DialogDescription>
+             </DialogHeader>
+          </div>
+
+          <ScrollArea className="flex-1">
+             <div className="p-8 space-y-10">
+                {/* Seleção de Tema */}
+                <div className="space-y-4">
+                   <div className="flex items-center justify-between px-1">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Temas</p>
+                      <Badge variant="outline" className="h-4 text-[7px] font-black border-secondary text-secondary">PREMIUM</Badge>
+                   </div>
+                   <div className="grid grid-cols-2 gap-2">
+                      {THEMES.map((t) => (
+                        <Button 
+                          key={t.id}
+                          variant={selectedTheme === t.id ? 'secondary' : 'outline'}
+                          className={cn(
+                            "h-12 justify-start gap-2 rounded-xl text-[10px] font-black uppercase transition-all",
+                            selectedTheme === t.id && "bg-secondary text-white shadow-lg shadow-secondary/10 border-none"
+                          )}
+                          onClick={() => setSelectedTheme(t.id)}
+                        >
+                           <t.icon className={cn("w-3.5 h-3.5", selectedTheme === t.id ? "text-white" : "text-secondary")} />
+                           {t.label}
+                        </Button>
+                      ))}
+                   </div>
+                </div>
+
+                {/* Seleção de Template */}
+                <div className="space-y-4">
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Layouts</p>
+                   <div className="grid grid-cols-2 gap-2">
+                      {TEMPLATES.map((tpl) => (
+                        <Button 
+                          key={tpl.id}
+                          variant={selectedTemplate === tpl.id ? 'secondary' : 'outline'}
+                          className={cn(
+                            "h-12 rounded-xl text-[10px] font-black uppercase transition-all",
+                            selectedTemplate === tpl.id && "bg-primary text-white border-none shadow-lg"
+                          )}
+                          onClick={() => setSelectedTemplate(tpl.id)}
+                        >
+                           {tpl.label}
+                        </Button>
+                      ))}
+                   </div>
+                </div>
+
+                <Separator className="border-dashed" />
+
+                {/* Ações Rápidas */}
+                <div className="space-y-4">
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Exportar Material</p>
+                   <div className="grid grid-cols-1 gap-2">
+                      <Button onClick={() => handleDownload('stories')} disabled={isGenerating || !isAssetsLoaded} className="h-16 rounded-2xl bg-secondary text-white font-black uppercase italic shadow-xl shadow-secondary/10 gap-3 group">
+                         <Smartphone className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                         <div className="text-left">
+                            <p className="text-sm">Baixar para Stories</p>
+                            <p className="text-[9px] opacity-60">PNG HD (9:16)</p>
+                         </div>
+                      </Button>
+                      <Button onClick={() => handleDownload('instagram')} disabled={isGenerating || !isAssetsLoaded} variant="outline" className="h-14 rounded-2xl font-black uppercase italic text-xs gap-3 border-2">
+                         <Instagram className="w-5 h-5 text-pink-500" /> Baixar Post Feed
+                      </Button>
+                   </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                   {(['A4', 'A5', 'A6'] as Format[]).map(f => (
+                     <Button key={f} variant="outline" onClick={() => handleDownload(f)} disabled={isGenerating || !isAssetsLoaded} className="h-12 rounded-xl text-[10px] font-black uppercase border-dashed">
+                        {f}
+                     </Button>
+                   ))}
+                </div>
+             </div>
+          </ScrollArea>
+
+          <div className="p-8 border-t bg-muted/10 flex flex-col gap-3">
+             <Button variant="ghost" onClick={() => window.print()} className="w-full h-10 rounded-xl font-black uppercase text-[9px] gap-2 bg-white border shadow-sm">
+                <Printer className="w-3.5 h-3.5" /> Imprimir em PDF
+             </Button>
+             <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full h-10 rounded-xl font-bold uppercase text-[10px] opacity-40 hover:opacity-100">Fechar</Button>
+          </div>
+        </div>
+
+        {/* PRÉVIA EM TEMPO REAL (DIREITA) */}
+        <div className="flex-1 p-6 md:p-10 bg-muted/20 flex flex-col items-center justify-center relative overflow-hidden">
           {!isAssetsLoaded && (
             <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center gap-4 text-center p-6">
                <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-               <p className="text-[11px] font-black uppercase tracking-widest text-primary animate-pulse">Preparando Materiais...</p>
+               <p className="text-[11px] font-black uppercase tracking-widest text-primary animate-pulse">Sincronizando Ativos Visuais...</p>
             </div>
           )}
 
-          {/* NÓ DE RENDERIZAÇÃO OCULTO (Onde a mágica acontece para o PNG) */}
+          {isGenerating && (
+            <div className="absolute inset-0 z-[60] bg-primary/20 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4">
+               <div className="p-6 bg-white rounded-3xl shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in-95">
+                  <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-primary">Processando PNG...</p>
+               </div>
+            </div>
+          )}
+
+          {/* NÓ DE RENDERIZAÇÃO REAL PARA EXPORTAÇÃO */}
           <div style={{ position: 'fixed', left: '-9999px', top: '-9999px' }}>
-            <div ref={renderRef} style={{ 
-              width: FORMAT_CONFIGS[currentFormat].width, 
-              height: FORMAT_CONFIGS[currentFormat].height,
-              backgroundColor: '#ffffff',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: currentFormat === 'stories' ? '180px 100px' : '100px',
-              fontFamily: 'sans-serif'
-            }}>
-              {currentFormat === 'instagram' && (
-                <>
-                  {renderLogo(240)}
-                  {renderQR(400, 36)}
-                  {renderBranding(45)}
-                </>
-              )}
-              {currentFormat === 'stories' && (
-                <>
-                  {renderLogo(380)}
-                  {renderQR(550, 52)}
-                  {renderBranding(75)}
-                </>
-              )}
-              {(currentFormat === 'A4' || currentFormat === 'A5' || currentFormat === 'A6') && (
-                <>
-                  {renderLogo(250)}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '40px' }}>
-                    <p style={{ fontSize: '40px', fontWeight: 800, textTransform: 'uppercase', color: '#000000', letterSpacing: '0.4em', margin: 0 }}>AGENDA OFICIAL</p>
-                    <div style={{ padding: '60px', border: '8px solid #000000', borderRadius: '50px' }}>
-                      <QRCodeSVG value={shareUrl} size={500} level="H" />
-                    </div>
-                    <p style={{ fontSize: '50px', fontWeight: 900, color: '#000000', fontFamily: 'monospace', margin: 0 }}>viby.club/{data.username}</p>
-                  </div>
-                  {renderBranding(60)}
-                </>
-              )}
+            <div ref={renderRef}>
+               {renderTemplate(currentFormat, selectedTheme, selectedTemplate)}
             </div>
           </div>
 
           {/* VISUALIZAÇÃO SCALED NO MODAL */}
-          <div className="scale-[0.22] md:scale-[0.25] lg:scale-[0.32] origin-center shadow-2xl bg-white border ring-8 ring-white shrink-0">
-             {currentFormat === 'instagram' ? (
-                <div style={{ width: 1080, height: 1080, backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '100px', fontFamily: 'sans-serif' }}>
-                  {renderLogo(240)}
-                  {renderQR(400, 36)}
-                  {renderBranding(45)}
-                </div>
-             ) : currentFormat === 'stories' ? (
-                <div style={{ width: 1080, height: 1920, backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '180px 100px', fontFamily: 'sans-serif' }}>
-                  {renderLogo(380)}
-                  {renderQR(550, 52)}
-                  {renderBranding(75)}
-                </div>
-             ) : (
-                <div style={{ width: 1240, height: 1754, backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '120px 80px', fontFamily: 'sans-serif' }}>
-                  {renderLogo(250)}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '40px' }}>
-                    <p style={{ fontSize: '40px', fontWeight: 800, textTransform: 'uppercase', color: '#000000', letterSpacing: '0.4em', margin: 0 }}>AGENDA OFICIAL</p>
-                    <div style={{ padding: '60px', border: '8px solid #000000', borderRadius: '50px' }}>
-                      <QRCodeSVG value={shareUrl} size={500} level="H" />
-                    </div>
-                    <p style={{ fontSize: '50px', fontWeight: 900, color: '#000000', fontFamily: 'monospace', margin: 0 }}>viby.club/{data.username}</p>
-                  </div>
-                  {renderBranding(60)}
-                </div>
-             )}
+          <div className="scale-[0.20] md:scale-[0.22] lg:scale-[0.28] origin-center shadow-[0_50px_100px_rgba(0,0,0,0.3)] bg-white ring-[20px] ring-white shrink-0 rounded-sm">
+             {renderTemplate('stories', selectedTheme, selectedTemplate)}
           </div>
           
-          <div className="mt-6 flex items-center gap-2 text-muted-foreground bg-white/80 px-4 py-2 rounded-full border shadow-sm shrink-0">
-             <Monitor className="w-4 h-4 text-secondary" />
-             <p className="text-[9px] font-black uppercase tracking-widest">Prévia: {FORMAT_CONFIGS[currentFormat].label}</p>
+          <div className="mt-10 flex flex-col items-center gap-4">
+             <div className="flex items-center gap-3 px-6 py-2.5 bg-white/80 backdrop-blur-md rounded-full border shadow-xl">
+                <Monitor className="w-4 h-4 text-secondary" />
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Monitor de Prévia Ativo</p>
+             </div>
+             
+             <div className="flex items-center gap-6 opacity-30 text-[8px] font-black uppercase tracking-widest">
+                <div className="flex items-center gap-1.5"><ShieldCheck className="w-3 h-3" /> Seguro</div>
+                <div className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3" /> Verificado</div>
+                <div className="flex items-center gap-1.5"><Zap className="w-3 h-3" /> HQ Export</div>
+             </div>
           </div>
         </div>
 
-        {/* PAINEL DE AÇÕES (DIREITA) */}
-        <div className="w-full md:w-96 flex flex-col bg-white">
-          <div className="p-8 pb-4 shrink-0 border-b">
-            <DialogHeader>
-              <div className="flex items-center gap-3 mb-2">
-                 <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
-                    <Share2 className="w-5 h-5" />
-                 </div>
-                 <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Divulgar Marca</DialogTitle>
-              </div>
-              <DialogDescription className="font-bold text-[10px] uppercase opacity-60">Escolha o formato e baixe para postar.</DialogDescription>
-            </DialogHeader>
-          </div>
-
-          <ScrollArea className="flex-1">
-            <div className="p-8 space-y-6">
-              
-              <div className="grid grid-cols-1 gap-2">
-                <Button onClick={handleNativeShare} className="h-14 rounded-2xl font-black uppercase italic text-sm gap-2 bg-secondary text-white shadow-xl shadow-secondary/10">
-                  <Share2 className="w-5 h-5" /> Compartilhar Agora
-                </Button>
-                <Button variant="outline" onClick={handleCopyLink} className="h-12 rounded-2xl font-bold uppercase text-xs gap-2 border-secondary/20 text-secondary">
-                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  {copied ? "Copiado!" : "Copiar Link da Bio"}
-                </Button>
-              </div>
-
-              <Separator className="border-dashed" />
-
-              <div className="space-y-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Redes Sociais (PNG)</p>
-                <div className="grid grid-cols-1 gap-3">
-                  <Button 
-                    variant={currentFormat === 'stories' ? 'secondary' : 'outline'} 
-                    onClick={() => handleDownload('stories')} 
-                    disabled={isGenerating || !isAssetsLoaded} 
-                    className={cn(
-                      "h-16 justify-start gap-4 rounded-2xl border-2 border-dashed px-4 transition-all",
-                      currentFormat === 'stories' && "border-secondary bg-secondary/5"
-                    )}
-                  >
-                    <Smartphone className="w-6 h-6 text-purple-500" />
-                    <div className="text-left flex-1">
-                       <p className="text-xs font-black uppercase">Story Instagram</p>
-                       <p className="text-[9px] font-bold opacity-60">1080x1920 (HD)</p>
-                    </div>
-                    {isGenerating && currentFormat === 'stories' ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : <Download className="w-4 h-4 opacity-20" />}
-                  </Button>
-
-                  <Button 
-                    variant={currentFormat === 'instagram' ? 'secondary' : 'outline'} 
-                    onClick={() => handleDownload('instagram')} 
-                    disabled={isGenerating || !isAssetsLoaded} 
-                    className={cn(
-                      "h-16 justify-start gap-4 rounded-2xl border-2 border-dashed px-4 transition-all",
-                      currentFormat === 'instagram' && "border-secondary bg-secondary/5"
-                    )}
-                  >
-                    <Instagram className="w-6 h-6 text-pink-500" />
-                    <div className="text-left flex-1">
-                       <p className="text-xs font-black uppercase">Post para Feed</p>
-                       <p className="text-[9px] font-bold opacity-60">1080x1080 (1:1)</p>
-                    </div>
-                    {isGenerating && currentFormat === 'instagram' ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : <Download className="w-4 h-4 opacity-20" />}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Impressão (PDF/PNG)</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['A4', 'A5', 'A6'] as Format[]).map(f => (
-                    <Button 
-                      key={f}
-                      variant={currentFormat === f ? 'secondary' : 'outline'} 
-                      onClick={() => handleDownload(f)} 
-                      disabled={isGenerating || !isAssetsLoaded}
-                      className={cn(
-                        "h-14 flex-col text-[10px] font-black uppercase rounded-xl border-dashed",
-                        currentFormat === f && "border-secondary bg-secondary/5"
-                      )}
-                    >
-                      {isGenerating && currentFormat === f ? <Loader2 className="w-4 h-4 animate-spin" /> : f}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="p-4 bg-orange-50 rounded-2xl border border-dashed border-orange-200 flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                   <p className="text-[9px] text-orange-800 font-black uppercase italic">Dica de Conversão</p>
-                   <p className="text-[9px] text-orange-700 font-medium leading-tight uppercase">
-                     Poste o QR Code no seu Story e use a figurinha de "Link" do Instagram para maximizar as vendas.
-                   </p>
-                </div>
-              </div>
-            </div>
-          </ScrollArea>
-          
-          <div className="p-8 border-t bg-muted/10 shrink-0 flex flex-col gap-3">
-             <Button variant="ghost" onClick={() => window.print()} className="w-full h-10 rounded-xl font-black uppercase text-[9px] gap-2 text-primary border border-border bg-white shadow-sm">
-                <Printer className="w-3.5 h-3.5" /> Imprimir em PDF
-             </Button>
-             <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full h-10 rounded-xl font-bold uppercase text-[10px] opacity-40 hover:opacity-100">
-                Fechar
-             </Button>
-          </div>
-        </div>
       </DialogContent>
     </Dialog>
   );
 }
+
