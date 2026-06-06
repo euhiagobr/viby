@@ -116,7 +116,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const isEnded = new Date(event.endDate || new Date(event.date).getTime() + 4*60*60*1000) < new Date()
 
   return (
-    <div className="min-h-screen bg-background pb-32 selection:bg-secondary selection:text-white">
+    <div className="min-h-screen bg-background pb-32 selection:bg-secondary selection:text-white w-full overflow-x-hidden">
       <EventSEO event={event} username={username} />
       
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-2xl border-b border-border/40">
@@ -180,11 +180,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                      isOwner={isOwner}
                    />
                 </div>
-             </div>
-
-             <div className="py-4">
-               {/* 1 Bloco de Anúncio: Prioridade Viby > Google conforme regra 3.4 */}
-               <AdsRenderer location="event_page" googleSlotId="event-page-top-slot" className="min-h-[140px]" />
              </div>
 
              <Card className="border-none shadow-sm rounded-[2rem] bg-white p-10">
@@ -334,6 +329,11 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 <EventCoOrganizers eventId={id} currentOrgId={event.organizationId} isPublic />
              </div>
           </aside>
+        </div>
+
+        {/* Bloco de Anúncio no fim da página conforme solicitação */}
+        <div className="max-w-7xl mx-auto px-4 py-16">
+          <AdsRenderer location="event_page_bottom" googleSlotId="event-page-bottom-slot" className="min-h-[140px]" />
         </div>
       </main>
       <Footer />
