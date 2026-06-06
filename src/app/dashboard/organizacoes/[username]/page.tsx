@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -12,9 +11,7 @@ import {
   orderBy,
   limit,
   getDocs,
-  Timestamp,
-  startAt,
-  endAt
+  Timestamp
 } from "firebase/firestore"
 import { 
   Loader2, 
@@ -31,7 +28,10 @@ import {
   BadgeCheck,
   Building2,
   QrCode,
-  Calendar
+  Calendar,
+  MousePointer2,
+  Navigation,
+  Globe
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { formatCurrency } from '@/lib/financial-utils'
 import { subDays, startOfDay, endOfDay } from 'date-fns'
+import { Separator } from "@/components/ui/separator"
 
 const roleTranslations: Record<string, string> = {
   owner: 'Proprietário',
@@ -56,7 +57,7 @@ export default function OrganizationDashboardPage() {
 
   const isFinanceManager = ['owner', 'admin', 'finance'].includes(userRole || '');
 
-  // Consulta de TODOS os eventos da marca para o contador de gestão
+  // Consulta de TODOS os eventos da marca
   const allEventsQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null;
     return query(
@@ -104,9 +105,9 @@ export default function OrganizationDashboardPage() {
         
         const allScans = snapAll.docs.map(d => ({ ...d.data(), id: d.id }));
         
-        const lastScan = [...allScans].sort((a: any, b: any) => 
+        const sortedScans = [...allScans].sort((a: any, b: any) => 
           (b.scannedAt?.seconds || 0) - (a.scannedAt?.seconds || 0)
-        )[0];
+        );
 
         const last7 = allScans.filter((s: any) => {
           const d = s.scannedAt?.toDate ? s.scannedAt.toDate() : new Date(s.scannedAt);
@@ -122,7 +123,7 @@ export default function OrganizationDashboardPage() {
           total: allScans.length,
           last7Days: last7,
           last30Days: last30,
-          lastScan: lastScan || null
+          lastScan: sortedScans[0] || null
         });
       } catch (e) {
         console.error("QR Stats Error:", e);
@@ -134,7 +135,7 @@ export default function OrganizationDashboardPage() {
     fetchQrStats();
   }, [db, currentOrg?.id]);
 
-  // Consulta de Vendas (Registrations) para métricas financeiras
+  // Consulta de Vendas
   const salesQuery = useMemoFirebase(() => {
     if (!db || !currentOrg || !isFinanceManager) return null;
     return query(
@@ -164,35 +165,9 @@ export default function OrganizationDashboardPage() {
     }, { today: 0, month: 0 });
   }, [sales]);
 
-  // Consulta de Seguidores
-  const followersQuery = useMemoFirebase(() => {
-    if (!db || !currentOrg) return null;
-    return query(collection(db, 'follows'), where('followingId', '==', currentOrg.id));
-  }, [db, currentOrg?.id]);
-
-  const { data: followers } = useCollection<any>(followersQuery);
-
-  const followerStats = React.useMemo(() => {
-    if (!followers) return { total: 0, last30Days: 0, growth: 0 };
-    const now = new Date();
-    const thirtyDaysAgo = subDays(now, 30);
-    const last30 = followers.filter((f: any) => (f.timestamp?.toDate ? f.timestamp.toDate() : new Date(f.timestamp)) > thirtyDaysAgo).length;
-    const previousTotal = followers.length - last30;
-    const growth = previousTotal > 0 ? (last30 / previousTotal) * 100 : (last30 > 0 ? 100 : 0);
-    return { total: followers.length, last30Days: last30, growth: Math.round(growth) };
-  }, [followers]);
-
   if (orgLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>;
 
-  if (!currentOrg) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
-        <Building2 className="w-16 h-16 text-muted-foreground opacity-20" />
-        <h2 className="text-xl font-bold">Organização não encontrada</h2>
-        <Button asChild variant="outline" className="rounded-full"><Link href="/dashboard/organizacoes">Ver Minhas Marcas</Link></Button>
-      </div>
-    );
-  }
+  if (!currentOrg) return null;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -201,7 +176,7 @@ export default function OrganizationDashboardPage() {
           <LayoutGrid className="w-8 h-8 text-secondary" />
           Dashboard da Marca
         </h1>
-        <p className="text-muted-foreground font-medium">Gestão centralizada de {currentOrg.name}.</p>
+        <p className="text-muted-foreground font-medium">Gestão centralizada de <strong>{currentOrg.name}</strong>.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
@@ -226,7 +201,7 @@ export default function OrganizationDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
-            <div className="text-3xl font-black">{qrStats.total.toLocaleString()}</div>
+            <div className="text-3xl font-black">{loadingQr ? <Loader2 className="w-6 h-6 animate-spin" /> : qrStats.total.toLocaleString()}</div>
             <p className="text-[9px] font-bold text-secondary uppercase">Escaneamentos totais</p>
           </CardContent>
         </Card>
