@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -92,7 +91,6 @@ export function EventLocation({
   const [isSearching, setIsSearching] = React.useState<string | null>(null);
   const [currentTime, setCurrentTime] = React.useState<Date>(new Date());
   
-  // Estados locais para digitação de coordenadas sem quebrar o mapa no tempo real
   const [localCoords, setLocalCoords] = React.useState<{lat: string, lng: string}>({ lat: "", lng: "" });
 
   React.useEffect(() => {
@@ -100,7 +98,6 @@ export function EventLocation({
     return () => clearInterval(timer);
   }, []);
 
-  // Sincroniza localCoords com props
   React.useEffect(() => {
     if (!isMultiLocation) {
       setLocalCoords({
@@ -176,7 +173,6 @@ export function EventLocation({
     }
   };
 
-  // Handler especial para coordenadas manuais
   const handleCoordsChange = (field: 'lat' | 'lng', value: string) => {
     setLocalCoords(prev => ({ ...prev, [field]: value }));
     
@@ -448,7 +444,8 @@ export function EventLocation({
                             <Label className="text-[10px] font-black uppercase tracking-widest cursor-help">Múltiplos Locais?</Label>
                             <Switch 
                                checked={isMultiLocation} 
-                               onToggleMultiLocation?.(val);
+                               onCheckedChange={(val) => {
+                                  onToggleMultiLocation?.(val);
                                   if (val && locations.length === 0) {
                                      const L1 = { ...DEFAULT_LOCATION, ...address, id: "loc_1", order: 0 };
                                      const L2 = { ...DEFAULT_LOCATION, id: "loc_2", order: 1 };
@@ -495,7 +492,7 @@ export function EventLocation({
          <div className="space-y-1">
             <h4 className="font-black uppercase text-secondary italic">Radar Geográfico Ativo</h4>
             <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed">
-               O Viby sanitiza as coordenadas em tempo real. O PIN no mapa é a sua garantia de precisão para que o público encontre sua experiência sem erros.
+               O Viby sanitiza as coordenadas em tempo real. O PIN no mapa é a sua garantia de precisão para que o público encontre sua experiêcia sem erros.
             </p>
          </div>
       </div>
