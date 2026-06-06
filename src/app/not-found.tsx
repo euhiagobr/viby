@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -6,8 +7,10 @@ import { Button } from "@/components/ui/button"
 import { MapPinOff, ArrowLeft, Home } from "lucide-react"
 import { useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
+import { useTranslation } from "@/i18n/i18n-context"
 
 export default function NotFound() {
+  const { t } = useTranslation()
   const db = useFirestore()
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
@@ -27,10 +30,10 @@ export default function NotFound() {
             404
           </h1>
           <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tight text-primary">
-            Experiência <span className="text-secondary">Não Encontrada</span>
+            {t('error.404_subtitle').split(' ')[0]} <span className="text-secondary">{t('error.404_subtitle').split(' ').slice(1).join(' ')}</span>
           </h2>
-          <p className="mt-6 text-muted-foreground font-medium max-w-sm mx-auto leading-relaxed">
-            Parece que você tentou acessar um evento que não existe mais ou um endereço inválido na rede.
+          <p className="mt-6 text-muted-foreground font-medium max-sm mx-auto leading-relaxed">
+            {t('error.404_desc')}
           </p>
         </div>
       </div>
@@ -41,14 +44,14 @@ export default function NotFound() {
           onClick={() => window.history.back()} 
           className="flex-1 h-14 rounded-2xl font-black uppercase italic border-2 gap-2 border-primary/10"
         >
-          <ArrowLeft className="w-5 h-5" /> Voltar
+          <ArrowLeft className="w-5 h-5" /> {t('error.back')}
         </Button>
         <Button 
           asChild 
           className="flex-1 h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic gap-2 hover:bg-secondary transition-colors"
         >
           <Link href="/">
-            <Home className="w-5 h-5" /> Ir ao Início
+            <Home className="w-5 h-5" /> {t('error.home')}
           </Link>
         </Button>
       </div>

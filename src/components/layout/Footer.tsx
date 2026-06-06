@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -5,8 +6,10 @@ import Link from "next/link"
 import { Globe, Instagram } from "lucide-react"
 import { useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
+import { useTranslation } from "@/i18n/i18n-context"
 
 export default function Footer() {
+  const { t } = useTranslation()
   const db = useFirestore()
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
@@ -31,27 +34,27 @@ export default function Footer() {
               )}
             </Link>
             <p className="text-muted-foreground text-sm max-w-sm font-medium leading-relaxed">
-              Transformando a forma como as pessoas descobrem eventos e experiências no Brasil.
+              {t('footer.description')}
             </p>
           </div>
           <div className="space-y-4">
-            <h4 className="font-black uppercase tracking-widest text-xs">Plataforma</h4>
+            <h4 className="font-black uppercase tracking-widest text-xs">{t('footer.platform')}</h4>
             <nav className="flex flex-col gap-3">
-              <Link href="/dashboard" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Explorar</Link>
-              <Link href="/cadastro" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Anunciar Evento</Link>
-              <Link href="/login" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Entrar</Link>
+              <Link href="/dashboard" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">{t('footer.explore')}</Link>
+              <Link href="/cadastro" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">{t('footer.announce')}</Link>
+              <Link href="/login" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">{t('footer.login')}</Link>
             </nav>
           </div>
           <div className="space-y-4">
-            <h4 className="font-black uppercase tracking-widest text-xs">Legal</h4>
+            <h4 className="font-black uppercase tracking-widest text-xs">{t('footer.legal')}</h4>
             <nav className="flex flex-col gap-3">
-              <Link href="/termos" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Termos de Uso</Link>
-              <Link href="/privacidade" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Privacidade</Link>
-              <Link href="/dashboard/suporte" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">Suporte</Link>
+              <Link href="/termos" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">{t('footer.terms')}</Link>
+              <Link href="/privacidade" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">{t('footer.privacy')}</Link>
+              <Link href="/dashboard/suporte" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">{t('footer.support')}</Link>
             </nav>
           </div>
           <div className="space-y-4">
-            <h4 className="font-black uppercase tracking-widest text-xs">Social</h4>
+            <h4 className="font-black uppercase tracking-widest text-xs">{t('footer.social')}</h4>
             <nav className="flex flex-col gap-3">
               <a 
                 href="https://instagram.com/vibyclub" 
@@ -67,7 +70,7 @@ export default function Footer() {
         </div>
         <div className="pt-8 border-t border-muted text-center flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-            {siteName} © 2026 - Todos os direitos reservados.
+            {siteName} © 2026 - {t('footer.rights')}
           </p>
           <div className="flex items-center gap-4 opacity-30">
              <Globe className="w-4 h-4" />

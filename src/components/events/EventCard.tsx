@@ -17,6 +17,7 @@ import { AgeRatingBadge } from "@/lib/age-rating"
 import { EventInterest } from "./EventInterest"
 import { getVersionedImageUrl } from "@/lib/image-utils"
 import { useCurrency } from "@/contexts/CurrencyContext"
+import { useTranslation } from "@/i18n/i18n-context"
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (
@@ -36,6 +37,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const auth = useAuth()
   const { user } = useUser(auth)
   const { formatPrice } = useCurrency()
+  const { t } = useTranslation()
   const cardRef = React.useRef<HTMLDivElement>(null)
   const hasTrackedImpression = React.useRef(false)
 
@@ -71,13 +73,13 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       const isToday = now.toDateString() === start.toDateString();
 
       if (hasEnded) {
-        setLiveStatus({ label: "Finalizado", colorClass: "bg-muted text-muted-foreground border-none" });
+        setLiveStatus({ label: t('event.finished'), colorClass: "bg-muted text-muted-foreground border-none" });
       } else if (now >= start && now < end) {
-        setLiveStatus({ label: "Acontecendo agora", colorClass: "bg-green-600 animate-pulse text-white shadow-lg shadow-green-500/20", icon: Zap });
+        setLiveStatus({ label: t('event.live_now'), colorClass: "bg-green-600 animate-pulse text-white shadow-lg shadow-green-500/20", icon: Zap });
       } else if (diffStart <= 2 * 60 * 60 * 1000 && diffStart > 0) {
-        setLiveStatus({ label: "Começa em breve", colorClass: "bg-secondary text-white shadow-lg shadow-secondary/20", icon: Clock });
+        setLiveStatus({ label: t('event.starting_soon'), colorClass: "bg-secondary text-white shadow-lg shadow-secondary/20", icon: Clock });
       } else if (isToday) {
-        setLiveStatus({ label: "Hoje", colorClass: "bg-secondary text-white" });
+        setLiveStatus({ label: t('event.today'), colorClass: "bg-secondary text-white" });
       } else {
         setLiveStatus(null);
       }
@@ -86,7 +88,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     update();
     const interval = setInterval(update, 60000);
     return () => clearInterval(interval);
-  }, [eventDates]);
+  }, [eventDates, t]);
 
   React.useEffect(() => {
     if (!isSponsored || !adId || hasTrackedImpression.current) return
@@ -117,7 +119,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }, [isSponsored, adId, user?.uid]);
 
   const formatDate = (dateValue: any) => {
-    if (!dateValue) return "A definir";
+    if (!dateValue) return t('common.loading');
     try {
       let d: Date;
       if (dateValue.toDate) {
@@ -125,9 +127,9 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       } else {
         d = new Date(dateValue);
       }
-      if (isNaN(d.getTime())) return "A definir";
-      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-    } catch (e) { return "A definir"; }
+      if (isNaN(d.getTime())) return t('common.loading');
+      return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+    } catch (e) { return t('common.loading'); }
   };
 
   const formatTime = (dateValue: any) => {
@@ -140,7 +142,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         d = new Date(dateValue);
       }
       if (isNaN(d.getTime())) return "";
-      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     } catch (e) { return ""; }
   };
 
@@ -192,7 +194,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       {isSponsored && !isEnded && (
         <div className="absolute top-0 right-0 z-20">
           <Badge className="bg-primary text-white rounded-none rounded-bl-2xl font-black text-[9px] uppercase px-4 py-2 flex items-center gap-1.5 shadow-lg">
-            <Megaphone className="w-3 h-3 text-secondary fill-secondary" /> Patrocinado
+            <Megaphone className="w-3 h-3 text-secondary fill-secondary" /> {t('event.sponsored')}
           </Badge>
         </div>
       )}
@@ -246,16 +248,16 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
               {event.organizer?.name}
             </p>
             {minPrice > 0 ? (
-               <span className="text-[10px] font-black text-secondary uppercase italic">A partir de {formatPrice(minPrice)}</span>
+               <span className="text-[10px] font-black text-secondary uppercase italic">{t('event.from')} {formatPrice(minPrice)}</span>
             ) : (
-               <span className="text-[10px] font-black text-green-600 uppercase italic">Entrada Gratuita</span>
+               <span className="text-[10px] font-black text-green-600 uppercase italic">{t('event.no_tickets')}</span>
             )}
           </div>
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t border-dashed border-border/60">
            <div className="flex flex-col gap-0.5">
-              <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">Quando</p>
+              <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">{t('event.when')}</p>
               <div className="flex items-center gap-1.5 text-xs font-black text-primary">
                  <Calendar className="w-3.5 h-3.5 text-secondary" />
                  {formatDate(event.date)}
@@ -265,7 +267,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
               </div>
            </div>
            <div className="text-right">
-              <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">Onde</p>
+              <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">{t('event.where')}</p>
               <div className="flex items-center justify-end gap-1.5 text-xs font-black text-primary">
                  <MapPin className="w-3.5 h-3.5 text-secondary" />
                  <span className="truncate max-w-[120px]">{event.city}</span>
@@ -274,7 +276,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         </div>
 
         <Button className="w-full h-12 bg-primary text-white font-black rounded-2xl uppercase italic text-[11px] gap-2 shadow-lg transition-all group-hover:bg-secondary group-hover:scale-[1.02]">
-           Garantir Presença <ArrowRight className="w-4 h-4" />
+           {t('event.guarantee_presence')} <ArrowRight className="w-4 h-4" />
         </Button>
       </CardContent>
     </Card>

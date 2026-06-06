@@ -1,3 +1,4 @@
+
 {
   "common": {
     "save": "Salvar",
@@ -14,7 +15,10 @@
     "error_occurred": "Ocorreu um erro",
     "success": "Sucesso",
     "warning": "Aviso",
-    "welcome": "Bem-vindo"
+    "welcome": "Bem-vindo",
+    "see_all": "Ver todos",
+    "visit": "Visitar",
+    "open": "Abrir"
   },
   "nav": {
     "home": "Início",
@@ -33,7 +37,8 @@
     "ads": "Anúncios",
     "team": "Equipe",
     "finance": "Financeiro",
-    "settings": "Configurações"
+    "settings": "Configurações",
+    "user_panel": "Painel de Usuário"
   },
   "home": {
     "badge": "Descubra o que acontece agora",
@@ -57,7 +62,9 @@
     "no_events": "Nenhum evento localizado",
     "clear_filters": "Limpar Todos os Filtros",
     "login": "Entrar",
-    "signup": "Criar Conta"
+    "signup": "Criar Conta",
+    "share_agenda": "Compartilhar Agenda",
+    "access_club": "Acessar Clube"
   },
   "auth": {
     "login_title": "Acessar Viby",
@@ -76,7 +83,10 @@
     "cpf": "CPF",
     "register_btn": "Concluir Cadastro",
     "already_have_account": "Já tem conta?",
-    "syncing": "Sincronizando conta..."
+    "syncing": "Sincronizando conta...",
+    "recovery_title": "Recuperar Acesso",
+    "recovery_desc": "Informe seu e-mail ou @username para receber o link de acesso.",
+    "send_link": "Enviar Link"
   },
   "dashboard": {
     "title": "Discovery",
@@ -86,5 +96,51 @@
     "all": "Geral",
     "no_events_filter": "Nenhum evento encontrado para este filtro.",
     "syncing_data": "Cruzando dados..."
+  },
+  "footer": {
+    "description": "Transformando a forma como as pessoas descobrem eventos e experiências no Brasil.",
+    "platform": "Plataforma",
+    "legal": "Legal",
+    "social": "Social",
+    "rights": "Todos os direitos reservados.",
+    "terms": "Termos de Uso",
+    "privacy": "Privacidade",
+    "support": "Suporte",
+    "explore": "Explorar",
+    "announce": "Anunciar Evento",
+    "login": "Entrar"
+  },
+  "error": {
+    "404_title": "OPS!",
+    "404_subtitle": "Experiência Não Encontrada",
+    "404_desc": "Parece que você tentou acessar um evento que não existe mais ou um endereço inválido na rede.",
+    "back": "Voltar",
+    "home": "Ir ao Início",
+    "unavailable_page": "Página Indisponível",
+    "unavailable_desc": "A página que você solicitou não está mais disponível na plataforma Viby."
+  },
+  "event": {
+    "live_now": "Acontecendo agora",
+    "starting_soon": "Começa em breve",
+    "finished": "Finalizado",
+    "today": "Hoje",
+    "when": "Quando",
+    "where": "Onde",
+    "guarantee_presence": "Garantir Presença",
+    "sold_out": "Esgotado",
+    "free": "Grátis",
+    "ticket": "Bilheteria",
+    "interested": "Interessados",
+    "confirmed": "Público Confirmado",
+    "sponsored": "Patrocinado",
+    "from": "A partir de",
+    "no_tickets": "Entrada Gratuita",
+    "share": "Compartilhar",
+    "details": "Detalhes",
+    "about": "Sobre o Evento",
+    "organizer": "Organizador",
+    "verified_promoter": "Promotor Verificado",
+    "interest_registered": "Interesse registrado!",
+    "already_registered": "Já Inscrito"
   }
 }

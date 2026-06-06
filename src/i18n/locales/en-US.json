@@ -1,3 +1,4 @@
+
 {
   "common": {
     "save": "Save",
@@ -14,7 +15,10 @@
     "error_occurred": "An error occurred",
     "success": "Success",
     "warning": "Warning",
-    "welcome": "Welcome"
+    "welcome": "Welcome",
+    "see_all": "See all",
+    "visit": "Visit",
+    "open": "Open"
   },
   "nav": {
     "home": "Home",
@@ -33,7 +37,8 @@
     "ads": "Ads",
     "team": "Team",
     "finance": "Finance",
-    "settings": "Settings"
+    "settings": "Settings",
+    "user_panel": "User Panel"
   },
   "home": {
     "badge": "Discover what's happening now",
@@ -57,7 +62,9 @@
     "no_events": "No events located",
     "clear_filters": "Clear All Filters",
     "login": "Login",
-    "signup": "Create Account"
+    "signup": "Create Account",
+    "share_agenda": "Share Schedule",
+    "access_club": "Access Club"
   },
   "auth": {
     "login_title": "Access Viby",
@@ -76,7 +83,10 @@
     "cpf": "Tax ID",
     "register_btn": "Complete Registration",
     "already_have_account": "Already have an account?",
-    "syncing": "Syncing account..."
+    "syncing": "Syncing account...",
+    "recovery_title": "Recover Access",
+    "recovery_desc": "Enter your email or @username to receive the access link.",
+    "send_link": "Send Link"
   },
   "dashboard": {
     "title": "Discovery",
@@ -86,5 +96,51 @@
     "all": "General",
     "no_events_filter": "No events found for this filter.",
     "syncing_data": "Crossing data..."
+  },
+  "footer": {
+    "description": "Transforming the way people discover events and experiences in Brazil.",
+    "platform": "Platform",
+    "legal": "Legal",
+    "social": "Social",
+    "rights": "All rights reserved.",
+    "terms": "Terms of Use",
+    "privacy": "Privacy",
+    "support": "Support",
+    "explore": "Explore",
+    "announce": "Post Event",
+    "login": "Login"
+  },
+  "error": {
+    "404_title": "OOPS!",
+    "404_subtitle": "Experience Not Found",
+    "404_desc": "It seems you tried to access an event that no longer exists or an invalid address on the network.",
+    "back": "Back",
+    "home": "Go Home",
+    "unavailable_page": "Page Unavailable",
+    "unavailable_desc": "The page you requested is no longer available on the Viby platform."
+  },
+  "event": {
+    "live_now": "Happening now",
+    "starting_soon": "Starting soon",
+    "finished": "Finished",
+    "today": "Today",
+    "when": "When",
+    "where": "Where",
+    "guarantee_presence": "Guarantee Presence",
+    "sold_out": "Sold Out",
+    "free": "Free",
+    "ticket": "Tickets",
+    "interested": "Interested",
+    "confirmed": "Confirmed Attendees",
+    "sponsored": "Sponsored",
+    "from": "From",
+    "no_tickets": "Free Entrance",
+    "share": "Share",
+    "details": "Details",
+    "about": "About the Event",
+    "organizer": "Organizer",
+    "verified_promoter": "Verified Promoter",
+    "interest_registered": "Interest registered!",
+    "already_registered": "Already Registered"
   }
 }
