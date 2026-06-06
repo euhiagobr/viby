@@ -252,9 +252,9 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
                       <div className="flex items-center gap-6">
                          <div className="text-right">
                             <p className="text-3xl font-black text-primary italic tracking-tighter">
-                               {displayInstance.price <= 0 ? "GRÁTIS" : formatPrice(displayInstance.price)}
+                               {displayInstance.price <= 0 ? "GRÁTIS" : formatPrice(displayInstance.price, event.currency || 'BRL')}
                             </p>
-                            {displayInstance.price > 0 && <p className="text-[8px] font-black text-muted-foreground uppercase opacity-50">+ {formatPrice(breakdown.administrativeFeeAmount)} taxa</p>}
+                            {displayInstance.price > 0 && <p className="text-[8px] font-black text-muted-foreground uppercase opacity-50">+ {formatPrice(breakdown.administrativeFeeAmount, event.currency || 'BRL')} taxa</p>}
                          </div>
                          <div className="flex items-center gap-3 bg-muted/40 p-2 rounded-2xl border">
                             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-white" onClick={() => handleUpdateQty(typeName, qty - 1)} disabled={qty <= 0 || status !== 'ativo'}><Minus className="w-3.5 h-3.5" /></Button>

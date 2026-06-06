@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -24,7 +25,8 @@ import {
   Zap,
   AlertCircle,
   ArrowRight,
-  ChevronLeft
+  ChevronLeft,
+  Coins
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -43,6 +45,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select"
+import { useCurrency } from "@/contexts/CurrencyContext"
 
 export type BilheteriaMode = 'none' | 'free' | 'paid_single' | 'batches'
 
@@ -86,6 +89,7 @@ export function BilheteriaAdmin({
   totalCapacity, 
   onTotalCapacityChange 
 }: BilheteriaAdminProps) {
+  const { currency } = useCurrency();
   const [isHalfPriceModalOpen, setIsHalfPriceModalOpen] = React.useState(false)
   const [isBatchGenModalOpen, setIsBatchGenModalOpen] = React.useState(false)
   const [activeBatchIdx, setActiveBatchIdx] = React.useState<number | null>(null)
@@ -96,6 +100,8 @@ export function BilheteriaAdmin({
   const [numNewBatchesInput, setNumNewBatchesInput] = React.useState("1")
   const [cloneLastConfig, setCloneLastConfig] = React.useState(true)
   const [newBatchPrices, setNewBatchPrices] = React.useState<Record<number, string>>({})
+
+  const currencySymbol = currency === 'BRL' ? 'R$' : currency === 'USD' ? '$' : '€';
 
   React.useEffect(() => {
     if (batches.length === 0 && mode !== 'none') {
@@ -348,6 +354,13 @@ export function BilheteriaAdmin({
                  <p className="text-[8px] font-black uppercase text-muted-foreground">Soma de todos os lotes e setores configurados</p>
               </div>
 
+              {mode !== 'free' && (
+                <div className="p-4 bg-primary/5 rounded-2xl border-2 border-dashed border-primary/10 flex items-center justify-center gap-3">
+                   <Coins className="w-5 h-5 text-primary" />
+                   <p className="text-xs font-black uppercase italic text-primary">Preços em: <span className="text-secondary">{currency}</span></p>
+                </div>
+              )}
+
               <div className="space-y-10">
                 {batches.map((batch, bIdx) => (
                   <div key={batch.id} className="relative">
@@ -423,9 +436,9 @@ export function BilheteriaAdmin({
                                       </div>
 
                                       <div className="w-full lg:w-36 space-y-2">
-                                         <Label className="text-[8px] uppercase font-black opacity-40 px-1">Valor (R$)</Label>
+                                         <Label className="text-[8px] uppercase font-black opacity-40 px-1">Valor ({currency})</Label>
                                          <div className="relative">
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-muted-foreground opacity-40">R$</span>
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-muted-foreground opacity-40">{currencySymbol}</span>
                                             <Input type="number" step="0.01" value={type.price} onChange={(e) => handleUpdateTicketType(bIdx, tIdx, 'price', parseFloat(e.target.value) || 0)} className="h-11 rounded-xl font-black text-secondary bg-white pl-9" />
                                          </div>
                                       </div>
@@ -451,7 +464,7 @@ export function BilheteriaAdmin({
                                          </div>
                                          <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-destructive rounded-xl hover:bg-red-50 opacity-0 group-hover/ticket:opacity-100 transition-opacity" onClick={() => {
                                            const n = [...batches]; n[bIdx].ticketTypes.splice(tIdx, 1); onBatchesChange(n);
-                                         }}><Trash2 className="w-4.5 h-4.5" /></Button>
+                                         }}><Trash2 className="w-4 h-4" /></Button>
                                       </div>
                                     </div>
 
@@ -560,14 +573,14 @@ export function BilheteriaAdmin({
               </div>
             ) : (
               <div className="py-6 space-y-6 animate-in fade-in slide-in-from-left-4 duration-300">
-                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Defina os valores das Inteiras</p>
+                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Defina os valores das Inteiras ({currency})</p>
                  
                  <div className="space-y-4 max-h-[300px] overflow-y-auto px-1 custom-scrollbar">
                     {Array.from({ length: parseInt(numNewBatchesInput) }).map((_, i) => (
                       <div key={i} className="space-y-2">
                         <Label className="text-[9px] font-black uppercase opacity-40 px-1">{batches.length + i + 1}º Lote (Inteira)</Label>
                         <div className="relative">
-                           <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-secondary text-sm">R$</span>
+                           <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-secondary text-sm">{currencySymbol}</span>
                            <Input 
                              type="number" 
                              step="0.01" 

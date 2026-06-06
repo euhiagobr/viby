@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -10,7 +11,8 @@ export type CurrencyCode = 'BRL' | 'USD' | 'EUR';
 interface CurrencyContextType {
   currency: CurrencyCode;
   setCurrency: (code: CurrencyCode) => void;
-  formatPrice: (amountInBRL: number) => string;
+  formatPrice: (amount: number, fromCurrency?: CurrencyCode) => string;
+  convertValue: (amount: number, from: CurrencyCode, to: CurrencyCode) => number;
   rates: Record<string, number>;
   loading: boolean;
 }
@@ -59,7 +61,6 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Se não existe ou está vencida, busca na API externa
       const response = await fetch('https://open.er-api.com/v6/latest/BRL');
       const apiData = await response.json();
       
@@ -73,9 +74,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
           lastUpdated: serverTimestamp()
         };
 
-        // Persiste no Firestore para outros usuários aproveitarem o cache
         await setDoc(ratesRef, newRates, { merge: true });
-        
         setRates({ BRL: 1, USD: apiData.rates.USD, EUR: apiData.rates.EUR });
       }
     } catch (e) {
@@ -119,9 +118,16 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     }
   }, [db, user]);
 
-  const formatPrice = useCallback((amountInBRL: number): string => {
-    const rate = rates[currency] || rates['BRL'] || 1;
-    const converted = amountInBRL * rate;
+  const convertValue = useCallback((amount: number, from: CurrencyCode, to: CurrencyCode): number => {
+    if (from === to) return amount;
+    // Converte de FROM para BRL (base)
+    const amountInBRL = amount / (rates[from] || 1);
+    // Converte de BRL para TO
+    return amountInBRL * (rates[to] || 1);
+  }, [rates]);
+
+  const formatPrice = useCallback((amount: number, fromCurrency: CurrencyCode = 'BRL'): string => {
+    const converted = convertValue(amount, fromCurrency, currency);
 
     const formatters: Record<CurrencyCode, Intl.NumberFormat> = {
       BRL: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }),
@@ -131,15 +137,16 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
     const formatter = formatters[currency] || formatters.BRL;
     return formatter.format(converted);
-  }, [currency, rates]);
+  }, [currency, convertValue]);
 
   const value = React.useMemo(() => ({
     currency,
     setCurrency,
     formatPrice,
+    convertValue,
     rates,
     loading
-  }), [currency, setCurrency, formatPrice, rates, loading]);
+  }), [currency, setCurrency, formatPrice, convertValue, rates, loading]);
 
   return (
     <CurrencyContext.Provider value={value}>

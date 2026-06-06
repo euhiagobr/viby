@@ -248,7 +248,9 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
               {event.organizer?.name}
             </p>
             {minPrice > 0 ? (
-               <span className="text-[10px] font-black text-secondary uppercase italic">{t('event.from')} {formatPrice(minPrice)}</span>
+               <span className="text-[10px] font-black text-secondary uppercase italic">
+                 {t('event.from')} {formatPrice(minPrice, event.currency || 'BRL')}
+               </span>
             ) : (
                <span className="text-[10px] font-black text-green-600 uppercase italic">{t('event.no_tickets')}</span>
             )}

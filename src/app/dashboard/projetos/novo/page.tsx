@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -28,6 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { getAgeRatingConfig } from "@/lib/age-rating"
 import { generateOccurrences } from "@/services/recurring-event-service"
+import { useCurrency } from "@/contexts/CurrencyContext"
 
 const DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fcapa.jpeg?alt=media";
 
@@ -38,6 +40,7 @@ export default function NovoEventoPage() {
   const { user } = useUser(auth)
   const app = useFirebaseApp()
   const { currentOrg } = useCurrentOrganization()
+  const { currency } = useCurrency();
   const storage = React.useMemo(() => app ? getStorage(app) : null, [app])
 
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
@@ -121,6 +124,7 @@ export default function NovoEventoPage() {
         batches: formData.type === 'interno' ? batches : [],
         searchKeywords,
         date: formData.startDate,
+        currency: currency, // Moeda ativa no painel no momento da criação
         createdAt: serverTimestamp()
       }
 
