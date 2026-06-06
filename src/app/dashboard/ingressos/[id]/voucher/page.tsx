@@ -23,6 +23,7 @@ import {
 import Image from "next/image"
 import { QRCodeSVG } from "qrcode.react"
 import { cn } from "@/lib/utils"
+import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 
 export default function VoucherPage() {
   const params = useParams()
@@ -30,6 +31,7 @@ export default function VoucherPage() {
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
+  const { formatPriceWithOriginal } = useCurrency()
   const regId = params.id as string
 
   const regRef = React.useMemo(() => (db && regId) ? doc(db, "registrations", regId) : null, [db, regId])
@@ -81,9 +83,13 @@ export default function VoucherPage() {
           <ArrowLeft className="w-4 h-4" /> Voltar
         </Button>
         <div className="flex gap-2">
-           <Button variant="outline" size="icon" className="rounded-full"><Share2 className="w-4 h-4" /></Button>
+           <Button variant="outline" size="icon" className="rounded-full h-10 w-10">
+              <Share2 className="w-4 h-4" />
+           </Button>
            {canShowQR && !isUsed && (
-             <Button variant="outline" size="icon" className="rounded-full" onClick={() => window.print()}><Download className="w-4 h-4" /></Button>
+             <Button variant="outline" size="icon" className="rounded-full" onClick={() => window.print()}>
+                <Download className="w-4 h-4" />
+             </Button>
            )}
         </div>
       </div>
@@ -123,7 +129,10 @@ export default function VoucherPage() {
                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Titular do Ingresso</p>
                 <div className="flex items-center gap-2 font-black text-base italic uppercase text-primary"><User className="w-4 h-4 text-secondary" /> {registration.userName}</div>
               </div>
-              <p className="font-black text-sm text-primary uppercase">{registration.ticketTypeName || 'Acesso'}</p>
+              <div className="text-right">
+                <p className="font-black text-[10px] text-muted-foreground uppercase opacity-60 mb-1">{registration.ticketTypeName || 'Acesso'}</p>
+                {formatPriceWithOriginal(registration.price || 0, (registration.currency || 'BRL') as CurrencyCode)}
+              </div>
             </div>
 
             <div className={cn(
@@ -134,7 +143,7 @@ export default function VoucherPage() {
                 <div className="w-48 h-48 flex items-center justify-center">
                   {canShowQR && !isUsed ? (
                     <QRCodeSVG 
-                      value={registration.ticketCode} // REGRA: QR CODE CONTÉM APENAS O ticketCode
+                      value={registration.ticketCode} 
                       size={192}
                       level="H"
                     />

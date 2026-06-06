@@ -120,7 +120,6 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
   const convertValue = useCallback((amount: number, from: CurrencyCode, to: CurrencyCode): number => {
     if (from === to) return amount;
-    // BRL é a base (1.0)
     const amountInBRL = amount / (rates[from] || 1);
     return amountInBRL * (rates[to] || 1);
   }, [rates]);
@@ -131,33 +130,46 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     const formatters: Record<CurrencyCode, Intl.NumberFormat> = {
       BRL: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }),
       USD: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }),
-      EUR: new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }),
+      EUR: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EUR' }),
     };
 
     const formatter = formatters[currency] || formatters.BRL;
-    return formatter.format(converted);
+    let formatted = formatter.format(converted);
+    
+    if (currency === 'USD') {
+      formatted = formatted.replace('$', 'US$ ');
+    }
+    
+    return formatted;
   }, [currency, convertValue]);
 
   const formatPriceWithOriginal = useCallback((amount: number, eventCurrency: CurrencyCode) => {
     const isDifferent = currency !== eventCurrency;
     
-    const formatters: Record<CurrencyCode, Intl.NumberFormat> = {
+    const originalFormatters: Record<CurrencyCode, Intl.NumberFormat> = {
       BRL: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }),
       USD: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }),
-      EUR: new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }),
+      EUR: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EUR' }),
     };
 
+    const convertedString = formatPrice(amount, eventCurrency);
+    let originalString = originalFormatters[eventCurrency].format(amount);
+    
+    if (eventCurrency === 'USD') {
+      originalString = originalString.replace('$', 'US$ ');
+    }
+
     if (!isDifferent) {
-      return <span>{formatPrice(amount, eventCurrency)}</span>;
+      return <span className="font-black text-primary">{convertedString}</span>;
     }
 
     return (
       <div className="flex flex-col items-end">
         <span className="font-black text-primary leading-none">
-          {formatPrice(amount, eventCurrency)}
+          {convertedString}
         </span>
         <span className="text-[9px] font-bold text-muted-foreground uppercase mt-1 opacity-60">
-          ≈ {formatters[eventCurrency].format(amount)}
+          ≈ {originalString}
         </span>
       </div>
     );
@@ -174,16 +186,14 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   }), [currency, setCurrency, formatPrice, formatPriceWithOriginal, convertValue, rates, loading]);
 
   return (
-    <I18nSafeCurrencyContext.Provider value={value}>
+    <CurrencyContext.Provider value={value}>
       {children}
-    </I18nSafeCurrencyContext.Provider>
+    </CurrencyContext.Provider>
   );
 }
 
-const I18nSafeCurrencyContext = createContext<CurrencyContextType | null>(null);
-
 export const useCurrency = () => {
-  const context = useContext(I18nSafeCurrencyContext);
+  const context = useContext(CurrencyContext);
   if (!context) throw new Error('useCurrency must be used within CurrencyProvider');
   return context;
 };

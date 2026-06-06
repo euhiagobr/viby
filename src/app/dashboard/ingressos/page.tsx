@@ -22,7 +22,7 @@ import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { sendTicketEmail } from "@/app/actions/email"
-import { useCurrency } from "@/contexts/CurrencyContext"
+import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 
 export default function MeusIngressosPage() {
   const db = useFirestore()
@@ -87,7 +87,7 @@ export default function MeusIngressosPage() {
 function TicketListItem({ registration }: { registration: any }) {
   const auth = useAuth()
   const { user } = useUser(auth)
-  const { formatPrice } = useCurrency()
+  const { formatPriceWithOriginal } = useCurrency()
   const [isSendingEmail, setIsSendingEmail] = React.useState(false)
 
   const isCancelled = registration.status === 'cancelled' || 
@@ -160,9 +160,13 @@ function TicketListItem({ registration }: { registration: any }) {
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t border-dashed border-border/60">
-          <span className="text-sm font-black text-primary">
-            {isCancelled ? "Valor Devolvido" : formatPrice(registration.price || 0)}
-          </span>
+          <div className="text-sm">
+            {isCancelled ? (
+              <span className="text-muted-foreground font-bold uppercase text-[10px]">Valor Devolvido</span>
+            ) : (
+              formatPriceWithOriginal(registration.price || 0, (registration.currency || 'BRL') as CurrencyCode)
+            )}
+          </div>
           <div className="flex gap-2">
             {!isCancelled && !isPending && (
               <Button size="sm" variant="outline" onClick={handleResendEmail} disabled={isSendingEmail} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-secondary text-secondary">
