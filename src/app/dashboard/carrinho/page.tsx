@@ -18,7 +18,8 @@ import {
   Loader2,
   Inbox,
   AlertTriangle,
-  Info
+  Info,
+  Clock
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -97,19 +98,17 @@ export default function CarrinhoPage() {
           const eSnap = await getDoc(doc(db, "events", item.eventId));
           if (eSnap.exists()) {
             const eData = eSnap.data();
-            // Só remove se o status for explicitamente Excluído. 
-            // Se for Rascunho/Privado/Ativo/Oculto, mantemos no carrinho para não frustrar o usuário.
             if (eData.status !== 'Excluído') {
               updatedItems.push(item);
             } else {
               hadChanges = true;
             }
           } else {
-            // Documento realmente não existe
+            // Documento não existe
             hadChanges = true;
           }
         } catch (e) {
-          // Em caso de erro de rede ou permissão, mantemos o item por segurança
+          // Mantém o item se houver falha de rede/permissão temporária
           updatedItems.push(item);
         }
       }
