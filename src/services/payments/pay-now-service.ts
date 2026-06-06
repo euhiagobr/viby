@@ -16,7 +16,7 @@ import { db as staticDb } from "@/firebase/database";
 
 /**
  * @fileOverview PayNowService - Processamento central de pagamentos.
- * Refatorado para ignorar o parâmetro 'db' de hooks e usar o singleton estático estável.
+ * Corrigido para utilizar a moeda dinâmica do evento (event.currency) em vez de BRL fixo.
  */
 
 export interface CheckoutOptions {
@@ -41,7 +41,6 @@ export interface CheckoutOptions {
 export async function processPayNow(_dbUnused: any, options: CheckoutOptions) {
   const { user, profile, items, totals, globalFees, promotions, orgsData } = options;
   
-  // SEMPRE utiliza a instância estática estável para transações críticas
   const firestore = staticDb;
 
   if (!user || !firestore) {
@@ -53,9 +52,16 @@ export async function processPayNow(_dbUnused: any, options: CheckoutOptions) {
 
   const registrationIds: string[] = [];
   const lineItems: any[] = [];
+  
+  // A moeda da transação é definida pela moeda do primeiro item (Viby processa carrinhos por organização)
+  const transactionCurrency = (items[0]?.currency || 'BRL').toLowerCase();
 
-  // 1. Processar Saldo da Carteira (Se aplicável)
+  // 1. Processar Saldo da Carteira (Apenas se a moeda do evento for BRL)
   if (isFullBalanceOrder) {
+    if (transactionCurrency !== 'brl') {
+      throw new Error("O saldo da carteira só pode ser utilizado para eventos precificados em Real (BRL).");
+    }
+
     await runTransaction(firestore, async (transaction) => {
       const walletRef = safeDoc(firestore, "wallets", user.uid);
       const userRef = safeDoc(firestore, "users", user.uid);
@@ -89,7 +95,7 @@ export async function processPayNow(_dbUnused: any, options: CheckoutOptions) {
 
   // 2. Criar Registros e Preparar Checkout
   for (const item of items) {
-    const breakdown = calculateFinancialBreakdown(item.price, globalFees, promotions, orgsData[item.organizationId]);
+    const breakdown = calculateFinancialBreakdown(item.price, globalFees, promotions, orgsData[item.organizationId], item.currency as any);
 
     for (let i = 0; i < item.quantity; i++) {
       const ticketCode = await generateUniqueTicketCode(firestore);
@@ -101,6 +107,7 @@ export async function processPayNow(_dbUnused: any, options: CheckoutOptions) {
         userEmail: user.email,
         ticketBasePrice: item.price,
         price: breakdown.customerFinalPrice,
+        currency: item.currency || 'BRL',
         administrativeFeeAmount: breakdown.administrativeFeeAmount,
         producerFeeAmount: breakdown.producerFeeAmount,
         producerNetAmount: breakdown.producerNetAmount,
@@ -132,7 +139,7 @@ export async function processPayNow(_dbUnused: any, options: CheckoutOptions) {
     if (!isFreeOrder && !isFullBalanceOrder) {
       lineItems.push({
         price_data: { 
-          currency: 'brl', 
+          currency: transactionCurrency, 
           product_data: { 
             name: `${item.eventTitle} - ${item.ticketTypeName}`, 
             images: item.eventImage ? [item.eventImage] : [] 
@@ -153,7 +160,8 @@ export async function processPayNow(_dbUnused: any, options: CheckoutOptions) {
     eventTitle: items.length > 1 ? "Múltiplos Ingressos" : items[0].eventTitle,
     totalAmount: Math.round(totals.total * 100),
     userEmail: user.email!,
-    lineItems: totals.balanceUsed > 0 ? undefined : lineItems,
+    lineItems: lineItems,
+    currency: transactionCurrency,
     metadata: { 
       type: "cart_checkout", 
       registrationIds: registrationIds.join(","), 

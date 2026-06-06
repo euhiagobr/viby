@@ -34,6 +34,10 @@ export async function createCheckoutSession(data: any) {
       metadata: metadata,
     };
 
+    // Define a moeda da sessão baseada no parâmetro dinâmico
+    // Note: Em line_items, o price_data já contém a moeda individual.
+    // O Stripe exige consistência entre a moeda da sessão e dos itens.
+
     if (destinationStripeAccount) {
       sessionConfig.payment_intent_data = {
         application_fee_amount: totalApplicationFeeCents,
@@ -58,6 +62,5 @@ export async function createCheckoutSession(data: any) {
 }
 
 export async function finalizeCheckoutSession(sessionId: string) {
-  // ... (Manteve lógica de fulfillment via webhook/manual)
   return { success: true };
 }
