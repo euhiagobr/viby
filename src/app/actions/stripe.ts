@@ -34,10 +34,6 @@ export async function createCheckoutSession(data: any) {
       metadata: metadata,
     };
 
-    // Define a moeda da sessão baseada no parâmetro dinâmico
-    // Note: Em line_items, o price_data já contém a moeda individual.
-    // O Stripe exige consistência entre a moeda da sessão e dos itens.
-
     if (destinationStripeAccount) {
       sessionConfig.payment_intent_data = {
         application_fee_amount: totalApplicationFeeCents,
@@ -51,13 +47,26 @@ export async function createCheckoutSession(data: any) {
     const session = await stripe.checkout.sessions.create(sessionConfig);
     return { success: true, url: session.url };
   } catch (error: any) {
+    // Log detalhado para o ErrorManager
     await logSystemError({
       error: { message: error.message, stack: error.stack },
       type: 'stripe_checkout_failure',
       severity: 'error',
-      metadata: { orderId: data.metadata?.orderId }
+      metadata: { 
+        orderId: data.metadata?.orderId,
+        destination: data.destinationStripeAccount,
+        errorCode: error.code,
+        errorType: error.type
+      }
     });
-    return { success: false, error: error.message };
+
+    // Mensagem amigável para o usuário final
+    let userMessage = error.message;
+    if (error.message.includes('No such destination')) {
+       userMessage = "O organizador deste evento possui um problema na conta de recebimento. Por favor, tente novamente mais tarde.";
+    }
+
+    return { success: false, error: userMessage };
   }
 }
 

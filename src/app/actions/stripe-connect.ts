@@ -153,6 +153,24 @@ export async function retrieveStripeAccount(accountId: string, orgId?: string) {
     };
   } catch (error: any) {
     console.error("[Stripe Diagnostic Action Error]", error);
+    
+    // Se a conta não existir no Stripe (ID órfão ou ambiente trocado)
+    if (error.code === 'resource_missing' && orgId) {
+      const db = getAdminDb();
+      await db.collection('organizations').doc(orgId).update({
+        stripeAccountId: admin.firestore.FieldValue.delete(),
+        stripeOnboardingComplete: false,
+        stripeChargesEnabled: false,
+        stripePayoutsEnabled: false,
+        "payoutSettings.status": 'none',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      return { 
+        success: false, 
+        error: 'A conta vinculada não existe mais no Stripe. O vínculo foi removido para que você possa tentar conectar novamente.' 
+      };
+    }
+
     return { success: false, error: error.message || 'Erro desconhecido ao consultar Stripe API.' };
   }
 }
