@@ -5,6 +5,7 @@ import { FirebaseClientProvider } from '@/firebase';
 import { CartProvider } from '@/contexts/CartContext';
 import { ErrorManagerProvider } from '@/components/error-manager/ErrorManagerProvider';
 import { GlobalErrorBoundary } from '@/components/error-manager/GlobalErrorBoundary';
+import { GoogleAdsTag } from '@/components/analytics/GoogleAdsTag';
 
 export const revalidate = 0;
 
@@ -107,6 +108,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+        <GoogleAdsTag />
       </head>
       <body className="font-body antialiased bg-[#f8fafc] text-[#000000] flex flex-col min-h-screen">
         <FirebaseClientProvider>
