@@ -22,7 +22,8 @@ import {
   QrCode,
   Info,
   ShieldCheck,
-  Building2
+  Building2,
+  AlertTriangle
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from '@/hooks/use-toast';
@@ -124,7 +125,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    // Aguarda um frame para o React aplicar o estado do template antes de capturar
     setTimeout(async () => {
       try {
         const config = FORMAT_CONFIGS[format];
@@ -186,9 +186,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
   const renderTemplate = (format: Format) => {
     const config = FORMAT_CONFIGS[format];
-    const isVertical = format === 'stories' || format === 'A4' || format === 'A5' || format === 'A6';
-    const isSquare = format === 'instagram';
-
     return (
       <div 
         style={{ 
@@ -203,7 +200,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           fontFamily: 'sans-serif'
         }}
       >
-        {/* TOP: LOGO E NOME */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', width: '100%' }}>
           <div style={{ 
             width: format === 'stories' ? '280px' : '220px', 
@@ -238,7 +234,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           </h1>
         </div>
 
-        {/* CENTER: QR CODE */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '40px' }}>
           <p style={{ 
             fontSize: '28px', 
@@ -274,7 +269,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           </div>
         </div>
 
-        {/* BOTTOM: POWERED BY */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', width: '100%' }}>
           <div style={{ height: '2px', width: '100px', backgroundColor: '#f1f5f9' }} />
           <p style={{ 
@@ -298,8 +292,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[95vh] md:h-auto">
-        
-        {/* PREVIEW CONTAINER */}
         <div className="flex-1 p-8 bg-muted/20 flex flex-col items-center justify-center border-r border-dashed relative">
           {!isAssetsLoaded && (
             <div className="absolute inset-0 z-50 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
@@ -308,14 +300,12 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
             </div>
           )}
 
-          {/* ÁREA DE RENDERIZAÇÃO REAL (HIDDEN) */}
           <div style={{ position: 'fixed', left: '-9999px', top: '-9999px' }}>
             <div ref={renderRef}>
               {renderTemplate(currentFormat)}
             </div>
           </div>
 
-          {/* PREVIEW VISUAL (SCALED) */}
           <div className="scale-[0.4] md:scale-[0.5] origin-center shadow-2xl">
              {renderTemplate('instagram')}
           </div>
@@ -326,7 +316,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           </div>
         </div>
 
-        {/* CONTROLES */}
         <div className="w-full md:w-96 p-10 space-y-10 overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center gap-3 mb-2">
@@ -402,4 +391,3 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     </Dialog>
   );
 }
-
