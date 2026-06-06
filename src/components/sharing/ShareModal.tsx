@@ -20,7 +20,8 @@ import {
   Layout, 
   FileText,
   Instagram,
-  QrCode
+  QrCode,
+  Info
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from '@/hooks/use-toast';
