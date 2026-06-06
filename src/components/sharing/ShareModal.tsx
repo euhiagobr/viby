@@ -9,6 +9,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { 
   Share2, 
   Download, 
@@ -32,14 +34,14 @@ import {
   Camera,
   Image as ImageIcon,
   MousePointer2,
-  RefreshCw
+  RefreshCw,
+  Info
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { toPng } from 'html-to-image';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 
 const VIBY_LOGO_OFFICIAL = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
@@ -67,7 +69,7 @@ const FORMAT_CONFIGS: Record<Format, { width: number; height: number; label: str
   'A4': { width: 1240, height: 1754, label: 'Folha A4' },
   'A5': { width: 874, height: 1240, label: 'Folha A5' },
   'A6': { width: 620, height: 874, label: 'Folha A6' },
-  'instagram': { width: 1080, height: 1080, label: 'Post Feed (1:1)' },
+  'instagram': { width: 1080, height: 1080, label: 'Feed (1:1)' },
   'stories': { width: 1080, height: 1920, label: 'Stories (9:16)' }
 };
 
@@ -109,28 +111,23 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
   const loadAssets = React.useCallback(async () => {
     setIsAssetsLoaded(false);
-    console.log("[VIBY-LOGO-AUDIT] Iniciando carga de ativos...");
+    console.log("[VIBY-LOGO-AUDIT] Iniciando carga de ativos para ShareModal...");
     try {
-      const promises: Promise<any>[] = [
-        fetchImageAsBase64(VIBY_LOGO_OFFICIAL)
-      ];
+      const vibyRes = await fetchImageAsBase64(VIBY_LOGO_OFFICIAL);
+      if (vibyRes.success) setVibyLogoBase64(vibyRes.data!);
 
-      if (data.logoUrl) promises.push(fetchImageAsBase64(data.logoUrl));
-      if (data.bannerUrl) promises.push(fetchImageAsBase64(data.bannerUrl));
-
-      const [vibyRes, orgRes, bannerRes] = await Promise.all(promises);
-
-      if (vibyRes.success) {
-        setVibyLogoBase64(vibyRes.data!);
-        console.log("[VIBY-LOGO-AUDIT] Logo Viby carregado com sucesso.");
+      if (data.logoUrl) {
+        const orgRes = await fetchImageAsBase64(data.logoUrl);
+        if (orgRes.success) setOrgLogoBase64(orgRes.data!);
       }
-      if (orgRes?.success) {
-        setOrgLogoBase64(orgRes.data!);
-        console.log("[VIBY-LOGO-AUDIT] Logo Organização carregado com sucesso.");
+
+      if (data.bannerUrl) {
+        const bannerRes = await fetchImageAsBase64(data.bannerUrl);
+        if (bannerRes.success) setBannerBase64(bannerRes.data!);
       }
-      if (bannerRes?.success) setBannerBase64(bannerRes.data!);
 
       setIsAssetsLoaded(true);
+      console.log("[VIBY-LOGO-AUDIT] Ativos carregados.");
     } catch (e) {
       console.error("[VIBY-LOGO-AUDIT] Erro ao carregar ativos:", e);
       setIsAssetsLoaded(true); 
@@ -144,7 +141,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       setOrgLogoBase64(null);
       setVibyLogoBase64(null);
       setBannerBase64(null);
-      setIsAssetsLoaded(false);
     }
   }, [isOpen, loadAssets]);
 
@@ -174,9 +170,9 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
     setCurrentFormat(format);
     setIsGenerating(true);
-    console.log(`[FORMAT-LOG] Iniciando geração para formato: ${format}`);
     
-    await new Promise(resolve => setTimeout(resolve, 800));
+    // Aguarda ciclo de renderização do template novo
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     try {
       const config = FORMAT_CONFIGS[format];
@@ -187,25 +183,24 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         backgroundColor: '#ffffff',
         width: config.width,
         height: config.height,
-        pixelRatio: 1,
-        style: { transform: 'scale(1)', transformOrigin: 'top left' }
+        pixelRatio: 1
       });
 
       const link = document.createElement('a');
-      link.download = `viby-${data.username}-${format}-${selectedTheme}.png`;
+      link.download = `viby-${data.username}-${format}.png`;
       link.href = dataUrl;
       link.click();
       
-      toast({ title: "Arte baixada!", description: `Formato ${config.label} salvo.` });
-    } catch (err: any) {
-      console.error("[SHARE-AUDIT] Erro na geração:", err);
+      toast({ title: "Arte gerada!", description: `Download do formato ${format} concluído.` });
+    } catch (err) {
+      console.error(err);
       toast({ variant: "destructive", title: "Erro ao gerar imagem" });
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // --- LÓGICA DE ESTILOS DE TEMA ---
+  // --- LÓGICA DE ESTILOS ---
 
   const getThemeStyle = (theme: Theme): React.CSSProperties => {
     switch (theme) {
@@ -216,7 +211,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       case 'escuro':
         return { background: '#000000', color: '#ffffff' };
       case 'neon':
-        return { background: 'linear-gradient(to bottom, #000000, #1a0033)', color: '#ffffff', border: '10px solid #2C52EE' };
+        return { background: 'linear-gradient(to bottom, #000000, #1a0033)', color: '#ffffff', border: '20px solid #2C52EE' };
       case 'pride':
         return { background: 'linear-gradient(45deg, #ff0000, #ff8000, #ffff00, #008000, #0000ff, #8000ff)', color: '#ffffff' };
       case 'premium':
@@ -230,9 +225,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     }
   };
 
-  // --- COMPONENTES DE CONTEÚDO ---
-
-  const renderLogo = (size: number, theme: Theme) => {
+  const renderLogoSection = (size: number, theme: Theme) => {
     const isDark = theme !== 'claro' && theme !== 'corporativo';
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', width: '100%' }}>
@@ -242,8 +235,8 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           borderRadius: '50%', 
           overflow: 'hidden', 
           backgroundColor: isDark ? '#ffffff' : '#f1f5f9',
-          border: `6px solid ${theme === 'premium' ? '#D4AF37' : '#ffffff'}`,
-          boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
+          border: `8px solid ${theme === 'premium' ? '#D4AF37' : '#ffffff'}`,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center'
@@ -257,7 +250,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           )}
         </div>
         <h1 style={{ 
-          fontSize: `${size/2.8}px`, 
+          fontSize: `${size/3}px`, 
           fontWeight: 900, 
           textTransform: 'uppercase', 
           fontStyle: 'italic', 
@@ -265,8 +258,8 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           margin: 0, 
           letterSpacing: '-0.05em', 
           color: theme === 'premium' ? '#D4AF37' : (isDark ? '#ffffff' : '#000000'),
-          lineHeight: 0.85,
-          maxWidth: '90%'
+          lineHeight: 0.9,
+          maxWidth: '95%'
         }}>
           {data.title}
         </h1>
@@ -274,45 +267,47 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     );
   };
 
-  const renderQR = (qrSize: number, fontSize: number, theme: Theme) => {
+  const renderQRSection = (qrSize: number, fontSize: number, theme: Theme) => {
     const isDark = theme !== 'claro' && theme !== 'corporativo';
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '25px', width: '100%' }}>
-        <p style={{ fontSize: `${fontSize/1.8}px`, fontWeight: 800, color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.3em', margin: 0 }}>
-          Escaneie para acessar
-        </p>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', width: '100%' }}>
         <div style={{ 
-          padding: '30px', 
+          padding: '35px', 
           backgroundColor: '#ffffff', 
-          borderRadius: '50px', 
-          boxShadow: '0 30px 60px rgba(0,0,0,0.2)',
-          border: theme === 'premium' ? '8px solid #D4AF37' : 'none'
+          borderRadius: '60px', 
+          boxShadow: '0 40px 80px rgba(0,0,0,0.3)',
+          border: theme === 'premium' ? '10px solid #D4AF37' : 'none'
         }}>
           <QRCodeSVG value={shareUrl} size={qrSize} level="H" fgColor="#000000" />
         </div>
-        <p style={{ 
-          fontSize: `${fontSize}px`, 
-          fontWeight: 900, 
-          color: theme === 'premium' ? '#D4AF37' : (isDark ? '#ffffff' : '#2C52EE'), 
-          margin: 0, 
-          fontFamily: 'monospace', 
-          letterSpacing: '-0.02em',
-          backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-          padding: '10px 30px',
-          borderRadius: '20px'
-        }}>
-          viby.club/{data.username}
-        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
+           <p style={{ 
+             fontSize: `${fontSize}px`, 
+             fontWeight: 900, 
+             color: theme === 'premium' ? '#D4AF37' : (isDark ? '#ffffff' : '#2C52EE'), 
+             margin: 0, 
+             fontFamily: 'monospace', 
+             letterSpacing: '-0.02em',
+             backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+             padding: '12px 40px',
+             borderRadius: '25px'
+           }}>
+             viby.club/{data.username}
+           </p>
+           <p style={{ fontSize: `${fontSize/2.2}px`, fontWeight: 800, textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)', margin: 0, letterSpacing: '0.4em' }}>
+              Acesse a Agenda Oficial
+           </p>
+        </div>
       </div>
     );
   };
 
-  const renderRodape = (logoHeight: number, theme: Theme) => {
+  const renderFooterSection = (logoHeight: number, theme: Theme) => {
     const isDark = theme !== 'claro' && theme !== 'corporativo';
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', width: '100%' }}>
-        <p style={{ fontSize: `${logoHeight/3.2}px`, fontWeight: 800, textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)', margin: 0, letterSpacing: '0.3em' }}>
-          Powered by Viby.Club
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', width: '100%', opacity: 0.8 }}>
+        <p style={{ fontSize: `${logoHeight/3}px`, fontWeight: 900, textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)', margin: 0, letterSpacing: '0.5em' }}>
+          Powered by
         </p>
         {vibyLogoBase64 && (
           <img 
@@ -320,8 +315,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
             style={{ 
               height: `${logoHeight}px`, 
               objectFit: 'contain',
-              filter: isDark ? 'brightness(0) invert(1)' : 'none',
-              opacity: 0.8
+              filter: isDark ? 'brightness(0) invert(1)' : 'none'
             }} 
             alt="Viby" 
           />
@@ -334,40 +328,41 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     if (theme === 'foto' && bannerBase64) {
       return (
         <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-          <img src={bannerBase64} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(30px) brightness(0.4)' }} alt="" />
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0.4))' }} />
+          <img src={bannerBase64} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(40px) brightness(0.4)' }} alt="" />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,1), rgba(0,0,0,0.5))' }} />
         </div>
       );
     }
     return null;
   };
 
-  // --- RENDERIZADOR DE TEMPLATE ---
+  // --- RENDER TEMPLATE COMPOSITION ---
 
-  const renderTemplate = (format: Format, theme: Theme, template: Template) => {
+  const renderFullArte = (format: Format, theme: Theme, template: Template) => {
     const config = FORMAT_CONFIGS[format];
     const themeStyle = getThemeStyle(theme);
     
+    // Dimensões base para Stories
     let logoSize = 400;
-    let qrSize = 550;
-    let fontSize = 52;
-    let footerLogo = 80;
-    let padding = '180px 100px';
+    let qrSize = 580;
+    let fontSize = 56;
+    let footerLogo = 90;
+    let padding = '200px 100px';
 
     if (format === 'instagram') {
-      logoSize = 240;
-      qrSize = 400;
-      fontSize = 36;
-      footerLogo = 45;
-      padding = '100px';
+      logoSize = 300;
+      qrSize = 450;
+      fontSize = 42;
+      footerLogo = 70;
+      padding = '120px';
     }
 
     if (format === 'A4' || format === 'A5' || format === 'A6') {
-       logoSize = 300;
-       qrSize = 500;
-       fontSize = 48;
-       footerLogo = 60;
-       padding = '120px 80px';
+       logoSize = 350;
+       qrSize = 520;
+       fontSize = 50;
+       footerLogo = 80;
+       padding = '150px 100px';
     }
 
     const containerStyle: React.CSSProperties = {
@@ -381,50 +376,25 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       padding,
       fontFamily: 'sans-serif',
       position: 'relative',
-      overflow: 'hidden'
-    };
-
-    const templateContent = () => {
-      switch (template) {
-        case 'minimalista':
-          return (
-            <>
-              <div style={{ position: 'relative', zIndex: 10 }}>{renderLogo(logoSize * 0.7, theme)}</div>
-              <div style={{ position: 'relative', zIndex: 10 }}>{renderQR(qrSize * 0.9, fontSize * 0.9, theme)}</div>
-              <div style={{ position: 'relative', zIndex: 10 }}>{renderRodape(footerLogo * 0.8, theme)}</div>
-            </>
-          );
-        case 'moderno':
-          return (
-            <>
-              <div style={{ position: 'relative', zIndex: 10, alignSelf: 'flex-start' }}>{renderLogo(logoSize * 0.8, theme)}</div>
-              <div style={{ position: 'relative', zIndex: 10, alignSelf: 'center' }}>{renderQR(qrSize * 1.1, fontSize, theme)}</div>
-              <div style={{ position: 'relative', zIndex: 10, alignSelf: 'flex-end' }}>{renderRodape(footerLogo, theme)}</div>
-            </>
-          );
-        case 'premium':
-          return (
-            <>
-              <div style={{ position: 'relative', zIndex: 10, borderBottom: `2px solid ${themeStyle.color}20`, paddingBottom: '40px', width: '100%' }}>{renderLogo(logoSize, theme)}</div>
-              <div style={{ position: 'relative', zIndex: 10, padding: '40px', border: `1px solid ${themeStyle.color}30`, borderRadius: '60px' }}>{renderQR(qrSize, fontSize, theme)}</div>
-              <div style={{ position: 'relative', zIndex: 10 }}>{renderRodape(footerLogo, theme)}</div>
-            </>
-          );
-        default: 
-          return (
-            <>
-              <div style={{ position: 'relative', zIndex: 10 }}>{renderLogo(logoSize, theme)}</div>
-              <div style={{ position: 'relative', zIndex: 10 }}>{renderQR(qrSize, fontSize, theme)}</div>
-              <div style={{ position: 'relative', zIndex: 10 }}>{renderRodape(footerLogo, theme)}</div>
-            </>
-          );
-      }
+      overflow: 'hidden',
+      boxSizing: 'border-box'
     };
 
     return (
       <div style={containerStyle}>
         {renderBackground(theme)}
-        {templateContent()}
+        
+        <div style={{ position: 'relative', zIndex: 10, width: '100%', display: 'flex', justifyContent: 'center' }}>
+          {renderLogoSection(logoSize, theme)}
+        </div>
+
+        <div style={{ position: 'relative', zIndex: 10, width: '100%', display: 'flex', justifyContent: 'center' }}>
+          {renderQRSection(qrSize, fontSize, theme)}
+        </div>
+
+        <div style={{ position: 'relative', zIndex: 10, width: '100%', display: 'flex', justifyContent: 'center' }}>
+          {renderFooterSection(footerLogo, theme)}
+        </div>
       </div>
     );
   };
@@ -433,24 +403,23 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-7xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[95vh] md:h-[90vh]">
         
+        {/* Painel Lateral de Controle */}
         <div className="w-full md:w-96 flex flex-col bg-white border-r">
           <div className="p-8 border-b bg-muted/10">
              <DialogHeader>
                 <div className="flex items-center gap-3 mb-2">
                    <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Palette className="w-5 h-5" /></div>
-                   <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Customizar Arte</DialogTitle>
+                   <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Artes de Divulgação</DialogTitle>
                 </div>
-                <DialogDescription className="font-bold text-[10px] uppercase opacity-60">Escolha o visual da sua divulgação.</DialogDescription>
+                <DialogDescription className="font-bold text-[10px] uppercase opacity-60">Personalize e baixe seus materiais.</DialogDescription>
              </DialogHeader>
           </div>
 
           <ScrollArea className="flex-1">
              <div className="p-8 space-y-10">
+                {/* Seleção de Temas */}
                 <div className="space-y-4">
-                   <div className="flex items-center justify-between px-1">
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Temas</p>
-                      <Badge variant="outline" className="h-4 text-[7px] font-black border-secondary text-secondary">PREMIUM</Badge>
-                   </div>
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Visual / Tema</p>
                    <div className="grid grid-cols-2 gap-2">
                       {THEMES.map((t) => (
                         <Button 
@@ -469,102 +438,84 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
                    </div>
                 </div>
 
-                <div className="space-y-4">
-                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Layouts</p>
-                   <div className="grid grid-cols-2 gap-2">
-                      {TEMPLATES.map((tpl) => (
-                        <Button 
-                          key={tpl.id}
-                          variant={selectedTemplate === tpl.id ? 'secondary' : 'outline'}
-                          className={cn(
-                            "h-12 rounded-xl text-[10px] font-black uppercase transition-all",
-                            selectedTemplate === tpl.id && "bg-primary text-white border-none shadow-lg"
-                          )}
-                          onClick={() => setSelectedTemplate(tpl.id)}
-                        >
-                           {tpl.label}
-                        </Button>
-                      ))}
-                   </div>
-                </div>
-
                 <Separator className="border-dashed" />
 
+                {/* Ações de Download */}
                 <div className="space-y-4">
-                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Exportar Material</p>
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Exportar Formatos</p>
                    <div className="grid grid-cols-1 gap-2">
                       <Button onClick={() => handleDownload('stories')} disabled={isGenerating || !isAssetsLoaded} className="h-16 rounded-2xl bg-secondary text-white font-black uppercase italic shadow-xl shadow-secondary/20 gap-3 group">
                          <Smartphone className="w-6 h-6 group-hover:scale-110 transition-transform" />
                          <div className="text-left">
-                            <p className="text-sm">Baixar para Stories</p>
-                            <p className="text-[9px] opacity-60">PNG HD (9:16)</p>
+                            <p className="text-sm">Stories Instagram</p>
+                            <p className="text-[9px] opacity-60">Fomat 1080x1920</p>
                          </div>
                       </Button>
                       <Button onClick={() => handleDownload('instagram')} disabled={isGenerating || !isAssetsLoaded} variant="outline" className="h-14 rounded-2xl font-black uppercase italic text-xs gap-3 border-2">
-                         <Instagram className="w-5 h-5 text-pink-500" /> Baixar Post Feed
+                         <Instagram className="w-5 h-5 text-pink-500" /> Post Feed (1:1)
                       </Button>
                    </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
-                   {(['A4', 'A5', 'A6'] as Format[]).map(f => (
-                     <Button key={f} variant="outline" onClick={() => handleDownload(f)} disabled={isGenerating || !isAssetsLoaded} className="h-12 rounded-xl text-[10px] font-black uppercase border-dashed">
-                        {f}
-                     </Button>
-                   ))}
+                {/* Formatos de Impressão */}
+                <div className="space-y-3">
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Impressão (PDF/PNG)</p>
+                   <div className="grid grid-cols-3 gap-2">
+                      {(['A4', 'A5', 'A6'] as Format[]).map(f => (
+                        <Button key={f} variant="outline" onClick={() => handleDownload(f)} disabled={isGenerating || !isAssetsLoaded} className="h-12 rounded-xl text-[10px] font-black uppercase border-dashed">
+                           {f}
+                        </Button>
+                      ))}
+                   </div>
                 </div>
              </div>
           </ScrollArea>
 
           <div className="p-8 border-t bg-muted/10 flex flex-col gap-3">
-             <Button variant="ghost" onClick={() => window.print()} className="w-full h-10 rounded-xl font-black uppercase text-[9px] gap-2 bg-white border shadow-sm">
-                <Printer className="w-3.5 h-3.5" /> Imprimir em PDF
+             <Button variant="ghost" onClick={() => window.print()} className="w-full h-11 rounded-xl font-black uppercase text-[10px] gap-2 bg-white border shadow-sm">
+                <Printer className="w-4 h-4" /> Imprimir Material
              </Button>
-             <Button variant="ghost" onClick={handleNativeShare} className="w-full h-10 rounded-xl font-black uppercase text-[9px] gap-2 bg-white border shadow-sm">
-                <Share2 className="w-3.5 h-3.5" /> Compartilhar
-             </Button>
-             <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full h-10 rounded-xl font-bold uppercase text-[10px] opacity-40 hover:opacity-100">Fechar</Button>
+             <Button variant="ghost" onClick={handleNativeShare} className="w-full h-11 rounded-xl font-bold uppercase text-[10px] opacity-60">Compartilhar Link</Button>
+             <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full h-11 rounded-xl font-bold uppercase text-[10px] opacity-30">Fechar</Button>
           </div>
         </div>
 
+        {/* Área de Preview */}
         <div className="flex-1 p-6 md:p-10 bg-muted/20 flex flex-col items-center justify-center relative overflow-hidden">
           {!isAssetsLoaded && (
             <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center gap-4 text-center p-6">
                <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-               <p className="text-[11px] font-black uppercase tracking-widest text-primary animate-pulse">Sincronizando Ativos Visuais...</p>
+               <p className="text-[11px] font-black uppercase tracking-widest text-primary animate-pulse">Iniciando Motor Visual...</p>
             </div>
           )}
 
           {isGenerating && (
-            <div className="absolute inset-0 z-[60] bg-primary/20 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4">
-               <div className="p-6 bg-white rounded-3xl shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in-95">
+            <div className="absolute inset-0 z-[60] bg-primary/20 backdrop-blur-[2px] flex flex-col items-center justify-center">
+               <div className="p-8 bg-white rounded-3xl shadow-2xl flex flex-col items-center gap-4">
                   <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-primary">Processando PNG...</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-primary">Processando Arquivo...</p>
                </div>
             </div>
           )}
 
+          {/* Renderizador Invisível para Captura (Tamanho Real) */}
           <div style={{ position: 'fixed', left: '-9999px', top: '-9999px' }}>
             <div ref={renderRef}>
-               {renderTemplate(currentFormat, selectedTheme, selectedTemplate)}
+               {renderFullArte(currentFormat, selectedTheme, selectedTemplate)}
             </div>
           </div>
 
-          <div className="scale-[0.20] md:scale-[0.22] lg:scale-[0.28] origin-center shadow-[0_50px_100px_rgba(0,0,0,0.3)] bg-white ring-[20px] ring-white shrink-0 rounded-sm">
-             {renderTemplate('stories', selectedTheme, selectedTemplate)}
+          {/* Prévia Visual Escalada */}
+          <div className="scale-[0.22] md:scale-[0.25] lg:scale-[0.32] origin-center shadow-[0_60px_120px_rgba(0,0,0,0.4)] bg-white ring-[25px] ring-white shrink-0 rounded-sm">
+             {renderFullArte('stories', selectedTheme, selectedTemplate)}
           </div>
           
-          <div className="mt-10 flex flex-col items-center gap-4">
+          <div className="mt-12 flex flex-col items-center gap-4">
              <div className="flex items-center gap-3 px-6 py-2.5 bg-white/80 backdrop-blur-md rounded-full border shadow-xl">
                 <Monitor className="w-4 h-4 text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Monitor de Prévia Ativo</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Monitor de Pré-Impressão</p>
              </div>
-             
-             <div className="flex items-center gap-6 opacity-30 text-[8px] font-black uppercase tracking-widest">
-                <div className="flex items-center gap-1.5"><ShieldCheck className="w-3 h-3" /> Seguro</div>
-                <div className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3" /> Verificado</div>
-                <div className="flex items-center gap-1.5"><Zap className="w-3 h-3" /> HQ Export</div>
-             </div>
+             <p className="text-[8px] font-black uppercase text-muted-foreground opacity-40">O arquivo final será exportado em alta resolução nativa.</p>
           </div>
         </div>
 
@@ -572,3 +523,4 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     </Dialog>
   );
 }
+
