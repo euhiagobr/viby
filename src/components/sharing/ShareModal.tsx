@@ -76,11 +76,12 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     console.log("[SHARE-MODAL] Iniciando carregamento de ativos via Proxy Server-Side...");
 
     try {
-      const promises = [
+      const promises: Promise<any>[] = [
         fetchImageAsBase64(VIBY_LOGO_OFFICIAL)
       ];
 
-      if (data.logoUrl && !data.logoUrl.includes('profile.jpeg')) {
+      // Se houver logo da organização, carrega via proxy também
+      if (data.logoUrl && !data.logoUrl.includes('profile.jpeg') && !data.logoUrl.includes('organizacao.jpeg')) {
         promises.push(fetchImageAsBase64(data.logoUrl));
       }
 
@@ -88,22 +89,22 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
       if (vibyRes.success) {
         setVibyLogoBase64(vibyRes.data!);
-        console.log("[SHARE-MODAL] Logo Viby carregada com sucesso.");
+        console.log("[SHARE-MODAL] Logo Viby carregada.");
       } else {
         console.error("[SHARE-MODAL] Falha na logo Viby:", vibyRes.error);
       }
 
       if (orgRes && orgRes.success) {
         setOrgLogoBase64(orgRes.data!);
-        console.log("[SHARE-MODAL] Logo Organização carregada com sucesso.");
+        console.log("[SHARE-MODAL] Logo Organização carregada.");
       } else {
-        console.warn("[SHARE-MODAL] Logo Org falhou ou não existe, usando iniciais.");
+        console.warn("[SHARE-MODAL] Logo Org falhou ou não existe.");
       }
 
       setIsAssetsLoaded(true);
     } catch (e) {
       console.error("[SHARE-MODAL] Erro fatal no carregamento:", e);
-      setIsAssetsLoaded(true); // Permite abrir para usar fallback de iniciais
+      setIsAssetsLoaded(true); 
     }
   }, [data.logoUrl]);
 
@@ -111,7 +112,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     if (isOpen) {
       loadAssets();
     } else {
-      // Limpar estados ao fechar
       setOrgLogoBase64(null);
       setVibyLogoBase64(null);
       setIsAssetsLoaded(false);
@@ -125,13 +125,28 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleNativeShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: data.title,
+          url: shareUrl,
+        });
+      } catch (err) {
+        // Silently fail if user cancels
+      }
+    } else {
+      handleCopyLink();
+    }
+  };
+
   const handleDownload = async (format: Format) => {
     if (!renderRef.current || !isAssetsLoaded) return;
 
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    // Delay para garantir que o DOM invisível atualizou o formato
+    // Pequeno delay para garantir atualização do DOM
     await new Promise(resolve => setTimeout(resolve, 500));
 
     try {
@@ -158,7 +173,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       toast({ 
         variant: "destructive", 
         title: "Erro na geração.", 
-        description: "Tente novamente ou use a função Imprimir." 
+        description: "Verifique os ativos da marca e tente novamente." 
       });
     } finally {
       setIsGenerating(false);
@@ -290,7 +305,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           {/* VISUAL PREVIEW */}
           <div className="scale-[0.25] md:scale-[0.35] lg:scale-[0.4] origin-center shadow-2xl bg-white border ring-8 ring-white">
              {currentFormat === 'instagram' ? (
-                <div style={{ width: 1080, height: 1080, backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '100px', fontFamily: 'sans-serif' }}>
+                <div style={{ width: 1080, height: 1080, backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifySelf: 'center', justifyContent: 'space-between', padding: '100px', fontFamily: 'sans-serif' }}>
                   {renderLogoSection(200)}
                   {renderQRSection(400, 32)}
                   {renderFooter(50)}
