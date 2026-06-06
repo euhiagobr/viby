@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { EVENT_TYPES } from "@/lib/constants"
 import { cn } from "@/lib/utils"
+import { Info, AlertTriangle } from "lucide-react"
 
 interface EventTypeProps {
   value: string
@@ -14,10 +15,21 @@ interface EventTypeProps {
   onExternalUrlChange?: (val: string) => void
   disabled?: boolean
   isPublic?: boolean
+  config?: Record<string, { enabled: boolean; message: string }>
 }
 
-export function EventType({ value, onChange, externalUrl, onExternalUrlChange, disabled, isPublic }: EventTypeProps) {
+export function EventType({ 
+  value, 
+  onChange, 
+  externalUrl, 
+  onExternalUrlChange, 
+  disabled, 
+  isPublic,
+  config 
+}: EventTypeProps) {
   if (isPublic) return null;
+
+  const activeConfig = config?.[value];
 
   return (
     <div className="space-y-6">
@@ -28,11 +40,18 @@ export function EventType({ value, onChange, externalUrl, onExternalUrlChange, d
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
-            {EVENT_TYPES.map(t => (
+            {EVENT_TYPES.filter(t => config?.[t.value]?.enabled !== false || t.value === value).map(t => (
               <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
+
+        {activeConfig?.message && (
+          <div className="p-3 bg-secondary/5 rounded-xl border border-secondary/20 flex items-start gap-2 mt-2 animate-in zoom-in-95">
+            <Info className="w-3.5 h-3.5 text-secondary shrink-0 mt-0.5" />
+            <p className="text-[10px] font-bold text-secondary uppercase leading-tight">{activeConfig.message}</p>
+          </div>
+        )}
       </div>
 
       {value === 'externo' && onExternalUrlChange && (

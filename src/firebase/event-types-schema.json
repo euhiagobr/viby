@@ -1,0 +1,28 @@
+{
+  "collection": "settings",
+  "document": "event_types",
+  "description": "Configurações globais de permissão e avisos para tipos de evento.",
+  "fields": {
+    "divulgacao": {
+      "type": "map",
+      "fields": {
+        "enabled": "boolean",
+        "message": "string"
+      }
+    },
+    "interno": {
+      "type": "map",
+      "fields": {
+        "enabled": "boolean",
+        "message": "string"
+      }
+    },
+    "externo": {
+      "type": "map",
+      "fields": {
+        "enabled": "boolean",
+        "message": "string"
+      }
+    }
+  }
+}

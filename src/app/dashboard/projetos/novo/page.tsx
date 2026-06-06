@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
+import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { collection, addDoc, serverTimestamp, doc, query, orderBy } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent } from "@/components/ui/card"
@@ -38,10 +38,13 @@ export default function NovoEventoPage() {
   const { user } = useUser(auth)
   const app = useFirebaseApp()
   const { currentOrg } = useCurrentOrganization()
-  const storage = React.useMemo(() => app ? getStorage(app, "gs://viby") : null, [app])
+  const storage = React.useMemo(() => app ? getStorage(app) : null, [app])
 
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
+
+  const eventTypesSettingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'event_types') : null), [db]);
+  const { data: eventTypesSettings } = useDoc<any>(eventTypesSettingsRef);
 
   const [loading, setLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
@@ -92,7 +95,6 @@ export default function NovoEventoPage() {
     e.preventDefault()
     if (!db || !user || !currentOrg) return
 
-    // Validação correta: só bloqueia se o modo for PAGO (single ou batches)
     const isPaid = ticketMode === 'paid_single' || ticketMode === 'batches';
     if (isPaid && !isStripeVerified) {
        toast({ variant: "destructive", title: "Ação Bloqueada", description: "Sua conta de recebimento não está aprovada no Stripe. Você só pode publicar eventos gratuitos ou sem bilheteria interna." });
@@ -178,6 +180,7 @@ export default function NovoEventoPage() {
                    onChange={v => setFormData({...formData, type: v})}
                    externalUrl={formData.externalUrl}
                    onExternalUrlChange={v => setFormData({...formData, externalUrl: v})}
+                   config={eventTypesSettings}
                  />
                  <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
               </div>

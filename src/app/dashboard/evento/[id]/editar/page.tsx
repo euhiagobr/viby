@@ -51,6 +51,9 @@ export default function EditarEventoPage() {
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
 
+  const eventTypesSettingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'event_types') : null), [db]);
+  const { data: eventTypesSettings } = useDoc<any>(eventTypesSettingsRef);
+
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !eventId) return null
     return query(collection(db, "recurring_occurrences"), where("parentId", "==", eventId))
@@ -160,7 +163,6 @@ export default function EditarEventoPage() {
     e.preventDefault()
     if (!db || !eventRef || !currentOrg) return
 
-    // Validação correta: só bloqueia se o modo for PAGO (single ou batches)
     const isPaid = ticketMode === 'paid_single' || ticketMode === 'batches';
     if (isPaid && !isStripeVerified) {
        toast({ variant: "destructive", title: "Bilheteria Bloqueada", description: "Sua conta de recebimento não está aprovada no Stripe. Você só pode publicar eventos gratuitos ou sem bilheteria interna." });
@@ -280,6 +282,7 @@ export default function EditarEventoPage() {
                         onChange={v => setFormData({...formData, type: v})}
                         externalUrl={formData.externalUrl}
                         onExternalUrlChange={v => setFormData({...formData, externalUrl: v})}
+                        config={eventTypesSettings}
                       />
                       <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
                     </div>

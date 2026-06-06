@@ -23,7 +23,10 @@ import {
   Target, 
   RefreshCw,
   Megaphone,
-  Zap
+  Zap,
+  CalendarDays,
+  Info,
+  AlertTriangle
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
@@ -49,6 +52,7 @@ export default function AdminConfiguracoesPage() {
   const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db]);
   const adsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
   const googleAdsRef = React.useMemo(() => (db ? doc(db, 'system_settings', 'google_ads') : null), [db]);
+  const eventTypesRef = React.useMemo(() => (db ? doc(db, 'settings', 'event_types') : null), [db]);
 
   const { data: siteSettings, loading: loadingSite } = useDoc<any>(siteRef);
   const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
@@ -56,6 +60,7 @@ export default function AdminConfiguracoesPage() {
   const { data: globalFees, loading: loadingFees } = useDoc<any>(feesRef);
   const { data: adsSettings, loading: loadingAdsSettings } = useDoc<any>(adsRef);
   const { data: googleAds, loading: loadingGoogle } = useDoc<any>(googleAdsRef);
+  const { data: eventTypesSettings, loading: loadingEventTypes } = useDoc<any>(eventTypesRef);
 
   const [saving, setSaving] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState<{ [key: string]: number | null }>({});
@@ -66,6 +71,11 @@ export default function AdminConfiguracoesPage() {
   const [feesForm, setFeesForm] = React.useState({ buyerMarkupPercent: '15', organizerBasePercent: '10', organizerMinFee: '3.99' });
   const [adsForm, setAdsForm] = React.useState({ minRechargeValue: '30.00', cpcValue: '0.50', cpmValue: '10.00' });
   const [googleAdsForm, setGoogleAdsForm] = React.useState({ enabled: false, publisherId: '', adsenseCode: '', autoAds: true, testMode: false });
+  const [eventTypesForm, setEventTypesForm] = React.useState({
+    divulgacao: { enabled: true, message: "" },
+    interno: { enabled: true, message: "" },
+    externo: { enabled: true, message: "" }
+  });
 
   React.useEffect(() => {
     if (siteSettings) setSiteForm({ 
@@ -79,7 +89,12 @@ export default function AdminConfiguracoesPage() {
     if (globalFees) setFeesForm({ buyerMarkupPercent: globalFees.buyerMarkupPercent?.toString() || '15', organizerBasePercent: globalFees.organizerBasePercent?.toString() || '10', organizerMinFee: globalFees.organizerMinFee?.toString() || '3.99' });
     if (adsSettings) setAdsForm({ minRechargeValue: adsSettings.minRechargeValue?.toString() || '30.00', cpcValue: adsSettings.cpcValue?.toString() || '0.50', cpmValue: adsSettings.cpmValue?.toString() || '10.00' });
     if (googleAds) setGoogleAdsForm({ enabled: googleAds.enabled ?? false, publisherId: googleAds.publisherId || '', adsenseCode: googleAds.adsenseCode || '', autoAds: googleAds.autoAds ?? true, testMode: googleAds.testMode ?? false });
-  }, [siteSettings, stripeKeys, emailSettings, globalFees, adsSettings, googleAds]);
+    if (eventTypesSettings) setEventTypesForm({
+      divulgacao: eventTypesSettings.divulgacao || { enabled: true, message: "" },
+      interno: eventTypesSettings.interno || { enabled: true, message: "" },
+      externo: eventTypesSettings.externo || { enabled: true, message: "" }
+    });
+  }, [siteSettings, stripeKeys, emailSettings, globalFees, adsSettings, googleAds, eventTypesSettings]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logoUrl' | 'siteIconUrl') => {
     const file = e.target.files?.[0];
@@ -123,7 +138,6 @@ export default function AdminConfiguracoesPage() {
       updatedBy: user.uid
     };
 
-    // Converter strings numéricas para number no Firestore
     if (docId === 'fees' || docId === 'ads' || docId === 'stripe') {
       Object.keys(data).forEach(key => {
         if (typeof data[key] === 'string' && !isNaN(parseFloat(data[key]))) {
@@ -146,7 +160,7 @@ export default function AdminConfiguracoesPage() {
     }
   };
 
-  if (loadingSite || loadingStripe || loadingEmail || loadingFees || loadingAdsSettings || loadingGoogle) {
+  if (loadingSite || loadingStripe || loadingEmail || loadingFees || loadingAdsSettings || loadingGoogle || loadingEventTypes) {
     return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="animate-spin text-secondary" /></div>;
   }
 
@@ -162,6 +176,7 @@ export default function AdminConfiguracoesPage() {
       <Tabs defaultValue="geral" className="space-y-6">
         <TabsList className="bg-muted/50 p-1 rounded-xl h-12 flex-wrap">
           <TabsTrigger value="geral" className="rounded-lg px-6 font-bold gap-2"><Layout className="w-4 h-4" /> Geral</TabsTrigger>
+          <TabsTrigger value="eventos" className="rounded-lg px-6 font-bold gap-2"><CalendarDays className="w-4 h-4" /> Eventos</TabsTrigger>
           <TabsTrigger value="pagamentos" className="rounded-lg px-6 font-bold gap-2"><CreditCard className="w-4 h-4" /> Pagamentos</TabsTrigger>
           <TabsTrigger value="email" className="rounded-lg px-6 font-bold gap-2"><Mail className="w-4 h-4" /> E-mail</TabsTrigger>
           <TabsTrigger value="taxas" className="rounded-lg px-6 font-bold gap-2"><Coins className="w-4 h-4" /> Taxas</TabsTrigger>
@@ -213,6 +228,47 @@ export default function AdminConfiguracoesPage() {
               <Button onClick={() => handleSave('settings', 'site', siteForm)} disabled={saving} className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg transition-transform">
                 {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />} Salvar Identidade
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="eventos" className="animate-in fade-in slide-in-from-top-2 duration-300">
+          <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
+            <CardHeader className="bg-muted/30 p-8 border-b">
+               <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Controle de Tipos de Evento</CardTitle>
+               <CardDescription>Habilite ou desabilite modalidades de eventos e adicione avisos aos produtores.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8 space-y-10">
+               <div className="space-y-8">
+                  <EventTypeControl 
+                    title="Apenas Divulgação" 
+                    desc="Eventos sem link de compra, apenas para visibilidade."
+                    config={eventTypesForm.divulgacao}
+                    onChange={(v) => setEventTypesForm({...eventTypesForm, divulgacao: v})}
+                  />
+                  <Separator className="border-dashed" />
+                  <EventTypeControl 
+                    title="Vendas na Viby (Interno)" 
+                    desc="Processamento de pagamentos nativo pela plataforma."
+                    config={eventTypesForm.interno}
+                    onChange={(v) => setEventTypesForm({...eventTypesForm, interno: v})}
+                  />
+                  <Separator className="border-dashed" />
+                  <EventTypeControl 
+                    title="Vendas Externas" 
+                    desc="Permite que o organizador insira um link de terceiros."
+                    config={eventTypesForm.externo}
+                    onChange={(v) => setEventTypesForm({...eventTypesForm, externo: v})}
+                  />
+               </div>
+
+               <Button 
+                onClick={() => handleSave('settings', 'event_types', eventTypesForm)} 
+                disabled={saving} 
+                className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg"
+               >
+                 {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />} Salvar Regras de Evento
+               </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -393,6 +449,32 @@ export default function AdminConfiguracoesPage() {
            </Card>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function EventTypeControl({ title, desc, config, onChange }: { title: string, desc: string, config: any, onChange: (v: any) => void }) {
+  return (
+    <div className="space-y-4">
+       <div className="flex items-center justify-between">
+          <div className="space-y-1">
+             <h4 className="font-bold text-sm text-primary uppercase">{title}</h4>
+             <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-tight">{desc}</p>
+          </div>
+          <div className="flex items-center gap-3">
+             <span className="text-[8px] font-black uppercase opacity-40">{config.enabled ? 'Ativo' : 'Inativo'}</span>
+             <Switch checked={config.enabled} onCheckedChange={v => onChange({...config, enabled: v})} />
+          </div>
+       </div>
+       <div className="space-y-2">
+          <Label className="text-[10px] font-black uppercase opacity-40 ml-1">Mensagem de Aviso (Opcional)</Label>
+          <Input 
+            value={config.message} 
+            onChange={e => onChange({...config, message: e.target.value})} 
+            placeholder="Ex: Funcionalidade em manutenção até 20/05"
+            className="rounded-xl h-10 text-xs border-dashed"
+          />
+       </div>
     </div>
   );
 }
