@@ -1,0 +1,22 @@
+{
+  "collection": "events",
+  "description": "Definição da moeda oficial do evento e regras de precificação vinculadas.",
+  "fields": {
+    "currency": {
+      "type": "string",
+      "enum": ["BRL", "USD", "EUR"],
+      "description": "Moeda em que os ingressos são vendidos e os repasses calculados."
+    },
+    "batches": {
+      "description": "Os valores de 'price' dentro dos lotes devem ser sempre lidos na moeda definida no campo 'currency' do evento."
+    }
+  },
+  "registrations": {
+    "fields": {
+      "currency": "string (Copiado do evento no momento da compra)",
+      "price": "number (Valor final pago)",
+      "administrativeFeeAmount": "number (Taxa Viby na moeda do evento)",
+      "producerNetAmount": "number (Valor líquido do produtor na moeda do evento)"
+    }
+  }
+}

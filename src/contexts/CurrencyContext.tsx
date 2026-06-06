@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -12,6 +11,7 @@ interface CurrencyContextType {
   currency: CurrencyCode;
   setCurrency: (code: CurrencyCode) => void;
   formatPrice: (amount: number, fromCurrency?: CurrencyCode) => string;
+  formatPriceWithOriginal: (amount: number, eventCurrency: CurrencyCode) => React.ReactNode;
   convertValue: (amount: number, from: CurrencyCode, to: CurrencyCode) => number;
   rates: Record<string, number>;
   loading: boolean;
@@ -78,7 +78,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
         setRates({ BRL: 1, USD: apiData.rates.USD, EUR: apiData.rates.EUR });
       }
     } catch (e) {
-      console.warn("[Currency] Erro ao sincronizar cotações. Usando fallback.");
+      console.warn("[Currency] Erro ao sincronizar cotações.");
     } finally {
       setLoading(false);
     }
@@ -120,9 +120,8 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
   const convertValue = useCallback((amount: number, from: CurrencyCode, to: CurrencyCode): number => {
     if (from === to) return amount;
-    // Converte de FROM para BRL (base)
+    // BRL é a base (1.0)
     const amountInBRL = amount / (rates[from] || 1);
-    // Converte de BRL para TO
     return amountInBRL * (rates[to] || 1);
   }, [rates]);
 
@@ -139,24 +138,52 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     return formatter.format(converted);
   }, [currency, convertValue]);
 
+  const formatPriceWithOriginal = useCallback((amount: number, eventCurrency: CurrencyCode) => {
+    const isDifferent = currency !== eventCurrency;
+    
+    const formatters: Record<CurrencyCode, Intl.NumberFormat> = {
+      BRL: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }),
+      USD: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }),
+      EUR: new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }),
+    };
+
+    if (!isDifferent) {
+      return <span>{formatPrice(amount, eventCurrency)}</span>;
+    }
+
+    return (
+      <div className="flex flex-col items-end">
+        <span className="font-black text-primary leading-none">
+          {formatPrice(amount, eventCurrency)}
+        </span>
+        <span className="text-[9px] font-bold text-muted-foreground uppercase mt-1 opacity-60">
+          ≈ {formatters[eventCurrency].format(amount)}
+        </span>
+      </div>
+    );
+  }, [currency, formatPrice]);
+
   const value = React.useMemo(() => ({
     currency,
     setCurrency,
     formatPrice,
+    formatPriceWithOriginal,
     convertValue,
     rates,
     loading
-  }), [currency, setCurrency, formatPrice, convertValue, rates, loading]);
+  }), [currency, setCurrency, formatPrice, formatPriceWithOriginal, convertValue, rates, loading]);
 
   return (
-    <CurrencyContext.Provider value={value}>
+    <I18nSafeCurrencyContext.Provider value={value}>
       {children}
-    </CurrencyContext.Provider>
+    </I18nSafeCurrencyContext.Provider>
   );
 }
 
+const I18nSafeCurrencyContext = createContext<CurrencyContextType | null>(null);
+
 export const useCurrency = () => {
-  const context = useContext(CurrencyContext);
+  const context = useContext(I18nSafeCurrencyContext);
   if (!context) throw new Error('useCurrency must be used within CurrencyProvider');
   return context;
 };

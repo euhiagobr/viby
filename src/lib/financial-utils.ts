@@ -1,13 +1,14 @@
-
 /**
  * @fileOverview Utilitários financeiros oficiais do Viby.
- * Implementa a regra única e centralizada para toda a plataforma.
+ * Implementa a regra única e centralizada para toda a plataforma com suporte a moedas nativas.
  */
 
-export const VIBY_MIN_FEE = 3.99; // Taxa mínima da plataforma (paga pelo organizador)
-export const VIBY_BUYER_MARKUP = 0.15; // 15% de taxa administrativa (paga pelo comprador)
-export const VIBY_ORGANIZER_FEE = 0.10; // 10% de comissão base (paga pelo organizador)
-export const VIBY_TAX_RATE = 0.11; // 11% de imposto sobre a receita da plataforma (lucro bruto)
+import { CurrencyCode } from "@/contexts/CurrencyContext";
+
+export const VIBY_MIN_FEE_BRL = 3.99; // Taxa mínima em BRL
+export const VIBY_BUYER_MARKUP = 0.15; // 15% de taxa administrativa
+export const VIBY_ORGANIZER_FEE = 0.10; // 10% de comissão base
+export const VIBY_TAX_RATE = 0.11; // 11% de imposto sobre a receita
 
 /**
  * Converte valor para centavos (inteiro para Stripe)
@@ -17,7 +18,7 @@ export function toCents(amount: number): number {
 }
 
 /**
- * Formata moeda para exibição (Estático para BRL)
+ * Formata moeda para exibição (Estático para BRL - Fallback)
  */
 export function formatCurrency(value: number): string {
   if (isNaN(value) || value === null || value === undefined) return 'R$ 0,00';
@@ -28,30 +29,12 @@ export function formatCurrency(value: number): string {
 }
 
 /**
- * Formata moeda para exibição dinâmica (Geral)
- * @param value Valor numérico
- * @param currency Código da moeda (BRL, USD, EUR)
+ * CÁLCULO OFICIAL VIBY - Suporte Multi-Moeda
+ * @param facePrice Preço base na moeda do evento
+ * @param eventCurrency Moeda do evento
+ * @param rates Taxas de conversão atuais (necessário para calcular o mínimo de R$ 3,99 na moeda local)
  */
-export function formatCurrencyDynamic(value: number, currency: string = 'BRL'): string {
-  if (isNaN(value) || value === null || value === undefined) return 'R$ 0,00';
-  
-  const locales: Record<string, string> = {
-    BRL: 'pt-BR',
-    USD: 'en-US',
-    EUR: 'de-DE'
-  };
-
-  return new Intl.NumberFormat(locales[currency] || 'pt-BR', {
-    style: 'currency',
-    currency: currency,
-  }).format(value);
-}
-
-/**
- * CÁLCULO OFICIAL VIBY - Única fonte de verdade para ingressos.
- * @param facePrice Preço base definido pelo produtor (Sempre em BRL)
- */
-export function calculateVibyOfficialSplit(facePrice: number) {
+export function calculateVibyOfficialSplit(facePrice: number, eventCurrency: CurrencyCode = 'BRL', rates?: Record<string, number>) {
   const price = Math.max(0, Number(facePrice) || 0);
   
   if (price === 0) {
@@ -68,9 +51,17 @@ export function calculateVibyOfficialSplit(facePrice: number) {
   // 1. Taxa do Comprador (15% sobre o valor de face)
   const buyerFee = Number((price * VIBY_BUYER_MARKUP).toFixed(2));
   
-  // 2. Taxa do Organizador (Maior entre 10% ou R$ 3,99)
+  // 2. Taxa do Organizador (Maior entre 10% ou R$ 3,99 convertido)
   const organizerPercentFee = Number((price * VIBY_ORGANIZER_FEE).toFixed(2));
-  const organizerFee = Math.max(organizerPercentFee, VIBY_MIN_FEE);
+  
+  // Converte a taxa mínima de BRL para a moeda do evento
+  let minFeeInEventCurrency = VIBY_MIN_FEE_BRL;
+  if (eventCurrency !== 'BRL' && rates) {
+    const rateBrlToEvent = rates[eventCurrency] || 1;
+    minFeeInEventCurrency = Number((VIBY_MIN_FEE_BRL * rateBrlToEvent).toFixed(2));
+  }
+  
+  const organizerFee = Math.max(organizerPercentFee, minFeeInEventCurrency);
 
   // 3. Totais Unitários
   const totalCharged = Number((price + buyerFee).toFixed(2));
@@ -83,52 +74,12 @@ export function calculateVibyOfficialSplit(facePrice: number) {
     totalCharged,
     organizerFee,
     organizerNet,
-    vibyApplicationFee // Lucro Bruto Viby por ingresso
+    vibyApplicationFee
   };
 }
 
-/**
- * Calcula o detalhamento profundo para fins de ERP e Fiscal
- */
-export function calculateDetailedVibyBreakdown(facePrice: number, quantity: number = 1, coupon: any = null, stripeConfig: any = null) {
-  const base = calculateVibyOfficialSplit(facePrice);
-  const qty = Math.max(1, quantity);
-  
-  const stripePercent = stripeConfig?.feePercent || 3.99;
-  const stripeFixed = stripeConfig?.feeFixed || 0.39;
-
-  // Totais Brutos
-  const totalFace = base.facePrice * qty;
-  const totalBuyerFee = base.buyerFee * qty;
-  const totalCharged = base.totalCharged * qty;
-  const vibyGross = base.vibyApplicationFee * qty;
-
-  // Custos Gateway (Estimativa para o ERP)
-  const stripeFeeTotal = Number(((totalCharged * (stripePercent / 100)) + stripeFixed).toFixed(2));
-
-  // Impostos (11% sobre o Lucro Bruto da Viby)
-  const imposto = Number((vibyGross * VIBY_TAX_RATE).toFixed(2));
-
-  // Lucro Líquido Real (DRE)
-  const vibyNet = Number((vibyGross - stripeFeeTotal - imposto).toFixed(2));
-
-  return {
-    totalFace,
-    totalBuyerFee,
-    totalCharged,
-    vibyGross,
-    stripeFeeTotal,
-    imposto,
-    vibyNet,
-    payoutToProducer: base.organizerNet * qty
-  };
-}
-
-/**
- * Alias para compatibilidade legada
- */
-export function calculateFinancialBreakdown(facePrice: number, globalFees?: any, promotions?: any, orgSettings?: any) {
-  const split = calculateVibyOfficialSplit(facePrice);
+export function calculateFinancialBreakdown(facePrice: number, globalFees?: any, promotions?: any, orgSettings?: any, eventCurrency: CurrencyCode = 'BRL', rates?: Record<string, number>) {
+  const split = calculateVibyOfficialSplit(facePrice, eventCurrency, rates);
   return {
     ticketBasePrice: split.facePrice,
     customerFinalPrice: split.totalCharged,
@@ -137,21 +88,4 @@ export function calculateFinancialBreakdown(facePrice: number, globalFees?: any,
     producerNetAmount: split.organizerNet,
     totalVibyRevenue: split.vibyApplicationFee
   };
-}
-
-/**
- * Calcula o valor a ser devolvido para a carteira em caso de estorno manual (sem Stripe).
- */
-export function calculateRefundAmount(totalPaid: number): number {
-  if (!totalPaid || totalPaid <= 0) return 0;
-  const estimativaTaxaGateway = Number(((totalPaid * 0.0499) + 1.00).toFixed(2));
-  return Number(Math.max(0, totalPaid - estimativaTaxaGateway).toFixed(2));
-}
-
-/**
- * Calcula a taxa de gateway retida que não será devolvida no estorno.
- */
-export function calculateRetainedGatewayFee(totalPaid: number): number {
-  if (!totalPaid || totalPaid <= 0) return 0;
-  return Number(((totalPaid * 0.0499) + 1.00).toFixed(2));
 }

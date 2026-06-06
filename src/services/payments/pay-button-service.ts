@@ -1,4 +1,3 @@
-
 'use client';
 
 import { 
@@ -14,8 +13,9 @@ import {
 import { db as staticDb } from "@/firebase/database";
 import { createCheckoutSession } from "@/app/actions/stripe";
 import { generateFreeTickets } from "@/app/actions/tickets";
-import { calculateVibyOfficialSplit, calculateFinancialBreakdown, toCents } from "@/lib/financial-utils";
+import { calculateVibyOfficialSplit, toCents } from "@/lib/financial-utils";
 import { CartItem } from "@/contexts/CartContext";
+import { CurrencyCode } from "@/contexts/CurrencyContext";
 
 export interface PayButtonOptions {
   user: any;
@@ -26,18 +26,15 @@ export interface PayButtonOptions {
   promotions: any;
   orgsData: Record<string, any>;
   useBalance: boolean;
+  rates?: Record<string, number>;
 }
 
-/**
- * @fileOverview Lógica central de checkout com suporte a abatimento de saldo da carteira.
- * CRÍTICO: O valor de saldo utilizado deve reduzir o montante final enviado ao Stripe.
- */
 export async function executeCheckoutFlow(options: PayButtonOptions) {
-  const { user, profile, items, totals, useBalance } = options;
+  const { user, profile, items, totals, useBalance, rates } = options;
 
   if (!user) throw new Error("Usuário não identificado.");
 
-  // Validação de estoque preliminar
+  // Validação de estoque e captura de moeda do evento
   for (const item of items) {
     const eSnap = await getDoc(doc(staticDb, "events", item.eventId));
     if (!eSnap.exists()) throw new Error(`O evento ${item.eventTitle} não está mais disponível.`);
@@ -52,6 +49,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   }
   
   const isFreeOrder = totals.total <= 0 && totals.balanceUsed === 0;
+  const eventCurrency = (items[0]?.currency || 'BRL') as CurrencyCode;
 
   // 1. FLUXO GRATUITO
   if (isFreeOrder) {
@@ -65,16 +63,13 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     return { type: 'free', success: true };
   }
 
-  // 2. FLUXO PAGO / SALDO (Stripe Connect)
-  const processedItems = items.map(item => {
-    return { ...item, financials: calculateFinancialBreakdown(item.price) };
-  });
-
+  // 2. PREPARAR PEDIDO (ORDEM)
   const orderData = {
     userId: user.uid,
     userEmail: user.email,
     userName: profile?.name || user.displayName || "Comprador",
-    items: processedItems,
+    items: items,
+    currency: eventCurrency,
     totals: {
       subtotal: totals.subtotal,
       fees: totals.fees,
@@ -85,56 +80,36 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     createdAt: serverTimestamp()
   };
 
-  // Gravação transacional do abatimento de saldo (se houver)
-  if (useBalance && totals.balanceUsed > 0) {
+  // Abatimento de saldo (Se BRL)
+  if (useBalance && totals.balanceUsed > 0 && eventCurrency === 'BRL') {
     await runTransaction(staticDb, async (transaction) => {
       const walletRef = doc(staticDb, "wallets", user.uid);
-      const userRef = doc(staticDb, "users", user.uid);
       const wSnap = await transaction.get(walletRef);
-
       if (!wSnap.exists() || (wSnap.data().balance || 0) < totals.balanceUsed) {
         throw new Error("Saldo insuficiente na carteira.");
       }
-
-      transaction.update(walletRef, { 
-        balance: increment(-totals.balanceUsed), 
-        updatedAt: serverTimestamp() 
-      });
-      transaction.update(userRef, { 
-        walletBalance: increment(-totals.balanceUsed), 
-        updatedAt: serverTimestamp() 
-      });
-      
+      transaction.update(walletRef, { balance: increment(-totals.balanceUsed), updatedAt: serverTimestamp() });
       const txRef = doc(collection(staticDb, "wallet_transactions"));
       transaction.set(txRef, {
-        userId: user.uid,
-        amount: totals.balanceUsed,
-        type: 'debit',
-        reason: 'compra_ingresso',
-        description: `Abatimento em Pedido`,
-        timestamp: serverTimestamp()
+        userId: user.uid, amount: totals.balanceUsed, type: 'debit', reason: 'compra_ingresso',
+        description: `Abatimento em Pedido`, timestamp: serverTimestamp()
       });
     });
   }
 
   const orderRef = await addDoc(collection(staticDb, "orders"), orderData);
 
-  // CORREÇÃO CRÍTICA 02: O valor enviado ao Stripe deve ser totals.total (Já subtraído o saldo)
-  // Como o Stripe não aceita valores negativos em line_items sem cupons, 
-  // diluímos o desconto proporcionalmente ou aplicamos no montante final do PaymentIntent.
-  // Aqui utilizaremos uma abordagem de ajuste no primeiro item para simplificar o Split.
-  
+  // PREPARAR STRIPE LINE ITEMS
   let balanceToSubtractCents = toCents(totals.balanceUsed);
   let totalApplicationFeeCents = 0;
 
-  const stripeLineItems = processedItems.map((item, idx) => {
-    const split = calculateVibyOfficialSplit(item.price);
+  const stripeLineItems = items.map((item) => {
+    const split = calculateVibyOfficialSplit(item.price, eventCurrency, rates);
     totalApplicationFeeCents += toCents(split.vibyApplicationFee) * item.quantity;
     
     let unitAmountCents = toCents(split.totalCharged);
     
-    // Subtrai o saldo utilizado do valor que o usuário pagará no Stripe
-    if (balanceToSubtractCents > 0) {
+    if (balanceToSubtractCents > 0 && eventCurrency === 'BRL') {
       const maxSub = unitAmountCents * item.quantity;
       const actualSub = Math.min(balanceToSubtractCents, maxSub);
       unitAmountCents = Math.round((maxSub - actualSub) / item.quantity);
@@ -143,7 +118,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
 
     return {
       price_data: {
-        currency: 'brl',
+        currency: eventCurrency.toLowerCase(),
         product_data: {
           name: `${item.eventTitle} - ${item.ticketTypeName}`,
           description: `Lote: ${item.batchName}`,
@@ -158,11 +133,12 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   const orgDoc = await getDoc(doc(staticDb, "organizations", items[0].organizationId));
   const stripeAccountId = orgDoc.data()?.stripeAccountId;
 
-  if (!stripeAccountId) throw new Error("A marca não configurou o Stripe.");
+  if (!stripeAccountId) throw new Error("A marca não configurou o Stripe para recebimentos.");
 
   const stripeResult = await createCheckoutSession({
     userEmail: user.email!,
     lineItems: stripeLineItems,
+    currency: eventCurrency.toLowerCase(),
     totalApplicationFeeCents,
     destinationStripeAccount: stripeAccountId,
     metadata: {

@@ -15,6 +15,8 @@
         "state": "string",
         "country": "string",
         "plan": "free | pro | top",
+        "preferredCurrency": "BRL | USD | EUR",
+        "language": "pt-BR | en-US",
         "createdAt": "timestamp"
       }
     },
@@ -38,48 +40,14 @@
         "organizationId": "string (ref:organizations)",
         "title": "string",
         "description": "string",
+        "currency": "string (BRL | USD | EUR)",
         "ticketMode": "none | free | paid_single | batches | sector_batches",
         "mapMode": "none | setores | assentos | mesas",
         "possuiMapa": "boolean",
         "capacidadeTotal": "number",
         "batches": "array of objects { id, name, startDate, endDate, capacity, ticketTypes: [{ id, name, price, quantity, poolId, requiresProof }] }",
-        "sectors": "array of objects { id, name, capacity, batches: [...] }",
-        "palcoNome": "string",
-        "palcoPosX": "number",
-        "palcoPosY": "number",
-        "palcoWidth": "number",
-        "palcoHeight": "number",
         "status": "string",
         "createdAt": "timestamp"
-      },
-      "subcollections": {
-        "setores": {
-          "fields": {
-            "nome": "string",
-            "tipo": "livre | assentos | mesas",
-            "capacidade": "number",
-            "linkedBatchIds": "array of strings",
-            "linkedTicketIds": "array of strings",
-            "cor": "string",
-            "posX": "number",
-            "posY": "number",
-            "width": "number",
-            "height": "number",
-            "rotation": "number",
-            "zIndex": "number"
-          }
-        },
-        "assentos": {
-          "path": "events/{eventId}/setores/{sectorId}/assentos/{seatId}",
-          "fields": {
-            "codigo": "string",
-            "status": "disponivel | reservado | vendido | bloqueado",
-            "reservadoPor": "string (userId)",
-            "reservadoAte": "timestamp",
-            "ingressoId": "string (registrationId)",
-            "categoria": "string (comum | pcd | etc)"
-          }
-        }
       }
     },
     "registrations": {
@@ -87,20 +55,12 @@
         "eventId": "string",
         "userId": "string",
         "ticketCode": "string",
+        "currency": "string (BRL | USD | EUR)",
+        "price": "number (valor pago na moeda do evento)",
         "paymentStatus": "string",
         "checkedIn": "boolean",
-        "seatId": "string",
-        "sectorId": "string",
-        "sectorName": "string",
         "batchId": "string",
         "ticketTypeId": "string"
-      }
-    },
-    "usernames": {
-      "id": "username (lower)",
-      "fields": {
-        "uid": "ID do dono (user ou org)",
-        "type": "user | organization"
       }
     }
   }
