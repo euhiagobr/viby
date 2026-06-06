@@ -20,10 +20,8 @@ import {
   Instagram,
   AlertTriangle,
   Monitor,
-  Camera,
   Info,
   X,
-  Globe,
   RefreshCw
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -73,37 +71,22 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
   const loadAssets = React.useCallback(async () => {
     setIsAssetsLoaded(false);
-    console.log("[SHARE-MODAL] Iniciando carregamento de ativos via Proxy Server-Side...");
-
     try {
       const promises: Promise<any>[] = [
         fetchImageAsBase64(VIBY_LOGO_OFFICIAL)
       ];
 
-      // Se houver logo da organização, carrega via proxy também
       if (data.logoUrl && !data.logoUrl.includes('profile.jpeg') && !data.logoUrl.includes('organizacao.jpeg')) {
         promises.push(fetchImageAsBase64(data.logoUrl));
       }
 
       const [vibyRes, orgRes] = await Promise.all(promises);
 
-      if (vibyRes.success) {
-        setVibyLogoBase64(vibyRes.data!);
-        console.log("[SHARE-MODAL] Logo Viby carregada.");
-      } else {
-        console.error("[SHARE-MODAL] Falha na logo Viby:", vibyRes.error);
-      }
-
-      if (orgRes && orgRes.success) {
-        setOrgLogoBase64(orgRes.data!);
-        console.log("[SHARE-MODAL] Logo Organização carregada.");
-      } else {
-        console.warn("[SHARE-MODAL] Logo Org falhou ou não existe.");
-      }
+      if (vibyRes.success) setVibyLogoBase64(vibyRes.data!);
+      if (orgRes && orgRes.success) setOrgLogoBase64(orgRes.data!);
 
       setIsAssetsLoaded(true);
     } catch (e) {
-      console.error("[SHARE-MODAL] Erro fatal no carregamento:", e);
       setIsAssetsLoaded(true); 
     }
   }, [data.logoUrl]);
@@ -133,7 +116,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           url: shareUrl,
         });
       } catch (err) {
-        // Silently fail if user cancels
+        // user cancel
       }
     } else {
       handleCopyLink();
@@ -146,7 +129,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    // Pequeno delay para garantir atualização do DOM
     await new Promise(resolve => setTimeout(resolve, 500));
 
     try {
@@ -169,7 +151,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       
       toast({ title: "Arte gerada!", description: `Formato ${config.label} baixado.` });
     } catch (err) {
-      console.error("[EXPORT-ERROR]", err);
       toast({ 
         variant: "destructive", 
         title: "Erro na geração.", 
@@ -181,7 +162,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
   };
 
   // --- RENDER HELPERS ---
-
   const renderLogoSection = (size: number) => (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px' }}>
       <div style={{ 
@@ -247,15 +227,14 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[90vh] md:h-auto">
+      <DialogContent className="max-w-6xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[90vh] md:max-h-[85vh]">
         
-        {/* PREVIEW PANEL */}
-        <div className="flex-1 p-10 bg-muted/20 flex flex-col items-center justify-center border-r border-dashed relative overflow-hidden">
+        {/* PREVIEW PANEL (LEFT) */}
+        <div className="flex-1 p-6 md:p-10 bg-muted/20 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-dashed relative overflow-hidden">
           {!isAssetsLoaded && (
-            <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center gap-4 text-center">
+            <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center gap-4 text-center p-6">
                <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-               <p className="text-[11px] font-black uppercase tracking-widest text-primary animate-pulse">Autenticando Ativos Visuais...</p>
-               <p className="text-[9px] text-muted-foreground uppercase">Proxy Server-Side Ativo</p>
+               <p className="text-[11px] font-black uppercase tracking-widest text-primary animate-pulse">Preparando Materiais de Divulgação...</p>
             </div>
           )}
 
@@ -302,10 +281,10 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
             </div>
           </div>
 
-          {/* VISUAL PREVIEW */}
-          <div className="scale-[0.25] md:scale-[0.35] lg:scale-[0.4] origin-center shadow-2xl bg-white border ring-8 ring-white">
+          {/* VISUAL PREVIEW SCALED */}
+          <div className="scale-[0.22] md:scale-[0.3] lg:scale-[0.35] origin-center shadow-2xl bg-white border ring-8 ring-white shrink-0">
              {currentFormat === 'instagram' ? (
-                <div style={{ width: 1080, height: 1080, backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifySelf: 'center', justifyContent: 'space-between', padding: '100px', fontFamily: 'sans-serif' }}>
+                <div style={{ width: 1080, height: 1080, backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '100px', fontFamily: 'sans-serif' }}>
                   {renderLogoSection(200)}
                   {renderQRSection(400, 32)}
                   {renderFooter(50)}
@@ -331,64 +310,75 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
              )}
           </div>
           
-          <div className="mt-8 flex items-center gap-2 text-muted-foreground bg-white/80 px-4 py-2 rounded-full border shadow-sm">
+          <div className="mt-6 flex items-center gap-2 text-muted-foreground bg-white/80 px-4 py-2 rounded-full border shadow-sm shrink-0">
              <Monitor className="w-4 h-4 text-secondary" />
-             <p className="text-[9px] font-black uppercase tracking-widest">Formato: {FORMAT_CONFIGS[currentFormat].label}</p>
+             <p className="text-[9px] font-black uppercase tracking-widest">Prévia: {FORMAT_CONFIGS[currentFormat].label}</p>
           </div>
         </div>
 
-        {/* ACTIONS PANEL */}
-        <div className="w-full md:w-96 p-8 flex flex-col bg-white">
-          <DialogHeader className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
-               <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
-                  <Share2 className="w-5 h-5" />
-               </div>
-               <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Gerar Artes</DialogTitle>
-            </div>
-            <DialogDescription className="font-bold text-xs uppercase opacity-60">Escolha um formato para download.</DialogDescription>
-          </DialogHeader>
+        {/* ACTIONS PANEL (RIGHT) */}
+        <div className="w-full md:w-96 flex flex-col bg-white overflow-hidden">
+          {/* Header Fixo */}
+          <div className="p-8 pb-4 shrink-0">
+            <DialogHeader>
+              <div className="flex items-center gap-3 mb-2">
+                 <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
+                    <Share2 className="w-5 h-5" />
+                 </div>
+                 <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Gerar Artes</DialogTitle>
+              </div>
+              <DialogDescription className="font-bold text-xs uppercase opacity-60">Escolha o formato e baixe a imagem.</DialogDescription>
+            </DialogHeader>
+          </div>
 
-          <ScrollArea className="flex-1 -mx-2 px-2">
-            <div className="space-y-6 pb-6">
+          {/* Área de Rolagem Central */}
+          <ScrollArea className="flex-1">
+            <div className="p-8 pt-0 space-y-6">
               
               <div className="grid grid-cols-1 gap-2">
-                <Button onClick={handleNativeShare} className="h-14 rounded-2xl font-black uppercase italic text-sm gap-2 bg-secondary text-white shadow-lg">
-                  <Share2 className="w-5 h-5" /> Enviar Link
+                <Button onClick={handleNativeShare} className="h-14 rounded-2xl font-black uppercase italic text-sm gap-2 bg-secondary text-white shadow-xl shadow-secondary/10">
+                  <Share2 className="w-5 h-5" /> Compartilhar Link
                 </Button>
                 <Button variant="outline" onClick={handleCopyLink} className="h-12 rounded-2xl font-bold uppercase text-xs gap-2 border-secondary/20 text-secondary">
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  {copied ? "Link Copiado" : "Copiar viby.club/..."}
+                  {copied ? "Link Copiado" : "Copiar Link Público"}
                 </Button>
               </div>
 
-              <Separator className="border-dashed my-4" />
+              <Separator className="border-dashed" />
 
               <div className="space-y-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Para Redes Sociais</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Redes Sociais</p>
                 <div className="grid grid-cols-1 gap-3">
                   <Button 
                     variant={currentFormat === 'instagram' ? 'secondary' : 'outline'} 
                     onClick={() => handleDownload('instagram')} 
                     disabled={isGenerating || !isAssetsLoaded} 
-                    className="h-16 justify-start gap-4 rounded-2xl border-2 border-dashed px-4 transition-all"
+                    className={cn(
+                      "h-16 justify-start gap-4 rounded-2xl border-2 border-dashed px-4 transition-all",
+                      currentFormat === 'instagram' && "border-secondary bg-secondary/5"
+                    )}
                   >
                     <Instagram className="w-6 h-6 text-pink-500" />
                     <div className="text-left flex-1">
-                       <p className="text-xs font-black uppercase">Post Feed</p>
+                       <p className="text-xs font-black uppercase">Post para Feed</p>
                        <p className="text-[9px] font-bold opacity-60">1080x1080 (1:1)</p>
                     </div>
                     {isGenerating && currentFormat === 'instagram' ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : <Download className="w-4 h-4 opacity-20" />}
                   </Button>
+
                   <Button 
                     variant={currentFormat === 'stories' ? 'secondary' : 'outline'} 
                     onClick={() => handleDownload('stories')} 
                     disabled={isGenerating || !isAssetsLoaded} 
-                    className="h-16 justify-start gap-4 rounded-2xl border-2 border-dashed px-4 transition-all"
+                    className={cn(
+                      "h-16 justify-start gap-4 rounded-2xl border-2 border-dashed px-4 transition-all",
+                      currentFormat === 'stories' && "border-secondary bg-secondary/5"
+                    )}
                   >
                     <Smartphone className="w-6 h-6 text-purple-500" />
                     <div className="text-left flex-1">
-                       <p className="text-xs font-black uppercase">Stories</p>
+                       <p className="text-xs font-black uppercase">Post para Stories</p>
                        <p className="text-[9px] font-bold opacity-60">1080x1920 (9:16)</p>
                     </div>
                     {isGenerating && currentFormat === 'stories' ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : <Download className="w-4 h-4 opacity-20" />}
@@ -398,10 +388,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between ml-1">
-                   <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Para Impressão</p>
-                   <Button variant="ghost" size="sm" onClick={() => window.print()} className="h-6 text-[8px] font-black uppercase text-secondary">
-                      <Printer className="w-3 h-3 mr-1" /> Imprimir
-                   </Button>
+                   <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Impressão Física</p>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {(['A4', 'A5', 'A6'] as Format[]).map(f => (
@@ -410,7 +397,10 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
                       variant={currentFormat === f ? 'secondary' : 'outline'} 
                       onClick={() => handleDownload(f)} 
                       disabled={isGenerating || !isAssetsLoaded}
-                      className="h-14 flex-col text-[10px] font-black uppercase rounded-xl border-dashed"
+                      className={cn(
+                        "h-14 flex-col text-[10px] font-black uppercase rounded-xl border-dashed",
+                        currentFormat === f && "border-secondary bg-secondary/5"
+                      )}
                     >
                       {isGenerating && currentFormat === f ? <Loader2 className="w-4 h-4 animate-spin" /> : f}
                     </Button>
@@ -421,7 +411,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
               <div className="p-4 bg-orange-50 rounded-2xl border border-dashed border-orange-200 flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                   <p className="text-[9px] text-orange-800 font-black uppercase italic">Dica de Sucesso</p>
+                   <p className="text-[9px] text-orange-800 font-black uppercase italic">Dica Profissional</p>
                    <p className="text-[9px] text-orange-700 font-medium leading-tight uppercase">
                      Artes de alta resolução garantem leitura do QR Code mesmo em ambientes com pouca luz.
                    </p>
@@ -430,12 +420,13 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
             </div>
           </ScrollArea>
           
-          <div className="pt-4 border-t mt-auto flex flex-col gap-3">
-             <Button variant="ghost" onClick={loadAssets} className="w-full h-8 rounded-xl font-bold uppercase text-[8px] gap-2 text-muted-foreground">
-                <RefreshCw className="w-3 h-3" /> Recarregar Ativos
+          {/* Footer Fixo */}
+          <div className="p-8 border-t bg-muted/10 shrink-0 flex flex-col gap-3">
+             <Button variant="ghost" onClick={() => window.print()} className="w-full h-10 rounded-xl font-black uppercase text-[9px] gap-2 text-primary border border-border bg-white shadow-sm">
+                <Printer className="w-3.5 h-3.5" /> Imprimir Documento
              </Button>
              <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full h-10 rounded-xl font-bold uppercase text-[10px] opacity-40 hover:opacity-100">
-                Fechar
+                Fechar Janela
              </Button>
           </div>
         </div>
