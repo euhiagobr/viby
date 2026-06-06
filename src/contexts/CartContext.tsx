@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -60,39 +61,37 @@ const CartContext = createContext<CartContextType>({
 const CART_EXPIRATION_TIME = 5 * 60 * 1000; // 5 minutos em milissegundos
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItemsState] = useState<CartItem[]>([]);
-  const [expiresAt, setExpiresAt] = useState<number | null>(null);
-
-  // Load from localStorage
-  useEffect(() => {
-    const savedItems = localStorage.getItem('viby_cart');
-    const savedExpiry = localStorage.getItem('viby_cart_expiry');
-    
-    if (savedItems) {
-      try {
-        const parsedItems = JSON.parse(savedItems);
-        if (parsedItems.length > 0) {
-          setItemsState(parsedItems);
-          if (savedExpiry) {
-            const expiry = parseInt(savedExpiry);
-            if (Date.now() > expiry) {
-              clearCart();
-            } else {
-              setExpiresAt(expiry);
-            }
-          }
+  // Inicialização direta do localStorage para evitar wipe-out no primeiro render
+  const [items, setItemsState] = useState<CartItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('viby_cart');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          return [];
         }
-      } catch (e) {
-        console.error("Erro ao carregar carrinho", e);
       }
     }
-  }, []);
+    return [];
+  });
 
-  // Monitor de Expiração
+  const [expiresAt, setExpiresAt] = useState<number | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('viby_cart_expiry');
+      return saved ? parseInt(saved) : null;
+    }
+    return null;
+  });
+
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Monitor de Expiração e Hidratação Inicial
   useEffect(() => {
+    setIsHydrated(true);
+    
     if (items.length === 0) {
       setExpiresAt(null);
-      localStorage.removeItem('viby_cart_expiry');
       return;
     }
 
@@ -106,15 +105,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [items.length, expiresAt]);
 
-  // Save to localStorage
+  // Persistência
   useEffect(() => {
+    if (!isHydrated) return; // Não salva nada antes de confirmar que carregamos o que já existia
+
     localStorage.setItem('viby_cart', JSON.stringify(items));
     if (expiresAt) {
       localStorage.setItem('viby_cart_expiry', expiresAt.toString());
     } else {
       localStorage.removeItem('viby_cart_expiry');
     }
-  }, [items, expiresAt]);
+  }, [items, expiresAt, isHydrated]);
 
   const resetTimer = () => {
     const newExpiry = Date.now() + CART_EXPIRATION_TIME;
@@ -153,7 +154,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const newList = prev.filter(i => i.id !== id);
       if (newList.length === 0) {
         setExpiresAt(null);
-        localStorage.removeItem('viby_cart_expiry');
       }
       return newList;
     });
@@ -171,8 +171,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const clearCart = () => {
     setItemsState([]);
     setExpiresAt(null);
-    localStorage.removeItem('viby_cart');
-    localStorage.removeItem('viby_cart_expiry');
   };
 
   const totalCount = items.reduce((acc, i) => acc + i.quantity, 0);

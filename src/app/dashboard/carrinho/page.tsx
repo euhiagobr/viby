@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -83,32 +84,56 @@ export default function CarrinhoPage() {
   }, [expiresAt, items.length]);
 
   const revalidateCart = React.useCallback(async () => {
+    // Só revalida se o banco estiver pronto e houver itens.
+    // Usamos um ref para garantir que não rodem múltiplas revalidações paralelas.
     if (!db || items.length === 0 || isProcessingRef.current) return;
+    
     isProcessingRef.current = true;
     setIsRevalidating(true);
+    
     try {
       const updatedItems: CartItem[] = [];
       let hadChanges = false;
+      
       for (const item of items) {
-        const eSnap = await getDoc(doc(db, "events", item.eventId));
-        if (eSnap.exists() && eSnap.data().status === 'Ativo') {
+        try {
+          const eSnap = await getDoc(doc(db, "events", item.eventId));
+          // Se o evento não existe mais ou foi desativado, ele é removido.
+          // Falhas de rede/permissão caem no catch e mantêm o item.
+          if (eSnap.exists()) {
+            const eData = eSnap.data();
+            if (eData.status === 'Ativo' || eData.status === 'Oculto') {
+              updatedItems.push(item);
+            } else {
+              hadChanges = true;
+            }
+          } else {
+            hadChanges = true;
+          }
+        } catch (e) {
+          // Se falhar a busca (ex: permissão negada temporária), mantém o item por segurança
           updatedItems.push(item);
-        } else {
-          hadChanges = true;
         }
       }
+      
       if (hadChanges) {
         setItems(updatedItems);
-        toast({ title: "Carrinho Atualizado" });
+        toast({ title: "Carrinho Atualizado", description: "Alguns itens não estão mais disponíveis." });
       }
-    } catch (err) { console.error(err); } finally {
-      setIsRevalidating(false); isProcessingRef.current = false;
+    } catch (err) {
+      console.error("[Cart] Revalidation error:", err);
+    } finally {
+      setIsRevalidating(false);
+      isProcessingRef.current = false;
     }
   }, [db, items, setItems]);
 
+  // Revalida apenas uma vez ao montar a página se houver itens
   React.useEffect(() => {
-    revalidateCart();
-  }, [revalidateCart]);
+    if (items.length > 0 && db) {
+      revalidateCart();
+    }
+  }, [db]); // Roda apenas quando o banco conecta
 
   React.useEffect(() => {
     if (!db || items.length === 0) return;
@@ -116,18 +141,19 @@ export default function CarrinhoPage() {
       const orgIds = Array.from(new Set(items.map(i => i.organizationId)))
       const results: Record<string, any> = {}
       for (const id of orgIds) {
-        const snap = await getDoc(doc(db, "organizations", id))
-        if (snap.exists()) results[id] = snap.data()
+        try {
+          const snap = await getDoc(doc(db, "organizations", id))
+          if (snap.exists()) results[id] = snap.data()
+        } catch (e) {}
       }
       setOrgsData(results)
     }
     fetchData()
-  }, [db, items]);
+  }, [db, items.length]); // Depende apenas do tamanho da lista para evitar loops
 
   const cartTotals = React.useMemo(() => {
     if (!items || items.length === 0) return { subtotal: 0, fees: 0, balanceUsed: 0, total: 0, currency: 'BRL' };
 
-    // Se houver conflito, calculamos apenas para a moeda do PRIMEIRO item para exibição no resumo
     const primaryCurrency = items[0].currency || 'BRL';
     const filteredItems = items.filter(i => (i.currency || 'BRL') === primaryCurrency);
 
@@ -140,15 +166,14 @@ export default function CarrinhoPage() {
       
       const org = orgsData?.[item.organizationId];
       if (org && globalFees) {
-        const res = calculateFinancialBreakdown(item.price, globalFees, promotions, org, primaryCurrency as CurrencyCode, rates);
-        fees += (res?.administrativeFeeAmount || 0) * (item.quantity || 0);
+        const res = calculateVibyOfficialSplit(item.price, primaryCurrency as CurrencyCode, rates);
+        fees += (res?.buyerFee || 0) * (item.quantity || 0);
       }
     });
 
     const totalBeforeBalance = Number((subtotal + fees).toFixed(2));
     const walletBalance = wallet?.balance || 0;
     
-    // Saldo da carteira só pode ser usado se a moeda principal for BRL
     const balanceUsed = (useBalance && primaryCurrency === 'BRL') ? Math.min(walletBalance, totalBeforeBalance) : 0;
     const finalTotal = Math.max(0, Number((totalBeforeBalance - balanceUsed).toFixed(2)));
 
@@ -277,6 +302,7 @@ export default function CarrinhoPage() {
                   onSuccess={clearCart} 
                   disabled={isRevalidating || feesLoading || hasCurrencyConflict} 
                   className={cn(hasCurrencyConflict && "grayscale opacity-50 cursor-not-allowed")}
+                  rates={rates}
                 />
              </Card>
           </div>
