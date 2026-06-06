@@ -79,14 +79,6 @@ const THEMES: { id: Theme; label: string; icon: any }[] = [
   { id: 'foto', label: 'Foto da Marca', icon: Camera }
 ];
 
-const TEMPLATES: { id: Template; label: string; icon: any }[] = [
-  { id: 'classico', label: 'Clássico', icon: Layout },
-  { id: 'moderno', label: 'Moderno', icon: MousePointer2 },
-  { id: 'minimalista', label: 'Minimalista', icon: X },
-  { id: 'evento', label: 'Destaque Evento', icon: Star },
-  { id: 'organizacao', label: 'Identidade Marca', icon: Building2 }
-];
-
 export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [isAssetsLoaded, setIsAssetsLoaded] = React.useState(false);
@@ -97,7 +89,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
   const [bannerBase64, setBannerBase64] = React.useState<string | null>(null);
   
   const [selectedTheme, setSelectedTheme] = React.useState<Theme>('viby');
-  const [selectedTemplate, setSelectedTemplate] = React.useState<Template>('classico');
   const [currentFormat, setCurrentFormat] = React.useState<Format>('stories');
   
   const renderRef = React.useRef<HTMLDivElement>(null);
@@ -121,6 +112,8 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         if (orgRes.success) {
           setOrgLogoBase64(orgRes.data!);
           console.log("[SHARE-MODAL] Logo Org/Evento OK");
+        } else {
+          console.warn("[SHARE-MODAL] Falha ao carregar logo org:", orgRes.error);
         }
       }
 
@@ -177,8 +170,8 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    // Aguarda processamento do DOM para o novo formato
-    await new Promise(resolve => setTimeout(resolve, 800));
+    // Aguarda um ciclo para o DOM atualizar o estilo do renderRef
+    await new Promise(resolve => setTimeout(resolve, 300));
 
     try {
       const config = FORMAT_CONFIGS[format];
@@ -190,7 +183,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         width: config.width,
         height: config.height,
         pixelRatio: 1,
-        skipFonts: false
       });
 
       const link = document.createElement('a');
@@ -234,37 +226,49 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     const isDark = theme !== 'claro' && theme !== 'corporativo';
     const name = data.title;
     
-    // Algoritmo de ajuste de fonte dinâmico
-    let baseFontSize = size / 2.8;
-    if (name.length > 15) baseFontSize = size / 3.5;
-    if (name.length > 25) baseFontSize = size / 4.5;
-    if (name.length > 35) baseFontSize = size / 6;
+    // Algoritmo de ajuste de fonte dinâmico mais conservador para evitar cortes
+    let baseFontSize = size / 3.2;
+    if (name.length > 15) baseFontSize = size / 4.2;
+    if (name.length > 25) baseFontSize = size / 5.2;
+    if (name.length > 35) baseFontSize = size / 6.5;
 
     const badgeSize = baseFontSize * 0.7;
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '40px', width: '100%' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', width: '100%' }}>
         <div style={{ 
           width: `${size}px`, 
           height: `${size}px`, 
           borderRadius: '50%', 
           overflow: 'hidden', 
           backgroundColor: isDark ? '#ffffff' : '#f1f5f9',
-          border: `10px solid ${theme === 'premium' ? '#D4AF37' : '#ffffff'}`,
-          boxShadow: '0 30px 80px rgba(0,0,0,0.3)',
+          border: `8px solid ${theme === 'premium' ? '#D4AF37' : '#ffffff'}`,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          flexShrink: 0
         }}>
           {orgLogoBase64 ? (
             <img src={orgLogoBase64} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
           ) : (
-            <div style={{ fontSize: `${size/2}px`, fontWeight: 900, color: '#2C52EE' }}>
-              {data.title.charAt(0).toUpperCase()}
+            <div style={{ 
+              width: '100%', 
+              height: '100%', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              backgroundColor: '#2C52EE',
+              color: '#ffffff',
+              fontSize: `${size/2}px`,
+              fontWeight: 900,
+              textTransform: 'uppercase'
+            }}>
+              {data.title.charAt(0)}
             </div>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', width: '90%' }}>
            <h1 style={{ 
              fontSize: `${baseFontSize}px`, 
              fontWeight: 900, 
@@ -274,12 +278,9 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
              margin: 0, 
              letterSpacing: '-0.04em', 
              color: theme === 'premium' ? '#D4AF37' : (isDark ? '#ffffff' : '#000000'),
-             lineHeight: 0.85,
-             maxWidth: '90%',
+             lineHeight: 0.9,
+             maxWidth: '100%',
              wordBreak: 'break-word',
-             display: '-webkit-box',
-             WebkitLineClamp: 3,
-             WebkitBoxOrient: 'vertical',
              overflow: 'hidden'
            }}>
              {name}
@@ -300,17 +301,18 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
   const renderQRSection = (qrSize: number, fontSize: number, theme: Theme) => {
     const isDark = theme !== 'claro' && theme !== 'corporativo';
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', width: '100%' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', width: '100%' }}>
         <div style={{ 
-          padding: '40px', 
+          padding: '30px', 
           backgroundColor: '#ffffff', 
-          borderRadius: '70px', 
-          boxShadow: '0 50px 100px rgba(0,0,0,0.4)',
-          border: theme === 'premium' ? '12px solid #D4AF37' : 'none'
+          borderRadius: '50px', 
+          boxShadow: '0 30px 80px rgba(0,0,0,0.3)',
+          border: theme === 'premium' ? '10px solid #D4AF37' : 'none',
+          display: 'flex'
         }}>
           <QRCodeSVG value={shareUrl} size={qrSize} level="H" fgColor="#000000" includeMargin={false} />
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
            <p style={{ 
              fontSize: `${fontSize}px`, 
              fontWeight: 900, 
@@ -319,12 +321,12 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
              fontFamily: 'monospace', 
              letterSpacing: '-0.02em',
              backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-             padding: '15px 50px',
-             borderRadius: '30px'
+             padding: '10px 40px',
+             borderRadius: '20px'
            }}>
              viby.club/{data.username}
            </p>
-           <p style={{ fontSize: `${fontSize/2.4}px`, fontWeight: 800, textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)', margin: 0, letterSpacing: '0.4em' }}>
+           <p style={{ fontSize: `${fontSize/2.8}px`, fontWeight: 800, textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)', margin: 0, letterSpacing: '0.4em' }}>
               Acesse a Agenda Oficial
            </p>
         </div>
@@ -335,8 +337,8 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
   const renderFooterSection = (logoHeight: number, theme: Theme) => {
     const isDark = theme !== 'claro' && theme !== 'corporativo';
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', width: '100%', opacity: 0.8 }}>
-        <p style={{ fontSize: `${logoHeight/3.2}px`, fontWeight: 900, textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)', margin: 0, letterSpacing: '0.5em' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', width: '100%', opacity: 0.8 }}>
+        <p style={{ fontSize: `${logoHeight/3.5}px`, fontWeight: 900, textTransform: 'uppercase', color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)', margin: 0, letterSpacing: '0.5em' }}>
           Powered by
         </p>
         {vibyLogoBase64 ? (
@@ -356,43 +358,31 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     );
   };
 
-  const renderBackground = (theme: Theme) => {
-    if (theme === 'foto' && bannerBase64) {
-      return (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-          <img src={bannerBase64} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(30px) brightness(0.4)' }} alt="" />
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0.4))' }} />
-        </div>
-      );
-    }
-    return null;
-  };
-
   const renderFullArte = (format: Format, theme: Theme) => {
     const config = FORMAT_CONFIGS[format];
     const themeStyle = getThemeStyle(theme);
     
-    // Proporções otimizadas baseadas no formato real
-    let logoSize = 420;
-    let qrSize = 620;
-    let fontSize = 64;
-    let footerLogo = 100;
-    let padding = '250px 100px';
+    // Proporções otimizadas para escala real e segura
+    let logoSize = 350;
+    let qrSize = 480;
+    let fontSize = 54;
+    let footerLogo = 80;
+    let padding = '180px 80px';
 
     if (format === 'instagram') {
-      logoSize = 320;
-      qrSize = 480;
-      fontSize = 48;
-      footerLogo = 80;
-      padding = '140px';
+      logoSize = 240;
+      qrSize = 380;
+      fontSize = 42;
+      footerLogo = 70;
+      padding = '100px 60px';
     }
 
     if (format === 'A4' || format === 'A5' || format === 'A6') {
-       logoSize = 380;
-       qrSize = 560;
-       fontSize = 58;
-       footerLogo = 90;
-       padding = '200px 100px';
+       logoSize = 320;
+       qrSize = 450;
+       fontSize = 50;
+       footerLogo = 80;
+       padding = '150px 80px';
     }
 
     const containerStyle: React.CSSProperties = {
@@ -412,7 +402,12 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
     return (
       <div style={containerStyle}>
-        {renderBackground(theme)}
+        {theme === 'foto' && bannerBase64 && (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+            <img src={bannerBase64} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(30px) brightness(0.4)' }} alt="" />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0.4))' }} />
+          </div>
+        )}
         
         <div style={{ position: 'relative', zIndex: 10, width: '100%', display: 'flex', justifyContent: 'center' }}>
           {renderLogoSection(logoSize, theme)}
@@ -532,7 +527,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           )}
 
           {/* Renderizador Invisível para html-to-image */}
-          <div style={{ position: 'fixed', left: '-9999px', top: '-9999px' }}>
+          <div style={{ position: 'fixed', top: 0, left: 0, visibility: 'hidden', pointerEvents: 'none', zIndex: -1 }}>
             <div ref={renderRef}>
                {renderFullArte(currentFormat, selectedTheme)}
             </div>
@@ -556,4 +551,3 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     </Dialog>
   );
 }
-
