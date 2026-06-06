@@ -22,7 +22,7 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { calculateFinancialBreakdown } from "@/lib/financial-utils"
+import { calculateFinancialBreakdown, calculateVibyOfficialSplit } from "@/lib/financial-utils"
 import { PayButton } from "@/components/payments/PayButton"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -54,7 +54,6 @@ export default function CarrinhoPage() {
   const promosRef = React.useMemo(() => db ? doc(db, 'settings', 'promotions') : null, [db])
   const { data: promotions } = useDoc<any>(promosRef)
 
-  // Detecção de Conflito de Moeda
   const hasCurrencyConflict = React.useMemo(() => {
     if (items.length <= 1) return false;
     const firstCurrency = items[0].currency || 'BRL';
@@ -84,8 +83,6 @@ export default function CarrinhoPage() {
   }, [expiresAt, items.length]);
 
   const revalidateCart = React.useCallback(async () => {
-    // Só revalida se o banco estiver pronto e houver itens.
-    // Usamos um ref para garantir que não rodem múltiplas revalidações paralelas.
     if (!db || items.length === 0 || isProcessingRef.current) return;
     
     isProcessingRef.current = true;
@@ -98,27 +95,32 @@ export default function CarrinhoPage() {
       for (const item of items) {
         try {
           const eSnap = await getDoc(doc(db, "events", item.eventId));
-          // Se o evento não existe mais ou foi desativado, ele é removido.
-          // Falhas de rede/permissão caem no catch e mantêm o item.
           if (eSnap.exists()) {
             const eData = eSnap.data();
-            if (eData.status === 'Ativo' || eData.status === 'Oculto') {
+            // Só remove se o status for explicitamente Excluído. 
+            // Se for Rascunho/Privado/Ativo/Oculto, mantemos no carrinho para não frustrar o usuário.
+            if (eData.status !== 'Excluído') {
               updatedItems.push(item);
             } else {
               hadChanges = true;
             }
           } else {
+            // Documento realmente não existe
             hadChanges = true;
           }
         } catch (e) {
-          // Se falhar a busca (ex: permissão negada temporária), mantém o item por segurança
+          // Em caso de erro de rede ou permissão, mantemos o item por segurança
           updatedItems.push(item);
         }
       }
       
       if (hadChanges) {
         setItems(updatedItems);
-        toast({ title: "Carrinho Atualizado", description: "Alguns itens não estão mais disponíveis." });
+        toast({ 
+          variant: "destructive",
+          title: "Carrinho Atualizado", 
+          description: "Alguns itens não estão mais disponíveis e foram removidos." 
+        });
       }
     } catch (err) {
       console.error("[Cart] Revalidation error:", err);
@@ -128,12 +130,11 @@ export default function CarrinhoPage() {
     }
   }, [db, items, setItems]);
 
-  // Revalida apenas uma vez ao montar a página se houver itens
   React.useEffect(() => {
     if (items.length > 0 && db) {
       revalidateCart();
     }
-  }, [db]); // Roda apenas quando o banco conecta
+  }, [db]); 
 
   React.useEffect(() => {
     if (!db || items.length === 0) return;
@@ -149,7 +150,7 @@ export default function CarrinhoPage() {
       setOrgsData(results)
     }
     fetchData()
-  }, [db, items.length]); // Depende apenas do tamanho da lista para evitar loops
+  }, [db, items.length]);
 
   const cartTotals = React.useMemo(() => {
     if (!items || items.length === 0) return { subtotal: 0, fees: 0, balanceUsed: 0, total: 0, currency: 'BRL' };
@@ -210,7 +211,7 @@ export default function CarrinhoPage() {
 
            {items.length === 0 ? (
              <Card className="border-none shadow-sm rounded-[2rem] bg-white p-20 text-center">
-                <Inbox className="w-10 h-10 mx-auto opacity-20 mb-4" />
+                <Inbox className="w-10 h-10 auto opacity-20 mb-4" />
                 <h2 className="text-xl font-black uppercase">Seu carrinho está vazio</h2>
                 <Button asChild className="mt-4"><Link href="/dashboard">Explorar Eventos</Link></Button>
              </Card>
@@ -256,6 +257,25 @@ export default function CarrinhoPage() {
 
         {items.length > 0 && (
           <div className="lg:col-span-4 space-y-6">
+             {timeLeft && (
+               <Card className="border-none shadow-sm rounded-2xl bg-white p-4 flex items-center justify-between">
+                 <div className="flex items-center gap-3">
+                   <div className="relative w-10 h-10">
+                     <svg className="w-full h-full transform -rotate-90">
+                       <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="3" className="text-muted/30" />
+                       <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="3" strokeDasharray="113" strokeDashoffset={113 - (113 * timeLeft.percent / 100)} className={cn("text-secondary circular-timer-progress", timeLeft.percent < 20 && "text-destructive")} />
+                     </svg>
+                     <Clock className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 text-secondary" />
+                   </div>
+                   <div className="space-y-0.5">
+                     <p className="text-[9px] font-black uppercase text-muted-foreground">Expira em</p>
+                     <p className="text-sm font-black tabular-nums">{String(timeLeft.min).padStart(2, '0')}:{String(timeLeft.sec).padStart(2, '0')}</p>
+                   </div>
+                 </div>
+                 <Badge variant="outline" className="text-[8px] font-black uppercase">Reserva Ativa</Badge>
+               </Card>
+             )}
+
              <Card className="border-none shadow-xl rounded-[2.5rem] bg-primary text-white p-8 relative overflow-hidden">
                 <div className="relative z-10">
                    <p className="text-[10px] font-black uppercase opacity-40">Seu Saldo</p>
@@ -281,15 +301,6 @@ export default function CarrinhoPage() {
                       <span className="text-3xl font-black text-primary">{formatPrice(cartTotals.total, cartTotals.currency as CurrencyCode)}</span>
                    </div>
                 </div>
-
-                {hasCurrencyConflict && (
-                   <div className="p-4 bg-red-50 rounded-2xl flex gap-3 border border-red-100 animate-in zoom-in-95">
-                      <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-                      <p className="text-[9px] text-destructive font-black uppercase leading-relaxed italic">
-                         Checkout desabilitado. O carrinho contém itens em moedas divergentes da principal ({cartTotals.currency}).
-                      </p>
-                   </div>
-                )}
 
                 <PayButton 
                   items={items.filter(i => (i.currency || 'BRL') === cartTotals.currency)} 
