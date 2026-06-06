@@ -1,4 +1,3 @@
-
 'use client';
 
 import { 
@@ -30,12 +29,23 @@ export interface PayButtonOptions {
   rates?: Record<string, number>;
 }
 
+/**
+ * @fileOverview PayButton Service - Processamento de Checkout do Carrinho.
+ * Implementa validação de consistência de moeda para evitar erros no Stripe.
+ */
 export async function executeCheckoutFlow(options: PayButtonOptions) {
   const { user, profile, items, totals, useBalance, rates } = options;
 
   if (!user) throw new Error("Usuário não identificado.");
+  if (!items || items.length === 0) throw new Error("O carrinho está vazio.");
 
-  // Validação de estoque e captura de moeda do evento
+  // 1. VALIDAÇÃO DE CONSISTÊNCIA DE MOEDA (Impedir mixed currency checkout)
+  const currenciesInCart = new Set(items.map(i => i.currency || 'BRL'));
+  if (currenciesInCart.size > 1) {
+    throw new Error("Não é possível realizar checkout com múltiplas moedas. Remova os itens divergentes.");
+  }
+
+  // 2. VALIDAÇÃO DE ESTOQUE
   for (const item of items) {
     const eSnap = await getDoc(doc(staticDb, "events", item.eventId));
     if (!eSnap.exists()) throw new Error(`O evento ${item.eventTitle} não está mais disponível.`);
@@ -52,7 +62,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   const isFreeOrder = totals.total <= 0 && totals.balanceUsed === 0;
   const eventCurrency = (items[0]?.currency || 'BRL') as CurrencyCode;
 
-  // 1. FLUXO GRATUITO
+  // 3. FLUXO GRATUITO
   if (isFreeOrder) {
     const result = await generateFreeTickets({
       userId: user.uid,
@@ -68,7 +78,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   const exchangeRateToBRL = eventCurrency === 'BRL' ? 1 : (1 / (rates?.[eventCurrency] || 1));
   const exchangeDate = new Date().toISOString().slice(0, 10);
 
-  // 2. PREPARAR PEDIDO (ORDEM)
+  // 4. PREPARAR PEDIDO (ORDEM)
   const orderData = {
     userId: user.uid,
     userEmail: user.email,
@@ -90,7 +100,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     createdAt: serverTimestamp()
   };
 
-  // Abatimento de saldo (Se BRL)
+  // Abatimento de saldo (Apenas se a moeda for BRL)
   if (useBalance && totals.balanceUsed > 0 && eventCurrency === 'BRL') {
     await runTransaction(staticDb, async (transaction) => {
       const walletRef = doc(staticDb, "wallets", user.uid);
@@ -109,7 +119,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
 
   const orderRef = await addDoc(collection(staticDb, "orders"), orderData);
 
-  // PREPARAR STRIPE LINE ITEMS
+  // 5. PREPARAR STRIPE LINE ITEMS
   let balanceToSubtractCents = toCents(totals.balanceUsed);
   let totalApplicationFeeCents = 0;
 
@@ -119,6 +129,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     
     let unitAmountCents = toCents(split.totalCharged);
     
+    // Distribuir o abatimento de saldo proporcionalmente entre os itens (Apenas se BRL)
     if (balanceToSubtractCents > 0 && eventCurrency === 'BRL') {
       const maxSub = unitAmountCents * item.quantity;
       const actualSub = Math.min(balanceToSubtractCents, maxSub);
