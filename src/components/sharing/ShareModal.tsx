@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -28,6 +27,7 @@ import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { toPng } from 'html-to-image';
 import Image from 'next/image';
+import { Separator } from '@/components/ui/separator';
 
 interface ShareModalProps {
   isOpen: boolean;
