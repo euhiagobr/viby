@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -42,8 +41,11 @@ import {
 } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
+import { useTranslation } from "@/i18n/i18n-context"
+import { LanguageSelector } from "./LanguageSelector"
 
 export function AppSidebar() {
+  const { t } = useTranslation()
   const pathname = usePathname()
   const router = useRouter()
   const auth = useAuth()
@@ -60,57 +62,57 @@ export function AppSidebar() {
     if (!auth) return
     try {
       await signOut(auth)
-      toast({ title: "Até logo!", description: "Você saiu da sua conta." })
+      toast({ title: t('common.success') })
       router.push("/login")
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro ao sair", description: error.message })
+      toast({ variant: "destructive", title: t('common.error_occurred') })
     }
   }
 
   const personalItems = [
-    { title: "Explorar", url: "/dashboard", icon: Globe },
-    { title: "Meus Ingressos", url: "/dashboard/ingressos", icon: Ticket },
-    { title: "Minha Carteira", url: "/dashboard/carteira", icon: Wallet },
-    { title: "Minhas Organizações", url: "/dashboard/organizacoes", icon: Building2 },
-    { title: "Solicitações", url: "/dashboard/solicitacoes", icon: UserCheck, badge: pendingInvitations.length > 0 ? pendingInvitations.length : null },
-    { title: "Seguindo", url: "/dashboard/seguindo", icon: Heart },
-    { title: "Meu Perfil", url: "/dashboard/perfil", icon: User },
-    { title: "Suporte", url: "/dashboard/suporte", icon: LifeBuoy },
+    { title: t('nav.discovery'), url: "/dashboard", icon: Globe },
+    { title: t('nav.tickets'), url: "/dashboard/ingressos", icon: Ticket },
+    { title: t('nav.wallet'), url: "/dashboard/carteira", icon: Wallet },
+    { title: t('nav.organizations'), url: "/dashboard/organizacoes", icon: Building2 },
+    { title: t('nav.requests'), url: "/dashboard/solicitacoes", icon: UserCheck, badge: pendingInvitations.length > 0 ? pendingInvitations.length : null },
+    { title: t('nav.following'), url: "/dashboard/seguindo", icon: Heart },
+    { title: t('nav.profile'), url: "/dashboard/perfil", icon: User },
+    { title: t('nav.support'), url: "/dashboard/suporte", icon: LifeBuoy },
   ];
 
   const orgItems = currentOrg ? [
     { 
-      title: "Dashboard", 
+      title: t('nav.dashboard'), 
       url: `/dashboard/organizacoes/${currentOrg.username}`, 
       icon: LayoutGrid,
       visible: true 
     },
     { 
-      title: "Eventos", 
+      title: t('nav.events'), 
       url: `/dashboard/organizacoes/${currentOrg.username}/events`, 
       icon: CalendarDays, 
       visible: true 
     },
     { 
-      title: "Anúncios", 
+      title: t('nav.ads'), 
       url: `/dashboard/organizacoes/${currentOrg.username}/anuncios`, 
       icon: Megaphone, 
       visible: ['owner', 'admin', 'editor'].includes(userRole || '') 
     },
     { 
-      title: "Equipe", 
+      title: t('nav.team'), 
       url: `/dashboard/organizacoes/${currentOrg.username}/equipe`, 
       icon: Users, 
       visible: ['owner', 'admin'].includes(userRole || '') 
     },
     { 
-      title: "Financeiro", 
+      title: t('nav.finance'), 
       url: `/dashboard/organizacoes/${currentOrg.username}/finance`, 
       icon: Wallet, 
       visible: ['owner', 'admin', 'finance'].includes(userRole || '') 
     },
     { 
-      title: "Configurações", 
+      title: t('nav.settings'), 
       url: `/dashboard/organizacoes/${currentOrg.username}/settings`, 
       icon: Settings, 
       visible: ['owner', 'admin', 'editor'].includes(userRole || '') 
@@ -141,10 +143,13 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
       <SidebarContent>
+        <div className="px-6 mb-4">
+          <LanguageSelector />
+        </div>
         {currentOrg && (
           <SidebarGroup>
             <SidebarGroupLabel className="px-6 text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">
-              Gestão de Marca: {currentOrg.name}
+              {t('nav.organizations')}: {currentOrg.name}
             </SidebarGroupLabel>
             <SidebarGroupContent className="px-3">
               <SidebarMenu>
@@ -168,7 +173,7 @@ export function AppSidebar() {
 
         <SidebarGroup>
           <SidebarGroupLabel className="px-6 text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">
-            Minha Conta
+            {t('nav.profile')}
           </SidebarGroupLabel>
           <SidebarGroupContent className="px-3">
             <SidebarMenu>
@@ -202,7 +207,7 @@ export function AppSidebar() {
           className="w-full flex items-center gap-3 px-3 py-3 text-destructive hover:bg-destructive/10 rounded-xl transition-all text-sm font-bold"
         >
           <LogOut className="w-4 h-4" />
-          Sair da Conta
+          {t('nav.logout')}
         </button>
       </SidebarFooter>
     </Sidebar>

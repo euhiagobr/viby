@@ -50,8 +50,10 @@ import {
 } from "@/components/ui/popover"
 import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import { useTranslation } from "@/i18n/i18n-context"
 
 export default function ExplorarPage() {
+  const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState('all')
   const [search, setSearch] = useState('')
   const [radiusKm, setRadiusKm] = useState('50')
@@ -102,7 +104,6 @@ export default function ExplorarPage() {
         e.categoryId === selectedCategory || 
         (e.categories && e.categories.includes(selectedCategory));
       
-      // Filtro de Data
       let matchesDate = true;
       if (dateFilter !== 'all') {
         const eventDate = e.date?.toDate ? e.date.toDate() : new Date(e.date);
@@ -148,7 +149,6 @@ export default function ExplorarPage() {
 
     if (!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) {
       if (!eventsLoading) {
-        // Feed unificado de ads para placeholder
         result.push({ type: "ad", adIndex: adIndex++ });
         result.push({ type: "ad", adIndex: adIndex++ });
         result.push({ type: "ad", adIndex: adIndex++ });
@@ -174,34 +174,34 @@ export default function ExplorarPage() {
       <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Discovery</h1>
+            <h1 className="text-3xl font-black uppercase italic tracking-tighter text-primary">{t('dashboard.title')}</h1>
             {isAdmin && <Button asChild variant="destructive" size="sm" className="rounded-full h-8 px-4 uppercase text-[9px] tracking-widest"><Link href="/admin"><ShieldCheck className="w-4 h-4" /> Admin</Link></Button>}
           </div>
-          <p className="text-muted-foreground font-medium uppercase text-[11px] tracking-widest">Explore experiências por relevância e proximidade.</p>
+          <p className="text-muted-foreground font-medium uppercase text-[11px] tracking-widest">{t('dashboard.subtitle')}</p>
         </div>
         
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Show, cidade, artista..." className="pl-10 h-11 rounded-xl" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input placeholder={t('home.search_placeholder')} className="pl-10 h-11 rounded-xl" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
 
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className={cn("rounded-xl h-11 border-dashed gap-2 font-bold text-xs uppercase", dateFilter !== 'all' && "bg-secondary/10 border-secondary text-secondary")}>
                 <CalendarIcon className="h-4 w-4" />
-                {dateFilter === 'today' ? "Hoje" :
-                 dateFilter === 'tomorrow' ? "Amanhã" :
-                 dateFilter === 'week' ? "Esta semana" :
+                {dateFilter === 'today' ? t('home.today') :
+                 dateFilter === 'tomorrow' ? t('home.tomorrow') :
+                 dateFilter === 'week' ? t('home.week') :
                  dateFilter === 'custom' && customDate ? format(customDate, "dd/MM", { locale: ptBR }) :
-                 "Data"}
+                 t('home.when_label')}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="end">
               <div className="p-3 border-b grid grid-cols-3 gap-2">
-                  <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'today' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>Hoje</Button>
-                  <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'tomorrow' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('tomorrow'); setCustomDate(undefined); }}>Amanhã</Button>
-                  <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'week' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('week'); setCustomDate(undefined); }}>Semana</Button>
+                  <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'today' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>{t('home.today')}</Button>
+                  <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'tomorrow' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('tomorrow'); setCustomDate(undefined); }}>{t('home.tomorrow')}</Button>
+                  <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'week' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('week'); setCustomDate(undefined); }}>{t('home.week')}</Button>
               </div>
               <Calendar
                 mode="single"
@@ -210,9 +210,6 @@ export default function ExplorarPage() {
                 initialFocus
                 locale={ptBR}
               />
-              <div className="p-2 border-t">
-                   <Button variant="link" size="sm" className="w-full text-[10px] font-black uppercase text-muted-foreground" onClick={() => { setDateFilter('all'); setCustomDate(undefined); }}>Limpar Data</Button>
-              </div>
             </PopoverContent>
           </Popover>
 
@@ -221,37 +218,29 @@ export default function ExplorarPage() {
                <div className="flex items-center gap-2 font-bold text-xs"><Navigation className="w-3 h-3" /><SelectValue /></div>
             </SelectTrigger>
             <SelectContent className="rounded-xl">
-               <SelectItem value="10">10km</SelectItem><SelectItem value="50">50km</SelectItem><SelectItem value="unlimited">Ilimitado</SelectItem>
+               <SelectItem value="10">{t('home.radius_10')}</SelectItem>
+               <SelectItem value="50">{t('home.radius_50')}</SelectItem>
+               <SelectItem value="unlimited">{t('home.unlimited')}</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" className="rounded-xl h-11 border-dashed" onClick={() => { setSearch(""); setRadiusKm("50"); setSelectedCategory("all"); setActiveTab("all"); setDateFilter("all"); setCustomDate(undefined); }}><FilterX className="w-4 h-4" /></Button>
         </div>
-      </div>
-
-      <div className="overflow-x-auto scrollbar-hide pb-2">
-         <div className="flex gap-2">
-            <Button variant={selectedCategory === 'all' ? 'secondary' : 'outline'} className="rounded-full h-10 px-6 font-black uppercase text-[10px] tracking-widest" onClick={() => setSelectedCategory('all')}>Todos</Button>
-            {EVENT_CATEGORIES.map(cat => (
-              <Button key={cat} variant={selectedCategory === cat ? 'secondary' : 'outline'} className="rounded-full h-10 px-6 font-black uppercase text-[10px] tracking-widest whitespace-nowrap" onClick={() => setSelectedCategory(cat)}>{cat}</Button>
-            ))}
-         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-muted/30 p-1 rounded-2xl h-14 w-full md:w-fit">
-          <TabsTrigger value="all" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">Geral</TabsTrigger>
-          <TabsTrigger value="trending" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2"><TrendingUp className="w-4 h-4" /> Em Alta</TabsTrigger>
-          <TabsTrigger value="recent" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2"><History className="w-4 h-4" /> Recentes</TabsTrigger>
+          <TabsTrigger value="all" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">{t('dashboard.all')}</TabsTrigger>
+          <TabsTrigger value="trending" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2"><TrendingUp className="w-4 h-4" /> {t('dashboard.trending')}</TabsTrigger>
+          <TabsTrigger value="recent" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2"><History className="w-4 h-4" /> {t('dashboard.recent')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-8">
            {eventsLoading ? (
-             <div className="py-32 flex flex-col items-center justify-center gap-4"><Loader2 className="w-12 h-12 animate-spin text-secondary" /><p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Cruzando dados...</p></div>
+             <div className="py-32 flex flex-col items-center justify-center gap-4"><Loader2 className="w-12 h-12 animate-spin text-secondary" /><p className="text-[10px] font-black uppercase tracking-widest animate-pulse">{t('dashboard.syncing_data')}</p></div>
            ) : (
              <>
                {unifiedFeed.length === 0 && !eventsLoading && (
                  <div className="py-40 text-center bg-white rounded-[3rem] border-2 border-dashed opacity-40 mb-10">
-                   <p className="text-xs font-black uppercase tracking-widest">Nenhum evento encontrado para este filtro.</p>
+                   <p className="text-xs font-black uppercase tracking-widest">{t('dashboard.no_events_filter')}</p>
                  </div>
                )}
 

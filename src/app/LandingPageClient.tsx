@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -35,8 +34,11 @@ import {
 } from "@/components/ui/popover"
 import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import { useTranslation } from "@/i18n/i18n-context"
+import { LanguageSelector } from "@/components/layout/LanguageSelector"
 
 export default function LandingPageClient() {
+  const { t } = useTranslation()
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
@@ -122,7 +124,6 @@ export default function LandingPageClient() {
 
     if (!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) {
       if (!eventsLoading) {
-        // Fallback para feed vazio conforme requisito de monetização
         result.push({ type: "ad", adIndex: adIndex++ });
         result.push({ type: "ad", adIndex: adIndex++ });
         result.push({ type: "ad", adIndex: adIndex++ });
@@ -166,13 +167,14 @@ export default function LandingPageClient() {
             )}
           </Link>
           <div className="flex items-center gap-4">
+            <LanguageSelector />
             {user ? <UserNav /> : (
               <>
                 <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest">
-                  <Link href="/login">Entrar</Link>
+                  <Link href="/login">{t('home.login')}</Link>
                 </Button>
                 <Button asChild className="bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg shadow-secondary/20">
-                  <Link href="/cadastro">Criar Conta</Link>
+                  <Link href="/cadastro">{t('home.signup')}</Link>
                 </Button>
               </>
             )}
@@ -188,13 +190,13 @@ export default function LandingPageClient() {
         <div className="container mx-auto px-4 relative z-10 py-20">
           <div className="max-w-5xl mx-auto space-y-10 flex flex-col items-center">
             <Badge className="bg-secondary text-white border-none px-4 py-1.5 rounded-full font-black uppercase text-[10px] tracking-widest w-fit flex items-center gap-2 animate-bounce">
-              <Zap className="w-3.5 h-3.5 fill-current" /> Descubra o que acontece agora
+              <Zap className="w-3.5 h-3.5 fill-current" /> {t('home.badge')}
             </Badge>
             <h1 className="text-6xl md:text-9xl font-black uppercase italic tracking-tighter leading-[0.8]">
-              VIVA O <span className="text-secondary">AGORA.</span>
+              {t('home.hero_title_1')} <span className="text-secondary">{t('home.hero_title_2')}</span>
             </h1>
             <p className="text-lg md:text-2xl font-medium opacity-80 max-w-2xl leading-relaxed">
-              A maior vitrine de eventos inteligentes do Brasil. Perto de você, no seu tempo.
+              {t('home.hero_subtitle')}
             </p>
 
             <Card className="bg-white/10 backdrop-blur-2xl border-white/10 rounded-[3rem] p-6 md:p-10 shadow-2xl mt-12 w-full text-left">
@@ -202,7 +204,7 @@ export default function LandingPageClient() {
                 <div className="md:col-span-4 relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
                   <Input 
-                    placeholder="O que você quer viver?" 
+                    placeholder={t('home.search_placeholder')} 
                     className="bg-white/5 border-white/10 h-14 pl-12 rounded-2xl text-white placeholder:text-white/30"
                     value={searchName}
                     onChange={(e) => setSearchName(e.target.value)}
@@ -216,14 +218,14 @@ export default function LandingPageClient() {
                         <PopoverTrigger asChild>
                           <Button variant="outline" className={cn("bg-white/5 border-white/10 h-14 w-full rounded-2xl text-white justify-start font-normal", !customDate && dateFilter === 'all' && "text-white/60")}>
                             <CalendarIcon className="mr-2 h-4 w-4 text-secondary" />
-                            {dateFilter === 'today' ? "Hoje" : dateFilter === 'tomorrow' ? "Amanhã" : dateFilter === 'week' ? "Semana" : customDate ? format(customDate, "dd/MM") : "Quando?"}
+                            {dateFilter === 'today' ? t('home.today') : dateFilter === 'tomorrow' ? t('home.tomorrow') : dateFilter === 'week' ? t('home.week') : customDate ? format(customDate, "dd/MM") : t('home.when_label')}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
                           <div className="p-3 border-b grid grid-cols-3 gap-2">
-                              <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>Hoje</Button>
-                              <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('tomorrow'); setCustomDate(undefined); }}>Amanhã</Button>
-                              <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('week'); setCustomDate(undefined); }}>Semana</Button>
+                              <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>{t('home.today')}</Button>
+                              <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('tomorrow'); setCustomDate(undefined); }}>{t('home.tomorrow')}</Button>
+                              <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('week'); setCustomDate(undefined); }}>{t('home.week')}</Button>
                           </div>
                           <Calendar mode="single" selected={customDate} onSelect={(d) => { if(d) { setCustomDate(d); setDateFilter('custom'); } }} locale={ptBR} />
                         </PopoverContent>
@@ -232,7 +234,7 @@ export default function LandingPageClient() {
                     <div className="md:col-span-2 relative">
                       <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary" />
                       <Input 
-                        placeholder="Onde? (Cidade ou UF)" 
+                        placeholder={t('home.where_placeholder')} 
                         className="bg-white/5 border-white/10 h-14 pl-12 rounded-2xl text-white placeholder:text-white/30"
                         value={searchCity}
                         onChange={(e) => setSearchCity(e.target.value)}
@@ -242,13 +244,13 @@ export default function LandingPageClient() {
                       <Select value={radiusKm} onValueChange={setRadiusKm}>
                         <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white">
                             <Navigation className="w-4 h-4 text-secondary mr-2" />
-                            <SelectValue placeholder="Raio" />
+                            <SelectValue placeholder={t('home.radius_label')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="10">Até 10km</SelectItem>
-                          <SelectItem value="50">Até 50km</SelectItem>
-                          <SelectItem value="100">Até 100km</SelectItem>
-                          <SelectItem value="unlimited">Ilimitado</SelectItem>
+                          <SelectItem value="10">{t('home.radius_10')}</SelectItem>
+                          <SelectItem value="50">{t('home.radius_50')}</SelectItem>
+                          <SelectItem value="100">{t('home.radius_100')}</SelectItem>
+                          <SelectItem value="unlimited">{t('home.unlimited')}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -257,7 +259,7 @@ export default function LandingPageClient() {
 
                 <div className="md:col-span-2">
                   <Button className="w-full h-14 bg-secondary text-white font-black uppercase italic rounded-2xl shadow-xl">
-                    Explorar
+                    {t('home.explore_btn')}
                   </Button>
                 </div>
               </div>
@@ -269,15 +271,15 @@ export default function LandingPageClient() {
       <section className="py-20 container mx-auto px-4 flex-1">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16">
           <div className="space-y-2">
-            <h2 className="text-5xl font-black uppercase italic tracking-tighter text-primary">Próximas Experiências</h2>
-            <p className="text-muted-foreground font-medium text-lg">Perto de você, no seu tempo.</p>
+            <h2 className="text-5xl font-black uppercase italic tracking-tighter text-primary">{t('home.upcoming_title')}</h2>
+            <p className="text-muted-foreground font-medium text-lg">{t('home.upcoming_subtitle')}</p>
           </div>
         </div>
 
         {eventsLoading ? (
           <div className="py-32 flex flex-col items-center justify-center gap-4">
             <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Sincronizando experiências...</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{t('common.loading')}</p>
           </div>
         ) : (
           <>
@@ -286,8 +288,8 @@ export default function LandingPageClient() {
                 <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
                     <Inbox className="w-10 h-10 text-muted-foreground opacity-20" />
                 </div>
-                <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Nenhum evento localizado</h3>
-                <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSearchCity(""); setSelectedCategory("all"); setRadiusKm("unlimited"); setDateFilter("all"); }}>Limpar Todos os Filtros</Button>
+                <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">{t('home.no_events')}</h3>
+                <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSearchCity(""); setSelectedCategory("all"); setRadiusKm("unlimited"); setDateFilter("all"); }}>{t('home.clear_filters')}</Button>
               </div>
             )}
 

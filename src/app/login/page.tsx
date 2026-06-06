@@ -16,8 +16,11 @@ import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import Image from "next/image"
 import { Separator } from "@/components/ui/separator"
+import { useTranslation } from "@/i18n/i18n-context"
+import { LanguageSelector } from "@/components/layout/LanguageSelector"
 
 function LoginContent() {
+  const { t } = useTranslation()
   const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
@@ -31,23 +34,17 @@ function LoginContent() {
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
-  // REDIRECIONAMENTO INTELIGENTE
   useEffect(() => {
     if (!isInitialized || authLoading) return;
 
     if (user) {
-      console.log('[Auth-Debug] User authenticated, evaluating profile completeness...');
-      
-      // O perfil é considerado completo se existir no Firestore E possuir username e CPF
       const hasMandatoryData = !!(profile?.username && profile?.cpf);
       const isComplete = profile !== null && hasMandatoryData;
 
       if (!isComplete) {
-        console.log('[Auth-Debug] Redirecting To Onboarding (Missing Firestore data)');
         router.replace("/onboarding");
       } else {
         const redirect = searchParams.get('redirect') || "/dashboard";
-        console.log('[Auth-Debug] Redirecting To:', redirect);
         router.replace(redirect);
       }
     }
@@ -71,7 +68,7 @@ function LoginContent() {
       }
 
       await signInWithEmailAndPassword(auth, emailToUse, password)
-      toast({ title: "Acesso liberado!" })
+      toast({ title: t('common.success') })
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro no login", description: "Credenciais incorretas." })
     } finally {
@@ -93,9 +90,12 @@ function LoginContent() {
             )}
             <span className="text-xl font-bold tracking-tight">{siteName}</span>
           </Link>
-          <Button variant="ghost" asChild className="font-semibold text-xs uppercase tracking-widest">
-            <Link href="/"><ArrowLeft className="mr-2 h-4 w-4" /> Início</Link>
-          </Button>
+          <div className="flex items-center gap-4">
+            <LanguageSelector />
+            <Button variant="ghost" asChild className="font-semibold text-xs uppercase tracking-widest">
+              <Link href="/"><ArrowLeft className="mr-2 h-4 w-4" /> {t('common.back')}</Link>
+            </Button>
+          </div>
         </div>
       </nav>
 
@@ -105,32 +105,32 @@ function LoginContent() {
             <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 shadow-lg">
               <KeyRound className="text-white w-7 h-7" />
             </div>
-            <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">Acessar Viby</CardTitle>
-            <CardDescription className="font-medium">Vença o tédio. Viva experiências.</CardDescription>
+            <CardTitle className="text-2xl font-black italic uppercase tracking-tighter">{t('auth.login_title')}</CardTitle>
+            <CardDescription className="font-medium">{t('auth.login_subtitle')}</CardDescription>
           </CardHeader>
           
           <CardContent className="space-y-6 px-8 pb-10">
             {showSync ? (
               <div className="flex flex-col items-center justify-center py-10 gap-4 text-center">
                  <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-                 <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando conta...</p>
+                 <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground animate-pulse">{t('auth.syncing')}</p>
               </div>
             ) : (
               <>
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Usuário ou E-mail</Label>
-                    <Input placeholder="Identificador" value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="h-12 rounded-xl" required />
+                    <Label className="text-[10px] font-black uppercase opacity-60 ml-1">{t('auth.email_label')}</Label>
+                    <Input placeholder={t('auth.identifier_placeholder')} value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="h-12 rounded-xl" required />
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between mb-1">
-                      <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Sua Senha</Label>
-                      <Link href="/redefinir-senha" className="text-[10px] font-black uppercase text-secondary hover:underline">Esqueceu?</Link>
+                      <Label className="text-[10px] font-black uppercase opacity-60 ml-1">{t('auth.password_label')}</Label>
+                      <Link href="/redefinir-senha" className="text-[10px] font-black uppercase text-secondary hover:underline">{t('auth.forgot_password')}</Link>
                     </div>
                     <Input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="rounded-xl h-12" />
                   </div>
                   <Button type="submit" className="w-full bg-primary text-white font-black h-14 rounded-2xl uppercase italic mt-2 shadow-lg" disabled={loading}>
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Entrar agora"}
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : t('auth.login_btn')}
                   </Button>
                 </form>
               </>
@@ -139,7 +139,7 @@ function LoginContent() {
 
           <CardFooter className="flex flex-col items-center gap-4 border-t border-border mt-0 py-8 bg-muted/20">
             <p className="text-xs font-bold text-muted-foreground">
-              Novo no clube? <Link href="/cadastro" className="text-secondary font-black hover:underline uppercase italic">Criar conta grátis</Link>
+              {t('auth.no_account')} <Link href="/cadastro" className="text-secondary font-black hover:underline uppercase italic">{t('auth.create_free')}</Link>
             </p>
           </CardFooter>
         </Card>

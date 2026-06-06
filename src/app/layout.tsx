@@ -6,6 +6,7 @@ import { CartProvider } from '@/contexts/CartContext';
 import { ErrorManagerProvider } from '@/components/error-manager/ErrorManagerProvider';
 import { GlobalErrorBoundary } from '@/components/error-manager/GlobalErrorBoundary';
 import { GoogleAdsTag } from '@/components/analytics/GoogleAdsTag';
+import { I18nProvider } from '@/i18n/i18n-context';
 
 export const revalidate = 0;
 
@@ -34,10 +35,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSiteSettings();
   const siteName = settings?.siteName || 'Viby';
   
-  // Fonte única oficial vinda do Firestore com fallback para o link direto fornecido
   const rawIconUrl = settings?.siteIconUrl || settings?.iconUrl || DEFAULT_FAVICON;
-  
-  // Cache busting para forçar a atualização no navegador
   const version = settings?.imageVersion || Date.now();
   const separator = rawIconUrl.includes('?') ? '&' : '?';
   const iconUrl = rawIconUrl.startsWith('http') ? `${rawIconUrl}${separator}cache_v=${version}` : rawIconUrl;
@@ -66,6 +64,10 @@ export async function generateMetadata(): Promise<Metadata> {
     manifest: '/manifest.webmanifest',
     alternates: {
       canonical: '/',
+      languages: {
+        'pt-BR': '/pt-BR',
+        'en-US': '/en-US',
+      },
     },
     openGraph: {
       title: `${siteName} | Gestão Inteligente de Eventos`,
@@ -111,18 +113,20 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased bg-[#f8fafc] text-[#000000] flex flex-col min-h-screen">
         <GoogleAdsTag />
-        <FirebaseClientProvider>
-          <ErrorManagerProvider>
-            <GlobalErrorBoundary>
-              <CartProvider>
-                <div className="flex-1 flex flex-col">
-                  {children}
-                </div>
-                <Toaster />
-              </CartProvider>
-            </GlobalErrorBoundary>
-          </ErrorManagerProvider>
-        </FirebaseClientProvider>
+        <I18nProvider>
+          <FirebaseClientProvider>
+            <ErrorManagerProvider>
+              <GlobalErrorBoundary>
+                <CartProvider>
+                  <div className="flex-1 flex flex-col">
+                    {children}
+                  </div>
+                  <Toaster />
+                </CartProvider>
+              </GlobalErrorBoundary>
+            </ErrorManagerProvider>
+          </FirebaseClientProvider>
+        </I18nProvider>
       </body>
     </html>
   );
