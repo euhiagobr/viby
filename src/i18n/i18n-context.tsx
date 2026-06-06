@@ -4,6 +4,8 @@ import * as React from 'react';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import ptBR from './locales/pt-BR.json';
 import enUS from './locales/en-US.json';
+import { useAuth, useUser, useFirestore } from '@/firebase';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 const translations = {
   'pt-BR': ptBR,
@@ -20,28 +22,71 @@ interface I18nContextType {
 
 const I18nContext = createContext<I18nContextType | null>(null);
 
+/**
+ * Detecta o idioma baseado na prioridade:
+ * 1. Escolha salva no LocalStorage
+ * 2. Idioma do Navegador (mapeado para pt-BR ou en-US)
+ * 3. Fallback: pt-BR
+ */
+function detectInitialLanguage(): Language {
+  if (typeof window === 'undefined') return 'pt-BR';
+  
+  const saved = localStorage.getItem('viby_lang') as Language;
+  if (saved === 'pt-BR' || saved === 'en-US') return saved;
+  
+  const browserLang = navigator.language.toLowerCase();
+  if (browserLang.startsWith('pt')) return 'pt-BR';
+  if (browserLang.startsWith('en')) return 'en-US';
+  
+  return 'pt-BR';
+}
+
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>('pt-BR');
+  const [isMounted, setIsMounted] = useState(false);
+  
+  const auth = useAuth();
+  const db = useFirestore();
+  const { user, profile } = useUser(auth);
 
   useEffect(() => {
-    const saved = localStorage.getItem('viby_lang') as Language;
-    if (saved && (saved === 'pt-BR' || saved === 'en-US')) {
-      setLanguageState(saved);
-      document.documentElement.lang = saved.split('-')[0];
-    } else {
-      const browserLang = navigator.language;
-      if (browserLang.startsWith('en')) {
-        setLanguageState('en-US');
-        document.documentElement.lang = 'en';
-      }
+    const initialLang = detectInitialLanguage();
+    setLanguageState(initialLang);
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = initialLang.split('-')[0];
     }
+    setIsMounted(true);
   }, []);
 
-  const setLanguage = useCallback((lang: Language) => {
+  useEffect(() => {
+    if (isMounted && profile?.language && profile.language !== language) {
+      const profileLang = profile.language as Language;
+      setLanguageState(profileLang);
+      localStorage.setItem('viby_lang', profileLang);
+      if (typeof document !== 'undefined') {
+        document.documentElement.lang = profileLang.split('-')[0];
+      }
+    }
+  }, [profile?.language, isMounted, language]);
+
+  const setLanguage = useCallback(async (lang: Language) => {
     setLanguageState(lang);
     localStorage.setItem('viby_lang', lang);
-    document.documentElement.lang = lang.split('-')[0];
-  }, []);
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = lang.split('-')[0];
+    }
+    
+    if (db && user) {
+      try {
+        await updateDoc(doc(db, 'users', user.uid), {
+          language: lang,
+          updatedAt: serverTimestamp()
+        });
+      } catch (e) {
+        console.warn("[I18n] Falha ao sincronizar preferência de idioma.");
+      }
+    }
+  }, [db, user]);
 
   const t = useCallback((path: string) => {
     const keys = path.split('.');
@@ -64,7 +109,9 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <I18nContext.Provider value={value}>
-      {children}
+      <div style={{ visibility: isMounted ? 'visible' : 'hidden', display: 'contents' }}>
+        {children}
+      </div>
     </I18nContext.Provider>
   );
 }

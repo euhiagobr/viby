@@ -1,0 +1,8 @@
+{
+  "collection": "users",
+  "description": "Armazenamento da preferência de idioma do usuário para sincronização entre dispositivos.",
+  "fields": {
+    "language": "string ('pt-BR' | 'en-US')",
+    "updatedAt": "timestamp (servidor)"
+  }
+}

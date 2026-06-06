@@ -113,8 +113,8 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased bg-[#f8fafc] text-[#000000] flex flex-col min-h-screen">
         <GoogleAdsTag />
-        <I18nProvider>
-          <FirebaseClientProvider>
+        <FirebaseClientProvider>
+          <I18nProvider>
             <ErrorManagerProvider>
               <GlobalErrorBoundary>
                 <CartProvider>
@@ -125,8 +125,8 @@ export default function RootLayout({
                 </CartProvider>
               </GlobalErrorBoundary>
             </ErrorManagerProvider>
-          </FirebaseClientProvider>
-        </I18nProvider>
+          </I18nProvider>
+        </FirebaseClientProvider>
       </body>
     </html>
   );
