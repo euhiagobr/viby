@@ -4,13 +4,16 @@
 import * as React from "react";
 import { useFirestore, useAuth, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase";
 import { doc, getDoc, collection, query, where, getDocs, collectionGroup, orderBy, limit } from "firebase/firestore";
-import { Loader2, Lock, ArrowLeft, Home, ShieldAlert } from "lucide-react";
+import { Loader2, Lock, ArrowLeft, Home, ShieldAlert, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AdsRenderer } from "@/components/ads/AdsRenderer";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { UserNav } from "@/components/layout/UserNav";
+import { ShareModal } from "@/components/sharing/ShareModal";
+import { recordQrScan } from "@/app/actions/qr";
+import { useSearchParams } from "next/navigation";
 
 // Components - Organization
 import { OrganizerHero } from "@/components/organizer/OrganizerHero";
@@ -30,12 +33,14 @@ import Footer from "@/components/layout/Footer";
 export default function ProfilePageClient({ username }: { username: string }) {
   const db = useFirestore();
   const auth = useAuth();
+  const searchParams = useSearchParams();
   const { user: loggedUser } = useUser(auth);
   
   const [loading, setLoading] = React.useState(true);
   const [profileData, setProfileData] = React.useState<any>(null);
   const [profileType, setProfileType] = React.useState<'user' | 'organization' | null>(null);
   const [isOwner, setIsOwner] = React.useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = React.useState(false);
   const [now, setNow] = React.useState<Date>(new Date());
 
   // Estado para eventos em parceria
@@ -45,6 +50,17 @@ export default function ProfilePageClient({ username }: { username: string }) {
   React.useEffect(() => {
     setNow(new Date());
   }, []);
+
+  // Rastreamento de Scan de QR Code
+  React.useEffect(() => {
+    const vsrc = searchParams.get('vsrc');
+    if (vsrc === 'qr' && profileData?.id && profileType === 'organization') {
+      recordQrScan({
+        organizationId: profileData.id,
+        scanType: 'organization'
+      });
+    }
+  }, [searchParams, profileData?.id, profileType]);
 
   const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db]);
   const { data: settings } = useDoc<any>(settingsRef);
@@ -283,6 +299,14 @@ export default function ProfilePageClient({ username }: { username: string }) {
             )}
           </Link>
           <div className="flex items-center gap-4">
+            {profileType === 'organization' && (
+              <Button 
+                onClick={() => setIsShareModalOpen(true)}
+                className="bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg shadow-secondary/10 gap-2"
+              >
+                <Share2 className="w-3.5 h-3.5" /> Compartilhar Agenda
+              </Button>
+            )}
             {loggedUser ? <UserNav /> : (
               <Button asChild className="bg-primary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6"><Link href="/login">Acessar Clube</Link></Button>
             )}
@@ -346,6 +370,21 @@ export default function ProfilePageClient({ username }: { username: string }) {
                   </TabsContent>
                 </Tabs>
               </div>
+
+              {profileData && (
+                <ShareModal 
+                  isOpen={isShareModalOpen} 
+                  onOpenChange={setIsShareModalOpen} 
+                  data={{
+                    title: profileData.name,
+                    username: profileData.username,
+                    url: `/${profileData.username}`,
+                    logoUrl: profileData.avatar,
+                    type: 'organization',
+                    organizationId: profileData.id
+                  }}
+                />
+              )}
             </>
           ) : (
             <div className="space-y-12">
@@ -386,4 +425,3 @@ export default function ProfilePageClient({ username }: { username: string }) {
     </div>
   );
 }
-

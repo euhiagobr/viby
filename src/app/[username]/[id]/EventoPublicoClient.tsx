@@ -2,10 +2,10 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { Loader2, ArrowLeft, Calendar, Clock, Ticket, BadgeCheck, ShieldCheck, ArrowRight, RefreshCw, AlertCircle, ShoppingCart, CalendarX, Inbox } from 'lucide-react';
+import { Loader2, ArrowLeft, Calendar, Clock, Ticket, BadgeCheck, ShieldCheck, ArrowRight, RefreshCw, AlertCircle, ShoppingCart, CalendarX, Inbox, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,6 +17,8 @@ import Footer from '@/components/layout/Footer';
 import { UserNav } from '@/components/layout/UserNav';
 import { useCart } from '@/contexts/CartContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ShareModal } from '@/components/sharing/ShareModal';
+import { recordQrScan } from '@/app/actions/qr';
 import { 
   EventDescription, 
   EventTags, 
@@ -33,6 +35,7 @@ import { AgeRatingBadge } from '@/lib/age-rating';
 
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
@@ -43,6 +46,20 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
 
   const orgRef = React.useMemo(() => (db && event?.organizationId) ? doc(db, 'organizations', event.organizationId) : null, [db, event?.organizationId])
   const { data: organization } = useDoc<any>(orgRef)
+
+  const [isShareModalOpen, setIsShareModalOpen] = React.useState(false);
+
+  // Rastreamento de Scan de QR Code
+  React.useEffect(() => {
+    const vsrc = searchParams.get('vsrc');
+    if (vsrc === 'qr' && event?.organizationId) {
+      recordQrScan({
+        organizationId: event.organizationId,
+        eventId: id,
+        scanType: 'event'
+      });
+    }
+  }, [searchParams, event?.organizationId, id]);
 
   const settingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'site') : null), [db])
   const { data: settings } = useDoc<any>(settingsRef)
@@ -116,6 +133,12 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
             </Link>
           </div>
           <div className="flex items-center gap-4">
+            <Button 
+              onClick={() => setIsShareModalOpen(true)}
+              className="bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg shadow-secondary/10 gap-2 h-10"
+            >
+              <Share2 className="w-3.5 h-3.5" /> Compartilhar Evento
+            </Button>
             <Button variant="outline" size="icon" className="rounded-full relative" asChild>
                <Link href="/dashboard/carrinho">
                   <Ticket className="w-5 h-5" />
@@ -315,6 +338,22 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
         </div>
       </main>
       <Footer />
+
+      {event && (
+        <ShareModal 
+          isOpen={isShareModalOpen} 
+          onOpenChange={setIsShareModalOpen} 
+          data={{
+            title: event.title,
+            username: username,
+            url: `/${username}/${id}`,
+            logoUrl: event.image,
+            type: 'event',
+            organizationId: event.organizationId,
+            eventId: id
+          }}
+        />
+      )}
     </div>
   );
 }

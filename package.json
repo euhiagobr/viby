@@ -45,7 +45,7 @@
     "firebase": "^11.9.1",
     "firebase-admin": "^12.7.0",
     "framer-motion": "^11.11.17",
-    "genkit": "^1.28.0",
+    "html-to-image": "^1.11.11",
     "html5-qrcode": "^2.3.8",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.475.0",

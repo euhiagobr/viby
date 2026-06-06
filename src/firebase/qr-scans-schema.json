@@ -1,0 +1,25 @@
+
+{
+  "collection": "qr_scans",
+  "description": "Rastreamento de escaneamentos de QR Codes da plataforma.",
+  "fields": {
+    "id": "string (auto-id)",
+    "organizationId": "string (ref:organizations)",
+    "eventId": "string (opcional, ref:events)",
+    "scanType": "organization | event",
+    "scannedAt": "timestamp",
+    "userAgent": "string",
+    "referrer": "string",
+    "createdAt": "timestamp"
+  },
+  "indexes": [
+    {
+      "collectionId": "qr_scans",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "organizationId", "order": "ASCENDING" },
+        { "fieldPath": "scannedAt", "order": "DESCENDING" }
+      ]
+    }
+  ]
+}

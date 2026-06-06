@@ -99,6 +99,11 @@ service cloud.firestore {
       }
     }
 
+    match /qr_scans/{id} {
+      allow read: if isAdmin() || isOrgAdmin(resource.data.organizationId);
+      allow create: if true;
+    }
+
     match /recurring_events/{id} {
       allow read: if true;
       allow create: if isSignedIn();
