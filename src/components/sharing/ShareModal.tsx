@@ -111,7 +111,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
   const loadAssets = React.useCallback(async () => {
     setIsAssetsLoaded(false);
-    console.log("[VIBY-LOGO-AUDIT] Iniciando carga de ativos para ShareModal...");
     try {
       const vibyRes = await fetchImageAsBase64(VIBY_LOGO_OFFICIAL);
       if (vibyRes.success) setVibyLogoBase64(vibyRes.data!);
@@ -127,9 +126,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       }
 
       setIsAssetsLoaded(true);
-      console.log("[VIBY-LOGO-AUDIT] Ativos carregados.");
     } catch (e) {
-      console.error("[VIBY-LOGO-AUDIT] Erro ao carregar ativos:", e);
       setIsAssetsLoaded(true); 
     }
   }, [data.logoUrl, data.bannerUrl]);
@@ -171,7 +168,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    // Aguarda ciclo de renderização do template novo
     await new Promise(resolve => setTimeout(resolve, 500));
 
     try {
@@ -200,8 +196,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     }
   };
 
-  // --- LÓGICA DE ESTILOS ---
-
   const getThemeStyle = (theme: Theme): React.CSSProperties => {
     switch (theme) {
       case 'viby':
@@ -227,6 +221,14 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
   const renderLogoSection = (size: number, theme: Theme) => {
     const isDark = theme !== 'claro' && theme !== 'corporativo';
+    const name = data.title;
+    
+    // Cálculo dinâmico para evitar cortes em nomes longos
+    let baseFontSize = size / 3;
+    if (name.length > 12) baseFontSize = size / 3.8;
+    if (name.length > 20) baseFontSize = size / 4.5;
+    if (name.length > 30) baseFontSize = size / 6;
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', width: '100%' }}>
         <div style={{ 
@@ -250,7 +252,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           )}
         </div>
         <h1 style={{ 
-          fontSize: `${size/3}px`, 
+          fontSize: `${baseFontSize}px`, 
           fontWeight: 900, 
           textTransform: 'uppercase', 
           fontStyle: 'italic', 
@@ -259,9 +261,14 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           letterSpacing: '-0.05em', 
           color: theme === 'premium' ? '#D4AF37' : (isDark ? '#ffffff' : '#000000'),
           lineHeight: 0.9,
-          maxWidth: '95%'
+          maxWidth: '95%',
+          wordBreak: 'break-word',
+          display: '-webkit-box',
+          WebkitLineClamp: 3,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden'
         }}>
-          {data.title}
+          {name}
         </h1>
       </div>
     );
@@ -336,13 +343,10 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     return null;
   };
 
-  // --- RENDER TEMPLATE COMPOSITION ---
-
   const renderFullArte = (format: Format, theme: Theme, template: Template) => {
     const config = FORMAT_CONFIGS[format];
     const themeStyle = getThemeStyle(theme);
     
-    // Dimensões base para Stories
     let logoSize = 400;
     let qrSize = 580;
     let fontSize = 56;
@@ -403,7 +407,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-7xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[95vh] md:h-[90vh]">
         
-        {/* Painel Lateral de Controle */}
         <div className="w-full md:w-96 flex flex-col bg-white border-r">
           <div className="p-8 border-b bg-muted/10">
              <DialogHeader>
@@ -417,7 +420,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
           <ScrollArea className="flex-1">
              <div className="p-8 space-y-10">
-                {/* Seleção de Temas */}
                 <div className="space-y-4">
                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Visual / Tema</p>
                    <div className="grid grid-cols-2 gap-2">
@@ -440,7 +442,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
                 <Separator className="border-dashed" />
 
-                {/* Ações de Download */}
                 <div className="space-y-4">
                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Exportar Formatos</p>
                    <div className="grid grid-cols-1 gap-2">
@@ -457,7 +458,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
                    </div>
                 </div>
 
-                {/* Formatos de Impressão */}
                 <div className="space-y-3">
                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Impressão (PDF/PNG)</p>
                    <div className="grid grid-cols-3 gap-2">
@@ -480,7 +480,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           </div>
         </div>
 
-        {/* Área de Preview */}
         <div className="flex-1 p-6 md:p-10 bg-muted/20 flex flex-col items-center justify-center relative overflow-hidden">
           {!isAssetsLoaded && (
             <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center gap-4 text-center p-6">
@@ -498,14 +497,12 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
             </div>
           )}
 
-          {/* Renderizador Invisível para Captura (Tamanho Real) */}
           <div style={{ position: 'fixed', left: '-9999px', top: '-9999px' }}>
             <div ref={renderRef}>
                {renderFullArte(currentFormat, selectedTheme, selectedTemplate)}
             </div>
           </div>
 
-          {/* Prévia Visual Escalada */}
           <div className="scale-[0.22] md:scale-[0.25] lg:scale-[0.32] origin-center shadow-[0_60px_120px_rgba(0,0,0,0.4)] bg-white ring-[25px] ring-white shrink-0 rounded-sm">
              {renderFullArte('stories', selectedTheme, selectedTemplate)}
           </div>
@@ -523,4 +520,3 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     </Dialog>
   );
 }
-
