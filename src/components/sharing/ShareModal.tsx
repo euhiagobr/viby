@@ -28,7 +28,11 @@ import {
   ShieldCheck,
   Building2,
   Calendar,
-  Globe
+  Globe,
+  Camera,
+  Image as ImageIcon,
+  MousePointer2,
+  RefreshCw
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from '@/hooks/use-toast';
@@ -105,6 +109,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
   const loadAssets = React.useCallback(async () => {
     setIsAssetsLoaded(false);
+    console.log("[VIBY-LOGO-AUDIT] Iniciando carga de ativos...");
     try {
       const promises: Promise<any>[] = [
         fetchImageAsBase64(VIBY_LOGO_OFFICIAL)
@@ -115,13 +120,19 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
       const [vibyRes, orgRes, bannerRes] = await Promise.all(promises);
 
-      if (vibyRes.success) setVibyLogoBase64(vibyRes.data!);
-      if (orgRes?.success) setOrgLogoBase64(orgRes.data!);
+      if (vibyRes.success) {
+        setVibyLogoBase64(vibyRes.data!);
+        console.log("[VIBY-LOGO-AUDIT] Logo Viby carregado com sucesso.");
+      }
+      if (orgRes?.success) {
+        setOrgLogoBase64(orgRes.data!);
+        console.log("[VIBY-LOGO-AUDIT] Logo Organização carregado com sucesso.");
+      }
       if (bannerRes?.success) setBannerBase64(bannerRes.data!);
 
       setIsAssetsLoaded(true);
     } catch (e) {
-      console.error("[SHARE-AUDIT] Erro ao carregar ativos:", e);
+      console.error("[VIBY-LOGO-AUDIT] Erro ao carregar ativos:", e);
       setIsAssetsLoaded(true); 
     }
   }, [data.logoUrl, data.bannerUrl]);
@@ -163,6 +174,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
     setCurrentFormat(format);
     setIsGenerating(true);
+    console.log(`[FORMAT-LOG] Iniciando geração para formato: ${format}`);
     
     await new Promise(resolve => setTimeout(resolve, 800));
 
@@ -216,12 +228,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       default:
         return { background: '#ffffff', color: '#000000' };
     }
-  };
-
-  const getQRColor = (theme: Theme) => {
-    if (theme === 'claro' || theme === 'corporativo') return '#000000';
-    if (theme === 'premium') return '#D4AF37';
-    return '#000000'; // QR Code sempre preto para legibilidade máxima
   };
 
   // --- COMPONENTES DE CONTEÚDO ---
@@ -342,14 +348,12 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     const config = FORMAT_CONFIGS[format];
     const themeStyle = getThemeStyle(theme);
     
-    // Dimensões base para Story (1080x1920)
     let logoSize = 400;
     let qrSize = 550;
     let fontSize = 52;
     let footerLogo = 80;
     let padding = '180px 100px';
 
-    // Ajuste para Feed (1080x1080)
     if (format === 'instagram') {
       logoSize = 240;
       qrSize = 400;
@@ -358,7 +362,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       padding = '100px';
     }
 
-    // Ajuste para A4/A5/A6 (Base A4 1240x1754)
     if (format === 'A4' || format === 'A5' || format === 'A6') {
        logoSize = 300;
        qrSize = 500;
@@ -381,7 +384,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       overflow: 'hidden'
     };
 
-    // Estilos Específicos por Template
     const templateContent = () => {
       switch (template) {
         case 'minimalista':
@@ -408,7 +410,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
               <div style={{ position: 'relative', zIndex: 10 }}>{renderRodape(footerLogo, theme)}</div>
             </>
           );
-        default: // clássico, organizacao, evento
+        default: 
           return (
             <>
               <div style={{ position: 'relative', zIndex: 10 }}>{renderLogo(logoSize, theme)}</div>
@@ -431,7 +433,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-7xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[95vh] md:h-[90vh]">
         
-        {/* PAINEL DE CONFIGURAÇÃO (ESQUERDA) */}
         <div className="w-full md:w-96 flex flex-col bg-white border-r">
           <div className="p-8 border-b bg-muted/10">
              <DialogHeader>
@@ -445,7 +446,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
           <ScrollArea className="flex-1">
              <div className="p-8 space-y-10">
-                {/* Seleção de Tema */}
                 <div className="space-y-4">
                    <div className="flex items-center justify-between px-1">
                       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Temas</p>
@@ -469,7 +469,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
                    </div>
                 </div>
 
-                {/* Seleção de Template */}
                 <div className="space-y-4">
                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Layouts</p>
                    <div className="grid grid-cols-2 gap-2">
@@ -491,11 +490,10 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
                 <Separator className="border-dashed" />
 
-                {/* Ações Rápidas */}
                 <div className="space-y-4">
                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Exportar Material</p>
                    <div className="grid grid-cols-1 gap-2">
-                      <Button onClick={() => handleDownload('stories')} disabled={isGenerating || !isAssetsLoaded} className="h-16 rounded-2xl bg-secondary text-white font-black uppercase italic shadow-xl shadow-secondary/10 gap-3 group">
+                      <Button onClick={() => handleDownload('stories')} disabled={isGenerating || !isAssetsLoaded} className="h-16 rounded-2xl bg-secondary text-white font-black uppercase italic shadow-xl shadow-secondary/20 gap-3 group">
                          <Smartphone className="w-6 h-6 group-hover:scale-110 transition-transform" />
                          <div className="text-left">
                             <p className="text-sm">Baixar para Stories</p>
@@ -522,11 +520,13 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
              <Button variant="ghost" onClick={() => window.print()} className="w-full h-10 rounded-xl font-black uppercase text-[9px] gap-2 bg-white border shadow-sm">
                 <Printer className="w-3.5 h-3.5" /> Imprimir em PDF
              </Button>
+             <Button variant="ghost" onClick={handleNativeShare} className="w-full h-10 rounded-xl font-black uppercase text-[9px] gap-2 bg-white border shadow-sm">
+                <Share2 className="w-3.5 h-3.5" /> Compartilhar
+             </Button>
              <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full h-10 rounded-xl font-bold uppercase text-[10px] opacity-40 hover:opacity-100">Fechar</Button>
           </div>
         </div>
 
-        {/* PRÉVIA EM TEMPO REAL (DIREITA) */}
         <div className="flex-1 p-6 md:p-10 bg-muted/20 flex flex-col items-center justify-center relative overflow-hidden">
           {!isAssetsLoaded && (
             <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center gap-4 text-center p-6">
@@ -544,14 +544,12 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
             </div>
           )}
 
-          {/* NÓ DE RENDERIZAÇÃO REAL PARA EXPORTAÇÃO */}
           <div style={{ position: 'fixed', left: '-9999px', top: '-9999px' }}>
             <div ref={renderRef}>
                {renderTemplate(currentFormat, selectedTheme, selectedTemplate)}
             </div>
           </div>
 
-          {/* VISUALIZAÇÃO SCALED NO MODAL */}
           <div className="scale-[0.20] md:scale-[0.22] lg:scale-[0.28] origin-center shadow-[0_50px_100px_rgba(0,0,0,0.3)] bg-white ring-[20px] ring-white shrink-0 rounded-sm">
              {renderTemplate('stories', selectedTheme, selectedTemplate)}
           </div>
@@ -574,4 +572,3 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     </Dialog>
   );
 }
-
