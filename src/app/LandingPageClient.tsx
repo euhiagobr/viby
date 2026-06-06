@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -23,7 +24,7 @@ import {
 import { getCurrentLocation, calculateDistance, type Coordinates } from "@/lib/location-utils"
 import { calculateEventScore, isEventVisible } from "@/lib/event-scoring-utils"
 import Footer from "@/components/layout/Footer"
-import { cn } from "@/lib/utils"
+import { cn, normalizeText } from "@/lib/utils"
 import { PlaceHolderImages } from "@/lib/placeholder-images"
 import { UserNav } from "@/components/layout/UserNav"
 import { Calendar } from "@/components/ui/calendar"
@@ -42,7 +43,7 @@ export default function LandingPageClient() {
 
   const [hasMounted, setHasMounted] = React.useState(false)
   const [searchName, setSearchName] = React.useState("")
-  const [selectedCity, setSelectedCity] = React.useState("all")
+  const [searchCity, setSearchCity] = React.useState("")
   const [selectedCategory, setSelectedCategory] = React.useState("all")
   const [radiusKm, setRadiusKm] = React.useState("unlimited")
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
@@ -60,20 +61,21 @@ export default function LandingPageClient() {
 
   const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
 
-  const uniqueCities = React.useMemo(() => {
-    if (!events) return []
-    const cities = events.filter((e: any) => e.city && e.status === 'Ativo').map((e: any) => e.city)
-    return Array.from(new Set(cities)).sort() as string[]
-  }, [events])
-
   const filteredAndSortedEvents = React.useMemo(() => {
     if (!events) return []
 
     let result = events.filter(e => {
       if (!isEventVisible(e)) return false;
 
-      if (searchName && !e.title?.toLowerCase().includes(searchName.toLowerCase())) return false;
-      if (selectedCity !== 'all' && e.city !== selectedCity) return false;
+      const nameNorm = normalizeText(searchName);
+      if (searchName && !normalizeText(e.title || "").includes(nameNorm)) return false;
+      
+      const cityNorm = normalizeText(searchCity);
+      if (searchCity) {
+        const eventLoc = normalizeText(`${e.city || ""} ${e.state || ""}`);
+        if (!eventLoc.includes(cityNorm)) return false;
+      }
+
       if (selectedCategory !== 'all' && e.categoryId !== selectedCategory) return false;
       
       const parseDate = (val: any) => {
@@ -111,7 +113,7 @@ export default function LandingPageClient() {
         maxRadiusKm: radiusKm === 'unlimited' ? 500 : parseInt(radiusKm)
       })
     })).sort((a, b) => b._score - a._score);
-  }, [events, searchName, selectedCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
+  }, [events, searchName, searchCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
 
   const unifiedFeed = React.useMemo(() => {
     const result = [];
@@ -227,17 +229,14 @@ export default function LandingPageClient() {
                         </PopoverContent>
                       </Popover>
                     </div>
-                    <div className="md:col-span-2">
-                      <Select value={selectedCity} onValueChange={setSelectedCity}>
-                        <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white">
-                            <MapPin className="w-4 h-4 text-secondary mr-2" />
-                            <SelectValue placeholder="Cidade" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todas as cidades</SelectItem>
-                          {uniqueCities.map(city => <SelectItem key={city} value={city}>{city}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                    <div className="md:col-span-2 relative">
+                      <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary" />
+                      <Input 
+                        placeholder="Onde? (Cidade ou UF)" 
+                        className="bg-white/5 border-white/10 h-14 pl-12 rounded-2xl text-white placeholder:text-white/30"
+                        value={searchCity}
+                        onChange={(e) => setSearchCity(e.target.value)}
+                      />
                     </div>
                     <div className="md:col-span-2">
                       <Select value={radiusKm} onValueChange={setRadiusKm}>
@@ -288,7 +287,7 @@ export default function LandingPageClient() {
                     <Inbox className="w-10 h-10 text-muted-foreground opacity-20" />
                 </div>
                 <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Nenhum evento localizado</h3>
-                <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSelectedCity("all"); setSelectedCategory("all"); setRadiusKm("unlimited"); setDateFilter("all"); }}>Limpar Todos os Filtros</Button>
+                <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSearchCity(""); setSelectedCategory("all"); setRadiusKm("unlimited"); setDateFilter("all"); }}>Limpar Todos os Filtros</Button>
               </div>
             )}
 

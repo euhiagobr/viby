@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -360,8 +361,8 @@ export function EventLocation({
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nº</Label><Input value={currentLoc.number || ""} onChange={e => handleUpdateLocation(index, 'number', e.target.value)} required className="rounded-xl h-11" /></div>
                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={currentLoc.neighborhood || ""} onChange={e => handleUpdateLocation(index, 'neighborhood', e.target.value)} required className="rounded-xl h-11" /></div>
-                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={currentLoc.city || ""} readOnly className="rounded-xl h-11 bg-muted/30" /></div>
-                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">UF</Label><Input value={currentLoc.state || ""} readOnly className="rounded-xl h-11 bg-muted/30 w-16" /></div>
+                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={currentLoc.city || ""} onChange={e => handleUpdateLocation(index, 'city', e.target.value)} className="rounded-xl h-11" /></div>
+                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">UF</Label><Input value={currentLoc.state || ""} onChange={e => handleUpdateLocation(index, 'state', e.target.value)} className="rounded-xl h-11 w-16" /></div>
               </div>
 
               {isMulti && (
@@ -447,8 +448,7 @@ export function EventLocation({
                             <Label className="text-[10px] font-black uppercase tracking-widest cursor-help">Múltiplos Locais?</Label>
                             <Switch 
                                checked={isMultiLocation} 
-                               onCheckedChange={(val) => {
-                                  onToggleMultiLocation?.(val);
+                               onToggleMultiLocation?.(val);
                                   if (val && locations.length === 0) {
                                      const L1 = { ...DEFAULT_LOCATION, ...address, id: "loc_1", order: 0 };
                                      const L2 = { ...DEFAULT_LOCATION, id: "loc_2", order: 1 };
