@@ -37,7 +37,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { formatCurrency } from "@/lib/financial-utils"
 import {
   Dialog,
   DialogContent,
@@ -50,11 +49,13 @@ import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { sendPayoutConfirmedEmail } from "@/app/actions/email"
+import { useCurrency } from "@/contexts/CurrencyContext"
 
 export default function AdminTransferenciasPage() {
   const db = useFirestore()
   const app = useFirebaseApp()
   const storage = React.useMemo(() => app ? getStorage(app) : null, [app])
+  const { formatPrice } = useCurrency()
 
   const [search, setSearch] = React.useState("")
   const [selectedRequest, setSelectedRequest] = React.useState<any>(null)
@@ -93,9 +94,9 @@ export default function AdminTransferenciasPage() {
 
     setUploadProgress(0)
     try {
-      const fileName = `payout_proofs/${selectedRequest.organizationId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`
-      const storageRef = ref(storage, fileName)
-      const uploadTask = uploadBytesResumable(storageRef, file)
+      const fileName = `payout_proofs/${selectedRequest.organizationId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+      const storageRef = ref(storage, fileName);
+      const uploadTask = uploadBytesResumable(storageRef, file);
 
       uploadTask.on('state_changed', 
         (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
@@ -115,59 +116,31 @@ export default function AdminTransferenciasPage() {
 
     setIsSubmitting(true)
     try {
-      // 1. Atualizar o documento do saque
       await updateDoc(doc(db, "payout_requests", selectedRequest.id), {
         status: "Concluído",
         proofUrl: proofUrl,
         processedAt: serverTimestamp()
       })
 
-      // 2. Disparar e-mail de notificação
-      await triggerPayoutNotification(selectedRequest.userId, selectedRequest.organizationName, selectedRequest.amount, proofUrl);
+      const userSnap = await getDoc(doc(db, "users", selectedRequest.userId));
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        await sendPayoutConfirmedEmail({
+          to: userData.email,
+          userName: userData.name || userData.displayName || "Usuário",
+          orgName: selectedRequest.organizationName,
+          amount: selectedRequest.amount,
+          proofUrl: proofUrl
+        });
+      }
 
-      toast({ title: "Saque Concluído!", description: "O comprovante foi enviado ao usuário." })
+      toast({ title: "Saque Concluído!" })
       setSelectedRequest(null)
       setProofUrl("")
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao atualizar" })
     } finally {
       setIsSubmitting(false)
-    }
-  }
-
-  const triggerPayoutNotification = async (userId: string, orgName: string, amount: number, proof: string) => {
-    if (!db) return;
-    try {
-      const userSnap = await getDoc(doc(db, "users", userId));
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
-        const result = await sendPayoutConfirmedEmail({
-          to: userData.email,
-          userName: userData.name || userData.displayName || "Usuário",
-          orgName: orgName,
-          amount: amount,
-          proofUrl: proof
-        });
-        
-        if (!result.success && result.error) {
-          toast({ variant: "destructive", title: "E-mail não enviado", description: result.error });
-        }
-      }
-    } catch (err) {
-      console.warn("Falha ao disparar e-mail de saque.", err);
-    }
-  }
-
-  const handleResendNotification = async (req: any) => {
-    if (!req.userId || !req.proofUrl) return;
-    setResendingId(req.id);
-    try {
-      await triggerPayoutNotification(req.userId, req.organizationName, req.amount, req.proofUrl);
-      toast({ title: "Tentativa de reenvio realizada!" });
-    } catch (e) {
-      toast({ variant: "destructive", title: "Erro ao reenviar" });
-    } finally {
-      setResendingId(null);
     }
   }
 
@@ -209,7 +182,7 @@ export default function AdminTransferenciasPage() {
             <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Total Repassado</CardTitle></CardHeader>
             <CardContent>
                <div className="text-2xl font-black">
-                 {formatCurrency(completedRequests.reduce((acc, r) => acc + (r.amount || 0), 0))}
+                 {formatPrice(completedRequests.reduce((acc, r) => acc + (r.amount || 0), 0))}
                </div>
             </CardContent>
          </Card>
@@ -218,7 +191,7 @@ export default function AdminTransferenciasPage() {
       <div className="relative w-full max-sm:w-full md:w-80">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input 
-          placeholder="Buscar por marca ou protocolo..." 
+          placeholder="Buscar por marca..." 
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-10 rounded-xl h-11"
@@ -272,7 +245,7 @@ export default function AdminTransferenciasPage() {
                             </div>
                          </TableCell>
                          <TableCell className="text-right font-black text-primary">
-                            {formatCurrency(req.amount)}
+                            {formatPrice(req.amount)}
                          </TableCell>
                          <TableCell className="text-right">
                             <Button size="sm" onClick={() => setSelectedRequest(req)} className="bg-secondary text-white font-black rounded-lg h-8 text-[9px] uppercase gap-1.5 shadow-lg">
@@ -290,7 +263,7 @@ export default function AdminTransferenciasPage() {
         <TabsContent value="completed">
           <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
              {completedRequests.length === 0 ? (
-               <div className="py-20 text-center text-muted-foreground italic">Nenhum saque concluído ainda.</div>
+               <div className="py-20 text-center text-muted-foreground italic">Nenhum saque concluído.</div>
              ) : (
                <Table>
                  <TableHeader className="bg-muted/30">
@@ -308,23 +281,11 @@ export default function AdminTransferenciasPage() {
                          <TableCell><span className="text-[10px] font-black uppercase text-muted-foreground">#{req.id.slice(-8)}</span></TableCell>
                          <TableCell><span className="font-bold text-sm uppercase">{req.organizationName}</span></TableCell>
                          <TableCell><span className="text-[11px] font-medium">{formatTimestamp(req.processedAt)}</span></TableCell>
-                         <TableCell className="text-right font-black text-green-600">{formatCurrency(req.amount)}</TableCell>
+                         <TableCell className="text-right font-black text-green-600">{formatPrice(req.amount)}</TableCell>
                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                               <Button 
-                                 variant="outline" 
-                                 size="sm" 
-                                 className="h-8 rounded-lg text-secondary border-secondary/20 font-bold gap-1.5 text-[9px] uppercase hover:bg-secondary/5"
-                                 onClick={() => handleResendNotification(req)}
-                                 disabled={resendingId === req.id}
-                               >
-                                  {resendingId === req.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
-                                  Reenviar E-mail
-                               </Button>
-                               <Button variant="ghost" size="sm" asChild className="h-8 text-secondary font-bold gap-1.5 text-[9px] uppercase">
-                                  <a href={req.proofUrl} target="_blank" rel="noopener noreferrer"><FileText className="w-3.5 h-3.5" /> Comprovante</a>
-                               </Button>
-                            </div>
+                            <Button variant="ghost" size="sm" asChild className="h-8 text-secondary font-bold gap-1.5 text-[9px] uppercase">
+                               <a href={req.proofUrl} target="_blank" rel="noopener noreferrer"><FileText className="w-3.5 h-3.5" /> Comprovante</a>
+                            </Button>
                          </TableCell>
                       </TableRow>
                     ))}
@@ -335,13 +296,12 @@ export default function AdminTransferenciasPage() {
         </TabsContent>
       </Tabs>
 
-      {/* MODAL DE PAGAMENTO */}
       <Dialog open={!!selectedRequest} onOpenChange={(o) => !o && (setSelectedRequest(null), setProofUrl(""))}>
          <DialogContent className="max-w-md rounded-[2.5rem]">
             <DialogHeader>
                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Efetivar Transferência</DialogTitle>
                <DialogDescription>
-                 Confirme os dados e anexe o comprovante de pagamento para finalizar o saque de <strong>{selectedRequest?.organizationName}</strong>.
+                 Confirme os dados e anexe o comprovante para finalizar o saque.
                </DialogDescription>
             </DialogHeader>
             
@@ -349,7 +309,7 @@ export default function AdminTransferenciasPage() {
                <div className="p-6 bg-muted/30 rounded-[1.5rem] border space-y-4">
                   <div className="flex justify-between items-center">
                      <span className="text-[10px] font-black uppercase opacity-40">Valor Solicitado</span>
-                     <span className="text-xl font-black text-primary">{formatCurrency(selectedRequest?.amount || 0)}</span>
+                     <span className="text-xl font-black text-primary">{formatPrice(selectedRequest?.amount || 0)}</span>
                   </div>
                   <Separator />
                   <div className="space-y-2">

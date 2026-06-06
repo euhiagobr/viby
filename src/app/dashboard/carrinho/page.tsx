@@ -24,16 +24,18 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { formatCurrency, calculateFinancialBreakdown } from "@/lib/financial-utils"
+import { calculateFinancialBreakdown } from "@/lib/financial-utils"
 import { PayButton } from "@/components/payments/PayButton"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { useCurrency } from "@/contexts/CurrencyContext"
 
 export default function CarrinhoPage() {
   const { items, removeItem, updateQuantity, clearCart, expiresAt, setItems } = useCart()
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
+  const { formatPrice } = useCurrency()
   
   const [useBalance, setUseBalance] = React.useState(false)
   const [orgsData, setOrgsData] = React.useState<Record<string, any>>({})
@@ -120,22 +122,6 @@ export default function CarrinhoPage() {
     fetchData()
   }, [db, items]);
 
-  const handleApplyCoupon = async (cartItemId: string) => {
-    const code = couponInputs[cartItemId]?.trim().toUpperCase();
-    if (!code || !db) return;
-    setApplyingCoupon(cartItemId);
-    try {
-      const q = query(collection(db, "coupons"), where("code", "==", code), limit(1));
-      const snap = await getDocs(q);
-      if (snap.empty) throw new Error("Cupom não encontrado.");
-      toast({ title: "Cupom Aplicado!" });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro no Cupom", description: e.message });
-    } finally {
-      setApplyingCoupon(null);
-    }
-  };
-
   const cartTotals = React.useMemo(() => {
     let subtotal = 0;
     let fees = 0;
@@ -146,7 +132,6 @@ export default function CarrinhoPage() {
       const itemSubtotal = (item.price || 0) * (item.quantity || 0);
       subtotal += itemSubtotal;
       
-      // Audit fix: Loading and null guards for financial calculations
       const org = orgsData?.[item.organizationId];
       if (org && globalFees) {
         const res = calculateFinancialBreakdown(item.price, globalFees, promotions, org);
@@ -206,7 +191,7 @@ export default function CarrinhoPage() {
                                  <span className="font-bold text-sm">{item.quantity}</span>
                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity + 1)}>+</Button>
                               </div>
-                              <p className="font-black text-lg">{formatCurrency(item.price * item.quantity)}</p>
+                              <p className="font-black text-lg">{formatPrice(item.price * item.quantity)}</p>
                            </div>
                         </CardContent>
                      </div>
@@ -221,16 +206,16 @@ export default function CarrinhoPage() {
              <Card className="border-none shadow-xl rounded-[2.5rem] bg-primary text-white p-8">
                 <div className="flex justify-between items-center">
                    <p className="text-[10px] font-black uppercase opacity-40">Saldo Carteira</p>
-                   <p className="text-xl font-black italic">{formatCurrency(wallet?.balance || 0)}</p>
+                   <p className="text-xl font-black italic">{formatPrice(wallet?.balance || 0)}</p>
                 </div>
              </Card>
 
              <Card className="border-none shadow-2xl rounded-[3rem] bg-white p-8 space-y-8">
                 <div className="space-y-4">
-                   <div className="flex justify-between text-xs opacity-60"><span>Subtotal</span><span>{formatCurrency(cartTotals.subtotal)}</span></div>
-                   <div className="flex justify-between text-xs opacity-60"><span>Taxas</span><span>{formatCurrency(cartTotals.fees)}</span></div>
+                   <div className="flex justify-between text-xs opacity-60"><span>Subtotal</span><span>{formatPrice(cartTotals.subtotal)}</span></div>
+                   <div className="flex justify-between text-xs opacity-60"><span>Taxas</span><span>{formatPrice(cartTotals.fees)}</span></div>
                    <Separator className="border-dashed" />
-                   <div className="flex justify-between items-center"><span className="text-xl font-black italic uppercase">Total</span><span className="text-3xl font-black text-primary">{formatCurrency(cartTotals.total)}</span></div>
+                   <div className="flex justify-between items-center"><span className="text-xl font-black italic uppercase">Total</span><span className="text-3xl font-black text-primary">{formatPrice(cartTotals.total)}</span></div>
                 </div>
                 <PayButton 
                   items={items} 

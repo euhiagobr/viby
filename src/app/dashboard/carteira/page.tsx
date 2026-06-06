@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -28,7 +27,6 @@ import {
   AlertCircle,
   FileText
 } from "lucide-react"
-import { formatCurrency } from "@/lib/financial-utils"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { Separator } from "@/components/ui/separator"
@@ -38,17 +36,17 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { useCurrency } from "@/contexts/CurrencyContext"
 
 export default function CarteiraPage() {
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
+  const { formatPrice } = useCurrency()
 
-  // Consultar Wallet (Ledger oficial)
   const walletRef = React.useMemo(() => (db && user) ? doc(db, "wallets", user.uid) : null, [db, user])
   const { data: wallet, loading: walletLoading } = useDoc<any>(walletRef)
 
-  // Consultar Transações
   const transactionsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
     return query(
@@ -88,7 +86,7 @@ export default function CarteiraPage() {
           <CardContent className="p-10 flex flex-col justify-between h-full min-h-[250px] relative z-10">
             <div className="space-y-1">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">Saldo Disponível</p>
-              <h2 className="text-5xl font-black italic tracking-tighter">{formatCurrency(balance)}</h2>
+              <h2 className="text-5xl font-black italic tracking-tighter">{formatPrice(balance)}</h2>
             </div>
             
             <div className="space-y-4">
@@ -182,7 +180,7 @@ export default function CarteiraPage() {
                           </div>
                           <div className="text-right">
                              <p className={cn("text-xl font-black", isCredit ? "text-green-600" : "text-primary")}>
-                                {isCredit ? "+" : "-"}{formatCurrency(tx.amount)}
+                                {isCredit ? "+" : "-"}{formatPrice(tx.amount)}
                              </p>
                              <div className="flex items-center justify-end gap-1 opacity-40">
                                 <CheckCircle2 className="w-3 h-3 text-green-600" />
@@ -191,21 +189,20 @@ export default function CarteiraPage() {
                           </div>
                        </div>
 
-                       {/* Discriminação Detalhada para Estornos */}
                        {isRefund && tx.metadata && (
                          <div className="ml-12 p-4 bg-muted/30 rounded-2xl border border-dashed border-border/60 animate-in slide-in-from-top-2 duration-300">
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                                <div className="space-y-1">
                                   <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60">Valor Pago Original</p>
-                                  <p className="text-xs font-bold text-primary">{formatCurrency(tx.metadata.totalPaid || 0)}</p>
+                                  <p className="text-xs font-bold text-primary">{formatPrice(tx.metadata.totalPaid || 0)}</p>
                                </div>
                                <div className="space-y-1">
                                   <p className="text-[8px] font-black uppercase text-red-500 opacity-60">Taxas Retidas (4.99% + R$1)</p>
-                                  <p className="text-xs font-bold text-red-500">-{formatCurrency(tx.metadata.gatewayFeeRetained || 0)}</p>
+                                  <p className="text-xs font-bold text-red-500">-{formatPrice(tx.metadata.gatewayFeeRetained || 0)}</p>
                                </div>
                                <div className="space-y-1">
                                   <p className="text-[8px] font-black uppercase text-green-600 opacity-60">Saldo Devolvido</p>
-                                  <p className="text-xs font-black text-green-600">{formatCurrency(tx.amount)}</p>
+                                  <p className="text-xs font-black text-green-600">{formatPrice(tx.amount)}</p>
                                </div>
                             </div>
                             {tx.metadata.registrationId && (
@@ -221,7 +218,6 @@ export default function CarteiraPage() {
                          </div>
                        )}
 
-                       {/* Discriminação para Compras */}
                        {!isCredit && tx.reason === 'compra_ingresso' && (
                          <div className="ml-12 flex items-center gap-2 text-[9px] font-bold text-muted-foreground uppercase">
                             <CreditCard className="w-3 h-3" /> Abatimento de saldo em nova compra

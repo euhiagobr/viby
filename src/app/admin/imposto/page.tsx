@@ -32,12 +32,13 @@ import {
 } from "@/components/ui/table"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { formatCurrency, calculateDetailedVibyBreakdown } from "@/lib/financial-utils"
+import { calculateDetailedVibyBreakdown } from "@/lib/financial-utils"
 import { useRouter } from "next/navigation"
+import { useCurrency } from "@/contexts/CurrencyContext"
 
 export default function AdminImpostoPage() {
   const db = useFirestore()
-  const router = useRouter()
+  const { formatPrice } = useCurrency()
 
   const [searchName, setSearchName] = React.useState("")
   const [selectedMonth, setSelectedMonth] = React.useState("all")
@@ -102,9 +103,7 @@ export default function AdminImpostoPage() {
 
       if (count > 0) {
         await batch.commit()
-        toast({ title: "Sincronização Fiscal!", description: `${count} entradas geradas no ERP.` })
-      } else {
-        toast({ title: "ERP em Dia", description: "Todos os registros fiscais já foram sincronizados." })
+        toast({ title: "Sincronização Fiscal!" })
       }
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na sincronização" })
@@ -169,7 +168,7 @@ export default function AdminImpostoPage() {
           <h1 className="text-3xl font-black uppercase italic text-primary flex items-center gap-3">
              <Scale className="w-8 h-8 text-secondary" /> Fiscal & ERP
           </h1>
-          <p className="text-muted-foreground font-medium">Controle de faturamento, margem Stripe e provisionamento de impostos.</p>
+          <p className="text-muted-foreground font-medium">Controle de faturamento e provisionamento de impostos.</p>
         </div>
         <Button variant="outline" onClick={handleSyncSales} disabled={isSyncing} className="rounded-full h-11 px-6 font-black uppercase text-[10px] gap-2 border-secondary text-secondary">
           {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
@@ -178,11 +177,11 @@ export default function AdminImpostoPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-         <StatCard title="Venda Bruta" value={totals.totalSold} icon={TrendingUp} color="blue" />
-         <StatCard title="Stripe Fees" value={totals.stripeFees} icon={CreditCard} color="red" />
-         <StatCard title="Lucro Bruto (Viby)" value={totals.vibyGross} icon={ArrowUpRight} color="secondary" />
-         <StatCard title="Provisionamento IR" value={totals.tax} icon={Receipt} color="orange" />
-         <StatCard title="Lucro Líquido Real" value={totals.vibyNet} icon={CheckCircle2} color="green" />
+         <StatCard title="Venda Bruta" value={totals.totalSold} icon={TrendingUp} color="blue" formatPrice={formatPrice} />
+         <StatCard title="Stripe Fees" value={totals.stripeFees} icon={CreditCard} color="red" formatPrice={formatPrice} />
+         <StatCard title="Lucro Bruto (Viby)" value={totals.vibyGross} icon={ArrowUpRight} color="secondary" formatPrice={formatPrice} />
+         <StatCard title="Provisionamento IR" value={totals.tax} icon={Receipt} color="orange" formatPrice={formatPrice} />
+         <StatCard title="Lucro Líquido Real" value={totals.vibyNet} icon={CheckCircle2} color="green" formatPrice={formatPrice} />
       </div>
 
       <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
@@ -191,9 +190,6 @@ export default function AdminImpostoPage() {
               <div className="flex-1 max-w-md relative">
                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                  <Input placeholder="Buscar evento ou marca..." value={searchName} onChange={e => setSearchName(e.target.value)} className="pl-10 h-11 rounded-xl" />
-              </div>
-              <div className="flex gap-2">
-                 <Button variant="outline" className="rounded-xl h-11" onClick={() => { setSearchName(""); setSelectedMonth("all") }}><FilterX className="w-4 h-4" /></Button>
               </div>
            </div>
         </CardHeader>
@@ -210,8 +206,8 @@ export default function AdminImpostoPage() {
                         <span className="text-[9px] font-bold text-muted-foreground uppercase">{group.orgName}</span>
                       </div>
                    </div>
-                   <div className="col-span-2 text-right"><p className="text-[9px] font-black uppercase opacity-40">Bruto Viby</p><p className="font-black text-sm">{formatCurrency(group.grossViby)}</p></div>
-                   <div className="col-span-2 text-right"><p className="text-[9px] font-black uppercase opacity-40">Lucro Real</p><p className="font-black text-sm text-green-600">{formatCurrency(group.netViby)}</p></div>
+                   <div className="col-span-2 text-right"><p className="text-[9px] font-black uppercase opacity-40">Bruto Viby</p><p className="font-black text-sm">{formatPrice(group.grossViby)}</p></div>
+                   <div className="col-span-2 text-right"><p className="text-[9px] font-black uppercase opacity-40">Lucro Real</p><p className="font-black text-sm text-green-600">{formatPrice(group.netViby)}</p></div>
                    <div className="col-span-3 text-right"><Badge variant="outline" className="text-[9px] font-black uppercase px-3">{group.salesQty} vendas</Badge></div>
                 </div>
                 {expandedEvents.has(group.id) && (
@@ -222,10 +218,10 @@ export default function AdminImpostoPage() {
                            {group.details.map((t: any) => (
                              <TableRow key={t.id} className={cn(t.status === 'cancelado' && "opacity-40 line-through")}>
                                <TableCell className="py-2 text-[10px] font-bold uppercase">{t.buyerName}</TableCell>
-                               <TableCell className="text-right py-2 text-[10px]">{formatCurrency(t.vibyGrossProfit)}</TableCell>
-                               <TableCell className="text-right py-2 text-[10px] text-red-500">-{formatCurrency(t.stripeFeeAmount)}</TableCell>
-                               <TableCell className="text-right py-2 text-[10px] text-orange-600">-{formatCurrency(t.taxAmount)}</TableCell>
-                               <TableCell className="text-right py-2 text-[10px] font-black text-green-600">{formatCurrency(t.vibyNetProfit)}</TableCell>
+                               <TableCell className="text-right py-2 text-[10px]">{formatPrice(t.vibyGrossProfit)}</TableCell>
+                               <TableCell className="text-right py-2 text-[10px] text-red-500">-{formatPrice(t.stripeFeeAmount)}</TableCell>
+                               <TableCell className="text-right py-2 text-[10px] text-orange-600">-{formatPrice(t.taxAmount)}</TableCell>
+                               <TableCell className="text-right py-2 text-[10px] font-black text-green-600">{formatPrice(t.vibyNetProfit)}</TableCell>
                              </TableRow>
                            ))}
                         </TableBody>
@@ -240,7 +236,7 @@ export default function AdminImpostoPage() {
   )
 }
 
-function StatCard({ title, value, icon: Icon, color }: any) {
+function StatCard({ title, value, icon: Icon, color, formatPrice }: any) {
   const colors: any = { 
     blue: "border-blue-500 text-blue-600 bg-blue-50", 
     orange: "border-orange-500 text-orange-600 bg-orange-50", 
@@ -251,7 +247,7 @@ function StatCard({ title, value, icon: Icon, color }: any) {
   return (
     <Card className={cn("border-none shadow-sm border-l-4 p-5", colors[color])}>
        <p className="text-[9px] font-black uppercase opacity-60 flex justify-between">{title}<Icon className="w-3 h-3" /></p>
-       <div className="text-lg font-black mt-1">{formatCurrency(value)}</div>
+       <div className="text-lg font-black mt-1">{formatPrice(value)}</div>
     </Card>
   )
 }

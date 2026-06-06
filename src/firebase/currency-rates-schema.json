@@ -1,0 +1,14 @@
+{
+  "collection": "settings",
+  "document": "currency_rates",
+  "description": "Cache global de cotações de moedas para exibição dinâmica na plataforma.",
+  "fields": {
+    "BRL": "number (Moeda base, sempre 1.0)",
+    "USD": "number (Taxa de conversão para Dólar Americano)",
+    "EUR": "number (Taxa de conversão para Euro)",
+    "lastUpdated": "timestamp (Momento da última atualização no servidor)",
+    "date": "string (Data da cotação no formato YYYY-MM-DD)",
+    "provider": "string (Fonte provedora da cotação, ex: open.er-api.com)"
+  },
+  "security_rules": "Leitura pública permitida. Escrita permitida para usuários logados (autoupdate) ou Admins."
+}

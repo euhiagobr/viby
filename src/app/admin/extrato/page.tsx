@@ -1,11 +1,10 @@
+"use client"
 
-'use client';
-
-import * as React from 'react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, limit } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import * as React from "react"
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { collection, query, where, orderBy, limit } from "firebase/firestore"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { 
   TrendingUp, 
   ArrowUpRight, 
@@ -24,7 +23,7 @@ import {
   BarChart3,
   PieChart as PieChartIcon
 } from 'lucide-react';
-import { formatCurrency } from '@/lib/financial-utils';
+import { useCurrency } from "@/contexts/CurrencyContext"
 import { 
   BarChart, 
   Bar, 
@@ -41,6 +40,7 @@ import { Separator } from '@/components/ui/separator';
 
 export default function AdminERPDashboard() {
   const db = useFirestore();
+  const { formatPrice } = useCurrency();
 
   // Queries para consolidação do ERP
   const ticketsQuery = useMemoFirebase(() => db ? query(collection(db, "tax_tickets")) : null, [db]);
@@ -73,13 +73,9 @@ export default function AdminERPDashboard() {
            m.totalRefunds += (t.totalFacePrice || 0);
            return;
         }
-        // Bruto = o que o usuário pagou (Face + Taxa)
         const totalBrutoTicket = (t.totalFacePrice || 0) + (t.buyerFeeAmount || 0);
         m.grossRevenue += totalBrutoTicket;
-        
-        // NetRevenue da plataforma para tickets = Markup + Comissão Produtor
         m.netRevenue += (t.vibyGrossProfit || 0);
-        
         m.totalStripeFees += (t.stripeFeeAmount || 0);
         m.totalTaxes += (t.taxAmount || 0);
         m.totalPayouts += (t.payoutToProducer || 0);
@@ -89,11 +85,7 @@ export default function AdminERPDashboard() {
     if (ads) {
       ads.forEach(ad => {
         if (ad.status === 'cancelado' || ad.status === 'rejeitado') return;
-        
-        // Bruto Ads = o que o anunciante pagou no Stripe
         m.grossRevenue += (ad.grossValue || 0);
-        
-        // Receita da Plataforma em Ads = lucro da recarga (netValue do tax_ads)
         const adProfit = (ad.netValue || 0);
         m.totalAdsRevenue += adProfit;
         m.netRevenue += adProfit;
@@ -128,7 +120,7 @@ export default function AdminERPDashboard() {
     return (
       <div className="flex flex-col items-center justify-center py-32 gap-4">
         <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">
+        <p className="text-[10px] font-black uppercase tracking-widest animate-pulse text-muted-foreground">
           Consolidando dados financeiros...
         </p>
       </div>
@@ -138,14 +130,14 @@ export default function AdminERPDashboard() {
   return (
     <div className="space-y-8 pb-20">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPI kpiTitle="Volume Bruto (GMV)" value={metrics.grossRevenue} icon={TrendingUp} color="blue" />
-        <KPI kpiTitle="Lucro Líquido Real" value={metrics.realProfit} icon={CheckCircle2} color="green" />
-        <KPI kpiTitle="Repasses Pendentes" value={metrics.pendingPayouts} icon={Clock} color="orange" />
-        <KPI kpiTitle="Despesa Operacional" value={metrics.internalExpenses} icon={ArrowDownRight} color="red" />
+        <KPI kpiTitle="Volume Bruto (GMV)" value={metrics.grossRevenue} icon={TrendingUp} color="blue" formatPrice={formatPrice} />
+        <KPI kpiTitle="Lucro Líquido Real" value={metrics.realProfit} icon={CheckCircle2} color="green" formatPrice={formatPrice} />
+        <KPI kpiTitle="Repasses Pendentes" value={metrics.pendingPayouts} icon={Clock} color="orange" formatPrice={formatPrice} />
+        <KPI kpiTitle="Despesa Operacional" value={metrics.internalExpenses} icon={ArrowDownRight} color="red" formatPrice={formatPrice} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <Card className="lg:col-span-8 border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
+        <Card className="lg:col-span-8 border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
           <CardHeader className="p-8 border-b">
             <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
                <BarChart3 className="w-5 h-5 text-secondary" /> Performance ERP Consolidated
@@ -164,7 +156,7 @@ export default function AdminERPDashboard() {
                       return (
                         <div className="bg-primary text-white p-3 rounded-xl shadow-2xl border-none">
                           <p className="text-[10px] font-black uppercase opacity-60 mb-1">{payload[0].payload.name}</p>
-                          <p className="text-sm font-black">{formatCurrency(Number(payload[0].value))}</p>
+                          <p className="text-sm font-black">{formatPrice(Number(payload[0].value))}</p>
                         </div>
                       );
                     }
@@ -200,10 +192,10 @@ export default function AdminERPDashboard() {
              <Separator className="bg-white/10" />
 
              <div className="space-y-4">
-                <MetricLine label="Imposto Provisionado (11%)" value={metrics.totalTaxes} />
-                <MetricLine label="Custo Stripe (Estimado)" value={metrics.totalStripeFees} />
-                <MetricLine label="Receita Bruta Viby" value={metrics.netRevenue} />
-                <MetricLine label="Repasses de Produção" value={metrics.totalPayouts} />
+                <MetricLine label="Imposto Provisionado (11%)" value={metrics.totalTaxes} formatPrice={formatPrice} />
+                <MetricLine label="Custo Stripe (Estimado)" value={metrics.totalStripeFees} formatPrice={formatPrice} />
+                <MetricLine label="Receita Bruta Viby" value={metrics.netRevenue} formatPrice={formatPrice} />
+                <MetricLine label="Repasses de Produção" value={metrics.totalPayouts} formatPrice={formatPrice} />
              </div>
 
              <div className="p-4 bg-white/10 rounded-2xl border border-white/10">
@@ -225,7 +217,7 @@ export default function AdminERPDashboard() {
                <Coins className="w-4 h-4 text-secondary" /> Divulgação & Ads
             </h3>
             <div className="space-y-1">
-               <p className="text-3xl font-black text-primary">{formatCurrency(metrics.totalAdsRevenue)}</p>
+               <p className="text-3xl font-black text-primary">{formatPrice(metrics.totalAdsRevenue)}</p>
                <p className="text-[10px] font-bold text-green-600 uppercase">Receita de Alto Impacto</p>
             </div>
          </Card>
@@ -234,7 +226,7 @@ export default function AdminERPDashboard() {
                <Receipt className="w-4 h-4 text-secondary" /> Taxas Ingressos
             </h3>
             <div className="space-y-1">
-               <p className="text-3xl font-black text-primary">{formatCurrency(metrics.netRevenue - metrics.totalAdsRevenue)}</p>
+               <p className="text-3xl font-black text-primary">{formatPrice(metrics.netRevenue - metrics.totalAdsRevenue)}</p>
                <p className="text-[10px] font-bold text-muted-foreground uppercase">Revenue Share de Eventos</p>
             </div>
          </Card>
@@ -243,32 +235,16 @@ export default function AdminERPDashboard() {
                <ArrowDownRight className="w-4 h-4 text-red-500" /> Prejuízo (Estornos)
             </h3>
             <div className="space-y-1">
-               <p className="text-3xl font-black text-red-500">{formatCurrency(metrics.totalRefunds)}</p>
+               <p className="text-3xl font-black text-red-500">{formatPrice(metrics.totalRefunds)}</p>
                <p className="text-[10px] font-bold text-muted-foreground uppercase">Valor Devolvido (Face)</p>
             </div>
          </Card>
       </div>
-
-      <Card className="border-none shadow-sm rounded-[2.5rem] bg-primary text-white overflow-hidden">
-        <CardContent className="p-10 flex flex-col md:flex-row items-center gap-10">
-           <div className="flex-1 space-y-4">
-              <h3 className="text-2xl font-black italic uppercase tracking-tighter">Automação ERP Ativa</h3>
-              <p className="text-sm opacity-80 leading-relaxed font-medium">
-                Este dashboard é alimentado em tempo real pelas coleções tax_tickets e tax_ads. Cada venda processada gera uma entrada contábil que permite a conciliação automática com o Stripe e provisionamento de impostos para o encerramento mensal.
-              </p>
-           </div>
-           <div className="shrink-0">
-              <div className="w-32 h-32 bg-secondary rounded-3xl flex items-center justify-center rotate-12 shadow-2xl">
-                 <PieChartIcon className="w-16 h-16 text-white" />
-              </div>
-           </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
 
-function KPI({ kpiTitle, value, icon: Icon, color = "blue" }: any) {
+function KPI({ kpiTitle, value, icon: Icon, color = "blue", formatPrice }: any) {
   const colors: any = {
     blue: "text-blue-500 bg-blue-50",
     green: "text-green-600 bg-green-50",
@@ -284,17 +260,17 @@ function KPI({ kpiTitle, value, icon: Icon, color = "blue" }: any) {
              </div>
           </div>
           <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">{kpiTitle}</p>
-          <p className="text-2xl font-black text-primary">{typeof value === 'number' ? formatCurrency(value) : value}</p>
+          <p className="text-2xl font-black text-primary">{typeof value === 'number' ? formatPrice(value) : value}</p>
        </CardContent>
     </Card>
   );
 }
 
-function MetricLine({ label, value }: { label: string, value: number }) {
+function MetricLine({ label, value, formatPrice }: { label: string, value: number, formatPrice: (v: number) => string }) {
   return (
     <div className="flex justify-between items-center py-2 border-b border-white/5 last:border-none">
        <span className="text-[10px] font-bold uppercase opacity-60">{label}</span>
-       <span className="text-xs font-black">{formatCurrency(value)}</span>
+       <span className="text-xs font-black">{formatPrice(value)}</span>
     </div>
   );
 }

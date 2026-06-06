@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -41,14 +40,15 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { formatCurrency } from "@/lib/financial-utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { useCurrency } from "@/contexts/CurrencyContext"
 
 export default function AdminFinanceiroPage() {
   const db = useFirestore()
   const [search, setSearch] = React.useState("")
   const [selectedOrgForFinance, setSelectedOrgForFinance] = React.useState<any>(null)
+  const { formatPrice } = useCurrency()
 
   const orgsQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -160,7 +160,7 @@ export default function AdminFinanceiroPage() {
       toast({ 
         variant: "destructive", 
         title: "Divergência de Valores", 
-        description: `O valor informado (R$ ${input.toFixed(2)}) não coincide com o enviado (R$ ${sent.toFixed(2)}).` 
+        description: `O valor informado não coincide com o enviado.` 
       })
     }
   }
@@ -185,7 +185,7 @@ export default function AdminFinanceiroPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black">
-              {formatCurrency(filteredOrgs.reduce((acc, o) => acc + o.availableBalance, 0))}
+              {formatPrice(filteredOrgs.reduce((acc, o) => acc + o.availableBalance, 0))}
             </div>
             <p className="text-[9px] mt-1 font-bold opacity-40 uppercase">Montante total aguardando solicitação dos produtores</p>
           </CardContent>
@@ -199,7 +199,7 @@ export default function AdminFinanceiroPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black text-orange-600">
-              {formatCurrency(filteredOrgs.reduce((acc, o) => acc + o.lockedBalance, 0))}
+              {formatPrice(filteredOrgs.reduce((acc, o) => acc + o.lockedBalance, 0))}
             </div>
             <p className="text-[9px] mt-1 font-bold text-muted-foreground uppercase">Valores em período de D+30</p>
           </CardContent>
@@ -259,12 +259,12 @@ export default function AdminFinanceiroPage() {
                       </TableCell>
                       <TableCell className="text-right">
                          <span className={cn("font-black text-sm", org.availableBalance > 0 ? "text-green-600" : "text-muted-foreground/30")}>
-                           {formatCurrency(org.availableBalance)}
+                           {formatPrice(org.availableBalance)}
                          </span>
                       </TableCell>
                       <TableCell className="text-right">
                          <span className="font-bold text-xs text-orange-600">
-                           {org.lockedBalance > 0 ? formatCurrency(org.lockedBalance) : "---"}
+                           {org.lockedBalance > 0 ? formatPrice(org.lockedBalance) : "---"}
                          </span>
                       </TableCell>
                       <TableCell className="text-center">
@@ -303,18 +303,6 @@ export default function AdminFinanceiroPage() {
                                 <DollarSign className="w-3 h-3" /> Sinalizar Depósito
                             </Button>
                           )}
-                          {ps?.status === 'waiting_user' && ps?.verificationAmountInput && (
-                            <Button 
-                              variant="default" 
-                              size="sm" 
-                              className="h-8 bg-green-600 text-white text-[9px] font-black uppercase gap-1.5 shadow-lg"
-                              onClick={() => handleValidateVerification(org)}
-                              disabled={isSubmitting}
-                            >
-                              {isSubmitting ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                              Validar
-                            </Button>
-                          )}
                           <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 text-muted-foreground/40">
                              <ChevronRight className="w-4 h-4" />
                           </Button>
@@ -334,7 +322,6 @@ export default function AdminFinanceiroPage() {
         </CardContent>
       </Card>
 
-      {/* MODAL DETALHAMENTO FINANCEIRO DA ORG */}
       <Dialog open={!!selectedOrgForFinance} onOpenChange={(o) => !o && setSelectedOrgForFinance(null)}>
          <DialogContent className="max-w-5xl h-[85vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
             <DialogHeader className="p-8 border-b bg-muted/30">
@@ -345,12 +332,12 @@ export default function AdminFinanceiroPage() {
                      </div>
                      <div>
                         <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Finanças: {selectedOrgForFinance?.name}</DialogTitle>
-                        <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">@{selectedOrgForFinance?.username} • CNPJ: {selectedOrgForFinance?.cnpj}</DialogDescription>
+                        <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">@{selectedOrgForFinance?.username}</DialogDescription>
                      </div>
                   </div>
                   <div className="text-right">
                      <p className="text-[9px] font-black uppercase opacity-40">Saldo Total em Custódia</p>
-                     <p className="text-2xl font-black text-primary">{formatCurrency((selectedOrgForFinance?.availableBalance || 0) + (selectedOrgForFinance?.lockedBalance || 0))}</p>
+                     <p className="text-2xl font-black text-primary">{formatPrice((selectedOrgForFinance?.availableBalance || 0) + (selectedOrgForFinance?.lockedBalance || 0))}</p>
                   </div>
                </div>
             </DialogHeader>
@@ -360,48 +347,13 @@ export default function AdminFinanceiroPage() {
             </div>
          </DialogContent>
       </Dialog>
-
-      <Dialog open={isDepositModalOpen} onOpenChange={setIsDepositModalOpen}>
-        <DialogContent className="rounded-[2.5rem] max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Sinalizar Micro-depósito</DialogTitle>
-            <DialogDescription className="font-medium">
-              Informe o valor exato transferido para <strong>{selectedOrg?.name}</strong>.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Valor Enviado (R$ 0,01 a 0,51)</Label>
-              <div className="relative">
-                 <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-secondary">R$</span>
-                 <Input 
-                   placeholder="0,00" 
-                   value={depositAmount} 
-                   onChange={(e) => setDepositAmount(e.target.value)}
-                   className="text-3xl font-black h-20 text-center rounded-[1.5rem] pl-8 border-secondary/20 focus-visible:ring-secondary/30"
-                 />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsDepositModalOpen(false)} className="rounded-xl font-bold uppercase text-[10px]">Cancelar</Button>
-            <Button 
-              onClick={handleSignalDeposit} 
-              disabled={isSubmitting || !depositAmount} 
-              className="bg-secondary text-white rounded-xl font-black uppercase text-[10px] h-12 px-8 shadow-xl"
-            >
-              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-              Confirmar Sinalização
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
 
 function OrgFinanceDetail({ orgId }: { orgId: string }) {
   const db = useFirestore()
+  const { formatPrice } = useCurrency()
   const [isUpdating, setIsUpdating] = React.useState<string | null>(null)
 
   const regsQuery = useMemoFirebase(() => {
@@ -437,7 +389,7 @@ function OrgFinanceDetail({ orgId }: { orgId: string }) {
         manuallyReleasedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       })
-      toast({ title: "Saldo Liberado!", description: "O valor agora consta como Disponível no painel da marca." })
+      toast({ title: "Saldo Liberado!" })
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao liberar" })
     } finally {
@@ -465,7 +417,7 @@ function OrgFinanceDetail({ orgId }: { orgId: string }) {
          {sortedSales.length === 0 ? (
            <div className="py-24 text-center">
               <Inbox className="w-12 h-12 text-muted-foreground opacity-10 mx-auto mb-4" />
-              <p className="text-muted-foreground font-bold italic">Nenhuma venda registrada para esta organização.</p>
+              <p className="text-muted-foreground font-bold italic">Nenhuma venda registrada.</p>
            </div>
          ) : (
            <Table>
@@ -483,51 +435,40 @@ function OrgFinanceDetail({ orgId }: { orgId: string }) {
                {sortedSales.map((sale) => {
                  const { isAvailable, releaseDate } = getSaleStatus(sale)
                  const val = sale.producerNetAmount || 0
-                 const isAnticipated = sale.advanceRequested === true;
 
                  return (
                    <TableRow key={sale.id} className={cn("hover:bg-muted/10 transition-colors", isAvailable && "bg-green-50/20")}>
                      <TableCell className="py-4">
                         <div className="flex flex-col">
-                           <span className="text-[10px] font-bold">{sale.timestamp?.toDate ? sale.timestamp.toDate().toLocaleDateString('pt-BR') : new Date(sale.timestamp).toLocaleDateString('pt-BR')}</span>
-                           <span className="text-[8px] font-medium text-muted-foreground uppercase">{sale.timestamp?.toDate ? sale.timestamp.toDate().toLocaleTimeString('pt-BR') : ""}</span>
+                           <span className="text-[10px] font-bold">{new Date(sale.timestamp?.seconds * 1000 || sale.timestamp).toLocaleDateString('pt-BR')}</span>
                         </div>
                      </TableCell>
                      <TableCell>
                         <div className="flex flex-col">
                            <span className="text-[10px] font-black uppercase italic text-primary truncate max-w-[150px]">{sale.eventTitle}</span>
-                           <span className="text-[8px] font-bold text-secondary uppercase">{sale.ticketTypeName || "Geral"}</span>
                         </div>
                      </TableCell>
                      <TableCell className="text-right">
                         <span className={cn("text-[11px] font-bold", !isAvailable ? "text-orange-600" : "text-muted-foreground/20")}>
-                          {!isAvailable ? formatCurrency(val) : "---"}
+                          {!isAvailable ? formatPrice(val) : "---"}
                         </span>
                      </TableCell>
                      <TableCell className="text-right">
                         <span className={cn("text-[11px] font-black", isAvailable ? "text-green-600" : "text-muted-foreground/20")}>
-                          {isAvailable ? formatCurrency(val) : "---"}
+                          {isAvailable ? formatPrice(val) : "---"}
                         </span>
                      </TableCell>
                      <TableCell className="text-center">
-                        <div className="flex flex-col items-center">
-                           <span className={cn("text-[9px] font-black uppercase", isAvailable ? "text-green-600" : "text-muted-foreground")}>
-                             {releaseDate.toLocaleDateString('pt-BR')}
-                           </span>
-                           {isAnticipated && !sale.isManuallyReleased && (
-                             <Badge variant="outline" className="text-[6px] h-3 uppercase border-orange-200 text-orange-600 mt-1">Antecipação User</Badge>
-                           )}
-                           {sale.isManuallyReleased && (
-                             <Badge variant="outline" className="text-[6px] h-3 uppercase border-blue-200 text-blue-600 mt-1">Manual Admin</Badge>
-                           )}
-                        </div>
+                        <span className={cn("text-[9px] font-black uppercase", isAvailable ? "text-green-600" : "text-muted-foreground")}>
+                          {releaseDate.toLocaleDateString('pt-BR')}
+                        </span>
                      </TableCell>
                      <TableCell className="text-right">
                         {!isAvailable && (
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            className="h-7 text-[8px] font-black uppercase gap-1.5 border-secondary text-secondary hover:bg-secondary hover:text-white"
+                            className="h-7 text-[8px] font-black uppercase gap-1.5 border-secondary text-secondary"
                             onClick={() => handleReleaseImmediately(sale)}
                             disabled={isUpdating === sale.id}
                           >
@@ -541,18 +482,6 @@ function OrgFinanceDetail({ orgId }: { orgId: string }) {
                })}
              </TableBody>
            </Table>
-         )}
-
-         {sortedSales.length > 0 && (
-           <div className="mt-8 p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
-              <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                 <h4 className="font-black uppercase text-[9px] tracking-widest text-secondary">Aviso de Antecipação</h4>
-                 <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed">
-                    A liberação imediata por este painel ignora a taxa de antecipação do usuário e torna o valor disponível instantaneamente na carteira da organização. Use em casos de suporte direto ou acordos específicos.
-                 </p>
-              </div>
-         </div>
          )}
       </div>
     </ScrollArea>

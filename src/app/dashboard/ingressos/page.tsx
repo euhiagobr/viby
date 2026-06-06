@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -22,15 +21,14 @@ import Link from "next/link"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { formatCurrency } from "@/lib/financial-utils"
 import { sendTicketEmail } from "@/app/actions/email"
+import { useCurrency } from "@/contexts/CurrencyContext"
 
 export default function MeusIngressosPage() {
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
 
-  // Consulta todos os registros do usuário para exibir o histórico completo (incluindo estornados)
   const registrationsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
     return query(
@@ -89,6 +87,7 @@ export default function MeusIngressosPage() {
 function TicketListItem({ registration }: { registration: any }) {
   const auth = useAuth()
   const { user } = useUser(auth)
+  const { formatPrice } = useCurrency()
   const [isSendingEmail, setIsSendingEmail] = React.useState(false)
 
   const isCancelled = registration.status === 'cancelled' || 
@@ -162,7 +161,7 @@ function TicketListItem({ registration }: { registration: any }) {
 
         <div className="flex items-center justify-between pt-4 border-t border-dashed border-border/60">
           <span className="text-sm font-black text-primary">
-            {isCancelled ? "Valor Devolvido" : formatCurrency(registration.price || 0)}
+            {isCancelled ? "Valor Devolvido" : formatPrice(registration.price || 0)}
           </span>
           <div className="flex gap-2">
             {!isCancelled && !isPending && (
