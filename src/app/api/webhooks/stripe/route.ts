@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import * as admin from 'firebase-admin';
@@ -47,6 +48,7 @@ export async function POST(req: Request) {
               const orderData = orderSnap.data()!;
               const userId = session.metadata!.userId;
               const items = orderData.items || [];
+              const exchangeData = orderData.exchangeData || { rate: 1, date: new Date().toISOString().slice(0, 10) };
 
               for (const item of items) {
                 const targetRef = item.occurrenceId 
@@ -62,6 +64,9 @@ export async function POST(req: Request) {
                   const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
                   const regRef = db.collection("registrations").doc();
                   
+                  // Congelamento de Valores em BRL na data da venda
+                  const priceBRL = Number((item.financials?.customerFinalPrice || item.price) * exchangeData.rate);
+
                   transaction.set(regRef, {
                     eventId: item.eventId,
                     eventTitle: item.eventTitle,
@@ -74,6 +79,11 @@ export async function POST(req: Request) {
                     organizationId: item.organizationId,
                     ticketBasePrice: item.price,
                     price: item.financials?.customerFinalPrice || item.price,
+                    currency: item.currency || 'BRL',
+                    // Dados Históricos de Câmbio
+                    exchangeRate: exchangeData.rate,
+                    exchangeDate: exchangeData.date,
+                    priceBRL: priceBRL,
                     administrativeFeeAmount: item.financials?.administrativeFeeAmount || 0,
                     producerFeeAmount: item.financials?.producerFeeAmount || 0,
                     producerNetAmount: item.financials?.producerNetAmount || item.price,

@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -15,7 +16,8 @@ import {
   EyeOff, 
   Wallet,
   Building2,
-  Globe
+  Globe,
+  Clock
 } from "lucide-react"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 
@@ -38,9 +40,14 @@ export default function AdminDashboardPage() {
   const stats = React.useMemo(() => {
     const hiddenOrgs = orgs?.filter((o: any) => o.status === 'Desativado' || o.status === 'Exclusão Programada').length || 0;
     
-    // Consolidação Ponderada para Repasse Global
+    // Consolidação Ponderada para Repasse Global - Utilizando BRL fixado se disponível
     const totalToPayBRL = regs?.reduce((acc: number, r: any) => {
       if (['Pago', 'Disponível'].includes(r.paymentStatus)) {
+        // Prioriza o valor BRL fixado no ato da venda para auditoria correta
+        if (r.priceBRL) {
+           const netRate = (r.producerNetAmount || 0) / (r.price || 1);
+           return acc + (r.priceBRL * netRate);
+        }
         const cur = (r.currency || 'BRL') as CurrencyCode;
         return acc + convertValue(r.producerNetAmount || 0, cur, 'BRL');
       }
@@ -63,7 +70,7 @@ export default function AdminDashboardPage() {
         bg: "bg-orange-50" 
       },
       { 
-        title: "Total a Repassar (BRL)", 
+        title: "Total Repasses BRL (Auditoria)", 
         value: formatPrice(totalToPayBRL, 'BRL'), 
         icon: Wallet, 
         color: "text-green-500", 
@@ -83,7 +90,7 @@ export default function AdminDashboardPage() {
     <div className="space-y-10">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Visão Geral do Sistema</h1>
-        <p className="text-muted-foreground">Monitoramento em tempo real (Consolidado Fiscal em BRL).</p>
+        <p className="text-muted-foreground">Monitoramento em tempo real (Consolidado Histórico em BRL).</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -105,22 +112,22 @@ export default function AdminDashboardPage() {
       </div>
 
       <div className="p-4 bg-muted/30 rounded-2xl border border-dashed flex items-center gap-3 max-w-fit">
-         <Globe className="w-5 h-5 text-secondary" />
-         <p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">Os valores monetários globais são normalizados para Real (BRL) para fins de balanço unificado.</p>
+         <Clock className="w-5 h-5 text-secondary" />
+         <p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">O balanço unificado utiliza as cotações congeladas no ato de cada venda para fins fiscais e imutabilidade.</p>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList className="bg-muted/50 p-1 rounded-xl">
           <TabsTrigger value="overview" className="gap-2 rounded-lg font-bold">
             <BarChart3 className="w-4 h-4" />
-            Métricas
+            Métricas de Crescimento
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
           <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-muted/20">
             <BarChart3 className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-20" />
-            <p className="text-muted-foreground font-medium italic">Gráficos de atividade em tempo real ativos.</p>
+            <p className="text-muted-foreground font-medium italic">Gráficos de atividade em tempo real carregando...</p>
           </div>
         </TabsContent>
       </Tabs>

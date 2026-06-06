@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -71,39 +72,44 @@ export default function AdminERPDashboard() {
     if (tickets) {
       tickets.forEach(t => {
         const cur = (t.currency || 'BRL') as CurrencyCode;
-        const normalize = (val: number) => convertValue(val, cur, 'BRL');
-
+        
+        // Prioriza valores fixados em BRL no ato da venda para evitar flutuação histórica
         if (t.status === 'cancelado') {
-           m.totalRefunds += normalize(t.totalFacePrice || 0);
+           m.totalRefunds += t.totalChargedBRL || convertValue(t.totalFacePrice || 0, cur, 'BRL');
            return;
         }
-        const totalBrutoTicket = (t.totalFacePrice || 0) + (t.buyerFeeAmount || 0);
-        m.grossRevenue += normalize(totalBrutoTicket);
-        m.netRevenue += normalize(t.vibyGrossProfit || 0);
-        m.totalStripeFees += normalize(t.stripeFeeAmount || 0);
-        m.totalTaxes += normalize(t.taxAmount || 0);
-        m.totalPayouts += normalize(t.payoutToProducer || 0);
+
+        m.grossRevenue += t.totalChargedBRL || convertValue((t.totalFacePrice || 0) + (t.buyerFeeAmount || 0), cur, 'BRL');
+        m.totalTaxes += t.taxAmountBRL || convertValue(t.taxAmount || 0, cur, 'BRL');
+        m.totalPayouts += t.payoutToProducerBRL || convertValue(t.payoutToProducer || 0, cur, 'BRL');
+        
+        // Lucro bruto da plataforma (Markup + Comissão)
+        const profitBRL = t.vibyGrossBRL || convertValue(t.vibyGrossProfit || 0, cur, 'BRL');
+        m.netRevenue += profitBRL;
+        
+        // Custos Gateway
+        m.totalStripeFees += convertValue(t.stripeFeeAmount || 0, cur, 'BRL');
       });
     }
 
     if (ads) {
       ads.forEach(ad => {
         if (ad.status === 'cancelado' || ad.status === 'rejeitado') return;
-        // Ads são atualmente fixos em BRL, mas mantemos lógica de normalização por segurança
         const cur = (ad.currency || 'BRL') as CurrencyCode;
-        const normalize = (val: number) => convertValue(val, cur, 'BRL');
+        
+        const adGrossBRL = ad.grossValueBRL || convertValue(ad.grossValue || 0, cur, 'BRL');
+        const adNetBRL = ad.netValueBRL || convertValue(ad.netValue || 0, cur, 'BRL');
+        const adTaxBRL = ad.taxValueBRL || convertValue(ad.taxValue || 0, cur, 'BRL');
 
-        m.grossRevenue += normalize(ad.grossValue || 0);
-        const adProfit = normalize(ad.netValue || 0);
-        m.totalAdsRevenue += adProfit;
-        m.netRevenue += adProfit;
-        m.totalTaxes += normalize(ad.taxValue || 0);
+        m.grossRevenue += adGrossBRL;
+        m.totalAdsRevenue += adNetBRL;
+        m.netRevenue += adNetBRL;
+        m.totalTaxes += adTaxBRL;
       });
     }
 
     if (expenses) {
       expenses.forEach(e => {
-        // Despesas são registradas em BRL (Custo de Porto Alegre)
         m.internalExpenses += (e.amount || 0);
       });
     }
@@ -139,7 +145,7 @@ export default function AdminERPDashboard() {
   return (
     <div className="space-y-8 pb-20">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPI kpiTitle="Volume Bruto (BRL)" value={metrics.grossRevenue} icon={TrendingUp} color="blue" formatPrice={formatPrice} />
+        <KPI kpiTitle="Volume Bruto Fixado (BRL)" value={metrics.grossRevenue} icon={TrendingUp} color="blue" formatPrice={formatPrice} />
         <KPI kpiTitle="Lucro Líquido Real" value={metrics.realProfit} icon={CheckCircle2} color="green" formatPrice={formatPrice} />
         <KPI kpiTitle="Repasses Pendentes" value={metrics.pendingPayouts} icon={Clock} color="orange" formatPrice={formatPrice} />
         <KPI kpiTitle="Despesa Operacional" value={metrics.internalExpenses} icon={ArrowDownRight} color="red" formatPrice={formatPrice} />
@@ -149,7 +155,7 @@ export default function AdminERPDashboard() {
         <Card className="lg:col-span-8 border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
           <CardHeader className="p-8 border-b">
             <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-               <BarChart3 className="w-5 h-5 text-secondary" /> Performance ERP Consolidated
+               <BarChart3 className="w-5 h-5 text-secondary" /> Performance ERP Imutável
             </CardTitle>
           </CardHeader>
           <CardContent className="p-8 h-[400px]">
@@ -185,12 +191,12 @@ export default function AdminERPDashboard() {
         <Card className="lg:col-span-4 border-none shadow-sm rounded-[2.5rem] bg-primary text-white relative overflow-hidden">
           <CardHeader className="p-8">
              <CardTitle className="text-lg font-black uppercase italic tracking-tighter flex items-center gap-2">
-               <Scale className="w-5 h-5 text-secondary" /> Rentabilidade Global
+               <Scale className="w-5 h-5 text-secondary" /> Rentabilidade Consolidada
              </CardTitle>
           </CardHeader>
           <CardContent className="p-8 pt-0 space-y-8 relative z-10">
              <div className="space-y-1">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-50">Margem Líquida Unificada</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-50">Margem Líquida Real</p>
                 <div className="flex items-baseline gap-2">
                    <p className="text-5xl font-black italic tracking-tighter">
                      {metrics.grossRevenue > 0 ? ((metrics.realProfit / metrics.grossRevenue) * 100).toFixed(1) : 0}%
@@ -201,16 +207,16 @@ export default function AdminERPDashboard() {
              <Separator className="bg-white/10" />
 
              <div className="space-y-4">
-                <MetricLine label="Imposto Provisionado" value={metrics.totalTaxes} formatPrice={formatPrice} />
-                <MetricLine label="Custo Stripe (Normalizado)" value={metrics.totalStripeFees} formatPrice={formatPrice} />
+                <MetricLine label="Imposto Registrado" value={metrics.totalTaxes} formatPrice={formatPrice} />
+                <MetricLine label="Custo Stripe Estimado" value={metrics.totalStripeFees} formatPrice={formatPrice} />
                 <MetricLine label="Receita Bruta Viby" value={metrics.netRevenue} formatPrice={formatPrice} />
                 <MetricLine label="Repasses de Produção" value={metrics.totalPayouts} formatPrice={formatPrice} />
              </div>
 
              <div className="p-4 bg-white/10 rounded-2xl border border-white/10 flex items-start gap-3">
-                <Globe className="w-5 h-5 text-secondary shrink-0" />
+                <ShieldCheck className="w-5 h-5 text-secondary shrink-0" />
                 <p className="text-[10px] font-medium leading-relaxed uppercase">
-                   Todos os valores foram normalizados para BRL utilizando as taxas de câmbio vigentes para consolidar o balanço.
+                   Balanço fechado com cotações históricas. Alterações no câmbio atual não afetam estes resultados.
                 </p>
              </div>
           </CardContent>
@@ -225,7 +231,7 @@ export default function AdminERPDashboard() {
             </h3>
             <div className="space-y-1">
                <p className="text-3xl font-black text-primary">{formatPrice(metrics.totalAdsRevenue, 'BRL')}</p>
-               <p className="text-[10px] font-bold text-green-600 uppercase">Receita de Alto Impacto</p>
+               <p className="text-[10px] font-bold text-green-600 uppercase">Receita Imutável</p>
             </div>
          </Card>
          <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-4 hover:shadow-md transition-all">
@@ -234,7 +240,7 @@ export default function AdminERPDashboard() {
             </h3>
             <div className="space-y-1">
                <p className="text-3xl font-black text-primary">{formatPrice(metrics.netRevenue - metrics.totalAdsRevenue, 'BRL')}</p>
-               <p className="text-[10px] font-bold text-muted-foreground uppercase">Revenue Share de Eventos</p>
+               <p className="text-[10px] font-bold text-muted-foreground uppercase">Revenue Share Fixado</p>
             </div>
          </Card>
          <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-4 hover:shadow-md transition-all">
@@ -243,7 +249,7 @@ export default function AdminERPDashboard() {
             </h3>
             <div className="space-y-1">
                <p className="text-3xl font-black text-red-500">{formatPrice(metrics.totalRefunds, 'BRL')}</p>
-               <p className="text-[10px] font-bold text-muted-foreground uppercase">Valor Devolvido Normalizado</p>
+               <p className="text-[10px] font-bold text-muted-foreground uppercase">Valor Registrado Devolvido</p>
             </div>
          </Card>
       </div>

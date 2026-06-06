@@ -1,0 +1,27 @@
+
+{
+  "collections": {
+    "registrations": {
+      "description": "Registro de ingresso com dados financeiros congelados no momento da confirmação do pagamento.",
+      "fields": {
+        "currency": "string (Moeda original do evento, ex: 'USD')",
+        "ticketBasePrice": "number (Preço nominal na moeda original)",
+        "price": "number (Preço total pago com taxas na moeda original)",
+        "exchangeRate": "number (Cotação: quanto vale 1 unidade da moeda original em BRL na data da venda)",
+        "priceBRL": "number (Valor total convertido e fixado em BRL para fins contábeis)",
+        "exchangeDate": "string (Data da cotação utilizada YYYY-MM-DD)",
+        "confirmedAt": "timestamp (Momento em que os valores foram congelados)"
+      }
+    },
+    "tax_tickets": {
+      "description": "Ledger fiscal com valores convertidos e fixados para auditoria e impostos.",
+      "fields": {
+        "currency": "string (Moeda original)",
+        "exchangeRate": "number (Cotação fixada)",
+        "totalFacePriceBRL": "number (Valor nominal em BRL fixado)",
+        "vibyNetProfitBRL": "number (Lucro líquido fixado em BRL)",
+        "taxAmountBRL": "number (Imposto provisionado em BRL fixado)"
+      }
+    }
+  }
+}

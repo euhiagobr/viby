@@ -1,3 +1,4 @@
+
 'use client';
 
 import { 
@@ -63,6 +64,10 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     return { type: 'free', success: true };
   }
 
+  // Capturar cotação congelada para persistência histórica
+  const exchangeRateToBRL = eventCurrency === 'BRL' ? 1 : (1 / (rates?.[eventCurrency] || 1));
+  const exchangeDate = new Date().toISOString().slice(0, 10);
+
   // 2. PREPARAR PEDIDO (ORDEM)
   const orderData = {
     userId: user.uid,
@@ -70,6 +75,11 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     userName: profile?.name || user.displayName || "Comprador",
     items: items,
     currency: eventCurrency,
+    exchangeData: {
+      rate: exchangeRateToBRL,
+      date: exchangeDate,
+      originalRates: rates || {}
+    },
     totals: {
       subtotal: totals.subtotal,
       fees: totals.fees,

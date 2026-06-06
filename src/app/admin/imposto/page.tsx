@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -19,7 +20,8 @@ import {
   ArrowDownRight,
   CheckCircle2,
   FilterX,
-  Globe
+  Globe,
+  Clock
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -73,7 +75,11 @@ export default function AdminImpostoPage() {
 
         if (taxSnap.empty) {
           const eventCurrency = (reg.currency || 'BRL') as CurrencyCode;
-          const breakdown = calculateDetailedVibyBreakdown(reg.ticketBasePrice || 0, 1, rates, stripe, eventCurrency)
+          
+          // Se o registro já tem exchangeRate fixado, usamos ele. Caso contrário, usa o atual (retrocompatibilidade)
+          const currentRates = reg.exchangeRate ? { [eventCurrency]: 1/reg.exchangeRate } : rates;
+
+          const breakdown = calculateDetailedVibyBreakdown(reg.ticketBasePrice || 0, 1, currentRates, stripe, eventCurrency)
           
           const monthKey = reg.timestamp ? 
             (reg.timestamp.toDate ? reg.timestamp.toDate() : new Date(reg.timestamp)).toISOString().slice(0, 7) : 
@@ -96,6 +102,11 @@ export default function AdminImpostoPage() {
             vibyNetProfit: breakdown.vibyNet,
             payoutToProducer: breakdown.payoutToProducer,
             currency: eventCurrency,
+            // Persistência em BRL (Consolidação imutável)
+            exchangeRate: breakdown.exchangeRate,
+            vibyNetProfitBRL: breakdown.vibyNetBRL,
+            totalChargedBRL: breakdown.totalChargedBRL,
+            taxAmountBRL: breakdown.taxAmountBRL,
             monthKey,
             nfStatus: 'pendente',
             status: 'ativo',
@@ -127,20 +138,25 @@ export default function AdminImpostoPage() {
     })
   }, [rawTickets, searchName, selectedMonth])
 
-  // Consolidação Inteligente: Converte tudo para BRL antes de somar
+  // Consolidação Imutável: Prioriza valores registrados em BRL no ato da venda
   const totals = React.useMemo(() => {
     return filteredTickets.reduce((acc, t) => {
       if (t.status === 'cancelado') return acc;
       
       const cur = (t.currency || 'BRL') as CurrencyCode;
       
-      const normalize = (val: number) => convertValue(val, cur, 'BRL');
+      // Se tiver valor BRL persistido, usa ele (Garante imutabilidade histórica)
+      const chargedBRL = t.totalChargedBRL || convertValue((t.totalFacePrice || 0) + (t.buyerFeeAmount || 0), cur, 'BRL');
+      const netBRL = t.vibyNetProfitBRL || convertValue(t.vibyNetProfit || 0, cur, 'BRL');
+      const taxBRL = t.taxAmountBRL || convertValue(t.taxAmount || 0, cur, 'BRL');
+      const stripeBRL = convertValue(t.stripeFeeAmount || 0, cur, 'BRL');
+      const grossVibyBRL = convertValue(t.vibyGrossProfit || 0, cur, 'BRL');
 
-      acc.totalSold += normalize((t.totalFacePrice || 0) + (t.buyerFeeAmount || 0));
-      acc.vibyGross += normalize(t.vibyGrossProfit || 0);
-      acc.tax += normalize(t.taxAmount || 0);
-      acc.vibyNet += normalize(t.vibyNetProfit || 0);
-      acc.stripeFees += normalize(t.stripeFeeAmount || 0);
+      acc.totalSold += chargedBRL;
+      acc.vibyGross += grossVibyBRL;
+      acc.tax += taxBRL;
+      acc.vibyNet += netBRL;
+      acc.stripeFees += stripeBRL;
       return acc;
     }, { totalSold: 0, vibyGross: 0, tax: 0, vibyNet: 0, stripeFees: 0 });
   }, [filteredTickets, convertValue]);
@@ -181,20 +197,20 @@ export default function AdminImpostoPage() {
           <h1 className="text-3xl font-black uppercase italic text-primary flex items-center gap-3">
              <Scale className="w-8 h-8 text-secondary" /> Fiscal & ERP
           </h1>
-          <p className="text-muted-foreground font-medium">Controle de faturamento e provisionamento de impostos (Consolidado em BRL).</p>
+          <p className="text-muted-foreground font-medium">Controle de faturamento e impostos (Valores fixados no ato da venda).</p>
         </div>
         <Button variant="outline" onClick={handleSyncSales} disabled={isSyncing} className="rounded-full h-11 px-6 font-black uppercase text-[10px] gap-2 border-secondary text-secondary">
           {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          Processar Registros
+          Sincronizar Ledger
         </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-         <StatCard title="GMV Consolidado" value={totals.totalSold} icon={TrendingUp} color="blue" formatPrice={formatPrice} />
-         <StatCard title="Stripe Fees" value={totals.stripeFees} icon={CreditCard} color="red" formatPrice={formatPrice} />
-         <StatCard title="Lucro Bruto (Viby)" value={totals.vibyGross} icon={ArrowUpRight} color="secondary" formatPrice={formatPrice} />
-         <StatCard title="Provisionamento IR" value={totals.tax} icon={Receipt} color="orange" formatPrice={formatPrice} />
-         <StatCard title="Lucro Líquido BRL" value={totals.vibyNet} icon={CheckCircle2} color="green" formatPrice={formatPrice} />
+         <StatCard title="GMV Consolidado BRL" value={totals.totalSold} icon={TrendingUp} color="blue" formatPrice={formatPrice} />
+         <StatCard title="Stripe Fees (Est)" value={totals.stripeFees} icon={CreditCard} color="red" formatPrice={formatPrice} />
+         <StatCard title="Lucro Bruto Viby" value={totals.vibyGross} icon={ArrowUpRight} color="secondary" formatPrice={formatPrice} />
+         <StatCard title="Provisão Imposto" value={totals.tax} icon={Receipt} color="orange" formatPrice={formatPrice} />
+         <StatCard title="Lucro Líquido Real" value={totals.vibyNet} icon={CheckCircle2} color="green" formatPrice={formatPrice} />
       </div>
 
       <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
@@ -205,8 +221,8 @@ export default function AdminImpostoPage() {
                  <Input placeholder="Buscar evento ou marca..." value={searchName} onChange={e => setSearchName(e.target.value)} className="pl-10 h-11 rounded-xl" />
               </div>
               <div className="p-4 bg-muted/20 rounded-2xl border border-dashed flex items-center gap-3">
-                 <Globe className="w-4 h-4 text-secondary" />
-                 <p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">Valores de topo normalizados para BRL. Detalhes exibidos na moeda original do evento.</p>
+                 <Clock className="w-4 h-4 text-secondary" />
+                 <p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">As métricas utilizam a cotação congelada da venda para garantir balanços imutáveis.</p>
               </div>
            </div>
         </CardHeader>
@@ -239,15 +255,29 @@ export default function AdminImpostoPage() {
                 {expandedEvents.has(group.id) && (
                   <div className="bg-muted/20 px-8 py-6 animate-in slide-in-from-top-2">
                      <Table>
-                        <TableHeader><TableRow className="hover:bg-transparent"><TableHead className="h-8 text-[8px] font-black uppercase">Comprador</TableHead><TableHead className="h-8 text-[8px] font-black uppercase text-right">Bruto Viby</TableHead><TableHead className="h-8 text-[8px] font-black uppercase text-right">Stripe</TableHead><TableHead className="h-8 text-[8px] font-black uppercase text-right">Imposto</TableHead><TableHead className="h-8 text-[8px] font-black uppercase text-right">Líq. Real</TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow className="hover:bg-transparent">
+                          <TableHead className="h-8 text-[8px] font-black uppercase">Comprador</TableHead>
+                          <TableHead className="h-8 text-[8px] font-black uppercase text-center">Câmbio Registrado</TableHead>
+                          <TableHead className="h-8 text-[8px] font-black uppercase text-right">Bruto Viby</TableHead>
+                          <TableHead className="h-8 text-[8px] font-black uppercase text-right">Imposto (BRL)</TableHead>
+                          <TableHead className="h-8 text-[8px] font-black uppercase text-right">Líq. Real BRL</TableHead>
+                        </TableRow></TableHeader>
                         <TableBody>
                            {group.details.map((t: any) => (
                              <TableRow key={t.id} className={cn(t.status === 'cancelado' && "opacity-40 line-through")}>
                                <TableCell className="py-2 text-[10px] font-bold uppercase">{t.buyerName}</TableCell>
+                               <TableCell className="text-center py-2">
+                                  <Badge variant="secondary" className="text-[7px] font-black">
+                                    {t.exchangeRate ? `1 ${t.currency} = R$ ${t.exchangeRate.toFixed(4)}` : 'Câmbio Dinâmico'}
+                                  </Badge>
+                               </TableCell>
                                <TableCell className="text-right py-2 text-[10px]">{formatPrice(t.vibyGrossProfit, t.currency)}</TableCell>
-                               <TableCell className="text-right py-2 text-[10px] text-red-500">-{formatPrice(t.stripeFeeAmount, t.currency)}</TableCell>
-                               <TableCell className="text-right py-2 text-[10px] text-orange-600">-{formatPrice(t.taxAmount, t.currency)}</TableCell>
-                               <TableCell className="text-right py-2 text-[10px] font-black text-green-600">{formatPrice(t.vibyNetProfit, t.currency)}</TableCell>
+                               <TableCell className="text-right py-2 text-[10px] text-orange-600">
+                                  {t.taxAmountBRL ? formatPrice(t.taxAmountBRL, 'BRL') : `-${formatPrice(t.taxAmount, t.currency)}`}
+                               </TableCell>
+                               <TableCell className="text-right py-2 text-[10px] font-black text-green-600">
+                                  {t.vibyNetProfitBRL ? formatPrice(t.vibyNetProfitBRL, 'BRL') : formatPrice(convertValue(t.vibyNetProfit, t.currency, 'BRL'), 'BRL')}
+                               </TableCell>
                              </TableRow>
                            ))}
                         </TableBody>

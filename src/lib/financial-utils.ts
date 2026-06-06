@@ -1,6 +1,7 @@
+
 /**
  * @fileOverview Utilitários financeiros oficiais do Viby.
- * Implementa a regra única e centralizada para toda a plataforma com suporte a moedas nativas.
+ * Implementa a regra única e centralizada para toda a plataforma com suporte a moedas nativas e persistência histórica.
  */
 
 import { CurrencyCode } from "@/contexts/CurrencyContext";
@@ -57,7 +58,6 @@ export function calculateVibyOfficialSplit(facePrice: number, eventCurrency: Cur
   // Converte a taxa mínima de BRL para a moeda do evento
   let minFeeInEventCurrency = VIBY_MIN_FEE_BRL;
   if (eventCurrency !== 'BRL' && rates) {
-    // Brl é base (1.0). Se queremos saber quanto é 3.99 BRL em USD: 3.99 * rates['USD']
     const rateBrlToEvent = rates[eventCurrency] || 1;
     minFeeInEventCurrency = Number((VIBY_MIN_FEE_BRL * rateBrlToEvent).toFixed(2));
   }
@@ -92,11 +92,20 @@ export function calculateFinancialBreakdown(facePrice: number, globalFees?: any,
 }
 
 /**
- * Calcula o detalhamento fiscal completo para o Ledger.
+ * Calcula o detalhamento fiscal completo para o Ledger com suporte a cotação congelada.
  */
-export function calculateDetailedVibyBreakdown(facePrice: number, quantity: number = 1, rates?: Record<string, number>, stripeConfig?: any, eventCurrency: CurrencyCode = 'BRL') {
+export function calculateDetailedVibyBreakdown(
+  facePrice: number, 
+  quantity: number = 1, 
+  rates?: Record<string, number>, 
+  stripeConfig?: any, 
+  eventCurrency: CurrencyCode = 'BRL'
+) {
   const split = calculateVibyOfficialSplit(facePrice, eventCurrency, rates);
   
+  // Taxa de conversão congelada (1 unidade da moeda do evento = X BRL)
+  const rateToBRL = eventCurrency === 'BRL' ? 1 : (1 / (rates?.[eventCurrency] || 1));
+
   // Imposto provisionado (11% sobre a receita bruta da Viby)
   const imposto = Number((split.vibyApplicationFee * VIBY_TAX_RATE).toFixed(2));
   
@@ -116,13 +125,18 @@ export function calculateDetailedVibyBreakdown(facePrice: number, quantity: numb
     imposto: Number((imposto * quantity).toFixed(2)),
     vibyNet: Number((vibyNet * quantity).toFixed(2)),
     payoutToProducer: Number((split.organizerNet * quantity).toFixed(2)),
-    currency: eventCurrency
+    currency: eventCurrency,
+    exchangeRate: rateToBRL,
+    // Valores convertidos e fixados em BRL para o Ledger
+    totalChargedBRL: Number((split.totalCharged * quantity * rateToBRL).toFixed(2)),
+    vibyNetBRL: Number((vibyNet * quantity * rateToBRL).toFixed(2)),
+    taxAmountBRL: Number((imposto * quantity * rateToBRL).toFixed(2)),
+    payoutToProducerBRL: Number((split.organizerNet * quantity * rateToBRL).toFixed(2))
   };
 }
 
 /**
  * Calcula o valor de estorno líquido.
- * O gateway retém a taxa original (Stripe + 1 real fixo de operação).
  */
 export function calculateRefundAmount(totalPaid: number): number {
   const gatewayFee = calculateRetainedGatewayFee(totalPaid);
