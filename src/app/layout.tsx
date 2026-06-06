@@ -63,7 +63,7 @@ export async function generateMetadata(): Promise<Metadata> {
       ],
       shortcut: [iconUrl],
     },
-    manifest: '/manifest.webmanifest',
+    // Removido manifest daqui para injetar manualmente no head com crossOrigin fix
     alternates: {
       canonical: '/',
       languages: {
@@ -112,6 +112,8 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+        {/* Fix para CORS do Manifesto em ambientes restritos de desenvolvimento */}
+        <link rel="manifest" href="/manifest.webmanifest" crossOrigin="use-credentials" />
       </head>
       <body className="font-body antialiased bg-[#f8fafc] text-[#000000] flex flex-col min-h-screen">
         <GoogleAdsTag />
