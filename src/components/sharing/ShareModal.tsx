@@ -17,7 +17,6 @@ import {
   Loader2, 
   Check, 
   Smartphone, 
-  Layout, 
   FileText,
   Instagram,
   QrCode,
@@ -27,8 +26,9 @@ import { QRCodeSVG } from 'qrcode.react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { toPng } from 'html-to-image';
-import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
+
+const DEFAULT_FAVICON = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FiconUrl_1780427863977?alt=media&token=1ab99264-b05c-4d1d-ab5a-0c27b7bfb77b";
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -64,14 +64,16 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     if (!printRef.current) return;
     setIsGenerating(true);
     try {
+      // Pequeno atraso para garantir renderização de fontes e QR
+      await new Promise(r => setTimeout(r, 500));
+      
       const node = printRef.current;
       const dataUrl = await toPng(node, {
         cacheBust: true,
         backgroundColor: '#ffffff',
-        style: {
-          display: 'flex',
-          transform: 'scale(1)',
-        }
+        pixelRatio: 2,
+        // Evita erro de segurança ao tentar acessar regras de CSS de domínios externos (Google Fonts)
+        skipFonts: true,
       });
       
       const link = document.createElement('a');
@@ -80,7 +82,12 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       link.click();
       toast({ title: "Download concluído!" });
     } catch (err) {
-      toast({ variant: "destructive", title: "Erro ao gerar imagem" });
+      console.error("[ShareModal] Error generating PNG:", err);
+      toast({ 
+        variant: "destructive", 
+        title: "Erro ao gerar imagem", 
+        description: "Tente usar a função 'Imprimir' ou tirar um print da tela." 
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -108,17 +115,22 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[90vh] md:h-auto">
         <div className="flex-1 p-8 bg-muted/20 flex items-center justify-center border-r border-dashed print:p-0 print:bg-white print:border-none">
-          {/* O CARD GERADO PARA IMPRESSÃO/IMAGEM */}
+          {/* CARD DE DIVULGAÇÃO */}
           <div 
             ref={printRef}
             className="w-[300px] h-[424px] bg-white shadow-2xl rounded-3xl flex flex-col items-center p-8 text-center border relative overflow-hidden print:shadow-none print:border-none print:w-full print:h-screen"
           >
             <div className="mb-6 flex flex-col items-center gap-3">
-              <div className="w-16 h-16 rounded-2xl bg-muted overflow-hidden relative border shadow-sm">
+              <div className="w-16 h-16 rounded-2xl bg-muted overflow-hidden relative border shadow-sm flex items-center justify-center">
                 {data.logoUrl ? (
-                  <Image src={data.logoUrl} alt="Logo" fill className="object-cover" unoptimized />
+                  <img 
+                    src={data.logoUrl} 
+                    alt="Logo" 
+                    className="w-full h-full object-cover" 
+                    crossOrigin="anonymous"
+                  />
                 ) : (
-                  <QrCode className="w-8 h-8 text-muted-foreground m-auto mt-4" />
+                  <QrCode className="w-8 h-8 text-muted-foreground opacity-30" />
                 )}
               </div>
               <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary line-clamp-1">
@@ -139,15 +151,20 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
               />
             </div>
 
-            <div className="mt-auto space-y-4">
+            <div className="mt-auto space-y-4 flex flex-col items-center w-full">
               <p className="text-[9px] font-mono font-bold text-secondary uppercase tracking-tight truncate max-w-[240px]">
                 viby.club/{data.username}
               </p>
               
               <div className="flex flex-col items-center gap-1.5 opacity-40">
                 <span className="text-[8px] font-black uppercase tracking-[0.3em]">Powered by Viby.Club</span>
-                <div className="w-10 h-4 relative">
-                  <Image src="https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1739501509176?alt=media&token=c813d395-5d9c-4861-a1e1-95567b452834" alt="Viby" fill className="object-contain grayscale" unoptimized />
+                <div className="w-12 h-6 relative flex items-center justify-center">
+                  <img 
+                    src={DEFAULT_FAVICON} 
+                    alt="Viby" 
+                    className="max-h-full max-w-full object-contain grayscale" 
+                    crossOrigin="anonymous" 
+                  />
                 </div>
               </div>
             </div>
@@ -157,7 +174,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         <div className="w-full md:w-80 p-8 space-y-8 overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Compartilhar</DialogTitle>
-            <DialogDescription className="font-medium">Gere materiais de divulgação física ou digital.</DialogDescription>
+            <DialogDescription className="font-medium text-xs">Gere materiais de divulgação física ou digital.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6">
@@ -180,7 +197,8 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
                   <Printer className="w-3.5 h-3.5" /> Imprimir
                 </Button>
                 <Button variant="ghost" onClick={() => handleDownload('A4')} disabled={isGenerating} className="h-10 text-[9px] font-black uppercase gap-1.5 bg-muted/50 rounded-lg">
-                  <FileText className="w-3.5 h-3.5" /> Salvar PNG
+                  {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                  PNG A4
                 </Button>
               </div>
             </div>
@@ -188,11 +206,11 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
             <div className="space-y-3">
               <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground ml-1">Redes Sociais</p>
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="ghost" onClick={() => handleDownload('instagram')} className="h-20 flex-col gap-2 rounded-xl border bg-white hover:bg-muted">
+                <Button variant="ghost" onClick={() => handleDownload('instagram')} disabled={isGenerating} className="h-20 flex-col gap-2 rounded-xl border bg-white hover:bg-muted">
                   <Instagram className="w-5 h-5 text-pink-500" />
                   <span className="text-[8px] font-black uppercase">Post Feed</span>
                 </Button>
-                <Button variant="ghost" onClick={() => handleDownload('stories')} className="h-20 flex-col gap-2 rounded-xl border bg-white hover:bg-muted">
+                <Button variant="ghost" onClick={() => handleDownload('stories')} disabled={isGenerating} className="h-20 flex-col gap-2 rounded-xl border bg-white hover:bg-muted">
                   <Smartphone className="w-5 h-5 text-purple-500" />
                   <span className="text-[8px] font-black uppercase">Stories</span>
                 </Button>
@@ -203,7 +221,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
             <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
             <p className="text-[9px] text-secondary font-bold uppercase leading-tight italic">
-              Dica: Imprima em papel couchê 250g para um acabamento profissional em balcões ou mesas.
+              Dica: Imprima em papel couchê 250g para um acabamento premium.
             </p>
           </div>
         </div>
