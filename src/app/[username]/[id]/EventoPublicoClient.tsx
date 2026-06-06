@@ -306,7 +306,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
              <div className="sticky top-28 space-y-8">
                 {event.type === 'externo' && event.externalUrl && (
                   <Card className="border-none shadow-xl rounded-[2.5rem] bg-white p-8 border-t-8 border-primary space-y-6">
-                     <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Bilheteria Externa</h2>
+                     <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Bilheteria Em Externa</h2>
                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">As vendas para este evento ocorrem em uma plataforma terceira.</p>
                      <Button className="w-full h-16 bg-primary text-white font-black rounded-2xl uppercase italic gap-2 shadow-lg transition-transform active:scale-95" asChild>
                         <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Link de Ingressos <ArrowRight className="w-5 h-5" /></a>
@@ -347,9 +347,11 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
             username: username,
             url: `/${username}/${id}`,
             logoUrl: event.image,
+            bannerUrl: event.image,
             type: 'event',
             organizationId: event.organizationId,
-            eventId: id
+            eventId: id,
+            verified: organization?.verified || organization?.isVerified
           }}
         />
       )}

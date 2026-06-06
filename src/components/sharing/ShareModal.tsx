@@ -15,26 +15,20 @@ import {
   Share2, 
   Download, 
   Printer, 
-  Copy, 
   Loader2, 
-  Check, 
   Smartphone, 
   Instagram,
-  AlertTriangle,
   Monitor,
   X,
   Palette,
-  Layout,
-  Star,
   Zap,
   ShieldCheck,
   Building2,
-  Calendar,
   Globe,
   Camera,
-  Image as ImageIcon,
   MousePointer2,
   RefreshCw,
+  Star,
   Info
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -58,6 +52,7 @@ interface ShareModalProps {
     type: 'organization' | 'event';
     organizationId: string;
     eventId?: string;
+    verified?: boolean;
   };
 }
 
@@ -84,15 +79,6 @@ const THEMES: { id: Theme; label: string; icon: any }[] = [
   { id: 'foto', label: 'Foto da Marca', icon: Camera }
 ];
 
-const TEMPLATES: { id: Template; label: string }[] = [
-  { id: 'classico', label: 'Clássico' },
-  { id: 'moderno', label: 'Moderno' },
-  { id: 'premium', label: 'Premium' },
-  { id: 'evento', label: 'Foco Evento' },
-  { id: 'organizacao', label: 'Institucional' },
-  { id: 'minimalista', label: 'Minimalista' }
-];
-
 export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [isAssetsLoaded, setIsAssetsLoaded] = React.useState(false);
@@ -103,7 +89,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
   const [bannerBase64, setBannerBase64] = React.useState<string | null>(null);
   
   const [selectedTheme, setSelectedTheme] = React.useState<Theme>('viby');
-  const [selectedTemplate, setSelectedTemplate] = React.useState<Template>('classico');
   const [currentFormat, setCurrentFormat] = React.useState<Format>('stories');
   
   const renderRef = React.useRef<HTMLDivElement>(null);
@@ -223,11 +208,12 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     const isDark = theme !== 'claro' && theme !== 'corporativo';
     const name = data.title;
     
-    // Cálculo dinâmico para evitar cortes em nomes longos
     let baseFontSize = size / 3;
     if (name.length > 12) baseFontSize = size / 3.8;
     if (name.length > 20) baseFontSize = size / 4.5;
     if (name.length > 30) baseFontSize = size / 6;
+
+    const badgeSize = baseFontSize * 0.7;
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', width: '100%' }}>
@@ -251,25 +237,35 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
             </div>
           )}
         </div>
-        <h1 style={{ 
-          fontSize: `${baseFontSize}px`, 
-          fontWeight: 900, 
-          textTransform: 'uppercase', 
-          fontStyle: 'italic', 
-          textAlign: 'center', 
-          margin: 0, 
-          letterSpacing: '-0.05em', 
-          color: theme === 'premium' ? '#D4AF37' : (isDark ? '#ffffff' : '#000000'),
-          lineHeight: 0.9,
-          maxWidth: '95%',
-          wordBreak: 'break-word',
-          display: '-webkit-box',
-          WebkitLineClamp: 3,
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden'
-        }}>
-          {name}
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', width: '100%' }}>
+           <h1 style={{ 
+             fontSize: `${baseFontSize}px`, 
+             fontWeight: 900, 
+             textTransform: 'uppercase', 
+             fontStyle: 'italic', 
+             textAlign: 'center', 
+             margin: 0, 
+             letterSpacing: '-0.05em', 
+             color: theme === 'premium' ? '#D4AF37' : (isDark ? '#ffffff' : '#000000'),
+             lineHeight: 0.9,
+             maxWidth: '85%',
+             wordBreak: 'break-word',
+             display: '-webkit-box',
+             WebkitLineClamp: 3,
+             WebkitBoxOrient: 'vertical',
+             overflow: 'hidden'
+           }}>
+             {name}
+           </h1>
+           {data.verified && (
+             <div style={{ shrink: 0 }}>
+                <svg width={badgeSize} height={badgeSize} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                   <path d="M12 2L15.09 5.26L19.54 5.9L20.18 10.35L23.44 13.44L20.18 16.53L19.54 20.98L15.09 21.62L12 24.88L8.91 21.62L4.46 20.98L3.82 16.53L0.56 13.44L3.82 10.35L4.46 5.9L8.91 5.26L12 2Z" fill="#3b82f6"/>
+                   <path d="M9 12L11 14L15 10" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+             </div>
+           )}
+        </div>
       </div>
     );
   };
@@ -343,7 +339,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     return null;
   };
 
-  const renderFullArte = (format: Format, theme: Theme, template: Template) => {
+  const renderFullArte = (format: Format, theme: Theme) => {
     const config = FORMAT_CONFIGS[format];
     const themeStyle = getThemeStyle(theme);
     
@@ -472,10 +468,9 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           </ScrollArea>
 
           <div className="p-8 border-t bg-muted/10 flex flex-col gap-3">
-             <Button variant="ghost" onClick={() => window.print()} className="w-full h-11 rounded-xl font-black uppercase text-[10px] gap-2 bg-white border shadow-sm">
-                <Printer className="w-4 h-4" /> Imprimir Material
+             <Button variant="ghost" onClick={handleNativeShare} className="w-full h-11 rounded-xl font-black uppercase text-[10px] gap-2 bg-white border shadow-sm">
+                <Share2 className="w-4 h-4" /> Compartilhar Link
              </Button>
-             <Button variant="ghost" onClick={handleNativeShare} className="w-full h-11 rounded-xl font-bold uppercase text-[10px] opacity-60">Compartilhar Link</Button>
              <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full h-11 rounded-xl font-bold uppercase text-[10px] opacity-30">Fechar</Button>
           </div>
         </div>
@@ -499,12 +494,12 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
           <div style={{ position: 'fixed', left: '-9999px', top: '-9999px' }}>
             <div ref={renderRef}>
-               {renderFullArte(currentFormat, selectedTheme, selectedTemplate)}
+               {renderFullArte(currentFormat, selectedTheme)}
             </div>
           </div>
 
           <div className="scale-[0.22] md:scale-[0.25] lg:scale-[0.32] origin-center shadow-[0_60px_120px_rgba(0,0,0,0.4)] bg-white ring-[25px] ring-white shrink-0 rounded-sm">
-             {renderFullArte('stories', selectedTheme, selectedTemplate)}
+             {renderFullArte('stories', selectedTheme)}
           </div>
           
           <div className="mt-12 flex flex-col items-center gap-4">
@@ -520,3 +515,4 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     </Dialog>
   );
 }
+

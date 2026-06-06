@@ -380,8 +380,10 @@ export default function ProfilePageClient({ username }: { username: string }) {
                     username: profileData.username,
                     url: `/${profileData.username}`,
                     logoUrl: profileData.avatar,
+                    bannerUrl: profileData.banner,
                     type: 'organization',
-                    organizationId: profileData.id
+                    organizationId: profileData.id,
+                    verified: profileData.verified || profileData.isVerified
                   }}
                 />
               )}
@@ -417,6 +419,23 @@ export default function ProfilePageClient({ username }: { username: string }) {
                     <UserEventsContent registrations={userRegistrations || []} isOwner={isOwner} />
                  </aside>
               </div>
+
+              {profileData && (
+                <ShareModal 
+                  isOpen={isShareModalOpen} 
+                  onOpenChange={setIsShareModalOpen} 
+                  data={{
+                    title: profileData.name,
+                    username: profileData.username,
+                    url: `/${profileData.username}`,
+                    logoUrl: profileData.avatar,
+                    bannerUrl: profileData.banner,
+                    type: 'organization',
+                    organizationId: profileData.id,
+                    verified: profileData.isVerified
+                  }}
+                />
+              )}
             </div>
           )}
         </motion.div>
