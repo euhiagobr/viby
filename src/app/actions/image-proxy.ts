@@ -6,8 +6,13 @@
  */
 
 export async function fetchImageAsBase64(url: string): Promise<{ success: boolean; data?: string; error?: string }> {
+  if (!url) return { success: false, error: "URL ausente" };
+  
   try {
-    const response = await fetch(url, {
+    // Remove parâmetros de cache anteriores para evitar conflitos de URL
+    const cleanUrl = url.split('&v_cache=')[0].split('?v_cache=')[0];
+    
+    const response = await fetch(cleanUrl, {
       cache: 'no-cache',
       headers: {
         'Accept': 'image/*'
@@ -15,7 +20,7 @@ export async function fetchImageAsBase64(url: string): Promise<{ success: boolea
     });
 
     if (!response.ok) {
-      throw new Error(`Falha ao buscar imagem: ${response.statusText}`);
+      throw new Error(`Falha ao buscar imagem: ${response.status} ${response.statusText}`);
     }
 
     const arrayBuffer = await response.arrayBuffer();
@@ -28,7 +33,7 @@ export async function fetchImageAsBase64(url: string): Promise<{ success: boolea
       data: `data:${contentType};base64,${base64}`
     };
   } catch (error: any) {
-    console.error("[Image Proxy Error]", error);
+    console.error("[Image Proxy Error]", error.message, url);
     return {
       success: false,
       error: error.message
