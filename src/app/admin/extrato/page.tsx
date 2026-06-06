@@ -21,9 +21,10 @@ import {
   Scale,
   Clock,
   BarChart3,
-  PieChart as PieChartIcon
+  PieChart as PieChartIcon,
+  Globe
 } from 'lucide-react';
-import { useCurrency } from "@/contexts/CurrencyContext"
+import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { 
   BarChart, 
   Bar, 
@@ -40,7 +41,7 @@ import { Separator } from '@/components/ui/separator';
 
 export default function AdminERPDashboard() {
   const db = useFirestore();
-  const { formatPrice } = useCurrency();
+  const { formatPrice, convertValue } = useCurrency();
 
   // Queries para consolidação do ERP
   const ticketsQuery = useMemoFirebase(() => db ? query(collection(db, "tax_tickets")) : null, [db]);
@@ -69,45 +70,53 @@ export default function AdminERPDashboard() {
 
     if (tickets) {
       tickets.forEach(t => {
+        const cur = (t.currency || 'BRL') as CurrencyCode;
+        const normalize = (val: number) => convertValue(val, cur, 'BRL');
+
         if (t.status === 'cancelado') {
-           m.totalRefunds += (t.totalFacePrice || 0);
+           m.totalRefunds += normalize(t.totalFacePrice || 0);
            return;
         }
         const totalBrutoTicket = (t.totalFacePrice || 0) + (t.buyerFeeAmount || 0);
-        m.grossRevenue += totalBrutoTicket;
-        m.netRevenue += (t.vibyGrossProfit || 0);
-        m.totalStripeFees += (t.stripeFeeAmount || 0);
-        m.totalTaxes += (t.taxAmount || 0);
-        m.totalPayouts += (t.payoutToProducer || 0);
+        m.grossRevenue += normalize(totalBrutoTicket);
+        m.netRevenue += normalize(t.vibyGrossProfit || 0);
+        m.totalStripeFees += normalize(t.stripeFeeAmount || 0);
+        m.totalTaxes += normalize(t.taxAmount || 0);
+        m.totalPayouts += normalize(t.payoutToProducer || 0);
       });
     }
 
     if (ads) {
       ads.forEach(ad => {
         if (ad.status === 'cancelado' || ad.status === 'rejeitado') return;
-        m.grossRevenue += (ad.grossValue || 0);
-        const adProfit = (ad.netValue || 0);
+        // Ads são atualmente fixos em BRL, mas mantemos lógica de normalização por segurança
+        const cur = (ad.currency || 'BRL') as CurrencyCode;
+        const normalize = (val: number) => convertValue(val, cur, 'BRL');
+
+        m.grossRevenue += normalize(ad.grossValue || 0);
+        const adProfit = normalize(ad.netValue || 0);
         m.totalAdsRevenue += adProfit;
         m.netRevenue += adProfit;
-        m.totalTaxes += (ad.taxValue || 0);
+        m.totalTaxes += normalize(ad.taxValue || 0);
       });
     }
 
     if (expenses) {
       expenses.forEach(e => {
+        // Despesas são registradas em BRL (Custo de Porto Alegre)
         m.internalExpenses += (e.amount || 0);
       });
     }
 
     if (payouts) {
       payouts.forEach(p => {
-        if (p.status === 'Pendente') m.pendingPayouts += (p.amount || 0);
+        if (p.status === 'Pendente') m.pendingPayouts += convertValue(p.amount || 0, (p.currency || 'BRL'), 'BRL');
       });
     }
 
     m.realProfit = calculateRealProfit(m);
     return m;
-  }, [tickets, ads, expenses, payouts]);
+  }, [tickets, ads, expenses, payouts, convertValue]);
 
   const chartData = [
     { name: 'Faturamento', value: metrics.grossRevenue, color: 'hsl(var(--primary))' },
@@ -130,7 +139,7 @@ export default function AdminERPDashboard() {
   return (
     <div className="space-y-8 pb-20">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPI kpiTitle="Volume Bruto (GMV)" value={metrics.grossRevenue} icon={TrendingUp} color="blue" formatPrice={formatPrice} />
+        <KPI kpiTitle="Volume Bruto (BRL)" value={metrics.grossRevenue} icon={TrendingUp} color="blue" formatPrice={formatPrice} />
         <KPI kpiTitle="Lucro Líquido Real" value={metrics.realProfit} icon={CheckCircle2} color="green" formatPrice={formatPrice} />
         <KPI kpiTitle="Repasses Pendentes" value={metrics.pendingPayouts} icon={Clock} color="orange" formatPrice={formatPrice} />
         <KPI kpiTitle="Despesa Operacional" value={metrics.internalExpenses} icon={ArrowDownRight} color="red" formatPrice={formatPrice} />
@@ -156,7 +165,7 @@ export default function AdminERPDashboard() {
                       return (
                         <div className="bg-primary text-white p-3 rounded-xl shadow-2xl border-none">
                           <p className="text-[10px] font-black uppercase opacity-60 mb-1">{payload[0].payload.name}</p>
-                          <p className="text-sm font-black">{formatPrice(Number(payload[0].value))}</p>
+                          <p className="text-sm font-black">{formatPrice(Number(payload[0].value), 'BRL')}</p>
                         </div>
                       );
                     }
@@ -176,12 +185,12 @@ export default function AdminERPDashboard() {
         <Card className="lg:col-span-4 border-none shadow-sm rounded-[2.5rem] bg-primary text-white relative overflow-hidden">
           <CardHeader className="p-8">
              <CardTitle className="text-lg font-black uppercase italic tracking-tighter flex items-center gap-2">
-               <Scale className="w-5 h-5 text-secondary" /> Rentabilidade
+               <Scale className="w-5 h-5 text-secondary" /> Rentabilidade Global
              </CardTitle>
           </CardHeader>
           <CardContent className="p-8 pt-0 space-y-8 relative z-10">
              <div className="space-y-1">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-50">Margem de Lucro Real</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-50">Margem Líquida Unificada</p>
                 <div className="flex items-baseline gap-2">
                    <p className="text-5xl font-black italic tracking-tighter">
                      {metrics.grossRevenue > 0 ? ((metrics.realProfit / metrics.grossRevenue) * 100).toFixed(1) : 0}%
@@ -192,19 +201,17 @@ export default function AdminERPDashboard() {
              <Separator className="bg-white/10" />
 
              <div className="space-y-4">
-                <MetricLine label="Imposto Provisionado (11%)" value={metrics.totalTaxes} formatPrice={formatPrice} />
-                <MetricLine label="Custo Stripe (Estimado)" value={metrics.totalStripeFees} formatPrice={formatPrice} />
+                <MetricLine label="Imposto Provisionado" value={metrics.totalTaxes} formatPrice={formatPrice} />
+                <MetricLine label="Custo Stripe (Normalizado)" value={metrics.totalStripeFees} formatPrice={formatPrice} />
                 <MetricLine label="Receita Bruta Viby" value={metrics.netRevenue} formatPrice={formatPrice} />
                 <MetricLine label="Repasses de Produção" value={metrics.totalPayouts} formatPrice={formatPrice} />
              </div>
 
-             <div className="p-4 bg-white/10 rounded-2xl border border-white/10">
-                <div className="flex items-center gap-3">
-                   <AlertTriangle className="w-5 h-5 text-secondary" />
-                   <p className="text-[10px] font-medium leading-relaxed uppercase">
-                     Dados baseados em registros de D+0. A margem final pode variar após chargebacks ou estornos Stripe.
-                   </p>
-                </div>
+             <div className="p-4 bg-white/10 rounded-2xl border border-white/10 flex items-start gap-3">
+                <Globe className="w-5 h-5 text-secondary shrink-0" />
+                <p className="text-[10px] font-medium leading-relaxed uppercase">
+                   Todos os valores foram normalizados para BRL utilizando as taxas de câmbio vigentes para consolidar o balanço.
+                </p>
              </div>
           </CardContent>
           <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-secondary/10 rounded-full blur-3xl" />
@@ -217,7 +224,7 @@ export default function AdminERPDashboard() {
                <Coins className="w-4 h-4 text-secondary" /> Divulgação & Ads
             </h3>
             <div className="space-y-1">
-               <p className="text-3xl font-black text-primary">{formatPrice(metrics.totalAdsRevenue)}</p>
+               <p className="text-3xl font-black text-primary">{formatPrice(metrics.totalAdsRevenue, 'BRL')}</p>
                <p className="text-[10px] font-bold text-green-600 uppercase">Receita de Alto Impacto</p>
             </div>
          </Card>
@@ -226,7 +233,7 @@ export default function AdminERPDashboard() {
                <Receipt className="w-4 h-4 text-secondary" /> Taxas Ingressos
             </h3>
             <div className="space-y-1">
-               <p className="text-3xl font-black text-primary">{formatPrice(metrics.netRevenue - metrics.totalAdsRevenue)}</p>
+               <p className="text-3xl font-black text-primary">{formatPrice(metrics.netRevenue - metrics.totalAdsRevenue, 'BRL')}</p>
                <p className="text-[10px] font-bold text-muted-foreground uppercase">Revenue Share de Eventos</p>
             </div>
          </Card>
@@ -235,8 +242,8 @@ export default function AdminERPDashboard() {
                <ArrowDownRight className="w-4 h-4 text-red-500" /> Prejuízo (Estornos)
             </h3>
             <div className="space-y-1">
-               <p className="text-3xl font-black text-red-500">{formatPrice(metrics.totalRefunds)}</p>
-               <p className="text-[10px] font-bold text-muted-foreground uppercase">Valor Devolvido (Face)</p>
+               <p className="text-3xl font-black text-red-500">{formatPrice(metrics.totalRefunds, 'BRL')}</p>
+               <p className="text-[10px] font-bold text-muted-foreground uppercase">Valor Devolvido Normalizado</p>
             </div>
          </Card>
       </div>
@@ -260,17 +267,17 @@ function KPI({ kpiTitle, value, icon: Icon, color = "blue", formatPrice }: any) 
              </div>
           </div>
           <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">{kpiTitle}</p>
-          <p className="text-2xl font-black text-primary">{typeof value === 'number' ? formatPrice(value) : value}</p>
+          <p className="text-2xl font-black text-primary">{typeof value === 'number' ? formatPrice(value, 'BRL') : value}</p>
        </CardContent>
     </Card>
   );
 }
 
-function MetricLine({ label, value, formatPrice }: { label: string, value: number, formatPrice: (v: number) => string }) {
+function MetricLine({ label, value, formatPrice }: { label: string, value: number, formatPrice: (v: number, c: CurrencyCode) => string }) {
   return (
     <div className="flex justify-between items-center py-2 border-b border-white/5 last:border-none">
        <span className="text-[10px] font-bold uppercase opacity-60">{label}</span>
-       <span className="text-xs font-black">{formatPrice(value)}</span>
+       <span className="text-xs font-black">{formatPrice(value, 'BRL')}</span>
     </div>
   );
 }

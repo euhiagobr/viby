@@ -57,6 +57,7 @@ export function calculateVibyOfficialSplit(facePrice: number, eventCurrency: Cur
   // Converte a taxa mínima de BRL para a moeda do evento
   let minFeeInEventCurrency = VIBY_MIN_FEE_BRL;
   if (eventCurrency !== 'BRL' && rates) {
+    // Brl é base (1.0). Se queremos saber quanto é 3.99 BRL em USD: 3.99 * rates['USD']
     const rateBrlToEvent = rates[eventCurrency] || 1;
     minFeeInEventCurrency = Number((VIBY_MIN_FEE_BRL * rateBrlToEvent).toFixed(2));
   }
@@ -88,4 +89,46 @@ export function calculateFinancialBreakdown(facePrice: number, globalFees?: any,
     producerNetAmount: split.organizerNet,
     totalVibyRevenue: split.vibyApplicationFee
   };
+}
+
+/**
+ * Calcula o detalhamento fiscal completo para o Ledger.
+ */
+export function calculateDetailedVibyBreakdown(facePrice: number, quantity: number = 1, rates?: Record<string, number>, stripeConfig?: any, eventCurrency: CurrencyCode = 'BRL') {
+  const split = calculateVibyOfficialSplit(facePrice, eventCurrency, rates);
+  
+  // Imposto provisionado (11% sobre a receita bruta da Viby)
+  const imposto = Number((split.vibyApplicationFee * VIBY_TAX_RATE).toFixed(2));
+  
+  // Custo Stripe (Estimado ou Real conforme config)
+  const stripeFeePercent = stripeConfig?.feePercent || 3.99;
+  const stripeFeeFixed = stripeConfig?.feeFixed || 0.39;
+  const stripeFeeTotal = Number(((split.totalCharged * (stripeFeePercent / 100)) + stripeFeeFixed).toFixed(2));
+
+  const vibyNet = Number((split.vibyApplicationFee - imposto - stripeFeeTotal).toFixed(2));
+
+  return {
+    totalFace: Number((split.facePrice * quantity).toFixed(2)),
+    totalCharged: Number((split.totalCharged * quantity).toFixed(2)),
+    totalBuyerFee: Number((split.buyerFee * quantity).toFixed(2)),
+    vibyGross: Number((split.vibyApplicationFee * quantity).toFixed(2)),
+    stripeFeeTotal: Number((stripeFeeTotal * quantity).toFixed(2)),
+    imposto: Number((imposto * quantity).toFixed(2)),
+    vibyNet: Number((vibyNet * quantity).toFixed(2)),
+    payoutToProducer: Number((split.organizerNet * quantity).toFixed(2)),
+    currency: eventCurrency
+  };
+}
+
+/**
+ * Calcula o valor de estorno líquido.
+ * O gateway retém a taxa original (Stripe + 1 real fixo de operação).
+ */
+export function calculateRefundAmount(totalPaid: number): number {
+  const gatewayFee = calculateRetainedGatewayFee(totalPaid);
+  return Math.max(0, totalPaid - gatewayFee);
+}
+
+export function calculateRetainedGatewayFee(totalPaid: number): number {
+  return (totalPaid * 0.0499) + 1.00;
 }

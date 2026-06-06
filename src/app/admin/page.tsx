@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -15,12 +14,14 @@ import {
   AlertTriangle, 
   EyeOff, 
   Wallet,
-  Building2
+  Building2,
+  Globe
 } from "lucide-react"
-import { formatCurrency } from "@/lib/financial-utils"
+import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 
 export default function AdminDashboardPage() {
   const db = useFirestore()
+  const { formatPrice, convertValue } = useCurrency()
   
   const eventsQuery = useMemoFirebase(() => db ? collection(db, "events") : null, [db])
   const usersQuery = useMemoFirebase(() => db ? collection(db, "users") : null, [db])
@@ -37,10 +38,11 @@ export default function AdminDashboardPage() {
   const stats = React.useMemo(() => {
     const hiddenOrgs = orgs?.filter((o: any) => o.status === 'Desativado' || o.status === 'Exclusão Programada').length || 0;
     
-    // Cálculo simplificado de repasse global
-    const totalToPay = regs?.reduce((acc: any, r: any) => {
+    // Consolidação Ponderada para Repasse Global
+    const totalToPayBRL = regs?.reduce((acc: number, r: any) => {
       if (['Pago', 'Disponível'].includes(r.paymentStatus)) {
-        return acc + (r.producerNetAmount || 0);
+        const cur = (r.currency || 'BRL') as CurrencyCode;
+        return acc + convertValue(r.producerNetAmount || 0, cur, 'BRL');
       }
       return acc;
     }, 0) || 0;
@@ -61,8 +63,8 @@ export default function AdminDashboardPage() {
         bg: "bg-orange-50" 
       },
       { 
-        title: "Total a Repassar", 
-        value: formatCurrency(totalToPay), 
+        title: "Total a Repassar (BRL)", 
+        value: formatPrice(totalToPayBRL, 'BRL'), 
         icon: Wallet, 
         color: "text-green-500", 
         bg: "bg-green-50" 
@@ -75,13 +77,13 @@ export default function AdminDashboardPage() {
         bg: "bg-red-50" 
       },
     ]
-  }, [events, users, orgs, reports, regs, eventsLoading, orgsLoading, reportsLoading]);
+  }, [events, users, orgs, reports, regs, eventsLoading, orgsLoading, reportsLoading, convertValue, formatPrice]);
 
   return (
     <div className="space-y-10">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Visão Geral do Sistema</h1>
-        <p className="text-muted-foreground">Monitoramento em tempo real da plataforma Viby Club.</p>
+        <p className="text-muted-foreground">Monitoramento em tempo real (Consolidado Fiscal em BRL).</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -100,6 +102,11 @@ export default function AdminDashboardPage() {
              </CardContent>
           </Card>
         ))}
+      </div>
+
+      <div className="p-4 bg-muted/30 rounded-2xl border border-dashed flex items-center gap-3 max-w-fit">
+         <Globe className="w-5 h-5 text-secondary" />
+         <p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">Os valores monetários globais são normalizados para Real (BRL) para fins de balanço unificado.</p>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">

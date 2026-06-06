@@ -18,7 +18,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   CheckCircle2,
-  FilterX
+  FilterX,
+  Globe
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -34,11 +35,11 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { calculateDetailedVibyBreakdown } from "@/lib/financial-utils"
 import { useRouter } from "next/navigation"
-import { useCurrency } from "@/contexts/CurrencyContext"
+import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 
 export default function AdminImpostoPage() {
   const db = useFirestore()
-  const { formatPrice } = useCurrency()
+  const { formatPrice, convertValue, rates } = useCurrency()
 
   const [searchName, setSearchName] = React.useState("")
   const [selectedMonth, setSelectedMonth] = React.useState("all")
@@ -71,7 +72,9 @@ export default function AdminImpostoPage() {
         const taxSnap = await getDocs(taxQ)
 
         if (taxSnap.empty) {
-          const breakdown = calculateDetailedVibyBreakdown(reg.ticketBasePrice || 0, 1, null, stripe)
+          const eventCurrency = (reg.currency || 'BRL') as CurrencyCode;
+          const breakdown = calculateDetailedVibyBreakdown(reg.ticketBasePrice || 0, 1, rates, stripe, eventCurrency)
+          
           const monthKey = reg.timestamp ? 
             (reg.timestamp.toDate ? reg.timestamp.toDate() : new Date(reg.timestamp)).toISOString().slice(0, 7) : 
             new Date().toISOString().slice(0, 7)
@@ -92,6 +95,7 @@ export default function AdminImpostoPage() {
             taxAmount: breakdown.imposto,
             vibyNetProfit: breakdown.vibyNet,
             payoutToProducer: breakdown.payoutToProducer,
+            currency: eventCurrency,
             monthKey,
             nfStatus: 'pendente',
             status: 'ativo',
@@ -104,6 +108,8 @@ export default function AdminImpostoPage() {
       if (count > 0) {
         await batch.commit()
         toast({ title: "Sincronização Fiscal!" })
+      } else {
+        toast({ title: "Tudo em dia!", description: "Não há novos registros para processar." })
       }
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na sincronização" })
@@ -121,17 +127,23 @@ export default function AdminImpostoPage() {
     })
   }, [rawTickets, searchName, selectedMonth])
 
+  // Consolidação Inteligente: Converte tudo para BRL antes de somar
   const totals = React.useMemo(() => {
     return filteredTickets.reduce((acc, t) => {
       if (t.status === 'cancelado') return acc;
-      acc.totalSold += (t.totalFacePrice || 0) + (t.buyerFeeAmount || 0);
-      acc.vibyGross += (t.vibyGrossProfit || 0);
-      acc.tax += (t.taxAmount || 0);
-      acc.vibyNet += (t.vibyNetProfit || 0);
-      acc.stripeFees += (t.stripeFeeAmount || 0);
+      
+      const cur = (t.currency || 'BRL') as CurrencyCode;
+      
+      const normalize = (val: number) => convertValue(val, cur, 'BRL');
+
+      acc.totalSold += normalize((t.totalFacePrice || 0) + (t.buyerFeeAmount || 0));
+      acc.vibyGross += normalize(t.vibyGrossProfit || 0);
+      acc.tax += normalize(t.taxAmount || 0);
+      acc.vibyNet += normalize(t.vibyNetProfit || 0);
+      acc.stripeFees += normalize(t.stripeFeeAmount || 0);
       return acc;
     }, { totalSold: 0, vibyGross: 0, tax: 0, vibyNet: 0, stripeFees: 0 });
-  }, [filteredTickets]);
+  }, [filteredTickets, convertValue]);
 
   const groupedTickets = React.useMemo(() => {
     const groups: Record<string, any> = {}
@@ -142,6 +154,7 @@ export default function AdminImpostoPage() {
           id: groupKey,
           eventTitle: t.eventTitle,
           orgName: t.orgName,
+          currency: t.currency || 'BRL',
           salesQty: 0,
           grossViby: 0,
           totalTax: 0,
@@ -168,7 +181,7 @@ export default function AdminImpostoPage() {
           <h1 className="text-3xl font-black uppercase italic text-primary flex items-center gap-3">
              <Scale className="w-8 h-8 text-secondary" /> Fiscal & ERP
           </h1>
-          <p className="text-muted-foreground font-medium">Controle de faturamento e provisionamento de impostos.</p>
+          <p className="text-muted-foreground font-medium">Controle de faturamento e provisionamento de impostos (Consolidado em BRL).</p>
         </div>
         <Button variant="outline" onClick={handleSyncSales} disabled={isSyncing} className="rounded-full h-11 px-6 font-black uppercase text-[10px] gap-2 border-secondary text-secondary">
           {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
@@ -177,11 +190,11 @@ export default function AdminImpostoPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-         <StatCard title="Venda Bruta" value={totals.totalSold} icon={TrendingUp} color="blue" formatPrice={formatPrice} />
+         <StatCard title="GMV Consolidado" value={totals.totalSold} icon={TrendingUp} color="blue" formatPrice={formatPrice} />
          <StatCard title="Stripe Fees" value={totals.stripeFees} icon={CreditCard} color="red" formatPrice={formatPrice} />
          <StatCard title="Lucro Bruto (Viby)" value={totals.vibyGross} icon={ArrowUpRight} color="secondary" formatPrice={formatPrice} />
          <StatCard title="Provisionamento IR" value={totals.tax} icon={Receipt} color="orange" formatPrice={formatPrice} />
-         <StatCard title="Lucro Líquido Real" value={totals.vibyNet} icon={CheckCircle2} color="green" formatPrice={formatPrice} />
+         <StatCard title="Lucro Líquido BRL" value={totals.vibyNet} icon={CheckCircle2} color="green" formatPrice={formatPrice} />
       </div>
 
       <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
@@ -190,6 +203,10 @@ export default function AdminImpostoPage() {
               <div className="flex-1 max-w-md relative">
                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                  <Input placeholder="Buscar evento ou marca..." value={searchName} onChange={e => setSearchName(e.target.value)} className="pl-10 h-11 rounded-xl" />
+              </div>
+              <div className="p-4 bg-muted/20 rounded-2xl border border-dashed flex items-center gap-3">
+                 <Globe className="w-4 h-4 text-secondary" />
+                 <p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">Valores de topo normalizados para BRL. Detalhes exibidos na moeda original do evento.</p>
               </div>
            </div>
         </CardHeader>
@@ -203,11 +220,20 @@ export default function AdminImpostoPage() {
                       <div className="p-2 bg-secondary/10 rounded-lg text-secondary">{expandedEvents.has(group.id) ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</div>
                       <div className="flex flex-col">
                         <span className="font-black text-sm uppercase italic text-primary">{group.eventTitle}</span>
-                        <span className="text-[9px] font-bold text-muted-foreground uppercase">{group.orgName}</span>
+                        <div className="flex items-center gap-2">
+                           <span className="text-[9px] font-bold text-muted-foreground uppercase">{group.orgName}</span>
+                           <Badge className="bg-primary text-white text-[7px] font-black h-4 px-1">{group.currency}</Badge>
+                        </div>
                       </div>
                    </div>
-                   <div className="col-span-2 text-right"><p className="text-[9px] font-black uppercase opacity-40">Bruto Viby</p><p className="font-black text-sm">{formatPrice(group.grossViby)}</p></div>
-                   <div className="col-span-2 text-right"><p className="text-[9px] font-black uppercase opacity-40">Lucro Real</p><p className="font-black text-sm text-green-600">{formatPrice(group.netViby)}</p></div>
+                   <div className="col-span-2 text-right">
+                      <p className="text-[9px] font-black uppercase opacity-40">Bruto Viby</p>
+                      <p className="font-black text-sm">{formatPrice(group.grossViby, group.currency)}</p>
+                   </div>
+                   <div className="col-span-2 text-right">
+                      <p className="text-[9px] font-black uppercase opacity-40">Lucro Real</p>
+                      <p className="font-black text-sm text-green-600">{formatPrice(group.netViby, group.currency)}</p>
+                   </div>
                    <div className="col-span-3 text-right"><Badge variant="outline" className="text-[9px] font-black uppercase px-3">{group.salesQty} vendas</Badge></div>
                 </div>
                 {expandedEvents.has(group.id) && (
@@ -218,10 +244,10 @@ export default function AdminImpostoPage() {
                            {group.details.map((t: any) => (
                              <TableRow key={t.id} className={cn(t.status === 'cancelado' && "opacity-40 line-through")}>
                                <TableCell className="py-2 text-[10px] font-bold uppercase">{t.buyerName}</TableCell>
-                               <TableCell className="text-right py-2 text-[10px]">{formatPrice(t.vibyGrossProfit)}</TableCell>
-                               <TableCell className="text-right py-2 text-[10px] text-red-500">-{formatPrice(t.stripeFeeAmount)}</TableCell>
-                               <TableCell className="text-right py-2 text-[10px] text-orange-600">-{formatPrice(t.taxAmount)}</TableCell>
-                               <TableCell className="text-right py-2 text-[10px] font-black text-green-600">{formatPrice(t.vibyNetProfit)}</TableCell>
+                               <TableCell className="text-right py-2 text-[10px]">{formatPrice(t.vibyGrossProfit, t.currency)}</TableCell>
+                               <TableCell className="text-right py-2 text-[10px] text-red-500">-{formatPrice(t.stripeFeeAmount, t.currency)}</TableCell>
+                               <TableCell className="text-right py-2 text-[10px] text-orange-600">-{formatPrice(t.taxAmount, t.currency)}</TableCell>
+                               <TableCell className="text-right py-2 text-[10px] font-black text-green-600">{formatPrice(t.vibyNetProfit, t.currency)}</TableCell>
                              </TableRow>
                            ))}
                         </TableBody>
@@ -247,7 +273,7 @@ function StatCard({ title, value, icon: Icon, color, formatPrice }: any) {
   return (
     <Card className={cn("border-none shadow-sm border-l-4 p-5", colors[color])}>
        <p className="text-[9px] font-black uppercase opacity-60 flex justify-between">{title}<Icon className="w-3 h-3" /></p>
-       <div className="text-lg font-black mt-1">{formatPrice(value)}</div>
+       <div className="text-lg font-black mt-1">{formatPrice(value, 'BRL')}</div>
     </Card>
   )
 }
