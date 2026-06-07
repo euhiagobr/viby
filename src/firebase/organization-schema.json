@@ -1,0 +1,33 @@
+{
+  "collection": "organizations",
+  "description": "Estrutura de organizações suportando Pessoa Física (individual) e Pessoa Jurídica (company).",
+  "fields": {
+    "tipoOrganizacao": "string ('individual' | 'company')",
+    "name": "string (Nome de exibição ou Nome Fantasia)",
+    "username": "string (único global)",
+    "avatar": "url string",
+    "banner": "url string",
+    "bio": "string (HTML/Markdown support)",
+    "type": "string (segmento de mercado)",
+    "cpf": "string (apenas se tipoOrganizacao == 'individual')",
+    "cnpj": "string (apenas se tipoOrganizacao == 'company')",
+    "razaoSocial": "string (apenas se tipoOrganizacao == 'company')",
+    "nomeFantasia": "string (apenas se tipoOrganizacao == 'company')",
+    "representanteLegalCpf": "string (apenas se tipoOrganizacao == 'company')",
+    "phone": "string",
+    "contactEmail": "string",
+    "website": "string",
+    "instagram": "string",
+    "address": "map { cep, street, number, neighborhood, city, state, country }",
+    "status": "string ('Ativo' | 'Desativado' | 'Bloqueado')",
+    "stripeAccountId": "string (Connect ID)",
+    "stripeChargesEnabled": "boolean",
+    "stripePayoutsEnabled": "boolean",
+    "createdAt": "timestamp",
+    "updatedAt": "timestamp"
+  },
+  "stripe_mapping": {
+    "individual": "Mapped to business_type: 'individual' in Stripe Connect Express",
+    "company": "Mapped to business_type: 'company' in Stripe Connect Express"
+  }
+}

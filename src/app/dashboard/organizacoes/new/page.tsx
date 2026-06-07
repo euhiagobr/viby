@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -32,10 +31,12 @@ import {
   Mail,
   Instagram,
   Fingerprint,
-  Info
+  Info,
+  User,
+  ShieldCheck
 } from "lucide-react"
 import Link from "next/link"
-import { cn } from "@/lib/utils"
+import { cn, validateCPF, validateCNPJ } from "@/lib/utils"
 import Image from "next/image"
 
 const ORG_TYPES = [
@@ -56,32 +57,8 @@ const ORG_TYPES = [
     items: ["Empresa", "Startup", "Agência de Marketing", "Agência Digital", "Coworking", "Consultoria", "Escritório", "Loja", "E-commerce", "Marca", "Franquia", "Empresa de Tecnologia"]
   },
   {
-    category: "Saúde e Bem-estar",
-    items: ["Academia", "Crossfit", "Estúdio de Yoga", "Clínica", "Psicologia", "Nutrição", "Personal Trainer", "Espaço Terapêutico"]
-  },
-  {
-    category: "Educação e Desenvolvimento",
-    items: ["Escola", "Universidade", "Curso", "Escola de Idiomas", "Escola Técnica", "Projeto Educacional", "Mentor(a)", "Palestrante", "Centro de Treinamento"]
-  },
-  {
-    category: "Turismo e Hospitalidade",
-    items: ["Hotel", "Hostel", "Pousada", "Agência de Turismo", "Parque", "Resort", "Espaço de Eventos"]
-  },
-  {
     category: "Comunidade e Instituições",
     items: ["ONG", "Associação", "Coletivo", "Fundação", "Organização Social", "Instituição Pública", "Prefeitura", "Secretaria", "Câmara Municipal", "Projeto Social", "Igreja", "Organização Religiosa", "Centro Comunitário"]
-  },
-  {
-    category: "Esporte e Comunidades",
-    items: ["Clube", "Time", "Organização Esportiva", "Liga", "Atlética", "Grupo de Corrida", "Comunidade Gamer", "Equipe de E-sports"]
-  },
-  {
-    category: "Tecnologia e Games",
-    items: ["Estúdio de Jogos", "Comunidade Tech", "Empresa de Software", "Desenvolvedora", "Plataforma Digital", "Criador de Conteúdo", "Streamer", "Podcast"]
-  },
-  {
-    category: "Comércio e Experiências",
-    items: ["Shopping", "Feira", "Mercado", "Loja Geek", "Livraria", "Pet Shop", "Sex Shop", "Tabacaria", "Floricultura"]
   },
   {
     category: "Categoria Genérica",
@@ -106,6 +83,7 @@ export default function NovaOrganizacaoPage() {
   const [bannerUploadProgress, setBannerUploadProgress] = useState<number | null>(null)
   
   const [formData, setFormData] = useState({
+    tipoOrganizacao: "individual", // default
     name: "",
     username: "",
     type: "",
@@ -116,8 +94,11 @@ export default function NovaOrganizacaoPage() {
     contactEmail: "",
     website: "",
     instagram: "",
+    cpf: "",
     cnpj: "",
-    legalName: "",
+    razaoSocial: "",
+    nomeFantasia: "",
+    representanteLegalCpf: "",
     cep: "",
     street: "",
     number: "",
@@ -243,8 +224,25 @@ export default function NovaOrganizacaoPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!db || !user || usernameStatus !== 'valid') {
-        toast({ variant: "destructive", title: "Username inválido", description: "Verifique a disponibilidade do nome de usuário." })
+        toast({ variant: "destructive", title: "Verifique os dados", description: "O nome de usuário escolhido não está disponível." })
         return
+    }
+
+    // Validações Fiscais Condicionais
+    if (formData.tipoOrganizacao === 'individual') {
+      if (!validateCPF(formData.cpf)) {
+        toast({ variant: "destructive", title: "CPF Inválido" });
+        return;
+      }
+    } else {
+      if (!validateCNPJ(formData.cnpj)) {
+        toast({ variant: "destructive", title: "CNPJ Inválido" });
+        return;
+      }
+      if (!validateCPF(formData.representanteLegalCpf)) {
+        toast({ variant: "destructive", title: "CPF do Representante Inválido" });
+        return;
+      }
     }
 
     setLoading(true)
@@ -260,16 +258,26 @@ export default function NovaOrganizacaoPage() {
         const usernameSnap = await transaction.get(usernameRef)
         if (usernameSnap.exists()) throw new Error("Username já ocupado.")
 
-        // Adiciona campo username para permitir buscas por prefixo
         transaction.set(usernameRef, { 
           uid: orgId, 
           type: 'organization',
           username: normalizedUsername
         })
 
+        // Sanitização de dados baseada no tipo
+        const finalData = { ...formData };
+        if (finalData.tipoOrganizacao === 'individual') {
+          finalData.cnpj = "";
+          finalData.razaoSocial = "";
+          finalData.nomeFantasia = "";
+          finalData.representanteLegalCpf = "";
+        } else {
+          finalData.cpf = "";
+        }
+
         transaction.set(orgRef, {
           id: orgId,
-          ...formData,
+          ...finalData,
           username: normalizedUsername,
           slug: normalizedUsername,
           createdBy: user.uid,
@@ -290,10 +298,7 @@ export default function NovaOrganizacaoPage() {
       })
 
       toast({ title: "Organização criada!", description: "Sua marca está pronta para brilhar!" })
-      
       localStorage.setItem('viby_current_org', orgId);
-      localStorage.setItem('viby_user_role', 'owner');
-      
       router.push(`/dashboard/organizacoes/${normalizedUsername}`)
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao criar", description: error.message })
@@ -301,6 +306,8 @@ export default function NovaOrganizacaoPage() {
       setLoading(false)
     }
   }
+
+  const isIndividual = formData.tipoOrganizacao === 'individual';
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -313,12 +320,42 @@ export default function NovaOrganizacaoPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
+        {/* TIPO DE ORGANIZAÇÃO */}
+        <Card className="border-none shadow-sm rounded-[2rem] bg-white">
+           <CardContent className="p-8">
+              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Tipo de Cadastro</Label>
+              <div className="grid grid-cols-2 gap-4 mt-3">
+                 <button 
+                   type="button"
+                   onClick={() => setFormData({...formData, tipoOrganizacao: 'individual'})}
+                   className={cn(
+                     "flex flex-col items-center justify-center p-6 rounded-2xl border-2 transition-all gap-2",
+                     isIndividual ? "border-secondary bg-secondary/5 text-primary shadow-inner" : "border-border bg-white text-muted-foreground hover:bg-muted/30"
+                   )}
+                 >
+                    <User className="w-6 h-6" />
+                    <span className="font-black uppercase italic text-xs">Pessoa Física</span>
+                 </button>
+                 <button 
+                   type="button"
+                   onClick={() => setFormData({...formData, tipoOrganizacao: 'company'})}
+                   className={cn(
+                     "flex flex-col items-center justify-center p-6 rounded-2xl border-2 transition-all gap-2",
+                     !isIndividual ? "border-secondary bg-secondary/5 text-primary shadow-inner" : "border-border bg-white text-muted-foreground hover:bg-muted/30"
+                   )}
+                 >
+                    <Building2 className="w-6 h-6" />
+                    <span className="font-black uppercase italic text-xs">Pessoa Jurídica</span>
+                 </button>
+              </div>
+           </CardContent>
+        </Card>
+
         <Card className="border-none shadow-sm overflow-hidden rounded-[2rem]">
           <CardHeader className="bg-muted/30">
             <CardTitle className="text-lg flex items-center gap-2">
                <Camera className="w-5 h-5 text-secondary" /> Identidade Visual
             </CardTitle>
-            <CardDescription>Carregue as imagens que representarão sua marca na plataforma.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="relative">
@@ -363,15 +400,16 @@ export default function NovaOrganizacaoPage() {
 
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
-             <CardTitle className="text-lg flex items-center gap-2"><Info className="w-5 h-5 text-secondary" /> Informações Básicas</CardTitle>
+             <CardTitle className="text-lg flex items-center gap-2"><Info className="w-5 h-5 text-secondary" /> Informações do Perfil</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Nome Comercial</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">
+                    {isIndividual ? "Nome Completo" : "Nome Fantasia"}
+                  </Label>
                   <Input 
-                    id="name" 
-                    placeholder="Ex: Viby Entretenimento" 
+                    placeholder={isIndividual ? "Seu nome como no documento" : "Ex: Viby Entretenimento"} 
                     value={formData.name}
                     onChange={handleNameChange}
                     required 
@@ -380,18 +418,13 @@ export default function NovaOrganizacaoPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="username" className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username exclusivo (@)</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username exclusivo (@)</Label>
                   <div className="relative">
                     <Input 
-                      id="username" 
                       placeholder="Somente letras e números" 
                       value={formData.username}
-                      onChange={e => setFormData(prev => ({ ...prev, username: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "") }))}
-                      className={cn(
-                        "rounded-xl h-11",
-                        usernameStatus === 'valid' ? 'border-green-500 pr-10' : 
-                        usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-destructive pr-10' : 'pr-10'
-                      )}
+                      onChange={e => setFormData(prev => ({ ...prev, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") }))}
+                      className="rounded-xl h-11 pr-10"
                       required
                     />
                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -400,7 +433,6 @@ export default function NovaOrganizacaoPage() {
                        usernameStatus === 'taken' || usernameStatus === 'invalid' ? <X className="w-4 h-4 text-destructive" /> : null}
                     </div>
                   </div>
-                  <p className="text-[9px] text-muted-foreground font-bold uppercase">Mínimo 5 caracteres. viby.club/{formData.username || '...'}</p>
                 </div>
              </div>
 
@@ -410,7 +442,7 @@ export default function NovaOrganizacaoPage() {
                   <SelectTrigger className="rounded-xl h-11">
                     <SelectValue placeholder="Selecione o segmento" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[300px] rounded-xl shadow-2xl border-none">
+                  <SelectContent className="max-h-[300px] rounded-xl shadow-2xl">
                     {ORG_TYPES.map((group) => (
                       <SelectGroup key={group.category}>
                         <SelectLabel className="bg-muted/50 py-2 px-3 text-[10px] font-black uppercase text-muted-foreground">{group.category}</SelectLabel>
@@ -424,9 +456,8 @@ export default function NovaOrganizacaoPage() {
              </div>
 
              <div className="space-y-2">
-                <Label htmlFor="bio" className="text-[10px] font-black uppercase tracking-widest opacity-60">Bio / Descrição</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Bio / Descrição</Label>
                 <Textarea 
-                  id="bio" 
                   placeholder="Conte um pouco sobre o que vocês fazem..." 
                   value={formData.bio}
                   onChange={e => setFormData(prev => ({ ...prev, bio: e.target.value }))}
@@ -438,56 +469,77 @@ export default function NovaOrganizacaoPage() {
 
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
-             <CardTitle className="text-lg flex items-center gap-2"><Fingerprint className="w-5 h-5 text-secondary" /> Dados Jurídicos</CardTitle>
-             <CardDescription>O preenchimento do CNPJ e Razão Social é obrigatório para conformidade.</CardDescription>
+             <CardTitle className="text-lg flex items-center gap-2"><Fingerprint className="w-5 h-5 text-secondary" /> Dados Fiscais</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="legalName" className="text-[10px] font-black uppercase tracking-widest opacity-60">Razão Social (Obrigatório)</Label>
+             {isIndividual ? (
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CPF (Titular)</Label>
                   <Input 
-                    id="legalName" 
-                    value={formData.legalName}
-                    onChange={e => setFormData(prev => ({ ...prev, legalName: e.target.value }))}
-                    placeholder="Nome oficial da empresa" 
-                    className="rounded-xl h-11"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cnpj" className="text-[10px] font-black uppercase tracking-widest opacity-60">CNPJ (Obrigatório)</Label>
-                  <Input 
-                    id="cnpj" 
-                    value={formData.cnpj}
+                    value={formData.cpf}
                     onChange={e => {
                       const numbers = e.target.value.replace(/\D/g, "");
-                      let formatted = numbers;
-                      if (numbers.length > 2) formatted = numbers.substring(0, 2) + "." + numbers.substring(2);
-                      if (numbers.length > 5) formatted = formatted.substring(0, 6) + "." + numbers.substring(5);
-                      if (numbers.length > 8) formatted = formatted.substring(0, 10) + "/" + numbers.substring(8);
-                      if (numbers.length > 12) formatted = formatted.substring(0, 15) + "-" + numbers.substring(12);
-                      setFormData(prev => ({ ...prev, cnpj: formatted.substring(0, 18) }))
+                      setFormData(prev => ({ ...prev, cpf: numbers.substring(0, 11) }))
                     }}
-                    placeholder="00.000.000/0000-00" 
-                    className="rounded-xl h-11"
+                    placeholder="000.000.000-00" 
+                    className="rounded-xl h-11 font-mono"
                     required
                   />
-                </div>
-             </div>
+               </div>
+             ) : (
+               <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Razão Social</Label>
+                      <Input 
+                        value={formData.razaoSocial}
+                        onChange={e => setFormData(prev => ({ ...prev, razaoSocial: e.target.value }))}
+                        placeholder="Nome oficial da empresa" 
+                        className="rounded-xl h-11"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CNPJ</Label>
+                      <Input 
+                        value={formData.cnpj}
+                        onChange={e => {
+                          const numbers = e.target.value.replace(/\D/g, "");
+                          setFormData(prev => ({ ...prev, cnpj: numbers.substring(0, 14) }))
+                        }}
+                        placeholder="00.000.000/0000-00" 
+                        className="rounded-xl h-11 font-mono"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CPF do Representante Legal</Label>
+                    <Input 
+                      value={formData.representanteLegalCpf}
+                      onChange={e => {
+                        const numbers = e.target.value.replace(/\D/g, "");
+                        setFormData(prev => ({ ...prev, representanteLegalCpf: numbers.substring(0, 11) }))
+                      }}
+                      placeholder="000.000.000-00" 
+                      className="rounded-xl h-11 font-mono"
+                      required
+                    />
+                  </div>
+               </div>
+             )}
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
              <CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Endereço Sede</CardTitle>
-             <CardDescription>O endereço é obrigatório. Use os controles para ocultar dados sensíveis no perfil público.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="cep" className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
                   <Input 
-                    id="cep" 
                     value={formData.cep}
                     onChange={e => setFormData(prev => ({ ...prev, cep: e.target.value.replace(/\D/g, "").substring(0, 8) }))}
                     onBlur={handleCepBlur}
@@ -498,127 +550,48 @@ export default function NovaOrganizacaoPage() {
                 </div>
                 <div className="md:col-span-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="street" className="text-[10px] font-black uppercase tracking-widest opacity-60">Logradouro</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Logradouro</Label>
                     <div className="flex items-center gap-2">
                        <span className="text-[8px] font-bold uppercase opacity-40">{formData.showAddress ? 'Público' : 'Oculto'}</span>
                        <Switch checked={formData.showAddress} onCheckedChange={v => setFormData({...formData, showAddress: v})} />
                     </div>
                   </div>
-                  <Input id="street" value={formData.street} onChange={e => setFormData(prev => ({ ...prev, street: e.target.value }))} required className="rounded-xl h-11" />
+                  <Input value={formData.street} onChange={e => setFormData(prev => ({ ...prev, street: e.target.value }))} required className="rounded-xl h-11" />
                 </div>
              </div>
              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="number" className="text-[10px] font-black uppercase tracking-widest opacity-60">Número</Label>
-                  <Input id="number" value={formData.number} onChange={e => setFormData(prev => ({ ...prev, number: e.target.value }))} required className="rounded-xl h-11" />
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Número</Label>
+                  <Input value={formData.number} onChange={e => setFormData(prev => ({ ...prev, number: e.target.value }))} required className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="complement" className="text-[10px] font-black uppercase tracking-widest opacity-60">Complemento</Label>
-                  <Input id="complement" value={formData.complement} onChange={e => setFormData(prev => ({ ...prev, complement: e.target.value }))} className="rounded-xl h-11" />
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Bairro</Label>
+                  <Input value={formData.neighborhood} onChange={e => setFormData(prev => ({ ...prev, neighborhood: e.target.value }))} required className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="neighborhood" className="text-[10px] font-black uppercase tracking-widest opacity-60">Bairro</Label>
-                    <div className="flex items-center gap-2">
-                       <span className="text-[8px] font-bold uppercase opacity-40">{formData.showNeighborhood ? 'Público' : 'Oculto'}</span>
-                       <Switch checked={formData.showNeighborhood} onCheckedChange={v => setFormData({...formData, showNeighborhood: v})} />
-                    </div>
-                  </div>
-                  <Input id="neighborhood" value={formData.neighborhood} onChange={e => setFormData(prev => ({ ...prev, neighborhood: e.target.value }))} required className="rounded-xl h-11" />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest opacity-60">Cidade / UF</Label>
-                    <div className="flex items-center gap-2">
-                       <span className="text-[8px] font-bold uppercase opacity-40">{formData.showState ? 'Público' : 'Oculto'}</span>
-                       <Switch checked={formData.showState} onCheckedChange={v => setFormData({...formData, showState: v})} />
-                    </div>
-                  </div>
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Cidade / UF</Label>
                   <div className="flex gap-2">
-                    <Input id="city" value={formData.city} readOnly required className="rounded-xl h-11 bg-muted/30" />
-                    <Input id="state" value={formData.state} readOnly required className="rounded-xl h-11 bg-muted/30 w-16" />
+                    <Input value={formData.city} readOnly required className="rounded-xl h-11 bg-muted/30" />
+                    <Input value={formData.state} readOnly required className="rounded-xl h-11 bg-muted/30 w-16" />
                   </div>
                 </div>
              </div>
-             <p className="text-[10px] text-muted-foreground font-medium italic">Se ocultar o endereço, apenas a Cidade, Estado e País aparecerão no seu perfil público.</p>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
-             <CardTitle className="text-lg flex items-center gap-2"><Globe className="w-5 h-5 text-secondary" /> Contato & Presença Digital</CardTitle>
+             <CardTitle className="text-lg flex items-center gap-2"><Globe className="w-5 h-5 text-secondary" /> Contato</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp Comercial</Label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showPhone ? 'Público' : 'Oculto'}</span>
-                      <Switch checked={formData.showPhone} onCheckedChange={checked => setFormData(prev => ({ ...prev, showPhone: checked }))} />
-                    </div>
-                  </div>
-                  <Input 
-                    id="phone" 
-                    value={formData.phone}
-                    onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                    placeholder="(00) 00000-0000" 
-                    className="rounded-xl h-11"
-                  />
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> Telefone Público</Label>
+                  <Input value={formData.phone} onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))} placeholder="(00) 00000-0000" className="rounded-xl h-11" required />
                 </div>
-                
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="contactEmail" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail para Contato</Label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showEmail ? 'Público' : 'Oculto'}</span>
-                      <Switch checked={formData.showEmail} onCheckedChange={checked => setFormData(prev => ({ ...prev, showEmail: checked }))} />
-                    </div>
-                  </div>
-                  <Input 
-                    id="contactEmail" 
-                    type="email"
-                    value={formData.contactEmail}
-                    onChange={e => setFormData(prev => ({ ...prev, contactEmail: e.target.value }))}
-                    placeholder="contato@empresa.com" 
-                    className="rounded-xl h-11"
-                  />
-                </div>
-             </div>
-
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="website" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Site Oficial</Label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showWebsite ? 'Público' : 'Oculto'}</span>
-                      <Switch checked={formData.showWebsite} onCheckedChange={checked => setFormData(prev => ({ ...prev, showWebsite: checked }))} />
-                    </div>
-                  </div>
-                  <Input 
-                    id="website" 
-                    value={formData.website}
-                    onChange={e => setFormData(prev => ({ ...prev, website: e.target.value }))}
-                    placeholder="https://www.empresa.com" 
-                    className="rounded-xl h-11"
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="instagram" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram (@)</Label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showInstagram ? 'Público' : 'Oculto'}</span>
-                      <Switch checked={formData.showInstagram} onCheckedChange={checked => setFormData(prev => ({ ...prev, showInstagram: checked }))} />
-                    </div>
-                  </div>
-                  <Input 
-                    id="instagram" 
-                    value={formData.instagram}
-                    onChange={e => setFormData(prev => ({ ...prev, instagram: e.target.value.replace("@", "") }))}
-                    placeholder="usuario_da_marca" 
-                    className="rounded-xl h-11"
-                  />
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail Público</Label>
+                  <Input type="email" value={formData.contactEmail} onChange={e => setFormData(prev => ({ ...prev, contactEmail: e.target.value }))} placeholder="contato@empresa.com" className="rounded-xl h-11" required />
                 </div>
              </div>
           </CardContent>
