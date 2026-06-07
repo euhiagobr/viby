@@ -26,7 +26,8 @@ import {
   Eye, 
   Zap,
   Building2,
-  X
+  X,
+  ShieldCheck
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { MentionTextarea } from '@/components/ui/mention-textarea';
@@ -134,7 +135,7 @@ export default function AdminNotificacoesCreatorPage() {
                                placeholder="Ex: joaosilva" 
                                value={searchTarget} 
                                onChange={e => setSearchTarget(e.target.value)}
-                               className="pl-10 h-12 rounded-xl border-dashed"
+                               className="pl-10 h-12 rounded-xl border-dashed border-secondary/30 focus-visible:ring-secondary/30"
                                onKeyDown={e => e.key === 'Enter' && handleSearchUser()}
                              />
                           </div>
