@@ -66,49 +66,92 @@ export default function AdminTicketResponsePage() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !storage || !user) return
+    if (!file) {
+      console.warn('ETAPA 1: Seleção (ADMIN) - Nenhum arquivo encontrado.');
+      return;
+    }
 
+    console.log('ETAPA 1: Seleção do arquivo (ADMIN)', {
+      name: file.name,
+      type: file.type,
+      size: `${(file.size / 1024 / 1024).toFixed(2)} MB`
+    });
+
+    if (!storage || !user) {
+      console.error('ETAPA 3: Preparação (ADMIN) - Erro de contexto', { storage: !!storage, user: !!user });
+      return;
+    }
+
+    // ETAPA 2: Validação
     if (attachments.length >= MAX_SUPPORT_FILES) {
+      console.warn('ETAPA 2: Validação falhou (ADMIN) - Limite atingido');
       toast({ variant: "destructive", title: "Limite atingido", description: `Máximo de ${MAX_SUPPORT_FILES} arquivos permitidos.` });
       return;
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
+      console.warn('ETAPA 2: Validação falhou (ADMIN) - Tamanho excedido');
       toast({ variant: "destructive", title: "Arquivo muito grande", description: "O limite é de 5MB por arquivo." });
       return;
     }
 
+    console.log('ETAPA 2: Validação concluída (ADMIN)');
+
     setUploadProgress(0)
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
-      const fileName = `support/${user.uid}/replies/${Date.now()}_${safeName}`;
-      const storageRef = ref(storage, fileName);
+      const filePath = `support/${user.uid}/replies/${Date.now()}_${safeName}`;
+      
+      console.log('ETAPA 3: Preparação (ADMIN)', { path: filePath, adminId: user.uid });
+
+      const storageRef = ref(storage, filePath);
+      console.log('ETAPA 4: Iniciando upload Storage (ADMIN)');
       const uploadTask = uploadBytesResumable(storageRef, file);
 
       uploadTask.on('state_changed', 
         (snapshot) => {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          console.log(`ETAPA 4: Progresso (ADMIN) - ${progress.toFixed(2)}%`);
           setUploadProgress(progress);
         },
         (error) => {
+          console.error('ETAPA 4: ERRO UPLOAD STORAGE (ADMIN)', {
+            code: error.code,
+            message: error.message,
+            error
+          });
           toast({ variant: "destructive", title: "Erro no upload", description: "Verifique suas permissões de acesso." });
           setUploadProgress(null);
         },
         async () => {
-          const url = await getDownloadURL(uploadTask.snapshot.ref);
-          setAttachments(prev => [...prev, url]);
-          setUploadProgress(null);
-          toast({ title: "Arquivo anexado!" });
+          console.log('ETAPA 4: Sucesso no upload (ADMIN)');
+          try {
+            console.log('ETAPA 5: Obtendo URL (ADMIN)');
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
+            console.log('ETAPA 5: URL obtida (ADMIN)', { url });
+            setAttachments(prev => [...prev, url]);
+            setUploadProgress(null);
+            toast({ title: "Arquivo anexado!" });
+          } catch (urlErr: any) {
+            console.error('ETAPA 5: ERRO URL (ADMIN)', { message: urlErr.message });
+          }
         }
       )
-    } catch (err) {
+    } catch (err: any) {
+      console.error('UPLOAD ERROR (ADMIN/TRY)', { error: err });
       setUploadProgress(null);
     }
   }
 
   const handleSendResponse = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!db || !user || !ticketRef || (!response.trim() && attachments.length === 0)) return
+    console.log('ETAPA 6: Preparando Resposta (ADMIN)');
+    if (!db || !user || !ticketRef) return
+
+    if (!response.trim() && attachments.length === 0) {
+      console.warn('ETAPA 6: Resposta vazia ignorada (ADMIN)');
+      return;
+    }
 
     setIsSubmitting(true)
     const messageObj = {
@@ -120,19 +163,25 @@ export default function AdminTicketResponsePage() {
       isAdmin: true
     }
 
+    console.log('ETAPA 6: Payload ADMIN pronto', { payload: messageObj });
+
     const updateData = {
       messages: arrayUnion(messageObj),
       updatedAt: serverTimestamp(),
       status: "Respondida"
     }
 
+    console.log('ETAPA 7: Firestore UPDATE (ADMIN)', { data: updateData });
+
     updateDoc(ticketRef, updateData)
       .then(() => {
+        console.log('ETAPA 7: Firestore Sucesso (ADMIN)');
         setResponse("")
         setAttachments([])
         toast({ title: "Resposta enviada!" })
       })
       .catch(async (error) => {
+        console.error('ETAPA 7: ERRO FIRESTORE (ADMIN)', { error });
         const permissionError = new FirestorePermissionError({
           path: ticketRef.path,
           operation: "update",
@@ -280,11 +329,14 @@ export default function AdminTicketResponsePage() {
             <p className="text-sm leading-relaxed whitespace-pre-line text-foreground/80">{ticket.description}</p>
             {ticket.attachments?.length > 0 && (
               <div className="mt-6 pt-6 border-t border-dashed border-border/50 flex flex-wrap gap-2">
-                {ticket.attachments.map((url: string, i: number) => (
-                  <a key={i} href={url} target="_blank" className="flex items-center gap-2 p-3 bg-white rounded-xl border border-border hover:border-secondary transition-colors text-[10px] font-black uppercase tracking-tighter">
-                    <Paperclip className="w-3.5 h-3.5 text-secondary" /> Ver Anexo #{i+1}
-                  </a>
-                ))}
+                {ticket.attachments.map((url: string, i: number) => {
+                  console.log('ETAPA 8: Render (ADMIN) - Anexo inicial', { index: i, url });
+                  return (
+                    <a key={i} href={url} target="_blank" className="flex items-center gap-2 p-3 bg-white rounded-xl border border-border hover:border-secondary transition-colors text-[10px] font-black uppercase tracking-tighter">
+                      <Paperclip className="w-3.5 h-3.5 text-secondary" /> Ver Anexo #{i+1}
+                    </a>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -312,11 +364,14 @@ export default function AdminTicketResponsePage() {
                       <p className="leading-relaxed">{msg.text}</p>
                       {msg.attachments?.length > 0 && (
                         <div className="mt-3 flex flex-wrap gap-2">
-                          {msg.attachments.map((url: string, idx: number) => (
-                            <a key={idx} href={url} target="_blank" className="flex items-center gap-1.5 p-2 bg-black/10 rounded-xl text-[9px] font-black uppercase border border-white/10 hover:bg-black/20 transition-all">
-                              <Paperclip className="w-3.5 h-3.5" /> Anexo
-                            </a>
-                          ))}
+                          {msg.attachments.map((url: string, idx: number) => {
+                            console.log('ETAPA 8: Render (ADMIN) - Chat anexo', { i, idx, url });
+                            return (
+                              <a key={idx} href={url} target="_blank" className="flex items-center gap-1.5 p-2 bg-black/10 rounded-xl text-[9px] font-black uppercase border border-white/10 hover:bg-black/20 transition-all">
+                                <Paperclip className="w-3.5 h-3.5" /> Anexo
+                              </a>
+                            )
+                          })}
                         </div>
                       )}
                     </div>

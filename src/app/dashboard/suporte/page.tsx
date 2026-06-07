@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -71,49 +72,85 @@ export default function SuportePage() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !storage || !user) return
+    if (!file) {
+      console.warn('ETAPA 1: Seleção (Criação) - Nenhum arquivo.');
+      return;
+    }
 
+    console.log('ETAPA 1: Seleção do arquivo (Criação)', {
+      name: file.name,
+      type: file.type,
+      size: `${(file.size / 1024 / 1024).toFixed(2)} MB`
+    });
+
+    if (!storage || !user) {
+      console.error('ETAPA 3: Preparação (Criação) - Contexto nulo', { storage: !!storage, user: !!user });
+      return;
+    }
+
+    // ETAPA 2: Validação
     if (attachments.length >= MAX_SUPPORT_FILES) {
+      console.warn('ETAPA 2: Rejeição (Criação) - Máximo 3 arquivos');
       toast({ variant: "destructive", title: "Limite atingido", description: `Você pode enviar no máximo ${MAX_SUPPORT_FILES} arquivos.` });
       return;
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
+      console.warn('ETAPA 2: Rejeição (Criação) - Máximo 5MB');
       toast({ variant: "destructive", title: "Arquivo muito grande", description: "O limite é de 5MB por arquivo." });
       return;
     }
 
+    console.log('ETAPA 2: Validação OK (Criação)');
+
     setUploadProgress(0)
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
-      const fileName = `support/${user.uid}/${Date.now()}_${safeName}`;
-      const storageRef = ref(storage, fileName);
+      const filePath = `support/${user.uid}/tickets/${Date.now()}_${safeName}`;
+      
+      console.log('ETAPA 3: Preparação (Criação)', { path: filePath });
+
+      const storageRef = ref(storage, filePath);
+      console.log('ETAPA 4: Start Storage (Criação)');
       const uploadTask = uploadBytesResumable(storageRef, file);
 
       uploadTask.on('state_changed', 
         (snapshot) => {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          console.log(`ETAPA 4: Progresso (Criação) - ${progress.toFixed(2)}%`);
           setUploadProgress(progress);
         },
         (error) => {
-          console.error("Storage error:", error);
-          toast({ variant: "destructive", title: "Erro no upload", description: "Falha ao enviar arquivo." });
+          console.error('ETAPA 4: ERRO STORAGE (Criação)', {
+            code: error.code,
+            message: error.message,
+            error
+          });
           setUploadProgress(null);
         },
         async () => {
-          const url = await getDownloadURL(uploadTask.snapshot.ref);
-          setAttachments(prev => [...prev, url]);
-          setUploadProgress(null);
-          toast({ title: "Arquivo anexado!" });
+          console.log('ETAPA 4: Sucesso Storage (Criação)');
+          try {
+            console.log('ETAPA 5: URL Request (Criação)');
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
+            console.log('ETAPA 5: URL OK (Criação)', { url });
+            setAttachments(prev => [...prev, url]);
+            setUploadProgress(null);
+            toast({ title: "Arquivo anexado!" });
+          } catch (urlErr: any) {
+             console.error('ETAPA 5: ERRO URL (Criação)', { message: urlErr.message });
+          }
         }
       )
-    } catch (err) {
+    } catch (err: any) {
+      console.error('UPLOAD ERROR (CREATION/TRY)', { error: err });
       setUploadProgress(null);
     }
   }
 
   const handleCreateTicket = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    console.log('ETAPA 6: Preparando Ticket');
     if (!db || !user) return
 
     setIsSubmitting(true)
@@ -133,13 +170,18 @@ export default function SuportePage() {
       updatedAt: serverTimestamp()
     }
 
+    console.log('ETAPA 6: Payload Ticket pronto', { payload: ticketData });
+
+    console.log('ETAPA 7: Firestore ADD (Criação)');
     addDoc(collection(db, "support_tickets"), ticketData)
       .then(() => {
+        console.log('ETAPA 7: Firestore Sucesso (Criação)');
         toast({ title: "Ticket criado!", description: `Protocolo: ${ticketData.protocol}` })
         setIsDialogOpen(false)
         setAttachments([])
       })
       .catch(async (serverError) => {
+        console.error('ETAPA 7: ERRO FIRESTORE (Criação)', { error: serverError });
         if (serverError.code === 'permission-denied') {
           const permissionError = new FirestorePermissionError({
             path: "support_tickets",
