@@ -150,12 +150,26 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    // Forçamos o navegador a renderizar o conteúdo fora da tela mudando o formato e esperando um tempo seguro
-    await new Promise(resolve => setTimeout(resolve, 600));
+    // Sincronização agressiva para Mobile
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await new Promise(resolve => setTimeout(resolve, 800));
 
     try {
       const config = FORMAT_CONFIGS[format];
       const node = renderRef.current;
+
+      // Forçar o browser a terminar de desenhar as imagens base64
+      const images = Array.from(node.querySelectorAll('img'));
+      await Promise.all(images.map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise(resolve => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      }));
+      
+      // Garantir decodificação no Safari/Mobile
+      await Promise.all(images.map(img => img.decode().catch(() => {})));
 
       const themeStyle = getThemeStyle(selectedTheme);
 
@@ -165,10 +179,11 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         width: config.width,
         height: config.height,
         pixelRatio: 2,
+        skipFonts: false
       });
 
       if (!dataUrl || dataUrl.length < 5000) {
-        throw new Error("A imagem gerada parece estar corrompida ou vazia.");
+        throw new Error("Falha na codificação da imagem.");
       }
 
       const blob = await (await fetch(dataUrl)).blob();
@@ -182,14 +197,13 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       document.body.removeChild(link);
       
       setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
-      
-      toast({ title: "Pronto!", description: "Sua arte foi gerada com sucesso." });
+      toast({ title: "Arte gerada com sucesso!" });
     } catch (err: any) {
       console.error("[Download Error]", err);
       toast({ 
         variant: "destructive", 
         title: "Erro na geração", 
-        description: "A interface falhou ao codificar os pixels. Tente novamente." 
+        description: "Tente novamente em instantes." 
       });
     } finally {
       setIsGenerating(false);
@@ -369,7 +383,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-7xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[95vh] max-h-[900px]">
         
-        {/* Renderizador Off-screen: Mantido VISÍVEL mas em coordenadas extremas para forçar pintura do motor do browser */}
+        {/* Renderizador Off-screen */}
         <div style={{ 
           position: 'fixed', 
           top: 0, 
@@ -491,3 +505,4 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     </Dialog>
   );
 }
+
