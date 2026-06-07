@@ -35,13 +35,15 @@ import { cn } from "@/lib/utils"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 
+const MAX_SUPPORT_FILES = 3;
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
 export default function SuportePage() {
   const db = useFirestore()
   const auth = useAuth()
   const app = useFirebaseApp()
   const { user } = useUser(auth)
   
-  // Inicialização estável do Storage
   const storage = React.useMemo(() => {
     if (!app) return null;
     return getStorage(app);
@@ -71,9 +73,18 @@ export default function SuportePage() {
     const file = e.target.files?.[0]
     if (!file || !storage || !user) return
 
+    if (attachments.length >= MAX_SUPPORT_FILES) {
+      toast({ variant: "destructive", title: "Limite atingido", description: `Você pode enviar no máximo ${MAX_SUPPORT_FILES} arquivos.` });
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      toast({ variant: "destructive", title: "Arquivo muito grande", description: "O limite é de 5MB por arquivo." });
+      return;
+    }
+
     setUploadProgress(0)
     try {
-      // Limpeza de nome de arquivo para evitar erros de caractere no storage
       const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
       const fileName = `support/${user.uid}/${Date.now()}_${safeName}`;
       const storageRef = ref(storage, fileName);
@@ -86,7 +97,7 @@ export default function SuportePage() {
         },
         (error) => {
           console.error("Storage error:", error);
-          toast({ variant: "destructive", title: "Erro no upload", description: "O limite de tamanho pode ter sido excedido ou permissão negada." });
+          toast({ variant: "destructive", title: "Erro no upload", description: "Falha ao enviar arquivo." });
           setUploadProgress(null);
         },
         async () => {
@@ -97,7 +108,6 @@ export default function SuportePage() {
         }
       )
     } catch (err) {
-      console.error("Fatal upload error:", err);
       setUploadProgress(null);
     }
   }
@@ -148,10 +158,10 @@ export default function SuportePage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'Não lida': return <Badge variant="outline" className="bg-orange-50 text-orange-600 border-orange-200">Não lida</Badge>
-      case 'Em tratamento': return <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200">Em tratamento</Badge>
-      case 'Respondida': return <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">Respondida</Badge>
-      case 'Encerrada': return <Badge variant="secondary" className="opacity-50">Encerrada</Badge>
+      case 'Não lida': return <Badge variant="outline" className="bg-orange-50 text-orange-600 border-orange-200">Aguardando Visualização</Badge>
+      case 'Em tratamento': return <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200">Em Análise</Badge>
+      case 'Respondida': return <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">Aguardando sua Resposta</Badge>
+      case 'Encerrada': return <Badge variant="secondary" className="opacity-50">Finalizado</Badge>
       default: return <Badge variant="outline">{status}</Badge>
     }
   }
@@ -211,20 +221,25 @@ export default function SuportePage() {
                   </div>
 
                   <div className="space-y-4">
-                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Anexos (Fotos ou PDF)</Label>
+                    <div className="flex items-center justify-between">
+                       <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Anexos (Máx 3 de 5MB)</Label>
+                       <span className="text-[8px] font-bold uppercase opacity-40">{attachments.length}/{MAX_SUPPORT_FILES} arquivos</span>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {attachments.map((url, i) => (
                         <div key={i} className="relative w-16 h-16 rounded-lg bg-muted border border-border overflow-hidden">
-                          <img src={url} className="w-full h-full object-cover" />
+                          <img src={url} className="w-full h-full object-cover" alt="Anexo" />
                           <button type="button" onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 bg-black/50 text-white p-0.5 rounded-bl-lg">
                             <X className="w-3 h-3" />
                           </button>
                         </div>
                       ))}
-                      <label className="w-16 h-16 rounded-lg border-2 border-dashed border-secondary/20 flex items-center justify-center cursor-pointer hover:bg-secondary/5 transition-colors">
-                        <Paperclip className="w-5 h-5 text-secondary/40" />
-                        <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} />
-                      </label>
+                      {attachments.length < MAX_SUPPORT_FILES && (
+                        <label className="w-16 h-16 rounded-lg border-2 border-dashed border-secondary/20 flex items-center justify-center cursor-pointer hover:bg-secondary/5 transition-colors">
+                          <Paperclip className="w-5 h-5 text-secondary/40" />
+                          <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} disabled={uploadProgress !== null} />
+                        </label>
+                      )}
                     </div>
                     {uploadProgress !== null && (
                       <div className="space-y-1">

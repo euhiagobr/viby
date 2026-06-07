@@ -42,6 +42,9 @@ import { cn } from "@/lib/utils"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 
+const MAX_SUPPORT_FILES = 3;
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
 export default function AdminTicketResponsePage() {
   const params = useParams()
   const router = useRouter()
@@ -63,6 +66,16 @@ export default function AdminTicketResponsePage() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !storage || !user) return
+
+    if (attachments.length >= MAX_SUPPORT_FILES) {
+      toast({ variant: "destructive", title: "Limite atingido", description: `Máximo de ${MAX_SUPPORT_FILES} arquivos permitidos.` });
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      toast({ variant: "destructive", title: "Arquivo muito grande", description: "O limite é de 5MB por arquivo." });
+      return;
+    }
 
     setUploadProgress(0)
     try {
@@ -332,34 +345,36 @@ export default function AdminTicketResponsePage() {
               </div>
 
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Anexos de Resposta</Label>
-                  <label className="flex items-center gap-2 px-4 py-2 bg-muted rounded-xl cursor-pointer hover:bg-muted/80 transition-colors text-[9px] font-black uppercase">
-                    <Paperclip className="w-3.5 h-3.5 text-secondary" /> Incluir Arquivo
-                    <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} />
-                  </label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Anexos de Resposta (Máx 3 de 5MB)</Label>
+                  <span className="text-[8px] font-bold uppercase opacity-40">{attachments.length}/{MAX_SUPPORT_FILES} arquivos</span>
                 </div>
 
-                {attachments.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {attachments.map((url, i) => (
-                      <div key={i} className="relative w-16 h-16 rounded-xl bg-muted border overflow-hidden">
-                        {url.includes('.pdf') ? (
-                          <div className="flex items-center justify-center h-full text-secondary"><FileText className="w-8 h-8" /></div>
-                        ) : (
-                          <img src={url} className="w-full h-full object-cover" alt="Anexo" />
-                        )}
-                        <button type="button" onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 bg-destructive text-white p-1 rounded-bl-xl">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  {attachments.map((url, i) => (
+                    <div key={i} className="relative w-16 h-16 rounded-xl bg-muted border overflow-hidden">
+                      {url.includes('.pdf') ? (
+                        <div className="flex items-center justify-center h-full text-secondary"><FileText className="w-8 h-8" /></div>
+                      ) : (
+                        <img src={url} className="w-full h-full object-cover" alt="Anexo" />
+                      )}
+                      <button type="button" onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 bg-destructive text-white p-1 rounded-bl-xl">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {attachments.length < MAX_SUPPORT_FILES && (
+                    <label className="flex items-center gap-2 px-4 py-2 bg-muted rounded-xl cursor-pointer hover:bg-muted/80 transition-colors text-[9px] font-black uppercase">
+                      <Paperclip className="w-3.5 h-3.5 text-secondary" /> Incluir Arquivo
+                      <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} disabled={uploadProgress !== null} />
+                    </label>
+                  )}
+                </div>
+
                 {uploadProgress !== null && <div className="space-y-1"><Progress value={uploadProgress} className="h-1" /><p className="text-[8px] font-black uppercase text-secondary">Enviando: {Math.round(uploadProgress)}%</p></div>}
               </div>
 
-              <Button type="submit" disabled={isSubmitting || (response.trim() === "" && attachments.length === 0) || uploadProgress !== null} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl shadow-secondary/20 uppercase italic tracking-tighter">
+              <Button type="submit" disabled={isSubmitting || (response.trim() === "" && attachments.length === 0) || uploadProgress !== null} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl shadow-secondary/20 uppercase italic text-lg">
                 {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Send className="w-5 h-5 mr-2" />}
                 Enviar Resposta ao Usuário
               </Button>

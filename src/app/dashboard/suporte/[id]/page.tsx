@@ -29,6 +29,9 @@ import { cn } from "@/lib/utils"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 
+const MAX_SUPPORT_FILES = 3;
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
 export default function TicketDetailsPage() {
   const params = useParams()
   const router = useRouter()
@@ -60,6 +63,16 @@ export default function TicketDetailsPage() {
     const file = e.target.files?.[0]
     if (!file || !storage || !user) return
 
+    if (attachments.length >= MAX_SUPPORT_FILES) {
+      toast({ variant: "destructive", title: "Limite atingido", description: `Você pode enviar no máximo ${MAX_SUPPORT_FILES} arquivos.` });
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      toast({ variant: "destructive", title: "Arquivo muito grande", description: "O limite é de 5MB por arquivo." });
+      return;
+    }
+
     setUploadProgress(0)
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
@@ -74,7 +87,7 @@ export default function TicketDetailsPage() {
         },
         (error) => {
           console.error("Storage error:", error);
-          toast({ variant: "destructive", title: "Erro no upload", description: "O limite de tamanho pode ter sido excedido." });
+          toast({ variant: "destructive", title: "Erro no upload", description: "Falha ao enviar arquivo." });
           setUploadProgress(null);
         },
         async () => {
@@ -240,30 +253,32 @@ export default function TicketDetailsPage() {
               </div>
 
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Anexos</Label>
-                  <label className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-xl cursor-pointer hover:bg-muted/80 transition-colors text-[9px] font-black uppercase">
-                    <Paperclip className="w-3 h-3 text-secondary" /> Adicionar Arquivo
-                    <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} />
-                  </label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Anexos (Máx 3 de 5MB)</Label>
+                  <span className="text-[8px] font-bold uppercase opacity-40">{attachments.length}/{MAX_SUPPORT_FILES} arquivos</span>
                 </div>
 
-                {attachments.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {attachments.map((url, i) => (
-                      <div key={i} className="relative group w-14 h-14 rounded-lg bg-muted border overflow-hidden">
-                        {url.includes('.pdf') ? (
-                          <div className="flex items-center justify-center h-full text-secondary"><FileText className="w-6 h-6" /></div>
-                        ) : (
-                          <img src={url} className="w-full h-full object-cover" alt="Anexo" />
-                        )}
-                        <button type="button" onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 bg-destructive text-white p-0.5 rounded-bl-lg">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  {attachments.map((url, i) => (
+                    <div key={i} className="relative group w-14 h-14 rounded-lg bg-muted border overflow-hidden">
+                      {url.includes('.pdf') ? (
+                        <div className="flex items-center justify-center h-full text-secondary"><FileText className="w-6 h-6" /></div>
+                      ) : (
+                        <img src={url} className="w-full h-full object-cover" alt="Anexo" />
+                      )}
+                      <button type="button" onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 bg-destructive text-white p-0.5 rounded-bl-lg">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {attachments.length < MAX_SUPPORT_FILES && (
+                    <label className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-xl cursor-pointer hover:bg-muted/80 transition-colors text-[9px] font-black uppercase">
+                      <Paperclip className="w-3 h-3 text-secondary" /> Adicionar Arquivo
+                      <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} disabled={uploadProgress !== null} />
+                    </label>
+                  )}
+                </div>
+
                 {uploadProgress !== null && <div className="space-y-1"><Progress value={uploadProgress} className="h-1" /><p className="text-[8px] font-black uppercase text-secondary">Enviando: {Math.round(uploadProgress)}%</p></div>}
               </div>
 
