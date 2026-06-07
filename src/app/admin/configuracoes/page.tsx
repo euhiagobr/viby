@@ -28,7 +28,9 @@ import {
   Info,
   AlertTriangle,
   ShieldCheck,
-  Key
+  Key,
+  Lock,
+  ListChecks
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
@@ -172,7 +174,7 @@ export default function AdminConfiguracoesPage() {
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
           <Globe className="w-8 h-8 text-secondary" /> Configurações
         </h1>
-        <p className="text-muted-foreground font-medium">Gestão global de parâmetros, financeiros e segurança.</p>
+        <p className="text-muted-foreground font-medium">Gestão de parâmetros globais, financeiros e segurança da plataforma.</p>
       </div>
 
       <Tabs defaultValue="geral" className="space-y-6">
@@ -234,7 +236,7 @@ export default function AdminConfiguracoesPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="pagamentos" className="animate-in fade-in slide-in-from-top-2 duration-300">
+        <TabsContent value="pagamentos" className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-8">
           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
             <CardHeader className="bg-muted/30 p-8 border-b">
                <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Gateway Stripe</CardTitle>
@@ -270,6 +272,39 @@ export default function AdminConfiguracoesPage() {
                 {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />} Atualizar Configurações de Pagamento
               </Button>
             </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl border-t-8 border-secondary/20">
+             <CardHeader className="bg-secondary/5 p-8 border-b">
+                <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2 text-primary">
+                   <ListChecks className="w-5 h-5 text-secondary" /> Guia de Permissões (RK)
+                </CardTitle>
+                <CardDescription className="font-medium">Para chaves restritas (rk_...), ative obrigatoriamente:</CardDescription>
+             </CardHeader>
+             <CardContent className="p-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                   <div className="space-y-4">
+                      <p className="text-[10px] font-black uppercase text-secondary tracking-widest">Connect (Obrigatório)</p>
+                      <ul className="space-y-2">
+                         <li className="flex items-center gap-2 text-xs font-bold text-primary bg-muted/40 p-2 rounded-lg border-l-4 border-secondary">Account Links: <Badge className="bg-green-500 h-4 text-[8px] font-black">WRITE</Badge></li>
+                         <li className="flex items-center gap-2 text-xs font-bold text-primary bg-muted/40 p-2 rounded-lg border-l-4 border-secondary">Accounts: <Badge className="bg-green-500 h-4 text-[8px] font-black">WRITE</Badge></li>
+                         <li className="flex items-center gap-2 text-xs font-bold text-primary bg-muted/40 p-2 rounded-lg border-l-4 border-secondary">Transfers: <Badge className="bg-green-500 h-4 text-[8px] font-black">WRITE</Badge></li>
+                      </ul>
+                   </div>
+                   <div className="space-y-4">
+                      <p className="text-[10px] font-black uppercase text-secondary tracking-widest">Core (Vendas)</p>
+                      <ul className="space-y-2">
+                         <li className="flex items-center gap-2 text-xs font-bold text-primary bg-muted/40 p-2 rounded-lg border-l-4 border-primary">Checkout Sessions: <Badge className="bg-green-500 h-4 text-[8px] font-black">WRITE</Badge></li>
+                         <li className="flex items-center gap-2 text-xs font-bold text-primary bg-muted/40 p-2 rounded-lg border-l-4 border-primary">Payment Intents: <Badge className="bg-green-500 h-4 text-[8px] font-black">WRITE</Badge></li>
+                         <li className="flex items-center gap-2 text-xs font-bold text-primary bg-muted/40 p-2 rounded-lg border-l-4 border-primary">Charges and Refunds: <Badge className="bg-green-500 h-4 text-[8px] font-black">WRITE</Badge></li>
+                      </ul>
+                   </div>
+                </div>
+                <div className="mt-8 p-4 bg-muted/30 rounded-2xl border border-dashed flex items-start gap-3">
+                   <Info className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
+                   <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">Sem essas permissões, o onboarding de novas marcas e o checkout de ingressos falharão silenciosamente no ambiente de produção.</p>
+                </div>
+             </CardContent>
           </Card>
         </TabsContent>
 
