@@ -53,11 +53,33 @@ export async function createStripeConnectAccount(orgId: string) {
     
     const orgData = orgSnap.data()!;
     let accountId = orgData.stripeAccountId;
+    const stripe = await getStripeInstance(db);
+
+    // Validação de Integridade: Verifica se o ID salvo existe nesta Secret Key (Ambiente Live vs Test)
+    if (accountId) {
+      try {
+        console.log(`[Stripe-Debug] Validating existing stored accountId: ${accountId}`);
+        await stripe.accounts.retrieve(accountId);
+        console.log(`[Stripe-Debug] AccountId is valid for the current API Key.`);
+      } catch (retrieveError: any) {
+        // Se o erro for que a conta não existe, limpamos o ID inválido para permitir recriação
+        if (retrieveError.code === 'resource_missing' || retrieveError.message.includes('does not exist') || retrieveError.message.includes('not connected')) {
+          console.warn(`[Stripe-Debug] Stored ID ${accountId} is invalid for the current environment. Clearing to allow re-creation...`);
+          accountId = null;
+          await orgRef.update({
+            stripeAccountId: admin.firestore.FieldValue.delete(),
+            stripeOnboardingComplete: false,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+        } else {
+          // Se for outro erro (ex: rede), lança para o catch principal
+          throw retrieveError;
+        }
+      }
+    }
 
     if (!accountId) {
-      console.log(`[Stripe-Debug] No existing account ID. Creating new Express account for ${orgData.name}...`);
-      const stripe = await getStripeInstance(db);
-      
+      console.log(`[Stripe-Debug] Creating new Express account for ${orgData.name}...`);
       const account = await stripe.accounts.create({
         type: 'express',
         country: 'BR',
@@ -82,9 +104,9 @@ export async function createStripeConnectAccount(orgId: string) {
         stripeOnboardingComplete: false,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
-      console.log(`[Stripe-Debug] Firestore updated with stripeAccountId.`);
+      console.log(`[Stripe-Debug] Firestore updated with new stripeAccountId.`);
     } else {
-      console.log(`[Stripe-Debug] Reusing existing Stripe Account: ${accountId}`);
+      console.log(`[Stripe-Debug] Reusing existing valid Stripe Account: ${accountId}`);
     }
 
     const linkRes = await createAccountOnboardingLink(orgId, accountId);
@@ -125,7 +147,7 @@ export async function createAccountOnboardingLink(orgId: string, accountId: stri
       type: 'account_onboarding',
     });
 
-    console.log(`[Stripe-Debug] Onboarding Link generated: ${accountLink.url.substring(0, 50)}...`);
+    console.log(`[Stripe-Debug] Onboarding Link generated successfully.`);
     return { success: true, url: accountLink.url };
   } catch (error: any) {
     console.error("[Stripe-Debug] Error in createAccountOnboardingLink:", error.message);
@@ -182,17 +204,19 @@ export async function retrieveStripeAccount(accountId: string, orgId?: string) {
   } catch (error: any) {
     console.error("[Stripe-Debug] Error in retrieveStripeAccount:", error);
     
-    if (error.code === 'resource_missing' && orgId) {
+    if (error.code === 'resource_missing' || error.message.includes('does not exist')) {
       console.warn(`[Stripe-Debug] Account not found in Stripe. Cleaning up Firestore for org: ${orgId}`);
-      const db = getAdminDb();
-      await db.collection('organizations').doc(orgId).update({
-        stripeAccountId: admin.firestore.FieldValue.delete(),
-        stripeOnboardingComplete: false,
-        stripeChargesEnabled: false,
-        stripePayoutsEnabled: false,
-        "payoutSettings.status": 'none',
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+      if (orgId) {
+        const db = getAdminDb();
+        await db.collection('organizations').doc(orgId).update({
+          stripeAccountId: admin.firestore.FieldValue.delete(),
+          stripeOnboardingComplete: false,
+          stripeChargesEnabled: false,
+          stripePayoutsEnabled: false,
+          "payoutSettings.status": 'none',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
       return { 
         success: false, 
         error: 'A conta vinculada não existe mais no Stripe. O vínculo foi removido para que você possa tentar conectar novamente.' 
