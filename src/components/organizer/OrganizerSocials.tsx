@@ -38,6 +38,7 @@ export function OrganizerSocials({ organization }: OrganizerSocialsProps) {
     if (!url) return false;
     // Respeita as configurações de privacidade globais para redes específicas
     if (key === 'instagram' && organization.showInstagram === false) return false;
+    if (key === 'whatsapp' && organization.showPhone === false) return false;
     return true;
   });
 

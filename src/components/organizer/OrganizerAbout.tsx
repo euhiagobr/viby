@@ -39,20 +39,22 @@ export function OrganizerAbout({ organization }: OrganizerAboutProps) {
           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Dados Institucionais</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {isIndividual ? (
-               <Card className="border-none shadow-sm rounded-3xl bg-white">
-                <CardContent className="p-6 flex items-center gap-4">
-                  <div className="p-3 bg-primary/5 rounded-2xl text-primary">
-                    <User className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Pessoa Física (CPF)</p>
-                    <p className="font-mono text-sm text-primary">{organization.cpf}</p>
-                  </div>
-                </CardContent>
-              </Card>
+               organization.showCpf !== false && organization.cpf && (
+                 <Card className="border-none shadow-sm rounded-3xl bg-white">
+                  <CardContent className="p-6 flex items-center gap-4">
+                    <div className="p-3 bg-primary/5 rounded-2xl text-primary">
+                      <User className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Pessoa Física (CPF)</p>
+                      <p className="font-mono text-sm text-primary">{organization.cpf}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+               )
             ) : (
               <>
-                {(organization.razaoSocial || organization.legalName) && (
+                {(organization.showLegalName !== false && (organization.razaoSocial || organization.legalName)) && (
                   <Card className="border-none shadow-sm rounded-3xl bg-white">
                     <CardContent className="p-6 flex items-center gap-4">
                       <div className="p-3 bg-primary/5 rounded-2xl text-primary">
@@ -65,7 +67,7 @@ export function OrganizerAbout({ organization }: OrganizerAboutProps) {
                     </CardContent>
                   </Card>
                 )}
-                {organization.cnpj && (
+                {(organization.showCnpj !== false && organization.cnpj) && (
                   <Card className="border-none shadow-sm rounded-3xl bg-white">
                     <CardContent className="p-6 flex items-center gap-4">
                       <div className="p-3 bg-primary/5 rounded-2xl text-primary">
@@ -97,7 +99,7 @@ export function OrganizerAbout({ organization }: OrganizerAboutProps) {
                 <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Sede</p>
                 <p className="font-bold text-sm text-primary uppercase">
                   {organization.showNeighborhood !== false && organization.neighborhood ? `${organization.neighborhood}, ` : ""}
-                  {organization.city} - {organization.state}
+                  {(organization.showState !== false && organization.city) ? `${organization.city} - ${organization.state}` : ""}
                 </p>
               </div>
             </CardContent>

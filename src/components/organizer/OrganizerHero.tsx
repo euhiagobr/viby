@@ -95,7 +95,7 @@ export function OrganizerHero({
                 <StatItem label="Seguidores" value={realFollowersCount} />
                 <StatItem label="Agenda" value={realUpcomingCount} />
                 <StatItem label="Experiências" value={realPastCount} />
-                {isOwner ? (
+                {(isOwner || organization.showStats !== false) ? (
                   <StatItem label="Público" value={realAttendeesCount} />
                 ) : (
                   <div className="flex flex-col md:items-start opacity-30">
@@ -116,12 +116,12 @@ export function OrganizerHero({
             <Button variant="outline" size="icon" className="rounded-2xl h-12 w-12 border-2" onClick={handleShare} title="Compartilhar">
               <Share2 className="w-5 h-5" />
             </Button>
-            {organization.showWebsite && organization.website && (
+            {organization.showWebsite !== false && organization.website && (
               <Button variant="outline" size="icon" className="rounded-2xl h-12 w-12 border-2" asChild title="Site Oficial">
                 <a href={organization.website} target="_blank" rel="noopener noreferrer"><Globe className="w-5 h-5" /></a>
               </Button>
             )}
-            {organization.showInstagram && organization.instagram && (
+            {organization.showInstagram !== false && organization.instagram && (
               <Button variant="outline" size="icon" className="rounded-2xl h-12 w-12 border-2" asChild title="Instagram">
                 <a href={`https://instagram.com/${organization.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer"><Instagram className="w-5 h-5" /></a>
               </Button>
