@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -145,7 +144,6 @@ export default function SuportePage() {
 
     addDoc(collection(db, "support_tickets"), ticketData)
       .then((docRef) => {
-        // Envio de E-mail de Confirmação
         if (user.email) {
           sendSupportTicketReceivedEmail({
             to: user.email,
@@ -153,7 +151,7 @@ export default function SuportePage() {
             ticketNumber: protocol,
             ticketSubject: ticketData.subject,
             ticketMessage: ticketData.description,
-            ticketUrl: `https://viby.club/suporte/${docRef.id}`
+            ticketUrl: `https://viby.club/suporte/${protocol}`
           }).catch(err => console.warn("[Email Support] Failed to send creation notification", err));
         }
 
@@ -341,7 +339,7 @@ export default function SuportePage() {
 
 function TicketCard({ ticket, getStatusBadge }: { ticket: any, getStatusBadge: (status: string) => React.ReactNode }) {
   return (
-    <Link href={`/suporte/${ticket.id}`}>
+    <Link href={`/suporte/${ticket.protocol}`}>
       <Card className="hover:border-secondary/50 transition-all group rounded-2xl shadow-sm border-border bg-white overflow-hidden">
         <CardContent className="p-6 flex items-center justify-between">
           <div className="flex items-center gap-4">

@@ -2,8 +2,8 @@
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useAuth, useUser, useFirestore, useDoc, useFirebaseApp } from "@/firebase"
-import { doc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore"
+import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from "@/firebase"
+import { doc, updateDoc, arrayUnion, serverTimestamp, query, collection, where, limit } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -39,11 +39,17 @@ export default function TicketDetailsPage() {
   const auth = useAuth()
   const app = useFirebaseApp()
   const { user } = useUser(auth)
-  const ticketId = params.id as string
+  const protocolParam = params.id as string
 
   const storage = React.useMemo(() => (app ? getStorage(app) : null), [app])
-  const ticketRef = React.useMemo(() => db ? doc(db, "support_tickets", ticketId) : null, [db, ticketId])
-  const { data: ticket, loading } = useDoc<any>(ticketRef)
+  
+  // Busca o ticket pelo protocolo em vez do UID
+  const ticketQuery = useMemoFirebase(() => 
+    (db && protocolParam) ? query(collection(db, "support_tickets"), where("protocol", "==", protocolParam), limit(1)) : null,
+    [db, protocolParam]
+  )
+  const { data: results, loading: ticketsLoading } = useCollection<any>(ticketQuery)
+  const ticket = results && results.length > 0 ? results[0] : null
 
   const [newMessage, setNewMessage] = React.useState("")
   const [attachments, setAttachments] = React.useState<string[]>([])
@@ -51,13 +57,13 @@ export default function TicketDetailsPage() {
   const [isSending, setIsSending] = React.useState(false)
 
   React.useEffect(() => {
-    if (db && ticket && ticket.status === 'Respondida' && !loading) {
+    if (db && ticket && ticket.status === 'Respondida' && !ticketsLoading) {
       updateDoc(doc(db, "support_tickets", ticket.id), {
         status: "Em tratamento",
         updatedAt: serverTimestamp()
       }).catch(() => {});
     }
-  }, [db, ticket, loading]);
+  }, [db, ticket, ticketsLoading]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -112,7 +118,7 @@ export default function TicketDetailsPage() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!db || !user || !ticketRef) return
+    if (!db || !user || !ticket) return
     if (!newMessage.trim() && attachments.length === 0) return;
 
     setIsSending(true)
@@ -125,6 +131,7 @@ export default function TicketDetailsPage() {
       isAdmin: false
     }
 
+    const ticketRef = doc(db, "support_tickets", ticket.id)
     const updateData = {
       messages: arrayUnion(messageObj),
       updatedAt: serverTimestamp(),
@@ -145,8 +152,15 @@ export default function TicketDetailsPage() {
       .finally(() => setIsSending(false))
   }
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
-  if (!ticket) return null
+  if (ticketsLoading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
+  
+  if (!ticket && !ticketsLoading) return (
+    <div className="flex flex-col items-center justify-center py-32 space-y-4">
+       <AlertCircle className="w-12 h-12 text-muted-foreground opacity-20" />
+       <p className="text-muted-foreground font-bold uppercase italic">Ticket não localizado</p>
+       <Button variant="ghost" onClick={() => router.push('/suporte')}>Voltar à lista</Button>
+    </div>
+  )
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -160,7 +174,7 @@ export default function TicketDetailsPage() {
         </div>
       </div>
 
-      <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
+      <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
         <CardHeader className="bg-muted/30 border-b p-8">
            <div className="flex justify-between items-start">
               <CardTitle className="text-xl font-bold tracking-tight">{ticket.subject}</CardTitle>

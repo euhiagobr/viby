@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useFirestore, useDoc, useAuth, useUser, useFirebaseApp } from "@/firebase"
+import { useAuth, useUser, useFirestore, useDoc, useFirebaseApp } from "@/firebase"
 import { doc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -145,7 +145,7 @@ export default function AdminTicketResponsePage() {
             userName: ticket.userName || "Usuário",
             ticketNumber: ticket.protocol,
             lastReply: messageObj.text,
-            ticketUrl: `https://viby.club/suporte/${ticket.id}`
+            ticketUrl: `https://viby.club/suporte/${ticket.protocol}`
           }).catch(err => console.warn("[Email Support] Failed to send reply notification", err));
         }
 
