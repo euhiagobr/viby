@@ -86,8 +86,8 @@ const FAQ_DATA_PT = [
     categoryKey: "security",
     icon: ShieldCheck,
     items: [
-      { q: "Meus dados estão seguros?", a: "Sim. A Viby utiliza tecnologias de segurança e provedores especializados para proteger informações e processar pagamentos." },
       { q: "Posso seguir organizações e acompanhar eventos?", a: "Sim. Você pode seguir organizações e acompanhar seus eventos publicados na plataforma." },
+      { q: "Meus dados estão seguros?", a: "Sim. A Viby utiliza tecnologias de segurança e provedores especializados para proteger informações e processar pagamentos." },
       { q: "Como entro em contato com o suporte?", a: "O suporte oficial da Viby está disponível diretamente pelo painel da plataforma no menu Suporte." },
       { q: "Não encontrei minha dúvida. O que faço?", a: "Entre em contato pelo suporte da plataforma e nossa equipe irá ajudar você." }
     ]
@@ -100,9 +100,9 @@ const FAQ_DATA_EN = [
     categoryKey: "platform",
     icon: Globe,
     items: [
-      { q: "What is Viby?", a: "Viby is an event promotion, ticket sales, and attendee management platform. Organizers can create free or paid events, sell tickets online, and perform check-ins." },
+      { q: "What is Viby?", a: "Viby is a platform for event promotion, ticket sales, and participant management. Organizers can create free or paid events, sell tickets online, and perform participant check-in." },
       { q: "Who can create events on Viby?", a: "Any individual, company, NGO, collective, artist, producer, or institution can create events on the platform." },
-      { q: "Do I need a Business ID to sell tickets?", a: "No. Viby allows both individuals and companies to receive payments for their events." }
+      { q: "Do I need a Business ID (CNPJ) to sell tickets?", a: "No. Viby allows individuals and legal entities to receive payments for their events." }
     ]
   },
   {
@@ -110,7 +110,7 @@ const FAQ_DATA_EN = [
     categoryKey: "events",
     icon: Calendar,
     items: [
-      { q: "How to create an event?", a: "After creating your account, just access the platform panel, register your organization, and create your event with description, location, dates, and tickets." },
+      { q: "How to create an event?", a: "After creating your account, just access the platform panel, register your organization and create your event by providing description, location, dates, tickets and other information." },
       { q: "Can I create free events?", a: "Yes. Free events can be published without platform fees." },
       { q: "Can I sell paid tickets?", a: "Yes. Viby allows paid ticket sales with secure processing through Stripe." }
     ]
@@ -120,10 +120,12 @@ const FAQ_DATA_EN = [
     categoryKey: "payments",
     icon: CreditCard,
     items: [
-      { q: "How do I receive the money from sales?", a: "Payments are processed through Stripe Connect. After the sale, values are transferred directly to the account registered by the organizer." },
+      { q: "How do I receive money from sales?", a: "Payments are processed through Stripe Connect. After the sale, values are transferred directly to the account registered by the organizer, following Stripe's terms and rules." },
       { q: "Do I need to verify my account to receive payments?", a: "Yes. Some payout features depend on completing account verification with Stripe." },
-      { q: "Are there fees on Viby?", a: "Free events have no fees. For paid events, service fees to the buyer and commissions to the organizer may apply." },
-      { q: "What is the service fee?", a: "The service fee covers costs related to payment processing, digital ticket issuance, platform infrastructure, support, and security." }
+      { q: "Are there fees on Viby?", a: "Free events have no fees. For paid events, service fees to the buyer and commissions to the organizer may apply, according to event and platform settings." },
+      { q: "What is the service fee?", a: "The service fee covers costs related to payment processing, digital ticket issuance, platform infrastructure, support, and transaction security." },
+      { q: "What is Viby's commission?", a: "Viby's commission remunerates platform services, including promotion, technology, ticket sales, event management, and operational support." },
+      { q: "Are there custom fees?", a: "Yes. Depending on the event, organizer, commercial campaign, or specific conditions, custom fees may be applied." }
     ]
   },
   {
@@ -133,7 +135,24 @@ const FAQ_DATA_EN = [
     items: [
       { q: "How do I receive my tickets?", a: "After payment confirmation, tickets become available in your account within the platform." },
       { q: "Does the ticket have a QR Code?", a: "Yes. All tickets have a unique QR Code for validation." },
-      { q: "Can I show the ticket on my phone?", a: "Yes. There is no need to print the ticket." }
+      { q: "Can I show the ticket on my phone?", a: "Yes. There is no need to print the ticket." },
+      { q: "Can the QR Code be used more than once?", a: "No. Each ticket has a unique identification and validation control." },
+      { q: "How does check-in work?", a: "The organizer can perform check-in in three ways: QR Code reading, manual attendee search, or an exclusive 16-character code." },
+      { q: "Can I cancel a ticket?", a: "Yes. The organizer can cancel tickets according to the rules defined for the event." },
+      { q: "How do refunds work?", a: "When applicable, refunds are processed through Stripe according to event and organizer policies." },
+      { q: "Can I transfer my ticket to another person?", a: "Yes. The transfer can be performed by providing the necessary data for the new participant, including Tax ID (CPF)." },
+      { q: "Do I need to create an account to buy tickets?", a: "Yes. Currently, it is necessary to have a Viby account to make purchases and access your tickets." }
+    ]
+  },
+  {
+    category: "Security and Support",
+    categoryKey: "security",
+    icon: ShieldCheck,
+    items: [
+      { q: "Can I follow organizations and track events?", a: "Yes. You can follow organizations and track their events published on the platform." },
+      { q: "Is my data safe?", a: "Yes. Viby uses security technologies and specialized providers to protect information and process payments." },
+      { q: "How do I contact support?", a: "Viby's official support is available directly through the platform panel in the Support menu." },
+      { q: "I didn't find my answer. What do I do?", a: "Contact platform support and our team will help you." }
     ]
   }
 ]
