@@ -17,7 +17,8 @@ import {
   Building2,
   UserCheck,
   CalendarDays,
-  Map as MapIcon
+  Map as MapIcon,
+  Bell
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -50,7 +51,14 @@ export function AppSidebar() {
   const auth = useAuth()
   const db = useFirestore()
   const { user } = useUser(auth)
-  const { currentOrg, userRole, pendingInvitations, pendingPartnerships, unreadSupportCount } = useCurrentOrganization()
+  const { 
+    currentOrg, 
+    userRole, 
+    pendingInvitations, 
+    pendingPartnerships, 
+    unreadSupportCount,
+    unreadNotificationsCount
+  } = useCurrentOrganization()
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
@@ -73,6 +81,12 @@ export function AppSidebar() {
     { title: t('nav.tickets'), url: "/dashboard/ingressos", icon: Ticket },
     { title: t('nav.wallet'), url: "/dashboard/carteira", icon: Wallet },
     { title: t('nav.organizations'), url: "/dashboard/organizacoes", icon: Building2 },
+    { 
+      title: t('common.notifications'), 
+      url: "/dashboard/notificacoes", 
+      icon: Bell, 
+      badge: unreadNotificationsCount || null 
+    },
     { 
       title: t('nav.requests'), 
       url: "/dashboard/solicitacoes", 

@@ -36,6 +36,7 @@ interface OrganizationContextType {
   pendingInvitations: any[];
   pendingPartnerships: any[];
   unreadSupportCount: number;
+  unreadNotificationsCount: number;
   loading: boolean;
   userRole: string | null;
   refreshOrg: () => Promise<void>;
@@ -48,6 +49,7 @@ const OrganizationContext = createContext<OrganizationContextType>({
   pendingInvitations: [],
   pendingPartnerships: [],
   unreadSupportCount: 0,
+  unreadNotificationsCount: 0,
   loading: true,
   userRole: null,
   refreshOrg: async () => {},
@@ -65,6 +67,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
   const [pendingPartnerships, setPendingPartnerships] = useState<any[]>([]);
   const [unreadSupportCount, setUnreadSupportCount] = useState(0);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
 
@@ -75,6 +78,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       setOrganizations([]);
       setPendingInvitations([]);
       setUnreadSupportCount(0);
+      setUnreadNotificationsCount(0);
       setLoading(false);
       return;
     }
@@ -153,6 +157,16 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       setUnreadSupportCount(snap.size);
     });
 
+    // Listener para Notificações Gerais (Badge Menu)
+    const notificationsQuery = query(
+      collection(db, "notifications"),
+      where("targetUid", "==", user.uid),
+      where("read", "==", false)
+    );
+    const unsubNotifications = onSnapshot(notificationsQuery, (snap) => {
+      setUnreadNotificationsCount(snap.size);
+    });
+
     const updateSelection = (orgsList: Organization[]) => {
       const savedOrgId = typeof window !== 'undefined' ? localStorage.getItem('viby_current_org') : null;
       const currentActiveId = currentOrg?.id;
@@ -177,6 +191,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       unsubOwner();
       unsubMembers();
       unsubSupport();
+      unsubNotifications();
     };
   }, [db, user, isInitialized]);
 
@@ -274,6 +289,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       pendingInvitations,
       pendingPartnerships,
       unreadSupportCount,
+      unreadNotificationsCount,
       loading,
       userRole,
       refreshOrg
