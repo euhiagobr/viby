@@ -4,19 +4,25 @@
   "collections": {
     "support_tickets": {
       "purpose": "Acompanhamento de solicitações de usuários.",
-      "triggers": ["on_create", "on_admin_reply"]
+      "triggers": ["on_create", "on_admin_reply"],
+      "fields_for_email": ["protocol", "userName", "userEmail", "subject", "description"]
     },
     "sent_emails": {
       "purpose": "Log de auditoria de comunicações enviadas.",
       "fields": {
+        "id": "auto-id",
         "type": "support_ticket_received | support_ticket_response",
         "recipientEmail": "string",
+        "recipientName": "string",
+        "subject": "string",
+        "content": "string (HTML)",
+        "sender": "string",
         "timestamp": "serverTimestamp"
       }
     }
   },
   "logic": {
-    "creation": "Disparado no sucesso do addDoc em /suporte",
-    "reply": "Disparado no sucesso do updateDoc em /admin/suporte/[id] apenas se isAdmin for true"
+    "creation": "Disparado no sucesso do addDoc em /suporte enviando e-mail com link direto usando docId.",
+    "reply": "Disparado no sucesso do updateDoc em /admin/suporte/[id] apenas para mensagens marcadas como isAdmin: true."
   }
 }

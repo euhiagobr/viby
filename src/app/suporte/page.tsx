@@ -144,7 +144,7 @@ export default function SuportePage() {
     }
 
     addDoc(collection(db, "support_tickets"), ticketData)
-      .then(() => {
+      .then((docRef) => {
         // Envio de E-mail de Confirmação
         if (user.email) {
           sendSupportTicketReceivedEmail({
@@ -153,7 +153,7 @@ export default function SuportePage() {
             ticketNumber: protocol,
             ticketSubject: ticketData.subject,
             ticketMessage: ticketData.description,
-            ticketUrl: `https://viby.club/suporte/${protocol}`
+            ticketUrl: `https://viby.club/suporte/${docRef.id}`
           }).catch(err => console.warn("[Email Support] Failed to send creation notification", err));
         }
 
