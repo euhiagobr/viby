@@ -35,9 +35,11 @@ import {
   TicketPercent,
   X,
   Inbox,
-  CreditCard
+  CreditCard,
+  Percent,
+  Scale
 } from 'lucide-react';
-import { formatCurrency } from '@/lib/financial-utils';
+import { formatCurrency, VIBY_BUYER_MARKUP, VIBY_ORGANIZER_FEE, VIBY_MIN_FEE_BRL } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -265,6 +267,10 @@ function OrganizationFinanceContent() {
     );
   }
 
+  const currentMarkup = currentOrg?.customBuyerMarkup ?? (VIBY_BUYER_MARKUP * 100);
+  const currentCommission = currentOrg?.customOrganizerPercent ?? (VIBY_ORGANIZER_FEE * 100);
+  const currentMinFee = currentOrg?.customOrganizerMinFee ?? VIBY_MIN_FEE_BRL;
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col gap-2">
@@ -296,6 +302,17 @@ function OrganizationFinanceContent() {
               <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">Disponível para impulsionamento</p>
            </CardContent>
         </Card>
+      </div>
+
+      <div className="space-y-6">
+         <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2 flex items-center gap-2">
+           <Scale className="w-4 h-4" /> Suas Condições Comerciais
+         </h3>
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <FeeCard label="Taxa do Comprador" value={`${currentMarkup}%`} desc="Markup sobre o face." icon={Percent} />
+            <FeeCard label="Comissão Viby" value={`${currentCommission}%`} desc="Desconto do repasse." icon={TrendingUp} />
+            <FeeCard label="Valor Mínimo" value={formatCurrency(currentMinFee)} desc="Por ingresso vendido." icon={Coins} />
+         </div>
       </div>
 
       <Tabs defaultValue="vendas" className="space-y-8">
@@ -455,6 +472,21 @@ function OrganizationFinanceContent() {
       </Tabs>
     </div>
   );
+}
+
+function FeeCard({ label, value, desc, icon: Icon }: { label: string, value: string, desc: string, icon: any }) {
+   return (
+      <Card className="border-none shadow-sm rounded-3xl bg-white p-6 flex items-center gap-4 transition-all hover:shadow-md border-t-4 border-secondary/20">
+         <div className="p-3 bg-muted rounded-2xl text-secondary">
+            <Icon className="w-5 h-5" />
+         </div>
+         <div className="min-w-0">
+            <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest leading-none mb-1">{label}</p>
+            <p className="text-xl font-black text-primary italic uppercase tracking-tighter">{value}</p>
+            <p className="text-[8px] font-bold text-muted-foreground uppercase mt-0.5">{desc}</p>
+         </div>
+      </Card>
+   )
 }
 
 export default function OrganizationFinancePage() {
