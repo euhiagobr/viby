@@ -10,12 +10,17 @@ import { Button } from '@/components/ui/button';
 import { Home, CalendarX, ArrowLeft } from 'lucide-react';
 
 async function getEventData(id: string) {
-  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  const db = getFirestore(app);
-  const eventRef = doc(db, 'events', id);
-  const eventSnap = await getDoc(eventRef);
-  if (!eventSnap.exists()) return null;
-  return { id: eventSnap.id, ...eventSnap.data() } as any;
+  try {
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    const db = getFirestore(app);
+    const eventRef = doc(db, 'events', id);
+    const eventSnap = await getDoc(eventRef);
+    if (!eventSnap.exists()) return null;
+    return { id: eventSnap.id, ...eventSnap.data() } as any;
+  } catch (e) {
+    console.error("[getEventData Server Error]", e);
+    return null;
+  }
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string, id: string }> }): Promise<Metadata> {
@@ -79,11 +84,20 @@ export default async function EventoPublicoPage({ params }: { params: Promise<{ 
   }
 
   const addr = event.address || {};
+  
+  // Sanitização de datas para o Schema.org (JSON-LD)
+  const parseDate = (val: any) => {
+    if (!val) return new Date().toISOString();
+    if (val.toDate) return val.toDate().toISOString();
+    if (typeof val === 'string') return val.includes('T') ? val : `${val}T19:00:00`;
+    return new Date(val).toISOString();
+  };
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Event",
     "name": event.title,
-    "startDate": event.date?.toDate ? event.date.toDate().toISOString() : event.date,
+    "startDate": parseDate(event.date),
     "location": {
       "@type": "Place",
       "name": addr.venueName || event.location,

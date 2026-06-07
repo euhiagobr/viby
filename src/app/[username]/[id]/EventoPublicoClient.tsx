@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -60,7 +61,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     }
   }, [searchParams, event?.organizationId, id]);
 
-  const settingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'site') : null), [db])
+  const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db])
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
@@ -72,6 +73,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
 
   const memberQuery = useMemoFirebase(() => {
     if (!db || !user || !event?.organizationId) return null;
+    // Esta query requer que a regra 'list' na subcoleção members suporte o filtro pelo UID do usuário
     return query(collection(db, 'organizations', event.organizationId, 'members'), where('userId', '==', user.uid));
   }, [db, user, event?.organizationId]);
   const { data: membership } = useCollection<any>(memberQuery);
@@ -113,7 +115,18 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   if (eventLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-secondary" /></div>
   if (!event) return null
 
-  const isEnded = new Date(event.endDate || new Date(event.date).getTime() + 4*60*60*1000) < new Date()
+  // Sanitização segura de data para cálculo de encerramento
+  const isEnded = React.useMemo(() => {
+    const parseDate = (val: any) => {
+      if (!val) return null;
+      if (val.toDate) return val.toDate();
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    };
+    const start = parseDate(event.date);
+    const end = parseDate(event.endDate) || (start ? new Date(start.getTime() + 4 * 60 * 60 * 1000) : new Date(0));
+    return end < new Date();
+  }, [event.date, event.endDate]);
 
   return (
     <div className="min-h-screen bg-background pb-32 selection:bg-secondary selection:text-white w-full overflow-x-hidden">
@@ -331,7 +344,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
           </aside>
         </div>
 
-        {/* Bloco de Anúncio no fim da página conforme solicitação */}
         <div className="max-w-7xl mx-auto px-4 py-16">
           <AdsRenderer location="event_page_bottom" googleSlotId="event-page-bottom-slot" className="min-h-[140px]" />
         </div>

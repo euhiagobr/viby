@@ -56,7 +56,7 @@ service cloud.firestore {
 
     match /organizations/{orgId} {
       allow read: if true;
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn();
       
       allow update: if (isAdmin() || isOrgOwner(orgId)) 
                     || (isOrgAdmin(orgId) 
@@ -65,9 +65,14 @@ service cloud.firestore {
                     || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'updatedAt', 'totalAttendeesCount', 'totalViews', 'totalReach']));
 
       match /members/{memberId} {
-        allow read: if isOrgMember(orgId) || (isSignedIn() && request.auth.uid == memberId);
+        // Permitir que o usuário leia seu próprio registro de membro (necessário para queries de ownership)
+        // Permitir que membros leiam a lista de outros membros
+        allow read: if isAdmin() 
+                    || (isSignedIn() && request.auth.uid == memberId)
+                    || (isSignedIn() && isOrgMember(orgId));
+        
         allow create: if isSignedIn() && (isAdmin() || request.auth.uid == memberId || isOrgAdmin(orgId));
-        allow update: if isAdmin() || isOrgOwner(orgId) || (isOrgAdmin(orgId) && request.resource.data.role in ['editor', 'member']);
+        allow update: if isAdmin() || isOrgOwner(orgId) || (isOrgAdmin(orgId) && request.resource.data.role in ['editor', 'member', 'finance', 'checkin']);
         allow delete: if isAdmin() || isOrgOwner(orgId) || (isOrgAdmin(orgId) && resource.data.role != 'owner');
       }
 
@@ -130,7 +135,7 @@ service cloud.firestore {
     match /ads/{id} {
       allow read: if true;
       allow create: if isAdmin() || isOrgAdmin(request.resource.data.organizationId);
-      allow update: if isAdmin() || isOrgAdmin(resource.data.organizationId);
+      allow update: if isAdmin() || isOrgAdmin(request.resource.data.organizationId);
       allow delete: if isAdmin() || isOrgOwner(request.resource.data.organizationId);
     }
 
@@ -242,7 +247,7 @@ service cloud.firestore {
     match /follows/{id} {
       allow read: if true;
       allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
+      allow delete: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
     }
 
     match /audit_logs/{id} { 
