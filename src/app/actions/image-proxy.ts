@@ -9,7 +9,7 @@ export async function fetchImageAsBase64(url: string): Promise<{ success: boolea
   if (!url) return { success: false, error: "URL ausente" };
   
   try {
-    // Limpeza seletiva: Remove apenas o parâmetro de cache interno, preservando tokens do Firebase
+    // Limpeza seletiva: Remove parâmetros de cache interno, mas preserva tokens do Firebase
     const cleanUrl = url.replace(/[&?]cache_v=[^&]+/, '').replace(/[&?]v_cache=[^&]+/, '');
     
     const response = await fetch(cleanUrl, {

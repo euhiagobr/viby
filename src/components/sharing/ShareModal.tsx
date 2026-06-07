@@ -150,27 +150,25 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    // Sincronização agressiva para Mobile
+    // Sincronização agressiva para Mobile: aguarda dois frames de renderização
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    // Delay extra para decodificação do Base64 no motor do Safari/Chrome Mobile
     await new Promise(resolve => setTimeout(resolve, 800));
 
     try {
       const config = FORMAT_CONFIGS[format];
       const node = renderRef.current;
 
-      // Forçar o browser a terminar de desenhar as imagens base64
+      // Forçar o browser a terminar de desenhar as imagens base64 antes de capturar o canvas
       const images = Array.from(node.querySelectorAll('img'));
       await Promise.all(images.map(img => {
-        if (img.complete) return Promise.resolve();
+        if (img.complete) return img.decode().catch(() => {});
         return new Promise(resolve => {
-          img.onload = resolve;
+          img.onload = () => (img as HTMLImageElement).decode().then(resolve).catch(resolve);
           img.onerror = resolve;
         });
       }));
       
-      // Garantir decodificação no Safari/Mobile
-      await Promise.all(images.map(img => img.decode().catch(() => {})));
-
       const themeStyle = getThemeStyle(selectedTheme);
 
       const dataUrl = await toPng(node, {
@@ -178,14 +176,15 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         backgroundColor: themeStyle.background?.includes('linear-gradient') ? '#000000' : (themeStyle.background as string || '#ffffff'),
         width: config.width,
         height: config.height,
-        pixelRatio: 2,
+        pixelRatio: 2, // Garante nitidez em telas de alta densidade (Retina/OLED)
         skipFonts: false
       });
 
       if (!dataUrl || dataUrl.length < 5000) {
-        throw new Error("Falha na codificação da imagem.");
+        throw new Error("A imagem gerada parece estar vazia ou corrompida.");
       }
 
+      // Conversão para Blob para estabilidade em downloads mobile
       const blob = await (await fetch(dataUrl)).blob();
       const blobUrl = URL.createObjectURL(blob);
       
@@ -197,13 +196,13 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       document.body.removeChild(link);
       
       setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
-      toast({ title: "Arte gerada com sucesso!" });
+      toast({ title: "Download Iniciado!", description: "Sua arte foi gerada." });
     } catch (err: any) {
       console.error("[Download Error]", err);
       toast({ 
         variant: "destructive", 
         title: "Erro na geração", 
-        description: "Tente novamente em instantes." 
+        description: "Houve uma falha técnica ao processar os pixels no seu dispositivo." 
       });
     } finally {
       setIsGenerating(false);
@@ -383,7 +382,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-7xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[95vh] max-h-[900px]">
         
-        {/* Renderizador Off-screen */}
+        {/* Renderizador Off-screen: Posição visível mas fora da viewport para forçar o hardware a desenhar os pixels */}
         <div style={{ 
           position: 'fixed', 
           top: 0, 
@@ -505,4 +504,3 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     </Dialog>
   );
 }
-
