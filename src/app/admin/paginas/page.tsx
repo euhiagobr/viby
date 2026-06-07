@@ -655,7 +655,7 @@ export default function AdminPaginasPage() {
                                        </div>
                                     </div>
                                     <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome Fantasia</Label><Input value={editingOrg?.nomeFantasia || editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, nomeFantasia: e.target.value})} className="rounded-xl h-11" /></div>
-                                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Lock className="w-3 h-3" /> CPF do Representante Legal (Privado)</Label><Input value={editingOrg?.representanteLegalCpf || ""} onChange={e => setEditingOrg({...editingLegalCpf: e.target.value})} className="rounded-xl h-11 font-mono" placeholder="000.000.000-00" /></div>
+                                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Lock className="w-3 h-3" /> CPF do Representante Legal (Privado)</Label><Input value={editingOrg?.representanteLegalCpf || ""} onChange={e => setEditingOrg({...editingOrg, representanteLegalCpf: e.target.value})} className="rounded-xl h-11 font-mono" placeholder="000.000.000-00" /></div>
                                  </div>
                                )}
                              </div>
@@ -668,7 +668,7 @@ export default function AdminPaginasPage() {
                                    <div className="flex items-center justify-between">
                                      <Label className="text-[10px] font-black uppercase opacity-60">Rua / Logradouro</Label>
                                      <div className="flex items-center gap-2">
-                                       <span className="text-[8px] font-bold uppercase opacity-40">Público</span>
+                                       <span className="text-[8px] font-bold uppercase opacity-40">{editingOrg?.showAddress ?? true ? 'Público' : 'Oculto'}</span>
                                        <Switch checked={editingOrg?.showAddress ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showAddress: v})} />
                                      </div>
                                    </div>
@@ -681,7 +681,7 @@ export default function AdminPaginasPage() {
                                   <div className="flex items-center justify-between">
                                     <Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label>
                                     <div className="flex items-center gap-2">
-                                      <span className="text-[8px] font-bold uppercase opacity-40">Público</span>
+                                      <span className="text-[8px] font-bold uppercase opacity-40">{editingOrg?.showNeighborhood ?? true ? 'Público' : 'Oculto'}</span>
                                       <Switch checked={editingOrg?.showNeighborhood ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showNeighborhood: v})} />
                                     </div>
                                   </div>
@@ -691,7 +691,7 @@ export default function AdminPaginasPage() {
                                    <div className="flex items-center justify-between">
                                      <Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label>
                                      <div className="flex items-center gap-2">
-                                       <span className="text-[8px] font-bold uppercase opacity-40">Público</span>
+                                       <span className="text-[8px] font-bold uppercase opacity-40">{editingOrg?.showState ?? true ? 'Público' : 'Oculto'}</span>
                                        <Switch checked={editingOrg?.showState ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showState: v})} />
                                      </div>
                                    </div>
