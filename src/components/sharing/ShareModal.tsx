@@ -149,7 +149,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    // 1. Aguarda renderização do React
+    // Aguarda processamento de layout
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -157,7 +157,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       const config = FORMAT_CONFIGS[format];
       const node = renderRef.current;
 
-      // 2. FORÇA DECODIFICAÇÃO DE HARDWARE (Essencial para Mobile)
+      // FORÇA DECODIFICAÇÃO DE HARDWARE (Essencial para Mobile)
       const images = Array.from(node.querySelectorAll('img'));
       await Promise.all(images.map(img => {
         if (!img.src) return Promise.resolve();
@@ -166,7 +166,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         });
       }));
       
-      // 3. Aguarda o compositor do sistema operacional
+      // Aguarda o compositor do sistema operacional
       await new Promise(resolve => setTimeout(resolve, 500));
 
       const themeStyle = getThemeStyle(selectedTheme);
@@ -184,8 +184,9 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         throw new Error("A imagem gerada está vazia.");
       }
 
-      // 4. Fluxo de Download Resiliente
-      const blob = await (await fetch(dataUrl)).blob();
+      // Fluxo de Download Mobile Estável
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
       
       const link = document.createElement('a');
@@ -359,7 +360,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
     return (
       <div style={containerStyle}>
-        {/* Background Foto (Nativo para evitar bugs deForeignObject) */}
         {(theme === 'foto' || theme === 'viby') && bannerBase64 && (
           <img 
             src={bannerBase64} 
@@ -389,7 +389,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-7xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[95vh] max-h-[900px]">
         
-        {/* Renderizador Ativo Off-screen (Necessário para Mobile Paint) */}
+        {/* Renderizador Off-screen Visível para o Compositor */}
         <div style={{ 
           position: 'fixed', 
           top: 0, 
@@ -406,7 +406,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           </div>
         </div>
 
-        {/* Área de Preview Visual */}
+        {/* Área de Preview */}
         <div className="flex-1 p-6 md:p-10 bg-[#e2e8f0] flex flex-col items-center justify-center relative overflow-hidden order-1 md:order-2">
           {isGenerating && (
             <div className="absolute inset-0 z-[60] bg-primary/20 backdrop-blur-[2px] flex flex-col items-center justify-center">
@@ -429,7 +429,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           </div>
         </div>
 
-        {/* Painel de Controles */}
+        {/* Controles */}
         <div className="w-full md:w-96 flex flex-col bg-white border-r shrink-0 order-2 md:order-1 max-h-[50vh] md:max-h-full shadow-2xl">
           <div className="p-6 md:p-8 border-b bg-muted/10">
              <DialogHeader>
