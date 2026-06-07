@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, where, orderBy, limit, doc, updateDoc, writeBatch } from "firebase/firestore"
+import { collection, query, where, orderBy, limit, doc, writeBatch } from "firebase/firestore"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,7 +15,6 @@ import {
   Inbox,
   Trash2,
   ArrowRight,
-  ShieldCheck,
   BadgeCheck
 } from "lucide-react"
 import Link from "next/link"
@@ -200,16 +199,6 @@ export default function NotificacoesPage() {
           )}
         </CardContent>
       </Card>
-      
-      <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4 max-w-2xl mx-auto">
-         <ShieldCheck className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
-         <div className="space-y-1">
-            <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary italic">Privacidade e Controle</h4>
-            <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
-               Você recebe notificações de menções, novos seguidores e avisos oficiais da plataforma. Para deixar de receber alertas de uma marca específica, basta remover o seguimento no perfil dela.
-            </p>
-         </div>
-      </div>
     </div>
   )
 }
