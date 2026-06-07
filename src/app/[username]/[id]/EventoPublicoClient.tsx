@@ -35,7 +35,7 @@ import { AgeRatingBadge } from '@/lib/age-rating';
 
 /**
  * @fileOverview Componente de Cliente para a página pública do evento.
- * Ajustado para conformidade estrita com as regras de hooks do React (Erro #310).
+ * Otimizado para evitar erros de permissão e falhas de renderização.
  */
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
   const router = useRouter();
@@ -45,7 +45,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const { user } = useUser(auth);
   const { totalCount } = useCart();
 
-  // 1. TODOS OS HOOKS DEVEM FICAR NO TOPO
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false);
   const [selectedOccurrence, setSelectedOccurrence] = React.useState<any>(null);
 
@@ -64,11 +63,12 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db]);
   const { data: promotions } = useDoc<any>(promosRef);
 
-  const memberQuery = useMemoFirebase(() => {
-    if (!db || !user || !event?.organizationId) return null;
-    return query(collection(db, 'organizations', event.organizationId, 'members'), where('userId', '==', user.uid));
-  }, [db, user, event?.organizationId]);
-  const { data: membership } = useCollection<any>(memberQuery);
+  // Correção de Permissão: Uso de useDoc (GET) em vez de useCollection (LIST) para verificar participação
+  const memberRef = React.useMemo(() => 
+    (db && user && event?.organizationId) ? doc(db, 'organizations', event.organizationId, 'members', user.uid) : null,
+    [db, user, event?.organizationId]
+  );
+  const { data: membership } = useDoc<any>(memberRef);
 
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !event?.isRecurring || !event?.id) return null;
@@ -108,8 +108,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     }
   }, [id, event?.status]);
 
-  // Cálculos Memoizados seguros
-  const isOwner = React.useMemo(() => membership && membership.length > 0, [membership]);
+  const isOwner = !!membership;
 
   const occurrences = React.useMemo(() => {
     if (!rawOccurrences) return [];
@@ -129,7 +128,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     return end < new Date();
   }, [event?.date, event?.endDate]);
 
-  // 2. RETORNOS CONDICIONAIS APENAS APÓS TODOS OS HOOKS
   if (eventLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-secondary" /></div>;
   if (!event) return null;
 
@@ -321,7 +319,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
              <div className="sticky top-28 space-y-8">
                 {event.type === 'externo' && event.externalUrl && (
                   <Card className="border-none shadow-xl rounded-[2.5rem] bg-white p-8 border-t-8 border-primary space-y-6">
-                     <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Bilheteria Em Externa</h2>
+                     <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Bilheteria Externa</h2>
                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">As vendas para este evento ocorrem em uma plataforma terceira.</p>
                      <Button className="w-full h-16 bg-primary text-white font-black rounded-2xl uppercase italic gap-2 shadow-lg transition-transform active:scale-95" asChild>
                         <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Link de Ingressos <ArrowRight className="w-5 h-5" /></a>

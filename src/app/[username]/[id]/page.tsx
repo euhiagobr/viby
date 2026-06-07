@@ -85,7 +85,6 @@ export default async function EventoPublicoPage({ params }: { params: Promise<{ 
 
   const addr = event.address || {};
   
-  // Sanitização de datas robusta para evitar erro 500 no servidor
   const parseDate = (val: any) => {
     try {
       if (!val) return new Date().toISOString();

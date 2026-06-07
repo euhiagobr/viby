@@ -23,7 +23,7 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { calculateFinancialBreakdown, calculateVibyOfficialSplit } from "@/lib/financial-utils"
+import { calculateVibyOfficialSplit } from "@/lib/financial-utils"
 import { PayButton } from "@/components/payments/PayButton"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -104,11 +104,9 @@ export default function CarrinhoPage() {
               hadChanges = true;
             }
           } else {
-            // Documento não existe
             hadChanges = true;
           }
         } catch (e) {
-          // Mantém o item se houver falha de rede/permissão temporária
           updatedItems.push(item);
         }
       }
@@ -133,7 +131,7 @@ export default function CarrinhoPage() {
     if (items.length > 0 && db) {
       revalidateCart();
     }
-  }, [db]); 
+  }, [db, revalidateCart, items.length]); 
 
   React.useEffect(() => {
     if (!db || items.length === 0) return;
