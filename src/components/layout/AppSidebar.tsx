@@ -50,7 +50,7 @@ export function AppSidebar() {
   const auth = useAuth()
   const db = useFirestore()
   const { user } = useUser(auth)
-  const { currentOrg, organizations, userRole, pendingInvitations } = useCurrentOrganization()
+  const { currentOrg, userRole, pendingInvitations, pendingPartnerships, unreadSupportCount } = useCurrentOrganization()
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
@@ -73,10 +73,20 @@ export function AppSidebar() {
     { title: t('nav.tickets'), url: "/dashboard/ingressos", icon: Ticket },
     { title: t('nav.wallet'), url: "/dashboard/carteira", icon: Wallet },
     { title: t('nav.organizations'), url: "/dashboard/organizacoes", icon: Building2 },
-    { title: t('nav.requests'), url: "/dashboard/solicitacoes", icon: UserCheck, badge: pendingInvitations.length > 0 ? pendingInvitations.length : null },
+    { 
+      title: t('nav.requests'), 
+      url: "/dashboard/solicitacoes", 
+      icon: UserCheck, 
+      badge: (pendingInvitations.length + pendingPartnerships.length) || null 
+    },
     { title: t('nav.following'), url: "/dashboard/seguindo", icon: Heart },
     { title: t('nav.profile'), url: "/dashboard/perfil", icon: User },
-    { title: t('nav.support'), url: "/dashboard/suporte", icon: LifeBuoy },
+    { 
+      title: t('nav.support'), 
+      url: "/dashboard/suporte", 
+      icon: LifeBuoy, 
+      badge: unreadSupportCount || null 
+    },
   ];
 
   const orgItems = currentOrg ? [
@@ -185,7 +195,7 @@ export function AppSidebar() {
                         <span>{item.title}</span>
                       </div>
                       {item.badge && (
-                        <span className="bg-secondary text-white text-[9px] font-black h-4 w-4 rounded-full flex items-center justify-center">
+                        <span className="bg-secondary text-white text-[9px] font-black h-4 w-4 rounded-full flex items-center justify-center animate-in zoom-in duration-300">
                           {item.badge}
                         </span>
                       )}

@@ -40,7 +40,12 @@ export default function SuportePage() {
   const auth = useAuth()
   const app = useFirebaseApp()
   const { user } = useUser(auth)
-  const storage = React.useMemo(() => app ? getStorage(app) : null, [app])
+  
+  // Inicialização estável do Storage
+  const storage = React.useMemo(() => {
+    if (!app) return null;
+    return getStorage(app);
+  }, [app]);
 
   const ticketsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
@@ -68,25 +73,32 @@ export default function SuportePage() {
 
     setUploadProgress(0)
     try {
-      const fileName = `support/${user.uid}/${Date.now()}_${file.name}`
-      const storageRef = ref(storage, fileName)
-      const uploadTask = uploadBytesResumable(storageRef, file)
+      // Limpeza de nome de arquivo para evitar erros de caractere no storage
+      const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+      const fileName = `support/${user.uid}/${Date.now()}_${safeName}`;
+      const storageRef = ref(storage, fileName);
+      const uploadTask = uploadBytesResumable(storageRef, file);
 
       uploadTask.on('state_changed', 
-        (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setUploadProgress(progress);
+        },
         (error) => {
-          toast({ variant: "destructive", title: "Erro no upload" })
-          setUploadProgress(null)
+          console.error("Storage error:", error);
+          toast({ variant: "destructive", title: "Erro no upload", description: "O limite de tamanho pode ter sido excedido ou permissão negada." });
+          setUploadProgress(null);
         },
         async () => {
-          const url = await getDownloadURL(uploadTask.snapshot.ref)
-          setAttachments(prev => [...prev, url])
-          setUploadProgress(null)
-          toast({ title: "Arquivo anexado!" })
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          setAttachments(prev => [...prev, url]);
+          setUploadProgress(null);
+          toast({ title: "Arquivo anexado!" });
         }
       )
     } catch (err) {
-      setUploadProgress(null)
+      console.error("Fatal upload error:", err);
+      setUploadProgress(null);
     }
   }
 
@@ -159,7 +171,7 @@ export default function SuportePage() {
         </div>
         
         <div className="flex gap-3">
-          <Button variant="outline" asChild className="rounded-full h-12 px-6 font-bold gap-2 text-xs uppercase border-secondary text-secondary hover:bg-secondary/5">
+          <Button variant="outline" asChild className="rounded-full h-12 px-6 font-bold gap-2 text-xs uppercase border-secondary/20 text-secondary hover:bg-secondary/5">
              <Link href="/dashboard/suporte/faq"><HelpCircle className="w-4 h-4" /> Perguntas Frequentes</Link>
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -179,11 +191,11 @@ export default function SuportePage() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Seu Nome</Label>
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Seu Nome</Label>
                       <Input value={user?.displayName || ""} disabled className="bg-muted/50 border-none rounded-xl" />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Seu E-mail</Label>
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Seu E-mail</Label>
                       <Input value={user?.email || ""} disabled className="bg-muted/50 border-none rounded-xl" />
                     </div>
                   </div>
@@ -214,7 +226,12 @@ export default function SuportePage() {
                         <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} />
                       </label>
                     </div>
-                    {uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}
+                    {uploadProgress !== null && (
+                      <div className="space-y-1">
+                        <Progress value={uploadProgress} className="h-1" />
+                        <p className="text-[8px] font-black uppercase text-secondary">Enviando: {Math.round(uploadProgress)}%</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -40,6 +39,16 @@ export default function TicketDetailsPage() {
 
   const [newMessage, setNewMessage] = React.useState("")
   const [isSending, setIsSending] = React.useState(false)
+
+  // Lógica de leitura: Se o ticket estiver como "Respondida", marcamos como "Em tratamento" (Lido)
+  React.useEffect(() => {
+    if (ticket && ticket.status === 'Respondida' && db) {
+      updateDoc(doc(db, "support_tickets", ticket.id), {
+        status: "Em tratamento",
+        updatedAt: serverTimestamp()
+      }).catch(err => console.warn("Falha ao atualizar status de leitura", err));
+    }
+  }, [ticket, db]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -85,7 +94,6 @@ export default function TicketDetailsPage() {
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
   if (!ticket) return null
 
-  // Regras de negócio solicitadas
   const isLocked = ticket.status === 'Não lida'
   const isClosed = ticket.status === 'Encerrada'
   const canReply = ticket.status === 'Respondida' || ticket.status === 'Em tratamento'

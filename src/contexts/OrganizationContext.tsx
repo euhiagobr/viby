@@ -35,6 +35,7 @@ interface OrganizationContextType {
   organizations: Organization[];
   pendingInvitations: any[];
   pendingPartnerships: any[];
+  unreadSupportCount: number;
   loading: boolean;
   userRole: string | null;
   refreshOrg: () => Promise<void>;
@@ -46,6 +47,7 @@ const OrganizationContext = createContext<OrganizationContextType>({
   organizations: [],
   pendingInvitations: [],
   pendingPartnerships: [],
+  unreadSupportCount: 0,
   loading: true,
   userRole: null,
   refreshOrg: async () => {},
@@ -62,16 +64,17 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
   const [pendingPartnerships, setPendingPartnerships] = useState<any[]>([]);
+  const [unreadSupportCount, setUnreadSupportCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
 
-  // Memoize org IDs to avoid infinite loops in partnership listener
   const orgIdsKey = organizations.map(o => o.id).sort().join(',');
 
   useEffect(() => {
     if (!isInitialized || !db || !user) {
       setOrganizations([]);
       setPendingInvitations([]);
+      setUnreadSupportCount(0);
       setLoading(false);
       return;
     }
@@ -94,9 +97,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         updateSelection(combined);
         return combined;
       });
-      setLoading(false);
-    }, (err) => {
-      console.error("[OrganizationContext] Owner Query Error:", err);
       setLoading(false);
     });
 
@@ -139,12 +139,18 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           return combined;
         });
       } catch (e) {
-        console.error("Erro ao sincronizar marcas via membros:", e);
+        console.error("Erro ao sincronizar marcas:", e);
       }
-    }, (err) => {
-      if (err.code === 'failed-precondition') {
-        console.warn("[Viby] Índice de membros pendente.");
-      }
+    });
+
+    // Listener para Suporte (Badges de resposta)
+    const supportQuery = query(
+      collection(db, "support_tickets"), 
+      where("userId", "==", user.uid),
+      where("status", "==", "Respondida")
+    );
+    const unsubSupport = onSnapshot(supportQuery, (snap) => {
+      setUnreadSupportCount(snap.size);
     });
 
     const updateSelection = (orgsList: Organization[]) => {
@@ -170,10 +176,10 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     return () => {
       unsubOwner();
       unsubMembers();
+      unsubSupport();
     };
   }, [db, user, isInitialized]);
 
-  // Listener para Parcerias (Co-organização)
   useEffect(() => {
     if (!isInitialized || !db || !user || organizations.length === 0) {
       setPendingPartnerships([]);
@@ -181,7 +187,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     }
 
     const orgIds = organizations.map(o => o.id);
-    const slicedIds = orgIds.slice(0, 30); // Limite do operador 'in' do Firestore
+    const slicedIds = orgIds.slice(0, 30);
 
     const partnersQuery = query(
       collectionGroup(db, 'partners'),
@@ -217,10 +223,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         setPendingPartnerships(pings.filter(p => p !== null));
       } catch (e) {
         console.error("Erro ao processar solicitações de parceria:", e);
-      }
-    }, (err) => {
-      if (err.code === 'failed-precondition') {
-        console.warn("[Viby] Índice de coleção cruzada (partners) pendente.");
       }
     });
 
@@ -271,6 +273,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       organizations, 
       pendingInvitations,
       pendingPartnerships,
+      unreadSupportCount,
       loading,
       userRole,
       refreshOrg
