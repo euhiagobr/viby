@@ -97,7 +97,7 @@ export function AppSidebar() {
     { title: t('nav.profile'), url: "/dashboard/perfil", icon: User },
     { 
       title: t('nav.support'), 
-      url: "/dashboard/suporte", 
+      url: "/suporte", 
       icon: LifeBuoy, 
       badge: unreadSupportCount || null 
     },
@@ -154,6 +154,7 @@ export function AppSidebar() {
               height={40} 
               className="h-8 w-auto object-contain" 
               priority 
+              unoptimized
             />
           ) : (
             <>

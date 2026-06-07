@@ -51,7 +51,7 @@ export default function Footer() {
             <nav className="flex flex-col gap-3">
               <Link href="/termos" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">{t('footer.terms')}</Link>
               <Link href="/privacidade" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">{t('footer.privacy')}</Link>
-              <Link href="/dashboard/suporte" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">{t('footer.support')}</Link>
+              <Link href="/suporte" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">{t('footer.support')}</Link>
             </nav>
           </div>
           <div className="space-y-4">
@@ -63,6 +63,7 @@ export default function Footer() {
                 rel="noopener noreferrer" 
                 className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors flex items-center gap-2"
               >
+                <span className="sr-only">Instagram</span>
                 <Instagram className="w-4 h-4" />
                 Instagram
               </a>

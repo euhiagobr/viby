@@ -4,11 +4,9 @@ import * as React from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
-import { Bell, Loader2, Plus, Building2, ShoppingCart, ShieldAlert, AlertTriangle } from "lucide-react"
+import { Loader2, ShoppingCart } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { collection, query, where, doc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore"
+import { useAuth, useUser } from "@/firebase"
 import { OrganizationProvider, useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { useCart } from "@/contexts/CartContext"
 import {
@@ -19,17 +17,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Plus, Building2 } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
-import { toast } from "@/hooks/use-toast"
 import { UserNav } from "@/components/layout/UserNav"
-import Image from "next/image"
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { currentOrg, organizations, setCurrentOrg } = useCurrentOrganization()
   const auth = useAuth()
   const { user, profile, loading: authLoading, isInitialized } = useUser(auth)
-  const db = useFirestore()
   const router = useRouter()
   const pathname = usePathname()
   const { totalCount } = useCart()
@@ -38,28 +34,23 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     if (!isInitialized || authLoading) return;
 
     if (!user) {
-      console.log('[Auth-Debug] User not found, redirecting to login');
       router.replace(`/login?redirect=${encodeURIComponent(pathname || '/dashboard')}`);
       return;
     }
 
-    // REGRA DE INTEGRIDADE: Verificação baseada em dados reais do Firestore
-    // O onboarding deve aparecer se o documento não existir OU faltar username OU faltar CPF
     const hasMandatoryData = !!(profile?.username && profile?.cpf);
     const needsOnboarding = profile === null || !hasMandatoryData;
 
     if (needsOnboarding && pathname !== '/onboarding') {
-      console.log('[Auth-Debug] Incomplete Profile detected, forcing Onboarding');
       router.replace('/onboarding');
       return;
     }
 
-    if (profile && profile.status === 'Bloqueado' && pathname !== '/dashboard/suporte') {
-      router.replace('/dashboard/suporte');
+    if (profile && profile.status === 'Bloqueado' && pathname !== '/suporte') {
+      router.replace('/suporte');
     }
   }, [user, profile, isInitialized, authLoading, pathname, router]);
 
-  // Loading guard baseado apenas na inicialização técnica, permitindo profile ser null (caso não exista doc)
   if (!isInitialized || authLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
