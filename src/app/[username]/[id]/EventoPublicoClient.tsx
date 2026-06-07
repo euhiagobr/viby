@@ -33,21 +33,52 @@ import {
 } from '@/components/events';
 import { AgeRatingBadge } from '@/lib/age-rating';
 
+/**
+ * @fileOverview Componente de Cliente para a página pública do evento.
+ * Ajustado para conformidade estrita com as regras de hooks do React (Erro #310).
+ */
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const db = useFirestore()
-  const auth = useAuth()
-  const { user } = useUser(auth)
-  const { totalCount } = useCart()
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const db = useFirestore();
+  const auth = useAuth();
+  const { user } = useUser(auth);
+  const { totalCount } = useCart();
 
-  const eventRef = React.useMemo(() => (db ? doc(db, 'events', id) : null), [db, id])
-  const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
-
-  const orgRef = React.useMemo(() => (db && event?.organizationId) ? doc(db, 'organizations', event.organizationId) : null, [db, event?.organizationId])
-  const { data: organization } = useDoc<any>(orgRef)
-
+  // 1. TODOS OS HOOKS DEVEM FICAR NO TOPO
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false);
+  const [selectedOccurrence, setSelectedOccurrence] = React.useState<any>(null);
+
+  const eventRef = React.useMemo(() => (db ? doc(db, 'events', id) : null), [db, id]);
+  const { data: event, loading: eventLoading } = useDoc<any>(eventRef);
+
+  const orgRef = React.useMemo(() => (db && event?.organizationId) ? doc(db, 'organizations', event.organizationId) : null, [db, event?.organizationId]);
+  const { data: organization } = useDoc<any>(orgRef);
+
+  const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db]);
+  const { data: settings } = useDoc<any>(settingsRef);
+
+  const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db]);
+  const { data: globalFees } = useDoc<any>(feesRef);
+
+  const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db]);
+  const { data: promotions } = useDoc<any>(promosRef);
+
+  const memberQuery = useMemoFirebase(() => {
+    if (!db || !user || !event?.organizationId) return null;
+    return query(collection(db, 'organizations', event.organizationId, 'members'), where('userId', '==', user.uid));
+  }, [db, user, event?.organizationId]);
+  const { data: membership } = useCollection<any>(memberQuery);
+
+  const occurrencesQuery = useMemoFirebase(() => {
+    if (!db || !event?.isRecurring || !event?.id) return null;
+    return query(
+      collection(db, 'recurring_occurrences'),
+      where('parentId', '==', event.id),
+      where('status', '==', 'active')
+    );
+  }, [db, event?.id, event?.isRecurring]);
+  const { data: rawOccurrences, loading: occLoading } = useCollection<any>(occurrencesQuery);
 
   // Rastreamento de Scan de QR Code
   React.useEffect(() => {
@@ -61,62 +92,32 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     }
   }, [searchParams, event?.organizationId, id]);
 
-  const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db])
-  const { data: settings } = useDoc<any>(settingsRef)
-  const siteName = settings?.siteName || "Viby"
-
-  const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db])
-  const { data: globalFees } = useDoc<any>(feesRef)
-
-  const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db])
-  const { data: promotions } = useDoc<any>( promosRef)
-
-  const memberQuery = useMemoFirebase(() => {
-    if (!db || !user || !event?.organizationId) return null;
-    // Esta query requer que a regra 'list' na subcoleção members suporte o filtro pelo UID do usuário
-    return query(collection(db, 'organizations', event.organizationId, 'members'), where('userId', '==', user.uid));
-  }, [db, user, event?.organizationId]);
-  const { data: membership } = useCollection<any>(memberQuery);
-  const isOwner = membership && membership.length > 0;
-
-  const occurrencesQuery = useMemoFirebase(() => {
-    if (!db || !event?.isRecurring || !event?.id) return null;
-    return query(
-      collection(db, 'recurring_occurrences'),
-      where('parentId', '==', event.id),
-      where('status', '==', 'active')
-    );
-  }, [db, event?.id, event?.isRecurring]);
-  
-  const { data: rawOccurrences, loading: occLoading } = useCollection<any>(occurrencesQuery);
-
-  const occurrences = React.useMemo(() => {
-    if (!rawOccurrences) return [];
-    return [...rawOccurrences].sort((a, b) => a.date.localeCompare(b.date));
-  }, [rawOccurrences]);
-
-  const [selectedOccurrence, setSelectedOccurrence] = React.useState<any>(null);
-
+  // Rastreamento de Visualização
   React.useEffect(() => {
-    if (!id || event?.status !== 'Ativo') return
-    const key = `viby_v_${id}`
-    const last = localStorage.getItem(key)
-    const now = Date.now()
+    if (!id || event?.status !== 'Ativo') return;
+    const key = `viby_v_${id}`;
+    const last = localStorage.getItem(key);
+    const now = Date.now();
     if (!last || now - parseInt(last) > 1000 * 60 * 30) {
       fetch('/api/events/track-view', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventId: id })
       }).catch(() => {});
-      localStorage.setItem(key, now.toString())
+      localStorage.setItem(key, now.toString());
     }
-  }, [id, event?.status])
+  }, [id, event?.status]);
 
-  if (eventLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-secondary" /></div>
-  if (!event) return null
+  // Cálculos Memoizados seguros
+  const isOwner = React.useMemo(() => membership && membership.length > 0, [membership]);
 
-  // Sanitização segura de data para cálculo de encerramento
+  const occurrences = React.useMemo(() => {
+    if (!rawOccurrences) return [];
+    return [...rawOccurrences].sort((a, b) => a.date.localeCompare(b.date));
+  }, [rawOccurrences]);
+
   const isEnded = React.useMemo(() => {
+    if (!event) return false;
     const parseDate = (val: any) => {
       if (!val) return null;
       if (val.toDate) return val.toDate();
@@ -126,7 +127,13 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     const start = parseDate(event.date);
     const end = parseDate(event.endDate) || (start ? new Date(start.getTime() + 4 * 60 * 60 * 1000) : new Date(0));
     return end < new Date();
-  }, [event.date, event.endDate]);
+  }, [event?.date, event?.endDate]);
+
+  // 2. RETORNOS CONDICIONAIS APENAS APÓS TODOS OS HOOKS
+  if (eventLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-secondary" /></div>;
+  if (!event) return null;
+
+  const siteName = settings?.siteName || "Viby";
 
   return (
     <div className="min-h-screen bg-background pb-32 selection:bg-secondary selection:text-white w-full overflow-x-hidden">

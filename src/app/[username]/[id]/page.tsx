@@ -41,7 +41,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   
   const ogImageUrl = new URL('https://viby.club/api/og');
   ogImageUrl.searchParams.set('type', 'event');
-  ogImageUrl.searchParams.set('title', event.title);
+  ogImageUrl.searchParams.set('title', event.title || 'Evento');
   ogImageUrl.searchParams.set('subtitle', `${city} • ${event.organizer?.name || 'Viby'}`);
   ogImageUrl.searchParams.set('category', event.categoryName || 'Evento');
   if (event.image) ogImageUrl.searchParams.set('image', event.image);
@@ -85,34 +85,42 @@ export default async function EventoPublicoPage({ params }: { params: Promise<{ 
 
   const addr = event.address || {};
   
-  // Sanitização de datas para o Schema.org (JSON-LD)
+  // Sanitização de datas robusta para evitar erro 500 no servidor
   const parseDate = (val: any) => {
-    if (!val) return new Date().toISOString();
-    if (val.toDate) return val.toDate().toISOString();
-    if (typeof val === 'string') return val.includes('T') ? val : `${val}T19:00:00`;
-    return new Date(val).toISOString();
+    try {
+      if (!val) return new Date().toISOString();
+      if (typeof val.toDate === 'function') return val.toDate().toISOString();
+      if (typeof val === 'string') return val.includes('T') ? val : `${val}T19:00:00`;
+      if (val && typeof val === 'object' && typeof val.seconds === 'number') {
+        return new Date(val.seconds * 1000).toISOString();
+      }
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+    } catch (e) {
+      return new Date().toISOString();
+    }
   };
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Event",
-    "name": event.title,
+    "name": event.title || 'Evento',
     "startDate": parseDate(event.date),
     "location": {
       "@type": "Place",
-      "name": addr.venueName || event.location,
+      "name": addr.venueName || event.location || 'Local',
       "address": {
         "@type": "PostalAddress",
-        "addressLocality": addr.city || event.city,
-        "addressRegion": addr.state || event.state,
-        "streetAddress": `${addr.street || ''}, ${addr.number || ''}`,
-        "postalCode": addr.postalCode || event.cep,
+        "addressLocality": addr.city || event.city || '',
+        "addressRegion": addr.state || event.state || '',
+        "streetAddress": `${addr.street || addr.addressLine1 || ''}, ${addr.number || addr.streetNumber || ''}`,
+        "postalCode": addr.postalCode || event.cep || '',
         "addressCountry": addr.countryCode || "BR"
       }
     },
     "image": event.image,
-    "description": event.description,
-    "organizer": { "@type": "Organization", "name": event.organizer?.name, "url": `https://viby.club/${username}` }
+    "description": event.description || '',
+    "organizer": { "@type": "Organization", "name": event.organizer?.name || 'Viby', "url": `https://viby.club/${username}` }
   };
 
   return (
