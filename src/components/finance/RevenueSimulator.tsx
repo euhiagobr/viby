@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -81,11 +82,16 @@ export function RevenueSimulator({ isOpen, onOpenChange, customFees }: RevenueSi
           </div>
 
           <div className="space-y-4">
-            <div className="flex justify-between items-center text-sm font-bold">
-               <span className="flex items-center gap-2 text-muted-foreground uppercase text-[10px] tracking-tight">
-                  <User className="w-3.5 h-3.5" /> Pago pelo Cliente (c/ Taxa)
-               </span>
-               <span className="text-primary">{formatPrice(results.totalCharged, currency)}</span>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-sm font-bold">
+                 <span className="flex items-center gap-2 text-muted-foreground uppercase text-[10px] tracking-tight">
+                    <User className="w-3.5 h-3.5" /> Pago pelo Cliente (c/ Taxa)
+                 </span>
+                 <span className="text-primary">{formatPrice(results.totalCharged, currency)}</span>
+              </div>
+              <p className="text-[9px] text-muted-foreground leading-tight ml-6 uppercase font-medium">
+                taxas administrativas para segurança, manutenção, e gateway de pagamento
+              </p>
             </div>
             
             <div className="flex justify-between items-center text-sm font-bold">
