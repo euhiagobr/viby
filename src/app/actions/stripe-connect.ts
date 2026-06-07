@@ -28,6 +28,17 @@ async function getStripeInstance(db: admin.firestore.Firestore) {
   return new Stripe(secretKey, { apiVersion: '2024-12-18.acacia' as any });
 }
 
+/**
+ * Mapeia erros técnicos do Stripe para mensagens amigáveis de configuração.
+ */
+function handleStripeError(error: any): string {
+  const message = error.message || '';
+  if (message.includes('rak_account_link_write') || message.includes('permissions')) {
+    return "Sua chave de API do Stripe (Restricted Key) não tem permissão para criar links de onboarding. No seu Dashboard do Stripe, edite a chave e conceda permissão de 'Write' para 'Account Links'. Ou use sua Secret Key (sk_live_...) principal.";
+  }
+  return message || 'Erro desconhecido na comunicação com o Stripe.';
+}
+
 export async function createStripeConnectAccount(orgId: string) {
   console.log(`[Stripe-Debug] Starting Connect Account creation for Org: ${orgId}`);
   try {
@@ -93,7 +104,7 @@ export async function createStripeConnectAccount(orgId: string) {
     return { success: true, accountId, url: linkRes.url };
   } catch (error: any) {
     console.error("[Stripe-Debug] FATAL ERROR in createStripeConnectAccount:", error.message);
-    return { success: false, error: error.message };
+    return { success: false, error: handleStripeError(error) };
   }
 }
 
@@ -118,7 +129,7 @@ export async function createAccountOnboardingLink(orgId: string, accountId: stri
     return { success: true, url: accountLink.url };
   } catch (error: any) {
     console.error("[Stripe-Debug] Error in createAccountOnboardingLink:", error.message);
-    return { success: false, error: error.message };
+    return { success: false, error: handleStripeError(error) };
   }
 }
 
@@ -188,6 +199,6 @@ export async function retrieveStripeAccount(accountId: string, orgId?: string) {
       };
     }
 
-    return { success: false, error: error.message || 'Erro desconhecido ao consultar Stripe API.' };
+    return { success: false, error: handleStripeError(error) };
   }
 }

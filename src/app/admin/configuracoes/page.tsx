@@ -26,7 +26,9 @@ import {
   Zap,
   CalendarDays,
   Info,
-  AlertTriangle
+  AlertTriangle,
+  ShieldCheck,
+  Key
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
@@ -232,6 +234,45 @@ export default function AdminConfiguracoesPage() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="pagamentos" className="animate-in fade-in slide-in-from-top-2 duration-300">
+          <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
+            <CardHeader className="bg-muted/30 p-8 border-b">
+               <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Gateway Stripe</CardTitle>
+               <CardDescription>Conecte as chaves da API para habilitar transações reais.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8 space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <Button variant={stripeForm.mode === 'test' ? 'secondary' : 'outline'} className="rounded-xl h-11 font-bold gap-2" onClick={() => setStripeForm({...stripeForm, mode: 'test'})}><RefreshCw className="w-4 h-4" /> Modo Teste</Button>
+                 <Button variant={stripeForm.mode === 'live' ? 'secondary' : 'outline'} className="rounded-xl h-11 font-bold gap-2" onClick={() => setStripeForm({...stripeForm, mode: 'live'})}><Globe className="w-4 h-4" /> Modo Produção</Button>
+              </div>
+
+              <div className="p-6 bg-orange-50 border-2 border-dashed border-orange-200 rounded-3xl flex items-start gap-4">
+                 <ShieldCheck className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
+                 <div className="space-y-1">
+                    <h4 className="font-black uppercase text-xs italic text-orange-800">Aviso sobre Restricted Keys</h4>
+                    <p className="text-[10px] text-orange-700 font-medium leading-relaxed uppercase">
+                      Se você estiver usando uma <strong>Restricted Key (rk_...)</strong> por segurança, certifique-se de conceder a permissão <strong>"Write"</strong> para o recurso <strong>"Account Links"</strong> no seu dashboard do Stripe. Sem isso, a conexão das marcas falhará.
+                    </p>
+                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Key className="w-3 h-3" /> Publishable Key</Label>
+                    <Input value={stripeForm.publishableKey} onChange={e => setStripeForm({...stripeForm, publishableKey: e.target.value})} className="rounded-xl h-11 font-mono text-xs" placeholder="pk_..." />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Lock className="w-3 h-3" /> Secret / Restricted Key</Label>
+                    <Input type="password" value={stripeForm.secretKey} onChange={e => setStripeForm({...stripeForm, secretKey: e.target.value})} className="rounded-xl h-11 font-mono text-xs" placeholder="sk_... ou rk_..." />
+                 </div>
+              </div>
+              <Button onClick={() => handleSave('settings', 'stripe', stripeForm)} disabled={saving} className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic">
+                {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />} Atualizar Configurações de Pagamento
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="eventos" className="animate-in fade-in slide-in-from-top-2 duration-300">
           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
             <CardHeader className="bg-muted/30 p-8 border-b">
@@ -269,34 +310,6 @@ export default function AdminConfiguracoesPage() {
                >
                  {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />} Salvar Regras de Evento
                </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="pagamentos" className="animate-in fade-in slide-in-from-top-2 duration-300">
-          <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-2xl">
-            <CardHeader className="bg-muted/30 p-8 border-b">
-               <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Gateway Stripe</CardTitle>
-               <CardDescription>Conecte as chaves da API para habilitar transações reais.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-8 space-y-6">
-              <div className="grid grid-cols-2 gap-2">
-                 <Button variant={stripeForm.mode === 'test' ? 'secondary' : 'outline'} className="rounded-xl h-11 font-bold gap-2" onClick={() => setStripeForm({...stripeForm, mode: 'test'})}><RefreshCw className="w-4 h-4" /> Modo Teste</Button>
-                 <Button variant={stripeForm.mode === 'live' ? 'secondary' : 'outline'} className="rounded-xl h-11 font-bold gap-2" onClick={() => setStripeForm({...stripeForm, mode: 'live'})}><Globe className="w-4 h-4" /> Modo Produção</Button>
-              </div>
-              <div className="space-y-4">
-                 <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Publishable Key</Label>
-                    <Input value={stripeForm.publishableKey} onChange={e => setStripeForm({...stripeForm, publishableKey: e.target.value})} className="rounded-xl h-11 font-mono text-xs" placeholder="pk_..." />
-                 </div>
-                 <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Secret Key</Label>
-                    <Input type="password" value={stripeForm.secretKey} onChange={e => setStripeForm({...stripeForm, secretKey: e.target.value})} className="rounded-xl h-11 font-mono text-xs" placeholder="sk_..." />
-                 </div>
-              </div>
-              <Button onClick={() => handleSave('settings', 'stripe', stripeForm)} disabled={saving} className="w-full h-12 bg-primary text-white font-black rounded-xl uppercase italic">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />} Atualizar Stripe
-              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -470,7 +483,7 @@ function EventTypeControl({ title, desc, config, onChange }: { title: string, de
           <Label className="text-[10px] font-black uppercase opacity-40 ml-1">Mensagem de Aviso (Opcional)</Label>
           <Input 
             value={config.message} 
-            onChange={e => onChange({...config, message: e.target.value})} 
+            onChange={onChange ? (e) => onChange({...config, message: e.target.value}) : undefined}
             placeholder="Ex: Funcionalidade em manutenção até 20/05"
             className="rounded-xl h-10 text-xs border-dashed"
           />
