@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -267,7 +266,6 @@ function OrganizationFinanceContent() {
     );
   }
 
-  const currentMarkup = currentOrg?.customBuyerMarkup ?? (VIBY_BUYER_MARKUP * 100);
   const currentCommission = currentOrg?.customOrganizerPercent ?? (VIBY_ORGANIZER_FEE * 100);
   const currentMinFee = currentOrg?.customOrganizerMinFee ?? VIBY_MIN_FEE_BRL;
 
@@ -308,8 +306,7 @@ function OrganizationFinanceContent() {
          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2 flex items-center gap-2">
            <Scale className="w-4 h-4" /> Suas Condições Comerciais
          </h3>
-         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <FeeCard label="Taxa do Comprador" value={`${currentMarkup}%`} desc="Markup sobre o face." icon={Percent} />
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FeeCard label="Comissão Viby" value={`${currentCommission}%`} desc="Desconto do repasse." icon={TrendingUp} />
             <FeeCard label="Valor Mínimo" value={formatCurrency(currentMinFee)} desc="Por ingresso vendido." icon={Coins} />
          </div>
