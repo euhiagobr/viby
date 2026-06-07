@@ -150,7 +150,8 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    await new Promise(resolve => setTimeout(resolve, 800));
+    // Pequena pausa para garantir que o layout off-screen atualize o formato
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     try {
       const config = FORMAT_CONFIGS[format];
@@ -161,22 +162,21 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         backgroundColor: '#ffffff',
         width: config.width,
         height: config.height,
-        pixelRatio: 1.5,
+        pixelRatio: 2, // Melhor qualidade no mobile
         style: {
           visibility: 'visible',
           opacity: '1'
         }
       };
 
-      await toPng(node, exportOptions);
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
       const dataUrl = await toPng(node, exportOptions);
 
       if (!dataUrl || dataUrl.length < 1000) {
         throw new Error("Falha na geração dos pixels da imagem.");
       }
 
+      // No mobile, alguns navegadores bloqueiam o download via <a> dinâmico se houver muito atraso.
+      // Tentamos o método tradicional primeiro.
       const link = document.createElement('a');
       link.download = `viby-${data.username}-${format}.png`;
       link.href = dataUrl;
@@ -184,10 +184,14 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       link.click();
       document.body.removeChild(link);
       
-      toast({ title: "Arte gerada!", description: `Download do formato ${format} concluído.` });
+      toast({ title: "Arte gerada!", description: `Download do formato ${format} iniciado.` });
     } catch (err) {
       console.error("[Download Error]", err);
-      toast({ variant: "destructive", title: "Erro ao gerar imagem", description: "O processador visual falhou. Tente novamente." });
+      toast({ 
+        variant: "destructive", 
+        title: "Falha na exportação", 
+        description: "Tente novamente ou use o botão 'Compartilhar Link'." 
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -228,10 +232,10 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         <div style={{ 
           width: `${size}px`, 
           height: `${size}px`, 
-          borderRadius: '50%', 
+          borderRadius: '24%', // Estilo Viby
           overflow: 'hidden', 
           backgroundColor: isDark ? '#ffffff' : '#f1f5f9',
-          border: `8px solid ${theme === 'premium' ? '#D4AF37' : '#ffffff'}`,
+          border: `6px solid ${theme === 'premium' ? '#D4AF37' : '#ffffff'}`,
           boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
           display: 'flex',
           alignItems: 'center',
@@ -257,7 +261,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
              {name}
            </h1>
            {data.verified && (
-             <div style={{ shrink: 0, display: 'flex' }}>
+             <div style={{ flexShrink: 0, display: 'flex' }}>
                 <svg width={baseFontSize * 0.7} height={baseFontSize * 0.7} viewBox="0 0 24 24" fill="none">
                    <path d="M12 2L15.09 5.26L19.54 5.9L20.18 10.35L23.44 13.44L20.18 16.53L19.54 20.98L15.09 21.62L12 24.88L8.91 21.62L4.46 20.98L3.82 16.53L0.56 13.44L3.82 10.35L4.46 5.9L8.91 5.26L12 2Z" fill="#3b82f6"/>
                    <path d="M9 12L11 14L15 10" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -274,8 +278,8 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', width: '100%' }}>
         <div style={{ 
-          padding: '30px', backgroundColor: '#ffffff', borderRadius: '50px', 
-          boxShadow: '0 30px 80px rgba(0,0,0,0.3)', border: theme === 'premium' ? '10px solid #D4AF37' : 'none'
+          padding: '25px', backgroundColor: '#ffffff', borderRadius: '40px', 
+          boxShadow: '0 30px 80px rgba(0,0,0,0.3)', border: theme === 'premium' ? '8px solid #D4AF37' : 'none'
         }}>
           <QRCodeSVG value={shareUrl} size={qrSize} level="H" fgColor="#000000" includeMargin={false} />
         </div>
@@ -364,25 +368,25 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-7xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[95vh] max-h-[900px]">
         
-        {/* Área de Preview - Destaque no mobile (Ordem alterada via flex-col-reverse ou custom CSS) */}
+        {/* Área de Preview */}
         <div className="flex-1 p-6 md:p-10 bg-[#e2e8f0] flex flex-col items-center justify-center relative overflow-hidden order-1 md:order-2">
           {isGenerating && (
             <div className="absolute inset-0 z-[60] bg-primary/20 backdrop-blur-[2px] flex flex-col items-center justify-center">
                <div className="p-8 bg-white rounded-3xl shadow-2xl flex flex-col items-center gap-4">
                   <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-primary text-center">Renderizando Arquivo...</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-primary text-center">Renderizando...</p>
                </div>
             </div>
           )}
 
-          {/* Renderizador Off-Screen (Técnico) */}
-          <div style={{ position: 'absolute', left: '-9999px', top: 0, overflow: 'hidden' }}>
+          {/* Renderizador Invisível mas Ativo (Top 0 para layout correto) */}
+          <div style={{ position: 'fixed', top: 0, left: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }}>
             <div ref={renderRef} style={{ width: 'fit-content', height: 'fit-content' }}>
                {renderFullArte(currentFormat, selectedTheme)}
             </div>
           </div>
 
-          {/* Prévia Visual Proporcional */}
+          {/* Prévia Visual */}
           <div className="scale-[0.18] sm:scale-[0.22] md:scale-[0.28] lg:scale-[0.32] origin-center shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white ring-[20px] md:ring-[30px] ring-white shrink-0 rounded-sm transition-transform">
              {renderFullArte('stories', selectedTheme)}
           </div>
@@ -390,13 +394,13 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           <div className="mt-8 md:mt-12 flex flex-col items-center gap-4">
              <div className="flex items-center gap-3 px-6 py-2.5 bg-white/90 backdrop-blur-md rounded-full border shadow-xl">
                 <Monitor className="w-4 h-4 text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Arte em Alta Resolução</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Arte de Alta Resolução</p>
              </div>
           </div>
         </div>
 
-        {/* Painel Lateral / Controles - Abaixo no mobile */}
-        <div className="w-full md:w-96 flex flex-col bg-white border-r shrink-0 order-2 md:order-1 max-h-[50vh] md:max-h-full">
+        {/* Painel Lateral */}
+        <div className="w-full md:w-96 flex flex-col bg-white border-r shrink-0 order-2 md:order-1 max-h-[50vh] md:max-h-full shadow-2xl">
           <div className="p-6 md:p-8 border-b bg-muted/10">
              <DialogHeader>
                 <div className="flex items-center gap-3 mb-2">
@@ -420,18 +424,18 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Visual / Tema</p>
                    <div className="grid grid-cols-2 gap-2">
                       {THEMES.map((t) => (
-                        <Button 
+                        <button 
                           key={t.id}
-                          variant={selectedTheme === t.id ? 'secondary' : 'outline'}
+                          type="button"
                           className={cn(
-                            "h-10 md:h-12 justify-start gap-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase transition-all px-3",
-                            selectedTheme === t.id && "bg-secondary text-white shadow-lg shadow-secondary/10 border-none"
+                            "h-12 flex items-center justify-start gap-2 rounded-xl text-[10px] font-black uppercase transition-all px-4 border-2",
+                            selectedTheme === t.id ? "bg-secondary text-white border-secondary shadow-lg" : "bg-white border-border hover:border-secondary/30"
                           )}
                           onClick={() => setSelectedTheme(t.id)}
                         >
-                           <t.icon className={cn("w-3 h-3 md:w-3.5 md:h-3.5", selectedTheme === t.id ? "text-white" : "text-secondary")} />
+                           <t.icon className={cn("w-3.5 h-3.5", selectedTheme === t.id ? "text-white" : "text-secondary")} />
                            {t.label}
-                        </Button>
+                        </button>
                       ))}
                    </div>
                 </div>
@@ -439,17 +443,17 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
                 <Separator className="border-dashed" />
 
                 <div className="space-y-4">
-                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Exportar Redes Sociais</p>
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Redes Sociais</p>
                    <div className="grid grid-cols-1 gap-2">
-                      <Button onClick={() => handleDownload('stories')} disabled={isGenerating || !isAssetsLoaded} className="h-14 md:h-16 rounded-2xl bg-secondary text-white font-black uppercase italic shadow-xl shadow-secondary/20 gap-3 group">
-                         <Smartphone className="w-5 h-5 md:w-6 md:h-6 group-hover:scale-110 transition-transform" />
+                      <Button onClick={() => handleDownload('stories')} disabled={isGenerating || !isAssetsLoaded} className="h-16 rounded-2xl bg-secondary text-white font-black uppercase italic shadow-xl shadow-secondary/20 gap-3 group">
+                         <Smartphone className="w-6 h-6 group-hover:scale-110 transition-transform" />
                          <div className="text-left">
-                            <p className="text-xs md:text-sm">Stories Instagram</p>
-                            <p className="text-[8px] md:text-[9px] opacity-60">1080x1920 nativo</p>
+                            <p className="text-sm">Stories Instagram</p>
+                            <p className="text-[9px] opacity-60">1080x1920 nativo</p>
                          </div>
                       </Button>
-                      <Button onClick={() => handleDownload('instagram')} disabled={isGenerating || !isAssetsLoaded} variant="outline" className="h-12 md:h-14 rounded-2xl font-black uppercase italic text-xs gap-3 border-2">
-                         <Instagram className="w-4 h-4 md:w-5 md:h-5 text-pink-500" /> Post Feed (1:1)
+                      <Button onClick={() => handleDownload('instagram')} disabled={isGenerating || !isAssetsLoaded} variant="outline" className="h-14 rounded-2xl font-black uppercase italic text-xs gap-3 border-2">
+                         <Instagram className="w-5 h-5 text-pink-500" /> Post Feed (1:1)
                       </Button>
                    </div>
                 </div>
@@ -458,9 +462,9 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Impressão (PDF/PNG)</p>
                    <div className="grid grid-cols-3 gap-2">
                       {(['A4', 'A5', 'A6'] as Format[]).map(f => (
-                        <Button key={f} variant="outline" onClick={() => handleDownload(f)} disabled={isGenerating || !isAssetsLoaded} className="h-10 md:h-12 rounded-xl text-[9px] md:text-[10px] font-black uppercase border-dashed">
+                        <button key={f} onClick={() => handleDownload(f)} disabled={isGenerating || !isAssetsLoaded} className="h-12 rounded-xl text-[10px] font-black uppercase border-2 border-dashed border-border hover:border-secondary transition-all disabled:opacity-30">
                            {f}
-                        </Button>
+                        </button>
                       ))}
                    </div>
                 </div>
