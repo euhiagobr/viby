@@ -104,10 +104,9 @@ service cloud.firestore {
     }
 
     match /notifications/{notifId} {
-      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.targetUid);
-      allow list: if isAdmin() || (isSignedIn() && request.query.limit <= 100 && request.query.filters.targetUid == request.auth.uid);
+      allow read, list: if isAdmin() || (isSignedIn() && (resource == null || resource.data.targetUid == request.auth.uid || request.query.filters.targetUid == request.auth.uid));
       allow create: if isSignedIn();
-      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.targetUid);
+      allow update: if isAdmin() || (isSignedIn() && (resource == null || resource.data.targetUid == request.auth.uid));
       allow delete: if isAdmin();
     }
 
