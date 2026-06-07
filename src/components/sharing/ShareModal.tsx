@@ -150,14 +150,15 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    // Pequena pausa para garantir que o navegador processou as mudanças de dimensão e CSS do nó invisível
+    // Aguarda dois frames para garantir que o navegador processou o layout off-screen com as dimensões corretas
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await new Promise(resolve => setTimeout(resolve, 300)); // Delay extra para decodificação de imagens pesadas
 
     try {
       const config = FORMAT_CONFIGS[format];
       const node = renderRef.current;
 
-      const exportOptions = {
+      const dataUrl = await toPng(node, {
         cacheBust: true,
         backgroundColor: '#ffffff',
         width: config.width,
@@ -167,9 +168,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           visibility: 'visible',
           opacity: '1'
         }
-      };
-
-      const dataUrl = await toPng(node, exportOptions);
+      });
 
       if (!dataUrl || dataUrl.length < 5000) {
         throw new Error("A imagem gerada parece estar corrompida ou vazia.");
@@ -186,16 +185,15 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       link.click();
       document.body.removeChild(link);
       
-      // Limpeza imediata para liberar memória
       setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
       
-      toast({ title: "Pronto!", description: "Sua arte foi gerada e o download iniciado." });
+      toast({ title: "Pronto!", description: "Sua arte foi gerada com sucesso." });
     } catch (err: any) {
       console.error("[Download Error]", err);
       toast({ 
         variant: "destructive", 
         title: "Erro na geração", 
-        description: "Não foi possível converter a arte. Tente mudar o tema ou use o botão 'Compartilhar Link'." 
+        description: "Não foi possível converter a arte. Tente novamente ou use o botão 'Compartilhar Link'." 
       });
     } finally {
       setIsGenerating(false);
@@ -369,13 +367,25 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     );
   };
 
+  const currentConfig = FORMAT_CONFIGS[currentFormat];
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-7xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[95vh] max-h-[900px]">
         
-        {/* Renderizador Invisível mas Ativo (Força o motor CSS a processar dimensões reais) */}
-        <div style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, overflow: 'hidden', visibility: 'hidden', pointerEvents: 'none' }}>
-          <div ref={renderRef} style={{ width: 'fit-content', height: 'fit-content' }}>
+        {/* Renderizador Off-screen mas com dimensões reais para forçar layout */}
+        <div style={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: '-10000px', 
+          width: `${currentConfig.width}px`, 
+          height: `${currentConfig.height}px`, 
+          overflow: 'hidden', 
+          visibility: 'hidden', 
+          pointerEvents: 'none',
+          zIndex: -1
+        }}>
+          <div ref={renderRef} style={{ width: '100%', height: '100%' }}>
               {renderFullArte(currentFormat, selectedTheme)}
           </div>
         </div>
