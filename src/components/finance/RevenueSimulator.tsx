@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -89,8 +88,8 @@ export function RevenueSimulator({ isOpen, onOpenChange, customFees }: RevenueSi
                  </span>
                  <span className="text-primary">{formatPrice(results.totalCharged, currency)}</span>
               </div>
-              <p className="text-[9px] text-muted-foreground leading-tight ml-6 uppercase font-medium">
-                taxas administrativas para segurança, manutenção, e gateway de pagamento
+              <p className="text-[9px] text-muted-foreground leading-tight ml-6 uppercase font-medium italic">
+                A taxa de serviço cobre os custos de processamento de pagamento, emissão dos ingressos digitais, infraestrutura da plataforma, suporte e segurança da transação.
               </p>
             </div>
             
@@ -101,7 +100,7 @@ export function RevenueSimulator({ isOpen, onOpenChange, customFees }: RevenueSi
                <div className="flex flex-col items-end">
                   <span className="text-red-500">-{formatPrice(results.organizerFee, currency)}</span>
                   {isMinFeeApplied && (
-                    <Badge className="h-4 text-[7px] font-black uppercase bg-orange-500 text-white border-none mt-1">Trava de Mínimo Ativa</Badge>
+                    <Badge className="h-4 text-[7px] font-black uppercase bg-orange-50 text-white border-none mt-1">Trava de Mínimo Ativa</Badge>
                   )}
                </div>
             </div>
