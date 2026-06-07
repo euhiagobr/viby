@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -55,34 +56,6 @@ const ORG_TYPES = [
     items: ["Empresa", "Startup", "Agência de Marketing", "Agência Digital", "Coworking", "Consultoria", "Escritório", "Loja", "E-commerce", "Marca", "Franquia", "Empresa de Tecnologia"]
   },
   {
-    category: "Saúde e Bem-estar",
-    items: ["Academia", "Crossfit", "Estúdio de Yoga", "Clínica", "Psicologia", "Nutrição", "Personal Trainer", "Espaço Terapêutico"]
-  },
-  {
-    category: "Educação e Desenvolvimento",
-    items: ["Escola", "Universidade", "Curso", "Escola de Idiomas", "Escola Técnica", "Projeto Educacional", "Mentor(a)", "Palestrante", "Centro de Treinamento"]
-  },
-  {
-    category: "Turismo e Hospitalidade",
-    items: ["Hotel", "Hostel", "Pousada", "Agência de Turismo", "Parque", "Resort", "Espaço de Eventos"]
-  },
-  {
-    category: "Comunidade e Instituições",
-    items: ["ONG", "Associação", "Coletivo", "Fundação", "Organização Social", "Instituição Pública", "Prefeitura", "Secretaria", "Câmara Municipal", "Projeto Social", "Igreja", "Organização Religiosa", "Centro Comunitário"]
-  },
-  {
-    category: "Esporte e Comunidades",
-    items: ["Clube", "Time", "Organização Esportiva", "Liga", "Atlética", "Grupo de Corrida", "Comunidade Gamer", "Equipe de E-sports"]
-  },
-  {
-    category: "Tecnologia e Games",
-    items: ["Estúdio de Jogos", "Comunidade Tech", "Empresa de Software", "Desenvolvedora", "Plataforma Digital", "Criador de Conteúdo", "Streamer", "Podcast"]
-  },
-  {
-    category: "Comércio e Experiências",
-    items: ["Shopping", "Feira", "Mercado", "Loja Geek", "Livraria", "Pet Shop", "Sex Shop", "Tabacaria", "Floricultura"]
-  },
-  {
     category: "Categoria Genérica",
     items: ["Outro"]
   }
@@ -136,7 +109,7 @@ export default function NovaOrganizacaoPage() {
 
   const storage = React.useMemo(() => {
     if (!app) return null;
-    return getStorage(app, 'gs://viby');
+    return getStorage(app);
   }, [app])
 
   useEffect(() => {
@@ -357,7 +330,7 @@ export default function NovaOrganizacaoPage() {
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60">Name</Label>
+                  <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Name</Label>
                   <Input 
                     id="name" 
                     placeholder="Ex: Viby Entertainment" 
@@ -369,13 +342,13 @@ export default function NovaOrganizacaoPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="username" className="text-[10px] font-black uppercase tracking-widest opacity-60">Exclusive Username (@)</Label>
+                  <Label htmlFor="username" className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Exclusive Username (@)</Label>
                   <div className="relative">
                     <Input 
                       id="username" 
                       placeholder="Letters and numbers only" 
                       value={formData.username}
-                      onChange={e => setFormData(prev => ({ ...prev, username: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "") }))}
+                      onChange={e => setFormData(prev => ({ ...prev, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") }))}
                       className={cn(
                         "rounded-xl h-11",
                         usernameStatus === 'valid' ? 'border-green-500 pr-10' : 

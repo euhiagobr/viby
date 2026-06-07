@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -21,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/dialog"
 import { 
   ArrowLeft, 
   Loader2, 
@@ -80,7 +81,7 @@ export default function AdminTicketResponsePage() {
     setUploadProgress(0)
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
-      const fileName = `support/admin/replies/${Date.now()}_${safeName}`;
+      const fileName = `support/${user.uid}/replies/${Date.now()}_${safeName}`;
       const storageRef = ref(storage, fileName);
       const uploadTask = uploadBytesResumable(storageRef, file);
 
@@ -90,7 +91,7 @@ export default function AdminTicketResponsePage() {
           setUploadProgress(progress);
         },
         (error) => {
-          toast({ variant: "destructive", title: "Erro no upload" });
+          toast({ variant: "destructive", title: "Erro no upload", description: "Verifique suas permissões de acesso." });
           setUploadProgress(null);
         },
         async () => {
