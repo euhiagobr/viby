@@ -38,6 +38,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { IMAGE_CACHE_METADATA } from '@/lib/image-utils';
+import { Badge } from '@/components/ui/badge';
 
 export default function AdminConfiguracoesPage() {
   const db = useFirestore();
@@ -248,16 +249,6 @@ export default function AdminConfiguracoesPage() {
                  <Button variant={stripeForm.mode === 'live' ? 'secondary' : 'outline'} className="rounded-xl h-11 font-bold gap-2" onClick={() => setStripeForm({...stripeForm, mode: 'live'})}><Globe className="w-4 h-4" /> Modo Produção</Button>
               </div>
 
-              <div className="p-6 bg-orange-50 border-2 border-dashed border-orange-200 rounded-3xl flex items-start gap-4">
-                 <ShieldCheck className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
-                 <div className="space-y-1">
-                    <h4 className="font-black uppercase text-xs italic text-orange-800">Aviso sobre Restricted Keys</h4>
-                    <p className="text-[10px] text-orange-700 font-medium leading-relaxed uppercase">
-                      Se você estiver usando uma <strong>Restricted Key (rk_...)</strong> por segurança, certifique-se de conceder a permissão <strong>"Write"</strong> para o recurso <strong>"Account Links"</strong> no seu dashboard do Stripe. Sem isso, a conexão das marcas falhará.
-                    </p>
-                 </div>
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Key className="w-3 h-3" /> Publishable Key</Label>
@@ -276,33 +267,50 @@ export default function AdminConfiguracoesPage() {
 
           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl border-t-8 border-secondary/20">
              <CardHeader className="bg-secondary/5 p-8 border-b">
-                <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2 text-primary">
-                   <ListChecks className="w-5 h-5 text-secondary" /> Guia de Permissões (RK)
-                </CardTitle>
-                <CardDescription className="font-medium">Para chaves restritas (rk_...), ative obrigatoriamente:</CardDescription>
+                <div className="flex items-center gap-3 mb-2">
+                   <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><ListChecks className="w-5 h-5" /></div>
+                   <CardTitle className="text-xl font-black italic uppercase tracking-tighter text-primary">Guia para Restricted Keys (rk_...)</CardTitle>
+                </div>
+                <CardDescription className="font-medium">Para usar chaves restritas, você deve habilitar o acesso <b>Write</b> nas duas seções abaixo:</CardDescription>
              </CardHeader>
-             <CardContent className="p-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                   <div className="space-y-4">
-                      <p className="text-[10px] font-black uppercase text-secondary tracking-widest">Connect (Obrigatório)</p>
-                      <ul className="space-y-2">
-                         <li className="flex items-center gap-2 text-xs font-bold text-primary bg-muted/40 p-2 rounded-lg border-l-4 border-secondary">Account Links: <Badge className="bg-green-500 h-4 text-[8px] font-black">WRITE</Badge></li>
-                         <li className="flex items-center gap-2 text-xs font-bold text-primary bg-muted/40 p-2 rounded-lg border-l-4 border-secondary">Accounts: <Badge className="bg-green-500 h-4 text-[8px] font-black">WRITE</Badge></li>
-                         <li className="flex items-center gap-2 text-xs font-bold text-primary bg-muted/40 p-2 rounded-lg border-l-4 border-secondary">Transfers: <Badge className="bg-green-500 h-4 text-[8px] font-black">WRITE</Badge></li>
-                      </ul>
+             <CardContent className="p-8 space-y-10">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                   {/* Seção de Permissões Connect */}
+                   <div className="space-y-6">
+                      <div className="flex items-center gap-2">
+                         <div className="w-6 h-6 rounded-full bg-secondary text-white flex items-center justify-center text-[10px] font-black">1</div>
+                         <h4 className="text-xs font-black uppercase text-secondary tracking-widest">Permissões do Connect</h4>
+                      </div>
+                      <div className="space-y-3">
+                         <PermissionItem label="Account Links" level="WRITE" desc="Cria o link de cadastro da marca" />
+                         <PermissionItem label="Accounts" level="WRITE" desc="Cria o ID da marca no seu Stripe" />
+                         <PermissionItem label="Transfers" level="WRITE" desc="Envia o dinheiro para as marcas" />
+                      </div>
                    </div>
-                   <div className="space-y-4">
-                      <p className="text-[10px] font-black uppercase text-secondary tracking-widest">Core (Vendas)</p>
-                      <ul className="space-y-2">
-                         <li className="flex items-center gap-2 text-xs font-bold text-primary bg-muted/40 p-2 rounded-lg border-l-4 border-primary">Checkout Sessions: <Badge className="bg-green-500 h-4 text-[8px] font-black">WRITE</Badge></li>
-                         <li className="flex items-center gap-2 text-xs font-bold text-primary bg-muted/40 p-2 rounded-lg border-l-4 border-primary">Payment Intents: <Badge className="bg-green-500 h-4 text-[8px] font-black">WRITE</Badge></li>
-                         <li className="flex items-center gap-2 text-xs font-bold text-primary bg-muted/40 p-2 rounded-lg border-l-4 border-primary">Charges and Refunds: <Badge className="bg-green-500 h-4 text-[8px] font-black">WRITE</Badge></li>
-                      </ul>
+
+                   {/* Seção de Permissões Gerais */}
+                   <div className="space-y-6">
+                      <div className="flex items-center gap-2">
+                         <div className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-[10px] font-black">2</div>
+                         <h4 className="text-xs font-black uppercase text-primary tracking-widest">Permissões (Core)</h4>
+                      </div>
+                      <div className="space-y-3">
+                         <PermissionItem label="Checkout Sessions" level="WRITE" desc="Venda de ingressos e recargas" />
+                         <PermissionItem label="Payment Intents" level="WRITE" desc="Processamento dos pagamentos" />
+                         <PermissionItem label="Charges and Refunds" level="WRITE" desc="Estornos de ingressos" />
+                         <PermissionItem label="Customers" level="WRITE" desc="Gestão de compradores" />
+                      </div>
                    </div>
                 </div>
-                <div className="mt-8 p-4 bg-muted/30 rounded-2xl border border-dashed flex items-start gap-3">
-                   <Info className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
-                   <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">Sem essas permissões, o onboarding de novas marcas e o checkout de ingressos falharão silenciosamente no ambiente de produção.</p>
+
+                <div className="p-6 bg-orange-50 border-2 border-dashed border-orange-200 rounded-3xl flex items-start gap-4">
+                   <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
+                   <div className="space-y-1">
+                      <h4 className="font-black uppercase text-xs italic text-orange-800">Dica de Configuração</h4>
+                      <p className="text-[10px] text-orange-700 font-medium leading-relaxed uppercase">
+                        Marque as permissões em <b>ambas as abas</b> (Permissions e Connect Permissions). Sem o acesso em Account Links, as marcas receberão um erro de sistema ao tentar conectar seus perfis.
+                      </p>
+                   </div>
                 </div>
              </CardContent>
           </Card>
@@ -523,6 +531,18 @@ function EventTypeControl({ title, desc, config, onChange }: { title: string, de
             className="rounded-xl h-10 text-xs border-dashed"
           />
        </div>
+    </div>
+  );
+}
+
+function PermissionItem({ label, level, desc }: { label: string, level: string, desc: string }) {
+  return (
+    <div className="p-3 bg-muted/40 rounded-xl border border-border/50 flex flex-col gap-1">
+       <div className="flex items-center justify-between">
+          <span className="text-[11px] font-bold text-primary">{label}</span>
+          <Badge className="bg-green-600 text-white h-4 text-[8px] font-black uppercase tracking-widest">{level}</Badge>
+       </div>
+       <p className="text-[9px] text-muted-foreground leading-tight uppercase font-medium">{desc}</p>
     </div>
   );
 }
