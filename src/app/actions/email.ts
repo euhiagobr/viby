@@ -1,3 +1,4 @@
+
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -345,6 +346,112 @@ export async function sendWelcomeEmail(data: any) {
       content: htmlContent,
       type: "welcome_email",
       sender: "Viby Club"
+    });
+
+    return { success: true };
+  } catch (e: any) { return { success: false, error: e.message }; }
+}
+
+export async function sendSupportTicketReceivedEmail(data: {
+  to: string;
+  userName: string;
+  ticketNumber: string;
+  ticketSubject: string;
+  ticketMessage: string;
+  ticketUrl: string;
+}) {
+  try {
+    const branding = await getBranding();
+    const transporter = await getTransporter();
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
+
+    const content = `
+      <h2 style="color: #2C52EE; text-transform: uppercase; font-weight: 900;">Solicitação Recebida</h2>
+      <p>Olá, <strong>${data.userName}</strong>.</p>
+      <p>Recebemos sua solicitação e ela já foi encaminhada para nossa equipe.</p>
+      <div style="background: #f8fafc; padding: 25px; border-radius: 20px; margin: 25px 0; border: 1px solid #e2e8f0; text-align: left;">
+        <p style="margin: 5px 0; font-size: 12px; color: #64748b;"><strong>NÚMERO DO TICKET:</strong> #${data.ticketNumber}</p>
+        <p style="margin: 5px 0; font-size: 12px; color: #64748b;"><strong>ASSUNTO:</strong> ${data.ticketSubject}</p>
+        <p style="margin: 15px 0 5px 0; font-size: 12px; color: #64748b;"><strong>MENSAGEM ENVIADA:</strong></p>
+        <p style="margin: 0; font-style: italic; font-size: 13px; color: #1e293b; line-height: 1.5;">"${data.ticketMessage}"</p>
+      </div>
+      <p style="font-size: 13px; color: #64748b; line-height: 1.5;">Nossa equipe analisará sua solicitação e responderá em até 48 horas.</p>
+      <div style="text-align: center; margin-top: 35px;">
+        <a href="${data.ticketUrl}" style="background: #2C52EE; color: #ffffff; padding: 18px 36px; text-decoration: none; border-radius: 18px; font-weight: 900; font-size: 14px; display: inline-block; text-transform: uppercase; box-shadow: 0 10px 20px rgba(44, 82, 238, 0.2);">Acompanhar Atendimento</a>
+      </div>
+    `;
+
+    const htmlContent = getEmailTemplate(branding, content);
+    const subject = `Recebemos sua solicitação (#${data.ticketNumber})`;
+
+    await transporter.sendMail({
+      from: `"${branding.siteName} Suporte" <${smtpUser}>`,
+      to: data.to,
+      subject,
+      html: htmlContent
+    });
+
+    await logSentEmail({
+      recipientEmail: data.to,
+      recipientName: data.userName,
+      subject,
+      content: htmlContent,
+      type: "support_ticket_received",
+      sender: "Viby Suporte"
+    });
+
+    return { success: true };
+  } catch (e: any) { return { success: false, error: e.message }; }
+}
+
+export async function sendSupportTicketResponseEmail(data: {
+  to: string;
+  userName: string;
+  ticketNumber: string;
+  lastReply: string;
+  ticketUrl: string;
+}) {
+  try {
+    const branding = await getBranding();
+    const transporter = await getTransporter();
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
+
+    const content = `
+      <h2 style="color: #2C52EE; text-transform: uppercase; font-weight: 900;">Nova Resposta da Equipe</h2>
+      <p>Olá, <strong>${data.userName}</strong>.</p>
+      <p>Nossa equipe respondeu sua solicitação.</p>
+      <div style="background: #f8fafc; padding: 25px; border-radius: 20px; margin: 25px 0; border: 1px solid #e2e8f0; text-align: left;">
+        <p style="margin: 5px 0; font-size: 12px; color: #64748b;"><strong>TICKET:</strong> #${data.ticketNumber}</p>
+        <p style="margin: 15px 0 5px 0; font-size: 12px; color: #64748b;"><strong>ÚLTIMA RESPOSTA:</strong></p>
+        <p style="margin: 0; font-size: 13px; color: #1e293b; line-height: 1.5;">"${data.lastReply}"</p>
+      </div>
+      <p style="font-size: 13px; color: #64748b; line-height: 1.5;">Caso necessário, você poderá responder diretamente pelo painel da Viby.</p>
+      <div style="text-align: center; margin-top: 35px;">
+        <a href="${data.ticketUrl}" style="background: #2C52EE; color: #ffffff; padding: 18px 36px; text-decoration: none; border-radius: 18px; font-weight: 900; font-size: 14px; display: inline-block; text-transform: uppercase; box-shadow: 0 10px 20px rgba(44, 82, 238, 0.2);">Visualizar Conversa</a>
+      </div>
+    `;
+
+    const htmlContent = getEmailTemplate(branding, content);
+    const subject = `Sua solicitação recebeu uma resposta (#${data.ticketNumber})`;
+
+    await transporter.sendMail({
+      from: `"${branding.siteName} Suporte" <${smtpUser}>`,
+      to: data.to,
+      subject,
+      html: htmlContent
+    });
+
+    await logSentEmail({
+      recipientEmail: data.to,
+      recipientName: data.userName,
+      subject,
+      content: htmlContent,
+      type: "support_ticket_response",
+      sender: "Viby Suporte"
     });
 
     return { success: true };

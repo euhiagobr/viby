@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -34,6 +35,7 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import { sendSupportTicketReceivedEmail } from "@/app/actions/email"
 
 const MAX_SUPPORT_FILES = 3;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
@@ -125,9 +127,10 @@ export default function SuportePage() {
 
     setIsSubmitting(true)
     const formData = new FormData(e.currentTarget)
+    const protocol = generateProtocol();
     
     const ticketData = {
-      protocol: generateProtocol(),
+      protocol,
       userId: user.uid,
       userName: user.displayName || "Usuário",
       userEmail: user.email,
@@ -142,7 +145,19 @@ export default function SuportePage() {
 
     addDoc(collection(db, "support_tickets"), ticketData)
       .then(() => {
-        toast({ title: "Ticket criado!", description: `Protocolo: ${ticketData.protocol}` })
+        // Envio de E-mail de Confirmação
+        if (user.email) {
+          sendSupportTicketReceivedEmail({
+            to: user.email,
+            userName: ticketData.userName,
+            ticketNumber: protocol,
+            ticketSubject: ticketData.subject,
+            ticketMessage: ticketData.description,
+            ticketUrl: `https://viby.club/suporte/${protocol}`
+          }).catch(err => console.warn("[Email Support] Failed to send creation notification", err));
+        }
+
+        toast({ title: "Ticket criado!", description: `Protocolo: ${protocol}` })
         setIsDialogOpen(false)
         setAttachments([])
       })
@@ -335,7 +350,7 @@ function TicketCard({ ticket, getStatusBadge }: { ticket: any, getStatusBadge: (
             </div>
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black text-muted-foreground tracking-widest">#{ticket.protocol}</span>
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">#{ticket.protocol}</span>
                 {getStatusBadge(ticket.status)}
               </div>
               <h3 className="font-bold text-lg leading-tight line-clamp-1">{ticket.subject}</h3>

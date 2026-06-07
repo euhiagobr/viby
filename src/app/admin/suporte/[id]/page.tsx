@@ -42,6 +42,7 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import { sendSupportTicketResponseEmail } from "@/app/actions/email"
 
 const MAX_SUPPORT_FILES = 3;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
@@ -117,7 +118,7 @@ export default function AdminTicketResponsePage() {
 
   const handleSendResponse = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!db || !user || !ticketRef) return
+    if (!db || !user || !ticketRef || !ticket) return
     if (!response.trim() && attachments.length === 0) return;
 
     setIsSubmitting(true)
@@ -137,7 +138,18 @@ export default function AdminTicketResponsePage() {
     }
 
     updateDoc(ticketRef, updateData)
-      .then(() => {
+      .then(async () => {
+        // Envio de E-mail de Resposta para o usuário dono do ticket
+        if (ticket.userEmail) {
+          sendSupportTicketResponseEmail({
+            to: ticket.userEmail,
+            userName: ticket.userName || "Usuário",
+            ticketNumber: ticket.protocol,
+            lastReply: messageObj.text,
+            ticketUrl: `https://viby.club/suporte/${ticket.id}`
+          }).catch(err => console.warn("[Email Support] Failed to send reply notification", err));
+        }
+
         setResponse("")
         setAttachments([])
         toast({ title: "Resposta enviada!" })
@@ -301,7 +313,7 @@ export default function AdminTicketResponsePage() {
                 </div>
                 {uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}
               </div>
-              <Button type="submit" disabled={isSubmitting || (response.trim() === "" && attachments.length === 0) || uploadProgress !== null} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+              <Button type="submit" disabled={isSubmitting || (response.trim() === "" && attachments.length === 0) || uploadProgress !== null} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.01] transition-transform">
                 {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Send className="w-5 h-5 mr-2" />}
                 Enviar Resposta
               </Button>
