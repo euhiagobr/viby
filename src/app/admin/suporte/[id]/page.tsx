@@ -21,7 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/dialog"
+} from "@/components/ui/alert-dialog"
 import { 
   ArrowLeft, 
   Loader2, 
@@ -268,7 +268,7 @@ export default function AdminTicketResponsePage() {
         <CardHeader className="bg-muted/30 border-b p-8">
           <div className="flex justify-between items-start">
              <CardTitle className="text-2xl font-bold tracking-tight">{ticket.subject}</CardTitle>
-             <Badge className={cn("font-black uppercase text-[10px] px-3 py-1", ticket.status === 'Não lida' ? "bg-orange-50 text-orange-600" : "bg-green-500 text-white")}>
+             <Badge className={cn("font-black uppercase text-[10px] px-3 py-1", ticket.status === 'Não lida' ? "bg-orange-50 text-orange-600 border-orange-200" : "bg-green-500 text-white")}>
                {ticket.status}
              </Badge>
           </div>
