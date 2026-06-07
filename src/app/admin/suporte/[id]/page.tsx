@@ -22,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/dialog"
+} from "@/components/ui/alert-dialog"
 import { 
   ArrowLeft, 
   Loader2, 
@@ -81,6 +81,7 @@ export default function AdminTicketResponsePage() {
     setUploadProgress(0)
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+      // Uso do UID real do admin para respeitar a regra isOwner(userId)
       const fileName = `support/${user.uid}/replies/${Date.now()}_${safeName}`;
       const storageRef = ref(storage, fileName);
       const uploadTask = uploadBytesResumable(storageRef, file);
