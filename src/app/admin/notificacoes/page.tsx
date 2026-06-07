@@ -21,7 +21,6 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Bell, 
   Send, 
-  Search, 
   Loader2, 
   AtSign, 
   CheckCircle2, 
@@ -33,7 +32,8 @@ import {
   Info,
   BadgeCheck,
   Users,
-  Megaphone
+  Megaphone,
+  User
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { MentionTextarea } from '@/components/ui/mention-textarea';
@@ -56,7 +56,6 @@ export default function AdminNotificacoesCreatorPage() {
   const [targetUser, setTargetUser] = React.useState<any>(null);
   const [message, setMessage] = React.useState("");
   const [isSending, setIsSending] = React.useState(false);
-  const [sendCount, setSendCount] = React.useState(0);
 
   const handleSearchUser = async () => {
     if (!db || !searchTarget.trim() || isSearching) return;
@@ -98,12 +97,15 @@ export default function AdminNotificacoesCreatorPage() {
     setIsSending(true);
     try {
       if (sendMode === 'single') {
+        // Substituição de variável para envio único
+        const personalizedMessage = message.replace(/\[username\]/g, `@${targetUser.username}`);
+        
         const notificationData = {
           targetUid: targetUser.id,
           senderId: VIBY_OFFICIAL_UID,
           senderName: "Viby",
           type: "system",
-          message: message.trim(),
+          message: personalizedMessage.trim(),
           read: false,
           createdAt: serverTimestamp(),
           adminExecutorId: adminUser?.uid
@@ -111,22 +113,25 @@ export default function AdminNotificacoesCreatorPage() {
         await addDoc(collection(db, "notifications"), notificationData);
         toast({ title: "Notificação Enviada!", description: `Comunicado entregue para @${targetUser.username}` });
       } else {
-        // Modo Broadcast (Todos os usuários)
+        // Modo Broadcast (Todos os usuários) com personalização individual
         const usersSnap = await getDocs(collection(db, "users"));
         const total = usersSnap.size;
         let processed = 0;
         
-        // Firestore Batch limit is 500
         let batch = writeBatch(db);
         let batchCount = 0;
 
         for (const uDoc of usersSnap.docs) {
+          const userData = uDoc.data();
+          // Substituição dinâmica por usuário
+          const personalizedMessage = message.replace(/\[username\]/g, `@${userData.username || 'usuário'}`);
+
           const notificationData = {
             targetUid: uDoc.id,
             senderId: VIBY_OFFICIAL_UID,
             senderName: "Viby",
             type: "system",
-            message: message.trim(),
+            message: personalizedMessage.trim(),
             read: false,
             createdAt: serverTimestamp(),
             adminExecutorId: adminUser?.uid
@@ -148,7 +153,7 @@ export default function AdminNotificacoesCreatorPage() {
           await batch.commit();
         }
 
-        toast({ title: "Disparo Concluído!", description: `${processed} usuários notificados.` });
+        toast({ title: "Disparo Concluído!", description: `${processed} usuários notificados de forma personalizada.` });
       }
 
       setMessage("");
@@ -165,6 +170,11 @@ export default function AdminNotificacoesCreatorPage() {
   const insertShortcut = (tag: string) => {
     setMessage(prev => prev + (prev.endsWith(' ') || prev === '' ? '' : ' ') + tag + ' ');
   };
+
+  // Preview com substituição simulada
+  const previewMessage = React.useMemo(() => {
+    return message.replace(/\[username\]/g, "@exemplo");
+  }, [message]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 max-w-5xl mx-auto pb-20">
@@ -209,7 +219,7 @@ export default function AdminNotificacoesCreatorPage() {
                   {/* BUSCA DE DESTINATÁRIO (Apenas modo Single) */}
                   {sendMode === 'single' && (
                     <div className="space-y-3">
-                      <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Para: (@username)</Label>
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Para: (@username)</Label>
                       {!targetUser ? (
                         <div className="flex gap-2">
                             <div className="relative flex-1">
@@ -264,9 +274,9 @@ export default function AdminNotificacoesCreatorPage() {
                   <div className="space-y-3">
                      <div className="flex items-center justify-between">
                         <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Conteúdo do Comunicado</Label>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                            <Button type="button" variant="outline" size="sm" className="h-7 text-[8px] font-black uppercase rounded-lg border-dashed" onClick={() => insertShortcut('**texto**')}>Negrito</Button>
-                           <Button type="button" variant="outline" size="sm" className="h-7 text-[8px] font-black uppercase rounded-lg border-dashed" onClick={() => insertShortcut('@todos')}>@Todos</Button>
+                           <Button type="button" variant="outline" size="sm" className="h-7 text-[8px] font-black uppercase rounded-lg border-dashed" onClick={() => insertShortcut('[username]')}>Username</Button>
                            <Button type="button" variant="outline" size="sm" className="h-7 text-[8px] font-black uppercase rounded-lg border-dashed" onClick={() => insertShortcut('[instagramx=viby]')}>Instagram</Button>
                         </div>
                      </div>
@@ -276,6 +286,12 @@ export default function AdminNotificacoesCreatorPage() {
                        onValueChange={setMessage}
                        className="min-h-[180px] p-6 rounded-3xl border-dashed border-secondary/30 focus-visible:ring-secondary/20 leading-relaxed"
                      />
+                     <div className="p-3 bg-muted/30 rounded-xl flex items-start gap-2">
+                        <Info className="w-3.5 h-3.5 text-primary opacity-40 shrink-0 mt-0.5" />
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase leading-tight">
+                           Dica: Use <strong>[username]</strong> para citar o @ do destinatário.
+                        </p>
+                     </div>
                   </div>
 
                   <Button 
@@ -329,7 +345,7 @@ export default function AdminNotificacoesCreatorPage() {
                         
                         <div className="bg-muted/30 p-5 rounded-3xl border border-dashed min-h-[120px]">
                            {message ? (
-                             <RichText content={message} className="text-sm font-medium text-foreground/80" />
+                             <RichText content={previewMessage} className="text-sm font-medium text-foreground/80" />
                            ) : (
                              <div className="flex flex-col items-center justify-center h-full gap-2 py-8 opacity-20">
                                 <Megaphone className="w-8 h-8" />
