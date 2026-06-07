@@ -164,39 +164,47 @@ export default function AdminTicketResponsePage() {
   const handleCloseTicket = async () => {
     if (!db || !ticketRef || !ticket) return
     setIsSubmitting(true)
-    const updateData = { status: "Encerrada", updatedAt: serverTimestamp() }
     
-    updateDoc(ticketRef, updateData)
-      .then(async () => {
-        if (ticket.userEmail) {
-          const historyHtml = `
-            <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 20px;">
-              <p style="margin: 0; font-size: 11px; text-transform: uppercase; color: #94a3b8; font-weight: 800;">Descrição Inicial:</p>
-              <p style="margin: 5px 0 0 0; font-size: 14px; color: #1e293b;">${ticket.description}</p>
+    const updateData = { 
+      status: "Encerrada", 
+      updatedAt: serverTimestamp() 
+    }
+    
+    try {
+      await updateDoc(ticketRef, updateData)
+      
+      if (ticket.userEmail) {
+        const historyHtml = `
+          <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 20px;">
+            <p style="margin: 0; font-size: 11px; text-transform: uppercase; color: #94a3b8; font-weight: 800;">Descrição Inicial:</p>
+            <p style="margin: 5px 0 0 0; font-size: 14px; color: #1e293b;">${ticket.description}</p>
+          </div>
+          ${(ticket.messages || []).map((msg: any) => `
+            <div style="margin-bottom: 15px; padding: 12px; border-radius: 12px; background-color: ${msg.isAdmin ? '#f1f5f9' : '#ffffff'}; border: 1px solid #e2e8f0;">
+              <p style="margin: 0; font-size: 10px; font-weight: 900; text-transform: uppercase; color: ${msg.isAdmin ? '#2C52EE' : '#64748b'};">${msg.senderName}</p>
+              <p style="margin: 4px 0 0 0; font-size: 13px;">${msg.text}</p>
+              <p style="margin: 8px 0 0 0; font-size: 9px; color: #94a3b8;">${new Date(msg.timestamp).toLocaleString('pt-BR')}</p>
             </div>
-            ${(ticket.messages || []).map((msg: any) => `
-              <div style="margin-bottom: 15px; padding: 12px; border-radius: 12px; background-color: ${msg.isAdmin ? '#f1f5f9' : '#ffffff'}; border: 1px solid #e2e8f0;">
-                <p style="margin: 0; font-size: 10px; font-weight: 900; text-transform: uppercase; color: ${msg.isAdmin ? '#2C52EE' : '#64748b'};">${msg.senderName}</p>
-                <p style="margin: 4px 0 0 0; font-size: 13px;">${msg.text}</p>
-                <p style="margin: 8px 0 0 0; font-size: 9px; color: #94a3b8;">${new Date(msg.timestamp).toLocaleString('pt-BR')}</p>
-              </div>
-            `).join('')}
-          `;
+          `).join('')}
+        `;
 
-          await sendSupportTicketClosedEmail({
-            to: ticket.userEmail,
-            userName: ticket.userName || "Usuário",
-            ticketNumber: ticket.protocol,
-            historyHtml
-          });
-        }
-        
-        toast({ title: "Ticket encerrado!" })
-      })
-      .catch(async (error) => {
-        errorEmitter.emit("permission-error", new FirestorePermissionError({ path: ticketRef.path, operation: "update", requestResourceData: updateData }))
-      })
-      .finally(() => setIsSubmitting(false))
+        await sendSupportTicketClosedEmail({
+          to: ticket.userEmail,
+          userName: ticket.userName || "Usuário",
+          ticketNumber: ticket.protocol,
+          historyHtml
+        });
+      }
+      
+      toast({ title: "Ticket encerrado!", description: "E-mail de conclusão enviado ao usuário." })
+    } catch (error: any) {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit("permission-error", new FirestorePermissionError({ path: ticketRef.path, operation: "update", requestResourceData: updateData }));
+      }
+      toast({ variant: "destructive", title: "Erro ao encerrar", description: "Não foi possível finalizar o ticket." });
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleSetInProgress = () => {
@@ -247,11 +255,14 @@ export default function AdminTicketResponsePage() {
                  <DialogContent className="rounded-[2rem]">
                    <DialogHeader>
                      <DialogTitle className="text-xl font-black italic uppercase tracking-tighter">Encerrar este ticket?</DialogTitle>
-                     <DialogDescription>Esta ação é irreversível.</DialogDescription>
+                     <DialogDescription>Esta ação é irreversível e enviará o histórico por e-mail.</DialogDescription>
                    </DialogHeader>
                    <DialogFooter>
                      <Button variant="ghost" className="rounded-xl font-bold uppercase text-[10px]" onClick={() => {}}>Cancelar</Button>
-                     <Button onClick={handleCloseTicket} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px]">Confirmar Encerramento</Button>
+                     <Button onClick={handleCloseTicket} disabled={isSubmitting} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px]">
+                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                        Confirmar Encerramento
+                     </Button>
                    </DialogFooter>
                  </DialogContent>
                </Dialog>
