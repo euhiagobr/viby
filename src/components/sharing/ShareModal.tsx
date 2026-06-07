@@ -150,31 +150,27 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    // Aguarda dois frames para garantir que o navegador processou o layout off-screen com as dimensões corretas
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    await new Promise(resolve => setTimeout(resolve, 300)); // Delay extra para decodificação de imagens pesadas
+    // Forçamos o navegador a renderizar o conteúdo fora da tela mudando o formato e esperando um tempo seguro
+    await new Promise(resolve => setTimeout(resolve, 600));
 
     try {
       const config = FORMAT_CONFIGS[format];
       const node = renderRef.current;
 
+      const themeStyle = getThemeStyle(selectedTheme);
+
       const dataUrl = await toPng(node, {
         cacheBust: true,
-        backgroundColor: '#ffffff',
+        backgroundColor: themeStyle.background?.includes('linear-gradient') ? '#000000' : (themeStyle.background as string || '#ffffff'),
         width: config.width,
         height: config.height,
         pixelRatio: 2,
-        style: {
-          visibility: 'visible',
-          opacity: '1'
-        }
       });
 
       if (!dataUrl || dataUrl.length < 5000) {
         throw new Error("A imagem gerada parece estar corrompida ou vazia.");
       }
 
-      // Sistema de download resiliente para Mobile/Safari
       const blob = await (await fetch(dataUrl)).blob();
       const blobUrl = URL.createObjectURL(blob);
       
@@ -193,7 +189,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       toast({ 
         variant: "destructive", 
         title: "Erro na geração", 
-        description: "Não foi possível converter a arte. Tente novamente ou use o botão 'Compartilhar Link'." 
+        description: "A interface falhou ao codificar os pixels. Tente novamente." 
       });
     } finally {
       setIsGenerating(false);
@@ -373,17 +369,16 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-7xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[95vh] max-h-[900px]">
         
-        {/* Renderizador Off-screen mas com dimensões reais para forçar layout */}
+        {/* Renderizador Off-screen: Mantido VISÍVEL mas em coordenadas extremas para forçar pintura do motor do browser */}
         <div style={{ 
           position: 'fixed', 
           top: 0, 
-          left: '-10000px', 
+          left: '-20000px', 
           width: `${currentConfig.width}px`, 
           height: `${currentConfig.height}px`, 
           overflow: 'hidden', 
-          visibility: 'hidden', 
           pointerEvents: 'none',
-          zIndex: -1
+          zIndex: -100
         }}>
           <div ref={renderRef} style={{ width: '100%', height: '100%' }}>
               {renderFullArte(currentFormat, selectedTheme)}
