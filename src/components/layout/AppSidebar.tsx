@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -43,8 +42,6 @@ import {
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 import { useTranslation } from "@/i18n/i18n-context"
-import { LanguageSelector } from "./LanguageSelector"
-import { CurrencySelector } from "./CurrencySelector"
 
 export function AppSidebar() {
   const { t } = useTranslation()
@@ -129,7 +126,7 @@ export function AppSidebar() {
             <Image 
               src={settings.logoUrl} 
               alt={siteName} 
-              width={120} 
+              width={140} 
               height={40} 
               className="h-8 w-auto object-contain" 
               priority 
@@ -145,10 +142,6 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
       <SidebarContent>
-        <div className="px-6 mb-4 flex flex-col gap-2">
-          <LanguageSelector />
-          <CurrencySelector />
-        </div>
         {currentOrg && (
           <SidebarGroup>
             <SidebarGroupLabel className="px-6 text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">

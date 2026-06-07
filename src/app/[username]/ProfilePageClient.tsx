@@ -28,8 +28,6 @@ import { UserEventsContent } from "@/components/profile/user/UserEventsContent";
 import { UserGamification } from "@/components/profile/user/UserGamification";
 
 import Footer from "@/components/layout/Footer";
-import { LanguageSelector } from "@/components/layout/LanguageSelector"
-import { CurrencySelector } from "@/components/layout/CurrencySelector"
 
 export default function ProfilePageClient({ username }: { username: string }) {
   const db = useFirestore();
@@ -300,10 +298,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
             )}
           </Link>
           <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-1">
-               <LanguageSelector />
-               <CurrencySelector />
-            </div>
             {profileType === 'organization' && (
               <Button 
                 onClick={() => setIsShareModalOpen(true)}

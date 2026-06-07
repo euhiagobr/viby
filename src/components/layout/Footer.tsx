@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -7,6 +6,8 @@ import { Globe, Instagram } from "lucide-react"
 import { useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { useTranslation } from "@/i18n/i18n-context"
+import { LanguageSelector } from "./LanguageSelector"
+import { CurrencySelector } from "./CurrencySelector"
 
 export default function Footer() {
   const { t } = useTranslation()
@@ -68,13 +69,20 @@ export default function Footer() {
             </nav>
           </div>
         </div>
-        <div className="pt-8 border-t border-muted text-center flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="pt-8 border-t border-muted text-center flex flex-col md:flex-row justify-between items-center gap-8">
           <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
             {siteName} © 2026 - {t('footer.rights')}
           </p>
-          <div className="flex items-center gap-4 opacity-30">
-             <Globe className="w-4 h-4" />
-             <span className="text-[10px] font-bold uppercase">Brasil</span>
+          
+          <div className="flex flex-wrap items-center justify-center gap-6">
+             <div className="flex items-center gap-4">
+                <LanguageSelector />
+                <CurrencySelector />
+             </div>
+             <div className="flex items-center gap-2 opacity-30">
+                <Globe className="w-4 h-4" />
+                <span className="text-[10px] font-bold uppercase tracking-tighter">Brasil</span>
+             </div>
           </div>
         </div>
       </div>

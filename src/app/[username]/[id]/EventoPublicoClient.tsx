@@ -31,8 +31,6 @@ import {
   EventCoOrganizers
 } from '@/components/events';
 import { AgeRatingBadge } from '@/lib/age-rating';
-import { LanguageSelector } from "@/components/layout/LanguageSelector"
-import { CurrencySelector } from "@/components/layout/CurrencySelector"
 
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
   const router = useRouter()
@@ -134,10 +132,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
             </Link>
           </div>
           <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-1">
-               <LanguageSelector />
-               <CurrencySelector />
-            </div>
             <Button 
               onClick={() => setIsShareModalOpen(true)}
               className="bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg shadow-secondary/10 gap-2 h-10"

@@ -17,7 +17,6 @@ import Footer from "@/components/layout/Footer"
 import Image from "next/image"
 import { Separator } from "@/components/ui/separator"
 import { useTranslation } from "@/i18n/i18n-context"
-import { LanguageSelector } from "@/components/layout/LanguageSelector"
 
 function LoginContent() {
   const { t } = useTranslation()
@@ -91,7 +90,6 @@ function LoginContent() {
             <span className="text-xl font-bold tracking-tight">{siteName}</span>
           </Link>
           <div className="flex items-center gap-4">
-            <LanguageSelector />
             <Button variant="ghost" asChild className="font-semibold text-xs uppercase tracking-widest">
               <Link href="/"><ArrowLeft className="mr-2 h-4 w-4" /> {t('common.back')}</Link>
             </Button>
