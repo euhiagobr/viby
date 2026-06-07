@@ -7,10 +7,12 @@ import { getAdminDb } from '@/lib/firebase/admin';
 import { recordAuditLog } from './audit';
 
 async function getStripeInstance(db: admin.firestore.Firestore) {
+  console.log('[Stripe-Debug] Fetching Stripe settings from Firestore...');
   const stripeSettingsRef = db.collection('settings').doc('stripe');
   const snap = await stripeSettingsRef.get();
   
   if (!snap.exists) {
+    console.error('[Stripe-Debug] CRITICAL: Document settings/stripe not found.');
     throw new Error('Configurações do Stripe não localizadas no Firestore (settings/stripe).');
   }
 
@@ -18,19 +20,23 @@ async function getStripeInstance(db: admin.firestore.Firestore) {
   const secretKey = data?.secretKey?.trim();
   
   if (!secretKey) {
+    console.error('[Stripe-Debug] CRITICAL: Stripe Secret Key is missing in admin panel.');
     throw new Error('Secret Key do Stripe ausente no painel administrativo.');
   }
   
+  console.log('[Stripe-Debug] Stripe instance initialized successfully.');
   return new Stripe(secretKey, { apiVersion: '2024-12-18.acacia' as any });
 }
 
 export async function createStripeConnectAccount(orgId: string) {
+  console.log(`[Stripe-Debug] Starting Connect Account creation for Org: ${orgId}`);
   try {
     const db = getAdminDb();
     const orgRef = db.collection('organizations').doc(orgId);
     const orgSnap = await orgRef.get();
 
     if (!orgSnap.exists) {
+      console.error(`[Stripe-Debug] Error: Organization ${orgId} not found.`);
       throw new Error('Organização não encontrada.');
     }
     
@@ -38,8 +44,9 @@ export async function createStripeConnectAccount(orgId: string) {
     let accountId = orgData.stripeAccountId;
 
     if (!accountId) {
-      console.log(`[AUDIT] Criando nova conta Stripe para org: ${orgId}`);
+      console.log(`[Stripe-Debug] No existing account ID. Creating new Express account for ${orgData.name}...`);
       const stripe = await getStripeInstance(db);
+      
       const account = await stripe.accounts.create({
         type: 'express',
         country: 'BR',
@@ -57,17 +64,23 @@ export async function createStripeConnectAccount(orgId: string) {
       });
       
       accountId = account.id;
+      console.log(`[Stripe-Debug] Success! New Stripe Account created: ${accountId}`);
 
       await orgRef.update({
         stripeAccountId: accountId,
         stripeOnboardingComplete: false,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
-      console.log(`[AUDIT] stripeAccountId salvo com sucesso: ${accountId}`);
+      console.log(`[Stripe-Debug] Firestore updated with stripeAccountId.`);
+    } else {
+      console.log(`[Stripe-Debug] Reusing existing Stripe Account: ${accountId}`);
     }
 
     const linkRes = await createAccountOnboardingLink(orgId, accountId);
-    if (!linkRes.success) throw new Error(linkRes.error);
+    if (!linkRes.success) {
+      console.error(`[Stripe-Debug] Link generation failed: ${linkRes.error}`);
+      throw new Error(linkRes.error);
+    }
 
     await recordAuditLog({
       organizationId: orgId,
@@ -79,17 +92,20 @@ export async function createStripeConnectAccount(orgId: string) {
 
     return { success: true, accountId, url: linkRes.url };
   } catch (error: any) {
-    console.error("[Stripe Action Error]", error.message);
+    console.error("[Stripe-Debug] FATAL ERROR in createStripeConnectAccount:", error.message);
     return { success: false, error: error.message };
   }
 }
 
 export async function createAccountOnboardingLink(orgId: string, accountId: string) {
+  console.log(`[Stripe-Debug] Generating Onboarding Link for: ${accountId}`);
   try {
     const db = getAdminDb();
     const stripe = await getStripeInstance(db);
     const head = await headers();
     const origin = head.get('origin') || 'https://viby.club';
+    
+    console.log(`[Stripe-Debug] Using origin for callbacks: ${origin}`);
 
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
@@ -98,24 +114,25 @@ export async function createAccountOnboardingLink(orgId: string, accountId: stri
       type: 'account_onboarding',
     });
 
+    console.log(`[Stripe-Debug] Onboarding Link generated: ${accountLink.url.substring(0, 50)}...`);
     return { success: true, url: accountLink.url };
   } catch (error: any) {
+    console.error("[Stripe-Debug] Error in createAccountOnboardingLink:", error.message);
     return { success: false, error: error.message };
   }
 }
 
 export async function retrieveStripeAccount(accountId: string, orgId?: string) {
+  console.log(`[Stripe-Debug] Retrieving account state: ${accountId}`);
   try {
     const db = getAdminDb();
     const stripe = await getStripeInstance(db);
     
-    console.log(`[Diagnostic] Consulting Stripe for account: ${accountId}`);
     const account = await stripe.accounts.retrieve(accountId);
+    console.log(`[Stripe-Debug] Account retrieved. Charges Enabled: ${account.charges_enabled}`);
 
     if (orgId) {
-      console.log(`[Diagnostic] Syncing Stripe state to Firestore for org: ${orgId}`);
       const orgRef = db.collection('organizations').doc(orgId);
-      
       const isApproved = account.charges_enabled && account.payouts_enabled;
       
       await orgRef.update({
@@ -152,10 +169,10 @@ export async function retrieveStripeAccount(accountId: string, orgId?: string) {
       }
     };
   } catch (error: any) {
-    console.error("[Stripe Diagnostic Action Error]", error);
+    console.error("[Stripe-Debug] Error in retrieveStripeAccount:", error);
     
-    // Se a conta não existir no Stripe (ID órfão ou ambiente trocado)
     if (error.code === 'resource_missing' && orgId) {
+      console.warn(`[Stripe-Debug] Account not found in Stripe. Cleaning up Firestore for org: ${orgId}`);
       const db = getAdminDb();
       await db.collection('organizations').doc(orgId).update({
         stripeAccountId: admin.firestore.FieldValue.delete(),
