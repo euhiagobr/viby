@@ -65,8 +65,6 @@ service cloud.firestore {
                     || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'updatedAt', 'totalAttendeesCount', 'totalViews', 'totalReach']));
 
       match /members/{memberId} {
-        // Permitir que o usuário leia seu próprio registro de membro (necessário para queries de ownership)
-        // Permitir que membros leiam a lista de outros membros
         allow read: if isAdmin() 
                     || (isSignedIn() && request.auth.uid == memberId)
                     || (isSignedIn() && isOrgMember(orgId));

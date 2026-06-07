@@ -38,7 +38,8 @@ service firebase.storage {
     }
     
     match /support/{userId}/{allPaths=**} {
-      allow write: if isAdmin() || isOwner(userId);
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
     match /payout_proofs/{orgId}/{allPaths=**} {
