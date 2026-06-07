@@ -28,7 +28,8 @@ import {
   Zap,
   Building2,
   X,
-  ShieldCheck
+  ShieldCheck,
+  Info
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { MentionTextarea } from '@/components/ui/mention-textarea';
