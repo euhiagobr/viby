@@ -70,17 +70,23 @@ export default function AdminNotificacoesCreatorPage() {
   const [historySearch, setHistorySearch] = React.useState("");
   const notificationsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, "notifications"), orderBy("createdAt", "desc"), limit(100));
+    return query(collection(db, "notifications"), limit(100));
   }, [db]);
-  const { data: notifications, loading: loadingHistory } = useCollection<any>(notificationsQuery);
+  const { data: rawNotifications, loading: loadingHistory } = useCollection<any>(notificationsQuery);
 
   const filteredHistory = React.useMemo(() => {
-    if (!notifications) return [];
-    return notifications.filter(n => 
-      n.message?.toLowerCase().includes(historySearch.toLowerCase()) ||
-      n.senderName?.toLowerCase().includes(historySearch.toLowerCase())
-    );
-  }, [notifications, historySearch]);
+    if (!rawNotifications) return [];
+    return [...rawNotifications]
+      .sort((a, b) => {
+        const tA = a.createdAt?.seconds || 0;
+        const tB = b.createdAt?.seconds || 0;
+        return tB - tA;
+      })
+      .filter(n => 
+        n.message?.toLowerCase().includes(historySearch.toLowerCase()) ||
+        n.senderName?.toLowerCase().includes(historySearch.toLowerCase())
+      );
+  }, [rawNotifications, historySearch]);
 
   const handleSearchUser = async () => {
     if (!db || !searchTarget.trim() || isSearching) return;
@@ -230,7 +236,7 @@ export default function AdminNotificacoesCreatorPage() {
                             <div className="flex gap-2">
                                 <div className="relative flex-1">
                                   <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
-                                  <Input placeholder="Ex: joaosilva" value={searchTarget} onChange={e => setSearchTarget(e.target.value)} className="pl-10 h-12 rounded-xl border-dashed" onKeyDown={e => e.key === 'Enter' && handleSearchUser()} />
+                                  <Input placeholder="Ex: joaosilva" value={searchTarget} onChange={e => setSearchTarget(e.target.value)} className="pl-10 h-12 rounded-xl border-dashed border-secondary/30" onKeyDown={e => e.key === 'Enter' && handleSearchUser()} />
                                 </div>
                                 <Button onClick={handleSearchUser} disabled={isSearching} className="h-12 px-6 rounded-xl font-bold bg-secondary text-white">{isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : "Buscar"}</Button>
                             </div>
@@ -261,10 +267,16 @@ export default function AdminNotificacoesCreatorPage() {
                             <div className="flex flex-wrap gap-2">
                                <Button variant="outline" size="sm" className="h-7 text-[8px] font-black uppercase rounded-lg border-dashed" onClick={() => insertShortcut('**texto**')}>Negrito</Button>
                                <Button variant="outline" size="sm" className="h-7 text-[8px] font-black uppercase rounded-lg border-dashed" onClick={() => insertShortcut('[username]')}>Username</Button>
-                               <Button variant="outline" size="sm" className="h-7 text-[8px] font-black uppercase rounded-lg border-dashed" onClick={() => insertShortcut('[instagramx=viby]')}>Instagram</Button>
                             </div>
                          </div>
                          <MentionTextarea placeholder="Escreva sua mensagem..." value={message} onValueChange={setMessage} className="min-h-[180px] p-6 rounded-3xl border-dashed border-secondary/30" />
+                      </div>
+
+                      <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
+                         <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                         <p className="text-[9px] text-secondary font-bold uppercase leading-relaxed">
+                            Use o atalho [username] para que o sistema preencha automaticamente o nome de cada usuário.
+                         </p>
                       </div>
 
                       <Button onClick={handleSendNotification} disabled={isSending || (sendMode === 'single' && !targetUser) || !message.trim()} className={cn("w-full h-16 text-white font-black rounded-2xl shadow-xl uppercase italic text-lg", sendMode === 'all' ? "bg-primary" : "bg-secondary")}>
@@ -296,10 +308,10 @@ export default function AdminNotificacoesCreatorPage() {
           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
             <CardHeader className="p-8 border-b">
                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div><CardTitle className="text-xl font-black italic uppercase tracking-tighter">Histórico de Alertas</CardTitle><CardDescription>Monitoramento de {notifications?.length || 0} comunicados recentes.</CardDescription></div>
+                  <div><CardTitle className="text-xl font-black italic uppercase tracking-tighter">Histórico de Alertas</CardTitle><CardDescription>Monitoramento de comunicados recentes.</CardDescription></div>
                   <div className="relative w-full md:w-80">
                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                     <Input placeholder="Buscar no histórico..." value={historySearch} onChange={e => setHistorySearch(e.target.value)} className="pl-10 rounded-xl h-11" />
+                     <Input placeholder="Buscar no histórico..." value={historySearch} onChange={e => setHistorySearch(e.target.value)} className="pl-10 h-11 rounded-xl h-11" />
                   </div>
                </div>
             </CardHeader>

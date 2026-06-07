@@ -48,7 +48,7 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isAdmin() || (isSignedIn() && request.auth.uid == userId)
-                    || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'updatedAt', 'followingCount', 'totalXp', 'level']));
+                    || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'updatedAt', 'followingCount', 'totalXp', 'level', 'preferredCurrency', 'language']));
       
       match /private/sensitive {
         allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
@@ -104,7 +104,8 @@ service cloud.firestore {
     }
 
     match /notifications/{notifId} {
-      allow read: if isSignedIn() && (request.auth.uid == resource.data.targetUid || isAdmin());
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.targetUid);
+      allow list: if isAdmin() || (isSignedIn() && request.query.limit <= 100 && request.query.filters.targetUid == request.auth.uid);
       allow create: if isSignedIn();
       allow update: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.targetUid);
       allow delete: if isAdmin();
