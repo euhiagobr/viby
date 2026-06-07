@@ -150,7 +150,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    // Pequena pausa para garantir que o React renderizou as mudanças de formato no ref invisível
     await new Promise(resolve => setTimeout(resolve, 800));
 
     try {
@@ -162,14 +161,13 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         backgroundColor: '#ffffff',
         width: config.width,
         height: config.height,
-        pixelRatio: 1.5, // Melhorar nitidez
+        pixelRatio: 1.5,
         style: {
           visibility: 'visible',
           opacity: '1'
         }
       };
 
-      // Técnica de Captura Dupla para aquecer o canvas
       await toPng(node, exportOptions);
       await new Promise(resolve => setTimeout(resolve, 200));
       
@@ -366,20 +364,51 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-7xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[95vh] max-h-[900px]">
         
-        {/* Painel Lateral */}
-        <div className="w-full md:w-96 flex flex-col bg-white border-r shrink-0">
-          <div className="p-8 border-b bg-muted/10">
+        {/* Área de Preview - Destaque no mobile (Ordem alterada via flex-col-reverse ou custom CSS) */}
+        <div className="flex-1 p-6 md:p-10 bg-[#e2e8f0] flex flex-col items-center justify-center relative overflow-hidden order-1 md:order-2">
+          {isGenerating && (
+            <div className="absolute inset-0 z-[60] bg-primary/20 backdrop-blur-[2px] flex flex-col items-center justify-center">
+               <div className="p-8 bg-white rounded-3xl shadow-2xl flex flex-col items-center gap-4">
+                  <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-primary text-center">Renderizando Arquivo...</p>
+               </div>
+            </div>
+          )}
+
+          {/* Renderizador Off-Screen (Técnico) */}
+          <div style={{ position: 'absolute', left: '-9999px', top: 0, overflow: 'hidden' }}>
+            <div ref={renderRef} style={{ width: 'fit-content', height: 'fit-content' }}>
+               {renderFullArte(currentFormat, selectedTheme)}
+            </div>
+          </div>
+
+          {/* Prévia Visual Proporcional */}
+          <div className="scale-[0.18] sm:scale-[0.22] md:scale-[0.28] lg:scale-[0.32] origin-center shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white ring-[20px] md:ring-[30px] ring-white shrink-0 rounded-sm transition-transform">
+             {renderFullArte('stories', selectedTheme)}
+          </div>
+          
+          <div className="mt-8 md:mt-12 flex flex-col items-center gap-4">
+             <div className="flex items-center gap-3 px-6 py-2.5 bg-white/90 backdrop-blur-md rounded-full border shadow-xl">
+                <Monitor className="w-4 h-4 text-secondary" />
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Arte em Alta Resolução</p>
+             </div>
+          </div>
+        </div>
+
+        {/* Painel Lateral / Controles - Abaixo no mobile */}
+        <div className="w-full md:w-96 flex flex-col bg-white border-r shrink-0 order-2 md:order-1 max-h-[50vh] md:max-h-full">
+          <div className="p-6 md:p-8 border-b bg-muted/10">
              <DialogHeader>
                 <div className="flex items-center gap-3 mb-2">
                    <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Palette className="w-5 h-5" /></div>
-                   <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Artes de Divulgação</DialogTitle>
+                   <DialogTitle className="text-xl md:text-2xl font-black italic uppercase tracking-tighter text-primary">Divulgação</DialogTitle>
                 </div>
-                <DialogDescription className="font-bold text-[10px] uppercase opacity-60">Personalize e baixe seus materiais oficiais.</DialogDescription>
+                <DialogDescription className="font-bold text-[10px] uppercase opacity-60">Personalize e baixe seus materiais.</DialogDescription>
              </DialogHeader>
           </div>
 
           <ScrollArea className="flex-1">
-             <div className="p-8 space-y-10">
+             <div className="p-6 md:p-8 space-y-10">
                 {!isAssetsLoaded && (
                   <div className="p-6 bg-secondary/5 rounded-2xl border border-dashed border-secondary/20 flex flex-col items-center gap-4 text-center">
                      <Loader2 className="w-6 h-6 animate-spin text-secondary" />
@@ -395,12 +424,12 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
                           key={t.id}
                           variant={selectedTheme === t.id ? 'secondary' : 'outline'}
                           className={cn(
-                            "h-12 justify-start gap-2 rounded-xl text-[10px] font-black uppercase transition-all",
+                            "h-10 md:h-12 justify-start gap-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase transition-all px-3",
                             selectedTheme === t.id && "bg-secondary text-white shadow-lg shadow-secondary/10 border-none"
                           )}
                           onClick={() => setSelectedTheme(t.id)}
                         >
-                           <t.icon className={cn("w-3.5 h-3.5", selectedTheme === t.id ? "text-white" : "text-secondary")} />
+                           <t.icon className={cn("w-3 h-3 md:w-3.5 md:h-3.5", selectedTheme === t.id ? "text-white" : "text-secondary")} />
                            {t.label}
                         </Button>
                       ))}
@@ -412,24 +441,24 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
                 <div className="space-y-4">
                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Exportar Redes Sociais</p>
                    <div className="grid grid-cols-1 gap-2">
-                      <Button onClick={() => handleDownload('stories')} disabled={isGenerating || !isAssetsLoaded} className="h-16 rounded-2xl bg-secondary text-white font-black uppercase italic shadow-xl shadow-secondary/20 gap-3 group">
-                         <Smartphone className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                      <Button onClick={() => handleDownload('stories')} disabled={isGenerating || !isAssetsLoaded} className="h-14 md:h-16 rounded-2xl bg-secondary text-white font-black uppercase italic shadow-xl shadow-secondary/20 gap-3 group">
+                         <Smartphone className="w-5 h-5 md:w-6 md:h-6 group-hover:scale-110 transition-transform" />
                          <div className="text-left">
-                            <p className="text-sm">Stories Instagram</p>
-                            <p className="text-[9px] opacity-60">1080x1920 nativo</p>
+                            <p className="text-xs md:text-sm">Stories Instagram</p>
+                            <p className="text-[8px] md:text-[9px] opacity-60">1080x1920 nativo</p>
                          </div>
                       </Button>
-                      <Button onClick={() => handleDownload('instagram')} disabled={isGenerating || !isAssetsLoaded} variant="outline" className="h-14 rounded-2xl font-black uppercase italic text-xs gap-3 border-2">
-                         <Instagram className="w-5 h-5 text-pink-500" /> Post Feed (1:1)
+                      <Button onClick={() => handleDownload('instagram')} disabled={isGenerating || !isAssetsLoaded} variant="outline" className="h-12 md:h-14 rounded-2xl font-black uppercase italic text-xs gap-3 border-2">
+                         <Instagram className="w-4 h-4 md:w-5 md:h-5 text-pink-500" /> Post Feed (1:1)
                       </Button>
                    </div>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-3 pb-8">
                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Impressão (PDF/PNG)</p>
                    <div className="grid grid-cols-3 gap-2">
                       {(['A4', 'A5', 'A6'] as Format[]).map(f => (
-                        <Button key={f} variant="outline" onClick={() => handleDownload(f)} disabled={isGenerating || !isAssetsLoaded} className="h-12 rounded-xl text-[10px] font-black uppercase border-dashed">
+                        <Button key={f} variant="outline" onClick={() => handleDownload(f)} disabled={isGenerating || !isAssetsLoaded} className="h-10 md:h-12 rounded-xl text-[9px] md:text-[10px] font-black uppercase border-dashed">
                            {f}
                         </Button>
                       ))}
@@ -438,42 +467,11 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
              </div>
           </ScrollArea>
 
-          <div className="p-8 border-t bg-muted/10 flex flex-col gap-3">
+          <div className="p-6 md:p-8 border-t bg-muted/10 flex flex-col gap-3">
              <Button variant="ghost" onClick={handleNativeShare} className="w-full h-11 rounded-xl font-black uppercase text-[10px] gap-2 bg-white border shadow-sm hover:bg-muted">
                 <Share2 className="w-4 h-4" /> Compartilhar Link
              </Button>
              <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full h-11 rounded-xl font-bold uppercase text-[10px] opacity-30">Fechar</Button>
-          </div>
-        </div>
-
-        {/* Área de Preview */}
-        <div className="flex-1 p-6 md:p-10 bg-[#e2e8f0] flex flex-col items-center justify-center relative overflow-hidden">
-          {isGenerating && (
-            <div className="absolute inset-0 z-[60] bg-primary/20 backdrop-blur-[2px] flex flex-col items-center justify-center">
-               <div className="p-8 bg-white rounded-3xl shadow-2xl flex flex-col items-center gap-4">
-                  <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-primary">Renderizando Arquivo...</p>
-               </div>
-            </div>
-          )}
-
-          {/* Renderizador Off-Screen (Técnico) */}
-          <div style={{ position: 'absolute', left: '-9999px', top: 0, overflow: 'hidden' }}>
-            <div ref={renderRef} style={{ width: 'fit-content', height: 'fit-content' }}>
-               {renderFullArte(currentFormat, selectedTheme)}
-            </div>
-          </div>
-
-          {/* Prévia Visual Proporcional */}
-          <div className="scale-[0.25] md:scale-[0.28] lg:scale-[0.32] origin-center shadow-[0_60px_120px_rgba(0,0,0,0.4)] bg-white ring-[30px] ring-white shrink-0 rounded-sm">
-             {renderFullArte('stories', selectedTheme)}
-          </div>
-          
-          <div className="mt-12 flex flex-col items-center gap-4">
-             <div className="flex items-center gap-3 px-6 py-2.5 bg-white/90 backdrop-blur-md rounded-full border shadow-xl">
-                <Monitor className="w-4 h-4 text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Prévia de Alta Resolução</p>
-             </div>
           </div>
         </div>
       </DialogContent>
