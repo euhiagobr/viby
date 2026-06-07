@@ -12,16 +12,14 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
 import { 
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { 
   ArrowLeft, 
   Loader2, 
@@ -138,7 +136,6 @@ export default function AdminTicketResponsePage() {
 
     updateDoc(ticketRef, updateData)
       .then(async () => {
-        // Envio de E-mail de Resposta para o usuário dono do ticket
         if (ticket.userEmail) {
           sendSupportTicketResponseEmail({
             to: ticket.userEmail,
@@ -171,7 +168,6 @@ export default function AdminTicketResponsePage() {
     
     updateDoc(ticketRef, updateData)
       .then(async () => {
-        // Formatar histórico para o e-mail
         if (ticket.userEmail) {
           const historyHtml = `
             <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 20px;">
@@ -241,24 +237,24 @@ export default function AdminTicketResponsePage() {
                    Mover para Análise
                  </Button>
                )}
-               <AlertDialog>
-                 <AlertDialogTrigger asChild>
+               <Dialog>
+                 <DialogTrigger asChild>
                    <Button variant="destructive" size="sm" className="rounded-full gap-2 font-bold text-xs" disabled={isSubmitting}>
                      {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
                      Encerrar Chamado
                    </Button>
-                 </AlertDialogTrigger>
-                 <AlertDialogContent className="rounded-[2rem]">
-                   <AlertDialogHeader>
-                     <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Encerrar este ticket?</AlertDialogTitle>
-                     <AlertDialogDescription>Esta ação é irreversível.</AlertDialogDescription>
-                   </AlertDialogHeader>
-                   <AlertDialogFooter>
-                     <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Cancelar</AlertDialogCancel>
-                     <AlertDialogAction onClick={handleCloseTicket} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px]">Confirmar Encerramento</AlertDialogAction>
-                   </AlertDialogFooter>
-                 </AlertDialogContent>
-               </AlertDialog>
+                 </DialogTrigger>
+                 <DialogContent className="rounded-[2rem]">
+                   <DialogHeader>
+                     <DialogTitle className="text-xl font-black italic uppercase tracking-tighter">Encerrar este ticket?</DialogTitle>
+                     <DialogDescription>Esta ação é irreversível.</DialogDescription>
+                   </DialogHeader>
+                   <DialogFooter>
+                     <Button variant="ghost" className="rounded-xl font-bold uppercase text-[10px]" onClick={() => {}}>Cancelar</Button>
+                     <Button onClick={handleCloseTicket} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px]">Confirmar Encerramento</Button>
+                   </DialogFooter>
+                 </DialogContent>
+               </Dialog>
              </>
           )}
         </div>
@@ -268,7 +264,7 @@ export default function AdminTicketResponsePage() {
         <CardHeader className="bg-muted/30 border-b p-8">
           <div className="flex justify-between items-start">
              <CardTitle className="text-2xl font-bold tracking-tight">{ticket.subject}</CardTitle>
-             <Badge className={cn("font-black uppercase text-[10px] px-3 py-1", ticket.status === 'Não lida' ? "bg-orange-50 text-orange-600 border-orange-200" : "bg-green-500 text-white")}>
+             <Badge className={cn("font-black uppercase text-[9px] px-3 h-6", ticket.status === 'Não lida' ? "bg-orange-50 text-orange-600 border-orange-200" : "bg-green-500 text-white")}>
                {ticket.status}
              </Badge>
           </div>
