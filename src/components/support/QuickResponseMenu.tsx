@@ -16,7 +16,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
-import { Zap, MessageSquare, Search } from "lucide-react"
+import { Zap, MessageSquare } from "lucide-react"
 
 const QUICK_RESPONSES = [
   { 
