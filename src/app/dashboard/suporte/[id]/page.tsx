@@ -2,13 +2,15 @@
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useFirestore, useDoc, useAuth, useUser } from "@/firebase"
+import { useFirestore, useDoc, useAuth, useUser, useFirebaseApp } from "@/firebase"
 import { doc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore"
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Progress } from "@/components/ui/progress"
 import { 
   ArrowLeft, 
   Loader2, 
@@ -19,6 +21,7 @@ import {
   AlertCircle,
   MessageCircle,
   Paperclip,
+  X,
   FileText
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
@@ -31,16 +34,19 @@ export default function TicketDetailsPage() {
   const router = useRouter()
   const db = useFirestore()
   const auth = useAuth()
+  const app = useFirebaseApp()
   const { user } = useUser(auth)
   const ticketId = params.id as string
 
+  const storage = React.useMemo(() => (app ? getStorage(app) : null), [app])
   const ticketRef = React.useMemo(() => db ? doc(db, "support_tickets", ticketId) : null, [db, ticketId])
   const { data: ticket, loading } = useDoc<any>(ticketRef)
 
   const [newMessage, setNewMessage] = React.useState("")
+  const [attachments, setAttachments] = React.useState<string[]>([])
+  const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
   const [isSending, setIsSending] = React.useState(false)
 
-  // Lógica de leitura: Se o ticket estiver como "Respondida", marcamos como "Em tratamento" (Lido)
   React.useEffect(() => {
     if (ticket && ticket.status === 'Respondida' && db) {
       updateDoc(doc(db, "support_tickets", ticket.id), {
@@ -50,15 +56,49 @@ export default function TicketDetailsPage() {
     }
   }, [ticket, db]);
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !storage || !user) return
+
+    setUploadProgress(0)
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+      const fileName = `support/${user.uid}/replies/${Date.now()}_${safeName}`;
+      const storageRef = ref(storage, fileName);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      uploadTask.on('state_changed', 
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setUploadProgress(progress);
+        },
+        (error) => {
+          console.error("Storage error:", error);
+          toast({ variant: "destructive", title: "Erro no upload", description: "O limite de tamanho pode ter sido excedido." });
+          setUploadProgress(null);
+        },
+        async () => {
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          setAttachments(prev => [...prev, url]);
+          setUploadProgress(null);
+          toast({ title: "Arquivo anexado!" });
+        }
+      )
+    } catch (err) {
+      setUploadProgress(null);
+    }
+  }
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!db || !user || !ticketRef || !newMessage.trim()) return
+    if (!db || !user || !ticketRef || (!newMessage.trim() && attachments.length === 0)) return
 
     setIsSending(true)
     const messageObj = {
       senderId: user.uid,
       senderName: user.displayName || "Usuário",
       text: newMessage.trim(),
+      attachments: attachments,
       timestamp: new Date().toISOString(),
       isAdmin: false
     }
@@ -72,6 +112,7 @@ export default function TicketDetailsPage() {
     updateDoc(ticketRef, updateData)
       .then(() => {
         setNewMessage("")
+        setAttachments([])
         toast({ title: "Mensagem enviada!" })
       })
       .catch(async (serverError) => {
@@ -162,7 +203,16 @@ export default function TicketDetailsPage() {
                         {msg.isAdmin ? <ShieldCheck className="w-3 h-3" /> : <User className="w-3 h-3" />}
                         {msg.senderName}
                       </div>
-                      {msg.text}
+                      <p className="leading-relaxed">{msg.text}</p>
+                      {msg.attachments?.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-1">
+                          {msg.attachments.map((url: string, idx: number) => (
+                            <a key={idx} href={url} target="_blank" className="flex items-center gap-1.5 p-1.5 bg-white/10 rounded-lg text-[9px] font-black uppercase hover:bg-white/20 transition-all border border-white/10">
+                              <Paperclip className="w-3 h-3" /> Anexo
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <span className="text-[9px] font-bold text-muted-foreground uppercase">
                       {new Date(msg.timestamp).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
@@ -186,10 +236,38 @@ export default function TicketDetailsPage() {
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   className="rounded-2xl border-secondary/20 min-h-[100px]"
-                  required
                 />
               </div>
-              <Button type="submit" disabled={isSending || !newMessage.trim()} className="w-full bg-secondary text-white font-black h-12 rounded-xl shadow-lg uppercase italic">
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Anexos</Label>
+                  <label className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-xl cursor-pointer hover:bg-muted/80 transition-colors text-[9px] font-black uppercase">
+                    <Paperclip className="w-3 h-3 text-secondary" /> Adicionar Arquivo
+                    <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} />
+                  </label>
+                </div>
+
+                {attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {attachments.map((url, i) => (
+                      <div key={i} className="relative group w-14 h-14 rounded-lg bg-muted border overflow-hidden">
+                        {url.includes('.pdf') ? (
+                          <div className="flex items-center justify-center h-full text-secondary"><FileText className="w-6 h-6" /></div>
+                        ) : (
+                          <img src={url} className="w-full h-full object-cover" alt="Anexo" />
+                        )}
+                        <button type="button" onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 bg-destructive text-white p-0.5 rounded-bl-lg">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {uploadProgress !== null && <div className="space-y-1"><Progress value={uploadProgress} className="h-1" /><p className="text-[8px] font-black uppercase text-secondary">Enviando: {Math.round(uploadProgress)}%</p></div>}
+              </div>
+
+              <Button type="submit" disabled={isSending || (newMessage.trim() === "" && attachments.length === 0) || uploadProgress !== null} className="w-full bg-secondary text-white font-black h-12 rounded-xl shadow-lg uppercase italic">
                 {isSending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
                 Enviar Resposta
               </Button>
