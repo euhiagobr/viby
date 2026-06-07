@@ -1,0 +1,17 @@
+
+{
+  "feature": "Admin Quick Responses",
+  "description": "Sistema de templates para agilizar o atendimento no painel administrativo.",
+  "variables": {
+    "[nome]": "Nome do atendente (Admin)",
+    "[cliente]": "Nome do usuário (Ticket Owner)",
+    "[ticket]": "Número do protocolo",
+    "[email]": "E-mail do cliente",
+    "[data]": "Data atual",
+    "[hora]": "Hora atual",
+    "[dataHora]": "Data e hora combinadas",
+    "[evento]": "Título do evento relacionado",
+    "[organizacao]": "Nome da marca relacionada"
+  },
+  "storage": "Hardcoded no componente QuickResponseMenu para latência zero."
+}

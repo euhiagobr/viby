@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -40,6 +41,7 @@ import { cn } from "@/lib/utils"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import { sendSupportTicketResponseEmail, sendSupportTicketClosedEmail } from "@/app/actions/email"
+import { QuickResponseMenu } from "@/components/support/QuickResponseMenu"
 
 const MAX_SUPPORT_FILES = 3;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
@@ -50,7 +52,7 @@ export default function AdminTicketResponsePage() {
   const db = useFirestore()
   const auth = useAuth()
   const app = useFirebaseApp()
-  const { user } = useUser(auth)
+  const { user, profile } = useUser(auth)
   const ticketId = params.id as string
 
   const storage = React.useMemo(() => (app ? getStorage(app) : null), [app])
@@ -121,7 +123,7 @@ export default function AdminTicketResponsePage() {
     setIsSubmitting(true)
     const messageObj = {
       senderId: user.uid,
-      senderName: "Suporte Viby",
+      senderName: profile?.name || "Suporte Viby",
       text: response.trim(),
       attachments: attachments,
       timestamp: new Date().toISOString(),
@@ -162,7 +164,7 @@ export default function AdminTicketResponsePage() {
   }
 
   const handleCloseTicket = async () => {
-    if (!db || !ticketRef || !ticket) return
+    if (!db || !ticketRef || !ticket || isSubmitting) return
     setIsSubmitting(true)
     
     const updateData = { 
@@ -196,7 +198,7 @@ export default function AdminTicketResponsePage() {
         });
       }
       
-      toast({ title: "Ticket encerrado!", description: "E-mail de conclusão enviado ao usuário." })
+      toast({ title: "Ticket encerrado!", description: "O histórico foi enviado por e-mail ao cliente." })
     } catch (error: any) {
       if (error.code === 'permission-denied') {
         errorEmitter.emit("permission-error", new FirestorePermissionError({ path: ticketRef.path, operation: "update", requestResourceData: updateData }));
@@ -231,7 +233,7 @@ export default function AdminTicketResponsePage() {
           </Button>
           <div>
             <h1 className="text-2xl font-black italic uppercase tracking-tighter">Ticket #{ticket.protocol}</h1>
-            <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest opacity-60">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
               Usuário: {ticket.userName} ({ticket.userEmail})
             </p>
           </div>
@@ -255,7 +257,7 @@ export default function AdminTicketResponsePage() {
                  <DialogContent className="rounded-[2rem]">
                    <DialogHeader>
                      <DialogTitle className="text-xl font-black italic uppercase tracking-tighter">Encerrar este ticket?</DialogTitle>
-                     <DialogDescription>Esta ação é irreversível e enviará o histórico por e-mail.</DialogDescription>
+                     <DialogDescription>Esta ação é irreversível e enviará o histórico completo por e-mail ao cliente.</DialogDescription>
                    </DialogHeader>
                    <DialogFooter>
                      <Button variant="ghost" className="rounded-xl font-bold uppercase text-[10px]" onClick={() => {}}>Cancelar</Button>
@@ -323,8 +325,20 @@ export default function AdminTicketResponsePage() {
           {ticket.status !== 'Encerrada' && (
             <form onSubmit={handleSendResponse} className="pt-8 border-t border-dashed space-y-6">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Resposta Oficial</Label>
-                <Textarea placeholder="Digite a resposta..." value={response} onChange={(e) => setResponse(e.target.value)} className="rounded-[1.5rem] min-h-[150px]" />
+                <div className="flex items-center justify-between px-1">
+                   <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Resposta Oficial</Label>
+                   <QuickResponseMenu 
+                    onSelect={(text) => setResponse(prev => prev + (prev ? "\n\n" : "") + text)}
+                    ticketData={ticket}
+                    agentName={profile?.name || "Suporte Viby"}
+                   />
+                </div>
+                <Textarea 
+                  placeholder="Digite a resposta..." 
+                  value={response} 
+                  onChange={(e) => setResponse(e.target.value)} 
+                  className="rounded-[1.5rem] min-h-[150px]" 
+                />
               </div>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
