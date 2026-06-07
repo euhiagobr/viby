@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, where, orderBy, limit, doc, writeBatch } from "firebase/firestore"
+import { collection, query, where, limit, doc, writeBatch } from "firebase/firestore"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -34,15 +34,25 @@ export default function NotificacoesPage() {
 
   const notificationsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
+    // Removendo orderBy do Firestore para garantir que notificações antigas sem o campo createdAt apareçam
     return query(
       collection(db, "notifications"),
       where("targetUid", "==", user.uid),
-      orderBy("createdAt", "desc"),
-      limit(50)
+      limit(100)
     )
   }, [db, user?.uid])
 
-  const { data: notifications, loading } = useCollection<any>(notificationsQuery)
+  const { data: rawNotifications, loading } = useCollection<any>(notificationsQuery)
+
+  // Ordenação em memória para resiliência de dados
+  const notifications = React.useMemo(() => {
+    if (!rawNotifications) return []
+    return [...rawNotifications].sort((a, b) => {
+      const tA = a.createdAt?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() : 0) || 0
+      const tB = b.createdAt?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() : 0) || 0
+      return tB - tA
+    })
+  }, [rawNotifications])
 
   // Marcar como lida automaticamente ao carregar
   React.useEffect(() => {
