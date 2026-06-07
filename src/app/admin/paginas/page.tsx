@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -67,7 +68,10 @@ import {
   MapPin,
   TrendingUp,
   RefreshCw,
-  Lock
+  Lock,
+  Coins,
+  Info,
+  Percent
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -454,6 +458,7 @@ export default function AdminPaginasPage() {
                     <TabsList className="bg-transparent p-0 h-14 w-full justify-start gap-8">
                        <TabsTrigger value="geral" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Informações</TabsTrigger>
                        <TabsTrigger value="visual" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Identidade</TabsTrigger>
+                       <TabsTrigger value="taxas" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Taxas</TabsTrigger>
                        <TabsTrigger value="fiscal" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Fiscais</TabsTrigger>
                        <TabsTrigger value="endereco" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Localização</TabsTrigger>
                        <TabsTrigger value="social" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Contatos</TabsTrigger>
@@ -539,6 +544,66 @@ export default function AdminPaginasPage() {
                              </div>
                           </TabsContent>
 
+                          <TabsContent value="taxas" className="space-y-8 mt-0">
+                             <div className="p-6 bg-secondary/5 rounded-[2rem] border border-secondary/10 flex items-start gap-4 mb-6">
+                                <Info className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
+                                <div className="space-y-1">
+                                   <h4 className="font-black uppercase text-xs italic text-primary">Regras de Exceção</h4>
+                                   <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed">
+                                      Configure taxas exclusivas para esta organização. Se deixadas em branco, o Viby aplicará as taxas globais (15% Markup e 10% ou R$ 3,99 Comissão).
+                                   </p>
+                                </div>
+                             </div>
+
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-2">
+                                   <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
+                                      <Percent className="w-3.5 h-3.5 text-secondary" /> Taxa do Comprador (Markup %)
+                                   </Label>
+                                   <div className="relative">
+                                      <Input 
+                                        type="number" step="0.1" 
+                                        value={editingOrg?.customBuyerMarkup ?? ""} 
+                                        onChange={e => setEditingOrg({...editingOrg, customBuyerMarkup: e.target.value ? parseFloat(e.target.value) : null})}
+                                        className="rounded-xl h-12 pr-10 font-bold" 
+                                        placeholder="Padrão: 15%"
+                                      />
+                                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">%</span>
+                                   </div>
+                                </div>
+                                <div className="space-y-2">
+                                   <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
+                                      <Percent className="w-3.5 h-3.5 text-primary" /> Comissão da Plataforma (%)
+                                   </Label>
+                                   <div className="relative">
+                                      <Input 
+                                        type="number" step="0.1" 
+                                        value={editingOrg?.customOrganizerPercent ?? ""} 
+                                        onChange={e => setEditingOrg({...editingOrg, customOrganizerPercent: e.target.value ? parseFloat(e.target.value) : null})}
+                                        className="rounded-xl h-12 pr-10 font-bold" 
+                                        placeholder="Padrão: 10%"
+                                      />
+                                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">%</span>
+                                   </div>
+                                </div>
+                                <div className="space-y-2">
+                                   <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
+                                      <Coins className="w-3.5 h-3.5 text-secondary" /> Valor Mínimo Retido (R$)
+                                   </Label>
+                                   <div className="relative">
+                                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">R$</span>
+                                      <Input 
+                                        type="number" step="0.01" 
+                                        value={editingOrg?.customOrganizerMinFee ?? ""} 
+                                        onChange={e => setEditingOrg({...editingOrg, customOrganizerMinFee: e.target.value ? parseFloat(e.target.value) : null})}
+                                        className="rounded-xl h-12 pl-10 font-bold" 
+                                        placeholder="Padrão: 3,99"
+                                      />
+                                   </div>
+                                </div>
+                             </div>
+                          </TabsContent>
+
                           <TabsContent value="fiscal" className="space-y-8 mt-0">
                              <div className="space-y-6">
                                <div className="space-y-2">
@@ -556,7 +621,7 @@ export default function AdminPaginasPage() {
                                  <div className="space-y-4">
                                     <div className="space-y-2">
                                       <div className="flex items-center justify-between">
-                                        <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Fingerprint className="w-3 h-3" /> CPF (Titular)</Label>
+                                        <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Fingerprint className="w-3.5 h-3.5" /> CPF (Titular)</Label>
                                         <div className="flex items-center gap-2">
                                           <span className="text-[8px] font-bold uppercase opacity-40">Público</span>
                                           <Switch checked={editingOrg?.showCpf ?? false} onCheckedChange={v => setEditingOrg({...editingOrg, showCpf: v})} />
@@ -590,7 +655,7 @@ export default function AdminPaginasPage() {
                                        </div>
                                     </div>
                                     <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome Fantasia</Label><Input value={editingOrg?.nomeFantasia || editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, nomeFantasia: e.target.value})} className="rounded-xl h-11" /></div>
-                                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Lock className="w-3 h-3" /> CPF do Representante Legal (Privado)</Label><Input value={editingOrg?.representanteLegalCpf || ""} onChange={e => setEditingOrg({...editingOrg, representanteLegalCpf: e.target.value})} className="rounded-xl h-11 font-mono" placeholder="000.000.000-00" /></div>
+                                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Lock className="w-3 h-3" /> CPF do Representante Legal (Privado)</Label><Input value={editingOrg?.representanteLegalCpf || ""} onChange={e => setEditingOrg({...editingLegalCpf: e.target.value})} className="rounded-xl h-11 font-mono" placeholder="000.000.000-00" /></div>
                                  </div>
                                )}
                              </div>
