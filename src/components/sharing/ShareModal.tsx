@@ -98,17 +98,17 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     try {
       const [vibyRes, orgRes, bannerRes] = await Promise.all([
         fetchImageAsBase64(VIBY_LOGO_OFFICIAL),
-        data.logoUrl ? fetchImageAsBase64(data.logoUrl) : Promise.resolve({ success: false }),
-        data.bannerUrl ? fetchImageAsBase64(data.bannerUrl) : Promise.resolve({ success: false })
+        data.logoUrl ? fetchImageAsBase64(data.logoUrl) : Promise.resolve({ success: false, data: null }),
+        data.bannerUrl ? fetchImageAsBase64(data.bannerUrl) : Promise.resolve({ success: false, data: null })
       ]);
 
-      if (vibyRes.success) setVibyLogoBase64(vibyRes.data!);
-      if (orgRes.success) setOrgLogoBase64(orgRes.data!);
-      if (bannerRes.success) setBannerBase64(bannerRes.data!);
+      if (vibyRes.success && vibyRes.data) setVibyLogoBase64(vibyRes.data);
+      if (orgRes.success && orgRes.data) setOrgLogoBase64(orgRes.data);
+      if (bannerRes.success && bannerRes.data) setBannerBase64(bannerRes.data);
 
       setIsAssetsLoaded(true);
     } catch (e) {
-      console.error("[SHARE-MODAL] Erro no carregamento de assets:", e);
+      console.error("[SHARE-MODAL] Assets loading failed:", e);
       setIsAssetsLoaded(true); 
     }
   }, [data.logoUrl, data.bannerUrl]);
@@ -150,8 +150,8 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    // Aguarda atualização do estado e renderização do contêiner off-screen
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Pequena pausa para garantir que o React renderizou as mudanças de formato no ref invisível
+    await new Promise(resolve => setTimeout(resolve, 800));
 
     try {
       const config = FORMAT_CONFIGS[format];
@@ -162,29 +162,34 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         backgroundColor: '#ffffff',
         width: config.width,
         height: config.height,
-        pixelRatio: 1,
-        // Forçar renderização de imagens externas convertidas
+        pixelRatio: 1.5, // Melhorar nitidez
         style: {
           visibility: 'visible',
+          opacity: '1'
         }
       };
 
-      // Técnica de Captura Dupla: O primeiro "toPng" aquece o cache de renderização do motor html-to-image
-      // Isso resolve 99% dos problemas de imagem em branco ou fontes faltando.
+      // Técnica de Captura Dupla para aquecer o canvas
       await toPng(node, exportOptions);
-      await new Promise(resolve => setTimeout(resolve, 100)); // Pequena pausa
+      await new Promise(resolve => setTimeout(resolve, 200));
       
       const dataUrl = await toPng(node, exportOptions);
+
+      if (!dataUrl || dataUrl.length < 1000) {
+        throw new Error("Falha na geração dos pixels da imagem.");
+      }
 
       const link = document.createElement('a');
       link.download = `viby-${data.username}-${format}.png`;
       link.href = dataUrl;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
       
       toast({ title: "Arte gerada!", description: `Download do formato ${format} concluído.` });
     } catch (err) {
       console.error("[Download Error]", err);
-      toast({ variant: "destructive", title: "Erro ao gerar imagem", description: "Ocorreu um erro no processador visual." });
+      toast({ variant: "destructive", title: "Erro ao gerar imagem", description: "O processador visual falhou. Tente novamente." });
     } finally {
       setIsGenerating(false);
     }
@@ -279,7 +284,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
            <p style={{ 
              fontSize: `${fontSize}px`, fontWeight: 900, color: theme === 'premium' ? '#D4AF37' : (isDark ? '#ffffff' : '#2C52EE'), 
-             margin: 0, fontFamily: 'monospace', padding: '10px 40px', borderRadius: '20px',
+             margin: 0, fontStyle: 'italic', padding: '10px 40px', borderRadius: '20px',
              backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'
            }}>
              viby.club/{data.username}
