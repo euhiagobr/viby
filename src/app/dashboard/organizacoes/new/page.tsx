@@ -353,9 +353,7 @@ export default function NovaOrganizacaoPage() {
 
         <Card className="border-none shadow-sm overflow-hidden rounded-[2rem]">
           <CardHeader className="bg-muted/30">
-            <CardTitle className="text-lg flex items-center gap-2">
-               <Camera className="w-5 h-5 text-secondary" /> Identidade Visual
-            </CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2"><Camera className="w-5 h-5 text-secondary" /> Identidade Visual</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="relative">
@@ -467,6 +465,7 @@ export default function NovaOrganizacaoPage() {
           </CardContent>
         </Card>
 
+        {/* NOVOS CAMPOS FISCAIS */}
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
              <CardTitle className="text-lg flex items-center gap-2"><Fingerprint className="w-5 h-5 text-secondary" /> Dados Fiscais</CardTitle>
@@ -586,7 +585,7 @@ export default function NovaOrganizacaoPage() {
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> Telefone Público</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp</Label>
                   <Input value={formData.phone} onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))} placeholder="(00) 00000-0000" className="rounded-xl h-11" required />
                 </div>
                 <div className="space-y-2">
