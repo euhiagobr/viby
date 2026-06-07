@@ -93,16 +93,21 @@ export function RevenueSimulator({ isOpen, onOpenChange, customFees }: RevenueSi
               </p>
             </div>
             
-            <div className="flex justify-between items-center text-sm font-bold">
-               <span className="flex items-center gap-2 text-muted-foreground uppercase text-[10px] tracking-tight">
-                  <Percent className="w-3.5 h-3.5" /> Comissão Retida pela Viby
-               </span>
-               <div className="flex flex-col items-end">
-                  <span className="text-red-500">-{formatPrice(results.organizerFee, currency)}</span>
-                  {isMinFeeApplied && (
-                    <Badge className="h-4 text-[7px] font-black uppercase bg-orange-50 text-white border-none mt-1">Trava de Mínimo Ativa</Badge>
-                  )}
-               </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-sm font-bold">
+                 <span className="flex items-center gap-2 text-muted-foreground uppercase text-[10px] tracking-tight">
+                    <Percent className="w-3.5 h-3.5" /> Comissão Retida pela Viby
+                 </span>
+                 <div className="flex flex-col items-end">
+                    <span className="text-red-500">-{formatPrice(results.organizerFee, currency)}</span>
+                    {isMinFeeApplied && (
+                      <Badge className="h-4 text-[7px] font-black uppercase bg-orange-50 text-white border-none mt-1">Trava de Mínimo Ativa</Badge>
+                    )}
+                 </div>
+              </div>
+              <p className="text-[9px] text-muted-foreground leading-tight ml-6 uppercase font-medium italic">
+                Comissão aplicada sobre a venda para custear a operação da plataforma, incluindo tecnologia, suporte e recursos de gestão.
+              </p>
             </div>
 
             <Separator className="border-dashed" />
