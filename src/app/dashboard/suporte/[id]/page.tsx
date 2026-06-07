@@ -55,14 +55,6 @@ export default function TicketDetailsPage() {
     const file = e.target.files?.[0]
     if (!file || !storage || !user || !auth) return;
 
-    // AUDITORIA FINAL - ESTADO DO TOKEN
-    console.group('AUDITORIA FINAL - STORAGE UPLOAD (USUÁRIO)');
-    console.log('Auth Instance App:', auth.app.name);
-    console.log('Storage Instance App:', storage.app.name);
-    console.log('Current User (Hook):', user.uid);
-    console.log('Current User (Auth SDK):', auth.currentUser?.uid || 'NULL');
-    console.groupEnd();
-
     if (!auth.currentUser) {
        toast({ variant: "destructive", title: "Sincronizando...", description: "Aguarde um instante para que sua sessão seja validada." });
        return;
@@ -83,13 +75,11 @@ export default function TicketDetailsPage() {
       const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
       const filePath = `support/${user.uid}/replies/${Date.now()}_${safeName}`;
       const storageRef = ref(storage, filePath);
-      
       const uploadTask = uploadBytesResumable(storageRef, file);
 
       uploadTask.on('state_changed', 
         (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
         (error) => {
-          console.error('ETAPA 4: ERRO UPLOAD (USUÁRIO)', error);
           setUploadProgress(null);
         },
         async () => {

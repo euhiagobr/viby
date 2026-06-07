@@ -68,15 +68,6 @@ export default function AdminTicketResponsePage() {
     const file = e.target.files?.[0]
     if (!file || !storage || !user || !auth) return;
 
-    // AUDITORIA FINAL - ESTADO DO TOKEN
-    console.group('AUDITORIA FINAL - STORAGE UPLOAD (ADMIN)');
-    console.log('Auth Instance App:', auth.app.name);
-    console.log('Storage Instance App:', storage.app.name);
-    console.log('Current User (Hook):', user.uid);
-    console.log('Current User (Auth SDK):', auth.currentUser?.uid || 'NULL');
-    console.log('Is Token Valid?:', !!auth.currentUser);
-    console.groupEnd();
-
     if (!auth.currentUser) {
        toast({ variant: "destructive", title: "Erro de Sessão", description: "Sua sessão de autenticação não foi reconhecida pelo Storage. Tente recarregar a página." });
        return;
@@ -96,9 +87,7 @@ export default function AdminTicketResponsePage() {
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
       const filePath = `support/${user.uid}/replies/${Date.now()}_${safeName}`;
-      
       const storageRef = ref(storage, filePath);
-      console.log('ETAPA 4: Chamando uploadBytesResumable (ADMIN)');
       const uploadTask = uploadBytesResumable(storageRef, file);
 
       uploadTask.on('state_changed', 
@@ -107,11 +96,6 @@ export default function AdminTicketResponsePage() {
           setUploadProgress(progress);
         },
         (error) => {
-          console.error('ETAPA 4: ERRO UPLOAD (ADMIN)', {
-            code: error.code,
-            message: error.message,
-            uid: auth.currentUser?.uid
-          });
           toast({ variant: "destructive", title: "Erro no upload", description: `Falha: ${error.code}` });
           setUploadProgress(null);
         },
@@ -122,12 +106,11 @@ export default function AdminTicketResponsePage() {
             setUploadProgress(null);
             toast({ title: "Arquivo anexado!" });
           } catch (urlErr: any) {
-            console.error('ETAPA 5: ERRO URL (ADMIN)', urlErr);
+            setUploadProgress(null);
           }
         }
       )
     } catch (err: any) {
-      console.error('UPLOAD ERROR (ADMIN/TRY)', err);
       setUploadProgress(null);
     }
   }
