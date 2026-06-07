@@ -150,22 +150,20 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    // Sincronização agressiva para Mobile: aguarda dois frames de renderização
+    // Aguarda processamento do layout
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    // Delay extra para decodificação do Base64 no motor do Safari/Chrome Mobile
-    await new Promise(resolve => setTimeout(resolve, 800));
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     try {
       const config = FORMAT_CONFIGS[format];
       const node = renderRef.current;
 
-      // Forçar o browser a terminar de desenhar as imagens base64 antes de capturar o canvas
+      // FORÇA DECODIFICAÇÃO DE HARDWARE ANTES DO SNAPSHOT (Essencial para Mobile)
       const images = Array.from(node.querySelectorAll('img'));
       await Promise.all(images.map(img => {
-        if (img.complete) return img.decode().catch(() => {});
-        return new Promise(resolve => {
-          img.onload = () => (img as HTMLImageElement).decode().then(resolve).catch(resolve);
-          img.onerror = resolve;
+        if (!img.src) return Promise.resolve();
+        return (img as HTMLImageElement).decode().catch((e) => {
+          console.warn("[ShareModal] Falha ao decodificar imagem para canvas:", e);
         });
       }));
       
@@ -173,18 +171,17 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
       const dataUrl = await toPng(node, {
         cacheBust: true,
-        backgroundColor: themeStyle.background?.includes('linear-gradient') ? '#000000' : (themeStyle.background as string || '#ffffff'),
+        backgroundColor: themeStyle.background?.toString().includes('gradient') ? '#000000' : (themeStyle.background as string || '#ffffff'),
         width: config.width,
         height: config.height,
-        pixelRatio: 2, // Garante nitidez em telas de alta densidade (Retina/OLED)
+        pixelRatio: 2,
         skipFonts: false
       });
 
       if (!dataUrl || dataUrl.length < 5000) {
-        throw new Error("A imagem gerada parece estar vazia ou corrompida.");
+        throw new Error("A imagem gerada está vazia.");
       }
 
-      // Conversão para Blob para estabilidade em downloads mobile
       const blob = await (await fetch(dataUrl)).blob();
       const blobUrl = URL.createObjectURL(blob);
       
@@ -195,14 +192,14 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       link.click();
       document.body.removeChild(link);
       
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
-      toast({ title: "Download Iniciado!", description: "Sua arte foi gerada." });
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      toast({ title: "Arte gerada com sucesso!" });
     } catch (err: any) {
       console.error("[Download Error]", err);
       toast({ 
         variant: "destructive", 
         title: "Erro na geração", 
-        description: "Houve uma falha técnica ao processar os pixels no seu dispositivo." 
+        description: "Tente novamente em instantes." 
       });
     } finally {
       setIsGenerating(false);
@@ -252,7 +249,8 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          flexShrink: 0
+          flexShrink: 0,
+          position: 'relative'
         }}>
           {orgLogoBase64 ? (
             <img src={orgLogoBase64} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
@@ -359,9 +357,14 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     return (
       <div style={containerStyle}>
         {theme === 'foto' && bannerBase64 && (
-          <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-            <img src={bannerBase64} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(30px) brightness(0.4)' }} alt="" />
-          </div>
+          <img 
+            src={bannerBase64} 
+            style={{ 
+              position: 'absolute', inset: 0, zIndex: 0, width: '100%', height: '100%', 
+              objectFit: 'cover', filter: 'blur(30px) brightness(0.4)' 
+            }} 
+            alt="" 
+          />
         )}
         <div style={{ position: 'relative', zIndex: 10, width: '100%', display: 'flex', justifyContent: 'center' }}>
           {renderLogoSection(logoSize, theme)}
@@ -382,7 +385,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-7xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[95vh] max-h-[900px]">
         
-        {/* Renderizador Off-screen: Posição visível mas fora da viewport para forçar o hardware a desenhar os pixels */}
+        {/* Renderizador Off-screen: Posição visível mas fora da viewport */}
         <div style={{ 
           position: 'fixed', 
           top: 0, 
@@ -404,7 +407,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
             <div className="absolute inset-0 z-[60] bg-primary/20 backdrop-blur-[2px] flex flex-col items-center justify-center">
                <div className="p-8 bg-white rounded-3xl shadow-2xl flex flex-col items-center gap-4">
                   <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-primary text-center">Codificando pixels...</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-primary text-center">Processando Pixels...</p>
                </div>
             </div>
           )}
